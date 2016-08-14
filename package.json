@@ -1,0 +1,33 @@
+{
+  "name": "byteballcore",
+  "description": "Byteball Core",
+  "author": "Byteball",
+  "version": "0.1.0",
+  "keywords": [
+    "byteball",
+    "multisignature"
+  ],
+  "homepage": "https://github.com/byteball/byteballcore",
+  "license": "MIT",
+  "repository": {
+    "url": "git://github.com/byteball/byteballcore.git",
+    "type": "git"
+  },
+  "bugs": {
+    "url": "https://github.com/byteball/byteballcore/issues"
+  },
+  "browser": {
+    "request": "browser-request",
+    "secp256k1": "secp256k1/js"
+  },
+  "dependencies": {
+    "ws": "^1.0.1",
+    "thirty-two": "^1.0.1",
+    "longjohn": "^0.2.11",
+    "lodash": "^4.6.1",
+    "mysql": "^2.10.2",
+    "sqlite3": "^3.1.4",
+    "async": "^1.5.2",
+    "secp256k1": "^3.1.0"
+  }
+}
