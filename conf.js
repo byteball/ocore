@@ -27,7 +27,7 @@ exports.port = 6611;
 //exports.bugs_from_email = 'bugs@example.org';
 
 // WebSocket protocol prefixed to all hosts.  Must be wss:// on livenet, ws:// is allowed on testnet
-exports.WS_PROTOCOL = "ws://";
+exports.WS_PROTOCOL = "wss://";
 
 // storage engine: mysql or sqlite
 exports.storage = 'sqlite';
