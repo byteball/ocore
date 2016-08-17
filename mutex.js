@@ -1,6 +1,7 @@
 /*jslint node: true */
 "use strict";
 var _ = require('lodash');
+require('./enforce_singleton.js');
 
 var arrQueuedJobs = [];
 var arrLockedKeyArrays = [];

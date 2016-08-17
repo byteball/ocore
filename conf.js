@@ -1,5 +1,6 @@
 /*jslint node: true */
 "use strict";
+require('./enforce_singleton.js');
 
 function mergeExports(anotherModule){
 	for (var key in anotherModule)
