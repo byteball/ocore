@@ -2,8 +2,8 @@
 "use strict";
 
 function mergeExports(anotherModule){
-    for (var key in anotherModule)
-        exports[key] = anotherModule[key];
+	for (var key in anotherModule)
+		exports[key] = anotherModule[key];
 }
 
 // port we are listening on.  Set to null to disable accepting connections
@@ -32,8 +32,8 @@ exports.WS_PROTOCOL = "wss://";
 // storage engine: mysql or sqlite
 exports.storage = 'sqlite';
 if (process.browser){
-    exports.storage = 'sqlite';
-    exports.bLight = true;
+	exports.storage = 'sqlite';
+	exports.bLight = true;
 }
 exports.database = {};
 
@@ -49,8 +49,8 @@ byteball-hub/node_modules/custom_conf.js        - the custom conf
 */
 /*
 try{
-    mergeExports(require('custom_conf.js'));
-    console.log('merged custom conf');
+	mergeExports(require('custom_conf.js'));
+	console.log('merged custom conf');
 }
 catch(e){
 }*/
@@ -69,43 +69,43 @@ This way is not recommended as the code becomes loading order dependent.
 */
 
 if (typeof window === 'undefined' || !window.cordova){ // desktop
-    var desktopApp = require('./desktop_app.js'+'');
-    
-    // merge conf from other modules that include us as lib.  The other module must place its custom conf.js into its root directory
-    var appRootDir = desktopApp.getAppRootDir();
-    if (appRootDir !== __dirname){
-        try{
-            mergeExports(require(appRootDir + '/conf.js'));
-            console.log('merged app root conf from ' + appRootDir + '/conf.js');
-        }
-        catch(e){
-            console.log("not using app root conf: "+e);
-        }
-    }
-    else
-        console.log("I'm already at the root");
-    
-    // merge conf from user home directory, if any.
-    // Note that it is json rather than js to avoid code injection
-    var appDataDir = desktopApp.getAppDataDir();
-    try{
-        mergeExports(require(appDataDir + '/conf.json'));
-        console.log('merged user conf from ' + appDataDir + '/conf.json');
-    }
-    catch(e){
-        console.log('not using user conf: '+e);
-    }
+	var desktopApp = require('./desktop_app.js'+'');
+	
+	// merge conf from other modules that include us as lib.  The other module must place its custom conf.js into its root directory
+	var appRootDir = desktopApp.getAppRootDir();
+	if (appRootDir !== __dirname){
+		try{
+			mergeExports(require(appRootDir + '/conf.js'));
+			console.log('merged app root conf from ' + appRootDir + '/conf.js');
+		}
+		catch(e){
+			console.log("not using app root conf: "+e);
+		}
+	}
+	else
+		console.log("I'm already at the root");
+	
+	// merge conf from user home directory, if any.
+	// Note that it is json rather than js to avoid code injection
+	var appDataDir = desktopApp.getAppDataDir();
+	try{
+		mergeExports(require(appDataDir + '/conf.json'));
+		console.log('merged user conf from ' + appDataDir + '/conf.json');
+	}
+	catch(e){
+		console.log('not using user conf: '+e);
+	}
 }
 
 // after merging the custom confs, set defaults if they are still not set
 if (exports.storage === 'mysql'){
-    exports.database.max_connections = exports.database.max_connections || 30;
-    exports.database.host = exports.database.host || 'localhost';
-    exports.database.name = exports.database.name || 'byteball';
-    exports.database.user = exports.database.user || 'byteball';
+	exports.database.max_connections = exports.database.max_connections || 30;
+	exports.database.host = exports.database.host || 'localhost';
+	exports.database.name = exports.database.name || 'byteball';
+	exports.database.user = exports.database.user || 'byteball';
 }
 else if (exports.storage === 'sqlite'){
-    exports.database.max_connections = exports.database.max_connections || 1;
-    exports.database.filename = exports.database.filename || (exports.bLight ? 'byteball-light.sqlite' : 'byteball.sqlite');
+	exports.database.max_connections = exports.database.max_connections || 1;
+	exports.database.filename = exports.database.filename || (exports.bLight ? 'byteball-light.sqlite' : 'byteball.sqlite');
 }
 
