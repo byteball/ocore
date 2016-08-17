@@ -37,24 +37,6 @@ if (process.browser){
 }
 exports.database = {};
 
-/*
-merge confs from other modules that include us as lib.  The other module must place its custom_conf.js into its node_modules
-Example paths:
-byteball-hub
-byteball-hub/*.js
-byteball-hub/node_modules
-byteball-hub/node_modules/byteballcore
-byteball-hub/node_modules/byteballcore/conf.js  - it's me
-byteball-hub/node_modules/custom_conf.js        - the custom conf
-*/
-/*
-try{
-	mergeExports(require('custom_conf.js'));
-	console.log('merged custom conf');
-}
-catch(e){
-}*/
-
 
 /*
 There are 3 ways to customize conf in modules that use byteballcore lib:
