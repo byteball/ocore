@@ -149,9 +149,11 @@ function sendRequest(ws, command, params, bReroutable, responseHandler){
 		// after STALLED_TIMEOUT, reroute the request to another peer
 		// it'll work correctly even if the current peer is already disconnected when the timeout fires
 		var reroute = !bReroutable ? null : function(){
+			console.log('will try to reroute a request stalled at '+ws.peer);
 			findNextPeer(ws, function(next_ws){
 				if (next_ws === ws)
 					return;
+				console.log('rerouting from '+ws.peer+' to '+next_ws.peer);
 				ws.assocPendingRequests[tag].responseHandlers.forEach(function(rh){
 					sendRequest(next_ws, command, params, bReroutable, rh);
 				});
