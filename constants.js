@@ -10,8 +10,6 @@ exports.GENESIS_UNIT = 'viPN94397MkS/agvr+jN1kidQZwQIcSEACQOysnfpyE=';
 
 exports.version = '1.0t';
 exports.alt = '1';
-exports.program = 'byteball';
-exports.program_version = '0.1';
 
 exports.HASH_LENGTH = 44;
 exports.PUBKEY_LENGTH = 44;

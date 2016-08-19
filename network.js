@@ -110,11 +110,14 @@ function sendErrorResult(ws, unit, error) {
 }
 
 function sendVersion(ws){
+	var libraryPackageJson = require('./package.json');
 	sendJustsaying(ws, 'version', {
 		protocol_version: constants.version, 
 		alt: constants.alt, 
-		program: constants.program, 
-		program_version: constants.program_version
+		library: libraryPackageJson.name, 
+		library_version: libraryPackageJson.version, 
+		program: conf.program, 
+		program_version: conf.program_version
 	});
 }
 

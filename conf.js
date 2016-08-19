@@ -62,6 +62,9 @@ if (typeof window === 'undefined' || !window.cordova){ // desktop
 	
 	// merge conf from other modules that include us as lib.  The other module must place its custom conf.js into its root directory
 	var appRootDir = desktopApp.getAppRootDir();
+	var appPackageJson = require(appRootDir + '/package.json');
+	exports.program = appPackageJson.name;
+	exports.program_version = appPackageJson.version;
 	if (appRootDir !== __dirname){
 		try{
 			mergeExports(require(appRootDir + '/conf.js'));
