@@ -23,10 +23,6 @@ var eventBus = require('./event_bus.js');
 var light = require('./light.js');
 var mail = require('./mail.js'+'');
 
-var MAX_INBOUND_CONNECTIONS = 10;
-var MAX_OUTBOUND_CONNECTIONS = 10;
-var MAX_TOLERATED_INVALID_RATIO = 0.1;
-var MIN_COUNT_GOOD_PEERS = 10;
 var FORWARDING_TIMEOUT = 10*1000; // don't forward if the joint was received more than FORWARDING_TIMEOUT ms ago
 var STALLED_TIMEOUT = 5000; // a request is treated as stalled if no response received within STALLED_TIMEOUT ms
 var RESPONSE_TIMEOUT = 300*1000; // after this timeout, the request is abandoned
@@ -257,7 +253,7 @@ function findRandomInboundPeer(handleInboundPeer){
 			AND (count_invalid_joints/count_new_good_joints<? \n\
 			OR count_new_good_joints=0 AND count_nonserial_joints=0 AND count_invalid_joints=0) \n\
 		ORDER BY (count_new_good_joints=0), "+db.getRandom()+" LIMIT 1", 
-		[arrInboundHosts, MAX_TOLERATED_INVALID_RATIO], 
+		[arrInboundHosts, conf.MAX_TOLERATED_INVALID_RATIO], 
 		function(rows){
 			console.log(rows.length+" inbound peers");
 			if (rows.length === 0)
@@ -277,10 +273,10 @@ function checkIfHaveEnoughOutboundPeersAndAdd(){
 	db.query(
 		"SELECT peer FROM peers JOIN peer_hosts USING(peer_host) \n\
 		WHERE count_new_good_joints>0 AND count_invalid_joints/count_new_good_joints<? AND peer IN(?)", 
-		[MAX_TOLERATED_INVALID_RATIO, (arrOutboundPeerUrls.length > 0) ? arrOutboundPeerUrls : null],
+		[conf.MAX_TOLERATED_INVALID_RATIO, (arrOutboundPeerUrls.length > 0) ? arrOutboundPeerUrls : null],
 		function(rows){
 			var count_good_peers = rows.length;
-			if (count_good_peers >= MIN_COUNT_GOOD_PEERS)
+			if (count_good_peers >= conf.MIN_COUNT_GOOD_PEERS)
 				return;
 			if (count_good_peers === 0) // nobody trusted enough to ask for new peers, can't do anything
 				return;
@@ -349,7 +345,7 @@ function addOutboundPeers(multiplier){
 	var order_by = (multiplier <= 4) ? "count_new_good_joints DESC" : db.getRandom(); // don't stick to old peers with most accumulated good joints
 	var arrOutboundPeerUrls = arrOutboundPeers.map(function(ws){ return ws.peer; });
 	var arrInboundHosts = wss.clients.map(function(ws){ return ws.host; });
-	var max_new_outbound_peers = MAX_OUTBOUND_CONNECTIONS-arrOutboundPeerUrls.length;
+	var max_new_outbound_peers = conf.MAX_OUTBOUND_CONNECTIONS-arrOutboundPeerUrls.length;
 	if (max_new_outbound_peers <= 0)
 		return;
 	db.query(
@@ -363,7 +359,7 @@ function addOutboundPeers(multiplier){
 			"+((arrInboundHosts.length > 0) ? "AND (peer_host_urls.peer_host IS NULL OR peer_host_urls.peer_host NOT IN("+db.escape(arrInboundHosts)+")) \n": "")+"\n\
 			AND is_self=0 \n\
 		ORDER BY "+order_by+" LIMIT ?", 
-		[MAX_TOLERATED_INVALID_RATIO*multiplier, max_new_outbound_peers], 
+		[conf.MAX_TOLERATED_INVALID_RATIO*multiplier, max_new_outbound_peers], 
 		function(rows){
 			for (var i=0; i<rows.length; i++)
 				findOutboundPeerOrConnect(rows[i].peer);
@@ -1983,7 +1979,7 @@ function startAcceptingConnections(){
 		var ip = ws.upgradeReq.connection.remoteAddress;
 		if (ws.upgradeReq.headers['x-real-ip'] && (ip === '127.0.0.1' || ip.match(/^192\.168\./))) // we are behind a proxy
 			ip = ws.upgradeReq.headers['x-real-ip'];
-		if (wss.clients.length >= MAX_INBOUND_CONNECTIONS){
+		if (wss.clients.length >= conf.MAX_INBOUND_CONNECTIONS){
 			console.log("inbound connections maxed out, rejecting new client "+ip);
 			ws.close(1000, "inbound connections maxed out"); // 1001 doesn't work in cordova
 			return;

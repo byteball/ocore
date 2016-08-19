@@ -30,6 +30,12 @@ exports.port = 6611;
 // WebSocket protocol prefixed to all hosts.  Must be wss:// on livenet, ws:// is allowed on testnet
 exports.WS_PROTOCOL = "wss://";
 
+exports.MAX_INBOUND_CONNECTIONS = 100;
+exports.MAX_OUTBOUND_CONNECTIONS = 100;
+exports.MAX_TOLERATED_INVALID_RATIO = 0.1; // max tolerated ratio of invalid to good joints
+exports.MIN_COUNT_GOOD_PEERS = 10; // if we have less than this number of good peers, we'll ask peers for their lists of peers
+
+
 // storage engine: mysql or sqlite
 exports.storage = 'sqlite';
 if (process.browser){
