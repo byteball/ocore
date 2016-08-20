@@ -1540,7 +1540,7 @@ function handleJustsaying(ws, subject, body){
 			var objJoint = body;
 			if (!objJoint.unit || !objJoint.unit.unit)
 				return sendError(ws, 'no unit');
-			if (objJoint.ball)
+			if (objJoint.ball && !storage.isGenesisUnit(objJoint.unit.unit))
 				return sendError(ws, 'only requested joint can contain a ball');
 			if (conf.bLight && !ws.bLightVendor)
 				return sendError(ws, "I'm a light client and you are not my vendor");
