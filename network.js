@@ -1649,13 +1649,23 @@ function handleJustsaying(ws, subject, body){
 				return sendError(ws, "wrong signature");
 			ws.device_address = objectHash.getDeviceAddress(objLogin.pubkey);
 			// after this point the device is authenticated and can send further commands
+			var finishLogin = function(){
+				ws.bLoginComplete = true;
+				if (ws.onLoginComplete){
+					ws.onLoginComplete();
+					delete ws.onLoginComplete;
+				}
+			};
 			db.query("SELECT 1 FROM devices WHERE device_address=?", [ws.device_address], function(rows){
 				if (rows.length === 0)
 					db.query("INSERT INTO devices (device_address, pubkey) VALUES (?,?)", [ws.device_address, objLogin.pubkey], function(){
 						sendInfo(ws, "address created");
+						finishLogin();
 					});
-				else
+				else{
 					sendStoredDeviceMessages(ws, ws.device_address);
+					finishLogin();
+				}
 			});
 			break;
 			
@@ -1885,9 +1895,17 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "signed by another pubkey");
 			if (!ecdsaSig.verify(objectHash.getDeviceMessageHashToSign(objTempPubkey), objTempPubkey.signature, objTempPubkey.pubkey))
 				return sendErrorResponse(ws, tag, "wrong signature");
-			db.query("UPDATE devices SET temp_pubkey_package=? WHERE device_address=?", [JSON.stringify(objTempPubkey), ws.device_address], function(){
+			var fnUpdate = function(onDone){
+				db.query("UPDATE devices SET temp_pubkey_package=? WHERE device_address=?", [JSON.stringify(objTempPubkey), ws.device_address], function(){
+					if (onDone)
+						onDone();
+				});
+			};
+			fnUpdate(function(){
 				sendResponse(ws, tag, "updated");
 			});
+			if (!ws.bLoginComplete)
+				ws.onLoginComplete = fnUpdate;
 			break;
 			
 		case 'light/get_history':
