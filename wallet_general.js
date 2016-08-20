@@ -6,31 +6,31 @@ var device = require('./device.js');
 
 
 function sendOfferToSign(device_address, address, signing_path, objUnsignedUnit, assocPrivatePayloads){
-    var body = {address: address, signing_path: signing_path, unsigned_unit: objUnsignedUnit};
-    if (assocPrivatePayloads && Object.keys(assocPrivatePayloads).length > 0)
-        body.private_payloads = assocPrivatePayloads;
-    device.sendMessageToDevice(device_address, "sign", body);
+	var body = {address: address, signing_path: signing_path, unsigned_unit: objUnsignedUnit};
+	if (assocPrivatePayloads && Object.keys(assocPrivatePayloads).length > 0)
+		body.private_payloads = assocPrivatePayloads;
+	device.sendMessageToDevice(device_address, "sign", body);
 }
 
 // unlike similar function in network, this function sends multiple chains in a single package
 function sendPrivatePayments(device_address, arrChains, bForwarded){
-    var body = {chains: arrChains};
-    if (bForwarded)
-        body.forwarded = true;
-    device.sendMessageToDevice(device_address, "private_payments", body);
+	var body = {chains: arrChains};
+	if (bForwarded)
+		body.forwarded = true;
+	device.sendMessageToDevice(device_address, "private_payments", body);
 }
 
 // notification about public payment
 function sendPaymentNotification(device_address, unit){
-    device.sendMessageToDevice(device_address, "payment_notification", unit);
+	device.sendMessageToDevice(device_address, "payment_notification", unit);
 }
 
 
 function readMyAddresses(handleAddresses){
-    db.query("SELECT address FROM my_addresses UNION SELECT shared_address AS address FROM shared_addresses", function(rows){
-        var arrAddresses = rows.map(function(row){ return row.address; });
-        handleAddresses(arrAddresses);
-    });
+	db.query("SELECT address FROM my_addresses UNION SELECT shared_address AS address FROM shared_addresses", function(rows){
+		var arrAddresses = rows.map(function(row){ return row.address; });
+		handleAddresses(arrAddresses);
+	});
 }
 
 exports.sendOfferToSign = sendOfferToSign;

@@ -18,558 +18,558 @@ initializeMinRetrievableMci();
 
 
 function readJoint(conn, unit, callbacks) {
-    console.log("\nreading unit "+unit);
-    if (min_retrievable_mci === null){
-        console.log("min_retrievable_mci not known yet");
-        setTimeout(function(){
-            readJoint(conn, unit, callbacks);
-        }, 1000);
-        return;
-    }
-    profiler.start();
-    conn.query(
-        "SELECT units.unit, version, alt, witness_list_unit, last_ball_unit, balls.ball AS last_ball, \n\
-            content_hash, headers_commission, payload_commission, main_chain_index, "+conn.getUnixTimestamp("units.creation_date")+" AS timestamp \n\
-        FROM units LEFT JOIN balls ON last_ball_unit=balls.unit WHERE units.unit=?", 
-        [unit], 
-        function(unit_rows){
-            if (unit_rows.length === 0){
-                profiler.stop('read');
-                return callbacks.ifNotFound();
-            }
-            var objUnit = unit_rows[0];
-            var objJoint = {unit: objUnit};
-            var main_chain_index = objUnit.main_chain_index;
-            //delete objUnit.main_chain_index;
-            objUnit.timestamp = parseInt(objUnit.timestamp);
+	console.log("\nreading unit "+unit);
+	if (min_retrievable_mci === null){
+		console.log("min_retrievable_mci not known yet");
+		setTimeout(function(){
+			readJoint(conn, unit, callbacks);
+		}, 1000);
+		return;
+	}
+	profiler.start();
+	conn.query(
+		"SELECT units.unit, version, alt, witness_list_unit, last_ball_unit, balls.ball AS last_ball, \n\
+			content_hash, headers_commission, payload_commission, main_chain_index, "+conn.getUnixTimestamp("units.creation_date")+" AS timestamp \n\
+		FROM units LEFT JOIN balls ON last_ball_unit=balls.unit WHERE units.unit=?", 
+		[unit], 
+		function(unit_rows){
+			if (unit_rows.length === 0){
+				profiler.stop('read');
+				return callbacks.ifNotFound();
+			}
+			var objUnit = unit_rows[0];
+			var objJoint = {unit: objUnit};
+			var main_chain_index = objUnit.main_chain_index;
+			//delete objUnit.main_chain_index;
+			objUnit.timestamp = parseInt(objUnit.timestamp);
 
-            objectHash.cleanNulls(objUnit);
-            var bVoided = (objUnit.content_hash && main_chain_index < min_retrievable_mci);
-            var bRetrievable = (main_chain_index >= min_retrievable_mci || main_chain_index === null);
-            if (bVoided){
-                //delete objUnit.last_ball;
-                //delete objUnit.last_ball_unit;
-                delete objUnit.headers_commission;
-                delete objUnit.payload_commission;
-            }
-            else
-                delete objUnit.content_hash;
+			objectHash.cleanNulls(objUnit);
+			var bVoided = (objUnit.content_hash && main_chain_index < min_retrievable_mci);
+			var bRetrievable = (main_chain_index >= min_retrievable_mci || main_chain_index === null);
+			if (bVoided){
+				//delete objUnit.last_ball;
+				//delete objUnit.last_ball_unit;
+				delete objUnit.headers_commission;
+				delete objUnit.payload_commission;
+			}
+			else
+				delete objUnit.content_hash;
 
-            async.series([
-                function(callback){ // parents
-                    conn.query(
-                        "SELECT parent_unit \n\
-                        FROM parenthoods \n\
-                        WHERE child_unit=? \n\
-                        ORDER BY parent_unit", 
-                        [unit], 
-                        function(rows){
-                            if (rows.length === 0)
-                                return callback();
-                            objUnit.parent_units = rows.map(function(row){ return row.parent_unit; });
-                            callback();
-                        }
-                    );
-                },
-                function(callback){ // ball
-                    if (bRetrievable && !isGenesisUnit(unit))
-                        return callback();
-                    // include the .ball field even if it is not stable yet, because its parents might have been changed 
-                    // and the receiver should not attempt to verify them
-                    conn.query("SELECT ball FROM balls WHERE unit=?", [unit], function(rows){
-                        if (rows.length === 0)
-                            return callback();
-                        objJoint.ball = rows[0].ball;
-                        callback();
-                    });
-                },
-                function(callback){ // skiplist
-                    if (bRetrievable)
-                        return callback();
-                    conn.query("SELECT skiplist_unit FROM skiplist_units WHERE unit=? ORDER BY skiplist_unit", [unit], function(rows){
-                        if (rows.length === 0)
-                            return callback();
-                        objJoint.skiplist_units = rows.map(function(row){ return row.skiplist_unit; });
-                        callback();
-                    });
-                },
-                function(callback){ // witnesses
-                    conn.query("SELECT address FROM unit_witnesses WHERE unit=? ORDER BY address", [unit], function(rows){
-                        if (rows.length > 0)
-                            objUnit.witnesses = rows.map(function(row){ return row.address; });
-                        callback();
-                    });
-                },
-                function(callback){ // earned_headers_commission_recipients
-                    conn.query("SELECT address, earned_headers_commission_share FROM earned_headers_commission_recipients \
-                        WHERE unit=? ORDER BY address", 
-                        [unit], 
-                        function(rows){
-                            if (rows.length > 0)
-                                objUnit.earned_headers_commission_recipients = rows;
-                            callback();
-                        }
-                    );
-                },
-                function(callback){ // authors
-                    conn.query("SELECT address, definition_chash FROM unit_authors WHERE unit=? ORDER BY address", [unit], function(rows){
-                        objUnit.authors = [];
-                        async.eachSeries(
-                            rows, 
-                            function(row, cb){
-                                var author = {address: row.address};
+			async.series([
+				function(callback){ // parents
+					conn.query(
+						"SELECT parent_unit \n\
+						FROM parenthoods \n\
+						WHERE child_unit=? \n\
+						ORDER BY parent_unit", 
+						[unit], 
+						function(rows){
+							if (rows.length === 0)
+								return callback();
+							objUnit.parent_units = rows.map(function(row){ return row.parent_unit; });
+							callback();
+						}
+					);
+				},
+				function(callback){ // ball
+					if (bRetrievable && !isGenesisUnit(unit))
+						return callback();
+					// include the .ball field even if it is not stable yet, because its parents might have been changed 
+					// and the receiver should not attempt to verify them
+					conn.query("SELECT ball FROM balls WHERE unit=?", [unit], function(rows){
+						if (rows.length === 0)
+							return callback();
+						objJoint.ball = rows[0].ball;
+						callback();
+					});
+				},
+				function(callback){ // skiplist
+					if (bRetrievable)
+						return callback();
+					conn.query("SELECT skiplist_unit FROM skiplist_units WHERE unit=? ORDER BY skiplist_unit", [unit], function(rows){
+						if (rows.length === 0)
+							return callback();
+						objJoint.skiplist_units = rows.map(function(row){ return row.skiplist_unit; });
+						callback();
+					});
+				},
+				function(callback){ // witnesses
+					conn.query("SELECT address FROM unit_witnesses WHERE unit=? ORDER BY address", [unit], function(rows){
+						if (rows.length > 0)
+							objUnit.witnesses = rows.map(function(row){ return row.address; });
+						callback();
+					});
+				},
+				function(callback){ // earned_headers_commission_recipients
+					conn.query("SELECT address, earned_headers_commission_share FROM earned_headers_commission_recipients \
+						WHERE unit=? ORDER BY address", 
+						[unit], 
+						function(rows){
+							if (rows.length > 0)
+								objUnit.earned_headers_commission_recipients = rows;
+							callback();
+						}
+					);
+				},
+				function(callback){ // authors
+					conn.query("SELECT address, definition_chash FROM unit_authors WHERE unit=? ORDER BY address", [unit], function(rows){
+						objUnit.authors = [];
+						async.eachSeries(
+							rows, 
+							function(row, cb){
+								var author = {address: row.address};
 
-                                function onAuthorDone(){
-                                    objUnit.authors.push(author);
-                                    cb();
-                                }
+								function onAuthorDone(){
+									objUnit.authors.push(author);
+									cb();
+								}
 
-                                if (bVoided)
-                                    return onAuthorDone();
-                                author.authentifiers = {};
-                                conn.query(
-                                    "SELECT path, authentifier FROM authentifiers WHERE unit=? AND address=?", 
-                                    [unit, author.address], 
-                                    function(sig_rows){
-                                        for (var i=0; i<sig_rows.length; i++)
-                                            author.authentifiers[sig_rows[i].path] = sig_rows[i].authentifier;
+								if (bVoided)
+									return onAuthorDone();
+								author.authentifiers = {};
+								conn.query(
+									"SELECT path, authentifier FROM authentifiers WHERE unit=? AND address=?", 
+									[unit, author.address], 
+									function(sig_rows){
+										for (var i=0; i<sig_rows.length; i++)
+											author.authentifiers[sig_rows[i].path] = sig_rows[i].authentifier;
 
-                                        // if definition_chash is defined:
-                                        if (row.definition_chash){
-                                            readDefinition(conn, row.definition_chash, {
-                                                ifFound: function(arrDefinition){
-                                                    author.definition = arrDefinition;
-                                                    onAuthorDone();
-                                                },
-                                                ifDefinitionNotFound: function(definition_chash){
-                                                    throw Error("definition "+definition_chash+" not defined");
-                                                }
-                                            });
-                                        }
-                                        else
-                                            onAuthorDone();
-                                    }
-                                );
-                            }, 
-                            function(){
-                                callback();
-                            }
-                        );
-                    });
-                },
-                function(callback){ // messages
-                    if (bVoided)
-                        return callback();
-                    conn.query(
-                        "SELECT app, payload_hash, payload_location, payload, payload_uri, payload_uri_hash, message_index \n\
-                        FROM messages WHERE unit=? ORDER BY message_index", [unit], 
-                        function(rows){
-                            if (rows.length === 0)
-                                throw new Error("no messages in unit "+unit);
-                            objUnit.messages = [];
-                            async.eachSeries(
-                                rows,
-                                function(row, cb){
-                                    var objMessage = row;
-                                    var message_index = row.message_index;
-                                    delete objMessage.message_index;
-                                    objectHash.cleanNulls(objMessage);
-                                    objUnit.messages.push(objMessage);
-                                    
-                                    function addSpendProofs(){
-                                        conn.query(
-                                            "SELECT spend_proof, address FROM spend_proofs WHERE unit=? AND message_index=? ORDER BY spend_proof_index",
-                                            [unit, message_index],
-                                            function(proof_rows){
-                                                if (proof_rows.length === 0)
-                                                    return cb();
-                                                objMessage.spend_proofs = [];
-                                                for (var i=0; i<proof_rows.length; i++){
-                                                    var objSpendProof = proof_rows[i];
-                                                    if (objUnit.authors.length === 1) // single-authored
-                                                        delete objSpendProof.address;
-                                                    objMessage.spend_proofs.push(objSpendProof);
-                                                }
-                                                cb();
-                                            }
-                                        );
-                                    }
-                                    
-                                    if (objMessage.payload_location !== "inline")
-                                        return addSpendProofs();
-                                    switch(objMessage.app){
-                                        case "address_definition_change":
-                                            conn.query(
-                                                "SELECT definition_chash, address FROM address_definition_changes WHERE unit=? AND message_index=?", 
-                                                [unit, message_index], 
-                                                function(dch_rows){
-                                                    if (dch_rows.length === 0)
-                                                        throw Error("no definition change?");
-                                                    objMessage.payload = dch_rows[0];
-                                                    if (objUnit.authors.length === 1) // single-authored
-                                                        delete objMessage.payload.address;
-                                                    addSpendProofs();
-                                                }
-                                            );
-                                            break;
+										// if definition_chash is defined:
+										if (row.definition_chash){
+											readDefinition(conn, row.definition_chash, {
+												ifFound: function(arrDefinition){
+													author.definition = arrDefinition;
+													onAuthorDone();
+												},
+												ifDefinitionNotFound: function(definition_chash){
+													throw Error("definition "+definition_chash+" not defined");
+												}
+											});
+										}
+										else
+											onAuthorDone();
+									}
+								);
+							}, 
+							function(){
+								callback();
+							}
+						);
+					});
+				},
+				function(callback){ // messages
+					if (bVoided)
+						return callback();
+					conn.query(
+						"SELECT app, payload_hash, payload_location, payload, payload_uri, payload_uri_hash, message_index \n\
+						FROM messages WHERE unit=? ORDER BY message_index", [unit], 
+						function(rows){
+							if (rows.length === 0)
+								throw new Error("no messages in unit "+unit);
+							objUnit.messages = [];
+							async.eachSeries(
+								rows,
+								function(row, cb){
+									var objMessage = row;
+									var message_index = row.message_index;
+									delete objMessage.message_index;
+									objectHash.cleanNulls(objMessage);
+									objUnit.messages.push(objMessage);
+									
+									function addSpendProofs(){
+										conn.query(
+											"SELECT spend_proof, address FROM spend_proofs WHERE unit=? AND message_index=? ORDER BY spend_proof_index",
+											[unit, message_index],
+											function(proof_rows){
+												if (proof_rows.length === 0)
+													return cb();
+												objMessage.spend_proofs = [];
+												for (var i=0; i<proof_rows.length; i++){
+													var objSpendProof = proof_rows[i];
+													if (objUnit.authors.length === 1) // single-authored
+														delete objSpendProof.address;
+													objMessage.spend_proofs.push(objSpendProof);
+												}
+												cb();
+											}
+										);
+									}
+									
+									if (objMessage.payload_location !== "inline")
+										return addSpendProofs();
+									switch(objMessage.app){
+										case "address_definition_change":
+											conn.query(
+												"SELECT definition_chash, address FROM address_definition_changes WHERE unit=? AND message_index=?", 
+												[unit, message_index], 
+												function(dch_rows){
+													if (dch_rows.length === 0)
+														throw Error("no definition change?");
+													objMessage.payload = dch_rows[0];
+													if (objUnit.authors.length === 1) // single-authored
+														delete objMessage.payload.address;
+													addSpendProofs();
+												}
+											);
+											break;
 
-                                        case "poll":
-                                            conn.query(
-                                                "SELECT question FROM polls WHERE unit=? AND message_index=?", [unit, message_index], 
-                                                function(poll_rows){
-                                                    if (poll_rows.length !== 1)
-                                                        throw Error("no poll question or too many?");
-                                                    objMessage.payload = {question: poll_rows[0].question};
-                                                    conn.query("SELECT choice FROM poll_choices WHERE unit=? ORDER BY choice_index", [unit], function(ch_rows){
-                                                        if (ch_rows.length === 0)
-                                                            throw Error("no choices?");
-                                                        objMessage.payload.choices = ch_rows.map(function(choice_row){ return choice_row.choice; });
-                                                        addSpendProofs();
-                                                    });
-                                                }
-                                            );
-                                            break;
+										case "poll":
+											conn.query(
+												"SELECT question FROM polls WHERE unit=? AND message_index=?", [unit, message_index], 
+												function(poll_rows){
+													if (poll_rows.length !== 1)
+														throw Error("no poll question or too many?");
+													objMessage.payload = {question: poll_rows[0].question};
+													conn.query("SELECT choice FROM poll_choices WHERE unit=? ORDER BY choice_index", [unit], function(ch_rows){
+														if (ch_rows.length === 0)
+															throw Error("no choices?");
+														objMessage.payload.choices = ch_rows.map(function(choice_row){ return choice_row.choice; });
+														addSpendProofs();
+													});
+												}
+											);
+											break;
 
-                                         case "vote":
-                                            conn.query(
-                                                "SELECT poll_unit, choice FROM votes WHERE unit=? AND message_index=?", [unit, message_index], 
-                                                function(vote_rows){
-                                                    if (vote_rows.length !== 1)
-                                                        throw Error("no vote choice or too many?");
-                                                    objMessage.payload = {unit: vote_rows[0].poll_unit, choice: vote_rows[0].choice};
-                                                    addSpendProofs();
-                                                }
-                                            );
-                                            break;
+										 case "vote":
+											conn.query(
+												"SELECT poll_unit, choice FROM votes WHERE unit=? AND message_index=?", [unit, message_index], 
+												function(vote_rows){
+													if (vote_rows.length !== 1)
+														throw Error("no vote choice or too many?");
+													objMessage.payload = {unit: vote_rows[0].poll_unit, choice: vote_rows[0].choice};
+													addSpendProofs();
+												}
+											);
+											break;
 
-                                        case "asset":
-                                            conn.query(
-                                                "SELECT cap, is_private, is_transferrable, auto_destroy, fixed_denominations, \n\
-                                                    issued_by_definer_only, cosigned_by_definer, spender_attested, \n\
-                                                    issue_condition, transfer_condition \n\
-                                                FROM assets WHERE unit=? AND message_index=?", 
-                                                [unit, message_index], 
-                                                function(asset_rows){
-                                                    if (asset_rows.length !== 1)
-                                                        throw Error("no asset or too many?");
-                                                    objMessage.payload = asset_rows[0];
-                                                    objectHash.cleanNulls(objMessage.payload);
-                                                    objMessage.payload.is_private = !!objMessage.payload.is_private;
-                                                    objMessage.payload.is_transferrable = !!objMessage.payload.is_transferrable;
-                                                    objMessage.payload.auto_destroy = !!objMessage.payload.auto_destroy;
-                                                    objMessage.payload.fixed_denominations = !!objMessage.payload.fixed_denominations;
-                                                    objMessage.payload.issued_by_definer_only = !!objMessage.payload.issued_by_definer_only;
-                                                    objMessage.payload.cosigned_by_definer = !!objMessage.payload.cosigned_by_definer;
-                                                    objMessage.payload.spender_attested = !!objMessage.payload.spender_attested;
-                                                    if (objMessage.payload.issue_condition)
-                                                        objMessage.payload.issue_condition = JSON.parse(objMessage.payload.issue_condition);
-                                                    if (objMessage.payload.transfer_condition)
-                                                        objMessage.payload.transfer_condition = JSON.parse(objMessage.payload.transfer_condition);
-                                                
-                                                    var addAttestors = function(next){
-                                                        if (!objMessage.payload.spender_attested)
-                                                            return next();
-                                                        conn.query(
-                                                            "SELECT attestor_address FROM asset_attestors \n\
-                                                            WHERE unit=? AND message_index=? ORDER BY attestor_address",
-                                                            [unit, message_index],
-                                                            function(att_rows){
-                                                                if (att_rows.length === 0)
-                                                                    throw Error("no attestors?");
-                                                                objMessage.payload.attestors = att_rows.map(function(att_row){
-                                                                    return att_row.attestor_address;
-                                                                });
-                                                                next();
-                                                            }
-                                                        );
-                                                    };
-                                                
-                                                    var addDenominations = function(next){
-                                                        if (!objMessage.payload.fixed_denominations)
-                                                            return next();
-                                                        conn.query(
-                                                            "SELECT denomination, count_coins FROM asset_denominations \n\
-                                                            WHERE asset=? ORDER BY denomination",
-                                                            [unit],
-                                                            function(denom_rows){
-                                                                if (denom_rows.length === 0)
-                                                                    throw Error("no denominations?");
-                                                                objMessage.payload.denominations = denom_rows.map(function(denom_row){
-                                                                    var denom = {denomination: denom_row.denomination};
-                                                                    if (denom_row.count_coins)
-                                                                        denom.count_coins = denom_row.count_coins;
-                                                                    return denom;
-                                                                });
-                                                                next();
-                                                            }
-                                                        );
-                                                    };
-                                                
-                                                    async.series([addAttestors, addDenominations], addSpendProofs);
-                                                }
-                                            );
-                                            break;
+										case "asset":
+											conn.query(
+												"SELECT cap, is_private, is_transferrable, auto_destroy, fixed_denominations, \n\
+													issued_by_definer_only, cosigned_by_definer, spender_attested, \n\
+													issue_condition, transfer_condition \n\
+												FROM assets WHERE unit=? AND message_index=?", 
+												[unit, message_index], 
+												function(asset_rows){
+													if (asset_rows.length !== 1)
+														throw Error("no asset or too many?");
+													objMessage.payload = asset_rows[0];
+													objectHash.cleanNulls(objMessage.payload);
+													objMessage.payload.is_private = !!objMessage.payload.is_private;
+													objMessage.payload.is_transferrable = !!objMessage.payload.is_transferrable;
+													objMessage.payload.auto_destroy = !!objMessage.payload.auto_destroy;
+													objMessage.payload.fixed_denominations = !!objMessage.payload.fixed_denominations;
+													objMessage.payload.issued_by_definer_only = !!objMessage.payload.issued_by_definer_only;
+													objMessage.payload.cosigned_by_definer = !!objMessage.payload.cosigned_by_definer;
+													objMessage.payload.spender_attested = !!objMessage.payload.spender_attested;
+													if (objMessage.payload.issue_condition)
+														objMessage.payload.issue_condition = JSON.parse(objMessage.payload.issue_condition);
+													if (objMessage.payload.transfer_condition)
+														objMessage.payload.transfer_condition = JSON.parse(objMessage.payload.transfer_condition);
+												
+													var addAttestors = function(next){
+														if (!objMessage.payload.spender_attested)
+															return next();
+														conn.query(
+															"SELECT attestor_address FROM asset_attestors \n\
+															WHERE unit=? AND message_index=? ORDER BY attestor_address",
+															[unit, message_index],
+															function(att_rows){
+																if (att_rows.length === 0)
+																	throw Error("no attestors?");
+																objMessage.payload.attestors = att_rows.map(function(att_row){
+																	return att_row.attestor_address;
+																});
+																next();
+															}
+														);
+													};
+												
+													var addDenominations = function(next){
+														if (!objMessage.payload.fixed_denominations)
+															return next();
+														conn.query(
+															"SELECT denomination, count_coins FROM asset_denominations \n\
+															WHERE asset=? ORDER BY denomination",
+															[unit],
+															function(denom_rows){
+																if (denom_rows.length === 0)
+																	throw Error("no denominations?");
+																objMessage.payload.denominations = denom_rows.map(function(denom_row){
+																	var denom = {denomination: denom_row.denomination};
+																	if (denom_row.count_coins)
+																		denom.count_coins = denom_row.count_coins;
+																	return denom;
+																});
+																next();
+															}
+														);
+													};
+												
+													async.series([addAttestors, addDenominations], addSpendProofs);
+												}
+											);
+											break;
 
-                                        case "asset_attestors":
-                                            conn.query(
-                                                "SELECT attestor_address, asset FROM asset_attestors \n\
-                                                WHERE unit=? AND message_index=? ORDER BY attestor_address",
-                                                [unit, message_index],
-                                                function(att_rows){
-                                                    if (att_rows.length === 0)
-                                                        throw Error("no attestors?");
-                                                    objMessage.payload = {asset: att_rows[0].asset};
-                                                    if (att_rows.length > 1 
-                                                            && att_rows.some(function(att_row){ return (att_row.asset !== objMessage.payload.asset) }))
-                                                        throw Error("different assets in attestor list");
-                                                    objMessage.payload.attestors = att_rows.map(function(att_row){ return att_row.attestor_address;});
-                                                    addSpendProofs();
-                                                }
-                                            );
-                                            break;
+										case "asset_attestors":
+											conn.query(
+												"SELECT attestor_address, asset FROM asset_attestors \n\
+												WHERE unit=? AND message_index=? ORDER BY attestor_address",
+												[unit, message_index],
+												function(att_rows){
+													if (att_rows.length === 0)
+														throw Error("no attestors?");
+													objMessage.payload = {asset: att_rows[0].asset};
+													if (att_rows.length > 1 
+															&& att_rows.some(function(att_row){ return (att_row.asset !== objMessage.payload.asset) }))
+														throw Error("different assets in attestor list");
+													objMessage.payload.attestors = att_rows.map(function(att_row){ return att_row.attestor_address;});
+													addSpendProofs();
+												}
+											);
+											break;
 
-                                        case "data_feed":
-                                            conn.query(
-                                                "SELECT feed_name, `value`, int_value FROM data_feeds WHERE unit=? AND message_index=?", [unit, message_index], 
-                                                function(df_rows){
-                                                    if (df_rows.length === 0)
-                                                        throw Error("no data feed?");
-                                                    objMessage.payload = {};
-                                                    df_rows.forEach(function(df_row){
-                                                        objMessage.payload[df_row.feed_name] = 
-                                                            (typeof df_row.value === 'string') ? df_row.value : Number(df_row.int_value);
-                                                    });
-                                                    addSpendProofs();
-                                                }
-                                            );
-                                            break;
+										case "data_feed":
+											conn.query(
+												"SELECT feed_name, `value`, int_value FROM data_feeds WHERE unit=? AND message_index=?", [unit, message_index], 
+												function(df_rows){
+													if (df_rows.length === 0)
+														throw Error("no data feed?");
+													objMessage.payload = {};
+													df_rows.forEach(function(df_row){
+														objMessage.payload[df_row.feed_name] = 
+															(typeof df_row.value === 'string') ? df_row.value : Number(df_row.int_value);
+													});
+													addSpendProofs();
+												}
+											);
+											break;
 
-                                        case "profile":
-                                        case "attestation": // maybe later we'll store profiles and attestations in some structured form
-                                        case "data":
-                                        case "definition_template":
-                                            objMessage.payload = JSON.parse(objMessage.payload);
-                                            addSpendProofs();
-                                            break;
+										case "profile":
+										case "attestation": // maybe later we'll store profiles and attestations in some structured form
+										case "data":
+										case "definition_template":
+											objMessage.payload = JSON.parse(objMessage.payload);
+											addSpendProofs();
+											break;
 
-                                        case "payment":
-                                            objMessage.payload = {};
-                                            var prev_asset;
-                                            var prev_denomination;
-                                            
-                                            var readInputs = function(cb2){
-                                                conn.query(
-                                                    "SELECT type, denomination, assets.fixed_denominations, \n\
-                                                        src_unit AS unit, src_message_index AS message_index, src_output_index AS output_index, \n\
-                                                        from_main_chain_index, to_main_chain_index, serial_number, amount, address, asset \n\
-                                                    FROM inputs \n\
-                                                    LEFT JOIN assets ON asset=assets.unit \n\
-                                                    WHERE inputs.unit=? AND inputs.message_index=? \n\
-                                                    ORDER BY input_index", 
-                                                    [unit, message_index],
-                                                    function(input_rows){
-                                                        objMessage.payload.inputs = [];
-                                                        for (var i=0; i<input_rows.length; i++){
-                                                            var input = input_rows[i];
-                                                            if (!input.address) // may be NULL for light, but light clients are not reading units
-                                                                throw Error("input address is NULL");
-                                                            var asset = input.asset;
-                                                            var denomination = input.denomination;
-                                                            if (i>0){
-                                                                if (asset !== prev_asset)
-                                                                    throw Error("different assets in inputs?");
-                                                                if (denomination !== prev_denomination)
-                                                                    throw Error("different denominations in inputs?");
-                                                            }
-                                                            if (i === 0 && asset){
-                                                                objMessage.payload.asset = asset;
-                                                                if (input.fixed_denominations)
-                                                                    objMessage.payload.denomination = denomination;
-                                                            }
-                                                            delete input.asset;
-                                                            delete input.denomination;
-                                                            delete input.fixed_denominations;
-                                                            objectHash.cleanNulls(input);
-                                                            if (input.type === "transfer" || objUnit.authors.length === 1)
-                                                                delete input.address;
-                                                            if (input.type === "transfer")
-                                                                delete input.type;
-                                                            objMessage.payload.inputs.push(input);
-                                                            if (i === 0){
-                                                                prev_asset = asset;
-                                                                prev_denomination = denomination;
-                                                            }
-                                                        }
-                                                        cb2();
-                                                    }
-                                                );
-                                            };
-                                            var readOutputs = function(cb2){
-                                                objMessage.payload.outputs = [];
-                                                conn.query( // we don't select blinding because it's absent on public payments
-                                                    "SELECT address, amount, asset, denomination \n\
-                                                    FROM outputs WHERE unit=? AND message_index=? ORDER BY output_index", 
-                                                    [unit, message_index],
-                                                    function(output_rows){
-                                                        for (var i=0; i<output_rows.length; i++){
-                                                            var output = output_rows[i];
-                                                            if (output.asset !== prev_asset)
-                                                                throw Error("different assets in outputs?");
-                                                            if (output.denomination !== prev_denomination)
-                                                                throw Error("different denominations in outputs?");
-                                                            delete output.asset;
-                                                            delete output.denomination;
-                                                            objMessage.payload.outputs.push(output);
-                                                        }
-                                                        cb2();
-                                                    }
-                                                );
-                                            };
-                                            async.series(
-                                                [readInputs, readOutputs], 
-                                                addSpendProofs
-                                            );
-                                            break;
+										case "payment":
+											objMessage.payload = {};
+											var prev_asset;
+											var prev_denomination;
+											
+											var readInputs = function(cb2){
+												conn.query(
+													"SELECT type, denomination, assets.fixed_denominations, \n\
+														src_unit AS unit, src_message_index AS message_index, src_output_index AS output_index, \n\
+														from_main_chain_index, to_main_chain_index, serial_number, amount, address, asset \n\
+													FROM inputs \n\
+													LEFT JOIN assets ON asset=assets.unit \n\
+													WHERE inputs.unit=? AND inputs.message_index=? \n\
+													ORDER BY input_index", 
+													[unit, message_index],
+													function(input_rows){
+														objMessage.payload.inputs = [];
+														for (var i=0; i<input_rows.length; i++){
+															var input = input_rows[i];
+															if (!input.address) // may be NULL for light, but light clients are not reading units
+																throw Error("input address is NULL");
+															var asset = input.asset;
+															var denomination = input.denomination;
+															if (i>0){
+																if (asset !== prev_asset)
+																	throw Error("different assets in inputs?");
+																if (denomination !== prev_denomination)
+																	throw Error("different denominations in inputs?");
+															}
+															if (i === 0 && asset){
+																objMessage.payload.asset = asset;
+																if (input.fixed_denominations)
+																	objMessage.payload.denomination = denomination;
+															}
+															delete input.asset;
+															delete input.denomination;
+															delete input.fixed_denominations;
+															objectHash.cleanNulls(input);
+															if (input.type === "transfer" || objUnit.authors.length === 1)
+																delete input.address;
+															if (input.type === "transfer")
+																delete input.type;
+															objMessage.payload.inputs.push(input);
+															if (i === 0){
+																prev_asset = asset;
+																prev_denomination = denomination;
+															}
+														}
+														cb2();
+													}
+												);
+											};
+											var readOutputs = function(cb2){
+												objMessage.payload.outputs = [];
+												conn.query( // we don't select blinding because it's absent on public payments
+													"SELECT address, amount, asset, denomination \n\
+													FROM outputs WHERE unit=? AND message_index=? ORDER BY output_index", 
+													[unit, message_index],
+													function(output_rows){
+														for (var i=0; i<output_rows.length; i++){
+															var output = output_rows[i];
+															if (output.asset !== prev_asset)
+																throw Error("different assets in outputs?");
+															if (output.denomination !== prev_denomination)
+																throw Error("different denominations in outputs?");
+															delete output.asset;
+															delete output.denomination;
+															objMessage.payload.outputs.push(output);
+														}
+														cb2();
+													}
+												);
+											};
+											async.series(
+												[readInputs, readOutputs], 
+												addSpendProofs
+											);
+											break;
 
-                                        default:
-                                            addSpendProofs();
-                                    }
-                                },
-                                callback
-                            );
-                        } // message rows
-                    );
-                }
-            ], function(){
-                profiler.stop('read');
-                callbacks.ifFound(objJoint);
-            });
-        }
-    );
+										default:
+											addSpendProofs();
+									}
+								},
+								callback
+							);
+						} // message rows
+					);
+				}
+			], function(){
+				profiler.stop('read');
+				callbacks.ifFound(objJoint);
+			});
+		}
+	);
 }
 
 
 
 // add .ball even if it is not retrievable
 function readJointWithBall(conn, unit, handleJoint) {
-    readJoint(conn, unit, {
-        ifNotFound: function(){
-            throw Error("joint not found, unit "+unit);
-        },
-        ifFound: function(objJoint){
-            if (objJoint.ball)
-                return handleJoint(objJoint);
-            conn.query("SELECT ball FROM balls WHERE unit=?", [unit], function(rows){
-                if (rows.length === 1)
-                    objJoint.ball = rows[0].ball;
-                handleJoint(objJoint);
-            });
-        }
-    });
+	readJoint(conn, unit, {
+		ifNotFound: function(){
+			throw Error("joint not found, unit "+unit);
+		},
+		ifFound: function(objJoint){
+			if (objJoint.ball)
+				return handleJoint(objJoint);
+			conn.query("SELECT ball FROM balls WHERE unit=?", [unit], function(rows){
+				if (rows.length === 1)
+					objJoint.ball = rows[0].ball;
+				handleJoint(objJoint);
+			});
+		}
+	});
 }
 
 
 
 function readWitnessList(conn, unit, handleWitnessList){
-    conn.query("SELECT address FROM unit_witnesses WHERE unit=? ORDER BY address", [unit], function(rows){
-        if (rows.length === 0)
-            throw Error("witness list of unit "+unit+" not found");
-        if (rows.length !== constants.COUNT_WITNESSES)
-            throw Error("wrong number of witnesses in unit "+unit);
-        var arrWitnesses = rows.map(function(row){ return row.address; });
-        handleWitnessList(arrWitnesses);
-    });
+	conn.query("SELECT address FROM unit_witnesses WHERE unit=? ORDER BY address", [unit], function(rows){
+		if (rows.length === 0)
+			throw Error("witness list of unit "+unit+" not found");
+		if (rows.length !== constants.COUNT_WITNESSES)
+			throw Error("wrong number of witnesses in unit "+unit);
+		var arrWitnesses = rows.map(function(row){ return row.address; });
+		handleWitnessList(arrWitnesses);
+	});
 }
 
 function readWitnesses(conn, unit, handleWitnessList){
-    conn.query("SELECT witness_list_unit FROM units WHERE unit=?", [unit], function(rows){
-        if (rows.length === 0)
-            throw Error("unit "+unit+" not found");
-        var witness_list_unit = rows[0].witness_list_unit;
-        readWitnessList(conn, witness_list_unit ? witness_list_unit : unit, handleWitnessList);
-    });
+	conn.query("SELECT witness_list_unit FROM units WHERE unit=?", [unit], function(rows){
+		if (rows.length === 0)
+			throw Error("unit "+unit+" not found");
+		var witness_list_unit = rows[0].witness_list_unit;
+		readWitnessList(conn, witness_list_unit ? witness_list_unit : unit, handleWitnessList);
+	});
 }
 
 function determineIfWitnessAddressDefinitionsHaveReferences(conn, arrWitnesses, handleResult){
-    conn.query(
-        "SELECT 1 FROM address_definition_changes JOIN definitions USING(definition_chash) \n\
-        WHERE address IN(?) AND has_references=1 \n\
-        UNION \n\
-        SELECT 1 FROM definitions WHERE definition_chash IN(?) AND has_references=1 \n\
-        LIMIT 1",
-        [arrWitnesses, arrWitnesses],
-        function(rows){
-            handleResult(rows.length > 0);
-        }
-    );
+	conn.query(
+		"SELECT 1 FROM address_definition_changes JOIN definitions USING(definition_chash) \n\
+		WHERE address IN(?) AND has_references=1 \n\
+		UNION \n\
+		SELECT 1 FROM definitions WHERE definition_chash IN(?) AND has_references=1 \n\
+		LIMIT 1",
+		[arrWitnesses, arrWitnesses],
+		function(rows){
+			handleResult(rows.length > 0);
+		}
+	);
 }
 
 
 /*
 function readWitnessesOnMcUnit(conn, main_chain_index, handleWitnesses){
-    conn.query( // we read witnesses from MC unit (users can cheat with side-chains)
-        "SELECT address \n\
-        FROM units \n\
-        JOIN unit_witnesses ON(units.unit=unit_witnesses.unit OR units.witness_list_unit=unit_witnesses.unit) \n\
-        WHERE main_chain_index=? AND is_on_main_chain=1", 
-        [main_chain_index],
-        function(witness_rows){
-            if (witness_rows.length === 0)
-                throw "no witness list on MC unit "+main_chain_index;
-            if (witness_rows.length !== constants.COUNT_WITNESSES)
-                throw "wrong number of witnesses on MC unit "+main_chain_index;
-            var arrWitnesses = witness_rows.map(function(witness_row){ return witness_row.address; });
-            handleWitnesses(arrWitnesses);
-        }
-    );
+	conn.query( // we read witnesses from MC unit (users can cheat with side-chains)
+		"SELECT address \n\
+		FROM units \n\
+		JOIN unit_witnesses ON(units.unit=unit_witnesses.unit OR units.witness_list_unit=unit_witnesses.unit) \n\
+		WHERE main_chain_index=? AND is_on_main_chain=1", 
+		[main_chain_index],
+		function(witness_rows){
+			if (witness_rows.length === 0)
+				throw "no witness list on MC unit "+main_chain_index;
+			if (witness_rows.length !== constants.COUNT_WITNESSES)
+				throw "wrong number of witnesses on MC unit "+main_chain_index;
+			var arrWitnesses = witness_rows.map(function(witness_row){ return witness_row.address; });
+			handleWitnesses(arrWitnesses);
+		}
+	);
 }*/
 
 
 function readDefinitionByAddress(conn, address, max_mci, callbacks){
-    if (max_mci === null)
-        max_mci = MAX_INT32;
-    // try to find last definition change, otherwise definition_chash=address
-    conn.query(
-        "SELECT definition_chash FROM address_definition_changes JOIN units USING(unit) \n\
-        WHERE address=? AND is_stable=1 AND sequence='good' AND main_chain_index<=? ORDER BY level DESC LIMIT 1", 
-        [address, max_mci], 
-        function(rows){
-            var definition_chash = (rows.length > 0) ? rows[0].definition_chash : address;
-            readDefinition(conn, definition_chash, callbacks);
-        }
-    );
+	if (max_mci === null)
+		max_mci = MAX_INT32;
+	// try to find last definition change, otherwise definition_chash=address
+	conn.query(
+		"SELECT definition_chash FROM address_definition_changes JOIN units USING(unit) \n\
+		WHERE address=? AND is_stable=1 AND sequence='good' AND main_chain_index<=? ORDER BY level DESC LIMIT 1", 
+		[address, max_mci], 
+		function(rows){
+			var definition_chash = (rows.length > 0) ? rows[0].definition_chash : address;
+			readDefinition(conn, definition_chash, callbacks);
+		}
+	);
 }
 
 function readDefinition(conn, definition_chash, callbacks){
-    conn.query("SELECT definition FROM definitions WHERE definition_chash=?", [definition_chash], function(rows){
-        if (rows.length === 0)
-            return callbacks.ifDefinitionNotFound(definition_chash);
-        callbacks.ifFound(JSON.parse(rows[0].definition));
-    });
+	conn.query("SELECT definition FROM definitions WHERE definition_chash=?", [definition_chash], function(rows){
+		if (rows.length === 0)
+			return callbacks.ifDefinitionNotFound(definition_chash);
+		callbacks.ifFound(JSON.parse(rows[0].definition));
+	});
 }
 
 function readFreeJoints(ifFoundFreeBall, onDone){
-    db.query("SELECT unit FROM units WHERE is_free=1", function(rows){
-        async.each(rows, function(row, cb){
-            readJoint(db, row.unit, {
-                ifNotFound: function(){
-                    throw Error("free ball lost");
-                },
-                ifFound: function(objJoint){
-                    ifFoundFreeBall(objJoint);
-                    cb();
-                }
-            });
-        }, onDone);
-    });
+	db.query("SELECT unit FROM units WHERE is_free=1", function(rows){
+		async.each(rows, function(row, cb){
+			readJoint(db, row.unit, {
+				ifNotFound: function(){
+					throw Error("free ball lost");
+				},
+				ifFound: function(objJoint){
+					ifFoundFreeBall(objJoint);
+					cb();
+				}
+			});
+		}, onDone);
+	});
 }
 
 function isGenesisUnit(unit){
-    return (unit === constants.GENESIS_UNIT);
+	return (unit === constants.GENESIS_UNIT);
 }
 
 function isGenesisBall(ball){
-    return (ball === genesis_ball);
+	return (ball === genesis_ball);
 }
 
 
@@ -578,37 +578,37 @@ function isGenesisBall(ball){
 
 
 function readUnitProps(conn, unit, handleProps){
-    conn.query(
-        "SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free FROM units WHERE unit=?", 
-        [unit], 
-        function(rows){
-            if (rows.length !== 1)
-                throw Error("not 1 row");
-            handleProps(rows[0]);
-        }
-    );
+	conn.query(
+		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free FROM units WHERE unit=?", 
+		[unit], 
+		function(rows){
+			if (rows.length !== 1)
+				throw Error("not 1 row");
+			handleProps(rows[0]);
+		}
+	);
 }
 
 function readPropsOfUnits(conn, earlier_unit, arrLaterUnits, handleProps){
-    var bEarlierInLaterUnits = (arrLaterUnits.indexOf(earlier_unit) !== -1);
-    conn.query(
-        "SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free FROM units WHERE unit IN(?, ?)", 
-        [earlier_unit, arrLaterUnits], 
-        function(rows){
-            if (rows.length !== arrLaterUnits.length + (bEarlierInLaterUnits ? 0 : 1))
-                throw Error("wrong number of rows for earlier "+earlier_unit+", later "+arrLaterUnits);
-            var objEarlierUnitProps, arrLaterUnitProps = [];
-            for (var i=0; i<rows.length; i++){
-                if (rows[i].unit === earlier_unit)
-                    objEarlierUnitProps = rows[i];
-                else
-                    arrLaterUnitProps.push(rows[i]);
-            }
-            if (bEarlierInLaterUnits)
-                arrLaterUnitProps.push(objEarlierUnitProps);
-            handleProps(objEarlierUnitProps, arrLaterUnitProps);
-        }
-    );
+	var bEarlierInLaterUnits = (arrLaterUnits.indexOf(earlier_unit) !== -1);
+	conn.query(
+		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free FROM units WHERE unit IN(?, ?)", 
+		[earlier_unit, arrLaterUnits], 
+		function(rows){
+			if (rows.length !== arrLaterUnits.length + (bEarlierInLaterUnits ? 0 : 1))
+				throw Error("wrong number of rows for earlier "+earlier_unit+", later "+arrLaterUnits);
+			var objEarlierUnitProps, arrLaterUnitProps = [];
+			for (var i=0; i<rows.length; i++){
+				if (rows[i].unit === earlier_unit)
+					objEarlierUnitProps = rows[i];
+				else
+					arrLaterUnitProps.push(rows[i]);
+			}
+			if (bEarlierInLaterUnits)
+				arrLaterUnitProps.push(objEarlierUnitProps);
+			handleProps(objEarlierUnitProps, arrLaterUnitProps);
+		}
+	);
 }
 
 
@@ -617,411 +617,411 @@ function readPropsOfUnits(conn, earlier_unit, arrLaterUnits, handleProps){
 
 
 function readLastStableMcUnitProps(conn, handleLastStableMcUnitProps){
-    conn.query(
-        "SELECT units.*, ball FROM units LEFT JOIN balls USING(unit) WHERE is_on_main_chain=1 AND is_stable=1 ORDER BY main_chain_index DESC LIMIT 1", 
-        function(rows){
-            if (rows.length === 0)
-                return handleLastStableMcUnitProps(null); // empty database
-                //throw "readLastStableMcUnitProps: no units on stable MC?";
-            if (!rows[0].ball)
-                throw Error("no ball for last stable unit");
-            handleLastStableMcUnitProps(rows[0]);
-        }
-    );
+	conn.query(
+		"SELECT units.*, ball FROM units LEFT JOIN balls USING(unit) WHERE is_on_main_chain=1 AND is_stable=1 ORDER BY main_chain_index DESC LIMIT 1", 
+		function(rows){
+			if (rows.length === 0)
+				return handleLastStableMcUnitProps(null); // empty database
+				//throw "readLastStableMcUnitProps: no units on stable MC?";
+			if (!rows[0].ball)
+				throw Error("no ball for last stable unit");
+			handleLastStableMcUnitProps(rows[0]);
+		}
+	);
 }
 
 function readLastStableMcIndex(conn, handleLastStableMcIndex){
-    readLastStableMcUnitProps(conn, function(objLastStableMcUnitProps){
-        handleLastStableMcIndex(objLastStableMcUnitProps ? objLastStableMcUnitProps.main_chain_index : 0);
-    });
+	readLastStableMcUnitProps(conn, function(objLastStableMcUnitProps){
+		handleLastStableMcIndex(objLastStableMcUnitProps ? objLastStableMcUnitProps.main_chain_index : 0);
+	});
 }
 
 
 function readLastMainChainIndex(handleLastMcIndex){
-    db.query("SELECT MAX(main_chain_index) AS last_mc_index FROM units", function(rows){
-        var last_mc_index = rows[0].last_mc_index;
-        if (last_mc_index === null) // empty database
-            last_mc_index = 0;
-        handleLastMcIndex(last_mc_index);
-    });
+	db.query("SELECT MAX(main_chain_index) AS last_mc_index FROM units", function(rows){
+		var last_mc_index = rows[0].last_mc_index;
+		if (last_mc_index === null) // empty database
+			last_mc_index = 0;
+		handleLastMcIndex(last_mc_index);
+	});
 }
 
 
 function findLastBallMciOfMci(conn, mci, handleLastBallMci){
-    if (mci === 0)
-        throw Error("findLastBallMciOfMci called with mci=0");
-    conn.query(
-        "SELECT lb_units.main_chain_index, lb_units.is_on_main_chain \n\
-        FROM units JOIN units AS lb_units ON units.last_ball_unit=lb_units.unit \n\
-        WHERE units.is_on_main_chain=1 AND units.main_chain_index=?", 
-        [mci],
-        function(rows){
-            if (rows.length !== 1)
-                throw Error("last ball's mci count "+rows.length+" !== 1, mci = "+mci);
-            if (rows[0].is_on_main_chain !== 1)
-                throw Error("lb is not on mc?");
-            handleLastBallMci(rows[0].main_chain_index);
-        }
-    );
+	if (mci === 0)
+		throw Error("findLastBallMciOfMci called with mci=0");
+	conn.query(
+		"SELECT lb_units.main_chain_index, lb_units.is_on_main_chain \n\
+		FROM units JOIN units AS lb_units ON units.last_ball_unit=lb_units.unit \n\
+		WHERE units.is_on_main_chain=1 AND units.main_chain_index=?", 
+		[mci],
+		function(rows){
+			if (rows.length !== 1)
+				throw Error("last ball's mci count "+rows.length+" !== 1, mci = "+mci);
+			if (rows[0].is_on_main_chain !== 1)
+				throw Error("lb is not on mc?");
+			handleLastBallMci(rows[0].main_chain_index);
+		}
+	);
 }
 
 function updateMinRetrievableMciAfterStabilizingMci(conn, last_stable_mci, handleMinRetrievableMci){
-    console.log("updateMinRetrievableMciAfterStabilizingMci "+last_stable_mci);
-    findLastBallMciOfMci(conn, last_stable_mci, function(last_ball_mci){
-        if (last_ball_mci <= min_retrievable_mci) // nothing new
-            return handleMinRetrievableMci(min_retrievable_mci);
-        min_retrievable_mci = last_ball_mci;
+	console.log("updateMinRetrievableMciAfterStabilizingMci "+last_stable_mci);
+	findLastBallMciOfMci(conn, last_stable_mci, function(last_ball_mci){
+		if (last_ball_mci <= min_retrievable_mci) // nothing new
+			return handleMinRetrievableMci(min_retrievable_mci);
+		min_retrievable_mci = last_ball_mci;
 
-        // strip content off units older than min_retrievable_mci
-        conn.query(
-            // 'JOIN messages' filters units that are not stripped yet
-            "SELECT DISTINCT unit, content_hash FROM units JOIN messages USING(unit) WHERE main_chain_index<=? AND sequence='final-bad'", 
-            [min_retrievable_mci],
-            function(unit_rows){
-                var arrQueries = [];
-                async.eachSeries(
-                    unit_rows,
-                    function(unit_row, cb){
-                        var unit = unit_row.unit;
-                        if (!unit_row.content_hash)
-                            throw Error("no content hash in bad unit "+unit);
-                        readJoint(conn, unit, {
-                            ifNotFound: function(){
-                                throw Error("bad unit not found: "+unit);
-                            },
-                            ifFound: function(objJoint){
-                                generateQueriesToArchiveJoint(conn, objJoint, 'voided', arrQueries);
-                                cb();
-                            }
-                        });
-                    },
-                    function(){
-                        if (arrQueries.length === 0)
-                            return handleMinRetrievableMci(min_retrievable_mci);
-                        async.series(arrQueries, function(){
-                            handleMinRetrievableMci(min_retrievable_mci);
-                        });
-                    }
-                );
-            }
-        );
-    });
+		// strip content off units older than min_retrievable_mci
+		conn.query(
+			// 'JOIN messages' filters units that are not stripped yet
+			"SELECT DISTINCT unit, content_hash FROM units JOIN messages USING(unit) WHERE main_chain_index<=? AND sequence='final-bad'", 
+			[min_retrievable_mci],
+			function(unit_rows){
+				var arrQueries = [];
+				async.eachSeries(
+					unit_rows,
+					function(unit_row, cb){
+						var unit = unit_row.unit;
+						if (!unit_row.content_hash)
+							throw Error("no content hash in bad unit "+unit);
+						readJoint(conn, unit, {
+							ifNotFound: function(){
+								throw Error("bad unit not found: "+unit);
+							},
+							ifFound: function(objJoint){
+								generateQueriesToArchiveJoint(conn, objJoint, 'voided', arrQueries);
+								cb();
+							}
+						});
+					},
+					function(){
+						if (arrQueries.length === 0)
+							return handleMinRetrievableMci(min_retrievable_mci);
+						async.series(arrQueries, function(){
+							handleMinRetrievableMci(min_retrievable_mci);
+						});
+					}
+				);
+			}
+		);
+	});
 }
 
 function initializeMinRetrievableMci(){
-    db.query(
-        "SELECT MAX(lb_units.main_chain_index) AS min_retrievable_mci \n\
-        FROM units JOIN units AS lb_units ON units.last_ball_unit=lb_units.unit \n\
-        WHERE units.is_on_main_chain=1 AND units.is_stable=1", 
-        function(rows){
-            if (rows.length !== 1)
-                throw Error("MAX() no rows?");
-            min_retrievable_mci = rows[0].min_retrievable_mci;
-            if (min_retrievable_mci === null)
-                min_retrievable_mci = 0;
-        }
-    );
+	db.query(
+		"SELECT MAX(lb_units.main_chain_index) AS min_retrievable_mci \n\
+		FROM units JOIN units AS lb_units ON units.last_ball_unit=lb_units.unit \n\
+		WHERE units.is_on_main_chain=1 AND units.is_stable=1", 
+		function(rows){
+			if (rows.length !== 1)
+				throw Error("MAX() no rows?");
+			min_retrievable_mci = rows[0].min_retrievable_mci;
+			if (min_retrievable_mci === null)
+				min_retrievable_mci = 0;
+		}
+	);
 }
 
 function generateQueriesToArchiveJoint(conn, objJoint, reason, arrQueries){
-    (reason === 'uncovered') 
-        ? generateQueriesToRemoveJoint(conn, objJoint.unit.unit, arrQueries)
-        : generateQueriesToVoidJoint(conn, objJoint.unit.unit, arrQueries);
-    conn.addQuery(arrQueries, "INSERT "+conn.getIgnore()+" INTO archived_joints (unit, reason, json) VALUES (?,?,?)", 
-        [objJoint.unit.unit, reason, JSON.stringify(objJoint)]);
+	(reason === 'uncovered') 
+		? generateQueriesToRemoveJoint(conn, objJoint.unit.unit, arrQueries)
+		: generateQueriesToVoidJoint(conn, objJoint.unit.unit, arrQueries);
+	conn.addQuery(arrQueries, "INSERT "+conn.getIgnore()+" INTO archived_joints (unit, reason, json) VALUES (?,?,?)", 
+		[objJoint.unit.unit, reason, JSON.stringify(objJoint)]);
 }
 
 function generateQueriesToRemoveJoint(conn, unit, arrQueries){
-    generateQueriesToUnspendOutputsSpentInArchivedUnit(conn, unit, arrQueries);
-    conn.addQuery(arrQueries, "DELETE FROM witness_list_hashes WHERE witness_list_unit=?", [unit]);
-    conn.addQuery(arrQueries, "DELETE FROM earned_headers_commission_recipients WHERE unit=?", [unit]);
-    conn.addQuery(arrQueries, "DELETE FROM unit_witnesses WHERE unit=?", [unit]);
-    conn.addQuery(arrQueries, "DELETE FROM authentifiers WHERE unit=?", [unit]);
-    conn.addQuery(arrQueries, "DELETE FROM unit_authors WHERE unit=?", [unit]);
-    conn.addQuery(arrQueries, "DELETE FROM parenthoods WHERE parent_unit=? OR child_unit=?", [unit, unit]);
-    conn.addQuery(arrQueries, "DELETE FROM address_definition_changes WHERE unit=?", [unit]);
-    conn.addQuery(arrQueries, "DELETE FROM inputs WHERE unit=?", [unit]);
-    conn.addQuery(arrQueries, "DELETE FROM outputs WHERE unit=?", [unit]);
-    conn.addQuery(arrQueries, "DELETE FROM spend_proofs WHERE unit=?", [unit]);
-    conn.addQuery(arrQueries, "DELETE FROM messages WHERE unit=?", [unit]);
-    conn.addQuery(arrQueries, "DELETE FROM balls WHERE unit=?", [unit]);
-    conn.addQuery(arrQueries, "DELETE FROM units WHERE unit=?", [unit]);
+	generateQueriesToUnspendOutputsSpentInArchivedUnit(conn, unit, arrQueries);
+	conn.addQuery(arrQueries, "DELETE FROM witness_list_hashes WHERE witness_list_unit=?", [unit]);
+	conn.addQuery(arrQueries, "DELETE FROM earned_headers_commission_recipients WHERE unit=?", [unit]);
+	conn.addQuery(arrQueries, "DELETE FROM unit_witnesses WHERE unit=?", [unit]);
+	conn.addQuery(arrQueries, "DELETE FROM authentifiers WHERE unit=?", [unit]);
+	conn.addQuery(arrQueries, "DELETE FROM unit_authors WHERE unit=?", [unit]);
+	conn.addQuery(arrQueries, "DELETE FROM parenthoods WHERE parent_unit=? OR child_unit=?", [unit, unit]);
+	conn.addQuery(arrQueries, "DELETE FROM address_definition_changes WHERE unit=?", [unit]);
+	conn.addQuery(arrQueries, "DELETE FROM inputs WHERE unit=?", [unit]);
+	conn.addQuery(arrQueries, "DELETE FROM outputs WHERE unit=?", [unit]);
+	conn.addQuery(arrQueries, "DELETE FROM spend_proofs WHERE unit=?", [unit]);
+	conn.addQuery(arrQueries, "DELETE FROM messages WHERE unit=?", [unit]);
+	conn.addQuery(arrQueries, "DELETE FROM balls WHERE unit=?", [unit]);
+	conn.addQuery(arrQueries, "DELETE FROM units WHERE unit=?", [unit]);
 }
 
 function generateQueriesToVoidJoint(conn, unit, arrQueries){
-    generateQueriesToUnspendOutputsSpentInArchivedUnit(conn, unit, arrQueries);
-    // we keep witnesses, author addresses, and the unit itself
-    conn.addQuery(arrQueries, "DELETE FROM witness_list_hashes WHERE witness_list_unit=?", [unit]);
-    conn.addQuery(arrQueries, "DELETE FROM earned_headers_commission_recipients WHERE unit=?", [unit]);
-    conn.addQuery(arrQueries, "DELETE FROM authentifiers WHERE unit=?", [unit]);
-    conn.addQuery(arrQueries, "UPDATE unit_authors SET definition_chash=NULL WHERE unit=?", [unit]);
-    conn.addQuery(arrQueries, "DELETE FROM address_definition_changes WHERE unit=?", [unit]);
-    conn.addQuery(arrQueries, "DELETE FROM inputs WHERE unit=?", [unit]);
-    conn.addQuery(arrQueries, "DELETE FROM outputs WHERE unit=?", [unit]);
-    conn.addQuery(arrQueries, "DELETE FROM spend_proofs WHERE unit=?", [unit]);
-    conn.addQuery(arrQueries, "DELETE FROM messages WHERE unit=?", [unit]);
+	generateQueriesToUnspendOutputsSpentInArchivedUnit(conn, unit, arrQueries);
+	// we keep witnesses, author addresses, and the unit itself
+	conn.addQuery(arrQueries, "DELETE FROM witness_list_hashes WHERE witness_list_unit=?", [unit]);
+	conn.addQuery(arrQueries, "DELETE FROM earned_headers_commission_recipients WHERE unit=?", [unit]);
+	conn.addQuery(arrQueries, "DELETE FROM authentifiers WHERE unit=?", [unit]);
+	conn.addQuery(arrQueries, "UPDATE unit_authors SET definition_chash=NULL WHERE unit=?", [unit]);
+	conn.addQuery(arrQueries, "DELETE FROM address_definition_changes WHERE unit=?", [unit]);
+	conn.addQuery(arrQueries, "DELETE FROM inputs WHERE unit=?", [unit]);
+	conn.addQuery(arrQueries, "DELETE FROM outputs WHERE unit=?", [unit]);
+	conn.addQuery(arrQueries, "DELETE FROM spend_proofs WHERE unit=?", [unit]);
+	conn.addQuery(arrQueries, "DELETE FROM messages WHERE unit=?", [unit]);
 }
 
 function generateQueriesToUnspendOutputsSpentInArchivedUnit(conn, unit, arrQueries){
-    
-    // divisible transfers
-    conn.addQuery(
-        arrQueries, 
-        "UPDATE outputs SET is_spent=0 WHERE EXISTS ( \n\
-            SELECT * \n\
-            FROM inputs \n\
-            WHERE inputs.unit=? \n\
-                AND inputs.type='transfer' \n\
-                AND inputs.src_unit=outputs.unit \n\
-                AND inputs.src_message_index=outputs.message_index \n\
-                AND inputs.src_output_index=outputs.output_index \n\
-                AND NOT EXISTS ( \n\
-                    SELECT 1 FROM inputs AS alt_inputs \n\
-                    WHERE inputs.src_unit=alt_inputs.src_unit \n\
-                        AND inputs.src_message_index=alt_inputs.src_message_index \n\
-                        AND inputs.src_output_index=alt_inputs.src_output_index \n\
-                        AND alt_inputs.type='transfer' \n\
-                        AND inputs.unit!=alt_inputs.unit \n\
-                ) \n\
-        )",
-        /*
-        // mysql only
-        "UPDATE inputs \n\
-        JOIN divisible_outputs \n\
-            ON inputs.src_unit=divisible_outputs.unit \n\
-            AND inputs.src_message_index=divisible_outputs.message_index \n\
-            AND inputs.src_output_index=divisible_outputs.output_index \n\
-        SET is_spent=0 \n\
-        WHERE inputs.unit=? AND inputs.type='transfer' \n\
-            AND ( \n\
-                SELECT 1 FROM inputs AS alt_inputs \n\
-                WHERE inputs.src_unit=alt_inputs.src_unit \n\
-                    AND inputs.src_message_index=alt_inputs.src_message_index \n\
-                    AND inputs.src_output_index=alt_inputs.src_output_index \n\
-                    AND alt_inputs.type='transfer' \n\
-                    AND inputs.unit!=alt_inputs.unit \n\
-                LIMIT 1 \n\
-            ) IS NULL", 
-        */
-        [unit]
-    );
-    
-    
-    // headers commissions
-    conn.addQuery(
-        arrQueries, 
-        "UPDATE headers_commission_outputs SET is_spent=0 WHERE EXISTS ( \n\
-            SELECT * \n\
-            FROM inputs \n\
-            WHERE inputs.unit=? \n\
-                AND inputs.type='headers_commission' \n\
-                AND inputs.from_main_chain_index <= headers_commission_outputs.main_chain_index \n\
-                AND inputs.to_main_chain_index >= headers_commission_outputs.main_chain_index \n\
-                AND inputs.address = headers_commission_outputs.address \n\
-                AND NOT EXISTS ( \n\
-                    SELECT 1 FROM inputs AS alt_inputs \n\
-                    WHERE headers_commission_outputs.main_chain_index >= alt_inputs.from_main_chain_index \n\
-                        AND headers_commission_outputs.main_chain_index <= alt_inputs.to_main_chain_index \n\
-                        AND inputs.address=alt_inputs.address \n\
-                        AND alt_inputs.type='headers_commission' \n\
-                        AND inputs.unit!=alt_inputs.unit \n\
-                ) \n\
-        )",
-        /*
-        // mysql only
-        "UPDATE inputs \n\
-        JOIN headers_commission_outputs \n\
-            ON inputs.from_main_chain_index <= headers_commission_outputs.main_chain_index \n\
-            AND inputs.to_main_chain_index >= headers_commission_outputs.main_chain_index \n\
-            AND inputs.address = headers_commission_outputs.address \n\
-        SET is_spent=0 \n\
-        WHERE inputs.unit=? AND inputs.type='headers_commission' \n\
-            AND ( \n\
-                SELECT 1 FROM inputs AS alt_inputs \n\
-                WHERE headers_commission_outputs.main_chain_index >= alt_inputs.from_main_chain_index \n\
-                    AND headers_commission_outputs.main_chain_index <= alt_inputs.to_main_chain_index \n\
-                    AND inputs.address=alt_inputs.address \n\
-                    AND alt_inputs.type='headers_commission' \n\
-                    AND inputs.unit!=alt_inputs.unit \n\
-                LIMIT 1 \n\
-            ) IS NULL", 
-        */
-        [unit]
-    );
-    
-    // witnessing
-    conn.addQuery(
-        arrQueries, 
-        "UPDATE witnessing_outputs SET is_spent=0 WHERE EXISTS ( \n\
-            SELECT * \n\
-            FROM inputs \n\
-            WHERE inputs.unit=? \n\
-                AND inputs.type='witnessing' \n\
-                AND inputs.from_main_chain_index <= witnessing_outputs.main_chain_index \n\
-                AND inputs.to_main_chain_index >= witnessing_outputs.main_chain_index \n\
-                AND inputs.address = witnessing_outputs.address \n\
-                AND NOT EXISTS ( \n\
-                    SELECT 1 FROM inputs AS alt_inputs \n\
-                    WHERE witnessing_outputs.main_chain_index >= alt_inputs.from_main_chain_index \n\
-                        AND witnessing_outputs.main_chain_index <= alt_inputs.to_main_chain_index \n\
-                        AND inputs.address=alt_inputs.address \n\
-                        AND alt_inputs.type='witnessing' \n\
-                        AND inputs.unit!=alt_inputs.unit \n\
-                ) \n\
-        )",
-        /*
-        // mysql only
-        "UPDATE inputs \n\
-        JOIN witnessing_outputs \n\
-            ON inputs.from_main_chain_index <= witnessing_outputs.main_chain_index \n\
-            AND inputs.to_main_chain_index >= witnessing_outputs.main_chain_index \n\
-            AND inputs.address = witnessing_outputs.address \n\
-        SET is_spent=0 \n\
-        WHERE inputs.unit=? AND inputs.type='witnessing' \n\
-            AND ( \n\
-                SELECT 1 FROM inputs AS alt_inputs \n\
-                WHERE witnessing_outputs.main_chain_index >= alt_inputs.from_main_chain_index \n\
-                    AND witnessing_outputs.main_chain_index <= alt_inputs.to_main_chain_index \n\
-                    AND inputs.address=alt_inputs.address \n\
-                    AND alt_inputs.type='witnessing' \n\
-                    AND inputs.unit!=alt_inputs.unit \n\
-                LIMIT 1 \n\
-            ) IS NULL", 
-        */
-        [unit]
-    );
+	
+	// divisible transfers
+	conn.addQuery(
+		arrQueries, 
+		"UPDATE outputs SET is_spent=0 WHERE EXISTS ( \n\
+			SELECT * \n\
+			FROM inputs \n\
+			WHERE inputs.unit=? \n\
+				AND inputs.type='transfer' \n\
+				AND inputs.src_unit=outputs.unit \n\
+				AND inputs.src_message_index=outputs.message_index \n\
+				AND inputs.src_output_index=outputs.output_index \n\
+				AND NOT EXISTS ( \n\
+					SELECT 1 FROM inputs AS alt_inputs \n\
+					WHERE inputs.src_unit=alt_inputs.src_unit \n\
+						AND inputs.src_message_index=alt_inputs.src_message_index \n\
+						AND inputs.src_output_index=alt_inputs.src_output_index \n\
+						AND alt_inputs.type='transfer' \n\
+						AND inputs.unit!=alt_inputs.unit \n\
+				) \n\
+		)",
+		/*
+		// mysql only
+		"UPDATE inputs \n\
+		JOIN divisible_outputs \n\
+			ON inputs.src_unit=divisible_outputs.unit \n\
+			AND inputs.src_message_index=divisible_outputs.message_index \n\
+			AND inputs.src_output_index=divisible_outputs.output_index \n\
+		SET is_spent=0 \n\
+		WHERE inputs.unit=? AND inputs.type='transfer' \n\
+			AND ( \n\
+				SELECT 1 FROM inputs AS alt_inputs \n\
+				WHERE inputs.src_unit=alt_inputs.src_unit \n\
+					AND inputs.src_message_index=alt_inputs.src_message_index \n\
+					AND inputs.src_output_index=alt_inputs.src_output_index \n\
+					AND alt_inputs.type='transfer' \n\
+					AND inputs.unit!=alt_inputs.unit \n\
+				LIMIT 1 \n\
+			) IS NULL", 
+		*/
+		[unit]
+	);
+	
+	
+	// headers commissions
+	conn.addQuery(
+		arrQueries, 
+		"UPDATE headers_commission_outputs SET is_spent=0 WHERE EXISTS ( \n\
+			SELECT * \n\
+			FROM inputs \n\
+			WHERE inputs.unit=? \n\
+				AND inputs.type='headers_commission' \n\
+				AND inputs.from_main_chain_index <= headers_commission_outputs.main_chain_index \n\
+				AND inputs.to_main_chain_index >= headers_commission_outputs.main_chain_index \n\
+				AND inputs.address = headers_commission_outputs.address \n\
+				AND NOT EXISTS ( \n\
+					SELECT 1 FROM inputs AS alt_inputs \n\
+					WHERE headers_commission_outputs.main_chain_index >= alt_inputs.from_main_chain_index \n\
+						AND headers_commission_outputs.main_chain_index <= alt_inputs.to_main_chain_index \n\
+						AND inputs.address=alt_inputs.address \n\
+						AND alt_inputs.type='headers_commission' \n\
+						AND inputs.unit!=alt_inputs.unit \n\
+				) \n\
+		)",
+		/*
+		// mysql only
+		"UPDATE inputs \n\
+		JOIN headers_commission_outputs \n\
+			ON inputs.from_main_chain_index <= headers_commission_outputs.main_chain_index \n\
+			AND inputs.to_main_chain_index >= headers_commission_outputs.main_chain_index \n\
+			AND inputs.address = headers_commission_outputs.address \n\
+		SET is_spent=0 \n\
+		WHERE inputs.unit=? AND inputs.type='headers_commission' \n\
+			AND ( \n\
+				SELECT 1 FROM inputs AS alt_inputs \n\
+				WHERE headers_commission_outputs.main_chain_index >= alt_inputs.from_main_chain_index \n\
+					AND headers_commission_outputs.main_chain_index <= alt_inputs.to_main_chain_index \n\
+					AND inputs.address=alt_inputs.address \n\
+					AND alt_inputs.type='headers_commission' \n\
+					AND inputs.unit!=alt_inputs.unit \n\
+				LIMIT 1 \n\
+			) IS NULL", 
+		*/
+		[unit]
+	);
+	
+	// witnessing
+	conn.addQuery(
+		arrQueries, 
+		"UPDATE witnessing_outputs SET is_spent=0 WHERE EXISTS ( \n\
+			SELECT * \n\
+			FROM inputs \n\
+			WHERE inputs.unit=? \n\
+				AND inputs.type='witnessing' \n\
+				AND inputs.from_main_chain_index <= witnessing_outputs.main_chain_index \n\
+				AND inputs.to_main_chain_index >= witnessing_outputs.main_chain_index \n\
+				AND inputs.address = witnessing_outputs.address \n\
+				AND NOT EXISTS ( \n\
+					SELECT 1 FROM inputs AS alt_inputs \n\
+					WHERE witnessing_outputs.main_chain_index >= alt_inputs.from_main_chain_index \n\
+						AND witnessing_outputs.main_chain_index <= alt_inputs.to_main_chain_index \n\
+						AND inputs.address=alt_inputs.address \n\
+						AND alt_inputs.type='witnessing' \n\
+						AND inputs.unit!=alt_inputs.unit \n\
+				) \n\
+		)",
+		/*
+		// mysql only
+		"UPDATE inputs \n\
+		JOIN witnessing_outputs \n\
+			ON inputs.from_main_chain_index <= witnessing_outputs.main_chain_index \n\
+			AND inputs.to_main_chain_index >= witnessing_outputs.main_chain_index \n\
+			AND inputs.address = witnessing_outputs.address \n\
+		SET is_spent=0 \n\
+		WHERE inputs.unit=? AND inputs.type='witnessing' \n\
+			AND ( \n\
+				SELECT 1 FROM inputs AS alt_inputs \n\
+				WHERE witnessing_outputs.main_chain_index >= alt_inputs.from_main_chain_index \n\
+					AND witnessing_outputs.main_chain_index <= alt_inputs.to_main_chain_index \n\
+					AND inputs.address=alt_inputs.address \n\
+					AND alt_inputs.type='witnessing' \n\
+					AND inputs.unit!=alt_inputs.unit \n\
+				LIMIT 1 \n\
+			) IS NULL", 
+		*/
+		[unit]
+	);
 }
 
 function readAsset(conn, asset, last_ball_mci, handleAsset){
-    if (last_ball_mci === null){
-        if (conf.bLight)
-            last_ball_mci = MAX_INT32;
-        else
-            return readLastStableMcIndex(conn, function(last_stable_mci){
-                readAsset(conn, asset, last_stable_mci, handleAsset);
-            });
-    }
-    conn.query(
-        "SELECT assets.*, main_chain_index, sequence, address AS definer_address, unit AS asset \n\
-        FROM assets JOIN units USING(unit) JOIN unit_authors USING(unit) WHERE unit=?", 
-        [asset], 
-        function(rows){
-            if (rows.length > 1)
-                throw Error("more than one asset?");
-            if (rows.length === 0)
-                return handleAsset("asset "+asset+" not found");
-            var objAsset = rows[0];
-            if (objAsset.main_chain_index > last_ball_mci)
-                return handleAsset("asset definition must be before last ball");
-            if (objAsset.sequence !== "good")
-                return handleAsset("asset definition is not serial");
-            if (objAsset.issue_condition)
-                objAsset.issue_condition = JSON.parse(objAsset.issue_condition);
-            if (objAsset.transfer_condition)
-                objAsset.transfer_condition = JSON.parse(objAsset.transfer_condition);
-            if (!objAsset.spender_attested)
-                return handleAsset(null, objAsset);
-        
-            // find latest list of attestors
-            conn.query(
-                "SELECT MAX(level) AS max_level FROM asset_attestors JOIN units USING(unit) \n\
-                WHERE asset=? AND main_chain_index<=? AND is_stable=1 AND sequence='good'", 
-                [asset, last_ball_mci],
-                function(latest_rows){
-                    var max_level = latest_rows[0].max_level;
-                    if (!max_level)
-                        throw Error("no max level of asset attestors");
+	if (last_ball_mci === null){
+		if (conf.bLight)
+			last_ball_mci = MAX_INT32;
+		else
+			return readLastStableMcIndex(conn, function(last_stable_mci){
+				readAsset(conn, asset, last_stable_mci, handleAsset);
+			});
+	}
+	conn.query(
+		"SELECT assets.*, main_chain_index, sequence, address AS definer_address, unit AS asset \n\
+		FROM assets JOIN units USING(unit) JOIN unit_authors USING(unit) WHERE unit=?", 
+		[asset], 
+		function(rows){
+			if (rows.length > 1)
+				throw Error("more than one asset?");
+			if (rows.length === 0)
+				return handleAsset("asset "+asset+" not found");
+			var objAsset = rows[0];
+			if (objAsset.main_chain_index > last_ball_mci)
+				return handleAsset("asset definition must be before last ball");
+			if (objAsset.sequence !== "good")
+				return handleAsset("asset definition is not serial");
+			if (objAsset.issue_condition)
+				objAsset.issue_condition = JSON.parse(objAsset.issue_condition);
+			if (objAsset.transfer_condition)
+				objAsset.transfer_condition = JSON.parse(objAsset.transfer_condition);
+			if (!objAsset.spender_attested)
+				return handleAsset(null, objAsset);
+		
+			// find latest list of attestors
+			conn.query(
+				"SELECT MAX(level) AS max_level FROM asset_attestors JOIN units USING(unit) \n\
+				WHERE asset=? AND main_chain_index<=? AND is_stable=1 AND sequence='good'", 
+				[asset, last_ball_mci],
+				function(latest_rows){
+					var max_level = latest_rows[0].max_level;
+					if (!max_level)
+						throw Error("no max level of asset attestors");
 
-                    // read the list
-                    conn.query(
-                        "SELECT attestor_address FROM asset_attestors JOIN units USING(unit) \n\
-                        WHERE asset=? AND level=? AND main_chain_index<=? AND is_stable=1 AND sequence='good'",
-                        [asset, max_level, last_ball_mci],
-                        function(att_rows){
-                            if (att_rows.length === 0)
-                                throw Error("no attestors?");
-                            objAsset.arrAttestorAddresses = att_rows.map(function(att_row){ return att_row.attestor_address; });
-                            handleAsset(null, objAsset);
-                        }
-                    );
-                }
-            );
-        }
-    );
+					// read the list
+					conn.query(
+						"SELECT attestor_address FROM asset_attestors JOIN units USING(unit) \n\
+						WHERE asset=? AND level=? AND main_chain_index<=? AND is_stable=1 AND sequence='good'",
+						[asset, max_level, last_ball_mci],
+						function(att_rows){
+							if (att_rows.length === 0)
+								throw Error("no attestors?");
+							objAsset.arrAttestorAddresses = att_rows.map(function(att_row){ return att_row.attestor_address; });
+							handleAsset(null, objAsset);
+						}
+					);
+				}
+			);
+		}
+	);
 }
 
 // filter only those authors that are attested (doesn't work for light clients)
 function filterAttestedAddresses(conn, objAsset, last_ball_mci, arrAuthorAddresses, handleAttestedAddresses){
-    conn.query(
-        "SELECT DISTINCT address FROM attestations JOIN units USING(unit) \n\
-        WHERE attestor_address IN(?) AND address IN(?) AND main_chain_index<=? AND is_stable=1 AND sequence='good'",
-        [objAsset.arrAttestorAddresses, arrAuthorAddresses, last_ball_mci],
-        function(addr_rows){
-            var arrAttestedAddresses = addr_rows.map(function(addr_row){ return addr_row.address; });
-            handleAttestedAddresses(arrAttestedAddresses);
-        }
-    );
+	conn.query(
+		"SELECT DISTINCT address FROM attestations JOIN units USING(unit) \n\
+		WHERE attestor_address IN(?) AND address IN(?) AND main_chain_index<=? AND is_stable=1 AND sequence='good'",
+		[objAsset.arrAttestorAddresses, arrAuthorAddresses, last_ball_mci],
+		function(addr_rows){
+			var arrAttestedAddresses = addr_rows.map(function(addr_row){ return addr_row.address; });
+			handleAttestedAddresses(arrAttestedAddresses);
+		}
+	);
 }
 
 // note that light clients cannot check attestations
 function loadAssetWithListOfAttestedAuthors(conn, asset, last_ball_mci, arrAuthorAddresses, handleAsset){
-    readAsset(conn, asset, last_ball_mci, function(err, objAsset){
-        if (err)
-            return handleAsset(err);
-        if (!objAsset.spender_attested)
-            return handleAsset(null, objAsset);
-        filterAttestedAddresses(conn, objAsset, last_ball_mci, arrAuthorAddresses, function(arrAttestedAddresses){
-            objAsset.arrAttestedAddresses = arrAttestedAddresses;
-            handleAsset(null, objAsset);
-        });
-    });
+	readAsset(conn, asset, last_ball_mci, function(err, objAsset){
+		if (err)
+			return handleAsset(err);
+		if (!objAsset.spender_attested)
+			return handleAsset(null, objAsset);
+		filterAttestedAddresses(conn, objAsset, last_ball_mci, arrAuthorAddresses, function(arrAttestedAddresses){
+			objAsset.arrAttestedAddresses = arrAttestedAddresses;
+			handleAsset(null, objAsset);
+		});
+	});
 }
 
 function findWitnessListUnit(conn, arrWitnesses, last_ball_mci, handleWitnessListUnit){
-    conn.query(
-        "SELECT witness_list_hashes.witness_list_unit \n\
-        FROM witness_list_hashes JOIN units ON witness_list_hashes.witness_list_unit=unit \n\
-        WHERE witness_list_hash=? AND sequence='good' AND is_stable=1 AND main_chain_index<=?", 
-        [objectHash.getBase64Hash(arrWitnesses), last_ball_mci], 
-        function(rows){
-            handleWitnessListUnit((rows.length === 0) ? null : rows[0].witness_list_unit);
-        }
-    );
+	conn.query(
+		"SELECT witness_list_hashes.witness_list_unit \n\
+		FROM witness_list_hashes JOIN units ON witness_list_hashes.witness_list_unit=unit \n\
+		WHERE witness_list_hash=? AND sequence='good' AND is_stable=1 AND main_chain_index<=?", 
+		[objectHash.getBase64Hash(arrWitnesses), last_ball_mci], 
+		function(rows){
+			handleWitnessListUnit((rows.length === 0) ? null : rows[0].witness_list_unit);
+		}
+	);
 }
 
 function filterNewOrUnstableUnits(arrUnits, handleFilteredUnits){
-    db.query("SELECT unit FROM units WHERE unit IN(?) AND is_stable=1", [arrUnits], function(rows){
-        var arrKnownStableUnits = rows.map(function(row){ return row.unit; });
-        var arrNewOrUnstableUnits = _.difference(arrUnits, arrKnownStableUnits);
-        handleFilteredUnits(arrNewOrUnstableUnits);
-    });
+	db.query("SELECT unit FROM units WHERE unit IN(?) AND is_stable=1", [arrUnits], function(rows){
+		var arrKnownStableUnits = rows.map(function(row){ return row.unit; });
+		var arrNewOrUnstableUnits = _.difference(arrUnits, arrKnownStableUnits);
+		handleFilteredUnits(arrNewOrUnstableUnits);
+	});
 }
 
 // for unit that is not saved to the db yet
 function determineBestParent(conn, objUnit, arrWitnesses, handleBestParent){
-    // choose best parent among compatible parents only
-    conn.query(
-        "SELECT unit \n\
-        FROM units AS parent_units \n\
-        WHERE unit IN(?) \n\
-            AND (witness_list_unit=? OR ( \n\
-                SELECT COUNT(*) \n\
-                FROM unit_witnesses AS parent_witnesses \n\
-                WHERE parent_witnesses.unit IN(parent_units.unit, parent_units.witness_list_unit) AND address IN(?) \n\
-            )>=?) \n\
-        ORDER BY witnessed_level DESC, \n\
-            level-witnessed_level ASC, \n\
-            unit ASC \n\
-        LIMIT 1", 
-        [objUnit.parent_units, objUnit.witness_list_unit, 
-        arrWitnesses, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS], 
-        function(rows){
-            if (rows.length !== 1)
-                return handleBestParent(null);
-            var best_parent_unit = rows[0].unit;
-            handleBestParent(best_parent_unit);
-        }
-    );
+	// choose best parent among compatible parents only
+	conn.query(
+		"SELECT unit \n\
+		FROM units AS parent_units \n\
+		WHERE unit IN(?) \n\
+			AND (witness_list_unit=? OR ( \n\
+				SELECT COUNT(*) \n\
+				FROM unit_witnesses AS parent_witnesses \n\
+				WHERE parent_witnesses.unit IN(parent_units.unit, parent_units.witness_list_unit) AND address IN(?) \n\
+			)>=?) \n\
+		ORDER BY witnessed_level DESC, \n\
+			level-witnessed_level ASC, \n\
+			unit ASC \n\
+		LIMIT 1", 
+		[objUnit.parent_units, objUnit.witness_list_unit, 
+		arrWitnesses, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS], 
+		function(rows){
+			if (rows.length !== 1)
+				return handleBestParent(null);
+			var best_parent_unit = rows[0].unit;
+			handleBestParent(best_parent_unit);
+		}
+	);
 }
 
 
