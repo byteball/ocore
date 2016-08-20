@@ -64,7 +64,7 @@ function insertWitnesses(arrWitnesses, onDone){
 	var placeholders = Array.apply(null, Array(arrWitnesses.length)).map(function(){ return '(?)'; }).join(',');
 	console.log('will insert witnesses', arrWitnesses);
 	db.query("INSERT INTO my_witnesses (address) VALUES "+placeholders, arrWitnesses, function(){
-		console.log('inserted witnesses', arrWitnesses);
+		console.log('inserted witnesses');
 		if (onDone)
 			onDone();
 	});
