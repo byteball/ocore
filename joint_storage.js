@@ -236,23 +236,27 @@ function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 
 // handleJoint is called for every joint younger than mci
 function readJointsSinceMci(mci, handleJoint, onDone){
-	db.query("SELECT unit FROM units WHERE is_stable=0 AND (main_chain_index>=? OR main_chain_index IS NULL) ORDER BY level", [mci], function(rows){
-		async.eachSeries(
-			rows, 
-			function(row, cb){
-				storage.readJoint(db, row.unit, {
-					ifNotFound: function(){
-						throw Error("unit "+row.unit+" not found");
-					},
-					ifFound: function(objJoint){
-						handleJoint(objJoint);
-						cb();
-					}
-				});
-			},
-			onDone
-		);
-	});
+	db.query(
+		"SELECT unit FROM units WHERE is_stable=0 AND main_chain_index>=? OR main_chain_index IS NULL OR is_free=1 ORDER BY level", 
+		[mci], 
+		function(rows){
+			async.eachSeries(
+				rows, 
+				function(row, cb){
+					storage.readJoint(db, row.unit, {
+						ifNotFound: function(){
+							throw Error("unit "+row.unit+" not found");
+						},
+						ifFound: function(objJoint){
+							handleJoint(objJoint);
+							cb();
+						}
+					});
+				},
+				onDone
+			);
+		}
+	);
 }
 
 
