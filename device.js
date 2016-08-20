@@ -56,7 +56,7 @@ function setDevicePrivateKey(priv_key){
 }
 
 function setTempKeys(temp_priv_key, prev_temp_priv_key, fnSaveTempKeys){
-	console.log("setTempKeys", temp_priv_key, prev_temp_priv_key);
+//	console.log("setTempKeys", temp_priv_key, prev_temp_priv_key);
 	objMyTempDeviceKey = {
 		use_count: null, // unknown
 		priv: temp_priv_key,
