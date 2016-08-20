@@ -29,10 +29,14 @@ var bScheduledTempDeviceKeyRotation = false;
 
 
 function getMyDevicePubKey(){
+	if (!objMyPermanentDeviceKey || !objMyPermanentDeviceKey.pub_b64)
+		throw Error('my device pubkey not defined');
 	return objMyPermanentDeviceKey.pub_b64;
 }
 
 function getMyDeviceAddress(){
+	if (!my_device_address)
+		throw Error('my_device_address not defined');
 	return my_device_address;
 }
 
