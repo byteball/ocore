@@ -519,7 +519,7 @@ function addUnconfirmedCorrespondent(device_pubkey, device_hub, device_name, onD
 }
 
 function readCorrespondents(handleCorrespondents){
-	db.query("SELECT device_address, hub, name FROM correspondent_devices ORDER BY device_address", function(rows){
+	db.query("SELECT device_address, hub, name FROM correspondent_devices ORDER BY name", function(rows){
 		handleCorrespondents(rows);
 	});
 }
