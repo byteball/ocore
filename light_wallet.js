@@ -16,6 +16,7 @@ function setLightVendorHost(light_vendor_host){
 	if (conf.bLight){
 		refreshLightClientHistory();
 		setInterval(reconnectToLightVendor, RECONNECT_TO_LIGHT_VENDOR_PERIOD);
+		eventBus.on('connected', reconnectToLightVendor);
 	}
 }
 
@@ -28,6 +29,7 @@ function reconnectToLightVendor(){
 		if (ws.bRefreshingHistory)
 			return console.log("already refreshing history");
 		refreshLightClientHistory();
+		eventBus.emit('connected');
 	});
 }
 

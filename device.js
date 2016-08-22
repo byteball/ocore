@@ -133,6 +133,7 @@ function loginToHub(){
 
 
 setInterval(loginToHub, RECONNECT_TO_HUB_PERIOD);
+eventBus.on('connected', loginToHub);
 
 function sendLoginCommand(ws, challenge){
 	var objLogin = {challenge: challenge, pubkey: objMyPermanentDeviceKey.pub_b64};
@@ -146,6 +147,7 @@ function sendLoginCommand(ws, challenge){
 	}
 	network.initWitnessesIfNecessary(ws);
 	resendStalledMessages();
+	eventBus.emit('connected');
 }
 
 function sendTempPubkey(ws, temp_pubkey, callbacks){

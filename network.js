@@ -224,6 +224,7 @@ function cancelRequestsOnClosedConnection(ws){
 			});
 		delete ws.assocPendingRequests[tag];
 	}
+	printConnectionStatus();
 }
 
 
