@@ -954,6 +954,8 @@ function notifyWatchers(objJoint){
 		eventBus.emit("new_my_unit-"+objJoint.unit.unit, objJoint);
 	}
 	
+	if (conf.bLight)
+		return;
 	// this is a new unstable joint, light clients will accept it without proof
 	db.query("SELECT peer FROM watched_light_addresses WHERE address IN(?)", [arrAddresses], function(rows){
 		if (rows.length === 0)
