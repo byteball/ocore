@@ -243,7 +243,15 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				if (typeof assocPrivatePayloads !== "object" || !assocPrivatePayloads)
 					return callbacks.ifError("bad private payloads");
 				for (var payload_hash in assocPrivatePayloads){
-					if (payload_hash !== objectHash.getBase64Hash(assocPrivatePayloads[payload_hash]))
+					var payload = assocPrivatePayloads[payload_hash];
+					var hidden_payload = _.cloneDeep(payload);
+					if (payload.denomination) // indivisible asset.  In this case, payload hash is calculated based on output_hash rather than address and blinding
+						hidden_payload.outputs.forEach(function(o){
+							delete o.address;
+							delete o.blinding;
+						});
+					var calculated_payload_hash = objectHash.getBase64Hash(hidden_payload);
+					if (payload_hash !== calculated_payload_hash)
 						return callbacks.ifError("private payload hash does not match");
 					if (!ValidationUtils.isNonemptyArray(objUnit.messages))
 						return callbacks.ifError("no messages in unsigned unit");
