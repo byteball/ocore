@@ -382,10 +382,11 @@ else{ // copy initial db to app folder
 		if (!err) // already exists
 			return onDbReady();
 		console.log("will copy initial db");
+		var mode = parseInt('700', 8);
 		var parent_dir = require('path'+'').dirname(path);
-		fs.mkdir(parent_dir, 0o700, function(err){
+		fs.mkdir(parent_dir, mode, function(err){
 			console.log('mkdir '+parent_dir+': '+err);
-			fs.mkdir(path, 0o700, function(err){
+			fs.mkdir(path, mode, function(err){
 				console.log('mkdir '+path+': '+err);
 				fs.createReadStream(__dirname + '/' + initial_db_filename).pipe(fs.createWriteStream(path + conf.database.filename)).on('finish', onDbReady);
 			});
