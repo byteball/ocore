@@ -106,7 +106,7 @@ module.exports = function(db_name, MAX_CONNECTIONS){
 					//console.log("changes="+this.changes+", affected="+result.affectedRows);
 					var consumed_time = Date.now() - start_ts;
 					if (consumed_time > 500)
-						console.log("long query took "+consumed_time+"ms:\n"+new_args.filter(function(a, i){ return (i<new_args.length-1); }).join(", "));
+						console.log("long query took "+consumed_time+"ms:\n"+new_args.filter(function(a, i){ return (i<new_args.length-1); }).join(", ")+"\nload avg: "+require('os').loadavg().join(', '));
 					last_arg(result);
 				});
 				
