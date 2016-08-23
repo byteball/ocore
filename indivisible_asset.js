@@ -779,7 +779,8 @@ function getSavingCallbacks(to_address, callbacks){
 				ifOk: function(objValidationState, validation_unlock){
 					console.log("Private OK "+objValidationState.sequence);
 					var bPrivate = !!assocPrivatePayloads;
-					var arrChains = bPrivate ? [] : null; // we are building chains for to_address
+					var arrRecipientChains = bPrivate ? [] : null; // chains for to_address
+					var arrCosignerChains = bPrivate ? [] : null; // chains for all output addresses, including change, to be shared with cosigners (if any)
 					var preCommitCallback = null;
 					var bPreCommitCallbackFailed = false;
 					
@@ -805,7 +806,8 @@ function getSavingCallbacks(to_address, callbacks){
 														},
 														ifOk: function(){
 															if (output.address === to_address)
-																arrChains.push(arrPrivateElements);
+																arrRecipientChains.push(arrPrivateElements);
+															arrCosignerChains.push(arrPrivateElements);
 															cb3();
 														}
 													});
@@ -843,7 +845,7 @@ function getSavingCallbacks(to_address, callbacks){
 									if (bPreCommitCallbackFailed)
 										callbacks.ifError("precommit callback failed");
 									else
-										callbacks.ifOk(objJoint, arrChains);
+										callbacks.ifOk(objJoint, arrRecipientChains, arrCosignerChains);
 								}
 							);
 						}

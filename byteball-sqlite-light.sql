@@ -393,11 +393,12 @@ CREATE TABLE known_bad_joints (
 CREATE TABLE unhandled_private_payments (
 	unit CHAR(44) NOT NULL,
 	message_index TINYINT NOT NULL,
+	output_index TINYINT NOT NULL,
 	json TEXT NOT NULL,
 	peer VARCHAR(100) NOT NULL,
 	linked TINYINT NOT NULL DEFAULT 0,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	PRIMARY KEY (unit, message_index)
+	PRIMARY KEY (unit, message_index, output_index)
 );
 
 -- ------------------

@@ -786,11 +786,11 @@ function sendPaymentFromWallet(
 				},
 				// for asset payments, 2nd argument is array of chains of private elements
 				// for base asset, 2nd argument is assocPrivatePayloads which is null
-				ifOk: function(objJoint, arrChainsOfPrivateElements){
+				ifOk: function(objJoint, arrChainsOfRecipientPrivateElements, arrChainsOfCosignerPrivateElements){
 					network.broadcastJoint(objJoint);
-					if (arrChainsOfPrivateElements){
-						forwardPrivateChainsToOtherMembersOfWallets(arrChainsOfPrivateElements, [wallet]);
-						walletGeneral.sendPrivatePayments(recipient_device_address, arrChainsOfPrivateElements);
+					if (arrChainsOfRecipientPrivateElements){
+						forwardPrivateChainsToOtherMembersOfWallets(arrChainsOfCosignerPrivateElements, [wallet]);
+						walletGeneral.sendPrivatePayments(recipient_device_address, arrChainsOfRecipientPrivateElements);
 					}
 					else if (recipient_device_address) // send notification about public payment
 						walletGeneral.sendPaymentNotification(recipient_device_address, objJoint.unit.unit);

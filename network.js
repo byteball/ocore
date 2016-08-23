@@ -1245,11 +1245,14 @@ function handleOnlinePrivatePayment(ws, arrPrivateElements, bViaHub, callbacks){
 	
 	var unit = arrPrivateElements[0].unit;
 	var message_index = arrPrivateElements[0].message_index;
+	var output_index = arrPrivateElements[0].payload.denomination ? arrPrivateElements[0].output_index : -1;
 
 	var savePrivatePayment = function(cb){
+		// we may receive the same unit and message index but different output indexes if recipient and cosigner are on the same device.
+		// in this case, we also receive the same (unit, message_index, output_index) twice - as cosigner and as recipient.  That's why IGNORE.
 		db.query(
-			"INSERT INTO unhandled_private_payments (unit, message_index, json, peer) VALUES (?,?,?,?)", 
-			[unit, message_index, JSON.stringify(arrPrivateElements), bViaHub ? '' : ws.peer], // forget peer if received via hub
+			"INSERT "+db.getIgnore()+" INTO unhandled_private_payments (unit, message_index, output_index, json, peer) VALUES (?,?,?,?,?)", 
+			[unit, message_index, output_index, JSON.stringify(arrPrivateElements), bViaHub ? '' : ws.peer], // forget peer if received via hub
 			function(){
 				callbacks.ifQueued();
 				if (cb)
@@ -1260,7 +1263,7 @@ function handleOnlinePrivatePayment(ws, arrPrivateElements, bViaHub, callbacks){
 	
 	if (conf.bLight && arrPrivateElements.length > 1){
 		savePrivatePayment(function(){
-			updateLinkProofsOfPrivateChain(arrPrivateElements, unit, message_index);
+			updateLinkProofsOfPrivateChain(arrPrivateElements, unit, message_index, output_index);
 		});
 		return;
 	}
@@ -1299,8 +1302,8 @@ function handleSavedPrivatePayments(unit){
 	//    return;
 	mutex.lock(["saved_private"], function(unlock){
 		var sql = unit
-			? "SELECT json, peer, unit, message_index, linked FROM unhandled_private_payments WHERE unit="+db.escape(unit)
-			: "SELECT json, peer, unit, message_index, linked FROM unhandled_private_payments JOIN units USING(unit)";
+			? "SELECT json, peer, unit, message_index, output_index, linked FROM unhandled_private_payments WHERE unit="+db.escape(unit)
+			: "SELECT json, peer, unit, message_index, output_index, linked FROM unhandled_private_payments JOIN units USING(unit)";
 		db.query(sql, function(rows){
 			if (rows.length === 0)
 				return unlock();
@@ -1316,7 +1319,7 @@ function handleSavedPrivatePayments(unit){
 					var validateAndSave = function(){
 						var objHeadPrivateElement = arrPrivateElements[0];
 						var payload_hash = objectHash.getBase64Hash(objHeadPrivateElement.payload);
-						var key = 'private_payment_validated-'+objHeadPrivateElement.unit+'-'+payload_hash;
+						var key = 'private_payment_validated-'+objHeadPrivateElement.unit+'-'+payload_hash+'-'+row.output_index;
 						privatePayment.validateAndSavePrivatePaymentChain(arrPrivateElements, {
 							ifOk: function(){
 								if (ws)
@@ -1324,7 +1327,7 @@ function handleSavedPrivatePayments(unit){
 								if (row.peer) // received directly from a peer, not through the hub
 									eventBus.emit("new_direct_private_chains", [arrPrivateElements]);
 								count_new++;
-								deleteHandledPrivateChain(row.unit, row.message_index, cb);
+								deleteHandledPrivateChain(row.unit, row.message_index, row.output_index, cb);
 								eventBus.emit(key, true);
 							},
 							ifError: function(error){
@@ -1332,7 +1335,7 @@ function handleSavedPrivatePayments(unit){
 								throw error;
 								if (ws)
 									sendResult(ws, {private_payment_in_unit: row.unit, result: 'error', error: error});
-								deleteHandledPrivateChain(row.unit, row.message_index, cb);
+								deleteHandledPrivateChain(row.unit, row.message_index, row.output_index, cb);
 								eventBus.emit(key, false);
 							},
 							// light only. Means that chain joints (excluding the head) not downloaded yet or not stable yet
@@ -1343,7 +1346,7 @@ function handleSavedPrivatePayments(unit){
 					};
 					
 					if (conf.bLight && arrPrivateElements.length > 1 && !row.linked)
-						updateLinkProofsOfPrivateChain(arrPrivateElements, row.unit, row.message_index, cb, validateAndSave);
+						updateLinkProofsOfPrivateChain(arrPrivateElements, row.unit, row.message_index, row.output_index, cb, validateAndSave);
 					else
 						validateAndSave();
 					
@@ -1358,8 +1361,8 @@ function handleSavedPrivatePayments(unit){
 	});
 }
 
-function deleteHandledPrivateChain(unit, message_index, cb){
-	db.query("DELETE FROM unhandled_private_payments WHERE unit=? AND message_index=?", [unit, message_index], function(){
+function deleteHandledPrivateChain(unit, message_index, output_index, cb){
+	db.query("DELETE FROM unhandled_private_payments WHERE unit=? AND message_index=? AND output_index=?", [unit, message_index, output_index], function(){
 		cb();
 	});
 }
@@ -1468,7 +1471,7 @@ function checkThatEachChainElementIncludesThePrevious(arrPrivateElements, handle
 }
 
 // light only
-function updateLinkProofsOfPrivateChain(arrPrivateElements, unit, message_index, onFailure, onSuccess){
+function updateLinkProofsOfPrivateChain(arrPrivateElements, unit, message_index, output_index, onFailure, onSuccess){
 	if (!conf.bLight)
 		throw "light but updateLinkProofsOfPrivateChain";
 	if (!onFailure)
@@ -1479,7 +1482,8 @@ function updateLinkProofsOfPrivateChain(arrPrivateElements, unit, message_index,
 		if (bLinked === null)
 			return onFailure();
 		if (!bLinked)
-			return deleteHandledPrivateChain(unit, message_index, onFailure);
+			return deleteHandledPrivateChain(unit, message_index, output_index, onFailure);
+		// the result cannot depend on output_index
 		db.query("UPDATE unhandled_private_payments SET linked=1 WHERE unit=? AND message_index=?", [unit, message_index], function(){
 			onSuccess();
 		});

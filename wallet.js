@@ -347,8 +347,11 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				arrChains,
 				function(arrPrivateElements, cb){ // validate each chain individually
 					var objHeadPrivateElement = arrPrivateElements[0];
+					if (!!objHeadPrivateElement.payload.denomination !== ValidationUtils.isNonnegativeInteger(objHeadPrivateElement.output_index))
+						return cb("divisibility doesn't match presence of output_index");
+					var output_index = objHeadPrivateElement.output_index || -1;
 					var payload_hash = objectHash.getBase64Hash(objHeadPrivateElement.payload);
-					var key = 'private_payment_validated-'+objHeadPrivateElement.unit+'-'+payload_hash;
+					var key = 'private_payment_validated-'+objHeadPrivateElement.unit+'-'+payload_hash+'-'+output_index;
 					assocValidatedByKey[key] = false;
 					network.handleOnlinePrivatePayment(ws, arrPrivateElements, true, {
 						ifError: function(error){

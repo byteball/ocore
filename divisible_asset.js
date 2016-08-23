@@ -311,7 +311,8 @@ function getSavingCallbacks(callbacks){
 									console.log("saved unit "+unit, objPrivateElement);
 									validation_unlock();
 									composer_unlock();
-									callbacks.ifOk(objJoint, objPrivateElement ? [[objPrivateElement]] : null); // only one chain that consists of one element
+									var arrChains = objPrivateElement ? [[objPrivateElement]] : null; // only one chain that consists of one element
+									callbacks.ifOk(objJoint, arrChains, arrChains);
 								}
 							);
 						}

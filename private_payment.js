@@ -29,11 +29,15 @@ function validateAndSavePrivatePaymentChain(arrPrivateElements, callbacks){
 	var asset = headElement.payload.asset;
 	if (!asset)
 		return callbacks.ifError("no asset in head element");
+	if (!ValidationUtils.isNonnegativeInteger(headElement.message_index))
+		return callbacks.ifError("no message index in head private element");
 	
 	var validateAndSave = function(){
 		storage.readAsset(db, asset, null, function(err, objAsset){
 			if (err)
 				return callbacks.ifError(err);
+			if (!!objAsset.fixed_denominations !== !!headElement.payload.denomination)
+				return callbacks.ifError("presence of denomination field doesn't match the asset type");
 			db.takeConnectionFromPool(function(conn){
 				conn.query("BEGIN", function(){
 					var transaction_callbacks = {
@@ -51,12 +55,22 @@ function validateAndSavePrivatePaymentChain(arrPrivateElements, callbacks){
 						}
 					};
 					// check if duplicate
+					var sql = "SELECT address FROM outputs WHERE unit=? AND message_index=?";
+					var params = [headElement.unit, headElement.message_index];
+					if (objAsset.fixed_denominations){
+						if (!ValidationUtils.isNonnegativeInteger(headElement.output_index))
+							return transaction_callbacks.ifError("no output index in head private element");
+						sql += " AND output_index=?";
+						params.push(headElement.output_index);
+					}
 					conn.query(
-						"SELECT 1 FROM outputs WHERE unit=? AND message_index=?", 
-						[headElement.unit, headElement.message_index], 
+						sql, 
+						params, 
 						function(rows){
-							if (rows.length > 0){
-								console.log("duplicate private payment "+headElement.unit);
+							if (rows.length > 1)
+								throw Error("more than one output "+sql+' '+params.join(', '));
+							if (rows.length > 0 && rows[0].address){ // we could have this output already but the address is still hidden
+								console.log("duplicate private payment "+params.join(', '));
 								return transaction_callbacks.ifOk();
 							}
 							var assetModule = objAsset.fixed_denominations ? indivisibleAsset : divisibleAsset;
