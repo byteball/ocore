@@ -73,38 +73,41 @@ function prepareRequestForHistory(handleResult){
 function refreshLightClientHistory(){
 	if (!conf.bLight)
 		return;
+	eventBus.emit('refresh_light_started');
 	network.findOutboundPeerOrConnect(network.light_vendor_url, function(err, ws){
+		var finish = function(msg){
+			if (msg)
+				console.log(msg);
+			if (ws)
+				ws.bRefreshingHistory = false;
+			eventBus.emit('refresh_light_done');
+		};
 		if (err)
-			return console.log("refreshLightClientHistory: "+err);
+			return finish("refreshLightClientHistory: "+err);
 		console.log('refreshLightClientHistory connected');
 		// handling the response may take some time, don't send new requests
 		if (ws.bRefreshingHistory)
 			return console.log("previous refresh not finished yet");
 		ws.bRefreshingHistory = true;
 		prepareRequestForHistory(function(objRequest){
-			if (!objRequest){
-				ws.bRefreshingHistory = false;
-				return;
-			}
+			if (!objRequest)
+				return finish();
 			network.sendRequest(ws, 'light/get_history', objRequest, false, function(ws, request, response){
-				if (response.error){
-					ws.bRefreshingHistory = false;
-					console.log(response.error);
-					return;
-				}
+				if (response.error)
+					return finish(response.error);
 				ws.bLightVendor = true;
 				var interval = setInterval(function(){ // refresh UI periodically while we are processing history
 					eventBus.emit('maybe_new_transactions');
 				}, 500);
 				light.processHistory(response, {
 					ifError: function(err){
-						network.sendError(ws, err);
-						ws.bRefreshingHistory = false;
 						clearInterval(interval);
+						network.sendError(ws, err);
+						finish();
 					},
 					ifOk: function(){
-						ws.bRefreshingHistory = false;
 						clearInterval(interval);
+						finish();
 						eventBus.emit('maybe_new_transactions');
 					}
 				});
