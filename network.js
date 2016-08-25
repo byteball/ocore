@@ -454,6 +454,11 @@ function handleNewPeers(ws, request, arrPeerUrls){
 		var url = arrPeerUrls[i];
 		if (conf.myUrl && conf.myUrl.toLowerCase() === url.toLowerCase())
 			continue;
+		var regexp = (conf.WS_PROTOCOL === 'wss://') ? /^wss:\/\// : /^wss?:\/\//;
+		if (!url.match(regexp)){
+			console.log('ignoring new peer '+url+' because of incompatible ws protocol');
+			continue;
+		}
 		var host = getHostByPeer(url);
 		db.addQuery(arrQueries, "INSERT "+db.getIgnore()+" INTO peer_hosts (peer_host) VALUES (?)", [host]);
 		db.addQuery(arrQueries, "INSERT "+db.getIgnore()+" INTO peers (peer_host, peer, learnt_from_peer_host) VALUES(?,?,?)", [host, url, ws.host]);
