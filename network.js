@@ -299,7 +299,11 @@ function connectToPeer(url, onOpen) {
 	var ws = new WebSocket(url);
 	assocConnectingOutboundWebsockets[url] = ws;
 	setTimeout(function(){
-		delete assocConnectingOutboundWebsockets[url];
+		if (assocConnectingOutboundWebsockets[url]){
+			console.log('abandoning connection to '+url+' due to timeout');
+			delete assocConnectingOutboundWebsockets[url];
+			// after this, new connection attempts will be allowed to the wire, but this one can still succeed.  See the check for duplicates below.
+		}
 	}, 5000);
 	ws.on('open', function () {
 		delete assocConnectingOutboundWebsockets[url];
@@ -307,6 +311,14 @@ function connectToPeer(url, onOpen) {
 			throw Error("no url on ws");
 		if (ws.url !== url && ws.url !== url + "/") // browser implementatin of Websocket might add /
 			throw Error("url is different: "+ws.url);
+		var another_ws_to_same_peer = getOutboundPeerWsByUrl(url);
+		if (another_ws_to_same_peer){ // duplicate connection.  May happen if we abondoned a connection attempt after timeout but it still succeeded while we opened another connection
+			console.log('already have a connection to '+url+', will keep the old one and close the duplicate');
+			ws.close(1000, 'duplicate connection');
+			if (onOpen)
+				onOpen(null, another_ws_to_same_peer);
+			return;
+		}
 		ws.peer = url;
 		ws.host = getHostByPeer(ws.peer);
 		ws.assocPendingRequests = {};
