@@ -467,6 +467,8 @@ function handleNewPeers(ws, request, arrPeerUrls){
 }
 
 function heartbeat(){
+	// just resumed after sleeping
+	var bJustResumed = (typeof window !== 'undefined' && window.cordova && Date.now() - last_hearbeat_wake_ts > 2*HEARTBEAT_TIMEOUT);
 	last_hearbeat_wake_ts = Date.now();
 	wss.clients.concat(arrOutboundPeers).forEach(function(ws){
 		if (ws.bSleeping)
@@ -474,8 +476,9 @@ function heartbeat(){
 		var elapsed_since_last_received = Date.now() - ws.last_ts;
 		if (elapsed_since_last_received < HEARTBEAT_TIMEOUT)
 			return;
-		if (elapsed_since_last_received < 2*HEARTBEAT_TIMEOUT)
+		if (elapsed_since_last_received < 2*HEARTBEAT_TIMEOUT || bJustResumed)
 			return sendRequest(ws, 'heartbeat', null, false, handleHeartbeatResponse);
+		console.log('will disconnect peer '+ws.peer+' who was silent for too long');
 		ws.close(1000, "lost connection");
 	});
 }
