@@ -37,8 +37,8 @@ var bCatchingUp = false;
 var bWaitingTillIdle = false;
 var coming_online_time = Date.now();
 var assocReroutedConnectionsByTag = {};
-
 var arrWatchedAddresses = [];
+var last_hearbeat_wake_ts = Date.now();
 
 if (process.browser){ // browser
 	console.log("defining .on() on ws");
@@ -467,14 +467,23 @@ function handleNewPeers(ws, request, arrPeerUrls){
 }
 
 function heartbeat(){
+	last_hearbeat_wake_ts = Date.now();
 	wss.clients.concat(arrOutboundPeers).forEach(function(ws){
+		if (ws.bSleeping)
+			return;
 		var elapsed_since_last_received = Date.now() - ws.last_ts;
 		if (elapsed_since_last_received < HEARTBEAT_TIMEOUT)
 			return;
 		if (elapsed_since_last_received < 2*HEARTBEAT_TIMEOUT)
-			return sendRequest(ws, 'heartbeat', null, false, function(){});
+			return sendRequest(ws, 'heartbeat', null, false, handleHeartbeatResponse);
 		ws.close(1000, "lost connection");
 	});
+}
+
+function handleHeartbeatResponse(ws, request, response){
+	if (response === 'sleep') // the peer doesn't want to be bothered with heartbeats any more, but still wants to keep the connection open
+		ws.bSleeping = true;
+	// as soon as the peer sends a heartbeat himself, we'll think he's woken up and resume our heartbeats too
 }
 
 function requestFromLightVendor(command, params, responseHandler){
@@ -1753,6 +1762,14 @@ function handleRequest(ws, tag, command, params){
 	ws.assocInPreparingResponse[tag] = true;
 	switch (command){
 		case 'heartbeat':
+			ws.bSleeping = false; // the peer is sending heartbeats, therefore he is awake
+			
+			// true if our timers were paused
+			// Happens only on android, which suspends timers when the app becomes paused but still keeps network connections
+			// Handling 'pause' event would've been more straightforward but with preference KeepRunning=false, the event is delayed till resume
+			var bPaused = (window && window.cordova && Date.now() - last_hearbeat_wake_ts > 2*HEARTBEAT_TIMEOUT);
+			if (bPaused)
+				return sendResponse(ws, tag, 'sleep'); // opt out of receiving heartbeats and move the connection into a sleeping state
 			sendResponse(ws, tag);
 			break;
 			
