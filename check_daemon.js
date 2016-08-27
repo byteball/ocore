@@ -4,7 +4,7 @@ var child_process = require('child_process');
 var conf = require('./conf.js');
 var mail = require('./mail.js');
 
-function checkDaemon(daemon_name){
+function checkDaemon(daemon_name, handleResult){
 	child_process.exec('ps x', function(err, stdout, stderr){
 		if (err)
 			throw Error('ps x failed: '+err);
@@ -17,8 +17,24 @@ function checkDaemon(daemon_name){
 				write(line);
 			}
 		});
+		handleResult(bFound);
+	});
+}
+
+function checkDaemonAndNotify(daemon_name){
+	checkDaemon(daemon_name, function(bFound){
 		if (!bFound)
 			notifyAdmin('daemon '+daemon_name+' is down');
+	});
+}
+
+function checkDaemonAndRestart(daemon_name, start_command){
+	checkDaemon(daemon_name, function(bFound){
+		if (bFound)
+			return;
+		notifyAdmin('daemon '+daemon_name+' is down, trying to restart '+start_command);
+		child_process.exec(start_command).unref();
+		process.exit();
 	});
 }
 
@@ -39,4 +55,6 @@ function write(str){
 }
 
 exports.checkDaemon = checkDaemon;
+exports.checkDaemonAndNotify = checkDaemonAndNotify;
+exports.checkDaemonAndRestart = checkDaemonAndRestart;
 
