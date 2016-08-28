@@ -329,16 +329,17 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				network.requestUnfinishedPastUnitsOfPrivateChains(arrChains); // it'll work in the background
 			
 			var assocValidatedByKey = {};
+			var bParsingComplete = false;
 			var cancelAllKeys = function(){
 				for (var key in assocValidatedByKey)
 					eventBus.removeAllListeners(key);
 			};
 			var checkIfAllValidated = function(){
 				if (!assocValidatedByKey) // duplicate call - ignore
-					return;
+					return console.log('duplicate call of checkIfAllValidated');
 				for (var key in assocValidatedByKey)
 					if (!assocValidatedByKey[key])
-						return;
+						return console.log('not all private payments validated yet');
 				assocValidatedByKey = null; // to avoid duplicate calls
 				emitNewPrivatePaymentReceived(from_address, arrChains);
 			};
@@ -374,13 +375,17 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 								if (!bValid)
 									return cancelAllKeys();
 								assocValidatedByKey[key] = true;
-								checkIfAllValidated();
+								if (bParsingComplete)
+									checkIfAllValidated();
+								else
+									console.log('parsing incomplete yet');
 							});
 							cb();
 						}
 					});
 				},
 				function(err){
+					bParsingComplete = true;
 					if (err){
 						cancelAllKeys();
 						return callbacks.ifError(err);
@@ -450,6 +455,7 @@ eventBus.on("new_direct_private_chains", forwardPrivateChainsToOtherMembersOfOut
 
 
 function emitNewPrivatePaymentReceived(payer_device_address, arrChains){
+	console.log('emitNewPrivatePaymentReceived');
 	walletGeneral.readMyAddresses(function(arrAddresses){
 		var assocAmountsByAsset = {};
 		arrChains.forEach(function(arrPrivateElements){
@@ -467,6 +473,7 @@ function emitNewPrivatePaymentReceived(payer_device_address, arrChains){
 			if (output && output.address && arrAddresses.indexOf(output.address) >= 0)
 				assocAmountsByAsset[asset] += payload.outputs[objHeadPrivateElement.output_index].amount;
 		});
+		console.log('assocAmountsByAsset', assocAmountsByAsset);
 		for (var asset in assocAmountsByAsset)
 			if (assocAmountsByAsset[asset])
 				eventBus.emit('received_payment', payer_device_address, assocAmountsByAsset[asset], asset);
