@@ -478,7 +478,7 @@ function heartbeat(){
 			return;
 		if (elapsed_since_last_received < 2*HEARTBEAT_TIMEOUT || bJustResumed)
 			return sendRequest(ws, 'heartbeat', null, false, handleHeartbeatResponse);
-		console.log('will disconnect peer '+ws.peer+' who was silent for too long');
+		console.log('will disconnect peer '+ws.peer+' who was silent for '+elapsed_since_last_received+'ms');
 		ws.close(1000, "lost connection");
 	});
 }
