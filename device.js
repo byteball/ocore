@@ -194,14 +194,14 @@ function rotateTempDeviceKeyIfCouldBeAlreadyUsed(){
 }
 
 function rotateTempDeviceKey(){
-	if (!saveTempKeys){
-		console.log("no saving function");
-		return;
-	}
+	if (!saveTempKeys)
+		return console.log("no saving function");
 	console.log("will rotate temp device key");
 	network.findOutboundPeerOrConnect(conf.WS_PROTOCOL+my_device_hub, function(err, ws){
 		if (err)
 			return;
+		if (!ws.bLoggedIn)
+			return console.log('will not rotate because not logged in'); // reconnected and not logged in yet
 		var new_priv_key = genPrivKey();
 		var objNewMyTempDeviceKey = {
 			use_count: 0,
