@@ -15,7 +15,7 @@ function sendBugEmail(error_message, exception){
 		to: conf.bug_sink_email,
 		from: conf.bugs_from_email,
 		subject: 'BUG '+error_message.replace(/\s/g, ' '),
-		body: error_message + "\n\n" + JSON.stringify(exception, null, '\t')
+		body: error_message + "\n\n" + ((typeof exception === 'string') ? exception : JSON.stringify(exception, null, '\t'))
 	});
 }
 
