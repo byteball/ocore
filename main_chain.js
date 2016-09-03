@@ -40,47 +40,6 @@ function updateMainChain(conn, last_unit, onDone){
 		);
 	}
 	
-	function readAllUnitProps(unit, handleUnitProps){
-		conn.query("SELECT * FROM units WHERE unit=?", [unit], function(rows){
-			if (rows.length === 0)
-				throw "unit "+unit+" not found";
-			handleUnitProps(rows[0]);
-		});
-	}
-	
-	function readLastMainChainUnitProps(handleUnitProps){
-		conn.query("SELECT * FROM units WHERE is_on_main_chain=1 ORDER BY main_chain_index DESC LIMIT 1", function(rows){
-			if (rows.length === 0)
-				throw "last mc unit not found";
-			if (rows.length > 1)
-				throw "multiple last mc units?";
-			handleUnitProps(rows[0]);
-		});
-	}
-	
-	function readUnitWitnesses(unit, handleWitnesses){
-		
-		function doRead(objUnitProps){
-			conn.query(
-				//unit
-				"SELECT address FROM unit_witnesses WHERE unit="+conn.escape(objUnitProps.witness_list_unit || objUnitProps.unit),
-				function(witness_rows){
-					if (witness_rows.length === 0)
-						throw "unit "+unit+": no witness list";
-					var arrWitnesses = [];
-					for (var i=0; i<witness_rows.length; i++)
-						arrWitnesses.push(witness_rows[i].address);
-					handleWitnesses(arrWitnesses);
-				}
-			);
-		}
-		
-		if (unit === null) // use witness list of the last so far known MC unit
-			readLastMainChainUnitProps(doRead);
-		else
-			readAllUnitProps(unit, doRead);
-	}
-	
 	function goUpFromUnit(unit){
 		if (storage.isGenesisUnit(unit))
 			return checkNotRebuildingStableMainChainAndGoDown(0, unit);
@@ -289,7 +248,7 @@ function updateMainChain(conn, last_unit, onDone){
 		console.log("updateStableMcFlag");
 		readLastStableMcUnit(function(last_stable_mc_unit){
 			console.log("last stable mc unit "+last_stable_mc_unit);
-			readUnitWitnesses(last_stable_mc_unit, function(arrWitnesses){
+			storage.readWitnesses(conn, last_stable_mc_unit, function(arrWitnesses){
 				conn.query("SELECT unit, is_on_main_chain, main_chain_index, level FROM units WHERE best_parent_unit=?", [last_stable_mc_unit], function(rows){
 					if (rows.length === 0){
 						//if (isGenesisUnit(last_stable_mc_unit))
