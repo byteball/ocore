@@ -19,28 +19,25 @@ function updateMainChain(conn, last_unit, onDone){
 	
 	// if unit === null, read free balls
 	function findNextUpMainChainUnit(unit, handleUnit){
-		//readUnitWitnesses(unit, function(arrWitnesses){
-			//console.log("unit "+unit+" witnesses: "+arrWitnesses);
-			conn.query(
-				unit
-				? "SELECT best_parent_unit, witnessed_level FROM units WHERE unit="+conn.escape(unit)
-				: "SELECT unit, witnessed_level \n\
-					FROM units WHERE is_free=1 \n\
-					ORDER BY witnessed_level DESC, \n\
-						level-witnessed_level ASC, \n\
-						unit ASC \n\
-					LIMIT 1",
-				function(rows){
-					if (rows.length === 0)
-						throw "no parents?";
-					var best_parent_unit = unit ? rows[0].best_parent_unit : rows[0].unit;
-					if (best_parent_unit === null)
-						throw "best parent is null";
-					console.log("unit "+unit+", best parent "+best_parent_unit+", wlevel "+rows[0].witnessed_level);
-					handleUnit(best_parent_unit);
-				}
-			);
-		//});
+		conn.query(
+			unit
+			? "SELECT best_parent_unit, witnessed_level FROM units WHERE unit="+conn.escape(unit)
+			: "SELECT unit, witnessed_level \n\
+				FROM units WHERE is_free=1 \n\
+				ORDER BY witnessed_level DESC, \n\
+					level-witnessed_level ASC, \n\
+					unit ASC \n\
+				LIMIT 1",
+			function(rows){
+				if (rows.length === 0)
+					throw "no parents?";
+				var best_parent_unit = unit ? rows[0].best_parent_unit : rows[0].unit;
+				if (best_parent_unit === null)
+					throw "best parent is null";
+				console.log("unit "+unit+", best parent "+best_parent_unit+", wlevel "+rows[0].witnessed_level);
+				handleUnit(best_parent_unit);
+			}
+		);
 	}
 	
 	function readAllUnitProps(unit, handleUnitProps){
