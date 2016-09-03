@@ -147,7 +147,6 @@ function sendLoginCommand(ws, challenge){
 	}
 	network.initWitnessesIfNecessary(ws);
 	resendStalledMessages();
-	eventBus.emit('connected');
 }
 
 function sendTempPubkey(ws, temp_pubkey, callbacks){
@@ -199,7 +198,9 @@ function rotateTempDeviceKey(){
 	console.log("will rotate temp device key");
 	network.findOutboundPeerOrConnect(conf.WS_PROTOCOL+my_device_hub, function(err, ws){
 		if (err)
-			return;
+			return console.log('will not rotate because: '+err);
+		if (ws.readyState !== ws.OPEN)
+			return console.log('will not rotate because connection is not open');
 		if (!ws.bLoggedIn)
 			return console.log('will not rotate because not logged in'); // reconnected and not logged in yet
 		var new_priv_key = genPrivKey();

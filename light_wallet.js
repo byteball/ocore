@@ -29,7 +29,6 @@ function reconnectToLightVendor(){
 		if (ws.bRefreshingHistory)
 			return console.log("already refreshing history");
 		refreshLightClientHistory();
-		eventBus.emit('connected');
 	});
 }
 
