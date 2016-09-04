@@ -415,7 +415,7 @@ function composeJoint(params){
 		throw "no parent props for light";
 	
 	
-	profiler.start();
+	//profiler.start();
 	var arrChangeOutputs = arrOutputs.filter(function(output) { return (output.amount === 0); });
 	var arrExternalOutputs = arrOutputs.filter(function(output) { return (output.amount > 0); });
 	if (arrChangeOutputs.length > 1)
@@ -468,7 +468,7 @@ function composeJoint(params){
 	var conn;
 	
 	var handleError = function(err){
-		profiler.stop('compose');
+		//profiler.stop('compose');
 		unlock_callback();
 		if (typeof err === "object"){
 			if (err.error_code === "NOT_ENOUGH_FUNDS")
@@ -701,7 +701,7 @@ function composeJoint(params){
 					objJoint.unit.timestamp = Math.round(Date.now()/1000); // light clients need timestamp
 					if (Object.keys(assocPrivatePayloads).length === 0)
 						assocPrivatePayloads = null;
-					profiler.stop('compose');
+					//profiler.stop('compose');
 					callbacks.ifOk(objJoint, assocPrivatePayloads, unlock_callback);
 				}
 			);
@@ -759,7 +759,6 @@ function getSavingCallbacks(callbacks){
 		ifOk: function(objJoint, assocPrivatePayloads, composer_unlock){
 			var objUnit = objJoint.unit;
 			var unit = objUnit.unit;
-			profiler.start();
 			validation.validate(objJoint, {
 				ifUnitError: function(err){
 					throw "unexpected validation error: "+err;
@@ -778,7 +777,6 @@ function getSavingCallbacks(callbacks){
 				},
 				ifOk: function(objValidationState, validation_unlock){
 					console.log("base asset OK "+objValidationState.sequence);
-					profiler.stop('validate');
 					postJointToLightVendorIfNecessaryAndSave(
 						objJoint, 
 						function onLightError(err){ // light only

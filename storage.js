@@ -13,6 +13,11 @@ var MAX_INT32 = Math.pow(2, 31) - 1;
 
 var genesis_ball = objectHash.getBallHash(constants.GENESIS_UNIT);
 
+var MAX_ITEMS_IN_CACHE = 300;
+var assocCachedUnits = {};
+var assocCachedUnitAuthors = {};
+var assocCachedUnitWitnesses = {};
+
 var min_retrievable_mci = null;
 initializeMinRetrievableMci();
 
@@ -26,7 +31,7 @@ function readJoint(conn, unit, callbacks) {
 		}, 1000);
 		return;
 	}
-	profiler.start();
+	//profiler.start();
 	conn.query(
 		"SELECT units.unit, version, alt, witness_list_unit, last_ball_unit, balls.ball AS last_ball, \n\
 			content_hash, headers_commission, payload_commission, main_chain_index, "+conn.getUnixTimestamp("units.creation_date")+" AS timestamp \n\
@@ -34,7 +39,7 @@ function readJoint(conn, unit, callbacks) {
 		[unit], 
 		function(unit_rows){
 			if (unit_rows.length === 0){
-				profiler.stop('read');
+				//profiler.stop('read');
 				return callbacks.ifNotFound();
 			}
 			var objUnit = unit_rows[0];
@@ -441,7 +446,7 @@ function readJoint(conn, unit, callbacks) {
 					);
 				}
 			], function(){
-				profiler.stop('read');
+				//profiler.stop('read');
 				callbacks.ifFound(objJoint);
 			});
 		}
@@ -471,22 +476,32 @@ function readJointWithBall(conn, unit, handleJoint) {
 
 
 function readWitnessList(conn, unit, handleWitnessList){
+	var arrWitnesses = assocCachedUnitWitnesses[unit];
+	if (arrWitnesses)
+		return handleWitnessList(arrWitnesses);
 	conn.query("SELECT address FROM unit_witnesses WHERE unit=? ORDER BY address", [unit], function(rows){
 		if (rows.length === 0)
 			throw Error("witness list of unit "+unit+" not found");
 		if (rows.length !== constants.COUNT_WITNESSES)
 			throw Error("wrong number of witnesses in unit "+unit);
-		var arrWitnesses = rows.map(function(row){ return row.address; });
+		arrWitnesses = rows.map(function(row){ return row.address; });
+		assocCachedUnitWitnesses[unit] = arrWitnesses;
 		handleWitnessList(arrWitnesses);
 	});
 }
 
 function readWitnesses(conn, unit, handleWitnessList){
+	var arrWitnesses = assocCachedUnitWitnesses[unit];
+	if (arrWitnesses)
+		return handleWitnessList(arrWitnesses);
 	conn.query("SELECT witness_list_unit FROM units WHERE unit=?", [unit], function(rows){
 		if (rows.length === 0)
 			throw Error("unit "+unit+" not found");
 		var witness_list_unit = rows[0].witness_list_unit;
-		readWitnessList(conn, witness_list_unit ? witness_list_unit : unit, handleWitnessList);
+		readWitnessList(conn, witness_list_unit ? witness_list_unit : unit, function(arrWitnesses){
+			assocCachedUnitWitnesses[unit] = arrWitnesses;
+			handleWitnessList(arrWitnesses);
+		});
 	});
 }
 
@@ -1025,6 +1040,63 @@ function determineBestParent(conn, objUnit, arrWitnesses, handleBestParent){
 }
 
 
+function readStaticUnitProps(conn, unit, handleProps){
+	var props = assocCachedUnits[unit];
+	if (props)
+		return handleProps(props);
+	conn.query("SELECT level, witnessed_level, best_parent_unit, witness_list_unit FROM units WHERE unit=?", [unit], function(rows){
+		if (rows.length !== 1)
+			throw Error("not 1 unit");
+		props = rows[0];
+		assocCachedUnits[unit] = props;
+		handleProps(props);
+	});
+}
+
+function readUnitAuthors(conn, unit, handleAuthors){
+	var arrAuthors = assocCachedUnitAuthors[unit];
+	if (arrAuthors)
+		return handleAuthors(arrAuthors);
+	conn.query("SELECT address FROM unit_authors WHERE unit=?", [unit], function(rows){
+		if (rows.length === 0)
+			throw Error("no authors");
+		var arrAuthors2 = rows.map(function(row){ return row.address; }).sort();
+	//	if (arrAuthors && arrAuthors.join('-') !== arrAuthors2.join('-'))
+	//		throw Error('cache is corrupt');
+		assocCachedUnitAuthors[unit] = arrAuthors2;
+		handleAuthors(arrAuthors2);
+	});
+}
+
+function shrinkCache(){
+	var arrPropsUnits = Object.keys(assocCachedUnits);
+	var arrAuthorsUnits = Object.keys(assocCachedUnitAuthors);
+	var arrWitnessesUnits = Object.keys(assocCachedUnitWitnesses);
+	if (arrPropsUnits.length < MAX_ITEMS_IN_CACHE && arrAuthorsUnits.length < MAX_ITEMS_IN_CACHE && arrWitnessesUnits.length < MAX_ITEMS_IN_CACHE)
+		return console.log('cache is small, will not shrink');
+	var arrUnits = _.union(arrPropsUnits, arrAuthorsUnits, arrWitnessesUnits);
+	console.log('will shrink cache, total units: '+arrUnits.length);
+	readLastStableMcIndex(db, function(last_stable_mci){
+		var CHUNK_SIZE = 500; // there is a limit on the number of query params
+		for (var offset=0; offset<arrUnits.length; offset+=CHUNK_SIZE){
+			// filter units that became stable more than 100 MC indexes ago
+			db.query(
+				"SELECT unit FROM units WHERE unit IN(?) AND main_chain_index<? AND main_chain_index!=0", 
+				[arrUnits.slice(offset, offset+CHUNK_SIZE), last_stable_mci-100], 
+				function(rows){
+					console.log('will remove '+rows.length+' units from cache');
+					rows.forEach(function(row){
+						delete assocCachedUnits[row.unit];
+						delete assocCachedUnitAuthors[row.unit];
+						delete assocCachedUnitWitnesses[row.unit];
+					});
+				}
+			);
+		}
+	});
+}
+setInterval(shrinkCache, 300*1000);
+
 exports.isGenesisUnit = isGenesisUnit;
 exports.isGenesisBall = isGenesisBall;
 
@@ -1060,4 +1132,7 @@ exports.loadAssetWithListOfAttestedAuthors = loadAssetWithListOfAttestedAuthors;
 exports.filterNewOrUnstableUnits = filterNewOrUnstableUnits;
 
 exports.determineBestParent = determineBestParent;
+
+exports.readStaticUnitProps = readStaticUnitProps;
+exports.readUnitAuthors = readUnitAuthors;
 

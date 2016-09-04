@@ -6,7 +6,9 @@ var storage = require('./storage.js');
 var graph = require('./graph.js');
 var db = require('./db.js');
 var constants = require("./constants.js");
+var conf = require("./conf.js");
 var mc_outputs = require("./mc_outputs.js");
+var profiler = require("./profiler.js");
 
 
 function calcWitnessEarnings(conn, type, from_main_chain_index, to_main_chain_index, address, callbacks){
@@ -58,16 +60,21 @@ function readUnitOnMcIndex(conn, main_chain_index, handleUnit){
 
 function updatePaidWitnesses(conn, cb){
 	console.log("updating paid witnesses");
+	profiler.start();
 	storage.readLastStableMcIndex(conn, function(last_stable_mci){
+		profiler.stop('mc-wc-readLastStableMCI');
 		var max_spendable_mc_index = getMaxSpendableMciForLastBallMci(last_stable_mci);
 		(max_spendable_mc_index > 0) ? buildPaidWitnessesTillMainChainIndex(conn, max_spendable_mc_index, cb) : cb();
 	});
 }
 
 function buildPaidWitnessesTillMainChainIndex(conn, to_main_chain_index, cb){
+	profiler.start();
+	var cross = (conf.storage === 'sqlite') ? 'CROSS' : ''; // correct the query planner
 	conn.query(
-		"SELECT MIN(main_chain_index) AS min_main_chain_index FROM balls JOIN units USING(unit) WHERE count_paid_witnesses IS NULL", 
+		"SELECT MIN(main_chain_index) AS min_main_chain_index FROM balls "+cross+" JOIN units USING(unit) WHERE count_paid_witnesses IS NULL", 
 		function(rows){
+			profiler.stop('mc-wc-minMCI');
 			var main_chain_index = rows[0].min_main_chain_index;
 			if (main_chain_index > to_main_chain_index)
 				return cb();
@@ -91,11 +98,13 @@ function buildPaidWitnessesTillMainChainIndex(conn, to_main_chain_index, cb){
 
 function buildPaidWitnessesForMainChainIndex(conn, main_chain_index, cb){
 	console.log("updating paid witnesses mci "+main_chain_index);
+	profiler.start();
 	conn.query(
 		"SELECT COUNT(*) AS count, SUM(CASE WHEN is_stable=1 THEN 1 ELSE 0 END) AS count_on_stable_mc \n\
 		FROM units WHERE is_on_main_chain=1 AND main_chain_index>=? AND main_chain_index<=?",
 		[main_chain_index, main_chain_index+constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING+1],
 		function(rows){
+			profiler.stop('mc-wc-select-count');
 			var count = rows[0].count;
 			var count_on_stable_mc = rows[0].count_on_stable_mc;
 			if (count !== constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING+2)
@@ -103,9 +112,11 @@ function buildPaidWitnessesForMainChainIndex(conn, main_chain_index, cb){
 			if (count_on_stable_mc !== count)
 				throw "not enough stable MC units yet after MC index "+main_chain_index;
 			
+			profiler.start();
 			// we read witnesses from MC unit (users can cheat with side-chains to flip the witness list and pay commissions to their own witnesses)
 			readMcUnitWitnesses(conn, main_chain_index, function(arrWitnesses){
 				conn.query("SELECT * FROM units WHERE main_chain_index=?", [main_chain_index], function(rows){
+					profiler.stop('mc-wc-select-units');
 					et=0; rt=0;
 					async.eachSeries(
 						rows, 
@@ -121,6 +132,7 @@ function buildPaidWitnessesForMainChainIndex(conn, main_chain_index, cb){
 							if (err) // impossible
 								throw err;
 							//var t=Date.now();
+							profiler.start();
 							conn.query(
 								"INSERT INTO witnessing_outputs (main_chain_index, address, amount) \n\
 								SELECT main_chain_index, address, \n\
@@ -133,6 +145,7 @@ function buildPaidWitnessesForMainChainIndex(conn, main_chain_index, cb){
 								[main_chain_index],
 								function(){
 									//console.log(Date.now()-t);
+									profiler.stop('mc-wc-aggregate-events');
 									cb();
 								}
 							);
@@ -159,6 +172,7 @@ function buildPaidWitnesses(conn, objUnitProps, arrWitnesses, onDone){
 	
 	function updateCountPaidWitnesses(count_paid_witnesses){
 		conn.query("UPDATE balls SET count_paid_witnesses=? WHERE unit=?", [count_paid_witnesses, objUnitProps.unit], function(){
+			profiler.stop('mc-wc-insert-events');
 			onDone();
 		});
 	}
@@ -173,6 +187,7 @@ function buildPaidWitnesses(conn, objUnitProps, arrWitnesses, onDone){
 		if (arrUnits.length === 0)
 			arrUnits = null;
 			//throw "no witnesses before mc "+to_main_chain_index+" for unit "+objUnitProps.unit;
+		profiler.start();
 		conn.query( // we don't care if the unit is majority witnessed by the unit-designated witnesses
 			"SELECT address, MIN(main_chain_index-?) AS delay \n\
 			FROM unit_authors \n\
@@ -190,6 +205,8 @@ function buildPaidWitnesses(conn, objUnitProps, arrWitnesses, onDone){
 				}
 				else
 					arrValues = rows.map(function(row){ return "("+conn.escape(unit)+", "+conn.escape(row.address)+", "+row.delay+")"; });
+				profiler.stop('mc-wc-select-events');
+				profiler.start();
 				conn.query("INSERT INTO paid_witness_events (unit, address, delay) VALUES "+arrValues.join(", "), function(){
 					updateCountPaidWitnesses(count_paid_witnesses);
 				});

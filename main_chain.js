@@ -11,6 +11,7 @@ var paid_witnessing = require("./paid_witnessing.js");
 var headers_commission = require("./headers_commission.js");
 var mutex = require('./mutex.js');
 var eventBus = require('./event_bus.js');
+var profiler = require('./profiler.js');
 
 
 
@@ -19,38 +20,44 @@ function updateMainChain(conn, last_unit, onDone){
 	
 	// if unit === null, read free balls
 	function findNextUpMainChainUnit(unit, handleUnit){
-		conn.query(
-			unit
-			? "SELECT best_parent_unit, witnessed_level FROM units WHERE unit="+conn.escape(unit)
-			: "SELECT unit, witnessed_level \n\
+		function handleProps(props){
+			if (props.best_parent_unit === null)
+				throw "best parent is null";
+			console.log("unit "+unit+", best parent "+props.best_parent_unit+", wlevel "+props.witnessed_level);
+			handleUnit(props.best_parent_unit);
+		}
+		function readLastUnitProps(handleLastUnitProps){
+			conn.query("SELECT unit AS best_parent_unit, witnessed_level \n\
 				FROM units WHERE is_free=1 \n\
 				ORDER BY witnessed_level DESC, \n\
 					level-witnessed_level ASC, \n\
 					unit ASC \n\
 				LIMIT 1",
-			function(rows){
-				if (rows.length === 0)
-					throw "no parents?";
-				var best_parent_unit = unit ? rows[0].best_parent_unit : rows[0].unit;
-				if (best_parent_unit === null)
-					throw "best parent is null";
-				console.log("unit "+unit+", best parent "+best_parent_unit+", wlevel "+rows[0].witnessed_level);
-				handleUnit(best_parent_unit);
-			}
-		);
+				function(rows){
+					if (rows.length === 0)
+						throw "no free units?";
+					handleLastUnitProps(rows[0]);
+				}
+			);
+		}
+	
+		unit ? storage.readStaticUnitProps(conn, unit, handleProps) : readLastUnitProps(handleProps);
 	}
 	
 	function goUpFromUnit(unit){
 		if (storage.isGenesisUnit(unit))
 			return checkNotRebuildingStableMainChainAndGoDown(0, unit);
 		
+		profiler.start();
 		findNextUpMainChainUnit(unit, function(best_parent_unit){
 			storage.readUnitProps(conn, best_parent_unit, function(objBestParentUnitProps){
 				if (!objBestParentUnitProps.is_on_main_chain)
 					conn.query("UPDATE units SET is_on_main_chain=1, main_chain_index=NULL WHERE unit=?", [best_parent_unit], function(){
+						profiler.stop('mc-goUpFromUnit');
 						goUpFromUnit(best_parent_unit);
 					});
 				else{
+					profiler.stop('mc-goUpFromUnit');
 					if (unit === null)
 						updateLatestIncludedMcIndex(objBestParentUnitProps.main_chain_index, false);
 					else
@@ -62,10 +69,12 @@ function updateMainChain(conn, last_unit, onDone){
 	
 	function checkNotRebuildingStableMainChainAndGoDown(last_main_chain_index, last_main_chain_unit){
 		console.log("checkNotRebuildingStableMainChainAndGoDown "+last_unit);
+		profiler.start();
 		conn.query(
 			"SELECT unit FROM units WHERE is_on_main_chain=1 AND main_chain_index>? AND is_stable=1 LIMIT 1", 
 			[last_main_chain_index],
 			function(rows){
+				profiler.stop('mc-checkNotRebuilding');
 				if (rows.length > 0)
 					throw "removing stable witnessed unit "+rows[0].unit+" from main chain";
 				goDownAndUpdateMainChainIndex(last_main_chain_index, last_main_chain_unit);
@@ -74,6 +83,7 @@ function updateMainChain(conn, last_unit, onDone){
 	}
 	
 	function goDownAndUpdateMainChainIndex(last_main_chain_index, last_main_chain_unit){
+		profiler.start();
 		conn.query(
 			//"UPDATE units SET is_on_main_chain=0, main_chain_index=NULL WHERE is_on_main_chain=1 AND main_chain_index>?", 
 			"UPDATE units SET is_on_main_chain=0, main_chain_index=NULL WHERE main_chain_index>?", 
@@ -127,6 +137,7 @@ function updateMainChain(conn, last_unit, onDone){
 								console.log("goDownAndUpdateMainChainIndex done");
 								if (err)
 									throw "goDownAndUpdateMainChainIndex eachSeries failed";
+								profiler.stop('mc-goDown');
 								updateLatestIncludedMcIndex(last_main_chain_index, true);
 							}
 						);
@@ -139,15 +150,18 @@ function updateMainChain(conn, last_unit, onDone){
 	function updateLatestIncludedMcIndex(last_main_chain_index, bRebuiltMc){
 		
 		function checkAllLatestIncludedMcIndexesAreSet(){
+			profiler.start();
 			conn.query("SELECT unit FROM units WHERE latest_included_mc_index IS NULL AND level!=0", function(rows){
 				if (rows.length > 0)
 					throw rows.length+" units have latest_included_mc_index=NULL, e.g. unit "+rows[0].unit;
+				profiler.stop('mc-limci-check');
 				updateStableMcFlag();
 			});
 		}
 		
 		function propagateLIMCI(){
 			console.log("propagateLIMCI "+last_main_chain_index);
+			profiler.start();
 			// the 1st condition in WHERE is the same that was used 2 queries ago to NULL limcis
 			conn.query(
 				/*
@@ -170,14 +184,17 @@ function updateMainChain(conn, last_unit, onDone){
 					AND (chunits.latest_included_mc_index IS NULL OR chunits.latest_included_mc_index < punits.latest_included_mc_index)",
 				[last_main_chain_index],
 				function(rows){
+					profiler.stop('mc-limci-select-propagate');
 					if (rows.length === 0)
 						return checkAllLatestIncludedMcIndexesAreSet();
+					profiler.start();
 					async.eachSeries(
 						rows,
 						function(row, cb){
 							conn.query("UPDATE units SET latest_included_mc_index=? WHERE unit=?", [row.latest_included_mc_index, row.unit], function(){cb();});
 						},
 						function(){
+							profiler.stop('mc-limci-update-propagate');
 							propagateLIMCI();
 						}
 					);
@@ -186,8 +203,11 @@ function updateMainChain(conn, last_unit, onDone){
 		}
 		
 		console.log("updateLatestIncludedMcIndex "+last_main_chain_index);
+		profiler.start();
 		conn.query("UPDATE units SET latest_included_mc_index=NULL WHERE main_chain_index>? OR main_chain_index IS NULL", [last_main_chain_index], function(res){
 			console.log("update LIMCI=NULL done, matched rows: "+res.affectedRows);
+			profiler.stop('mc-limci-set-null');
+			profiler.start();
 			conn.query(
 				// if these units have other parents, they cannot include later MC units (otherwise, the parents would've been redundant).
 				// the 2nd condition in WHERE is the same that was used 1 query ago to NULL limcis.
@@ -218,6 +238,8 @@ function updateMainChain(conn, last_unit, onDone){
 				[last_main_chain_index],
 				function(rows){
 					console.log(rows.length+" rows");
+					profiler.stop('mc-limci-select-initial');
+					profiler.start();
 					if (rows.length === 0 && bRebuiltMc)
 						throw "no latest_included_mc_index updated";
 					async.eachSeries(
@@ -227,6 +249,7 @@ function updateMainChain(conn, last_unit, onDone){
 							conn.query("UPDATE units SET latest_included_mc_index=? WHERE unit=?", [row.main_chain_index, row.unit], function(){ cb(); });
 						},
 						function(){
+							profiler.stop('mc-limci-update-initial');
 							propagateLIMCI();
 						}
 					);
@@ -246,6 +269,7 @@ function updateMainChain(conn, last_unit, onDone){
 	
 	function updateStableMcFlag(){
 		console.log("updateStableMcFlag");
+		profiler.start();
 		readLastStableMcUnit(function(last_stable_mc_unit){
 			console.log("last stable mc unit "+last_stable_mc_unit);
 			storage.readWitnesses(conn, last_stable_mc_unit, function(arrWitnesses){
@@ -265,6 +289,7 @@ function updateMainChain(conn, last_unit, onDone){
 					var arrAltBranchRootUnits = arrAltRows.map(function(row){ return row.unit; });
 					
 					function advanceLastStableMcUnitAndTryNext(){
+						profiler.stop('mc-stableFlag');
 						markMcIndexStable(conn, first_unstable_mc_index, updateStableMcFlag);
 					}
 				
@@ -366,6 +391,7 @@ function updateMainChain(conn, last_unit, onDone){
 
 	
 	function finish(){
+		profiler.stop('mc-stableFlag');
 		console.log("done updating MC\n");
 		if (onDone)
 			onDone();
@@ -656,26 +682,18 @@ function determineIfStableInLaterUnitsAndUpdateStableMcFlag(conn, earlier_unit, 
 
 
 
-function readBestParent(conn, unit, handleBestParent){
-	conn.query("SELECT best_parent_unit FROM units WHERE unit=?", [unit], function(rows){
-		if (rows.length !== 1)
-			throw "readBestParent: not found "+unit;
-		if (rows[0].best_parent_unit === null)
-			throw "best parent is null";
-		handleBestParent(rows[0].best_parent_unit);
-	});
-}
 
 function readBestParentAndItsWitnesses(conn, unit, handleBestParentAndItsWitnesses){
-	readBestParent(conn, unit, function(best_parent_unit){
-		storage.readWitnesses(conn, best_parent_unit, function(arrWitnesses){
-			handleBestParentAndItsWitnesses(best_parent_unit, arrWitnesses);
+	storage.readStaticUnitProps(conn, unit, function(props){
+		storage.readWitnesses(conn, props.best_parent_unit, function(arrWitnesses){
+			handleBestParentAndItsWitnesses(props.best_parent_unit, arrWitnesses);
 		});
 	});
 }
 
 
 function markMcIndexStable(conn, mci, onDone){
+	profiler.start();
 	conn.query(
 		"UPDATE units SET is_stable=1 WHERE is_stable=0 AND main_chain_index=?", 
 		[mci], 
@@ -844,6 +862,7 @@ function markMcIndexStable(conn, mci, onDone){
 
 	function updateRetrievable(){
 		storage.updateMinRetrievableMciAfterStabilizingMci(conn, mci, function(min_retrievable_mci){
+			profiler.stop('mc-mark-stable');
 			calcCommissions();
 		});
 	}
@@ -851,9 +870,11 @@ function markMcIndexStable(conn, mci, onDone){
 	function calcCommissions(){
 		async.series([
 			function(cb){
+				profiler.start();
 				headers_commission.calcHeadersCommissions(conn, cb);
 			},
 			function(cb){
+				profiler.stop('mc-headers-commissions');
 				paid_witnessing.updatePaidWitnesses(conn, cb);
 			}
 		], function(){

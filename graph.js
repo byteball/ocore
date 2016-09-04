@@ -4,6 +4,7 @@ var _ = require('lodash');
 var async = require('async');
 var storage = require('./storage.js');
 var db = require('./db.js');
+var profiler = require('./profiler.js');
 
 
 
@@ -172,6 +173,7 @@ function readDescendantUnitsByAuthorsBeforeMcIndex(conn, objEarlierUnitProps, ar
 	var arrUnits = [];
 	
 	function goDown(arrStartUnits){
+		profiler.start();
 		conn.query(
 			"SELECT units.unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, unit_authors.address AS author_in_list \n\
 			FROM parenthoods \n\
@@ -187,11 +189,13 @@ function readDescendantUnitsByAuthorsBeforeMcIndex(conn, objEarlierUnitProps, ar
 					if (objUnitProps.author_in_list)
 						arrUnits.push(objUnitProps.unit);
 				}
+				profiler.stop('mc-wc-descendants-goDown');
 				(arrNewStartUnits.length > 0) ? goDown(arrNewStartUnits) : handleUnits(arrUnits);
 			}
 		);
 	}
 	
+	profiler.start();
 	conn.query(
 		"SELECT unit FROM units JOIN unit_authors USING(unit) \n\
 		WHERE latest_included_mc_index>=? AND main_chain_index>? AND main_chain_index<=? AND latest_included_mc_index<? AND address IN(?)", 
@@ -200,6 +204,7 @@ function readDescendantUnitsByAuthorsBeforeMcIndex(conn, objEarlierUnitProps, ar
 //        [objEarlierUnitProps.main_chain_index, to_main_chain_index],
 		function(rows){
 			arrUnits = rows.map(function(row) { return row.unit; });
+			profiler.stop('mc-wc-descendants-initial');
 			goDown([objEarlierUnitProps.unit]);
 		}
 	);

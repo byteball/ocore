@@ -12,6 +12,7 @@ var main_chain = require("./main_chain.js");
 var Definition = require("./definition.js");
 var profiler = require('./profiler.js');
 
+var count_writes = 0;
 
 function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 	var objUnit = objJoint.unit;
@@ -385,22 +386,20 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 			
 			function addWitnessesAndGoUp(start_unit){
 				profiler.start();
-				conn.query("SELECT best_parent_unit, level FROM units WHERE unit=?", [start_unit], function(rows){
+				storage.readStaticUnitProps(conn, start_unit, function(props){
 					profiler.stop('write-wl-select-bp');
-					if (rows.length !== 1)
-						throw "not a single best parent";
-					var best_parent_unit = rows[0].best_parent_unit;
-					var level = rows[0].level;
+					var best_parent_unit = props.best_parent_unit;
+					var level = props.level;
 					if (level === null)
 						throw "null level in updateWitnessedLevel";
 					if (level === 0) // genesis
 						return setWitnessedLevel(0);
 					profiler.start();
-					conn.query("SELECT address FROM unit_authors WHERE unit=?", [start_unit], function(author_rows){
+					storage.readUnitAuthors(conn, start_unit, function(arrAuthors){
 						profiler.stop('write-wl-select-authors');
 						profiler.start();
-						for (var i=0; i<author_rows.length; i++){
-							var address = author_rows[i].address;
+						for (var i=0; i<arrAuthors.length; i++){
+							var address = arrAuthors[i];
 							if (arrWitnesses.indexOf(address) !== -1 && arrCollectedWitnesses.indexOf(address) === -1)
 								arrCollectedWitnesses.push(address);
 						}
@@ -433,8 +432,6 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 							arrOps.push(updateWitnessedLevel);
 							arrOps.push(function(cb){
 								console.log("updating MC after adding "+objUnit.unit);
-								//profiler.stop('write-update');
-								profiler.start();
 								main_chain.updateMainChain(conn, null, cb);
 							});
 						}
@@ -445,13 +442,18 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 							});
 					}
 					async.series(arrOps, function(err){
+						profiler.start();
 						conn.query(err ? "ROLLBACK" : "COMMIT", function(){
 							conn.release();
 							console.log((err ? (err+", therefore rolled back unit ") : "committed unit ")+objUnit.unit);
-							profiler.stop('write-mc');
+							profiler.stop('write-commit');
+							profiler.increment();
 							unlock();
 							if (onDone)
 								onDone();
+							count_writes++;
+							if (conf.storage === 'sqlite')
+								updateSqliteStats();
 						});
 					});
 				});
@@ -461,7 +463,17 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 	});
 }
 
-
+// update stats for query planner
+function updateSqliteStats(){
+	if (count_writes % 100 !== 0)
+		return;
+	console.log("will update sqlite stats");
+	db.query("ANALYZE", function(){
+		db.query("ANALYZE sqlite_master", function(){
+			console.log("sqlite stats updated");
+		});
+	});
+}
 
 exports.saveJoint = saveJoint;
 

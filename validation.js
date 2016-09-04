@@ -16,6 +16,7 @@ var constants = require("./constants.js");
 var ValidationUtils = require("./validation_utils.js");
 var Definition = require("./definition.js");
 var conf = require('./conf.js');
+var profiler = require('./profiler.js');
 
 var MAX_INT32 = Math.pow(2, 31) - 1;
 
@@ -171,37 +172,51 @@ function validate(objJoint, callbacks) {
 					});
 				},
 				function(cb){
+					profiler.start();
 					checkDuplicate(conn, objUnit.unit, cb);
 				},
 				function(cb){
+					profiler.stop('validation-checkDuplicate');
+					profiler.start();
 					objUnit.content_hash ? cb() : validateHeadersCommissionRecipients(objUnit, cb);
 				},
 				function(cb){
+					profiler.stop('validation-hc-recipients');
+					profiler.start();
 					!objUnit.parent_units
 						? cb()
 						: validateHashTree(conn, objJoint, objValidationState, cb);
 				},
 				function(cb){
+					profiler.stop('validation-hash-tree');
+					profiler.start();
 					!objUnit.parent_units
 						? cb()
 						: validateParents(conn, objJoint, objValidationState, cb);
 				},
 				function(cb){
+					profiler.stop('validation-parents');
+					profiler.start();
 					!objJoint.skiplist_units
 						? cb()
 						: validateSkiplist(conn, objJoint.skiplist_units, cb);
 				},
 				function(cb){
+					profiler.stop('validation-skiplist');
 					validateWitnesses(conn, objUnit, objValidationState, cb);
 				},
 				function(cb){
+					profiler.start();
 					validateAuthors(conn, objUnit.authors, objUnit, objValidationState, cb);
 				},
 				function(cb){
+					profiler.stop('validation-authors');
+					profiler.start();
 					objUnit.content_hash ? cb() : validateMessages(conn, objUnit.messages, objUnit, objValidationState, cb);
 				}
 			], 
 			function(err){
+				profiler.stop('validation-messages');
 				if(err){
 					conn.query("ROLLBACK", function(){
 						conn.release();
@@ -223,8 +238,10 @@ function validate(objJoint, callbacks) {
 					});
 				}
 				else{
+					profiler.start();
 					conn.query("COMMIT", function(){
 						conn.release();
+						profiler.stop('validation-commit');
 						if (objJoint.unsigned){
 							unlock();
 							callbacks.ifOkUnsigned(objValidationState.sequence === 'good');
@@ -469,12 +486,15 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 	function validateWitnessListMutations(arrWitnesses){
 		if (!objUnit.parent_units) // genesis
 			return callback();
+		profiler.start();
 		buildListOfMcUnitsWithPotentiallyDifferentWitnesslists(arrWitnesses, function(bHasBestParent, arrMcUnits){
+			profiler.stop('validation-witnesses-build-list');
 			if (!bHasBestParent)
 				return callback("no compatible best parent");
 			//console.log("###### ", arrMcUnits);
 			if (arrMcUnits.length === 0)
 				return checkNoReferencesInWitnessAddressDefinitions(arrWitnesses);
+			profiler.start();
 			conn.query(
 				"SELECT units.unit, COUNT(*) AS count_matching_witnesses \n\
 				FROM units JOIN unit_witnesses ON (units.unit=unit_witnesses.unit || units.witness_list_unit=unit_witnesses.unit) AND address IN(?) \n\
@@ -483,6 +503,7 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 				HAVING count_matching_witnesses<?",
 				[arrWitnesses, arrMcUnits, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS],
 				function(rows){
+					profiler.stop('validation-witnesses-mutations');
 					if (rows.length > 0)
 						return callback("too many ("+(constants.COUNT_WITNESSES - rows[0].count_matching_witnesses)+") witness list mutations relative to MC unit "+rows[0].unit);
 					checkNoReferencesInWitnessAddressDefinitions(arrWitnesses);
@@ -495,21 +516,17 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 	function buildListOfMcUnitsWithPotentiallyDifferentWitnesslists(arrWitnesses, handleList){
 		
 		function addAndGoUp(unit){
-			conn.query("SELECT best_parent_unit, witness_list_unit FROM units WHERE unit=?", [unit], function(rows){
-				if (rows.length !== 1)
-					throw Error("not a single best parent by unit "+unit);
-				var row = rows[0];
-				
+			storage.readStaticUnitProps(conn, unit, function(props){
 				// the parent has the same witness list and the parent has already passed the MC compatibility test
-				if (objUnit.witness_list_unit && objUnit.witness_list_unit === row.witness_list_unit)
+				if (objUnit.witness_list_unit && objUnit.witness_list_unit === props.witness_list_unit)
 					return handleList(true, arrMcUnits);
 				else
 					arrMcUnits.push(unit);
 				if (unit === last_ball_unit)
 					return handleList(true, arrMcUnits);
-				if (!row.best_parent_unit)
+				if (!props.best_parent_unit)
 					throw Error("no best parent of unit "+unit+"?");
-				addAndGoUp(row.best_parent_unit);
+				addAndGoUp(props.best_parent_unit);
 			});
 		}
 		
@@ -522,9 +539,12 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 	}
 	
 	function checkNoReferencesInWitnessAddressDefinitions(arrWitnesses){
+		profiler.start();
+		var cross = (conf.storage === 'sqlite') ? 'CROSS' : ''; // correct the query planner
 		conn.query(
 			"SELECT 1 \n\
-			FROM address_definition_changes JOIN definitions USING(definition_chash) \n\
+			FROM address_definition_changes \n\
+			JOIN definitions USING(definition_chash) \n\
 			JOIN units AS change_units USING(unit)   -- units where the change was declared \n\
 			JOIN unit_authors USING(definition_chash) \n\
 			JOIN units AS definition_units ON unit_authors.unit=definition_units.unit   -- units where the definition was disclosed \n\
@@ -532,19 +552,22 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 				AND change_units.is_stable=1 AND change_units.main_chain_index<=? AND change_units.sequence='good' \n\
 				AND definition_units.is_stable=1 AND definition_units.main_chain_index<=? AND definition_units.sequence='good' \n\
 			UNION \n\
-			SELECT 1 FROM definitions \n\
-			JOIN unit_authors USING(definition_chash) \n\
+			SELECT 1 \n\
+			FROM definitions \n\
+			"+cross+" JOIN unit_authors USING(definition_chash) \n\
 			JOIN units AS definition_units ON unit_authors.unit=definition_units.unit   -- units where the definition was disclosed \n\
 			WHERE definition_chash IN(?) AND has_references=1 \n\
 				AND definition_units.is_stable=1 AND definition_units.main_chain_index<=? AND definition_units.sequence='good' \n\
 			LIMIT 1",
 			[arrWitnesses, objValidationState.last_ball_mci, objValidationState.last_ball_mci, arrWitnesses, objValidationState.last_ball_mci],
 			function(rows){
+				profiler.stop('validation-witnesses-no-refs');
 				(rows.length > 0) ? callback("some witnesses have references in their addresses") : callback();
 			}
 		);
 	}
 
+	profiler.start();
 	var last_ball_unit = objUnit.last_ball_unit;
 	if (typeof objUnit.witness_list_unit === "string"){
 		conn.query("SELECT sequence, is_stable, main_chain_index FROM units WHERE unit=?", [objUnit.witness_list_unit], function(unit_rows){
@@ -566,6 +589,7 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 					var arrWitnesses = rows.map(function(row){ return row.address; });
 					if (arrWitnesses.length !== constants.COUNT_WITNESSES)
 						throw "wrong number of witnesses";
+					profiler.stop('validation-witnesses-read-list');
 					validateWitnessListMutations(arrWitnesses);
 				}
 			);
@@ -598,6 +622,7 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 			function(rows){
 				if (rows[0].count_stable_good_witnesses !== constants.COUNT_WITNESSES)
 					return callback("some witnesses are not stable, not serial, or don't come before last ball");
+				profiler.stop('validation-witnesses-stable');
 				validateWitnessListMutations(objUnit.witnesses);
 			}
 		);
