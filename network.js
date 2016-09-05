@@ -1794,7 +1794,7 @@ function handleRequest(ws, tag, command, params){
 			// true if our timers were paused
 			// Happens only on android, which suspends timers when the app becomes paused but still keeps network connections
 			// Handling 'pause' event would've been more straightforward but with preference KeepRunning=false, the event is delayed till resume
-			var bPaused = (typeof window !== 'undefined' && window.cordova && Date.now() - last_hearbeat_wake_ts > 2*HEARTBEAT_TIMEOUT);
+			var bPaused = (typeof window !== 'undefined' && window && window.cordova && Date.now() - last_hearbeat_wake_ts > 2*HEARTBEAT_TIMEOUT);
 			if (bPaused)
 				return sendResponse(ws, tag, 'sleep'); // opt out of receiving heartbeats and move the connection into a sleeping state
 			sendResponse(ws, tag);
