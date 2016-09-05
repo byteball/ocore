@@ -491,7 +491,7 @@ function handleNewPeers(ws, request, arrPeerUrls){
 
 function heartbeat(){
 	// just resumed after sleeping
-	var bJustResumed = (typeof window !== 'undefined' && window.cordova && Date.now() - last_hearbeat_wake_ts > 2*HEARTBEAT_TIMEOUT);
+	var bJustResumed = (typeof window !== 'undefined' && window && window.cordova && Date.now() - last_hearbeat_wake_ts > 2*HEARTBEAT_TIMEOUT);
 	last_hearbeat_wake_ts = Date.now();
 	wss.clients.concat(arrOutboundPeers).forEach(function(ws){
 		if (ws.bSleeping)
