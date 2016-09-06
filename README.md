@@ -25,7 +25,7 @@ The port to listen on, the default is 6611.  If you don't want to accept incomin
 
 #### conf.storage
 
-Storage backend -- mysql or sqlite, the default is sqlite.  If sqlite, the database files are stored in the app data folder.  If mysql, you need to also set connection params, e.g. in conf.json in the app data folder:
+Storage backend -- mysql or sqlite, the default is sqlite.  If sqlite, the database files are stored in the app data folder.  If mysql, you need to also initialize the database with [byteball.sql](byteball.sql) and set connection params, e.g. in conf.json in the app data folder:
 
 ```json
 {
