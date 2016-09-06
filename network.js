@@ -149,6 +149,8 @@ function sendRequest(ws, command, params, bReroutable, responseHandler){
 		// it'll work correctly even if the current peer is already disconnected when the timeout fires
 		var reroute = !bReroutable ? null : function(){
 			console.log('will try to reroute a '+command+' request stalled at '+ws.peer);
+			if (!ws.assocPendingRequests[tag])
+				return console.log('will not reroute - the request was already handled by another peer');
 			ws.assocPendingRequests[tag].bRerouted = true;
 			findNextPeer(ws, function(next_ws){ // the callback may be called much later if findNextPeer has to wait for connection
 				if (next_ws === ws){
@@ -188,7 +190,7 @@ function sendRequest(ws, command, params, bReroutable, responseHandler){
 
 function handleResponse(ws, tag, response){
 	var pendingRequest = ws.assocPendingRequests[tag];
-	if (!pendingRequest) // was canceled due to timeout
+	if (!pendingRequest) // was canceled due to timeout or rerouted and answered by another peer
 		//throw "no req by tag "+tag;
 		return console.log("no req by tag "+tag);
 	pendingRequest.responseHandlers.forEach(function(responseHandler){
