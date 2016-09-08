@@ -21,6 +21,7 @@ var objectHash = require('./object_hash.js');
 var ecdsaSig = require('./signature.js');
 var eventBus = require('./event_bus.js');
 var light = require('./light.js');
+var breadcrumbs = require('./breadcrumbs.js');
 var mail = process.browser ? null : require('./mail.js'+'');
 
 var FORWARDING_TIMEOUT = 10*1000; // don't forward if the joint was received more than FORWARDING_TIMEOUT ms ago
@@ -328,6 +329,7 @@ function connectToPeer(url, onOpen) {
 		}
 	}, 5000);
 	ws.on('open', function onWsOpen() {
+		breadcrumbs.add('connected to '+url);
 		delete assocConnectingOutboundWebsockets[url];
 		if (!ws.url)
 			throw Error("no url on ws");
@@ -459,6 +461,7 @@ function findOutboundPeerOrConnect(url, onOpen){
 	ws = assocConnectingOutboundWebsockets[url];
 	if (ws){ // add second event handler
 		console.log("already connecting to "+url);
+		breadcrumbs.add('already connecting to '+url);
 		return ws.on('open', function secondOnOpen(){
 			if (ws.readyState === ws.OPEN)
 				onOpen(null, ws);
