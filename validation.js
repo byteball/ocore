@@ -149,7 +149,7 @@ function validate(objJoint, callbacks) {
 		if (!isPositiveInteger(objUnit.timestamp) && !objJoint.unsigned)
 			return callbacks.ifJointError("bad timestamp");
 		if (objJoint.ball)
-			return callbacks.ifJointError("I'm light, can't accept stable unit without proof");
+			return callbacks.ifJointError("I'm light, can't accept stable unit "+objUnit.unit+" without proof");
 		return objJoint.unsigned 
 			? callbacks.ifOkUnsigned(true) 
 			: callbacks.ifOk({sequence: 'good', arrDoubleSpendInputs: [], arrAdditionalQueries: []}, function(){});
