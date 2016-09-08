@@ -118,7 +118,7 @@ function loginToHub(){
 	if (!my_device_hub)
 		return console.log("my_device_hub not set yet, can't log in");
 	console.log("logging in to hub "+my_device_hub);
-	network.findOutboundPeerOrConnect(conf.WS_PROTOCOL+my_device_hub, function(err, ws){
+	network.findOutboundPeerOrConnect(conf.WS_PROTOCOL+my_device_hub, function onLocatedHubForLogin(err, ws){
 		if (err)
 			return;
 		if (ws.bLoggedIn)
@@ -196,7 +196,7 @@ function rotateTempDeviceKey(){
 	if (!saveTempKeys)
 		return console.log("no saving function");
 	console.log("will rotate temp device key");
-	network.findOutboundPeerOrConnect(conf.WS_PROTOCOL+my_device_hub, function(err, ws){
+	network.findOutboundPeerOrConnect(conf.WS_PROTOCOL+my_device_hub, function onLocatedHubForRotation(err, ws){
 		if (err)
 			return console.log('will not rotate because: '+err);
 		if (ws.readyState !== ws.OPEN)
@@ -333,7 +333,7 @@ function sendPreparedMessageToHub(ws, recipient_device_pubkey, message_hash, jso
 		callbacks = {ifOk: function(){}, ifError: function(){}};
 	if (typeof ws === "string"){
 		var hub_host = ws;
-		network.findOutboundPeerOrConnect(conf.WS_PROTOCOL+hub_host, function(err, ws){
+		network.findOutboundPeerOrConnect(conf.WS_PROTOCOL+hub_host, function onLocatedHubForSend(err, ws){
 			if (err)
 				return callbacks.ifError(err);
 			sendPreparedMessageToConnectedHub(ws, recipient_device_pubkey, message_hash, json, callbacks);
