@@ -72,8 +72,10 @@ function prepareRequestForHistory(handleResult){
 function refreshLightClientHistory(){
 	if (!conf.bLight)
 		return;
+	if (!network.light_vendor_url)
+		return console.log('refreshLightClientHistory called too early: light_vendor_url not set yet');
 	eventBus.emit('refresh_light_started');
-	network.findOutboundPeerOrConnect(network.light_vendor_url, function(err, ws){
+	network.findOutboundPeerOrConnect(network.light_vendor_url, function onLocatedLightVendor(err, ws){
 		var finish = function(msg){
 			if (msg)
 				console.log(msg);
