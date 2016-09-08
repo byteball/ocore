@@ -327,7 +327,7 @@ function connectToPeer(url, onOpen) {
 			// after this, new connection attempts will be allowed to the wire, but this one can still succeed.  See the check for duplicates below.
 		}
 	}, 5000);
-	ws.on('open', function () {
+	ws.on('open', function onWsOpen() {
 		delete assocConnectingOutboundWebsockets[url];
 		if (!ws.url)
 			throw Error("no url on ws");
@@ -358,14 +358,14 @@ function connectToPeer(url, onOpen) {
 			onOpen(null, ws);
 		eventBus.emit('connected', ws);
 	});
-	ws.on('close', function() {
+	ws.on('close', function onWsClose() {
 		var i = arrOutboundPeers.indexOf(ws);
 		console.log('removing '+i+': '+url);
 		if (i !== -1)
 			arrOutboundPeers.splice(i, 1);
 		cancelRequestsOnClosedConnection(ws);
 	});
-	ws.on('error', function(e){
+	ws.on('error', function onWsError(e){
 		delete assocConnectingOutboundWebsockets[url];
 		console.log("error from server "+url+": "+e);
 		// !ws.bOutbound means not connected yet. This is to distinguish connection errors from later errors that occur on open connection
@@ -459,7 +459,16 @@ function findOutboundPeerOrConnect(url, onOpen){
 	ws = assocConnectingOutboundWebsockets[url];
 	if (ws){ // add second event handler
 		console.log("already connecting to "+url);
-		return ws.on('open', function(){ onOpen(null, ws); });
+		return ws.on('open', function secondOnOpen(){
+			if (ws.readyState === ws.OPEN)
+				onOpen(null, ws);
+			else{
+				// can happen e.g. if the ws was abandoned but later succeeded, we opened another connection in the meantime, 
+				// and had another_ws_to_same_peer on the first connection
+				console.log('in second onOpen, websocket already closed');
+				onOpen('[internal] websocket already closed');
+			}
+		});
 	}
 	console.log("will connect to "+url);
 	connectToPeer(url, onOpen);
@@ -742,8 +751,8 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 		validation.validate(objJoint, {
 			ifUnitError: function(error){
 				console.log(objJoint.unit.unit+" validation failed: "+error);
-				throw error;
 				callbacks.ifUnitError(error);
+				throw error;
 				purgeJointAndDependenciesAndNotifyPeers(objJoint, error, function(){
 					delete assocUnitsInWork[unit];
 				});
@@ -753,8 +762,8 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 					eventBus.emit("validated-"+unit, false);
 			},
 			ifJointError: function(error){
-				throw error;
 				callbacks.ifJointError(error);
+				throw error;
 				db.query(
 					"INSERT INTO known_bad_joints (joint, json, error) VALUES (?,?,?)", 
 					[objectHash.getJointHash(objJoint), JSON.stringify(objJoint), error],
@@ -1015,6 +1024,8 @@ function notifyWatchers(objJoint){
 	}
 	
 	if (conf.bLight)
+		return;
+	if (objJoint.ball) // already stable, light clients will require a proof
 		return;
 	// this is a new unstable joint, light clients will accept it without proof
 	db.query("SELECT peer FROM watched_light_addresses WHERE address IN(?)", [arrAddresses], function(rows){
