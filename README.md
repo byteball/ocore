@@ -44,9 +44,13 @@ Storage backend -- mysql or sqlite, the default is sqlite.  If sqlite, the datab
 
 Work as light client (`true`) or full node (`false`).  The default is full client.
 
-#### conf.bServerAsHub
+#### conf.bServeAsHub
 
 Whether to serve as hub on the Byteball network (store and forward e2e-encrypted messages for devices that connect to your hub).  The default is `false`.
+
+#### conf.myUrl
+
+If your node accepts incoming connections, this is its URL.  The node will share this URL with all its outgoing peers so that they can reconnect in any direction in the future.  By default the node doesn't share its URL even if it accepts connections.
 
 
 ## Accepting incoming connections
