@@ -128,7 +128,7 @@ function approvePendingSharedAddress(address_definition_template_chash, from_add
 						[address_definition_template_chash],
 						function(templ_rows){
 							if (templ_rows.length !== 1)
-								throw "template not found";
+								throw Error("template not found");
 							var arrAddressDefinitionTemplate = JSON.parse(templ_rows[0].definition_template);
 							var arrDefinition = Definition.replaceInTemplate(arrAddressDefinitionTemplate, params);
 							var shared_address = objectHash.getChash160(arrDefinition);
@@ -249,7 +249,7 @@ function getMemberDeviceAddressesBySigningPaths(arrAddressDefinitionTemplate){
 				var device_address = address.substr(prefix.length);
 				assocMemberDeviceAddressesBySigningPaths[path] = device_address;
 			case 'definition template':
-				throw op+" not supported yet";
+				throw Error(op+" not supported yet");
 			// all other ops cannot reference device address
 		}
 	}
@@ -315,7 +315,7 @@ function findAddress(address, signing_path, callbacks){
 		[address, signing_path],
 		function(rows){
 			if (rows.length > 1)
-				throw "more than 1 address found";
+				throw Error("more than 1 address found");
 			if (rows.length === 1){
 				var row = rows[0];
 				if (!row.full_approval_date)
@@ -384,7 +384,7 @@ function sendPaymentFromAddress(from_address, to_address, amount, change_address
 				[address, address], 
 				function(rows){
 					if (rows.length !== 1)
-						throw "definition not found";
+						throw Error("definition not found");
 					handleDefinition(null, JSON.parse(rows[0].definition));
 				}
 			);
@@ -393,7 +393,7 @@ function sendPaymentFromAddress(from_address, to_address, amount, change_address
 			var buf_to_sign = objectHash.getUnitHashToSign(objUnsignedUnit);
 			findAddress(address, signing_path, {
 				ifError: function(err){
-					throw err;
+					throw Error(err);
 				},
 				ifUnknownAddress: function(err){
 					throw Error("unknown address");

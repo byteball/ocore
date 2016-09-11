@@ -253,7 +253,7 @@ function createWallet(xPubKey, account, arrWalletDefinitionTemplate, walletName,
 
 function createMultisigWallet(xPubKey, account, count_required_signatures, arrDeviceAddresses, walletName, handleWallet){
 	if (count_required_signatures > arrDeviceAddresses.length)
-		throw "required > length";
+		throw Error("required > length");
 	var set = arrDeviceAddresses.map(function(device_address){ return ["sig", {pubkey: '$pubkey@'+device_address}]; });
 	var arrDefinitionTemplate = ["r of set", {required: count_required_signatures, set: set}];
 	createWallet(xPubKey, account, arrDefinitionTemplate, walletName, handleWallet);
@@ -301,7 +301,7 @@ function cancelWallet(wallet, arrDeviceAddresses, arrOtherCosigners){
 	var arrOtherDeviceAddresses = _.uniq(arrOtherCosigners.map(function(cosigner){ return cosigner.device_address; }));
 	var arrInitiatorDeviceAddresses = _.difference(arrDeviceAddresses, arrOtherDeviceAddresses);
 	if (arrInitiatorDeviceAddresses.length !== 1)
-		throw "not one initiator?";
+		throw Error("not one initiator?");
 	var initiator_device_address = arrInitiatorDeviceAddresses[0];
 	sendCommandToCancelNewWallet(initiator_device_address, wallet);
 	arrOtherCosigners.forEach(function(cosigner){
@@ -455,7 +455,7 @@ function getDeviceAddressesBySigningPaths(arrWalletDefinitionTemplate){
 				break;
 			case 'address':
 			case 'definition template':
-				throw op+" not supported yet";
+				throw Error(op+" not supported yet");
 			// all other ops cannot reference device address
 		}
 	}
@@ -521,9 +521,9 @@ function derivePubkey(xPubKey, path){
 function deriveAddress(wallet, is_change, address_index, handleNewAddress){
 	db.query("SELECT definition_template, full_approval_date FROM wallets WHERE wallet=?", [wallet], function(wallet_rows){
 		if (wallet_rows.length === 0)
-			throw "wallet not found";
+			throw Error("wallet not found");
 		if (!wallet_rows[0].full_approval_date)
-			throw "wallet not fully approved yet";
+			throw Error("wallet not fully approved yet");
 		var arrDefinitionTemplate = JSON.parse(wallet_rows[0].definition_template);
 		db.query(
 			"SELECT device_address, extended_pubkey FROM extended_pubkeys WHERE wallet=?", 
@@ -533,7 +533,7 @@ function deriveAddress(wallet, is_change, address_index, handleNewAddress){
 				var params = {};
 				rows.forEach(function(row){
 					if (!row.extended_pubkey)
-						throw "no extended_pubkey";
+						throw Error("no extended_pubkey");
 					params['pubkey@'+row.device_address] = derivePubkey(row.extended_pubkey, path);
 				});
 				var arrDefinition = Definition.replaceInTemplate(arrDefinitionTemplate, params);
@@ -707,7 +707,7 @@ function sendPaymentFromWallet(
 		asset, wallet, to_address, amount, change_address, arrSigningDeviceAddresses, recipient_device_address, signWithLocalPrivateKey, handleResult)
 {
 	if (!wallet)
-		throw "no wallet id";
+		throw Error("no wallet id");
 	readAllAddresses(wallet, function(arrFromAddresses){
 		if (arrFromAddresses.length === 0)
 			return handleResult("no from addresses in wallet "+wallet);
@@ -737,7 +737,7 @@ function sendPaymentFromWallet(
 			readDefinition: function(conn, address, handleDefinition){
 				conn.query("SELECT definition FROM my_addresses WHERE address=?", [address], function(rows){
 					if (rows.length !== 1)
-						throw "definition not found";
+						throw Error("definition not found");
 					handleDefinition(null, JSON.parse(rows[0].definition));
 				});
 			},
@@ -750,7 +750,7 @@ function sendPaymentFromWallet(
 					[address, signing_path],
 					function(rows){
 						if (rows.length !== 1)
-							throw "not 1 hub";
+							throw Error("not 1 hub");
 						var row = rows[0];
 						if (row.device_address === device.getMyDeviceAddress()){
 							signWithLocalPrivateKey(wallet, row.account, row.is_change, row.address_index, buf_to_sign, function(sig){
