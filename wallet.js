@@ -350,7 +350,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					var objHeadPrivateElement = arrPrivateElements[0];
 					if (!!objHeadPrivateElement.payload.denomination !== ValidationUtils.isNonnegativeInteger(objHeadPrivateElement.output_index))
 						return cb("divisibility doesn't match presence of output_index");
-					var output_index = objHeadPrivateElement.output_index || -1;
+					var output_index = objHeadPrivateElement.payload.denomination ? objHeadPrivateElement.output_index : -1;
 					var payload_hash = objectHash.getBase64Hash(objHeadPrivateElement.payload);
 					var key = 'private_payment_validated-'+objHeadPrivateElement.unit+'-'+payload_hash+'-'+output_index;
 					assocValidatedByKey[key] = false;
@@ -370,7 +370,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 						},
 						// this is the most likely outcome for light clients
 						ifQueued: function(){
-							console.log("handleOnlinePrivatePayment queued");
+							console.log("handleOnlinePrivatePayment queued, will wait for "+key);
 							eventBus.once(key, function(bValid){
 								if (!bValid)
 									return cancelAllKeys();
