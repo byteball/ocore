@@ -11,6 +11,7 @@ var network = require('./network.js');
 var eventBus = require('./event_bus.js');
 var ValidationUtils = require("./validation_utils.js");
 var conf = require('./conf.js');
+var breadcrumbs = require('./breadcrumbs.js');
 
 
 var SEND_RETRY_PERIOD = 60*1000;
