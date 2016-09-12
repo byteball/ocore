@@ -259,7 +259,7 @@ function processHistory(objResponse, callbacks){
 			}
 		
 			// proofchain
-			var assocProvenUnits = {};
+			var assocProvenUnitsNonserialness = {};
 			for (var i=0; i<objResponse.proofchain_balls.length; i++){
 				var objBall = objResponse.proofchain_balls[i];
 				if (objBall.ball !== objectHash.getBallHash(objBall.unit, objBall.parent_balls, objBall.skiplist_balls, objBall.is_nonserial))
@@ -273,7 +273,7 @@ function processHistory(objResponse, callbacks){
 					objBall.skiplist_balls.forEach(function(skiplist_ball){
 						assocKnownBalls[skiplist_ball] = true;
 					});
-				assocProvenUnits[objBall.unit] = objBall.is_nonserial;
+				assocProvenUnitsNonserialness[objBall.unit] = objBall.is_nonserial;
 			}
 			assocKnownBalls = null; // free memory
 
@@ -288,7 +288,7 @@ function processHistory(objResponse, callbacks){
 				if (!ValidationUtils.isPositiveInteger(objUnit.timestamp))
 					return callbacks.ifError("no timestamp");
 				// we receive unconfirmed units too
-				//if (!assocProvenUnits[objUnit.unit])
+				//if (!assocProvenUnitsNonserialness[objUnit.unit])
 				//    return callbacks.ifError("proofchain doesn't prove unit "+objUnit.unit);
 			}
 
@@ -305,10 +305,10 @@ function processHistory(objResponse, callbacks){
 						function(objJoint, cb2){
 							var objUnit = objJoint.unit;
 							var unit = objUnit.unit;
-							// assocProvenUnits[unit] is true for non-serials, false for serials, undefined for unstable
-							var sequence = assocProvenUnits[unit] ? 'final-bad' : 'good';
+							// assocProvenUnitsNonserialness[unit] is true for non-serials, false for serials, undefined for unstable
+							var sequence = assocProvenUnitsNonserialness[unit] ? 'final-bad' : 'good';
 							if (assocExistingUnits[unit]){
-								//if (!assocProvenUnits[objUnit.unit]) // not stable yet
+								//if (!assocProvenUnitsNonserialness[objUnit.unit]) // not stable yet
 								//    return cb2();
 								// it can be null!
 								//if (!ValidationUtils.isNonnegativeInteger(objUnit.main_chain_index))
@@ -329,7 +329,7 @@ function processHistory(objResponse, callbacks){
 								unlock();
 								return callbacks.ifError(err);
 							}
-							var arrProvenUnits = Object.keys(assocProvenUnits);
+							var arrProvenUnits = Object.keys(assocProvenUnitsNonserialness);
 							if (arrProvenUnits.length === 0){
 								unlock();
 								callbacks.ifOk();
