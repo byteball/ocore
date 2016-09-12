@@ -44,6 +44,7 @@ function getMyDeviceAddress(){
 
 function setDevicePrivateKey(priv_key){
 	console.log("setDevicePrivateKey");
+	breadcrumbs.add("setDevicePrivateKey");
 	var bChanged = (!objMyPermanentDeviceKey || priv_key !== objMyPermanentDeviceKey.priv);
 	objMyPermanentDeviceKey = {
 		priv: priv_key,
@@ -78,6 +79,7 @@ function setTempKeys(temp_priv_key, prev_temp_priv_key, fnSaveTempKeys){
 
 function setDeviceAddress(device_address){
 	console.log("setDeviceAddress", device_address);
+	breadcrumbs.add("setDeviceAddress", device_address);
 	if (my_device_address && my_device_address !== device_address)
 		throw Error('different device address');
 	my_device_address = device_address;
