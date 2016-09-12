@@ -1461,6 +1461,7 @@ function requestUnfinishedPastUnitsOfPrivateChains(arrChains, onDone){
 	privatePayment.findUnfinishedPastUnitsOfPrivateChains(arrChains, function(arrUnits){
 		if (arrUnits.length === 0)
 			return onDone();
+		breadcrumbs.add(arrUnits.length+" unfinished past units of private chains");
 		requestProofsOfJoints(arrUnits, onDone);
 	});
 }
@@ -1503,6 +1504,7 @@ function requestUnfinishedPastUnitsOfSavedPrivateElements(){
 	db.query("SELECT json FROM unhandled_private_payments", function(rows){
 		if (rows.length === 0)
 			return;
+		breadcrumbs.add(rows.length+" unhandled private payments");
 		var arrChains = [];
 		rows.forEach(function(row){
 			var arrPrivateElements = JSON.parse(row.json);
