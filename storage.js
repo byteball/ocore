@@ -377,7 +377,7 @@ function readJoint(conn, unit, callbacks) {
 														for (var i=0; i<input_rows.length; i++){
 															var input = input_rows[i];
 															if (!input.address) // may be NULL for light, but light clients are not reading units
-																throw Error("input address is NULL");
+																throw Error("readJoint: input address is NULL");
 															var asset = input.asset;
 															var denomination = input.denomination;
 															if (i>0){

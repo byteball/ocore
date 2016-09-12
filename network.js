@@ -1397,6 +1397,7 @@ function handleSavedPrivatePayments(unit){
 									eventBus.emit("new_direct_private_chains", [arrPrivateElements]);
 								count_new++;
 								deleteHandledPrivateChain(row.unit, row.message_index, row.output_index, cb);
+								console.log('emit '+key);
 								eventBus.emit(key, true);
 							},
 							ifError: function(error){

@@ -596,7 +596,7 @@ function buildPrivateElementsChain(conn, unit, message_index, output_index, payl
 					throw Error("building chain: more than 1 input found");
 				var in_row = in_rows[0];
 				if (!in_row.address)
-					throw Error("input address is NULL");
+					throw Error("readPayloadAndGoUp: input address is NULL");
 				if (in_row.asset !== asset)
 					throw Error("building chain: asset mismatch");
 				if (in_row.denomination !== denomination)
