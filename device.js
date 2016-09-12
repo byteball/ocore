@@ -276,7 +276,11 @@ function decryptPackage(objEncryptedPackage){
 	var decipher = crypto.createDecipheriv('aes-128-gcm', shared_secret, iv);
 	var authtag = new Buffer(objEncryptedPackage.authtag, 'base64');
 	decipher.setAuthTag(authtag);
-	var decrypted_message_buf = Buffer.concat([decipher.update(objEncryptedPackage.encrypted_message, "base64"), decipher.final()]);
+	var decrypted1 = decipher.update(objEncryptedPackage.encrypted_message, "base64");
+	var decrypted2 = decipher.final();
+	console.log("decrypted lengths: "+decrypted1.length+" + "+decrypted2.length);
+	breadcrumbs.add("decrypted lengths: "+decrypted1.length+" + "+decrypted2.length);
+	var decrypted_message_buf = Buffer.concat([decrypted1, decrypted2]);
 	var decrypted_message = decrypted_message_buf.toString("utf8");
 	console.log("decrypted: "+decrypted_message);
 	var json = JSON.parse(decrypted_message);
