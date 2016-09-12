@@ -300,6 +300,7 @@ function processHistory(objResponse, callbacks){
 					rows.forEach(function(row){
 						assocExistingUnits[row.unit] = true;
 					});
+					var arrProvenUnits = [];
 					async.eachSeries(
 						objResponse.joints.reverse(), // have them in forward chronological order so that we correctly mark is_spent flag
 						function(objJoint, cb2){
@@ -307,6 +308,8 @@ function processHistory(objResponse, callbacks){
 							var unit = objUnit.unit;
 							// assocProvenUnitsNonserialness[unit] is true for non-serials, false for serials, undefined for unstable
 							var sequence = assocProvenUnitsNonserialness[unit] ? 'final-bad' : 'good';
+							if (unit in assocProvenUnitsNonserialness)
+								arrProvenUnits.push(unit);
 							if (assocExistingUnits[unit]){
 								//if (!assocProvenUnitsNonserialness[objUnit.unit]) // not stable yet
 								//    return cb2();
@@ -329,7 +332,6 @@ function processHistory(objResponse, callbacks){
 								unlock();
 								return callbacks.ifError(err);
 							}
-							var arrProvenUnits = Object.keys(assocProvenUnitsNonserialness);
 							if (arrProvenUnits.length === 0){
 								unlock();
 								callbacks.ifOk();
