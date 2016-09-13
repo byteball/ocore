@@ -73,7 +73,7 @@ function prepareWitnessProof(arrWitnesses, last_stable_mci, handleResult){
 					async.eachSeries(rows, function(row, cb2){
 						storage.readJoint(db, row.unit, {
 							ifNotFound: function(){
-								throw "prepareWitnessProof definition changes: not found "+row.unit;
+								throw Error("prepareWitnessProof definition changes: not found "+row.unit);
 							},
 							ifFound: function(objJoint){
 								arrWitnessChangeAndDefinitionJoints.push(objJoint);
@@ -133,7 +133,7 @@ function processWitnessProof(arrUnstableMcJoints, arrWitnessChangeAndDefinitionJ
 
 		
 		if (arrLastBallUnits.length === 0)
-			throw "processWitnessProof: no last ball units";
+			throw Error("processWitnessProof: no last ball units");
 
 		
 		// changes and definitions of witnesses
@@ -168,7 +168,7 @@ function processWitnessProof(arrUnstableMcJoints, arrWitnessChangeAndDefinitionJ
 						return cb3();
 					var definition_chash = assocDefinitionChashes[address];
 					if (!definition_chash)
-						throw "definition chash not known for address "+address;
+						throw Error("definition chash not known for address "+address);
 					if (author.definition){
 						if (objectHash.getChash160(author.definition) !== definition_chash)
 							return cb3("definition doesn't hash to the expected value");
@@ -201,7 +201,7 @@ function processWitnessProof(arrUnstableMcJoints, arrWitnessChangeAndDefinitionJ
 							handleAuthor();
 						},
 						ifDefinitionNotFound: function(d){
-							throw "definition "+definition_chash+" not found, address "+address;
+							throw Error("definition "+definition_chash+" not found, address "+address);
 						}
 					});
 				},

@@ -21,7 +21,7 @@ function getMerkleRoot(arrElements){
 
 function getMerkleProof(arrElements, element_index){
 	if (index < 0 || index >= arrElements.length)
-		throw "invalid index";
+		throw Error("invalid index");
 	var arrHashes = arrElements.map(hash);
 	var index = element_index;
 	var arrSiblings = [];
@@ -42,7 +42,7 @@ function getMerkleProof(arrElements, element_index){
 		}
 		arrHashes = arrOverHashes;
 		if (overIndex === null)
-			throw "overIndex not defined";
+			throw Error("overIndex not defined");
 		index = overIndex;
 	}
 	// add merkle root

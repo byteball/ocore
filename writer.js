@@ -391,7 +391,7 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 					var best_parent_unit = props.best_parent_unit;
 					var level = props.level;
 					if (level === null)
-						throw "null level in updateWitnessedLevel";
+						throw Error("null level in updateWitnessedLevel");
 					if (level === 0) // genesis
 						return setWitnessedLevel(0);
 					profiler.start();

@@ -26,13 +26,13 @@ function getLength(value) {
 		case "boolean": 
 			return 1;
 		default:
-			throw "unknown type="+(typeof value)+" of "+value;
+			throw Error("unknown type="+(typeof value)+" of "+value);
 	}
 }
 
 function getHeadersSize(objUnit) {
 	if (objUnit.content_hash)
-		throw "trying to get headers size of stripped unit";
+		throw Error("trying to get headers size of stripped unit");
 	var objHeader = _.cloneDeep(objUnit);
 	delete objHeader.unit;
 	delete objHeader.headers_commission;
@@ -46,7 +46,7 @@ function getHeadersSize(objUnit) {
 
 function getTotalPayloadSize(objUnit) {
 	if (objUnit.content_hash)
-		throw "trying to get payload size of stripped unit";
+		throw Error("trying to get payload size of stripped unit");
 	return getLength(objUnit.messages);
 }
 

@@ -16,7 +16,7 @@ function compareUnits(conn, unit1, unit2, handleResult){
 		[[unit1, unit2]], 
 		function(rows){
 			if (rows.length !== 2)
-				throw "not 2 rows";
+				throw Error("not 2 rows");
 			var objUnitProps1 = (rows[0].unit === unit1) ? rows[0] : rows[1];
 			var objUnitProps2 = (rows[0].unit === unit2) ? rows[0] : rows[1];
 			compareUnitsByProps(conn, objUnitProps1, objUnitProps2, handleResult);

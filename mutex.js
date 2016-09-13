@@ -40,7 +40,7 @@ function exec(arrKeys, proc, next_proc){
 	var bLocked = true;
 	proc(function(){
 		if (!bLocked)
-			throw "double unlock?";
+			throw Error("double unlock?");
 		bLocked = false;
 		release(arrKeys);
 		console.log("lock released", arrKeys);
@@ -77,7 +77,7 @@ function checkForDeadlocks(){
 	for (var i=0; i<arrQueuedJobs.length; i++){
 		var job = arrQueuedJobs[i];
 		if (Date.now() - job.ts > 30*1000)
-			throw "possible deadlock on job "+require('util').inspect(job)+",\nproc:"+job.proc.toString()+" \nall jobs: "+require('util').inspect(arrQueuedJobs, {depth: null});
+			throw Error("possible deadlock on job "+require('util').inspect(job)+",\nproc:"+job.proc.toString()+" \nall jobs: "+require('util').inspect(arrQueuedJobs, {depth: null}));
 	}
 }
 

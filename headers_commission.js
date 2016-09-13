@@ -88,7 +88,7 @@ function calcHeadersCommissions(conn, onDone){
 							if (!assocChildrenInfos[payer_unit])
 								assocChildrenInfos[payer_unit] = {headers_commission: row.headers_commission, children: []};
 							else if (assocChildrenInfos[payer_unit].headers_commission !== row.headers_commission)
-								throw "different headers_commission";
+								throw Error("different headers_commission");
 							delete row.headers_commission;
 							delete row.payer_unit;
 							assocChildrenInfos[payer_unit].children.push(row);

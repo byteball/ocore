@@ -231,7 +231,7 @@ function readHashTree(hashTreeRequest, callbacks){
 						ball_rows,
 						function(objBall, cb){
 							if (!objBall.ball)
-								throw "no ball for unit "+objBall.unit;
+								throw Error("no ball for unit "+objBall.unit);
 							if (objBall.content_hash)
 								objBall.is_nonserial = true;
 							delete objBall.content_hash;
@@ -240,7 +240,7 @@ function readHashTree(hashTreeRequest, callbacks){
 								[objBall.unit],
 								function(parent_rows){
 									if (parent_rows.some(function(parent_row){ return !parent_row.ball; }))
-										throw "some parents have no balls";
+										throw Error("some parents have no balls");
 									if (parent_rows.length > 0)
 										objBall.parent_balls = parent_rows.map(function(parent_row){ return parent_row.ball; });
 									db.query(
@@ -248,7 +248,7 @@ function readHashTree(hashTreeRequest, callbacks){
 										[objBall.unit],
 										function(srows){
 											if (srows.some(function(srow){ return !srow.ball; }))
-												throw "some skiplist units have no balls";
+												throw Error("some skiplist units have no balls");
 											if (srows.length > 0)
 												objBall.skiplist_balls = srows.map(function(srow){ return srow.ball; });
 											arrBalls.push(objBall);

@@ -289,7 +289,7 @@ function findRandomInboundPeer(handleInboundPeer){
 			console.log("selected inbound peer "+host);
 			var ws = arrInboundSources.filter(function(ws){ return (ws.host === host); })[0];
 			if (!ws)
-				throw "inbound ws not found";
+				throw Error("inbound ws not found");
 			handleInboundPeer(ws);
 		}
 	);
@@ -755,7 +755,7 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 			ifUnitError: function(error){
 				console.log(objJoint.unit.unit+" validation failed: "+error);
 				callbacks.ifUnitError(error);
-				throw error;
+				throw Error(error);
 				purgeJointAndDependenciesAndNotifyPeers(objJoint, error, function(){
 					delete assocUnitsInWork[unit];
 				});
@@ -766,7 +766,7 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 			},
 			ifJointError: function(error){
 				callbacks.ifJointError(error);
-				throw error;
+				throw Error(error);
 				db.query(
 					"INSERT INTO known_bad_joints (joint, json, error) VALUES (?,?,?)", 
 					[objectHash.getJointHash(objJoint), JSON.stringify(objJoint), error],
@@ -780,13 +780,13 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 					eventBus.emit("validated-"+unit, false);
 			},
 			ifTransientError: function(error){
-				throw error;
+				throw Error(error);
 				console.log("############################## transient error "+error);
 				delete assocUnitsInWork[unit];
 			},
 			ifNeedHashTree: function(){
 				if (objJoint.unsigned)
-					throw "ifNeedHashTree() unsigned";
+					throw Error("ifNeedHashTree() unsigned");
 				callbacks.ifNeedHashTree();
 				// we are not saving unhandled joint because we don't know dependencies
 				delete assocUnitsInWork[unit];
@@ -794,7 +794,7 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 			ifNeedParentUnits: callbacks.ifNeedParentUnits,
 			ifOk: function(objValidationState, validation_unlock){
 				if (objJoint.unsigned)
-					throw "ifOk() unsigned";
+					throw Error("ifOk() unsigned");
 				writer.saveJoint(objJoint, objValidationState, null, function(){
 					validation_unlock();
 					if (ws)
@@ -807,7 +807,7 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 			},
 			ifOkUnsigned: function(bSerial){
 				if (!objJoint.unsigned)
-					throw "ifOkUnsigned() signed";
+					throw Error("ifOkUnsigned() signed");
 				callbacks.ifOkUnsigned();
 				eventBus.emit("validated-"+unit, bSerial);
 			}
@@ -869,7 +869,7 @@ function handlePostedJoint(ws, objJoint, onDone){
 		},
 		ifKnown: function(){
 			if (objJoint.unsigned)
-				throw "known unsigned";
+				throw Error("known unsigned");
 			onDone("known");
 			writeEvent('known_good', ws.host);
 		},
@@ -928,7 +928,7 @@ function handleOnlineJoint(ws, objJoint){
 		},
 		ifKnown: function(){
 			if (objJoint.unsigned)
-				throw "known unsigned";
+				throw Error("known unsigned");
 			sendResult(ws, {unit: unit, result: 'known'});
 			writeEvent('known_good', ws.host);
 		},
@@ -964,7 +964,7 @@ function handleSavedJoint(objJoint, creation_ts, peer){
 				sendErrorResult(ws, unit, error);
 		},
 		ifNeedHashTree: function(){
-			throw "handleSavedJoint: need hash tree";
+			throw Error("handleSavedJoint: need hash tree");
 		},
 		ifNeedParentUnits: function(arrMissingUnits){
 			throw Error("unit "+objJoint.unit.unit+" still has unresolved dependencies: "+arrMissingUnits.join(", "));
@@ -992,7 +992,7 @@ function handleSavedJoint(objJoint, creation_ts, peer){
 		ifKnown: function(){},
 		ifKnownBad: function(){},
 		ifNew: function(){
-			throw "new in handleSavedJoint";
+			throw Error("new in handleSavedJoint");
 		}
 	});
 }
@@ -1402,7 +1402,7 @@ function handleSavedPrivatePayments(unit){
 							},
 							ifError: function(error){
 								console.log("validation of priv: "+error);
-								throw error;
+								throw Error(error);
 								if (ws)
 									sendResult(ws, {private_payment_in_unit: row.unit, result: 'error', error: error});
 								deleteHandledPrivateChain(row.unit, row.message_index, row.output_index, cb);
@@ -1531,7 +1531,7 @@ function checkThatEachChainElementIncludesThePrevious(arrPrivateElements, handle
 		light.processLinkProofs(arrUnits, arrChain, {
 			ifError: function(err){
 				console.log("linkproof validation failed: "+err);
-				throw err;
+				throw Error(err);
 				handleResult(false);
 			},
 			ifOk: function(){
@@ -1545,7 +1545,7 @@ function checkThatEachChainElementIncludesThePrevious(arrPrivateElements, handle
 // light only
 function updateLinkProofsOfPrivateChain(arrPrivateElements, unit, message_index, output_index, onFailure, onSuccess){
 	if (!conf.bLight)
-		throw "light but updateLinkProofsOfPrivateChain";
+		throw Error("light but updateLinkProofsOfPrivateChain");
 	if (!onFailure)
 		onFailure = function(){};
 	if (!onSuccess)
@@ -2074,7 +2074,7 @@ function onWebsocketMessage(message) {
 			return handleResponse(ws, content.tag, content.response);
 			
 		default: 
-			throw "unknown type: "+message_type;
+			throw Error("unknown type: "+message_type);
 	}
 }
 

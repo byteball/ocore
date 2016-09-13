@@ -233,7 +233,7 @@ function validateAndSavePrivatePaymentChain(conn, arrPrivateElements, callbacks)
 						[objPrivateElement.unit, objPrivateElement.message_index, 0, input.serial_number, input.amount, 
 						payload.asset, payload.denomination, input_address, is_unique]);
 				else
-					throw "neither transfer nor issue after validation";
+					throw Error("neither transfer nor issue after validation");
 				var is_serial = objPrivateElement.bStable ? 1 : null; // initPrivatePaymentValidationState already checks for non-serial
 				var outputs = payload.outputs;
 				for (var output_index=0; output_index<outputs.length; output_index++){
@@ -322,14 +322,14 @@ function updateIndivisibleOutputsThatWereReceivedUnstable(conn, onDone){
 									[src_row.src_unit, src_row.src_message_index, src_row.src_output_index],
 									function(prev_rows){
 										if (prev_rows.length === 0)
-											throw "src unit not found";
+											throw Error("src unit not found");
 										var prev_output = prev_rows[0];
 										if (prev_output.is_serial === 0)
-											throw "prev is already nonserial";
+											throw Error("prev is already nonserial");
 										if (prev_output.is_stable === 0)
-											throw "prev is not stable";
+											throw Error("prev is not stable");
 										if (prev_output.is_serial === 1 && prev_output.sequence !== 'good')
-											throw "prev is_serial=1 but seq!=good";
+											throw Error("prev is_serial=1 but seq!=good");
 										if (prev_output.is_serial === 1) // already was stable when initially received
 											return cb();
 										var is_serial = (prev_output.sequence === 'good') ? 1 : 0;
@@ -762,19 +762,19 @@ function getSavingCallbacks(to_address, callbacks){
 			var unit = objUnit.unit;
 			validation.validate(objJoint, {
 				ifUnitError: function(err){
-					throw "unexpected validation error: "+err;
+					throw Error("unexpected validation error: "+err);
 				},
 				ifJointError: function(err){
-					throw "unexpected validation joint error: "+err;
+					throw Error("unexpected validation joint error: "+err);
 				},
 				ifTransientError: function(err){
-					throw "unexpected validation transient error: "+err;
+					throw Error("unexpected validation transient error: "+err);
 				},
 				ifNeedHashTree: function(){
-					throw "unexpected need hash tree";
+					throw Error("unexpected need hash tree");
 				},
 				ifNeedParentUnits: function(arrMissingUnits){
-					throw "unexpected dependencies: "+arrMissingUnits.join(", ");
+					throw Error("unexpected dependencies: "+arrMissingUnits.join(", "));
 				},
 				ifOk: function(objValidationState, validation_unlock){
 					console.log("Private OK "+objValidationState.sequence);

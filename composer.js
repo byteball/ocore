@@ -166,7 +166,7 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 					ifNothing: cb,
 					ifFound: function(from_mc_index, to_mc_index, earnings, bSufficient){
 						if (earnings === 0)
-							throw "earnings === 0";
+							throw Error("earnings === 0");
 						total_amount += earnings;
 						var input = {
 							type: type,
@@ -412,19 +412,19 @@ function composeJoint(params){
 	var callbacks = params.callbacks;
 	
 	if (conf.bLight && !lightProps)
-		throw "no parent props for light";
+		throw Error("no parent props for light");
 	
 	
 	//profiler.start();
 	var arrChangeOutputs = arrOutputs.filter(function(output) { return (output.amount === 0); });
 	var arrExternalOutputs = arrOutputs.filter(function(output) { return (output.amount > 0); });
 	if (arrChangeOutputs.length > 1)
-		throw "more than one change output";
+		throw Error("more than one change output");
 	if (arrChangeOutputs.length === 0)
-		throw "no change outputs";
+		throw Error("no change outputs");
 	
 	if (arrPayingAddresses.length === 0)
-		throw "no payers?";
+		throw Error("no payers?");
 	var arrFromAddresses = _.union(arrSigningAddresses, arrPayingAddresses).sort();
 	
 	var objPaymentMessage = {
@@ -473,7 +473,7 @@ function composeJoint(params){
 		if (typeof err === "object"){
 			if (err.error_code === "NOT_ENOUGH_FUNDS")
 				return callbacks.ifNotEnoughFunds(err.error);
-			throw "unknown error code in: "+JSON.stringify(err);
+			throw Error("unknown error code in: "+JSON.stringify(err));
 		}
 		callbacks.ifError(err);
 	};
@@ -761,19 +761,19 @@ function getSavingCallbacks(callbacks){
 			var unit = objUnit.unit;
 			validation.validate(objJoint, {
 				ifUnitError: function(err){
-					throw "unexpected validation error: "+err;
+					throw Error("unexpected validation error: "+err);
 				},
 				ifJointError: function(err){
-					throw "unexpected validation joint error: "+err;
+					throw Error("unexpected validation joint error: "+err);
 				},
 				ifTransientError: function(err){
-					throw "unexpected validation transient error: "+err;
+					throw Error("unexpected validation transient error: "+err);
 				},
 				ifNeedHashTree: function(){
-					throw "unexpected need hash tree";
+					throw Error("unexpected need hash tree");
 				},
 				ifNeedParentUnits: function(arrMissingUnits){
-					throw "unexpected dependencies: "+arrMissingUnits.join(", ");
+					throw Error("unexpected dependencies: "+arrMissingUnits.join(", "));
 				},
 				ifOk: function(objValidationState, validation_unlock){
 					console.log("base asset OK "+objValidationState.sequence);
@@ -825,7 +825,7 @@ function getMessageIndexByPayloadHash(objUnit, payload_hash){
 	for (var i=0; i<objUnit.messages.length; i++)
 		if (objUnit.messages[i].payload_hash === payload_hash)
 			return i;
-	throw "message not found by payload hash "+payload_hash;
+	throw Error("message not found by payload hash "+payload_hash);
 }
 
 function generateBlinding(){

@@ -30,7 +30,7 @@ function buildProofChainOnMc(later_mci, earlier_mci, arrBalls, onDone){
 	function addBall(mci){
 		db.query("SELECT unit, ball, content_hash FROM units JOIN balls USING(unit) WHERE main_chain_index=? AND is_on_main_chain=1", [mci], function(rows){
 			if (rows.length !== 1)
-				throw "no prev chain element?";
+				throw Error("no prev chain element?");
 			var objBall = rows[0];
 			if (objBall.content_hash)
 				objBall.is_nonserial = true;
@@ -40,7 +40,7 @@ function buildProofChainOnMc(later_mci, earlier_mci, arrBalls, onDone){
 				[objBall.unit],
 				function(parent_rows){
 					if (parent_rows.some(function(parent_row){ return !parent_row.ball; }))
-						throw "some parents have no balls";
+						throw Error("some parents have no balls");
 					if (parent_rows.length > 0)
 						objBall.parent_balls = parent_rows.map(function(parent_row){ return parent_row.ball; });
 					db.query(
@@ -50,7 +50,7 @@ function buildProofChainOnMc(later_mci, earlier_mci, arrBalls, onDone){
 						[objBall.unit],
 						function(srows){
 							if (srows.some(function(srow){ return !srow.ball; }))
-								throw "some skiplist units have no balls";
+								throw Error("some skiplist units have no balls");
 							if (srows.length > 0)
 								objBall.skiplist_balls = srows.map(function(srow){ return srow.ball; });
 							arrBalls.push(objBall);
@@ -73,7 +73,7 @@ function buildProofChainOnMc(later_mci, earlier_mci, arrBalls, onDone){
 	}
 	
 	if (earlier_mci > later_mci)
-		throw "earlier > later";
+		throw Error("earlier > later");
 	if (earlier_mci === later_mci)
 		return onDone();
 	addBall(later_mci - 1);
@@ -84,14 +84,14 @@ function buildLastMileOfProofChain(mci, unit, arrBalls, onDone){
 	function addBall(_unit){
 		db.query("SELECT unit, ball FROM units JOIN balls USING(unit) WHERE unit=?", [_unit], function(rows){
 			if (rows.length !== 1)
-				throw "no unit?";
+				throw Error("no unit?");
 			var objBall = rows[0];
 			db.query(
 				"SELECT ball FROM parenthoods LEFT JOIN balls ON parent_unit=balls.unit WHERE child_unit=? ORDER BY ball", 
 				[objBall.unit],
 				function(parent_rows){
 					if (parent_rows.some(function(parent_row){ return !parent_row.ball; }))
-						throw "some parents have no balls";
+						throw Error("some parents have no balls");
 					if (parent_rows.length > 0)
 						objBall.parent_balls = parent_rows.map(function(parent_row){ return parent_row.ball; });
 					arrBalls.push(objBall);
@@ -120,7 +120,7 @@ function buildLastMileOfProofChain(mci, unit, arrBalls, onDone){
 					},
 					function(parent_unit){
 						if (!parent_unit)
-							throw "no parent that includes target unit";
+							throw Error("no parent that includes target unit");
 						addBall(parent_unit);
 					}
 				)
@@ -131,7 +131,7 @@ function buildLastMileOfProofChain(mci, unit, arrBalls, onDone){
 	// start from MC unit and go back in history
 	db.query("SELECT unit FROM units WHERE main_chain_index=? AND is_on_main_chain=1", [mci], function(rows){
 		if (rows.length !== 1)
-			throw "no mc unit?";
+			throw Error("no mc unit?");
 		var mc_unit = rows[0].unit;
 		if (mc_unit === unit)
 			return onDone();
@@ -204,7 +204,7 @@ function prepareHistory(historyRequest, callbacks){
 					function(row, cb2){
 						storage.readJoint(db, row.unit, {
 							ifNotFound: function(){
-								throw "prepareJointsWithProofs unit not found "+row.unit;
+								throw Error("prepareJointsWithProofs unit not found "+row.unit);
 							},
 							ifFound: function(objJoint){
 								objResponse.joints.push(objJoint);
@@ -469,7 +469,7 @@ function buildPath(objLaterJoint, objEarlierJoint, arrChain, onDone){
 	function addJoint(unit, onAdded){
 	   storage.readJoint(db, unit, {
 			ifNotFound: function(){
-				throw "unit not found?";
+				throw Error("unit not found?");
 			},
 			ifFound: function(objJoint){
 				arrChain.push(objJoint);
@@ -485,7 +485,7 @@ function buildPath(objLaterJoint, objEarlierJoint, arrChain, onDone){
 			[objChildJoint.unit.unit],
 			function(rows){
 				if (rows.length !== 1)
-					throw "goUp not 1 parent";
+					throw Error("goUp not 1 parent");
 				if (rows[0].main_chain_index < objEarlierJoint.unit.main_chain_index) // jumped over the target
 					return buildPathToEarlierUnit(objChildJoint);
 				addJoint(rows[0].unit, function(objJoint){
@@ -502,7 +502,7 @@ function buildPath(objLaterJoint, objEarlierJoint, arrChain, onDone){
 			[objJoint.unit.unit, objJoint.unit.main_chain_index],
 			function(rows){
 				if (rows.length === 0)
-					throw "no parents with same mci?";
+					throw Error("no parents with same mci?");
 				var arrParentUnits = rows.map(function(row){ return row.unit });
 				if (arrParentUnits.indexOf(objEarlierJoint.unit.unit) >= 0)
 					return onDone();

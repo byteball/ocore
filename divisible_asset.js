@@ -255,19 +255,19 @@ function getSavingCallbacks(callbacks){
 			var unit = objUnit.unit;
 			validation.validate(objJoint, {
 				ifUnitError: function(err){
-					throw "unexpected validation error: "+err;
+					throw Error("unexpected validation error: "+err);
 				},
 				ifJointError: function(err){
-					throw "unexpected validation joint error: "+err;
+					throw Error("unexpected validation joint error: "+err);
 				},
 				ifTransientError: function(err){
-					throw "unexpected validation transient error: "+err;
+					throw Error("unexpected validation transient error: "+err);
 				},
 				ifNeedHashTree: function(){
-					throw "unexpected need hash tree";
+					throw Error("unexpected need hash tree");
 				},
 				ifNeedParentUnits: function(arrMissingUnits){
-					throw "unexpected dependencies: "+arrMissingUnits.join(", ");
+					throw Error("unexpected dependencies: "+arrMissingUnits.join(", "));
 				},
 				ifOk: function(objValidationState, validation_unlock){
 					console.log("divisible asset OK "+objValidationState.sequence);

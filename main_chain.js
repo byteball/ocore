@@ -22,7 +22,7 @@ function updateMainChain(conn, last_unit, onDone){
 	function findNextUpMainChainUnit(unit, handleUnit){
 		function handleProps(props){
 			if (props.best_parent_unit === null)
-				throw "best parent is null";
+				throw Error("best parent is null");
 			console.log("unit "+unit+", best parent "+props.best_parent_unit+", wlevel "+props.witnessed_level);
 			handleUnit(props.best_parent_unit);
 		}
@@ -35,7 +35,7 @@ function updateMainChain(conn, last_unit, onDone){
 				LIMIT 1",
 				function(rows){
 					if (rows.length === 0)
-						throw "no free units?";
+						throw Error("no free units?");
 					handleLastUnitProps(rows[0]);
 				}
 			);
@@ -76,7 +76,7 @@ function updateMainChain(conn, last_unit, onDone){
 			function(rows){
 				profiler.stop('mc-checkNotRebuilding');
 				if (rows.length > 0)
-					throw "removing stable witnessed unit "+rows[0].unit+" from main chain";
+					throw Error("removing stable witnessed unit "+rows[0].unit+" from main chain");
 				goDownAndUpdateMainChainIndex(last_main_chain_index, last_main_chain_unit);
 			}
 		);
@@ -96,7 +96,7 @@ function updateMainChain(conn, last_unit, onDone){
 					function(rows){
 						if (rows.length === 0){
 							//if (last_main_chain_index > 0)
-								throw "no unindexed MC units?";
+								throw Error("no unindexed MC units?");
 							//else{
 							//    console.log("last MC=0, no unindexed MC units");
 							//    return updateLatestIncludedMcIndex(last_main_chain_index, true);
@@ -136,7 +136,7 @@ function updateMainChain(conn, last_unit, onDone){
 							function(err){
 								console.log("goDownAndUpdateMainChainIndex done");
 								if (err)
-									throw "goDownAndUpdateMainChainIndex eachSeries failed";
+									throw Error("goDownAndUpdateMainChainIndex eachSeries failed");
 								profiler.stop('mc-goDown');
 								updateLatestIncludedMcIndex(last_main_chain_index, true);
 							}
@@ -153,7 +153,7 @@ function updateMainChain(conn, last_unit, onDone){
 			profiler.start();
 			conn.query("SELECT unit FROM units WHERE latest_included_mc_index IS NULL AND level!=0", function(rows){
 				if (rows.length > 0)
-					throw rows.length+" units have latest_included_mc_index=NULL, e.g. unit "+rows[0].unit;
+					throw Error(rows.length+" units have latest_included_mc_index=NULL, e.g. unit "+rows[0].unit);
 				profiler.stop('mc-limci-check');
 				updateStableMcFlag();
 			});
@@ -241,7 +241,7 @@ function updateMainChain(conn, last_unit, onDone){
 					profiler.stop('mc-limci-select-initial');
 					profiler.start();
 					if (rows.length === 0 && bRebuiltMc)
-						throw "no latest_included_mc_index updated";
+						throw Error("no latest_included_mc_index updated");
 					async.eachSeries(
 						rows,
 						function(row, cb){
@@ -261,7 +261,7 @@ function updateMainChain(conn, last_unit, onDone){
 	function readLastStableMcUnit(handleLastStableMcUnit){
 		conn.query("SELECT unit FROM units WHERE is_on_main_chain=1 AND is_stable=1 ORDER BY main_chain_index DESC LIMIT 1", function(rows){
 			if (rows.length === 0)
-				throw "no units on stable MC?";
+				throw Error("no units on stable MC?");
 			handleLastStableMcUnit(rows[0].unit);
 		});
 	}
@@ -277,12 +277,12 @@ function updateMainChain(conn, last_unit, onDone){
 					if (rows.length === 0){
 						//if (isGenesisUnit(last_stable_mc_unit))
 						//    return finish();
-						throw "no best children of last stable MC unit "+last_stable_mc_unit+"?";
+						throw Error("no best children of last stable MC unit "+last_stable_mc_unit+"?");
 					}
 					var arrMcRows  = rows.filter(function(row){ return (row.is_on_main_chain === 1); }); // only one element
 					var arrAltRows = rows.filter(function(row){ return (row.is_on_main_chain === 0); });
 					if (arrMcRows.length !== 1)
-						throw "not a single MC child?";
+						throw Error("not a single MC child?");
 					var first_unstable_mc_unit = arrMcRows[0].unit;
 					var first_unstable_mc_index = arrMcRows[0].main_chain_index;
 					var first_unstable_mc_level = arrMcRows[0].level;
@@ -295,7 +295,7 @@ function updateMainChain(conn, last_unit, onDone){
 				
 					conn.query("SELECT witnessed_level FROM units WHERE is_free=1 AND is_on_main_chain=1", function(wl_rows){
 						if (wl_rows.length !== 1)
-							throw "not a single mc wl";
+							throw Error("not a single mc wl");
 						// this is the level when we colect 7 witnesses if walking up the MC from its end
 						var mc_end_witnessed_level = wl_rows[0].witnessed_level;
 						conn.query(
@@ -305,7 +305,7 @@ function updateMainChain(conn, last_unit, onDone){
 							[mc_end_witnessed_level, arrWitnesses],
 							function(min_wl_rows){
 								if (min_wl_rows.length !== 1)
-									throw "not a single min mc wl";
+									throw Error("not a single min mc wl");
 								var min_mc_wl = min_wl_rows[0].min_mc_wl;
 								if (arrAltBranchRootUnits.length === 0){ // no alt branches
 									if (min_mc_wl >= first_unstable_mc_level) 

@@ -204,7 +204,7 @@ function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 					console.log("--------------- archiving uncovered unit "+row.unit);
 					storage.readJoint(db, row.unit, {
 						ifNotFound: function(){
-							throw "nonserial unit not found?";
+							throw Error("nonserial unit not found?");
 						},
 						ifFound: function(objJoint){
 							db.takeConnectionFromPool(function(conn){

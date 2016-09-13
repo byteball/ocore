@@ -427,7 +427,7 @@ function sendMessageToHub(ws, recipient_device_pubkey, subject, body, callbacks)
 	var recipient_device_address = objectHash.getDeviceAddress(recipient_device_pubkey);
 	db.query("SELECT hub FROM correspondent_devices WHERE device_address=?", [recipient_device_address], function(rows){
 		if (rows.length !== 1)
-			throw "no hub in correspondents";
+			throw Error("no hub in correspondents");
 		reliablySendPreparedMessageToHub(rows[0].hub, recipient_device_pubkey, json, callbacks);
 	});
 }
@@ -435,7 +435,7 @@ function sendMessageToHub(ws, recipient_device_pubkey, subject, body, callbacks)
 function sendMessageToDevice(device_address, subject, body, callbacks){
 	db.query("SELECT hub, pubkey FROM correspondent_devices WHERE device_address=?", [device_address], function(rows){
 		if (rows.length !== 1)
-			throw "correspondent not found";
+			throw Error("correspondent not found");
 		sendMessageToHub(rows[0].hub, rows[0].pubkey, subject, body, callbacks);
 	});
 }

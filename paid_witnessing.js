@@ -53,7 +53,7 @@ function readMaxWitnessSpendableMcIndex(conn, handleMaxSpendableMcIndex){
 function readUnitOnMcIndex(conn, main_chain_index, handleUnit){
 	conn.query("SELECT unit FROM units WHERE is_on_main_chain=1 AND main_chain_index=?", [main_chain_index], function(rows){
 		if (rows.length !== 1)
-			throw "no units or more than one unit on MC index "+main_chain_index;
+			throw Error("no units or more than one unit on MC index "+main_chain_index);
 		handleUnit(rows[0].unit);
 	});
 }
@@ -81,7 +81,7 @@ function buildPaidWitnessesTillMainChainIndex(conn, to_main_chain_index, cb){
 
 			function onIndexDone(err){
 				if (err) // impossible
-					throw err;
+					throw Error(err);
 				else{
 					main_chain_index++;
 					if (main_chain_index > to_main_chain_index)
@@ -108,9 +108,9 @@ function buildPaidWitnessesForMainChainIndex(conn, main_chain_index, cb){
 			var count = rows[0].count;
 			var count_on_stable_mc = rows[0].count_on_stable_mc;
 			if (count !== constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING+2)
-				throw "main chain is not long enough yet for MC index "+main_chain_index;
+				throw Error("main chain is not long enough yet for MC index "+main_chain_index);
 			if (count_on_stable_mc !== count)
-				throw "not enough stable MC units yet after MC index "+main_chain_index;
+				throw Error("not enough stable MC units yet after MC index "+main_chain_index);
 			
 			profiler.start();
 			// we read witnesses from MC unit (users can cheat with side-chains to flip the witness list and pay commissions to their own witnesses)
@@ -130,7 +130,7 @@ function buildPaidWitnessesForMainChainIndex(conn, main_chain_index, cb){
 						function(err){
 							console.log(rt, et);
 							if (err) // impossible
-								throw err;
+								throw Error(err);
 							//var t=Date.now();
 							profiler.start();
 							conn.query(
@@ -161,7 +161,7 @@ function buildPaidWitnessesForMainChainIndex(conn, main_chain_index, cb){
 function readMcUnitWitnesses(conn, main_chain_index, handleWitnesses){
 	conn.query("SELECT witness_list_unit, unit FROM units WHERE main_chain_index=? AND is_on_main_chain=1", [main_chain_index], function(rows){
 		if (rows.length !== 1)
-			throw "not 1 row on MC "+main_chain_index;
+			throw Error("not 1 row on MC "+main_chain_index);
 		var witness_list_unit = rows[0].witness_list_unit ? rows[0].witness_list_unit : rows[0].unit;
 		storage.readWitnessList(conn, witness_list_unit, handleWitnesses);
 	});

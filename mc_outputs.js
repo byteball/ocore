@@ -18,7 +18,7 @@ function readNextSpendableMcIndex(conn, type, address, handleNextSpendableMcInde
 			var mci = (rows.length > 0) ? (rows[0].to_main_chain_index+1) : 0;
 			readNextUnspentMcIndex(conn, type, address, function(next_unspent_mci){
 				if (next_unspent_mci !== mci)
-					throw "next unspent mci !== next spendable mci: "+next_unspent_mci+" !== "+mci+", address "+address;
+					throw Error("next unspent mci !== next spendable mci: "+next_unspent_mci+" !== "+mci+", address "+address);
 				handleNextSpendableMcIndex(mci);
 			});
 		}

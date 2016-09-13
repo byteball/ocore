@@ -44,9 +44,9 @@ function validate(objJoint, callbacks) {
 	
 	var objUnit = objJoint.unit;
 	if (typeof objUnit !== "object" || objUnit === null)
-		throw "no unit object";
+		throw Error("no unit object");
 	if (!objUnit.unit)
-		throw "no unit";
+		throw Error("no unit");
 	
 	console.log("\nvalidating joint identified by unit "+objJoint.unit.unit);
 	
@@ -231,7 +231,7 @@ function validate(objJoint, callbacks) {
 							else if (err.error_code === "transient")
 								callbacks.ifTransientError(err.message);
 							else
-								throw "unknown error code";
+								throw Error("unknown error code");
 						}
 						else
 							callbacks.ifUnitError(err);
@@ -404,7 +404,7 @@ function validateParents(conn, objJoint, objValidationState, callback){
 				var objParentUnitProps = rows[0];
 				// already checked in validateHashTree that the parent ball is known, that's why we throw
 				if (objJoint.ball && objParentUnitProps.ball === null)
-					throw "no ball corresponding to parent unit "+parent_unit;
+					throw Error("no ball corresponding to parent unit "+parent_unit);
 				if (objParentUnitProps.latest_included_mc_index > objValidationState.max_parent_limci)
 					objValidationState.max_parent_limci = objParentUnitProps.latest_included_mc_index;
 				async.eachSeries(
@@ -434,7 +434,7 @@ function validateParents(conn, objJoint, objValidationState, callback){
 				//if (arrParentBalls.indexOf(null) === -1){
 					var hash = objectHash.getBallHash(objUnit.unit, arrParentBalls, objValidationState.arrSkiplistBalls, !!objUnit.content_hash);
 					if (hash !== objJoint.ball)
-						throw "ball hash is wrong"; // shouldn't happen, already validated in validateHashTree()
+						throw Error("ball hash is wrong"); // shouldn't happen, already validated in validateHashTree()
 				//}
 			}
 			conn.query(
@@ -448,7 +448,7 @@ function validateParents(conn, objJoint, objValidationState, callback){
 					//if (objLastBallUnitProps.ball !== null && objLastBallUnitProps.is_stable === 0)
 					//    throw "last ball "+last_ball+" is unstable";
 					if (objLastBallUnitProps.ball === null && objLastBallUnitProps.is_stable === 1)
-						throw "last ball unit "+last_ball_unit+" is stable but has no ball";
+						throw Error("last ball unit "+last_ball_unit+" is stable but has no ball");
 					if (objLastBallUnitProps.is_on_main_chain !== 1)
 						return callback("last ball "+last_ball+" is not on MC");
 					if (objLastBallUnitProps.ball && objLastBallUnitProps.ball !== last_ball)
@@ -468,7 +468,7 @@ function validateParents(conn, objJoint, objValidationState, callback){
 							return callback(objUnit.unit+": last ball unit "+last_ball_unit+" is not stable in view of your parents "+objUnit.parent_units);
 						conn.query("SELECT ball FROM balls WHERE unit=?", [last_ball_unit], function(ball_rows){
 							if (ball_rows.length === 0)
-								throw "last ball unit "+last_ball_unit+" just became stable but ball not found";
+								throw Error("last ball unit "+last_ball_unit+" just became stable but ball not found");
 							if (ball_rows[0].ball !== last_ball)
 								return callback("last_ball "+last_ball+" and last_ball_unit "+last_ball_unit
 												+" do not match after advancing stability point");
@@ -588,7 +588,7 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 						return callback("referenced witness list unit "+objUnit.witness_list_unit+" has no witnesses");
 					var arrWitnesses = rows.map(function(row){ return row.address; });
 					if (arrWitnesses.length !== constants.COUNT_WITNESSES)
-						throw "wrong number of witnesses";
+						throw Error("wrong number of witnesses");
 					profiler.stop('validation-witnesses-read-list');
 					validateWitnessListMutations(arrWitnesses);
 				}
@@ -1078,7 +1078,7 @@ function checkForDoublespends(conn, type, sql, arrSqlArgs, objUnit, objValidatio
 				rows,
 				function(objConflictingRecord, cb2){
 					if (arrAuthorAddresses.indexOf(objConflictingRecord.address) === -1)
-						throw "conflicting "+type+" spent from another address?";
+						throw Error("conflicting "+type+" spent from another address?");
 					graph.determineIfIncludedOrEqual(conn, objConflictingRecord.unit, objUnit.parent_units, function(bIncluded){
 						if (bIncluded){
 							var error = objUnit.unit+": conflicting "+type+" in inner unit "+objConflictingRecord.unit;
@@ -1095,11 +1095,11 @@ function checkForDoublespends(conn, type, sql, arrSqlArgs, objUnit, objValidatio
 							if (objConflictingRecord.sequence === 'final-bad')
 								return cb2();
 
-							throw "unreachable code, conflicting "+type+" in unit "+objConflictingRecord.unit;
+							throw Error("unreachable code, conflicting "+type+" in unit "+objConflictingRecord.unit);
 						}
 						else{
 							if (objValidationState.arrAddressesWithForkedPath.indexOf(objConflictingRecord.address) === -1)
-								throw "double spending "+type+" without double spending address?";
+								throw Error("double spending "+type+" without double spending address?");
 							cb2();
 						}
 					});
@@ -1185,7 +1185,7 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 				[payload.unit, payload.choice],
 				function(poll_unit_rows){
 					if (poll_unit_rows.length > 1)
-						throw "more than one poll?";
+						throw Error("more than one poll?");
 					if (poll_unit_rows.length === 0)
 						return callback("invalid choice "+payload.choice+" or poll "+payload.unit);
 					var objPollUnitProps = poll_unit_rows[0];
@@ -1422,7 +1422,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 				if (rows.length === 0)
 					return cb("invalid denomination: "+denomination);
 				if (rows.length > 1)
-					throw "more than one record per denomination?";
+					throw Error("more than one record per denomination?");
 				var denomInfo = rows[0];
 				if (denomInfo.count_coins === null){ // uncapped
 					if (input.amount % denomination !== 0)
@@ -1493,7 +1493,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 					}, 
 					function onDone(err){
 						if (err && objAsset && objAsset.is_private)
-							throw "spend proof didn't help: "+err;
+							throw Error("spend proof didn't help: "+err);
 						cb2(err);
 					}
 				);
@@ -1736,7 +1736,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 						var calcFunc = (type === "headers_commission") ? mc_outputs.calcEarnings : paid_witnessing.calcWitnessEarnings;
 						calcFunc(conn, type, input.from_main_chain_index, input.to_main_chain_index, address, {
 							ifError: function(err){
-								throw err;
+								throw Error(err);
 							},
 							ifOk: function(commission){
 								if (commission === 0)
@@ -1829,7 +1829,7 @@ function initPrivatePaymentValidationState(conn, unit, message_index, payload, o
 			var objPartialUnit = {unit: unit};
 			conn.query("SELECT address FROM unit_authors WHERE unit=? ORDER BY address", [unit], function(author_rows){
 				if (author_rows.length === 0)
-					throw "no authors?";
+					throw Error("no authors?");
 				objPartialUnit.authors = author_rows; // array of objects {address: address}
 				onDone(bStable, objPartialUnit, objValidationState);
 			});
