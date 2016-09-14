@@ -368,7 +368,7 @@ CREATE TABLE dependencies (
 CREATE TABLE unhandled_joints (
 	unit CHAR(44) BINARY NOT NULL PRIMARY KEY,
 	peer VARCHAR(100) NOT NULL,
-	json TEXT NOT NULL,
+	json LONGTEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
@@ -376,7 +376,7 @@ CREATE TABLE archived_joints (
 	unit CHAR(44) BINARY NOT NULL PRIMARY KEY,
 	reason ENUM('uncovered', 'voided') NOT NULL,
 --    is_retrievable TINYINT NOT NULL,
-	json TEXT NOT NULL,
+	json LONGTEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
@@ -384,7 +384,7 @@ CREATE TABLE archived_joints (
 CREATE TABLE known_bad_joints (
 	joint CHAR(44) BINARY NULL UNIQUE,
 	unit CHAR(44) BINARY NULL UNIQUE,
-	json TEXT NOT NULL,
+	json LONGTEXT NOT NULL,
 	error TEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
@@ -394,7 +394,7 @@ CREATE TABLE unhandled_private_payments (
 	unit CHAR(44) BINARY NOT NULL,
 	message_index TINYINT NOT NULL,
 	output_index TINYINT NOT NULL,
-	json TEXT NOT NULL,
+	json LONGTEXT NOT NULL,
 	peer VARCHAR(100) NOT NULL,
 	linked TINYINT NOT NULL DEFAULT 0,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -508,7 +508,7 @@ CREATE TABLE devices (
 CREATE TABLE device_messages (
 	message_hash CHAR(44) NOT NULL PRIMARY KEY,
 	device_address CHAR(33) NOT NULL, -- the device this message is addressed to
-	message TEXT NOT NULL,
+	message LONGTEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	FOREIGN KEY byAddress(device_address) REFERENCES devices(device_address)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
@@ -602,7 +602,7 @@ CREATE TABLE shared_address_signing_paths (
 CREATE TABLE outbox (
 	message_hash CHAR(44) NOT NULL PRIMARY KEY,
 	`to` CHAR(33) NOT NULL, -- the device this message is addressed to, no FK because of pairing case
-	message TEXT NOT NULL,
+	message LONGTEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	last_error TEXT NULL
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
