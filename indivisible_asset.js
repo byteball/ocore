@@ -667,7 +667,6 @@ function buildPrivateElementsChain(conn, unit, message_index, output_index, payl
 }
 
 function composeIndivisibleAssetPaymentJoint(params){
-	var assocInputAddresses = {};
 	console.log("indivisible payment from "+params.paying_addresses);
 	composer.composeJoint({
 		paying_addresses: params.paying_addresses, // addresses that pay for the transfer and commissions
@@ -724,7 +723,6 @@ function composeIndivisibleAssetPaymentJoint(params){
 							};
 							if (objAsset.is_private){
 								assocPrivatePayloads[payload_hash] = payload;
-								//assocInputAddresses[payload_hash] = arrInputsWithProofs[i].input_address;
 								objMessage.spend_proofs = [arrPayloadsWithProofs[i].spend_proof];
 							}
 							else
@@ -746,7 +744,7 @@ function composeIndivisibleAssetPaymentJoint(params){
 			ifError: params.callbacks.ifError,
 			ifNotEnoughFunds: params.callbacks.ifNotEnoughFunds,
 			ifOk: function(objJoint, assocPrivatePayloads, composer_unlock_callback){
-				params.callbacks.ifOk(objJoint, assocPrivatePayloads, assocInputAddresses, composer_unlock_callback);
+				params.callbacks.ifOk(objJoint, assocPrivatePayloads, composer_unlock_callback);
 			}
 		}
 	});
@@ -757,7 +755,7 @@ function getSavingCallbacks(to_address, callbacks){
 	return {
 		ifError: callbacks.ifError,
 		ifNotEnoughFunds: callbacks.ifNotEnoughFunds,
-		ifOk: function(objJoint, assocPrivatePayloads, assocInputAddresses, composer_unlock){
+		ifOk: function(objJoint, assocPrivatePayloads, composer_unlock){
 			var objUnit = objJoint.unit;
 			var unit = objUnit.unit;
 			validation.validate(objJoint, {
