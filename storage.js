@@ -376,7 +376,7 @@ function readJoint(conn, unit, callbacks) {
 														objMessage.payload.inputs = [];
 														for (var i=0; i<input_rows.length; i++){
 															var input = input_rows[i];
-															if (!input.address) // may be NULL for light, but light clients are not reading units
+															if (!input.address && !conf.bLight) // may be NULL for light (light clients are reading units e.g. after receiving payment notification)
 																throw Error("readJoint: input address is NULL");
 															var asset = input.asset;
 															var denomination = input.denomination;
