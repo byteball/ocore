@@ -1444,7 +1444,7 @@ function deleteHandledPrivateChain(unit, message_index, output_index, cb){
 }
 
 function rerequestLostJointsOfPrivatePayments(){
-	if (!conf.bLight)
+	if (!conf.bLight || !exports.light_vendor_url)
 		return;
 	db.query(
 		"SELECT DISTINCT unhandled_private_payments.unit FROM unhandled_private_payments LEFT JOIN units USING(unit) WHERE units.unit IS NULL",
