@@ -1333,6 +1333,7 @@ function handleOnlinePrivatePayment(ws, arrPrivateElements, bViaHub, callbacks){
 	if (conf.bLight && arrPrivateElements.length > 1){
 		savePrivatePayment(function(){
 			updateLinkProofsOfPrivateChain(arrPrivateElements, unit, message_index, output_index);
+			rerequestLostJointsOfPrivatePayments(); // will request the head element
 		});
 		return;
 	}
@@ -1545,7 +1546,7 @@ function checkThatEachChainElementIncludesThePrevious(arrPrivateElements, handle
 // light only
 function updateLinkProofsOfPrivateChain(arrPrivateElements, unit, message_index, output_index, onFailure, onSuccess){
 	if (!conf.bLight)
-		throw Error("light but updateLinkProofsOfPrivateChain");
+		throw Error("not light but updateLinkProofsOfPrivateChain");
 	if (!onFailure)
 		onFailure = function(){};
 	if (!onSuccess)
