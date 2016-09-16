@@ -279,7 +279,17 @@ function decryptPackage(objEncryptedPackage){
 	var decipher = crypto.createDecipheriv('aes-128-gcm', shared_secret, iv);
 	var authtag = new Buffer(objEncryptedPackage.authtag, 'base64');
 	decipher.setAuthTag(authtag);
-	var decrypted1 = decipher.update(objEncryptedPackage.encrypted_message, "base64");
+	var enc_buf = Buffer(objEncryptedPackage.encrypted_message, "base64");
+//	var decrypted1 = decipher.update(enc_buf);
+	// under browserify, decryption of long buffers fails with Array buffer allocation errors, have to split the buffer into chunks
+	var arrChunks = [];
+	var CHUNK_LENGTH = 4096;
+	for (var offset = 0; offset < enc_buf.length; offset += CHUNK_LENGTH){
+	//	console.log('offset '+offset);
+		arrChunks.push(decipher.update(enc_buf.slice(offset, Math.min(offset+CHUNK_LENGTH, enc_buf.length))));
+	}
+	var decrypted1 = Buffer.concat(arrChunks);
+	arrChunks = null;
 	var decrypted2 = decipher.final();
 	console.log("decrypted lengths: "+decrypted1.length+" + "+decrypted2.length);
 	breadcrumbs.add("decrypted lengths: "+decrypted1.length+" + "+decrypted2.length);
@@ -395,7 +405,17 @@ function createEncryptedPackage(json, recipient_device_pubkey){
 	// we could also derive iv from the unused bits of ecdh.computeSecret() and save some bandwidth
 	var iv = crypto.randomBytes(12); // 128 bits (16 bytes) total, we take 12 bytes for random iv and leave 4 bytes for the counter
 	var cipher = crypto.createCipheriv("aes-128-gcm", shared_secret, iv);
-	var encrypted_message_buf = Buffer.concat([cipher.update(text, "utf8"), cipher.final()]);
+	// under browserify, encryption of long strings fails with Array buffer allocation errors, have to split the string into chunks
+	var arrChunks = [];
+	var CHUNK_LENGTH = 2003;
+	for (var offset = 0; offset < text.length; offset += CHUNK_LENGTH){
+	//	console.log('offset '+offset);
+		arrChunks.push(cipher.update(text.slice(offset, Math.min(offset+CHUNK_LENGTH, text.length)), 'utf8'));
+	}
+	arrChunks.push(cipher.final());
+	var encrypted_message_buf = Buffer.concat(arrChunks);
+	arrChunks = null;
+//	var encrypted_message_buf = Buffer.concat([cipher.update(text, "utf8"), cipher.final()]);
 	//console.log(encrypted_message_buf);
 	var encrypted_message = encrypted_message_buf.toString("base64");
 	//console.log(encrypted_message);
