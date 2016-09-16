@@ -683,6 +683,11 @@ function handleResponseToJointRequest(ws, request, response){
 	var unit = objJoint.unit.unit;
 	if (request.params !== unit)
 		return sendError(ws, "I didn't request this unit from you: "+unit);
+	if (conf.bLight && objJoint.ball && !objJoint.unit.content_hash){
+		// accept it as unfinished (otherwise we would have to require a proof)
+		delete objJoint.ball;
+		delete objJoint.skiplist_units;
+	}
 	handleOnlineJoint(ws, objJoint);
 }
 
