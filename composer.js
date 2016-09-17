@@ -714,8 +714,14 @@ function composeJoint(params){
 function readSortedFundedAddresses(asset, arrAvailableAddresses, handleFundedAddresses){
 	// best funded addresses come first
 	db.query(
-		"SELECT address, SUM(amount) AS total FROM outputs JOIN units USING(unit) \n\
+		"SELECT address, SUM(amount) AS total \n\
+		FROM outputs \n\
+		JOIN units USING(unit) \n\
 		WHERE address IN(?) AND is_stable=1 AND sequence='good' AND is_spent=0 AND asset"+(asset ? "=?" : " IS NULL")+" \n\
+			AND NOT EXISTS ( \n\
+				SELECT * FROM unit_authors JOIN units USING(unit) \n\
+				WHERE is_stable=0 AND unit_authors.address=outputs.address AND definition_chash IS NOT NULL \n\
+			) \n\
 		GROUP BY address ORDER BY total DESC",
 		asset ? [arrAvailableAddresses, asset] : [arrAvailableAddresses],
 		function(rows){
