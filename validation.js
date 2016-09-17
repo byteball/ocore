@@ -102,7 +102,7 @@ function validate(objJoint, callbacks) {
 		
 		if (!isNonemptyArray(objUnit.messages))
 			return callbacks.ifUnitError("missing or empty messages array");
-		if (objUnit.messages.length > 128)
+		if (objUnit.messages.length > constants.MAX_MESSAGES_PER_UNIT)
 			return callbacks.ifUnitError("too many messages");
 
 		if (objectLength.getHeadersSize(objUnit) !== objUnit.headers_commission)
@@ -659,7 +659,7 @@ function validateHeadersCommissionRecipients(objUnit, cb){
 }
 
 function validateAuthors(conn, arrAuthors, objUnit, objValidationState, callback) {
-	if (arrAuthors.length > 16) // this is anti-spam. Otherwise an attacker would send nonserial balls signed by zillions of authors.
+	if (arrAuthors.length > constants.MAX_AUTHORS_PER_UNIT) // this is anti-spam. Otherwise an attacker would send nonserial balls signed by zillions of authors.
 		return callback("too many authors");
 	objValidationState.arrAddressesWithForkedPath = [];
 	var prev_address = "";
@@ -962,8 +962,8 @@ function validateMessage(conn, objMessage, message_index, objUnit, objValidation
 		return callback("unknown fields in message");
 	
 	if ("spend_proofs" in objMessage){
-		if (!Array.isArray(objMessage.spend_proofs) || objMessage.spend_proofs.length === 0 || objMessage.spend_proofs.length > 128)
-			return callback("spend_proofs must be non-empty array max 128 elements");
+		if (!Array.isArray(objMessage.spend_proofs) || objMessage.spend_proofs.length === 0 || objMessage.spend_proofs.length > constants.MAX_SPEND_PROOFS_PER_MESSAGE)
+			return callback("spend_proofs must be non-empty array max "+constants.MAX_SPEND_PROOFS_PER_MESSAGE+" elements");
 		var arrAuthorAddresses = objUnit.authors.map(function(author) { return author.address; } );
 		// spend proofs are sorted in the same order as their corresponding inputs
 		//var prev_spend_proof = "";
@@ -1166,7 +1166,7 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 				return callback("no question in poll");
 			if (!isNonemptyArray(payload.choices))
 				return callback("no choices in poll");
-			if (payload.choices.length > 128)
+			if (payload.choices.length > constants.MAX_CHOICES_PER_POLL)
 				return callback("too many choices in poll");
 			for (var i=0; i<payload.choices.length; i++)
 				if (typeof payload.choices[i] !== 'string')
@@ -1205,11 +1205,11 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 			if (typeof payload !== "object" || Array.isArray(payload) || Object.keys(payload).length === 0)
 				return callback("data feed payload must be non-empty object");
 			for (var feed_name in payload){
-				if (feed_name.length > 64)
+				if (feed_name.length > constants.MAX_DATA_FEED_NAME_LENGTH)
 					return callback("feed name "+feed_name+" too long");
 				var value = payload[feed_name];
 				if (typeof value === 'string'){
-					if (value.length > 64)
+					if (value.length > constants.MAX_DATA_FEED_VALUE_LENGTH)
 						return callback("value "+value+" too long");
 				}
 				else if (typeof value === 'number'){
@@ -1352,9 +1352,9 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 	var arrInputAddresses = []; // used for non-transferrable assets only
 	var arrOutputAddresses = [];
 	var total_input = 0;
-	if (payload.inputs.length > 128)
+	if (payload.inputs.length > constants.MAX_INPUTS_PER_PAYMENT_MESSAGE)
 		return callback("too many inputs");
-	if (payload.outputs.length > 128)
+	if (payload.outputs.length > constants.MAX_OUTPUTS_PER_PAYMENT_MESSAGE)
 		return callback("too many outputs");
 	
 	if (objAsset && objAsset.fixed_denominations && payload.inputs.length !== 1)
@@ -1858,7 +1858,7 @@ function validateAssetDefinition(conn, payload, objUnit, objValidationState, cal
 	if (payload.fixed_denominations && !isNonemptyArray(payload.denominations))
 		return callback("denominations not defined");
 	if (payload.denominations){
-		if (payload.denominations.length > 64)
+		if (payload.denominations.length > constants.MAX_DENOMINATIONS_PER_ASSET_DEFINITION)
 			return callback("too many denominations");
 		var total_cap_from_denominations = 0;
 		var bHasUncappedDenominations = false;
@@ -1941,7 +1941,7 @@ function validateAssetorListUpdate(conn, payload, objUnit, objValidationState, c
 function checkAttestorList(arrAttestors){
 	if (!isNonemptyArray(arrAttestors))
 		return "attestors not defined";
-	if (arrAttestors.length > 64)
+	if (arrAttestors.length > constants.MAX_ATTESTORS_PER_ASSET)
 		return "too many attestors";
 	var prev="";
 	for (var i=0; i<arrAttestors.length; i++){
