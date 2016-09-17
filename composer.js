@@ -383,6 +383,8 @@ function composeJoint(params){
 		var arrCandidatePayingAddresses = params.paying_addresses;
 
 		var trySubset = function(count){
+			if (count > constants.MAX_AUTHORS_PER_UNIT)
+				return callbacks.ifNotEnoughFunds("Too many authors.  Consider splitting the payment into two units.");
 			var try_params = _.clone(params);
 			delete try_params.minimal;
 			try_params.paying_addresses = arrCandidatePayingAddresses.slice(0, count);
