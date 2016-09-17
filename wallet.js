@@ -510,11 +510,11 @@ function signAuthRequest(wallet, objRequest, handleResult){
 
 
 
-
+/*
 walletGeneral.readMyAddresses(function(arrAddresses){
 	network.setWatchedAddresses(arrAddresses);
 })
-
+*/
 
 
 

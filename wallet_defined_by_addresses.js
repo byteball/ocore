@@ -185,7 +185,7 @@ function deletePendingSharedAddress(address_definition_template_chash){
 
 // called from network after the initiator collects approvals from all members of the address and then sends the completed address to all members
 function addNewSharedAddress(address, arrDefinition, assocSignersByPath){
-	network.addWatchedAddress(address);
+//	network.addWatchedAddress(address);
 	db.query("INSERT INTO shared_addresses (shared_address, definition) VALUES (?,?)", [address, JSON.stringify(arrDefinition)], function(){
 		var arrQueries = [];
 		for (var full_signing_path in assocSignersByPath){

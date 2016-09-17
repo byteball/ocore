@@ -38,7 +38,7 @@ var bCatchingUp = false;
 var bWaitingTillIdle = false;
 var coming_online_time = Date.now();
 var assocReroutedConnectionsByTag = {};
-var arrWatchedAddresses = [];
+var arrWatchedAddresses = []; // does not include my addresses, therefore always empty
 var last_hearbeat_wake_ts = Date.now();
 
 if (process.browser){ // browser
@@ -1030,6 +1030,17 @@ function notifyWatchers(objJoint){
 		eventBus.emit("new_my_transaction");
 		eventBus.emit("new_my_unit-"+objJoint.unit.unit, objJoint);
 	}
+	else
+		db.query(
+			"SELECT 1 FROM my_addresses WHERE address IN(?) UNION SELECT 1 FROM shared_addresses WHERE shared_address IN(?)", 
+			[arrAddresses, arrAddresses], 
+			function(rows){
+				if (rows.length > 0){
+					eventBus.emit("new_my_transaction");
+					eventBus.emit("new_my_unit-"+objJoint.unit.unit, objJoint);
+				}
+			}
+		);
 	
 	if (conf.bLight)
 		return;
