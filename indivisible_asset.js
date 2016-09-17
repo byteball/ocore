@@ -861,13 +861,51 @@ function composeAndSaveIndivisibleAssetPaymentJoint(params){
 	composeIndivisibleAssetPaymentJoint(params_with_save);
 }
 
+function readAddressesFundedInAsset(asset, amount, arrAvailablePayingAddresses, handleFundedAddresses){
+	var remaining_amount = amount;
+	var assocAddresses = {};
+	db.query(
+		"SELECT amount, denomination, address FROM outputs JOIN units USING(unit) \n\
+		WHERE is_spent=0 AND address IN(?) AND is_stable=1 AND sequence='good' AND asset=? \n\
+			AND NOT EXISTS ( \n\
+				SELECT * FROM unit_authors JOIN units USING(unit) \n\
+				WHERE is_stable=0 AND unit_authors.address=outputs.address AND definition_chash IS NOT NULL \n\
+			) \n\
+		ORDER BY denomination DESC, amount DESC",
+		[arrAvailablePayingAddresses, asset],
+		function(rows){
+			for (var i=0; i<rows.length; i++){
+				var row = rows[i];
+				if (row.denomination > remaining_amount)
+					continue;
+				assocAddresses[row.address] = true;
+				var used_amount = (row.amount <= remaining_amount) ? row.amount : row.denomination * Math.floor(remaining_amount/row.denomination);
+				remaining_amount -= used_amount;
+				if (remaining_amount === 0)
+					break;
+			};
+			var arrAddresses = Object.keys(assocAddresses);
+			handleFundedAddresses(arrAddresses);
+		}
+	);
+}
 
+// reads addresses funded in asset plus addresses for paying commissions
+function readFundedAddresses(asset, amount, arrAvailablePayingAddresses, handleFundedAddresses){
+	readAddressesFundedInAsset(asset, amount, arrAvailablePayingAddresses, function(arrAddressesFundedInAsset){
+		// add other addresses to pay for commissions (in case arrAddressesFundedInAsset don't have enough bytes to pay commissions)
+		var arrOtherAddresses = _.difference(arrAvailablePayingAddresses, arrAddressesFundedInAsset);
+		composer.readSortedFundedAddresses(null, arrOtherAddresses, function(arrFundedOtherAddresses){
+			if (arrFundedOtherAddresses.length === 0)
+				return handleFundedAddresses(arrAddressesFundedInAsset);
+			handleFundedAddresses(arrAddressesFundedInAsset.concat(arrFundedOtherAddresses));
+		});
+	});
+}
 
 // {asset: asset, available_paying_addresses: arrAvailableFromAddresses, to_address: to_address, change_address: change_address, amount: amount, tolerance_plus: tolerance_plus, tolerance_minus: tolerance_minus, signer: signer, callbacks: callbacks}
 function composeMinimalIndivisibleAssetPaymentJoint(params){
-		
-	// best funded addresses come first
-	composer.readSortedFundedAddresses(params.asset, params.available_paying_addresses, function(arrFundedPayingAddresses){
+	readFundedAddresses(params.asset, params.amount, params.available_paying_addresses, function(arrFundedPayingAddresses){
 		if (arrFundedPayingAddresses.length === 0)
 			return params.callbacks.ifNotEnoughFunds("all paying addresses are unfunded in asset");
 		var minimal_params = _.clone(params);
