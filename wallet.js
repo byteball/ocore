@@ -16,6 +16,7 @@ var walletDefinedByKeys = require('./wallet_defined_by_keys.js');
 var walletDefinedByAddresses = require('./wallet_defined_by_addresses.js');
 var eventBus = require('./event_bus.js');
 var ValidationUtils = require("./validation_utils.js");
+var profiler = require('./profiler2.js');
 
 
 
@@ -324,6 +325,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			var arrChains = body.chains;
 			if (!ValidationUtils.isNonemptyArray(arrChains))
 				return callbacks.ifError("no chains found");
+			profiler.increment();
 			
 			if (conf.bLight)
 				network.requestUnfinishedPastUnitsOfPrivateChains(arrChains); // it'll work in the background
@@ -342,6 +344,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 						return console.log('not all private payments validated yet');
 				assocValidatedByKey = null; // to avoid duplicate calls
 				emitNewPrivatePaymentReceived(from_address, arrChains);
+				profiler.print();
 			};
 			
 			async.eachSeries(

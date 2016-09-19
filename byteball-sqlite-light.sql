@@ -284,6 +284,7 @@ CREATE TABLE inputs (
 	FOREIGN KEY (unit) REFERENCES units(unit)
 );
 CREATE INDEX inputsIndexByAddress ON inputs(address);
+CREATE INDEX inputsIndexByAssetType ON inputs(asset, type);
 
 
 CREATE TABLE outputs (

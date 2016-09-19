@@ -299,6 +299,7 @@ CREATE TABLE inputs (
 	CONSTRAINT inputsByAsset FOREIGN KEY (asset) REFERENCES assets(unit)
 );
 CREATE INDEX inputsIndexByAddress ON inputs(address);
+CREATE INDEX inputsIndexByAssetType ON inputs(asset, type);
 
 
 CREATE TABLE outputs (

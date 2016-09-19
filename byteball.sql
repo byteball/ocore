@@ -282,6 +282,7 @@ CREATE TABLE inputs (
 	UNIQUE KEY bySrcOutput(src_unit, src_message_index, src_output_index, is_unique), -- UNIQUE guarantees there'll be no double spend for type=transfer
 	UNIQUE KEY byIndexAddress(type, from_main_chain_index, address, is_unique), -- UNIQUE guarantees there'll be no double spend for type=hc/witnessing
 	UNIQUE KEY byAssetDenominationSerialAddress(asset, denomination, serial_number, address, is_unique), -- UNIQUE guarantees there'll be no double issue
+	KEY byAssetType(asset, type),
 	FOREIGN KEY byUnit(unit) REFERENCES units(unit),
 	CONSTRAINT inputsBySrcUnit FOREIGN KEY bySrcUnit(src_unit) REFERENCES units(unit),
 	CONSTRAINT inputsByAddress FOREIGN KEY byAddress(address) REFERENCES addresses(address),
