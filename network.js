@@ -1027,7 +1027,7 @@ function notifyWatchers(objJoint){
 		}
 	}
 	if (_.intersection(arrWatchedAddresses, arrAddresses).length > 0){
-		eventBus.emit("new_my_transaction");
+		eventBus.emit("new_my_transactions", [objJoint.unit.unit]);
 		eventBus.emit("new_my_unit-"+objJoint.unit.unit, objJoint);
 	}
 	else
@@ -1036,7 +1036,7 @@ function notifyWatchers(objJoint){
 			[arrAddresses, arrAddresses], 
 			function(rows){
 				if (rows.length > 0){
-					eventBus.emit("new_my_transaction");
+					eventBus.emit("new_my_transactions", [objJoint.unit.unit]);
 					eventBus.emit("new_my_unit-"+objJoint.unit.unit, objJoint);
 				}
 			}
@@ -1105,17 +1105,28 @@ function notifyLightClientsAboutStableJoints(from_mci, to_mci){
 }
 
 function notifyLocalWatchedAddressesAboutStableJoints(mci){
-	if (arrWatchedAddresses.length === 0)
-		return;
+	function handleRows(rows){
+		if (rows.length > 0)
+			eventBus.emit('my_transactions_became_stable', rows.map(function(row){ return row.unit; }));
+	}
+	if (arrWatchedAddresses.length > 0)
+		db.query(
+			"SELECT unit FROM units JOIN unit_authors USING(unit) WHERE main_chain_index=? AND address IN(?) \n\
+			UNION \n\
+			SELECT unit FROM units JOIN outputs USING(unit) WHERE main_chain_index=? AND address IN(?)",
+			[mci, arrWatchedAddresses, mci, arrWatchedAddresses],
+			handleRows
+		);
 	db.query(
-		"SELECT 1 FROM units JOIN unit_authors USING(unit) WHERE main_chain_index=? AND address IN(?) \n\
+		"SELECT unit FROM units JOIN unit_authors USING(unit) JOIN my_addresses USING(address) WHERE main_chain_index=? \n\
 		UNION \n\
-		SELECT 1 FROM units JOIN outputs USING(unit) WHERE main_chain_index=? AND address IN(?)",
-		[mci, arrWatchedAddresses, mci, arrWatchedAddresses],
-		function(rows){
-			if (rows.length > 0)
-				eventBus.emit('my_transaction_became_stable');
-		}
+		SELECT unit FROM units JOIN outputs USING(unit) JOIN my_addresses USING(address) WHERE main_chain_index=? \n\
+		UNION \n\
+		SELECT unit FROM units JOIN unit_authors USING(unit) JOIN shared_addresses ON address=shared_address WHERE main_chain_index=? \n\
+		UNION \n\
+		SELECT unit FROM units JOIN outputs USING(unit) JOIN shared_addresses ON address=shared_address WHERE main_chain_index=?",
+		[mci, mci, mci, mci],
+		handleRows
 	);
 }
 
@@ -1361,7 +1372,7 @@ function handleOnlinePrivatePayment(ws, arrPrivateElements, bViaHub, callbacks){
 				ifOk: function(){
 					//delete assocUnitsInWork[unit];
 					callbacks.ifAccepted(unit);
-					eventBus.emit("new_my_transaction");
+					eventBus.emit("new_my_transactions", [unit]);
 				},
 				ifError: function(error){
 					//delete assocUnitsInWork[unit];
@@ -1393,7 +1404,7 @@ function handleSavedPrivatePayments(unit){
 		db.query(sql, function(rows){
 			if (rows.length === 0)
 				return unlock();
-			var count_new = 0;
+			var assocNewUnits = {};
 			async.each( // handle different chains in parallel
 				rows,
 				function(row, cb){
@@ -1412,7 +1423,7 @@ function handleSavedPrivatePayments(unit){
 									sendResult(ws, {private_payment_in_unit: row.unit, result: 'accepted'});
 								if (row.peer) // received directly from a peer, not through the hub
 									eventBus.emit("new_direct_private_chains", [arrPrivateElements]);
-								count_new++;
+								assocNewUnits[row.unit] = true;
 								deleteHandledPrivateChain(row.unit, row.message_index, row.output_index, cb);
 								console.log('emit '+key);
 								eventBus.emit(key, true);
@@ -1440,8 +1451,9 @@ function handleSavedPrivatePayments(unit){
 				},
 				function(){
 					unlock();
-					if (count_new > 0)
-						eventBus.emit("new_my_transaction");
+					var arrNewUnits = Object.keys(assocNewUnits);
+					if (arrNewUnits.length > 0)
+						eventBus.emit("new_my_transactions", arrNewUnits);
 				}
 			);
 		});
