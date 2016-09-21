@@ -1347,6 +1347,8 @@ function validatePayment(conn, payload, message_index, objUnit, objValidationSta
 // divisible assets (including base asset)
 function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index, objUnit, objValidationState, callback){
 	
+//	if (objAsset)
+//		profiler2.start();
 	var denomination = payload.denomination || 1;
 	var arrAuthorAddresses = objUnit.authors.map(function(author) { return author.address; } );
 	var arrInputAddresses = []; // used for non-transferrable assets only
@@ -1415,6 +1417,8 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 	
 	// same for both public and private
 	function validateIndivisibleIssue(input, cb){
+	//	if (objAsset)
+	//		profiler2.start();
 		conn.query(
 			"SELECT count_coins FROM asset_denominations WHERE asset=? AND denomination=?", 
 			[payload.asset, denomination], 
@@ -1432,10 +1436,15 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 					if (input.amount !== denomination * denomInfo.count_coins)
 						return cb("wrong size of issue of denomination "+denomination);
 				}
+			//	if (objAsset)
+			//		profiler2.stop('validateIndivisibleIssue');
 				cb();
 			}
 		);
 	}
+	
+//	if (objAsset)
+//		profiler2.stop('validate outputs');
 	
 	// max 1 issue must come first, then transfers, then hc, then witnessings
 	// no particular sorting order within the groups
@@ -1457,6 +1466,8 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 			var doubleSpendVars = [];
 
 			function checkInputDoubleSpend(cb2){
+			//	if (objAsset)
+			//		profiler2.start();
 				doubleSpendWhere += " AND unit != " + conn.escape(objUnit.unit);
 				if (objAsset){
 					doubleSpendWhere += " AND asset=?";
@@ -1494,6 +1505,8 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 					function onDone(err){
 						if (err && objAsset && objAsset.is_private)
 							throw Error("spend proof didn't help: "+err);
+					//	if (objAsset)
+					//		profiler2.stop('checkInputDoubleSpend');
 						cb2(err);
 					}
 				);
@@ -1501,6 +1514,8 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 
 			switch (type){
 				case "issue":
+				//	if (objAsset)
+				//		profiler2.start();
 					if (input_index !== 0)
 						return cb("issue must come first");
 					if (hasFieldsExcept(input, ["type", "address", "amount", "serial_number"]))
@@ -1562,6 +1577,8 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 						doubleSpendWhere += " AND address=?";
 						doubleSpendVars.push(address);
 					}
+				//	if (objAsset)
+				//		profiler2.stop('validate issue');
 					if (objAsset && objAsset.fixed_denominations){
 						validateIndivisibleIssue(input, function(err){
 							if (err)
@@ -1575,6 +1592,8 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 					break;
 					
 				case "transfer":
+				//	if (objAsset)
+				//		profiler2.start();
 					if (bHaveHeadersComissions || bHaveWitnessings)
 						return cb("all transfers must come before hc and witnessings");
 					if (hasFieldsExcept(input, ["type", "unit", "message_index", "output_index"]))
@@ -1620,6 +1639,8 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 							arrInputAddresses.push(owner_address);
 						total_input += src_coin.amount;
 						console.log("-- val state "+JSON.stringify(objValidationState));
+					//	if (objAsset)
+					//		profiler2.stop('validate transfer');
 						return checkInputDoubleSpend(cb);
 					}
 					
@@ -1794,6 +1815,8 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 					return callback("inputs and outputs do not balance: "+total_input+" !== "+total_output+" + "+objUnit.headers_commission+" + "+objUnit.payload_commission);
 			}
 			console.log("validatePaymentInputsAndOutputs done");
+		//	if (objAsset)
+		//		profiler2.stop('validate IO');
 			callback();
 		}
 	);
@@ -1827,10 +1850,8 @@ function initPrivatePaymentValidationState(conn, unit, message_index, payload, o
 				bPrivate: true
 			};
 			var objPartialUnit = {unit: unit};
-			conn.query("SELECT address FROM unit_authors WHERE unit=? ORDER BY address", [unit], function(author_rows){
-				if (author_rows.length === 0)
-					throw Error("no authors?");
-				objPartialUnit.authors = author_rows; // array of objects {address: address}
+			storage.readUnitAuthors(conn, unit, function(arrAuthors){
+				objPartialUnit.authors = arrAuthors.map(function(address){ return {address: address}; }); // array of objects {address: address}
 				onDone(bStable, objPartialUnit, objValidationState);
 			});
 		}

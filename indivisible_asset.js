@@ -12,15 +12,18 @@ var validation = require('./validation.js');
 var ValidationUtils = require("./validation_utils.js");
 var writer = require('./writer.js');
 var graph = require('./graph.js');
+var profiler = require('./profiler.js');
 
 
 function validatePrivatePayment(conn, objPrivateElement, objPrevPrivateElement, callbacks){
 		
 	function validateSpendProof(spend_proof, cb){
+		profiler.start();
 		conn.query(
 			"SELECT spend_proof, address FROM spend_proofs WHERE unit=? AND message_index=?", 
 			[objPrivateElement.unit, objPrivateElement.message_index], 
 			function(rows){
+				profiler.stop('spend_proof');
 				if (rows.length !== 1)
 					return cb("expected 1 spend proof, found "+rows.length);
 				var stored_spend_proof = rows[0].spend_proof;
@@ -39,7 +42,9 @@ function validatePrivatePayment(conn, objPrivateElement, objPrevPrivateElement, 
 	function validateSourceOutput(cb){
 		if (conf.bLight)
 			return cb(); // already validated the linkproof
+		profiler.start();
 		graph.determineIfIncluded(conn, input.unit, [objPrivateElement.unit], function(bIncluded){
+			profiler.stop('determineIfIncluded');
 			bIncluded ? cb() : cb("input unit not included");
 		});
 	}
@@ -66,10 +71,12 @@ function validatePrivatePayment(conn, objPrivateElement, objPrevPrivateElement, 
 	if (!ValidationUtils.isNonemptyObject(input))
 		return callbacks.ifError("no inputs[0]");
 	
+	profiler.start();
 	validation.initPrivatePaymentValidationState(
 		conn, objPrivateElement.unit, objPrivateElement.message_index, payload, callbacks.ifError, 
 		function(bStable, objPartialUnit, objValidationState){
 		
+			profiler.stop('initPrivatePaymentValidationState');
 			var arrFuncs = [];
 			var spend_proof;
 			var input_address; // from which address the money is sent
@@ -145,6 +152,7 @@ function validatePrivatePayment(conn, objPrivateElement, objPrevPrivateElement, 
 				validation.validatePayment(conn, partially_revealed_payload, objPrivateElement.message_index, objPartialUnit, objValidationState, cb);
 			});
 			async.series(arrFuncs, function(err){
+			//	profiler.stop('validatePayment');
 				err ? callbacks.ifError(err) : callbacks.ifOk(bStable, input_address);
 			});
 		}
@@ -211,6 +219,7 @@ function validateAndSavePrivatePaymentChain(conn, arrPrivateElements, callbacks)
 		ifError: callbacks.ifError,
 		ifOk: function(bAllStable){
 			console.log("saving private chain "+JSON.stringify(arrPrivateElements));
+			profiler.start();
 			var arrQueries = [];
 			for (var i=0; i<arrPrivateElements.length; i++){
 				var objPrivateElement = arrPrivateElements[i];
@@ -256,8 +265,9 @@ function validateAndSavePrivatePaymentChain(conn, arrPrivateElements, callbacks)
 					conn.addQuery(arrQueries, "UPDATE outputs SET "+fields+" WHERE unit=? AND message_index=? AND output_index=?", params);
 				}
 			}
-			console.log("queries: "+JSON.stringify(arrQueries));
+		//	console.log("queries: "+JSON.stringify(arrQueries));
 			async.series(arrQueries, function(){
+				profiler.stop('save');
 				callbacks.ifOk();
 			});
 		}

@@ -447,7 +447,7 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 							conn.release();
 							console.log((err ? (err+", therefore rolled back unit ") : "committed unit ")+objUnit.unit);
 							profiler.stop('write-commit');
-						//	profiler.increment();
+							profiler.increment();
 							unlock();
 							if (onDone)
 								onDone();

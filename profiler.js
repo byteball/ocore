@@ -62,14 +62,16 @@ process.on('SIGINT', function(){
 });
 
 var clog = console.log;
-console.log = function(){};
+//console.log = function(){};
 
 exports.start = start;
 exports.stop = stop;
 exports.increment = increment;
+exports.print = print;
 */
 
 exports.start = function(){};
 exports.stop = function(){};
 exports.increment = function(){};
+exports.print = function(){};
 

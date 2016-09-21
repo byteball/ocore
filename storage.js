@@ -17,6 +17,7 @@ var MAX_ITEMS_IN_CACHE = 300;
 var assocCachedUnits = {};
 var assocCachedUnitAuthors = {};
 var assocCachedUnitWitnesses = {};
+var assocCachedAssetInfos = {};
 
 var min_retrievable_mci = null;
 initializeMinRetrievableMci();
@@ -907,6 +908,31 @@ function generateQueriesToUnspendOutputsSpentInArchivedUnit(conn, unit, arrQueri
 	);
 }
 
+function readAssetInfo(conn, asset, handleAssetInfo){
+	var objAsset = assocCachedAssetInfos[asset];
+	if (objAsset)
+		return handleAssetInfo(objAsset);
+	conn.query(
+		"SELECT assets.*, main_chain_index, sequence, is_stable, address AS definer_address, unit AS asset \n\
+		FROM assets JOIN units USING(unit) JOIN unit_authors USING(unit) WHERE unit=?", 
+		[asset], 
+		function(rows){
+			if (rows.length > 1)
+				throw Error("more than one asset?");
+			if (rows.length === 0)
+				return handleAssetInfo(null);
+			var objAsset = rows[0];
+			if (objAsset.issue_condition)
+				objAsset.issue_condition = JSON.parse(objAsset.issue_condition);
+			if (objAsset.transfer_condition)
+				objAsset.transfer_condition = JSON.parse(objAsset.transfer_condition);
+			if (objAsset.is_stable) // cache only if stable
+				assocCachedAssetInfos[asset] = objAsset;
+			handleAssetInfo(objAsset);
+		}
+	);
+}
+
 function readAsset(conn, asset, last_ball_mci, handleAsset){
 	if (last_ball_mci === null){
 		if (conf.bLight)
@@ -916,53 +942,41 @@ function readAsset(conn, asset, last_ball_mci, handleAsset){
 				readAsset(conn, asset, last_stable_mci, handleAsset);
 			});
 	}
-	conn.query(
-		"SELECT assets.*, main_chain_index, sequence, address AS definer_address, unit AS asset \n\
-		FROM assets JOIN units USING(unit) JOIN unit_authors USING(unit) WHERE unit=?", 
-		[asset], 
-		function(rows){
-			if (rows.length > 1)
-				throw Error("more than one asset?");
-			if (rows.length === 0)
-				return handleAsset("asset "+asset+" not found");
-			var objAsset = rows[0];
-			if (objAsset.main_chain_index > last_ball_mci)
-				return handleAsset("asset definition must be before last ball");
-			if (objAsset.sequence !== "good")
-				return handleAsset("asset definition is not serial");
-			if (objAsset.issue_condition)
-				objAsset.issue_condition = JSON.parse(objAsset.issue_condition);
-			if (objAsset.transfer_condition)
-				objAsset.transfer_condition = JSON.parse(objAsset.transfer_condition);
-			if (!objAsset.spender_attested)
-				return handleAsset(null, objAsset);
-		
-			// find latest list of attestors
-			conn.query(
-				"SELECT MAX(level) AS max_level FROM asset_attestors JOIN units USING(unit) \n\
-				WHERE asset=? AND main_chain_index<=? AND is_stable=1 AND sequence='good'", 
-				[asset, last_ball_mci],
-				function(latest_rows){
-					var max_level = latest_rows[0].max_level;
-					if (!max_level)
-						throw Error("no max level of asset attestors");
+	readAssetInfo(conn, asset, function(objAsset){
+		if (!objAsset)
+			return handleAsset("asset "+asset+" not found");
+		if (objAsset.main_chain_index > last_ball_mci)
+			return handleAsset("asset definition must be before last ball");
+		if (objAsset.sequence !== "good")
+			return handleAsset("asset definition is not serial");
+		if (!objAsset.spender_attested)
+			return handleAsset(null, objAsset);
 
-					// read the list
-					conn.query(
-						"SELECT attestor_address FROM asset_attestors JOIN units USING(unit) \n\
-						WHERE asset=? AND level=? AND main_chain_index<=? AND is_stable=1 AND sequence='good'",
-						[asset, max_level, last_ball_mci],
-						function(att_rows){
-							if (att_rows.length === 0)
-								throw Error("no attestors?");
-							objAsset.arrAttestorAddresses = att_rows.map(function(att_row){ return att_row.attestor_address; });
-							handleAsset(null, objAsset);
-						}
-					);
-				}
-			);
-		}
-	);
+		// find latest list of attestors
+		conn.query(
+			"SELECT MAX(level) AS max_level FROM asset_attestors JOIN units USING(unit) \n\
+			WHERE asset=? AND main_chain_index<=? AND is_stable=1 AND sequence='good'", 
+			[asset, last_ball_mci],
+			function(latest_rows){
+				var max_level = latest_rows[0].max_level;
+				if (!max_level)
+					throw Error("no max level of asset attestors");
+
+				// read the list
+				conn.query(
+					"SELECT attestor_address FROM asset_attestors JOIN units USING(unit) \n\
+					WHERE asset=? AND level=? AND main_chain_index<=? AND is_stable=1 AND sequence='good'",
+					[asset, max_level, last_ball_mci],
+					function(att_rows){
+						if (att_rows.length === 0)
+							throw Error("no attestors?");
+						objAsset.arrAttestorAddresses = att_rows.map(function(att_row){ return att_row.attestor_address; });
+						handleAsset(null, objAsset);
+					}
+				);
+			}
+		);
+	});
 }
 
 // filter only those authors that are attested (doesn't work for light clients)
@@ -1069,6 +1083,8 @@ function readUnitAuthors(conn, unit, handleAuthors){
 }
 
 function shrinkCache(){
+	if (Object.keys(assocCachedAssetInfos).length > MAX_ITEMS_IN_CACHE)
+		assocCachedAssetInfos = {};
 	var arrPropsUnits = Object.keys(assocCachedUnits);
 	var arrAuthorsUnits = Object.keys(assocCachedUnitAuthors);
 	var arrWitnessesUnits = Object.keys(assocCachedUnitWitnesses);
