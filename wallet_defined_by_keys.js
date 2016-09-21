@@ -265,6 +265,11 @@ function createSinglesigWallet(xPubKey, account, walletName, handleWallet){
 	createWallet(xPubKey, account, arrDefinitionTemplate, walletName, handleWallet);
 }
 
+function createSinglesigWalletWithExternalPrivateKey(xPubKey, account, device_address, handleWallet){
+	var arrDefinitionTemplate = ["sig", {pubkey: '$pubkey@'+device_address}];
+	createWallet(xPubKey, account, arrDefinitionTemplate, 'unused wallet name', handleWallet);
+}
+
 // called from UI
 function createWalletByDevices(xPubKey, account, count_required_signatures, arrOtherDeviceAddresses, walletName, handleWallet){
 	if (arrOtherDeviceAddresses.length === 0)
@@ -1008,6 +1013,7 @@ function readTransactionHistory(wallet, asset, handleHistory){
 
 exports.readNextAccount = readNextAccount;
 exports.createWalletByDevices = createWalletByDevices;
+exports.createSinglesigWalletWithExternalPrivateKey = createSinglesigWalletWithExternalPrivateKey;
 exports.approveWallet = approveWallet;
 exports.cancelWallet = cancelWallet;
 
