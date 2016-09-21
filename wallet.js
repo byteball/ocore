@@ -16,7 +16,7 @@ var walletDefinedByKeys = require('./wallet_defined_by_keys.js');
 var walletDefinedByAddresses = require('./wallet_defined_by_addresses.js');
 var eventBus = require('./event_bus.js');
 var ValidationUtils = require("./validation_utils.js");
-var profiler = require('./profiler2.js');
+var profiler = require('./profiler.js');
 
 
 
