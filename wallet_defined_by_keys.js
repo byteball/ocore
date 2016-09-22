@@ -185,7 +185,8 @@ function addWallet(wallet, xPubKey, account, arrWalletDefinitionTemplate, onDone
 					var fields = "wallet, device_address";
 					var values = "?,?";
 					var arrParams = [wallet, device_address];
-					if (device_address === device.getMyDeviceAddress()){
+					// arrDeviceAddresses.length === 1 works for singlesig with external priv key
+					if (device_address === device.getMyDeviceAddress() || arrDeviceAddresses.length === 1){
 						fields += ", extended_pubkey, approval_date";
 						values += ",?,"+db.getNow();
 						arrParams.push(xPubKey);
@@ -538,7 +539,7 @@ function deriveAddress(wallet, is_change, address_index, handleNewAddress){
 				var params = {};
 				rows.forEach(function(row){
 					if (!row.extended_pubkey)
-						throw Error("no extended_pubkey");
+						throw Error("no extended_pubkey for wallet "+wallet);
 					params['pubkey@'+row.device_address] = derivePubkey(row.extended_pubkey, path);
 				});
 				var arrDefinition = Definition.replaceInTemplate(arrDefinitionTemplate, params);
@@ -617,6 +618,13 @@ function selectRandomAddress(wallet, is_change, from_index, handleAddress){
 }
 
 function issueNextAddress(wallet, is_change, handleAddress){
+	readNextAddressIndex(wallet, is_change, function(next_index){
+		issueAddress(wallet, is_change, next_index, handleAddress);
+	});
+}
+
+// selects one of recent addresses if the gap is too large, otherwise issues a new address
+function issueOrSelectNextAddress(wallet, is_change, handleAddress){
 	readNextAddressIndex(wallet, is_change, function(next_index){
 		if (next_index < MAX_BIP44_GAP)
 			return issueAddress(wallet, is_change, next_index, handleAddress);
@@ -1024,6 +1032,7 @@ exports.handleNotificationThatWalletFullyApproved = handleNotificationThatWallet
 exports.addNewAddress = addNewAddress;
 
 exports.issueNextAddress = issueNextAddress;
+exports.issueOrSelectNextAddress = issueOrSelectNextAddress;
 exports.issueOrSelectNextChangeAddress = issueOrSelectNextChangeAddress;
 exports.readExternalAddresses = readExternalAddresses;
 exports.readChangeAddresses = readChangeAddresses;
