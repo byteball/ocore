@@ -688,7 +688,7 @@ function handleResponseToJointRequest(ws, request, response){
 		delete objJoint.ball;
 		delete objJoint.skiplist_units;
 	}
-	handleOnlineJoint(ws, objJoint);
+	conf.bLight ? handleLightOnlineJoint(ws, objJoint) : handleOnlineJoint(ws, objJoint);
 }
 
 function havePendingJointRequest(unit){
@@ -889,25 +889,30 @@ function handlePostedJoint(ws, objJoint, onDone){
 	});
 }
 
-function handleOnlineJoint(ws, objJoint){
+function handleOnlineJoint(ws, objJoint, onDone){
 	
+	if (!onDone)
+		onDone = function(){};
 	var unit = objJoint.unit.unit;
 	delete assocRequestedUnits[unit];
 	delete objJoint.unit.main_chain_index;
 	
 	handleJoint(ws, objJoint, false, {
-		ifUnitInWork: function(){},
+		ifUnitInWork: onDone,
 		ifUnitError: function(error){
 			sendErrorResult(ws, unit, error);
+			onDone();
 		},
 		ifJointError: function(error){
 			sendErrorResult(ws, unit, error);
+			onDone();
 		},
 		ifNeedHashTree: function(){
 			if (!bCatchingUp && !isWaitingForCatchupChain())
 				requestCatchup(ws);
 			// we are not saving the joint so that in case requestCatchup() fails, the joint will be requested again via findLostJoints, 
 			// which will trigger another attempt to request catchup
+			onDone();
 		},
 		ifNeedParentUnits: function(arrMissingUnits){
 			sendInfo(ws, {unit: unit, info: "unresolved dependencies: "+arrMissingUnits.join(", ")});
@@ -915,6 +920,7 @@ function handleOnlineJoint(ws, objJoint){
 				delete assocUnitsInWork[unit];
 			});
 			requestNewMissingJoints(ws, arrMissingUnits);
+			onDone();
 		},
 		ifOk: function(){
 			sendResult(ws, {unit: unit, result: 'accepted'});
@@ -927,25 +933,30 @@ function handleOnlineJoint(ws, objJoint){
 
 			// wake up other joints that depend on me
 			findAndHandleJointsThatAreReady(unit);
+			onDone();
 		},
 		ifOkUnsigned: function(){
 			delete assocUnitsInWork[unit];
+			onDone();
 		},
 		ifKnown: function(){
 			if (objJoint.unsigned)
 				throw Error("known unsigned");
 			sendResult(ws, {unit: unit, result: 'known'});
 			writeEvent('known_good', ws.host);
+			onDone();
 		},
 		ifKnownBad: function(){
 			sendResult(ws, {unit: unit, result: 'known_bad'});
 			writeEvent('known_bad', ws.host);
 			if (objJoint.unsigned)
 				eventBus.emit("validated-"+unit, false);
+			onDone();
 		},
 		ifKnownUnverified: function(){
 			sendResult(ws, {unit: unit, result: 'known_unverified'});
 			delete assocUnitsInWork[unit];
+			onDone();
 		}
 	});
 }
@@ -1002,6 +1013,12 @@ function handleSavedJoint(objJoint, creation_ts, peer){
 	});
 }
 
+function handleLightOnlineJoint(ws, objJoint){
+	// the lock ensures that we do not overlap with history processing which might also write new joints
+	mutex.lock(["light_joints"], function(unlock){
+		handleOnlineJoint(ws, objJoint, unlock);
+	});
+}
 
 function setWatchedAddresses(_arrWatchedAddresses){
 	arrWatchedAddresses = _arrWatchedAddresses;
@@ -1653,7 +1670,7 @@ function handleJustsaying(ws, subject, body){
 			if (conf.bLight && !ws.bLightVendor)
 				return sendError(ws, "I'm a light client and you are not my vendor");
 			// light clients accept the joint without proof, it'll be saved as unconfirmed (non-stable)
-			return handleOnlineJoint(ws, objJoint);
+			return conf.bLight ? handleLightOnlineJoint(ws, objJoint) : handleOnlineJoint(ws, objJoint);
 			
 		case 'free_joints_end':
 		case 'result':
