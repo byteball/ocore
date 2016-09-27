@@ -667,6 +667,7 @@ function requestJoints(ws, arrUnits) {
 }
 
 function handleResponseToJointRequest(ws, request, response){
+	delete assocRequestedUnits[request.params];
 	if (!response.joint){
 		if (response.joint_not_found === request.params)
 			purgeDependenciesAndNotifyPeers(unit, "unit "+response.joint_not_found+" does not exist");
@@ -894,7 +895,6 @@ function handleOnlineJoint(ws, objJoint, onDone){
 	if (!onDone)
 		onDone = function(){};
 	var unit = objJoint.unit.unit;
-	delete assocRequestedUnits[unit];
 	delete objJoint.unit.main_chain_index;
 	
 	handleJoint(ws, objJoint, false, {
