@@ -12,6 +12,7 @@ var validation = require('./validation.js');
 var witnessProof = require('./witness_proof.js');
 var ValidationUtils = require("./validation_utils.js");
 var parentComposer = require('./parent_composer.js');
+var breadcrumbs = require('./breadcrumbs.js');
 
 var MAX_HISTORY_ITEMS = 1000;
 
@@ -295,6 +296,7 @@ function processHistory(objResponse, callbacks){
 			// save joints that pay to/from me and joints that I explicitly requested
 			mutex.lock(["light_joints"], function(unlock){
 				var arrUnits = objResponse.joints.map(function(objJoint){ return objJoint.unit.unit; });
+				breadcrumbs.add('got light_joints for processHistory '+arrUnits.join(', '));
 				db.query("SELECT unit, is_stable FROM units WHERE unit IN(?)", [arrUnits], function(rows){
 					var assocExistingUnits = {};
 					rows.forEach(function(row){
@@ -328,6 +330,7 @@ function processHistory(objResponse, callbacks){
 								writer.saveJoint(objJoint, {sequence: sequence, arrDoubleSpendInputs: [], arrAdditionalQueries: []}, null, cb2);
 						},
 						function(err){
+							breadcrumbs.add('processHistory almost done');
 							if (err){
 								unlock();
 								return callbacks.ifError(err);

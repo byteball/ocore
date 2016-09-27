@@ -1016,7 +1016,11 @@ function handleSavedJoint(objJoint, creation_ts, peer){
 function handleLightOnlineJoint(ws, objJoint){
 	// the lock ensures that we do not overlap with history processing which might also write new joints
 	mutex.lock(["light_joints"], function(unlock){
-		handleOnlineJoint(ws, objJoint, unlock);
+		breadcrumbs.add('got light_joints for handleLightOnlineJoint '+objJoint.unit.unit);
+		handleOnlineJoint(ws, objJoint, function(){
+			breadcrumbs.add('handleLightOnlineJoint done');
+			unlock();
+		});
 	});
 }
 
