@@ -711,6 +711,25 @@ function readAllAddresses(wallet, handleAddresses){
 }
 
 
+function readFundedAddresses(asset, wallet, handleFundedAddresses){
+	db.query(
+		"SELECT DISTINCT address \n\
+		FROM my_addresses \n\
+		JOIN outputs USING(address) \n\
+		JOIN units USING(unit) \n\
+		WHERE wallet=? AND is_stable=1 AND sequence='good' AND is_spent=0 AND "+(asset ? "(asset=? OR asset IS NULL)" : "asset IS NULL")+" \n\
+			AND NOT EXISTS ( \n\
+				SELECT * FROM unit_authors JOIN units USING(unit) \n\
+				WHERE is_stable=0 AND unit_authors.address=outputs.address AND definition_chash IS NOT NULL \n\
+			)",
+		asset ? [wallet, asset] : [wallet],
+		function(rows){
+			var arrFundedAddresses = rows.map(function(row){ return row.address; });
+			return handleFundedAddresses(arrFundedAddresses);
+		}
+	);
+}
+
 
 
 
@@ -721,7 +740,7 @@ function sendPaymentFromWallet(
 {
 	if (!wallet)
 		throw Error("no wallet id");
-	readAllAddresses(wallet, function(arrFromAddresses){
+	readFundedAddresses(asset, wallet, function(arrFromAddresses){
 		if (arrFromAddresses.length === 0)
 			return handleResult("no from addresses in wallet "+wallet);
 		
