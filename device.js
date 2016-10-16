@@ -313,6 +313,8 @@ function resendStalledMessages(){
 		WHERE outbox.creation_date<"+db.addTime("-1 MINUTE")+" ORDER BY outbox.creation_date", 
 		function(rows){
 			rows.forEach(function(row){
+				if (!row.hub) // weird error
+					throw Error("no hub in resendStalledMessages: "+JSON.stringify(row));
 				var objDeviceMessage = JSON.parse(row.message);
 				//if (objDeviceMessage.to !== row.to)
 				//    throw "to mismatch";
