@@ -742,7 +742,7 @@ function sendPaymentFromWallet(
 		throw Error("no wallet id");
 	readFundedAddresses(asset, wallet, function(arrFromAddresses){
 		if (arrFromAddresses.length === 0)
-			return handleResult("no from addresses in wallet "+wallet);
+			return handleResult("There are no funded addresses in wallet "+wallet);
 		
 		var bRequestedConfirmation = false;
 		var signer = {
