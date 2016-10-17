@@ -1008,7 +1008,7 @@ function handleSavedJoint(objJoint, creation_ts, peer){
 		ifKnown: function(){},
 		ifKnownBad: function(){},
 		ifNew: function(){
-			throw Error("new in handleSavedJoint");
+			throw Error("new in handleSavedJoint: "+unit);
 		}
 	});
 }
