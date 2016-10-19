@@ -65,6 +65,7 @@ if (process.browser){ // browser
 			});
 		};
 	};
+	WebSocket.prototype.once = WebSocket.prototype.on;
 }
 
 // if not using a hub and accepting messages directly (be your own hub)
@@ -328,7 +329,7 @@ function connectToPeer(url, onOpen) {
 			// after this, new connection attempts will be allowed to the wire, but this one can still succeed.  See the check for duplicates below.
 		}
 	}, 5000);
-	ws.on('open', function onWsOpen() {
+	ws.once('open', function onWsOpen() {
 		breadcrumbs.add('connected to '+url);
 		delete assocConnectingOutboundWebsockets[url];
 		if (!ws.url)
@@ -462,7 +463,7 @@ function findOutboundPeerOrConnect(url, onOpen){
 	if (ws){ // add second event handler
 		console.log("already connecting to "+url);
 		breadcrumbs.add('already connecting to '+url);
-		return ws.on('open', function secondOnOpen(){
+		return ws.once('open', function secondOnOpen(){
 			if (ws.readyState === ws.OPEN)
 				onOpen(null, ws);
 			else{
