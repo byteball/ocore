@@ -1277,8 +1277,10 @@ function isWaitingForCatchupChain(){
 // hash tree
 
 function requestNextHashTree(ws){
-	db.query("SELECT COUNT(1) as count_left FROM catchup_chain_balls", function(rows){
-		if (rows.length > 0) eventBus.emit('catchup_balls_left', rows[0].count_left);
+	db.query("SELECT COUNT(1) AS count_left FROM catchup_chain_balls", function(rows){
+		if (rows.length > 0) {
+			eventBus.emit('catchup_balls_left', rows[0].count_left);
+		}
 	});
 	db.query("SELECT ball FROM catchup_chain_balls ORDER BY member_index LIMIT 2", function(rows){
 		if (rows.length === 0)
