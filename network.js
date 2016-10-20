@@ -66,6 +66,7 @@ if (process.browser){ // browser
 		};
 	};
 	WebSocket.prototype.once = WebSocket.prototype.on;
+	WebSocket.prototype.setMaxListeners = function(){};
 }
 
 // if not using a hub and accepting messages directly (be your own hub)
@@ -329,6 +330,7 @@ function connectToPeer(url, onOpen) {
 			// after this, new connection attempts will be allowed to the wire, but this one can still succeed.  See the check for duplicates below.
 		}
 	}, 5000);
+	ws.setMaxListeners(20); // avoid warning
 	ws.once('open', function onWsOpen() {
 		breadcrumbs.add('connected to '+url);
 		delete assocConnectingOutboundWebsockets[url];
