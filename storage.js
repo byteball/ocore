@@ -14,6 +14,7 @@ var MAX_INT32 = Math.pow(2, 31) - 1;
 var genesis_ball = objectHash.getBallHash(constants.GENESIS_UNIT);
 
 var MAX_ITEMS_IN_CACHE = 300;
+var assocKnownUnits = {};
 var assocCachedUnits = {};
 var assocCachedUnitAuthors = {};
 var assocCachedUnitWitnesses = {};
@@ -1082,15 +1083,24 @@ function readUnitAuthors(conn, unit, handleAuthors){
 	});
 }
 
+function isKnownUnit(unit){
+	return (assocCachedUnits[unit] || assocKnownUnits[unit]) ? true : false;
+}
+
+function setUnitIsKnown(unit){
+	return assocKnownUnits[unit] = true;
+}
+
 function shrinkCache(){
 	if (Object.keys(assocCachedAssetInfos).length > MAX_ITEMS_IN_CACHE)
 		assocCachedAssetInfos = {};
+	var arrKnownUnits = Object.keys(assocKnownUnits);
 	var arrPropsUnits = Object.keys(assocCachedUnits);
 	var arrAuthorsUnits = Object.keys(assocCachedUnitAuthors);
 	var arrWitnessesUnits = Object.keys(assocCachedUnitWitnesses);
-	if (arrPropsUnits.length < MAX_ITEMS_IN_CACHE && arrAuthorsUnits.length < MAX_ITEMS_IN_CACHE && arrWitnessesUnits.length < MAX_ITEMS_IN_CACHE)
+	if (arrPropsUnits.length < MAX_ITEMS_IN_CACHE && arrAuthorsUnits.length < MAX_ITEMS_IN_CACHE && arrWitnessesUnits.length < MAX_ITEMS_IN_CACHE && arrKnownUnits.length < MAX_ITEMS_IN_CACHE)
 		return console.log('cache is small, will not shrink');
-	var arrUnits = _.union(arrPropsUnits, arrAuthorsUnits, arrWitnessesUnits);
+	var arrUnits = _.union(arrPropsUnits, arrAuthorsUnits, arrWitnessesUnits, arrKnownUnits);
 	console.log('will shrink cache, total units: '+arrUnits.length);
 	readLastStableMcIndex(db, function(last_stable_mci){
 		var CHUNK_SIZE = 500; // there is a limit on the number of query params
@@ -1102,6 +1112,7 @@ function shrinkCache(){
 				function(rows){
 					console.log('will remove '+rows.length+' units from cache');
 					rows.forEach(function(row){
+						delete assocKnownUnits[row.unit];
 						delete assocCachedUnits[row.unit];
 						delete assocCachedUnitAuthors[row.unit];
 						delete assocCachedUnitWitnesses[row.unit];
@@ -1151,4 +1162,7 @@ exports.determineBestParent = determineBestParent;
 
 exports.readStaticUnitProps = readStaticUnitProps;
 exports.readUnitAuthors = readUnitAuthors;
+
+exports.isKnownUnit = isKnownUnit;
+exports.setUnitIsKnown = setUnitIsKnown;
 
