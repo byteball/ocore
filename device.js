@@ -483,7 +483,7 @@ function startWaitingForPairing(handlePairingInfo){
 		device_address: my_device_address,
 		hub: my_device_hub
 	};
-	db.query("INSERT INTO pairing_secrets (pairing_secret, expiry_date) VALUES(?, "+db.addTime("+1 HOUR")+")", [pairing_secret], function(){
+	db.query("INSERT INTO pairing_secrets (pairing_secret, expiry_date) VALUES(?, "+db.addTime("+1 MONTH")+")", [pairing_secret], function(){
 		handlePairingInfo(pairingInfo);
 	});
 }
