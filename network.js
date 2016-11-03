@@ -1011,7 +1011,10 @@ function handleSavedJoint(objJoint, creation_ts, peer){
 		ifKnown: function(){},
 		ifKnownBad: function(){},
 		ifNew: function(){
-			throw Error("new in handleSavedJoint: "+unit);
+			// that's ok: may be simultaneously selected by readDependentJointsThatAreReady and deleted by purgeJunkUnhandledJoints when we wake up after sleep
+			delete assocUnitsInWork[unit];
+			console.log("new in handleSavedJoint: "+unit);
+		//	throw Error("new in handleSavedJoint: "+unit);
 		}
 	});
 }
