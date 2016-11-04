@@ -343,7 +343,8 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					if (!assocValidatedByKey[key])
 						return console.log('not all private payments validated yet');
 				assocValidatedByKey = null; // to avoid duplicate calls
-				emitNewPrivatePaymentReceived(from_address, arrChains);
+				if (!body.forwarded)
+					emitNewPrivatePaymentReceived(from_address, arrChains);
 				profiler.print();
 			};
 			
