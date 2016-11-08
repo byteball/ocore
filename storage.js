@@ -1020,6 +1020,27 @@ function findWitnessListUnit(conn, arrWitnesses, last_ball_mci, handleWitnessLis
 }
 
 function filterNewOrUnstableUnits(arrUnits, handleFilteredUnits){
+	var CHUNK_SIZE = 200;
+	if (arrUnits.length > CHUNK_SIZE){
+		console.log('filterNewOrUnstableUnits: will split in chunks');
+		var arrChunks = [];
+		for (var offset=0; offset<arrUnits.length; offset+=CHUNK_SIZE)
+			arrChunks.push(arrUnits.slice(offset, offset+CHUNK_SIZE));
+		var arrFilteredUnits = [];
+		async.eachSeries(
+			arrChunks,
+			function(arrSubsetOfUnits, cb){
+				filterNewOrUnstableUnits(arrSubsetOfUnits, function(arrSubsetOfFilteredUnits){
+					arrFilteredUnits = arrFilteredUnits.concat(arrSubsetOfFilteredUnits);
+					cb();
+				});
+			},
+			function(){
+				handleFilteredUnits(arrFilteredUnits);
+			}
+		);
+		return;
+	}
 	db.query("SELECT unit FROM units WHERE unit IN(?) AND is_stable=1", [arrUnits], function(rows){
 		var arrKnownStableUnits = rows.map(function(row){ return row.unit; });
 		var arrNewOrUnstableUnits = _.difference(arrUnits, arrKnownStableUnits);
