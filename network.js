@@ -695,6 +695,17 @@ function handleResponseToJointRequest(ws, request, response){
 	conf.bLight ? handleLightOnlineJoint(ws, objJoint) : handleOnlineJoint(ws, objJoint);
 }
 
+function havePendingRequest(command){
+	var arrPeers = wss.clients.concat(arrOutboundPeers);
+	for (var i=0; i<arrPeers.length; i++){
+		var assocPendingRequests = arrPeers[i].assocPendingRequests;
+		for (var tag in assocPendingRequests)
+			if (assocPendingRequests[tag].request.command === command)
+				return true;
+	}
+	return false;
+}
+
 function havePendingJointRequest(unit){
 	var arrPeers = wss.clients.concat(arrOutboundPeers);
 	for (var i=0; i<arrPeers.length; i++){
@@ -1536,12 +1547,12 @@ function requestProofsOfJoints(arrUnits, onDone){
 		requestFromLightVendor('light/get_history', objHistoryRequest, function(ws, request, response){
 			if (response.error){
 				console.log(response.error);
-				return onDone();
+				return onDone(response.error);
 			}
 			light.processHistory(response, {
 				ifError: function(err){
 					network.sendError(ws, err);
-					onDone();
+					onDone(err);
 				},
 				ifOk: function(){
 					onDone();
@@ -1563,16 +1574,23 @@ function requestProofsOfJointsIfNewOrUnstable(arrUnits, onDone){
 
 // light only
 function requestUnfinishedPastUnitsOfSavedPrivateElements(){
-	db.query("SELECT json FROM unhandled_private_payments", function(rows){
-		if (rows.length === 0)
-			return;
-		breadcrumbs.add(rows.length+" unhandled private payments");
-		var arrChains = [];
-		rows.forEach(function(row){
-			var arrPrivateElements = JSON.parse(row.json);
-			arrChains.push(arrPrivateElements);
+	mutex.lock(['private_chains'], function(unlock){
+		db.query("SELECT json FROM unhandled_private_payments", function(rows){
+			if (rows.length === 0)
+				return unlock();
+			breadcrumbs.add(rows.length+" unhandled private payments");
+			var arrChains = [];
+			rows.forEach(function(row){
+				var arrPrivateElements = JSON.parse(row.json);
+				arrChains.push(arrPrivateElements);
+			});
+			requestUnfinishedPastUnitsOfPrivateChains(arrChains, function onPrivateChainsReceived(err){
+				if (err)
+					return unlock();
+				handleSavedPrivatePayments();
+				setTimeout(unlock, 2000);
+			});
 		});
-		requestUnfinishedPastUnitsOfPrivateChains(arrChains);
 	});
 }
 
