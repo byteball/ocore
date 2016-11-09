@@ -177,7 +177,7 @@ function prepareHistory(historyRequest, callbacks){
 	}
 	if (arrRequestedJoints){
 		arrSelects.push("SELECT unit, main_chain_index, level FROM units WHERE unit IN(?) AND (sequence='good' OR is_stable=1) \n");
-		arrParams.push(arrRequestedJoints);
+		arrParams.push(arrRequestedJoints.slice(0, 400));
 	}
 	var sql = arrSelects.join("UNION \n") + "ORDER BY main_chain_index DESC, level DESC";
 	db.query(sql, arrParams, function(rows){
