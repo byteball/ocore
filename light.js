@@ -31,7 +31,7 @@ function buildProofChainOnMc(later_mci, earlier_mci, arrBalls, onDone){
 	function addBall(mci){
 		db.query("SELECT unit, ball, content_hash FROM units JOIN balls USING(unit) WHERE main_chain_index=? AND is_on_main_chain=1", [mci], function(rows){
 			if (rows.length !== 1)
-				throw Error("no prev chain element?");
+				throw Error("no prev chain element? mci="+mci+", later_mci="+later_mci+", earlier_mci="+earlier_mci);
 			var objBall = rows[0];
 			if (objBall.content_hash)
 				objBall.is_nonserial = true;
