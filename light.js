@@ -18,6 +18,8 @@ var MAX_HISTORY_ITEMS = 1000;
 
 // unit's MC index is earlier_mci
 function buildProofChain(later_mci, earlier_mci, unit, arrBalls, onDone){
+	if (earlier_mci === null)
+		throw Error("earlier_mci=null, unit="+unit);
 	if (later_mci === earlier_mci)
 		return buildLastMileOfProofChain(earlier_mci, unit, arrBalls, onDone);
 	buildProofChainOnMc(later_mci, earlier_mci, arrBalls, function(){
@@ -29,6 +31,8 @@ function buildProofChain(later_mci, earlier_mci, unit, arrBalls, onDone){
 function buildProofChainOnMc(later_mci, earlier_mci, arrBalls, onDone){
 	
 	function addBall(mci){
+		if (mci < 0)
+			throw Error("mci<0, later_mci="+later_mci+", earlier_mci="+earlier_mci);
 		db.query("SELECT unit, ball, content_hash FROM units JOIN balls USING(unit) WHERE main_chain_index=? AND is_on_main_chain=1", [mci], function(rows){
 			if (rows.length !== 1)
 				throw Error("no prev chain element? mci="+mci+", later_mci="+later_mci+", earlier_mci="+earlier_mci);
@@ -211,6 +215,8 @@ function prepareHistory(historyRequest, callbacks){
 								objResponse.joints.push(objJoint);
 								if (row.main_chain_index > last_ball_mci) // unconfirmed, no proofchain
 									return cb2();
+								if (row.main_chain_index === null)
+									throw Error("mci=null, unit="+row.unit);
 								buildProofChain(later_mci, row.main_chain_index, row.unit, objResponse.proofchain_balls, function(){
 									later_mci = row.main_chain_index;
 									cb2();
