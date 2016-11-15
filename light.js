@@ -213,10 +213,8 @@ function prepareHistory(historyRequest, callbacks){
 							},
 							ifFound: function(objJoint){
 								objResponse.joints.push(objJoint);
-								if (row.main_chain_index > last_ball_mci) // unconfirmed, no proofchain
+								if (row.main_chain_index > last_ball_mci || row.main_chain_index === null) // unconfirmed, no proofchain
 									return cb2();
-								if (row.main_chain_index === null)
-									throw Error("mci=null, unit="+row.unit);
 								buildProofChain(later_mci, row.main_chain_index, row.unit, objResponse.proofchain_balls, function(){
 									later_mci = row.main_chain_index;
 									cb2();
