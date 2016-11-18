@@ -905,6 +905,8 @@ function readFundedAddresses(asset, amount, arrAvailablePayingAddresses, handleF
 	readAddressesFundedInAsset(asset, amount, arrAvailablePayingAddresses, function(arrAddressesFundedInAsset){
 		// add other addresses to pay for commissions (in case arrAddressesFundedInAsset don't have enough bytes to pay commissions)
 		var arrOtherAddresses = _.difference(arrAvailablePayingAddresses, arrAddressesFundedInAsset);
+		if (arrOtherAddresses.length === 0)
+			return handleFundedAddresses(arrAddressesFundedInAsset);
 		composer.readSortedFundedAddresses(null, arrOtherAddresses, function(arrFundedOtherAddresses){
 			if (arrFundedOtherAddresses.length === 0)
 				return handleFundedAddresses(arrAddressesFundedInAsset);
