@@ -99,7 +99,7 @@ module.exports = function(db_name, MAX_CONNECTIONS){
 					// note that sqlite3 sets nonzero this.changes even when rows were matched but nothing actually changed (new values are same as old)
 					// this.changes appears to be correct for INSERTs despite the documentation states the opposite
 					if (!bSelect && !bCordova)
-						result = {affectedRows: this.changes};
+						result = {affectedRows: this.changes, insertId: this.lastID};
 					if (bSelect && bCordova) // note that on android, result.affectedRows is 1 even when inserted many rows
 						result = result.rows || [];
 					//console.log("changes="+this.changes+", affected="+result.affectedRows);
