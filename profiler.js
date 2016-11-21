@@ -10,6 +10,7 @@ var timers_results = {};
 var profiler_start_ts = Date.now();
 
 function mark_start(tag, id) {
+	return;
 	if (!id) id = 0;
 	if (!timers[tag]) timers[tag] = {};
 	if (timers[tag][id])
@@ -18,6 +19,7 @@ function mark_start(tag, id) {
 }
 
 function mark_end(tag, id) {
+	return;
 	if (!timers[tag]) return;
 	if (!id) id = 0;
 	if (!timers_results[tag])

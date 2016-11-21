@@ -24,7 +24,6 @@ var light = require('./light.js');
 var breadcrumbs = require('./breadcrumbs.js');
 var mail = process.browser ? null : require('./mail.js'+'');
 var profiler = require('./profiler.js');
-var AsyncProfiler = require('async-profile');
 
 var FORWARDING_TIMEOUT = 10*1000; // don't forward if the joint was received more than FORWARDING_TIMEOUT ms ago
 var STALLED_TIMEOUT = 5000; // a request is treated as stalled if no response received within STALLED_TIMEOUT ms
@@ -760,7 +759,6 @@ function forwardJoint(ws, objJoint){
 }
 
 function handleJoint(ws, objJoint, bSaved, callbacks){
-	AsyncProfiler.mark('handleJoint - start');
 	var unit = objJoint.unit.unit;
 
 	if (assocUnitsInWork[unit])
@@ -768,7 +766,6 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 	assocUnitsInWork[unit] = true;
 	
 	var validate = function(){
-		AsyncProfiler.mark('handleJoint - validate - start');
 		validation.validate(objJoint, {
 			ifUnitError: function(error){
 				console.log(objJoint.unit.unit+" validation failed: "+error);
@@ -811,7 +808,6 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 			},
 			ifNeedParentUnits: callbacks.ifNeedParentUnits,
 			ifOk: function(objValidationState, validation_unlock){
-				AsyncProfiler.mark('handleJoint - validate - ok');
 				if (objJoint.unsigned)
 					throw Error("ifOk() unsigned");
 				writer.saveJoint(objJoint, objValidationState, null, function(){
@@ -912,28 +908,7 @@ function handleOnlineJoint(ws, objJoint, onDone){
 	onDone = function(){profiler.mark_end("handleOnlineJoint", id);oldOnDone();}
 	var unit = objJoint.unit.unit;
 	delete objJoint.unit.main_chain_index;
-	var p = {};
 	
-	var tv2 = function(){
-				var a = 1;
-			};
-		var tv1 = function(){
-			var a = 1;
-			tv2();
-			for (var i = 0; i < 3; i++) {
-				tv2();
-				setTimeout(tv2);
-			}
-			setTimeout(tv2);
-		};
-	process.nextTick(function(){
-		p = new AsyncProfiler();
-		
-		var a = 1;
-		process.nextTick(tv1);
-		process.nextTick(tv2);
-	});
-	process.nextTick(function(){
 	handleJoint(ws, objJoint, false, {
 		ifUnitInWork: onDone,
 		ifUnitError: function(error){
@@ -995,7 +970,6 @@ function handleOnlineJoint(ws, objJoint, onDone){
 			delete assocUnitsInWork[unit];
 			onDone();
 		}
-	});
 	});
 }
 

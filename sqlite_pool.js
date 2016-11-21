@@ -4,8 +4,6 @@ var _ = require('lodash');
 var EventEmitter = require('events').EventEmitter;
 var eventEmitter = new EventEmitter();
 var conf = require('./conf.js');
-var AsyncProfiler = require('async-profile');
-var wrapCallback = require('async-listener/glue');
 
 var bCordova = (typeof window === 'object' && window.cordova);
 var bReady = false;
