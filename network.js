@@ -1097,11 +1097,7 @@ function notifyWatchers(objJoint){
 	});
 }
 
-eventBus.on('mci_became_stable', function(mci){
-	process.nextTick(function(){ // don't call it synchronously with event emitter
-		notifyWatchersAboutStableJoints(mci);
-	});
-});
+eventBus.on('mci_became_stable', notifyWatchersAboutStableJoints);
 
 function notifyWatchersAboutStableJoints(mci){
 	// the event was emitted from inside mysql transaction, make sure it completes so that the changes are visible

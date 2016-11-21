@@ -878,7 +878,9 @@ function markMcIndexStable(conn, mci, onDone){
 				paid_witnessing.updatePaidWitnesses(conn, cb);
 			}
 		], function(){
-			eventBus.emit("mci_became_stable", mci);
+			process.nextTick(function(){ // don't call it synchronously with event emitter
+				eventBus.emit("mci_became_stable", mci);
+			});
 			onDone();
 		});
 	}
