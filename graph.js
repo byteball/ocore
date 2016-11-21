@@ -197,7 +197,7 @@ function readDescendantUnitsByAuthorsBeforeMcIndex(conn, objEarlierUnitProps, ar
 	
 	profiler.start();
 	conn.query(
-		"SELECT unit FROM units JOIN unit_authors USING(unit) \n\
+		"SELECT unit FROM units "+db.forceIndex("byMcIndex")+" JOIN unit_authors USING(unit) \n\
 		WHERE latest_included_mc_index>=? AND main_chain_index>? AND main_chain_index<=? AND latest_included_mc_index<? AND address IN(?)", 
 		[objEarlierUnitProps.main_chain_index, objEarlierUnitProps.main_chain_index, to_main_chain_index, to_main_chain_index, arrAuthorAddresses],
 //        "SELECT unit FROM units WHERE latest_included_mc_index>=? AND main_chain_index<=?", 

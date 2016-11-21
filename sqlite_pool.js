@@ -4,6 +4,8 @@ var _ = require('lodash');
 var EventEmitter = require('events').EventEmitter;
 var eventEmitter = new EventEmitter();
 var conf = require('./conf.js');
+var AsyncProfiler = require('async-profile');
+var wrapCallback = require('async-listener/glue');
 
 var bCordova = (typeof window === 'object' && window.cordova);
 var bReady = false;
@@ -45,11 +47,11 @@ module.exports = function(db_name, MAX_CONNECTIONS){
 			connection.query("PRAGMA foreign_keys = 1", function(){
 				connection.query("PRAGMA busy_timeout=30000", function(){
 					connection.query("PRAGMA journal_mode=WAL", function(){
-						//connection.query("PRAGMA synchronous=OFF", function(){
+						connection.query("PRAGMA synchronous=NORMAL", function(){
 							connection.query("PRAGMA temp_store=MEMORY", function(){
 								handleConnection(connection);
 							});
-						//});
+						});
 					});
 				});
 			});
@@ -208,7 +210,7 @@ module.exports = function(db_name, MAX_CONNECTIONS){
 				last_arg(rows);
 			});
 			connection.query.apply(connection, new_args);
-		})
+		});
 	}
 
 	// interval is string such as -8 SECOND
@@ -230,6 +232,10 @@ module.exports = function(db_name, MAX_CONNECTIONS){
 
 	function getRandom(){
 		return "RANDOM()";
+	}
+
+	function forceIndex(index){
+		return "INDEXED BY " + index;
 	}
 
 	// note that IGNORE behaves differently from mysql.  In particular, if you insert and forget to specify a NOT NULL colum without DEFAULT value, 
@@ -259,6 +265,7 @@ module.exports = function(db_name, MAX_CONNECTIONS){
 	pool.getFromUnixTime = getFromUnixTime;
 	pool.getRandom = getRandom;
 	pool.getIgnore = getIgnore;
+	pool.forceIndex = forceIndex;
 	
 	return pool;
 };

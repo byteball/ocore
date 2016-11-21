@@ -23,6 +23,8 @@ var eventBus = require('./event_bus.js');
 var light = require('./light.js');
 var breadcrumbs = require('./breadcrumbs.js');
 var mail = process.browser ? null : require('./mail.js'+'');
+var profiler = require('./profiler.js');
+var AsyncProfiler = require('async-profile');
 
 var FORWARDING_TIMEOUT = 10*1000; // don't forward if the joint was received more than FORWARDING_TIMEOUT ms ago
 var STALLED_TIMEOUT = 5000; // a request is treated as stalled if no response received within STALLED_TIMEOUT ms
@@ -40,6 +42,7 @@ var coming_online_time = Date.now();
 var assocReroutedConnectionsByTag = {};
 var arrWatchedAddresses = []; // does not include my addresses, therefore always empty
 var last_hearbeat_wake_ts = Date.now();
+var inc = 0;
 
 if (process.browser){ // browser
 	console.log("defining .on() on ws");
@@ -621,10 +624,16 @@ function rerequestLostJoints(){
 }
 
 function requestNewMissingJoints(ws, arrUnits){
+	var id = inc++;
+	profiler.mark_start("requestNewMissingJoints", id);
 	var arrNewUnits = [];
 	async.eachSeries(
 		arrUnits,
 		function(unit, cb){
+			var id = inc++;
+			profiler.mark_start("requestNewMissingJoints - single", id);
+			var oldCb = cb;
+			cb = function(){profiler.mark_end("requestNewMissingJoints - single", id);oldCb();}
 			if (assocUnitsInWork[unit])
 				return cb();
 			if (havePendingJointRequest(unit)){
@@ -641,6 +650,7 @@ function requestNewMissingJoints(ws, arrUnits){
 			});
 		},
 		function(){
+			profiler.mark_end("requestNewMissingJoints", id);
 			//console.log(arrNewUnits.length+" of "+arrUnits.length+" left", assocUnitsInWork);
 			// filter again as something could have changed each time we were paused in checkIfNewUnit
 			arrNewUnits = arrNewUnits.filter(function(unit){ return (!assocUnitsInWork[unit] && !havePendingJointRequest(unit)); });
@@ -750,6 +760,7 @@ function forwardJoint(ws, objJoint){
 }
 
 function handleJoint(ws, objJoint, bSaved, callbacks){
+	AsyncProfiler.mark('handleJoint - start');
 	var unit = objJoint.unit.unit;
 
 	if (assocUnitsInWork[unit])
@@ -757,6 +768,7 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 	assocUnitsInWork[unit] = true;
 	
 	var validate = function(){
+		AsyncProfiler.mark('handleJoint - validate - start');
 		validation.validate(objJoint, {
 			ifUnitError: function(error){
 				console.log(objJoint.unit.unit+" validation failed: "+error);
@@ -799,6 +811,7 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 			},
 			ifNeedParentUnits: callbacks.ifNeedParentUnits,
 			ifOk: function(objValidationState, validation_unlock){
+				AsyncProfiler.mark('handleJoint - validate - ok');
 				if (objJoint.unsigned)
 					throw Error("ifOk() unsigned");
 				writer.saveJoint(objJoint, objValidationState, null, function(){
@@ -891,12 +904,36 @@ function handlePostedJoint(ws, objJoint, onDone){
 }
 
 function handleOnlineJoint(ws, objJoint, onDone){
-	
+	var id = ++inc;
+	profiler.mark_start("handleOnlineJoint", id);
 	if (!onDone)
 		onDone = function(){};
+	var oldOnDone = onDone;
+	onDone = function(){profiler.mark_end("handleOnlineJoint", id);oldOnDone();}
 	var unit = objJoint.unit.unit;
 	delete objJoint.unit.main_chain_index;
+	var p = {};
 	
+	var tv2 = function(){
+				var a = 1;
+			};
+		var tv1 = function(){
+			var a = 1;
+			tv2();
+			for (var i = 0; i < 3; i++) {
+				tv2();
+				setTimeout(tv2);
+			}
+			setTimeout(tv2);
+		};
+	process.nextTick(function(){
+		p = new AsyncProfiler();
+		
+		var a = 1;
+		process.nextTick(tv1);
+		process.nextTick(tv2);
+	});
+	process.nextTick(function(){
 	handleJoint(ws, objJoint, false, {
 		ifUnitInWork: onDone,
 		ifUnitError: function(error){
@@ -958,6 +995,7 @@ function handleOnlineJoint(ws, objJoint, onDone){
 			delete assocUnitsInWork[unit];
 			onDone();
 		}
+	});
 	});
 }
 
@@ -1322,6 +1360,7 @@ function waitTillHashTreeFullyProcessedAndRequestNext(ws){
 	setTimeout(function(){
 		db.query("SELECT 1 FROM hash_tree_balls LEFT JOIN units USING(unit) WHERE units.unit IS NULL LIMIT 1", function(rows){
 			if (rows.length === 0){
+				profiler.mark_end('processHashTree');
 				findNextPeer(ws, function(next_ws){
 					requestNextHashTree(next_ws);
 				});

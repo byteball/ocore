@@ -8,6 +8,8 @@ var db = require('./db.js');
 var mutex = require('./mutex.js');
 var validation = require('./validation.js');
 var witnessProof = require('./witness_proof.js');
+var profiler = require('./profiler.js');
+var AsyncProfiler = require('async-profile');
 
 
 function prepareCatchupChain(catchupRequest, callbacks){
@@ -271,12 +273,17 @@ function readHashTree(hashTreeRequest, callbacks){
 function processHashTree(arrBalls, callbacks){
 	if (!Array.isArray(arrBalls))
 		return callbacks.ifError("no balls array");
+	profiler.mark_start('processHashTree');
 	mutex.lock(["hash_tree"], function(unlock){
+		//new AsyncProfiler();
 		db.query("SELECT 1 FROM hash_tree_balls LIMIT 1", function(ht_rows){
 			//if (ht_rows.length > 0) // duplicate
 			//    return unlock();
+			AsyncProfiler.mark('SPOT 1');
 			db.takeConnectionFromPool(function(conn){
+				AsyncProfiler.mark('SPOT 2');
 				conn.query("BEGIN", function(){
+					AsyncProfiler.mark('SPOT 3');
 					var max_mci = null;
 					async.eachSeries(
 						arrBalls,
@@ -341,7 +348,7 @@ function processHashTree(arrBalls, callbacks){
 							});
 						},
 						function(error){
-
+							AsyncProfiler.mark('SPOT 4');
 							function finish(err){
 								conn.query(err ? "ROLLBACK" : "COMMIT", function(){
 									conn.release();
@@ -363,6 +370,7 @@ function processHashTree(arrBalls, callbacks){
 								FROM catchup_chain_balls LEFT JOIN balls USING(ball) LEFT JOIN units USING(unit) \n\
 								ORDER BY member_index LIMIT 2", 
 								function(rows){
+									AsyncProfiler.mark('SPOT 5');
 									if (rows.length !== 2)
 										return finish("expecting to have 2 elements in the chain");
 									if (max_mci !== null && rows[0].main_chain_index !== null && rows[0].main_chain_index !== max_mci)
@@ -371,6 +379,7 @@ function processHashTree(arrBalls, callbacks){
 										return finish("tree root doesn't match second chain element");
 									// remove the last chain element, we now have hash tree instead
 									conn.query("DELETE FROM catchup_chain_balls WHERE ball=?", [rows[0].ball], function(){
+										AsyncProfiler.mark('SPOT 6');
 										purgeHandledBallsFromHashTree(conn, finish);
 									});
 								}
