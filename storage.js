@@ -687,13 +687,15 @@ function updateMinRetrievableMciAfterStabilizingMci(conn, last_stable_mci, handl
 	findLastBallMciOfMci(conn, last_stable_mci, function(last_ball_mci){
 		if (last_ball_mci <= min_retrievable_mci) // nothing new
 			return handleMinRetrievableMci(min_retrievable_mci);
+		var prev_min_retrievable_mci = min_retrievable_mci;
 		min_retrievable_mci = last_ball_mci;
 
 		// strip content off units older than min_retrievable_mci
 		conn.query(
 			// 'JOIN messages' filters units that are not stripped yet
-			"SELECT DISTINCT unit, content_hash FROM units JOIN messages USING(unit) WHERE main_chain_index<=? AND sequence='final-bad'", 
-			[min_retrievable_mci],
+			"SELECT DISTINCT unit, content_hash FROM units JOIN messages USING(unit) \n\
+			WHERE main_chain_index<=? AND main_chain_index>=? AND sequence='final-bad'", 
+			[min_retrievable_mci, prev_min_retrievable_mci],
 			function(unit_rows){
 				var arrQueries = [];
 				async.eachSeries(
