@@ -13,6 +13,7 @@ var Definition = require("./definition.js");
 var profiler = require('./profiler.js');
 
 var count_writes = 0;
+var count_units_in_prev_analyze = 0;
 
 function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 	var objUnit = objJoint.unit;
@@ -467,10 +468,16 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 function updateSqliteStats(){
 	if (count_writes % 100 !== 0)
 		return;
-	console.log("will update sqlite stats");
-	db.query("ANALYZE", function(){
-		db.query("ANALYZE sqlite_master", function(){
-			console.log("sqlite stats updated");
+	db.query("SELECT COUNT(*) AS count_units FROM units", function(rows){
+		var count_units = rows[0].count_units;
+		if (count_units < 2*count_units_in_prev_analyze)
+			return;
+		count_units_in_prev_analyze = count_units;
+		console.log("will update sqlite stats");
+		db.query("ANALYZE", function(){
+			db.query("ANALYZE sqlite_master", function(){
+				console.log("sqlite stats updated");
+			});
 		});
 	});
 }
