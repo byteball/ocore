@@ -17,6 +17,7 @@ var walletDefinedByAddresses = require('./wallet_defined_by_addresses.js');
 var eventBus = require('./event_bus.js');
 var ValidationUtils = require("./validation_utils.js");
 var profiler = require('./profiler.js');
+var breadcrumbs = require('./breadcrumbs.js');
 
 
 
@@ -343,7 +344,8 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					if (!assocValidatedByKey[key])
 						return console.log('not all private payments validated yet');
 				assocValidatedByKey = null; // to avoid duplicate calls
-				emitNewPrivatePaymentReceived(from_address, arrChains);
+				if (!body.forwarded)
+					emitNewPrivatePaymentReceived(from_address, arrChains);
 				profiler.print();
 			};
 			
@@ -444,8 +446,10 @@ function forwardPrivateChainsToOtherMembersOfOutputAddresses(arrChains){
 	var arrOutputAddresses = Object.keys(assocOutputAddresses);
 	console.log("output addresses", arrOutputAddresses);
 	db.query("SELECT DISTINCT wallet FROM my_addresses WHERE address IN(?)", [arrOutputAddresses], function(rows){
-		if (rows.length === 0)
-			throw Error("not my wallet?");
+		if (rows.length === 0){
+			breadcrumbs.add("forwardPrivateChainsToOtherMembersOfOutputAddresses: " + JSON.stringify(arrChains)); // remove in livenet
+			throw Error("not my wallet? output addresses: "+arrOutputAddresses.join(', '));
+		}
 		var arrWallets = rows.map(function(row){ return row.wallet; });
 		walletDefinedByKeys.forwardPrivateChainsToOtherMembersOfWallets(arrChains, arrWallets);
 	});

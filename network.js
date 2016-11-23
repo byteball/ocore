@@ -65,6 +65,8 @@ if (process.browser){ // browser
 			});
 		};
 	};
+	WebSocket.prototype.once = WebSocket.prototype.on;
+	WebSocket.prototype.setMaxListeners = function(){};
 }
 
 // if not using a hub and accepting messages directly (be your own hub)
@@ -328,7 +330,8 @@ function connectToPeer(url, onOpen) {
 			// after this, new connection attempts will be allowed to the wire, but this one can still succeed.  See the check for duplicates below.
 		}
 	}, 5000);
-	ws.on('open', function onWsOpen() {
+	ws.setMaxListeners(20); // avoid warning
+	ws.once('open', function onWsOpen() {
 		breadcrumbs.add('connected to '+url);
 		delete assocConnectingOutboundWebsockets[url];
 		if (!ws.url)
@@ -462,7 +465,7 @@ function findOutboundPeerOrConnect(url, onOpen){
 	if (ws){ // add second event handler
 		console.log("already connecting to "+url);
 		breadcrumbs.add('already connecting to '+url);
-		return ws.on('open', function secondOnOpen(){
+		return ws.once('open', function secondOnOpen(){
 			if (ws.readyState === ws.OPEN)
 				onOpen(null, ws);
 			else{
@@ -690,6 +693,17 @@ function handleResponseToJointRequest(ws, request, response){
 		delete objJoint.skiplist_units;
 	}
 	conf.bLight ? handleLightOnlineJoint(ws, objJoint) : handleOnlineJoint(ws, objJoint);
+}
+
+function havePendingRequest(command){
+	var arrPeers = wss.clients.concat(arrOutboundPeers);
+	for (var i=0; i<arrPeers.length; i++){
+		var assocPendingRequests = arrPeers[i].assocPendingRequests;
+		for (var tag in assocPendingRequests)
+			if (assocPendingRequests[tag].request.command === command)
+				return true;
+	}
+	return false;
 }
 
 function havePendingJointRequest(unit){
@@ -1008,7 +1022,10 @@ function handleSavedJoint(objJoint, creation_ts, peer){
 		ifKnown: function(){},
 		ifKnownBad: function(){},
 		ifNew: function(){
-			throw Error("new in handleSavedJoint: "+unit);
+			// that's ok: may be simultaneously selected by readDependentJointsThatAreReady and deleted by purgeJunkUnhandledJoints when we wake up after sleep
+			delete assocUnitsInWork[unit];
+			console.log("new in handleSavedJoint: "+unit);
+		//	throw Error("new in handleSavedJoint: "+unit);
 		}
 	});
 }
@@ -1080,11 +1097,7 @@ function notifyWatchers(objJoint){
 	});
 }
 
-eventBus.on('mci_became_stable', function(mci){
-	process.nextTick(function(){ // don't call it synchronously with event emitter
-		notifyWatchersAboutStableJoints(mci);
-	});
-});
+eventBus.on('mci_became_stable', notifyWatchersAboutStableJoints);
 
 function notifyWatchersAboutStableJoints(mci){
 	// the event was emitted from inside mysql transaction, make sure it completes so that the changes are visible
@@ -1277,6 +1290,11 @@ function isWaitingForCatchupChain(){
 // hash tree
 
 function requestNextHashTree(ws){
+	db.query("SELECT COUNT(1) AS count_left FROM catchup_chain_balls", function(rows){
+		if (rows.length > 0) {
+			eventBus.emit('catchup_balls_left', rows[0].count_left);
+		}
+	});
 	db.query("SELECT ball FROM catchup_chain_balls ORDER BY member_index LIMIT 2", function(rows){
 		if (rows.length === 0)
 			return comeOnline();
@@ -1525,12 +1543,12 @@ function requestProofsOfJoints(arrUnits, onDone){
 		requestFromLightVendor('light/get_history', objHistoryRequest, function(ws, request, response){
 			if (response.error){
 				console.log(response.error);
-				return onDone();
+				return onDone(response.error);
 			}
 			light.processHistory(response, {
 				ifError: function(err){
 					network.sendError(ws, err);
-					onDone();
+					onDone(err);
 				},
 				ifOk: function(){
 					onDone();
@@ -1552,16 +1570,23 @@ function requestProofsOfJointsIfNewOrUnstable(arrUnits, onDone){
 
 // light only
 function requestUnfinishedPastUnitsOfSavedPrivateElements(){
-	db.query("SELECT json FROM unhandled_private_payments", function(rows){
-		if (rows.length === 0)
-			return;
-		breadcrumbs.add(rows.length+" unhandled private payments");
-		var arrChains = [];
-		rows.forEach(function(row){
-			var arrPrivateElements = JSON.parse(row.json);
-			arrChains.push(arrPrivateElements);
+	mutex.lock(['private_chains'], function(unlock){
+		db.query("SELECT json FROM unhandled_private_payments", function(rows){
+			if (rows.length === 0)
+				return unlock();
+			breadcrumbs.add(rows.length+" unhandled private payments");
+			var arrChains = [];
+			rows.forEach(function(row){
+				var arrPrivateElements = JSON.parse(row.json);
+				arrChains.push(arrPrivateElements);
+			});
+			requestUnfinishedPastUnitsOfPrivateChains(arrChains, function onPrivateChainsReceived(err){
+				if (err)
+					return unlock();
+				handleSavedPrivatePayments();
+				setTimeout(unlock, 2000);
+			});
 		});
-		requestUnfinishedPastUnitsOfPrivateChains(arrChains);
 	});
 }
 
