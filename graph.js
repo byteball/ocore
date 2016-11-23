@@ -175,7 +175,7 @@ function readDescendantUnitsByAuthorsBeforeMcIndex(conn, objEarlierUnitProps, ar
 	function goDown(arrStartUnits){
 		profiler.start();
 		conn.query(
-			"SELECT units.unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, unit_authors.address AS author_in_list \n\
+			"SELECT units.unit, unit_authors.address AS author_in_list \n\
 			FROM parenthoods \n\
 			JOIN units ON child_unit=units.unit \n\
 			LEFT JOIN unit_authors ON unit_authors.unit=units.unit AND address IN(?) \n\
