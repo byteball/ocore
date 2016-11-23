@@ -300,8 +300,8 @@ function updateMainChain(conn, last_unit, onDone){
 						var mc_end_witnessed_level = wl_rows[0].witnessed_level;
 						conn.query(
 							// among these 7 witnesses, find min wl
-							"SELECT MIN(witnessed_level) AS min_mc_wl FROM units JOIN unit_authors USING(unit) \n\
-							WHERE is_on_main_chain=1 AND level>=? AND address IN(?)",
+							"SELECT MIN(witnessed_level) AS min_mc_wl FROM units LEFT JOIN unit_authors USING(unit) \n\
+							WHERE is_on_main_chain=1 AND level>=? AND address IN(?)", // _left_ join enforces the best query plan in sqlite
 							[mc_end_witnessed_level, arrWitnesses],
 							function(min_wl_rows){
 								if (min_wl_rows.length !== 1)
