@@ -1452,7 +1452,7 @@ function handleSavedPrivatePayments(unit){
 	mutex.lock(["saved_private"], function(unlock){
 		var sql = unit
 			? "SELECT json, peer, unit, message_index, output_index, linked FROM unhandled_private_payments WHERE unit="+db.escape(unit)
-			: "SELECT json, peer, unit, message_index, output_index, linked FROM unhandled_private_payments JOIN units USING(unit)";
+			: "SELECT json, peer, unit, message_index, output_index, linked FROM unhandled_private_payments CROSS JOIN units USING(unit)";
 		db.query(sql, function(rows){
 			if (rows.length === 0)
 				return unlock();
