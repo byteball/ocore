@@ -190,6 +190,7 @@ function buildPaidWitnesses(conn, objUnitProps, arrWitnesses, onDone){
 		profiler.start();
 		conn.query( // we don't care if the unit is majority witnessed by the unit-designated witnesses
 			// _left_ join forces use of indexes in units
+			// can't get rid of filtering by address because units can be co-authored by witness with somebody else
 			"SELECT address, MIN(main_chain_index-?) AS delay \n\
 			FROM units \n\
 			LEFT JOIN unit_authors USING(unit) \n\
