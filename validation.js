@@ -833,9 +833,9 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 		//var next = checkNoPendingOrRetrievableNonserialIncluded;
 		var next = validateDefinition;
 		//var filter = bNonserial ? "AND sequence='good'" : "";
-		conn.query(
-			"SELECT unit FROM unit_authors JOIN units USING(unit) \n\
-			WHERE address=? AND definition_chash IS NOT NULL AND (is_stable=0 OR main_chain_index>?)", 
+		conn.query( // _left_ join forces use of indexes in units
+			"SELECT unit FROM units LEFT JOIN unit_authors USING(unit) \n\
+			WHERE address=? AND definition_chash IS NOT NULL AND ( /* is_stable=0 OR */ main_chain_index>?)", 
 			[objAuthor.address, objValidationState.last_ball_mci], 
 			function(rows){
 				if (rows.length === 0)
