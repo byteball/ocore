@@ -18,6 +18,8 @@ var MAX_HISTORY_ITEMS = 1000;
 
 // unit's MC index is earlier_mci
 function buildProofChain(later_mci, earlier_mci, unit, arrBalls, onDone){
+	if (earlier_mci === null)
+		throw Error("earlier_mci=null, unit="+unit);
 	if (later_mci === earlier_mci)
 		return buildLastMileOfProofChain(earlier_mci, unit, arrBalls, onDone);
 	buildProofChainOnMc(later_mci, earlier_mci, arrBalls, function(){
@@ -29,9 +31,11 @@ function buildProofChain(later_mci, earlier_mci, unit, arrBalls, onDone){
 function buildProofChainOnMc(later_mci, earlier_mci, arrBalls, onDone){
 	
 	function addBall(mci){
+		if (mci < 0)
+			throw Error("mci<0, later_mci="+later_mci+", earlier_mci="+earlier_mci);
 		db.query("SELECT unit, ball, content_hash FROM units JOIN balls USING(unit) WHERE main_chain_index=? AND is_on_main_chain=1", [mci], function(rows){
 			if (rows.length !== 1)
-				throw Error("no prev chain element?");
+				throw Error("no prev chain element? mci="+mci+", later_mci="+later_mci+", earlier_mci="+earlier_mci);
 			var objBall = rows[0];
 			if (objBall.content_hash)
 				objBall.is_nonserial = true;
@@ -177,7 +181,7 @@ function prepareHistory(historyRequest, callbacks){
 	}
 	if (arrRequestedJoints){
 		arrSelects.push("SELECT unit, main_chain_index, level FROM units WHERE unit IN(?) AND (sequence='good' OR is_stable=1) \n");
-		arrParams.push(arrRequestedJoints);
+		arrParams.push(arrRequestedJoints.slice(0, 400));
 	}
 	var sql = arrSelects.join("UNION \n") + "ORDER BY main_chain_index DESC, level DESC";
 	db.query(sql, arrParams, function(rows){
@@ -209,7 +213,7 @@ function prepareHistory(historyRequest, callbacks){
 							},
 							ifFound: function(objJoint){
 								objResponse.joints.push(objJoint);
-								if (row.main_chain_index > last_ball_mci) // unconfirmed, no proofchain
+								if (row.main_chain_index > last_ball_mci || row.main_chain_index === null) // unconfirmed, no proofchain
 									return cb2();
 								buildProofChain(later_mci, row.main_chain_index, row.unit, objResponse.proofchain_balls, function(){
 									later_mci = row.main_chain_index;

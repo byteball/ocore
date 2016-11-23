@@ -895,8 +895,8 @@ function readBalance(wallet, handleBalance){
 			}
 			// add 0-balance assets
 			db.query(
-				"SELECT DISTINCT asset \n\
-				FROM my_addresses JOIN outputs USING(address) JOIN units USING(unit) \n\
+				"SELECT DISTINCT outputs.asset, is_private \n\
+				FROM my_addresses JOIN outputs USING(address) JOIN units USING(unit) LEFT JOIN assets ON asset=assets.unit \n\
 				WHERE wallet=? AND sequence='good'", 
 				[wallet], 
 				function(rows){
@@ -905,6 +905,7 @@ function readBalance(wallet, handleBalance){
 						var asset = row.asset || "base";
 						if (!assocBalances[asset])
 							assocBalances[asset] = {stable: 0, pending: 0};
+						assocBalances[asset].is_private = row.is_private;
 					}
 					handleBalance(assocBalances);
 					if (conf.bLight){ // make sure we have all asset definitions available

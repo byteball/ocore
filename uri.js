@@ -2,12 +2,15 @@
 "use strict";
 var ValidationUtils = require("./validation_utils.js");
 var constants = require("./constants.js");
+var conf = require('./conf.js');
 
 
 function parseUri(uri, callbacks){
-	var arrMatches = uri.match('^byteball:(.+)$');
+	var protocol = conf.program || 'byteball';
+	var re = new RegExp('^'+protocol+':(.+)$', 'i');
+	var arrMatches = uri.match(re);
 	if (!arrMatches)
-		return callbacks.ifError("no byteball prefix");
+		return callbacks.ifError("no "+protocol+" prefix");
 	var value = arrMatches[1];
 	var objRequest = {};
 	

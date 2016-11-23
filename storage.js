@@ -14,6 +14,7 @@ var MAX_INT32 = Math.pow(2, 31) - 1;
 var genesis_ball = objectHash.getBallHash(constants.GENESIS_UNIT);
 
 var MAX_ITEMS_IN_CACHE = 300;
+var assocKnownUnits = {};
 var assocCachedUnits = {};
 var assocCachedUnitAuthors = {};
 var assocCachedUnitWitnesses = {};
@@ -686,13 +687,15 @@ function updateMinRetrievableMciAfterStabilizingMci(conn, last_stable_mci, handl
 	findLastBallMciOfMci(conn, last_stable_mci, function(last_ball_mci){
 		if (last_ball_mci <= min_retrievable_mci) // nothing new
 			return handleMinRetrievableMci(min_retrievable_mci);
+		var prev_min_retrievable_mci = min_retrievable_mci;
 		min_retrievable_mci = last_ball_mci;
 
 		// strip content off units older than min_retrievable_mci
 		conn.query(
 			// 'JOIN messages' filters units that are not stripped yet
-			"SELECT DISTINCT unit, content_hash FROM units JOIN messages USING(unit) WHERE main_chain_index<=? AND sequence='final-bad'", 
-			[min_retrievable_mci],
+			"SELECT DISTINCT unit, content_hash FROM units JOIN messages USING(unit) \n\
+			WHERE main_chain_index<=? AND main_chain_index>=? AND sequence='final-bad'", 
+			[min_retrievable_mci, prev_min_retrievable_mci],
 			function(unit_rows){
 				var arrQueries = [];
 				async.eachSeries(
@@ -1019,6 +1022,27 @@ function findWitnessListUnit(conn, arrWitnesses, last_ball_mci, handleWitnessLis
 }
 
 function filterNewOrUnstableUnits(arrUnits, handleFilteredUnits){
+	var CHUNK_SIZE = 200;
+	if (arrUnits.length > CHUNK_SIZE){
+		console.log('filterNewOrUnstableUnits: will split in chunks');
+		var arrChunks = [];
+		for (var offset=0; offset<arrUnits.length; offset+=CHUNK_SIZE)
+			arrChunks.push(arrUnits.slice(offset, offset+CHUNK_SIZE));
+		var arrFilteredUnits = [];
+		async.eachSeries(
+			arrChunks,
+			function(arrSubsetOfUnits, cb){
+				filterNewOrUnstableUnits(arrSubsetOfUnits, function(arrSubsetOfFilteredUnits){
+					arrFilteredUnits = arrFilteredUnits.concat(arrSubsetOfFilteredUnits);
+					cb();
+				});
+			},
+			function(){
+				handleFilteredUnits(arrFilteredUnits);
+			}
+		);
+		return;
+	}
 	db.query("SELECT unit FROM units WHERE unit IN(?) AND is_stable=1", [arrUnits], function(rows){
 		var arrKnownStableUnits = rows.map(function(row){ return row.unit; });
 		var arrNewOrUnstableUnits = _.difference(arrUnits, arrKnownStableUnits);
@@ -1082,15 +1106,24 @@ function readUnitAuthors(conn, unit, handleAuthors){
 	});
 }
 
+function isKnownUnit(unit){
+	return (assocCachedUnits[unit] || assocKnownUnits[unit]) ? true : false;
+}
+
+function setUnitIsKnown(unit){
+	return assocKnownUnits[unit] = true;
+}
+
 function shrinkCache(){
 	if (Object.keys(assocCachedAssetInfos).length > MAX_ITEMS_IN_CACHE)
 		assocCachedAssetInfos = {};
+	var arrKnownUnits = Object.keys(assocKnownUnits);
 	var arrPropsUnits = Object.keys(assocCachedUnits);
 	var arrAuthorsUnits = Object.keys(assocCachedUnitAuthors);
 	var arrWitnessesUnits = Object.keys(assocCachedUnitWitnesses);
-	if (arrPropsUnits.length < MAX_ITEMS_IN_CACHE && arrAuthorsUnits.length < MAX_ITEMS_IN_CACHE && arrWitnessesUnits.length < MAX_ITEMS_IN_CACHE)
+	if (arrPropsUnits.length < MAX_ITEMS_IN_CACHE && arrAuthorsUnits.length < MAX_ITEMS_IN_CACHE && arrWitnessesUnits.length < MAX_ITEMS_IN_CACHE && arrKnownUnits.length < MAX_ITEMS_IN_CACHE)
 		return console.log('cache is small, will not shrink');
-	var arrUnits = _.union(arrPropsUnits, arrAuthorsUnits, arrWitnessesUnits);
+	var arrUnits = _.union(arrPropsUnits, arrAuthorsUnits, arrWitnessesUnits, arrKnownUnits);
 	console.log('will shrink cache, total units: '+arrUnits.length);
 	readLastStableMcIndex(db, function(last_stable_mci){
 		var CHUNK_SIZE = 500; // there is a limit on the number of query params
@@ -1102,6 +1135,7 @@ function shrinkCache(){
 				function(rows){
 					console.log('will remove '+rows.length+' units from cache');
 					rows.forEach(function(row){
+						delete assocKnownUnits[row.unit];
 						delete assocCachedUnits[row.unit];
 						delete assocCachedUnitAuthors[row.unit];
 						delete assocCachedUnitWitnesses[row.unit];
@@ -1151,4 +1185,7 @@ exports.determineBestParent = determineBestParent;
 
 exports.readStaticUnitProps = readStaticUnitProps;
 exports.readUnitAuthors = readUnitAuthors;
+
+exports.isKnownUnit = isKnownUnit;
+exports.setUnitIsKnown = setUnitIsKnown;
 

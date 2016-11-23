@@ -712,6 +712,8 @@ function composeJoint(params){
 }
 
 function readSortedFundedAddresses(asset, arrAvailableAddresses, handleFundedAddresses){
+	if (arrAvailableAddresses.length === 0)
+		return handleFundedAddresses([]);
 	// best funded addresses come first
 	db.query(
 		"SELECT address, SUM(amount) AS total \n\

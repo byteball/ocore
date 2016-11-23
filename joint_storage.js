@@ -12,9 +12,13 @@ var profiler = require('./profiler.js');
 
 
 function checkIfNewUnit(unit, callbacks) {
+	if (storage.isKnownUnit(unit))
+		return callbacks.ifKnown();
 	db.query("SELECT 1 FROM units WHERE unit=?", [unit], function(rows){
-		if (rows.length > 0)
+		if (rows.length > 0){
+			storage.setUnitIsKnown(unit);
 			return callbacks.ifKnown();
+		}
 		db.query("SELECT 1 FROM unhandled_joints WHERE unit=?", [unit], function(unhandled_rows){
 			if (unhandled_rows.length > 0)
 				return callbacks.ifKnownUnverified();

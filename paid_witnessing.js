@@ -189,9 +189,11 @@ function buildPaidWitnesses(conn, objUnitProps, arrWitnesses, onDone){
 			//throw "no witnesses before mc "+to_main_chain_index+" for unit "+objUnitProps.unit;
 		profiler.start();
 		conn.query( // we don't care if the unit is majority witnessed by the unit-designated witnesses
+			// _left_ join forces use of indexes in units
+			// can't get rid of filtering by address because units can be co-authored by witness with somebody else
 			"SELECT address, MIN(main_chain_index-?) AS delay \n\
-			FROM unit_authors \n\
-			JOIN units USING(unit) \n\
+			FROM units \n\
+			LEFT JOIN unit_authors USING(unit) \n\
 			WHERE unit IN(?) AND address IN(?) AND sequence='good' \n\
 			GROUP BY address",
 			[objUnitProps.main_chain_index, arrUnits, arrWitnesses],
