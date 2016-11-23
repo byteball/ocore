@@ -734,10 +734,10 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 	
 	
 	function findConflictingUnits(handleConflictingUnits){
-		conn.query(
+		conn.query( // _left_ join forces use of indexes in units
 			"SELECT unit, is_stable \n\
-			FROM unit_authors \n\
-			JOIN units USING(unit) \n\
+			FROM units \n\
+			LEFT JOIN unit_authors USING(unit) \n\
 			WHERE address=? AND (main_chain_index>? OR main_chain_index IS NULL) AND unit != ?",
 			[objAuthor.address, objValidationState.max_parent_limci, objUnit.unit],
 			function(rows){
