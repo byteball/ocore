@@ -621,3 +621,5 @@ CREATE TABLE watched_light_addresses (
 
 
 ALTER TABLE `units` ADD INDEX `bySequence` (`sequence`);
+
+DROP TABLE IF EXISTS paid_witness_events;

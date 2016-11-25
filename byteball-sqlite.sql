@@ -640,3 +640,5 @@ CREATE TABLE watched_light_addresses (
 CREATE INDEX wlabyAddress ON watched_light_addresses(address);
 
 CREATE INDEX "bySequence" ON "units" ("sequence");
+
+DROP TABLE IF EXISTS paid_witness_events;

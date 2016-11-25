@@ -115,43 +115,51 @@ function buildPaidWitnessesForMainChainIndex(conn, main_chain_index, cb){
 			profiler.start();
 			// we read witnesses from MC unit (users can cheat with side-chains to flip the witness list and pay commissions to their own witnesses)
 			readMcUnitWitnesses(conn, main_chain_index, function(arrWitnesses){
-				conn.query("SELECT * FROM units WHERE main_chain_index=?", [main_chain_index], function(rows){
-					profiler.stop('mc-wc-select-units');
-					et=0; rt=0;
-					async.eachSeries(
-						rows, 
-						function(row, cb2){
-							// the unit itself might be never majority witnessed by unit-designated witnesses (which might be far off), 
-							// but its payload commission still belongs to and is spendable by the MC-unit-designated witnesses.
-							//if (row.is_stable !== 1)
-							//    throw "unit "+row.unit+" is not on stable MC yet";
-							buildPaidWitnesses(conn, row, arrWitnesses, cb2);
-						},
-						function(err){
-							console.log(rt, et);
-							if (err) // impossible
-								throw Error(err);
-							//var t=Date.now();
-							profiler.start();
-							conn.query(
-								"INSERT INTO witnessing_outputs (main_chain_index, address, amount) \n\
-								SELECT main_chain_index, address, \n\
-									SUM(CASE WHEN sequence='good' THEN ROUND(1.0*payload_commission/count_paid_witnesses) ELSE 0 END) \n\
-								FROM balls \n\
-								JOIN units USING(unit) \n\
-								JOIN paid_witness_events USING(unit) \n\
-								WHERE main_chain_index=? \n\
-								GROUP BY address",
-								[main_chain_index],
-								function(){
-									//console.log(Date.now()-t);
-									profiler.stop('mc-wc-aggregate-events');
-									cb();
+				conn.query("CREATE TEMPORARY TABLE paid_witness_events ( \n\
+					unit CHAR(44) NOT NULL, \n\
+					address CHAR(32) NOT NULL, \n\
+					delay TINYINT NULL)", function(){
+						conn.query("SELECT * FROM units WHERE main_chain_index=?", [main_chain_index], function(rows){
+							profiler.stop('mc-wc-select-units');
+							et=0; rt=0;
+							async.eachSeries(
+								rows, 
+								function(row, cb2){
+									// the unit itself might be never majority witnessed by unit-designated witnesses (which might be far off), 
+									// but its payload commission still belongs to and is spendable by the MC-unit-designated witnesses.
+									//if (row.is_stable !== 1)
+									//    throw "unit "+row.unit+" is not on stable MC yet";
+									buildPaidWitnesses(conn, row, arrWitnesses, cb2);
+								},
+								function(err){
+									console.log(rt, et);
+									if (err) // impossible
+										throw Error(err);
+									//var t=Date.now();
+									profiler.start();
+									conn.query(
+										"INSERT INTO witnessing_outputs (main_chain_index, address, amount) \n\
+										SELECT main_chain_index, address, \n\
+											SUM(CASE WHEN sequence='good' THEN ROUND(1.0*payload_commission/count_paid_witnesses) ELSE 0 END) \n\
+										FROM balls \n\
+										JOIN units USING(unit) \n\
+										JOIN paid_witness_events USING(unit) \n\
+										WHERE main_chain_index=? \n\
+										GROUP BY address",
+										[main_chain_index],
+										function(){
+											//console.log(Date.now()-t);
+											conn.query(db.dropTemporaryTable("paid_witness_events"), function(){
+												profiler.stop('mc-wc-aggregate-events');
+												cb();
+											});
+										}
+									);
 								}
 							);
-						}
-					);
-				});
+						});
+					}
+				);
 			});
 		}
 	);

@@ -242,6 +242,10 @@ module.exports = function(db_name, MAX_CONNECTIONS){
 		return "INDEXED BY " + index;
 	}
 
+	function dropTemporaryTable(table) {
+		return "DROP TABLE IF EXISTS " + table;
+	}
+
 	// note that IGNORE behaves differently from mysql.  In particular, if you insert and forget to specify a NOT NULL colum without DEFAULT value, 
 	// sqlite will ignore while mysql will throw an error
 	function getIgnore(){
@@ -272,6 +276,7 @@ module.exports = function(db_name, MAX_CONNECTIONS){
 	pool.getRandom = getRandom;
 	pool.getIgnore = getIgnore;
 	pool.forceIndex = forceIndex;
+	pool.dropTemporaryTable = dropTemporaryTable;
 	
 	return pool;
 };
