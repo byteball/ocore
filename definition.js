@@ -226,7 +226,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 					},
 					ifDefinitionNotFound: function(definition_chash){
 						if (objValidationState.bAllowUnresolvedInnerDefinitions)
-							return cb();
+							return cb(null, true);
 						var arrDefiningAuthors = objUnit.authors.filter(function(author){
 							return (author.address === other_address && objectHash.getChash160(author.definition) === definition_chash);
 						});
