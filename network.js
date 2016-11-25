@@ -42,6 +42,8 @@ var assocReroutedConnectionsByTag = {};
 var arrWatchedAddresses = []; // does not include my addresses, therefore always empty
 var last_hearbeat_wake_ts = Date.now();
 var inc = 0;
+var peer_events_buffer = [];
+var peer_events_buffer_length = 0;
 
 if (process.browser){ // browser
 	console.log("defining .on() on ws");
@@ -1178,11 +1180,29 @@ function notifyLocalWatchedAddressesAboutStableJoints(mci){
 
 
 function writeEvent(event, host){
-	db.query("INSERT INTO peer_events (peer_host, event) VALUES (?,?)", [host, event]);
-	if (event === 'new_good' || event === 'invalid' || event === 'nonserial'){
-		var column = "count_"+event+"_joints";
-		db.query("UPDATE peer_hosts SET "+column+"="+column+"+1 WHERE peer_host=?", [host]);
+	peer_events_buffer_length++;
+	var event_date = Math.floor(Date.now() / 1000);
+	peer_events_buffer.push([host, event, event_date]);
+	if (peer_events_buffer_length != 100) {
+		return;
 	}
+
+	var query_params = [];
+	peer_events_buffer.forEach(function(event_row){
+		var host = event_row[0];
+		var event = event_row[1];
+		var event_date = event_row[2];
+		if (event === 'new_good' || event === 'invalid' || event === 'nonserial'){
+			var column = "count_"+event+"_joints";
+			db.query("UPDATE peer_hosts SET "+column+"="+column+"+1 WHERE peer_host=?", [host]);
+		}
+
+		query_params.push("(" + db.escape(host) +"," + db.escape(event) + "," + db.getFromUnixTime(event_date) + ")");
+	});
+
+	db.query("INSERT INTO peer_events (peer_host, event, event_date) VALUES "+ query_params.join());
+	peer_events_buffer = [];
+	peer_events_buffer_length = 0;
 }
 
 function findAndHandleJointsThatAreReady(unit){
