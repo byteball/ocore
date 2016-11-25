@@ -12,6 +12,7 @@ var headers_commission = require("./headers_commission.js");
 var mutex = require('./mutex.js');
 var eventBus = require('./event_bus.js');
 var profiler = require('./profiler.js');
+var breadcrumbs = require('./breadcrumbs.js');
 
 
 
@@ -656,11 +657,13 @@ function determineIfStableInLaterUnitsAndUpdateStableMcFlag(conn, earlier_unit, 
 		console.log("determineIfStableInLaterUnits", earlier_unit, arrLaterUnits, bStable);
 		if (!bStable)
 			return handleResult(bStable);
+		breadcrumbs.add('stable in parents, will wait for write lock');
 		mutex.lock(["write"], function(unlock){
+			breadcrumbs.add('stable in parents, got write lock');
 			storage.readLastStableMcIndex(conn, function(last_stable_mci){
 				storage.readUnitProps(conn, earlier_unit, function(objEarlierUnitProps){
 					var new_last_stable_mci = objEarlierUnitProps.main_chain_index;
-					if (new_last_stable_mci <= last_stable_mci) // fix: it could've been changed by parallel tasks
+					if (new_last_stable_mci <= last_stable_mci) // fix: it could've been changed by parallel tasks - No, our SQL transaction doesn't see the changes
 						throw "new last stable mci expected to be higher than existing";
 					var mci = last_stable_mci;
 					advanceLastStableMcUnitAndStepForward();
