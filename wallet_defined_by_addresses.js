@@ -296,7 +296,7 @@ function validateAddressDefinitionTemplate(arrDefinitionTemplate, from_address, 
 // 3. handle references to addresses whose definitions are not yet written onto the main chain
 function validateAddressDefinition(arrDefinition, handleResult){
 	var objFakeUnit = {authors: []};
-	var objFakeValidationState = {last_ball_mci: MAX_INT32};
+	var objFakeValidationState = {last_ball_mci: MAX_INT32, bAllowUnresolvedInnerDefinitions: true};
 	Definition.validateDefinition(db, arrDefinition, objFakeUnit, objFakeValidationState, false, function(err){
 		if (err)
 			return handleResult(err);
