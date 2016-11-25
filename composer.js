@@ -93,11 +93,12 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
    
 	// first, try to find a coin just bigger than the required amount
 	function pickOneCoinJustBiggerAndContinue(){
+		var more = is_base ? '>' : '>=';
 		conn.query(
 			"SELECT unit, message_index, output_index, amount, blinding, address \n\
 			FROM outputs \n\
 			JOIN units USING(unit) \n\
-			WHERE address IN(?) AND asset"+(asset ? "="+conn.escape(asset) : " IS NULL")+" AND is_spent=0 AND amount>? \n\
+			WHERE address IN(?) AND asset"+(asset ? "="+conn.escape(asset) : " IS NULL")+" AND is_spent=0 AND amount "+more+" ? \n\
 				AND is_stable=1 AND sequence='good' AND main_chain_index<=?  \n\
 			ORDER BY amount LIMIT 1", 
 			[arrSpendableAddresses, amount+is_base*TRANSFER_INPUT_SIZE, last_ball_mci],
@@ -133,7 +134,8 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 						required_amount += is_base*TRANSFER_INPUT_SIZE;
 						addInput(input);
 						// if we allow equality, we might get 0 amount for change which is invalid
-						(total_amount > required_amount) ? cb('found') : cb();
+						var bFound = is_base ? (total_amount > required_amount) : (total_amount >= required_amount);
+						bFound ? cb('found') : cb();
 					},
 					function(err){
 						if (err === 'found')
