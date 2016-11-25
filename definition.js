@@ -67,7 +67,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 	function determineIfAnyOfAssetsIsPrivate(arrAssets, cb){
 		if (arrAssets.length === 0)
 			return cb(false);
-		conn.query("SELECT 1 FROM assets WHERE unit IN(?) && is_private=1 LIMIT 1", [arrAssets], function(rows){
+		conn.query("SELECT 1 FROM assets WHERE unit IN(?) AND is_private=1 LIMIT 1", [arrAssets], function(rows){
 			cb(rows.length > 0);
 		});
 	}
@@ -257,7 +257,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 						return cb("each param must be string or number");
 				conn.query(
 					"SELECT payload FROM messages JOIN units USING(unit) \n\
-					WHERE unit=? && app='definition_template' && main_chain_index<=? && sequence='good' && is_stable=1", 
+					WHERE unit=? AND app='definition_template' AND main_chain_index<=? AND sequence='good' AND is_stable=1", 
 					[unit, objValidationState.last_ball_mci], 
 					function(rows){
 						if (rows.length !== 1)
@@ -611,7 +611,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				var params = args[1];
 				conn.query(
 					"SELECT payload FROM messages JOIN units USING(unit) \n\
-					WHERE unit=? && app='definition_template' && main_chain_index<=? && sequence='good' && is_stable=1", 
+					WHERE unit=? AND app='definition_template' AND main_chain_index<=? AND sequence='good' AND is_stable=1", 
 					[unit, objValidationState.last_ball_mci], 
 					function(rows){
 						if (rows.length !== 1)
@@ -629,7 +629,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				var seen_address = args;
 				conn.query(
 					"SELECT 1 FROM unit_authors JOIN units USING(unit) \n\
-					WHERE address=? && main_chain_index<=? && sequence='good' && is_stable=1 \n\
+					WHERE address=? AND main_chain_index<=? AND sequence='good' AND is_stable=1 \n\
 					LIMIT 1",
 					[seen_address, objValidationState.last_ball_mci],
 					function(rows){
@@ -662,8 +662,8 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				var value = args[3];
 				conn.query(
 					"SELECT 1 FROM data_feeds JOIN units USING(unit) JOIN unit_authors USING(unit) \n\
-					WHERE address IN(?) && feed_name=? && "+(typeof value === "string" ? "`value`" : "int_value")+relation+"? \n\
-						&& main_chain_index<=? && sequence='good' && is_stable=1 LIMIT 1",
+					WHERE address IN(?) AND feed_name=? AND "+(typeof value === "string" ? "`value`" : "int_value")+relation+"? \n\
+						AND main_chain_index<=? AND sequence='good' AND is_stable=1 LIMIT 1",
 					[arrAddresses, feed_name, value, objValidationState.last_ball_mci],
 					function(rows){
 						console.log(op+" "+rows.length);
@@ -688,7 +688,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				}
 				conn.query(
 					"SELECT 1 FROM data_feeds JOIN units USING(unit) JOIN unit_authors USING(unit) \n\
-					WHERE address IN(?) && name=? && value=? && main_chain_index<=? && sequence='good' && is_stable=1 LIMIT 1",
+					WHERE address IN(?) AND name=? AND value=? AND main_chain_index<=? AND sequence='good' AND is_stable=1 LIMIT 1",
 					[arrAddresses, feed_name, proof.root, objValidationState.last_ball_mci],
 					function(rows){
 						if (rows.length === 0)
@@ -863,7 +863,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 						else if (!input.type){
 							input.type = "transfer";
 							conn.query(
-								"SELECT amount, address FROM outputs WHERE unit=? && message_index=? && output_index=?", 
+								"SELECT amount, address FROM outputs WHERE unit=? AND message_index=? AND output_index=?", 
 								[input.unit, input.message_index, input.output_index],
 								function(rows){
 									if (rows.length === 1){
