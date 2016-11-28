@@ -8,6 +8,7 @@ var db = require('./db.js');
 var mutex = require('./mutex.js');
 var validation = require('./validation.js');
 var witnessProof = require('./witness_proof.js');
+var profiler = require('./profiler.js');
 
 
 
@@ -272,6 +273,7 @@ function readHashTree(hashTreeRequest, callbacks){
 function processHashTree(arrBalls, callbacks){
 	if (!Array.isArray(arrBalls))
 		return callbacks.ifError("no balls array");
+	profiler.mark_start('processHashTree');
 	mutex.lock(["hash_tree"], function(unlock){
 		
 		db.query("SELECT 1 FROM hash_tree_balls LIMIT 1", function(ht_rows){
