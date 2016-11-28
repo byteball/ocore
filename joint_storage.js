@@ -7,7 +7,6 @@ var db = require('./db.js');
 var constants = require("./constants.js");
 var objectHash = require("./object_hash.js");
 var mutex = require('./mutex.js');
-var profiler = require('./profiler.js');
 
 
 
@@ -44,8 +43,6 @@ function checkIfNewJoint(objJoint, callbacks) {
 
 
 function removeUnhandledJointAndDependencies(unit, onDone){
-	var id = inc++;
-	profiler.mark_start("removeUnhandledJointAndDependencies", id);
 	db.takeConnectionFromPool(function(conn){
 		var arrQueries = [];
 		conn.addQuery(arrQueries, "BEGIN");
@@ -55,16 +52,12 @@ function removeUnhandledJointAndDependencies(unit, onDone){
 		async.series(arrQueries, function(){
 			conn.release();
 			if (onDone)
-				onDone(); 
-			profiler.mark_end("removeUnhandledJointAndDependencies", id);
+				onDone();
 		});
 	});
 }
 
-var inc = 0;
 function saveUnhandledJointAndDependencies(objJoint, arrMissingParentUnits, peer, onDone){
-	var id = inc++;
-	profiler.mark_start("saveUnhandledJointAndDependencies", id);
 	db.takeConnectionFromPool(function(conn){
 		var unit = objJoint.unit.unit;
 		var sql = "INSERT "+conn.getIgnore()+" INTO dependencies (unit, depends_on_unit) VALUES " + arrMissingParentUnits.map(function(missing_unit){
@@ -76,7 +69,6 @@ function saveUnhandledJointAndDependencies(objJoint, arrMissingParentUnits, peer
 		conn.addQuery(arrQueries, sql);
 		conn.addQuery(arrQueries, "COMMIT");
 		async.series(arrQueries, function(){
-			profiler.mark_end("saveUnhandledJointAndDependencies", id);
 			conn.release();
 			if (onDone)
 				onDone(); 
@@ -92,8 +84,6 @@ function readDependentJointsThatAreReady(unit, handleDependentJoint){
 	var from = unit ? "FROM dependencies AS src_deps JOIN dependencies USING(unit)" : "FROM dependencies";
 	var where = unit ? "WHERE src_deps.depends_on_unit="+db.escape(unit) : "";
 	mutex.lock(["dependencies"], function(unlock){
-		var id = inc++;
-		profiler.mark_start("readDependentJointsThatAreReady", id);
 		db.query(
 			"SELECT dependencies.unit, unhandled_joints.unit AS unit_for_json, unhandled_joints.peer, "+db.getUnixTimestamp("unhandled_joints.creation_date")+" AS creation_ts, \n\
 				SUM(CASE WHEN units.unit IS NULL THEN 1 ELSE 0 END) AS count_missing_parents \n\
@@ -114,7 +104,6 @@ function readDependentJointsThatAreReady(unit, handleDependentJoint){
 						});
 					});
 				});
-				profiler.mark_end("readDependentJointsThatAreReady", id);
 				unlock();
 			}
 		);
@@ -123,8 +112,6 @@ function readDependentJointsThatAreReady(unit, handleDependentJoint){
 
 function findLostJoints(handleLostJoints){
 	//console.log("findLostJoints");
-	var id = inc++;
-	profiler.mark_start("findLostJoints", id);
 	db.query(
 		"SELECT DISTINCT depends_on_unit \n\
 		FROM dependencies \n\
@@ -133,7 +120,6 @@ function findLostJoints(handleLostJoints){
 		WHERE unhandled_joints.unit IS NULL AND units.unit IS NULL AND dependencies.creation_date < " + db.addTime("-8 SECOND"), 
 		function(rows){
 			//console.log(rows.length+" lost joints");
-			profiler.mark_end("findLostJoints", id);
 			if (rows.length === 0)
 				return;
 			handleLostJoints(rows.map(function(row){ return row.depends_on_unit; })); 
@@ -143,8 +129,6 @@ function findLostJoints(handleLostJoints){
 
 // onPurgedDependentJoint called for each purged dependent unit
 function purgeJointAndDependencies(objJoint, error, onPurgedDependentJoint, onDone){
-	var id = inc++;
-	profiler.mark_start("purgeJointAndDependencies", id);
 	db.takeConnectionFromPool(function(conn){
 		var unit = objJoint.unit.unit;
 		var arrQueries = [];
@@ -157,8 +141,7 @@ function purgeJointAndDependencies(objJoint, error, onPurgedDependentJoint, onDo
 			async.series(arrQueries, function(){
 				conn.release();
 				if (onDone)
-					onDone(); 
-				profiler.mark_end("purgeJointAndDependencies", id);
+					onDone();
 			})
 		});
 	});
@@ -166,8 +149,6 @@ function purgeJointAndDependencies(objJoint, error, onPurgedDependentJoint, onDo
 
 // onPurgedDependentJoint called for each purged dependent unit
 function purgeDependencies(unit, error, onPurgedDependentJoint, onDone){
-	var id = inc++;
-	profiler.mark_start("purgeDependencies", id);
 	db.takeConnectionFromPool(function(conn){
 		var arrQueries = [];
 		conn.addQuery(arrQueries, "BEGIN");
@@ -176,8 +157,7 @@ function purgeDependencies(unit, error, onPurgedDependentJoint, onDone){
 			async.series(arrQueries, function(){
 				conn.release();
 				if (onDone)
-					onDone(); 
-				profiler.mark_end("purgeDependencies", id);
+					onDone();
 			})
 		});
 	});
@@ -185,11 +165,7 @@ function purgeDependencies(unit, error, onPurgedDependentJoint, onDone){
 
 // onPurgedDependentJoint called for each purged dependent unit
 function collectQueriesToPurgeDependentJoints(conn, arrQueries, unit, onPurgedDependentJoint, onDone){
-	var id = inc++;
-	profiler.mark_start("collectQueriesToPurgeDependentJoints", id);
 	conn.query("SELECT unit, peer FROM dependencies JOIN unhandled_joints USING(unit) WHERE depends_on_unit=?", [unit], function(rows){
-		var oldOnDone = onDone;
-		onDone = function(){profiler.mark_end("collectQueriesToPurgeDependentJoints", id); oldOnDone();};
 		if (rows.length === 0)
 			return onDone();
 		//conn.addQuery(arrQueries, "DELETE FROM dependencies WHERE depends_on_unit=?", [unit]);
@@ -212,10 +188,6 @@ function collectQueriesToPurgeDependentJoints(conn, arrQueries, unit, onPurgedDe
 
 function purgeUncoveredNonserialJointsUnderLock(){
 	mutex.lock(["purge_uncovered"], function(unlock){
-		var id = inc++;
-		profiler.mark_start("purgeUncoveredNonserialJointsUnderLock", id);
-		var oldUnlock = unlock;
-		unlock = function(){profiler.mark_end("purgeUncoveredNonserialJointsUnderLock", id); oldUnlock();};
 		purgeUncoveredNonserialJoints(false, unlock);
 	});
 }
@@ -223,7 +195,6 @@ function purgeUncoveredNonserialJointsUnderLock(){
 function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 	var cond = bByExistenceOfChildren ? "(SELECT 1 FROM parenthoods WHERE parent_unit=unit LIMIT 1) IS NULL" : "is_free=1";
 	// the purged units can arrive again, no problem
-	profiler.mark_start("purgeUncoveredNonserialJointsUnderLock - query");
 	db.query( // purge the bad ball if we've already received at least 7 witnesses after receiving the bad ball
 		"SELECT unit FROM units \n\
 		WHERE "+cond+" AND sequence!='good' AND content_hash IS NULL \n\
@@ -236,7 +207,6 @@ function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 		// some unhandled joints may depend on the unit to be archived but it is not in dependencies because it was known when its child was received
 		[constants.MAJORITY_OF_WITNESSES],
 		function(rows){
-			profiler.mark_end("purgeUncoveredNonserialJointsUnderLock - query");
 			async.eachSeries(
 				rows,
 				function(row, cb){
@@ -275,10 +245,6 @@ function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 
 // handleJoint is called for every joint younger than mci
 function readJointsSinceMci(mci, handleJoint, onDone){
-	var id = inc++;
-	profiler.mark_start("readJointsSinceMci", id);
-	var oldOnDone = onDone;
-	onDone = function(){profiler.mark_end("readJointsSinceMci", id); oldOnDone();};
 	db.query(
 		"SELECT unit FROM units WHERE is_stable=0 AND main_chain_index>=? OR main_chain_index IS NULL OR is_free=1 ORDER BY +level", 
 		[mci], 
