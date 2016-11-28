@@ -23,6 +23,7 @@ var eventBus = require('./event_bus.js');
 var light = require('./light.js');
 var breadcrumbs = require('./breadcrumbs.js');
 var mail = process.browser ? null : require('./mail.js'+'');
+var profiler = require('./profiler.js');
 
 var FORWARDING_TIMEOUT = 10*1000; // don't forward if the joint was received more than FORWARDING_TIMEOUT ms ago
 var STALLED_TIMEOUT = 5000; // a request is treated as stalled if no response received within STALLED_TIMEOUT ms
@@ -40,6 +41,9 @@ var coming_online_time = Date.now();
 var assocReroutedConnectionsByTag = {};
 var arrWatchedAddresses = []; // does not include my addresses, therefore always empty
 var last_hearbeat_wake_ts = Date.now();
+var inc = 0;
+var peer_events_buffer = [];
+var peer_events_buffer_length = 0;
 
 if (process.browser){ // browser
 	console.log("defining .on() on ws");
@@ -624,10 +628,16 @@ function rerequestLostJoints(){
 }
 
 function requestNewMissingJoints(ws, arrUnits){
+	var id = inc++;
+	profiler.mark_start("requestNewMissingJoints", id);
 	var arrNewUnits = [];
 	async.eachSeries(
 		arrUnits,
 		function(unit, cb){
+			var id = inc++;
+			profiler.mark_start("requestNewMissingJoints - single", id);
+			var oldCb = cb;
+			cb = function(){profiler.mark_end("requestNewMissingJoints - single", id);oldCb();}
 			if (assocUnitsInWork[unit])
 				return cb();
 			if (havePendingJointRequest(unit)){
@@ -644,6 +654,7 @@ function requestNewMissingJoints(ws, arrUnits){
 			});
 		},
 		function(){
+			profiler.mark_end("requestNewMissingJoints", id);
 			//console.log(arrNewUnits.length+" of "+arrUnits.length+" left", assocUnitsInWork);
 			// filter again as something could have changed each time we were paused in checkIfNewUnit
 			arrNewUnits = arrNewUnits.filter(function(unit){ return (!assocUnitsInWork[unit] && !havePendingJointRequest(unit)); });
@@ -905,9 +916,12 @@ function handlePostedJoint(ws, objJoint, onDone){
 }
 
 function handleOnlineJoint(ws, objJoint, onDone){
-	
+	var id = ++inc;
+	profiler.mark_start("handleOnlineJoint", id);
 	if (!onDone)
 		onDone = function(){};
+	var oldOnDone = onDone;
+	onDone = function(){profiler.mark_end("handleOnlineJoint", id);oldOnDone();}
 	var unit = objJoint.unit.unit;
 	delete objJoint.unit.main_chain_index;
 	
@@ -1166,11 +1180,29 @@ function notifyLocalWatchedAddressesAboutStableJoints(mci){
 
 
 function writeEvent(event, host){
-	db.query("INSERT INTO peer_events (peer_host, event) VALUES (?,?)", [host, event]);
-	if (event === 'new_good' || event === 'invalid' || event === 'nonserial'){
-		var column = "count_"+event+"_joints";
-		db.query("UPDATE peer_hosts SET "+column+"="+column+"+1 WHERE peer_host=?", [host]);
+	peer_events_buffer_length++;
+	var event_date = Math.floor(Date.now() / 1000);
+	peer_events_buffer.push([host, event, event_date]);
+	if (peer_events_buffer_length != 100) {
+		return;
 	}
+
+	var query_params = [];
+	peer_events_buffer.forEach(function(event_row){
+		var host = event_row[0];
+		var event = event_row[1];
+		var event_date = event_row[2];
+		if (event === 'new_good' || event === 'invalid' || event === 'nonserial'){
+			var column = "count_"+event+"_joints";
+			db.query("UPDATE peer_hosts SET "+column+"="+column+"+1 WHERE peer_host=?", [host]);
+		}
+
+		query_params.push("(" + db.escape(host) +"," + db.escape(event) + "," + db.getFromUnixTime(event_date) + ")");
+	});
+
+	db.query("INSERT INTO peer_events (peer_host, event, event_date) VALUES "+ query_params.join());
+	peer_events_buffer = [];
+	peer_events_buffer_length = 0;
 }
 
 function findAndHandleJointsThatAreReady(unit){
@@ -1340,6 +1372,7 @@ function waitTillHashTreeFullyProcessedAndRequestNext(ws){
 	setTimeout(function(){
 		db.query("SELECT 1 FROM hash_tree_balls LEFT JOIN units USING(unit) WHERE units.unit IS NULL LIMIT 1", function(rows){
 			if (rows.length === 0){
+				profiler.mark_end('processHashTree');
 				findNextPeer(ws, function(next_ws){
 					requestNextHashTree(next_ws);
 				});

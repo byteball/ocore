@@ -52,6 +52,9 @@ Whether to serve as hub on the Byteball network (store and forward e2e-encrypted
 
 If your node accepts incoming connections, this is its URL.  The node will share this URL with all its outgoing peers so that they can reconnect in any direction in the future.  By default the node doesn't share its URL even if it accepts connections.
 
+#### MySQL conf for faster syncing
+
+To lower disk load and increase sync speed, you can optionally disable flushing to disk every transaction, instead doing it once a second. This can be done by setting `innodb_flush_log_at_trx_commit=0` in your MySQL server config file (my.ini)
 
 ## Accepting incoming connections
 
