@@ -8,7 +8,6 @@ module.exports = function(connection_or_pool){
 	var safe_connection = connection_or_pool;
 	safe_connection.original_query = safe_connection.query;
 	safe_connection.original_release = safe_connection.release;
-	var id = 0;
 	
 	// this is a hack to make all errors throw exception that would kill the program
 	safe_connection.query = function () {

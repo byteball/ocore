@@ -40,7 +40,6 @@ var coming_online_time = Date.now();
 var assocReroutedConnectionsByTag = {};
 var arrWatchedAddresses = []; // does not include my addresses, therefore always empty
 var last_hearbeat_wake_ts = Date.now();
-var inc = 0;
 var peer_events_buffer = [];
 var peer_events_buffer_length = 0;
 
