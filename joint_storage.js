@@ -280,7 +280,7 @@ function readJointsSinceMci(mci, handleJoint, onDone){
 	var oldOnDone = onDone;
 	onDone = function(){profiler.mark_end("readJointsSinceMci", id); oldOnDone();};
 	db.query(
-		"SELECT unit FROM units WHERE is_stable=0 AND main_chain_index>=? OR main_chain_index IS NULL OR is_free=1 ORDER BY level", 
+		"SELECT unit FROM units WHERE is_stable=0 AND main_chain_index>=? OR main_chain_index IS NULL OR is_free=1 ORDER BY +level", 
 		[mci], 
 		function(rows){
 			async.eachSeries(
