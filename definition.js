@@ -216,6 +216,8 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 					return cb("no references allowed in address definition");
 				if (bInNegation)
 					return cb(op+" cannot be negated");
+				if (bAssetCondition)
+					return cb("asset condition cannot have "+op);
 				var other_address = args;
 				if (!isValidAddress(other_address))
 					return cb("invalid address");
@@ -225,13 +227,14 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 						evaluate(arrInnerAddressDefinition, bInNegation, cb);
 					},
 					ifDefinitionNotFound: function(definition_chash){
-						if (objValidationState.bAllowUnresolvedInnerDefinitions)
-							return cb(null, true);
+					//	if (objValidationState.bAllowUnresolvedInnerDefinitions)
+					//		return cb(null, true);
+						var bAllowUnresolvedInnerDefinitions = !(constants.version === '1.0t' && constants.alt === '1');
 						var arrDefiningAuthors = objUnit.authors.filter(function(author){
 							return (author.address === other_address && objectHash.getChash160(author.definition) === definition_chash);
 						});
 						if (arrDefiningAuthors.length === 0) // no address definition in the current unit
-							return cb("definition of inner address "+other_address+" not found");
+							return bAllowUnresolvedInnerDefinitions ? cb(null, true) : cb("definition of inner address "+other_address+" not found");
 						if (arrDefiningAuthors.length > 1)
 							throw "more than 1 address definition";
 						var arrInnerAddressDefinition = arrDefiningAuthors[0].definition;
@@ -883,6 +886,18 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 			},
 			onDone
 		);
+	}
+	
+	function pathIncludesOneOfAuthentifiers(path){
+		if (bAssetCondition)
+			throw Error('pathIncludesOneOfAuthentifiers called in asset condition');
+		var arrAuthentifierPaths = Object.keys(assocAuthentifiers);
+		for (var i=0; i<arrAuthentifierPaths.length; i++){
+			var authentifier_path = arrAuthentifierPaths[i];
+			if (authentifier_path.substr(0, path.length) === path)
+				return true;
+		}
+		return false;
 	}
 	
 	var bAssetCondition = (assocAuthentifiers === null);
