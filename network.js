@@ -1165,7 +1165,7 @@ function notifyLocalWatchedAddressesAboutStableJoints(mci){
 }
 
 function flushEvents(forceFlushing) {
-	if (!forceFlushing && peer_events_buffer.length != 100) {
+	if (peer_events_buffer.length == 0 || (!forceFlushing && peer_events_buffer.length != 100)) {
 		return;
 	}
 
