@@ -115,7 +115,7 @@ function buildPaidWitnessesForMainChainIndex(conn, main_chain_index, cb){
 			profiler.start();
 			// we read witnesses from MC unit (users can cheat with side-chains to flip the witness list and pay commissions to their own witnesses)
 			readMcUnitWitnesses(conn, main_chain_index, function(arrWitnesses){
-				conn.query("CREATE TEMPORARY TABLE paid_witness_events ( \n\
+				conn.query("CREATE TEMPORARY TABLE paid_witness_events_tmp ( \n\
 					unit CHAR(44) NOT NULL, \n\
 					address CHAR(32) NOT NULL, \n\
 					delay TINYINT NULL)", function(){
@@ -143,13 +143,13 @@ function buildPaidWitnessesForMainChainIndex(conn, main_chain_index, cb){
 											SUM(CASE WHEN sequence='good' THEN ROUND(1.0*payload_commission/count_paid_witnesses) ELSE 0 END) \n\
 										FROM balls \n\
 										JOIN units USING(unit) \n\
-										JOIN paid_witness_events USING(unit) \n\
+										JOIN paid_witness_events_tmp USING(unit) \n\
 										WHERE main_chain_index=? \n\
 										GROUP BY address",
 										[main_chain_index],
 										function(){
 											//console.log(Date.now()-t);
-											conn.query(db.dropTemporaryTable("paid_witness_events"), function(){
+											conn.query(conn.dropTemporaryTable("paid_witness_events_tmp"), function(){
 												profiler.stop('mc-wc-aggregate-events');
 												cb();
 											});
@@ -217,7 +217,7 @@ function buildPaidWitnesses(conn, objUnitProps, arrWitnesses, onDone){
 					arrValues = rows.map(function(row){ return "("+conn.escape(unit)+", "+conn.escape(row.address)+", "+row.delay+")"; });
 				profiler.stop('mc-wc-select-events');
 				profiler.start();
-				conn.query("INSERT INTO paid_witness_events (unit, address, delay) VALUES "+arrValues.join(", "), function(){
+				conn.query("INSERT INTO paid_witness_events_tmp (unit, address, delay) VALUES "+arrValues.join(", "), function(){
 					updateCountPaidWitnesses(count_paid_witnesses);
 				});
 			}

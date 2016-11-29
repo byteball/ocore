@@ -123,7 +123,9 @@ module.exports = function(db_name, MAX_CONNECTIONS){
 			getUnixTimestamp: getUnixTimestamp,
 			getFromUnixTime: getFromUnixTime,
 			getRandom: getRandom,
-			getIgnore: getIgnore
+			getIgnore: getIgnore,
+			forceIndex: forceIndex,
+			dropTemporaryTable: dropTemporaryTable
 			
 		};
 		arrConnections.push(connection);

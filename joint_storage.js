@@ -85,7 +85,7 @@ function readDependentJointsThatAreReady(unit, handleDependentJoint){
 	var where = unit ? "WHERE src_deps.depends_on_unit="+db.escape(unit) : "";
 	mutex.lock(["dependencies"], function(unlock){
 		db.query(
-			"SELECT dependencies.unit, unhandled_joints.unit AS unit_for_json, unhandled_joints.peer, "+db.getUnixTimestamp("unhandled_joints.creation_date")+" AS creation_ts, \n\
+			"SELECT dependencies.unit, unhandled_joints.unit AS unit_for_json, \n\
 				SUM(CASE WHEN units.unit IS NULL THEN 1 ELSE 0 END) AS count_missing_parents \n\
 			"+from+" \n\
 			JOIN unhandled_joints ON dependencies.unit=unhandled_joints.unit \n\
@@ -98,9 +98,9 @@ function readDependentJointsThatAreReady(unit, handleDependentJoint){
 				//console.log(rows.length+" joints are ready");
 				//console.log("deps: "+(Date.now()-t));
 				rows.forEach(function(row) {
-					db.query("SELECT json FROM unhandled_joints WHERE unit=" + db.escape(row.unit_for_json), function(internal_rows){
+					db.query("SELECT json, peer, "+db.getUnixTimestamp("creation_date")+" AS creation_ts FROM unhandled_joints WHERE unit=?", [row.unit_for_json], function(internal_rows){
 						internal_rows.forEach(function(internal_row) {
-							handleDependentJoint(JSON.parse(internal_row.json), parseInt(row.creation_ts), row.peer);
+							handleDependentJoint(JSON.parse(internal_row.json), parseInt(internal_row.creation_ts), internal_row.peer);
 						});
 					});
 				});
