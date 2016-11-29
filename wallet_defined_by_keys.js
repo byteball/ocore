@@ -738,8 +738,39 @@ function readFundedAddresses(asset, wallet, handleFundedAddresses){
 function sendPaymentFromWallet(
 		asset, wallet, to_address, amount, change_address, arrSigningDeviceAddresses, recipient_device_address, signWithLocalPrivateKey, handleResult)
 {
+	sendMultiPaymentFromWallet({
+		asset: asset,
+		wallet: wallet,
+		to_address: to_address,
+		amount: amount,
+		change_address: change_address,
+		arrSigningDeviceAddresses: arrSigningDeviceAddresses,
+		recipient_device_address: recipient_device_address,
+		signWithLocalPrivateKey: signWithLocalPrivateKey
+	}, handleResult);
+}
+
+function sendMultiPaymentFromWallet(opts, handleResult)
+{
+	var asset = opts.asset;
+	var wallet = opts.wallet;
+	var to_address = opts.to_address;
+	var amount = opts.amount;
+	var change_address = opts.change_address;
+	var arrSigningDeviceAddresses = opts.arrSigningDeviceAddresses;
+	var recipient_device_address = opts.recipient_device_address;
+	var signWithLocalPrivateKey = opts.signWithLocalPrivateKey;
+	
+	var base_outputs = opts.base_outputs;
+	var asset_outputs = opts.asset_outputs;
+	
 	if (!wallet)
 		throw Error("no wallet id");
+	if ((to_address || amount) && (base_outputs || asset_outputs))
+		throw Error('to_address and outputs at the same time');
+	if (!asset && asset_outputs)
+		throw Error('base asset and asset outputs');
+	
 	readFundedAddresses(asset, wallet, function(arrFromAddresses){
 		if (arrFromAddresses.length === 0)
 			return handleResult("There are no funded addresses in wallet "+wallet);
@@ -833,9 +864,15 @@ function sendPaymentFromWallet(
 		
 		if (asset && asset !== "base"){
 			params.asset = asset;
-			params.to_address = to_address;
+			if (to_address){
+				params.to_address = to_address;
+				params.amount = amount; // in asset units
+			}
+			else{
+				params.asset_outputs = asset_outputs;
+				params.base_outputs = base_outputs; // only destinations, without the change
+			}
 			params.change_address = change_address;
-			params.amount = amount; // in asset units
 			storage.readAsset(db, asset, null, function(err, objAsset){
 				if (err)
 					throw Error(err);
@@ -852,7 +889,8 @@ function sendPaymentFromWallet(
 			});
 		}
 		else{ // base asset
-			params.outputs = [{address: to_address, amount: amount}, {address: change_address, amount: 0}];
+			params.outputs = to_address ? [{address: to_address, amount: amount}] : base_outputs;
+			params.outputs.push({address: change_address, amount: 0});
 			composer.composeAndSaveMinimalJoint(params);
 		}
 	
@@ -1059,6 +1097,7 @@ exports.readChangeAddresses = readChangeAddresses;
 exports.readAddressInfo = readAddressInfo;
 
 exports.sendPaymentFromWallet = sendPaymentFromWallet;
+exports.sendMultiPaymentFromWallet = sendMultiPaymentFromWallet;
 exports.forwardPrivateChainsToOtherMembersOfWallets = forwardPrivateChainsToOtherMembersOfWallets;
 
 exports.readBalance = readBalance;

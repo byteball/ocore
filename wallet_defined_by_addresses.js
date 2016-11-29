@@ -184,7 +184,7 @@ function deletePendingSharedAddress(address_definition_template_chash){
 }
 
 // called from network after the initiator collects approvals from all members of the address and then sends the completed address to all members
-function addNewSharedAddress(address, arrDefinition, assocSignersByPath){
+function addNewSharedAddress(address, arrDefinition, assocSignersByPath, onDone){
 //	network.addWatchedAddress(address);
 	db.query("INSERT INTO shared_addresses (shared_address, definition) VALUES (?,?)", [address, JSON.stringify(arrDefinition)], function(){
 		var arrQueries = [];
@@ -197,6 +197,8 @@ function addNewSharedAddress(address, arrDefinition, assocSignersByPath){
 		// todo: forward new shared address to devices that are members of my member address
 		async.series(arrQueries, function(){
 			eventBus.emit("new_address-"+address);
+			if (onDone)
+				onDone();
 		});
 	});
 }
@@ -212,8 +214,7 @@ function handleNewSharedAddress(body, callbacks){
 	validateAddressDefinition(body.definition, function(err){
 		if (err)
 			return callbacks.ifError(err);
-		addNewSharedAddress(body.address, body.definition, body.signers);
-		callbacks.ifOk();
+		addNewSharedAddress(body.address, body.definition, body.signers, callbacks.ifOk);
 	});
 }
 
@@ -438,6 +439,7 @@ function sendPaymentFromAddress(from_address, to_address, amount, change_address
 exports.validateAddressDefinitionTemplate = validateAddressDefinitionTemplate;
 exports.approvePendingSharedAddress = approvePendingSharedAddress;
 exports.deletePendingSharedAddress = deletePendingSharedAddress;
+exports.validateAddressDefinition = validateAddressDefinition;
 exports.handleNewSharedAddress = handleNewSharedAddress;
 exports.findAddress = findAddress;
 exports.sendPaymentFromAddress = sendPaymentFromAddress;

@@ -169,11 +169,16 @@ function validateDivisiblePrivatePayment(conn, objPrivateElement, callbacks){
 // {asset: asset, paying_addresses: arrFromAddresses, change_address: change_address, to_address: to_address, amount: amount, signer: signer, callbacks: callbacks}
 function composeDivisibleAssetPaymentJoint(params){
 	console.log("asset payment from "+params.paying_addresses);
+	if ((params.to_address || params.amount) && params.asset_outputs)
+		throw Error("to_address and asset_outputs at the same time");
 	var private_payload;
+	var arrBaseOutputs = [{address: params.change_address, amount: 0}]; // public outputs: the change only
+	if (params.base_outputs)
+		arrBaseOutputs = arrBaseOutputs.concat(params.base_outputs);
 	composer.composeJoint({
 		paying_addresses: params.paying_addresses, // addresses that pay for commissions
 		minimal: params.minimal,
-		outputs: [{address: params.change_address, amount: 0}], // public outputs: the change only
+		outputs: arrBaseOutputs,
 		
 		// function that creates additional messages to be added to the joint
 		retrieveMessages: function(conn, last_ball_mci, bMultiAuthored, arrPayingAddresses, onDone){
@@ -190,23 +195,23 @@ function composeDivisibleAssetPaymentJoint(params){
 				if (objAsset.spender_attested && objAsset.arrAttestedAddresses.length === 0)
 					return onDone("none of the authors is attested");
 				
+				var target_amount = params.to_address 
+					? params.amount 
+					: params.asset_outputs.reduce(function(accumulator, output){ return accumulator + output.amount; }, 0);
 				composer.pickDivisibleCoinsForAmount(
-					conn, objAsset, arrPayingAddresses, last_ball_mci, params.amount, bMultiAuthored, 
+					conn, objAsset, arrPayingAddresses, last_ball_mci, target_amount, bMultiAuthored, 
 					function(arrInputsWithProofs, total_input){
 						console.log("pick coins callback "+arrInputsWithProofs);
 						if (!arrInputsWithProofs)
 							return onDone({error_code: "NOT_ENOUGH_FUNDS", error: "not enough asset coins"});
-						var objMainOutput = {address: params.to_address, amount: params.amount};
-						if (objAsset.is_private)
-							objMainOutput.blinding = composer.generateBlinding();
-						var arrOutputs = [objMainOutput];
-						var change = total_input - params.amount;
+						var arrOutputs = params.to_address ? [{address: params.to_address, amount: params.amount}] : params.asset_outputs;
+						var change = total_input - target_amount;
 						if (change > 0){
 							var objChangeOutput = {address: params.change_address, amount: change};
-							if (objAsset.is_private)
-								objChangeOutput.blinding = composer.generateBlinding();
 							arrOutputs.push(objChangeOutput);
 						}
+						if (objAsset.is_private)
+							arrOutputs.forEach(function(output){ output.blinding = composer.generateBlinding(); });
 						arrOutputs.sort(composer.sortOutputs);
 						var payload = {
 							asset: params.asset,
