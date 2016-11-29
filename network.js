@@ -1169,21 +1169,21 @@ function flushEvents(forceFlushing) {
 		return;
 	}
 
-	var query_params = [];
-	var updated_hosts = {};
+	var arrQueryParams = [];
+	var objUpdatedHosts = {};
 	peer_events_buffer.forEach(function(event_row){
-		var host = event_row[0];
-		var event = event_row[1];
-		var event_date = event_row[2];
+		var host = event_row.host;
+		var event = event_row.event;
+		var event_date = event_row.event_date;
 		if (event === 'new_good'){
 			var column = "count_"+event+"_joints";
-			_.set(updated_hosts, [host, column], _.get(updated_hosts, [host, column], 0)+1);
+			_.set(objUpdatedHosts, [host, column], _.get(objUpdatedHosts, [host, column], 0)+1);
 		}
-		query_params.push("(" + db.escape(host) +"," + db.escape(event) + "," + db.getFromUnixTime(event_date) + ")");
+		arrQueryParams.push("(" + db.escape(host) +"," + db.escape(event) + "," + db.getFromUnixTime(event_date) + ")");
 	});
 
-	for (var host in updated_hosts) {
-		var columns_obj = updated_hosts[host];
+	for (var host in objUpdatedHosts) {
+		var columns_obj = objUpdatedHosts[host];
 		var sql_columns_updates = [];
 		for (var column in columns_obj) {
 			sql_columns_updates.push(column + "=" + column + "+" + columns_obj[column]);
@@ -1191,9 +1191,9 @@ function flushEvents(forceFlushing) {
 		db.query("UPDATE peer_hosts SET "+sql_columns_updates.join()+" WHERE peer_host=?", [host]);
 	}
 
-	db.query("INSERT INTO peer_events (peer_host, event, event_date) VALUES "+ query_params.join());
+	db.query("INSERT INTO peer_events (peer_host, event, event_date) VALUES "+ arrQueryParams.join());
 	peer_events_buffer = [];
-	updated_hosts = {};
+	objUpdatedHosts = {};
 }
 
 function writeEvent(event, host){
@@ -1204,13 +1204,11 @@ function writeEvent(event, host){
 		return;
 	}
 	var event_date = Math.floor(Date.now() / 1000);
-	peer_events_buffer.push([host, event, event_date]);
+	peer_events_buffer.push({host: host, event: event, event_date: event_date});
 	flushEvents();
 }
 
-process.on('exit', function(){
-	flushEvents(true);
-});
+setInterval(function(){flushEvents(true)}, 1000 * 60);
 
 
 function findAndHandleJointsThatAreReady(unit){

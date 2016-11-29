@@ -60,7 +60,7 @@ function print(){
 	console.log(total/count+' per unit');
 }
 
-function results() {
+function print_results() {
 	console.log("\nBenchmarking results:");
 	for (var tag in timers_results) {
 		var results = timers_results[tag];
@@ -97,7 +97,7 @@ process.on('SIGINT', function(){
 	console.log = clog;
 	console.log("received sigint");
 	//print();
-	results();
+	print_results();
 	process.exit();
 });
 
