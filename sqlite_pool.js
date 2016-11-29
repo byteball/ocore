@@ -44,11 +44,11 @@ module.exports = function(db_name, MAX_CONNECTIONS){
 			connection.query("PRAGMA foreign_keys = 1", function(){
 				connection.query("PRAGMA busy_timeout=30000", function(){
 					connection.query("PRAGMA journal_mode=WAL", function(){
-						//connection.query("PRAGMA synchronous=OFF", function(){
+						connection.query("PRAGMA synchronous=NORMAL", function(){
 							connection.query("PRAGMA temp_store=MEMORY", function(){
 								handleConnection(connection);
 							});
-						//});
+						});
 					});
 				});
 			});
@@ -123,7 +123,9 @@ module.exports = function(db_name, MAX_CONNECTIONS){
 			getUnixTimestamp: getUnixTimestamp,
 			getFromUnixTime: getFromUnixTime,
 			getRandom: getRandom,
-			getIgnore: getIgnore
+			getIgnore: getIgnore,
+			forceIndex: forceIndex,
+			dropTemporaryTable: dropTemporaryTable
 			
 		};
 		arrConnections.push(connection);
@@ -214,7 +216,7 @@ module.exports = function(db_name, MAX_CONNECTIONS){
 				last_arg(rows);
 			});
 			connection.query.apply(connection, new_args);
-		})
+		});
 	}
 
 	// interval is string such as -8 SECOND
@@ -236,6 +238,14 @@ module.exports = function(db_name, MAX_CONNECTIONS){
 
 	function getRandom(){
 		return "RANDOM()";
+	}
+
+	function forceIndex(index){
+		return "INDEXED BY " + index;
+	}
+
+	function dropTemporaryTable(table) {
+		return "DROP TABLE IF EXISTS " + table;
 	}
 
 	// note that IGNORE behaves differently from mysql.  In particular, if you insert and forget to specify a NOT NULL colum without DEFAULT value, 
@@ -267,6 +277,8 @@ module.exports = function(db_name, MAX_CONNECTIONS){
 	pool.getFromUnixTime = getFromUnixTime;
 	pool.getRandom = getRandom;
 	pool.getIgnore = getIgnore;
+	pool.forceIndex = forceIndex;
+	pool.dropTemporaryTable = dropTemporaryTable;
 	
 	return pool;
 };

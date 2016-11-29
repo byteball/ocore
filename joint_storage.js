@@ -52,7 +52,7 @@ function removeUnhandledJointAndDependencies(unit, onDone){
 		async.series(arrQueries, function(){
 			conn.release();
 			if (onDone)
-				onDone(); 
+				onDone();
 		});
 	});
 }
@@ -85,19 +85,24 @@ function readDependentJointsThatAreReady(unit, handleDependentJoint){
 	var where = unit ? "WHERE src_deps.depends_on_unit="+db.escape(unit) : "";
 	mutex.lock(["dependencies"], function(unlock){
 		db.query(
-			"SELECT dependencies.unit, json, unhandled_joints.peer, "+db.getUnixTimestamp("unhandled_joints.creation_date")+" AS creation_ts, \n\
+			"SELECT dependencies.unit, unhandled_joints.unit AS unit_for_json, \n\
 				SUM(CASE WHEN units.unit IS NULL THEN 1 ELSE 0 END) AS count_missing_parents \n\
 			"+from+" \n\
 			JOIN unhandled_joints ON dependencies.unit=unhandled_joints.unit \n\
 			LEFT JOIN units ON dependencies.depends_on_unit=units.unit \n\
 			"+where+" \n\
 			GROUP BY dependencies.unit \n\
-			HAVING count_missing_parents=0", 
+			HAVING count_missing_parents=0 \n\
+			ORDER BY NULL", 
 			function(rows){
 				//console.log(rows.length+" joints are ready");
 				//console.log("deps: "+(Date.now()-t));
 				rows.forEach(function(row) {
-					handleDependentJoint(JSON.parse(row.json), parseInt(row.creation_ts), row.peer); 
+					db.query("SELECT json, peer, "+db.getUnixTimestamp("creation_date")+" AS creation_ts FROM unhandled_joints WHERE unit=?", [row.unit_for_json], function(internal_rows){
+						internal_rows.forEach(function(internal_row) {
+							handleDependentJoint(JSON.parse(internal_row.json), parseInt(internal_row.creation_ts), internal_row.peer);
+						});
+					});
 				});
 				unlock();
 			}
@@ -136,7 +141,7 @@ function purgeJointAndDependencies(objJoint, error, onPurgedDependentJoint, onDo
 			async.series(arrQueries, function(){
 				conn.release();
 				if (onDone)
-					onDone(); 
+					onDone();
 			})
 		});
 	});
@@ -152,7 +157,7 @@ function purgeDependencies(unit, error, onPurgedDependentJoint, onDone){
 			async.series(arrQueries, function(){
 				conn.release();
 				if (onDone)
-					onDone(); 
+					onDone();
 			})
 		});
 	});

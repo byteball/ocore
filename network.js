@@ -40,6 +40,7 @@ var coming_online_time = Date.now();
 var assocReroutedConnectionsByTag = {};
 var arrWatchedAddresses = []; // does not include my addresses, therefore always empty
 var last_hearbeat_wake_ts = Date.now();
+var peer_events_buffer = [];
 
 if (process.browser){ // browser
 	console.log("defining .on() on ws");
@@ -905,7 +906,6 @@ function handlePostedJoint(ws, objJoint, onDone){
 }
 
 function handleOnlineJoint(ws, objJoint, onDone){
-	
 	if (!onDone)
 		onDone = function(){};
 	var unit = objJoint.unit.unit;
@@ -1164,14 +1164,52 @@ function notifyLocalWatchedAddressesAboutStableJoints(mci){
 	);
 }
 
+function flushEvents(forceFlushing) {
+	if (!forceFlushing && peer_events_buffer.length != 100) {
+		return;
+	}
+
+	var arrQueryParams = [];
+	var objUpdatedHosts = {};
+	peer_events_buffer.forEach(function(event_row){
+		var host = event_row.host;
+		var event = event_row.event;
+		var event_date = event_row.event_date;
+		if (event === 'new_good'){
+			var column = "count_"+event+"_joints";
+			_.set(objUpdatedHosts, [host, column], _.get(objUpdatedHosts, [host, column], 0)+1);
+		}
+		arrQueryParams.push("(" + db.escape(host) +"," + db.escape(event) + "," + db.getFromUnixTime(event_date) + ")");
+	});
+
+	for (var host in objUpdatedHosts) {
+		var columns_obj = objUpdatedHosts[host];
+		var sql_columns_updates = [];
+		for (var column in columns_obj) {
+			sql_columns_updates.push(column + "=" + column + "+" + columns_obj[column]);
+		}
+		db.query("UPDATE peer_hosts SET "+sql_columns_updates.join()+" WHERE peer_host=?", [host]);
+	}
+
+	db.query("INSERT INTO peer_events (peer_host, event, event_date) VALUES "+ arrQueryParams.join());
+	peer_events_buffer = [];
+	objUpdatedHosts = {};
+}
 
 function writeEvent(event, host){
-	db.query("INSERT INTO peer_events (peer_host, event) VALUES (?,?)", [host, event]);
-	if (event === 'new_good' || event === 'invalid' || event === 'nonserial'){
+	if (event === 'invalid' || event === 'nonserial'){
 		var column = "count_"+event+"_joints";
 		db.query("UPDATE peer_hosts SET "+column+"="+column+"+1 WHERE peer_host=?", [host]);
+		db.query("INSERT INTO peer_events (peer_host, event) VALUES (?,?)", [host, event]);
+		return;
 	}
+	var event_date = Math.floor(Date.now() / 1000);
+	peer_events_buffer.push({host: host, event: event, event_date: event_date});
+	flushEvents();
 }
+
+setInterval(function(){flushEvents(true)}, 1000 * 60);
+
 
 function findAndHandleJointsThatAreReady(unit){
 	joint_storage.readDependentJointsThatAreReady(unit, handleSavedJoint);

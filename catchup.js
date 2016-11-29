@@ -10,6 +10,7 @@ var validation = require('./validation.js');
 var witnessProof = require('./witness_proof.js');
 
 
+
 function prepareCatchupChain(catchupRequest, callbacks){
 	var last_stable_mci = catchupRequest.last_stable_mci;
 	var last_known_mci = catchupRequest.last_known_mci;
@@ -272,11 +273,15 @@ function processHashTree(arrBalls, callbacks){
 	if (!Array.isArray(arrBalls))
 		return callbacks.ifError("no balls array");
 	mutex.lock(["hash_tree"], function(unlock){
+		
 		db.query("SELECT 1 FROM hash_tree_balls LIMIT 1", function(ht_rows){
 			//if (ht_rows.length > 0) // duplicate
 			//    return unlock();
+			
 			db.takeConnectionFromPool(function(conn){
+				
 				conn.query("BEGIN", function(){
+					
 					var max_mci = null;
 					async.eachSeries(
 						arrBalls,
@@ -341,7 +346,7 @@ function processHashTree(arrBalls, callbacks){
 							});
 						},
 						function(error){
-
+							
 							function finish(err){
 								conn.query(err ? "ROLLBACK" : "COMMIT", function(){
 									conn.release();
@@ -363,6 +368,7 @@ function processHashTree(arrBalls, callbacks){
 								FROM catchup_chain_balls LEFT JOIN balls USING(ball) LEFT JOIN units USING(unit) \n\
 								ORDER BY member_index LIMIT 2", 
 								function(rows){
+									
 									if (rows.length !== 2)
 										return finish("expecting to have 2 elements in the chain");
 									if (max_mci !== null && rows[0].main_chain_index !== null && rows[0].main_chain_index !== max_mci)
@@ -371,6 +377,7 @@ function processHashTree(arrBalls, callbacks){
 										return finish("tree root doesn't match second chain element");
 									// remove the last chain element, we now have hash tree instead
 									conn.query("DELETE FROM catchup_chain_balls WHERE ball=?", [rows[0].ball], function(){
+										
 										purgeHandledBallsFromHashTree(conn, finish);
 									});
 								}

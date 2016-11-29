@@ -620,4 +620,6 @@ CREATE TABLE watched_light_addresses (
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 
+ALTER TABLE `units` ADD INDEX `bySequence` (`sequence`);
 
+DROP TABLE IF EXISTS paid_witness_events;

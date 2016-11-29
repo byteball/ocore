@@ -103,6 +103,14 @@ module.exports = function(connection_or_pool){
 		return "RAND()";
 	};
 
+	safe_connection.forceIndex = function(index){
+		return "FORCE INDEX ("+ index +")";
+	};
+
+	safe_connection.dropTemporaryTable = function(table){
+		return "DROP TEMPORARY TABLE IF EXISTS " + table;
+	};
+
 	safe_connection.getIgnore = function(){
 		return "IGNORE";
 	};
