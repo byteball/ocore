@@ -631,6 +631,14 @@ function composeJoint(params){
 				total_input = constants.TOTAL_WHITEBYTES;
 				return cb();
 			}
+			if (params.inputs){ // input coins already selected
+				if (!params.input_amount)
+					throw Error('inputs but no input_amount');
+				total_input = params.input_amount;
+				objPaymentMessage.payload.inputs = params.inputs;
+				objUnit.payload_commission = objectLength.getTotalPayloadSize(objUnit);
+				return cb();
+			}
 			
 			// all inputs must appear before last_ball
 			pickDivisibleCoinsForAmount(
