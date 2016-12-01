@@ -931,27 +931,42 @@ function readBalance(wallet, handleBalance){
 					assocBalances[asset] = {stable: 0, pending: 0};
 				assocBalances[asset][row.is_stable ? 'stable' : 'pending'] = row.balance;
 			}
-			// add 0-balance assets
 			db.query(
-				"SELECT DISTINCT outputs.asset, is_private \n\
-				FROM my_addresses JOIN outputs USING(address) JOIN units USING(unit) LEFT JOIN assets ON asset=assets.unit \n\
-				WHERE wallet=? AND sequence='good'", 
-				[wallet], 
-				function(rows){
-					for (var i=0; i<rows.length; i++){
-						var row = rows[i];
-						var asset = row.asset || "base";
+				"SELECT SUM(total) AS total FROM ( \
+				SELECT SUM(amount) AS total FROM my_addresses JOIN witnessing_outputs USING(address) WHERE is_spent=0 and wallet=? \
+				UNION \
+				SELECT SUM(amount) AS total FROM my_addresses JOIN headers_commission_outputs USING(address) WHERE is_spent=0 and wallet=? )",
+				[wallet,wallet],
+				function(rows) {
+					if(rows.length){
+						var asset = "base";
 						if (!assocBalances[asset])
 							assocBalances[asset] = {stable: 0, pending: 0};
-						assocBalances[asset].is_private = row.is_private;
+						assocBalances[asset]["stable"] += rows[0].total;
 					}
-					handleBalance(assocBalances);
-					if (conf.bLight){ // make sure we have all asset definitions available
-						var arrAssets = Object.keys(assocBalances).filter(function(asset){ return (asset !== 'base'); });
-						if (arrAssets.length === 0)
-							return;
-						network.requestProofsOfJointsIfNewOrUnstable(arrAssets);
-					}
+					// add 0-balance assets
+					db.query(
+						"SELECT DISTINCT outputs.asset, is_private \n\
+						FROM my_addresses JOIN outputs USING(address) JOIN units USING(unit) LEFT JOIN assets ON asset=assets.unit \n\
+						WHERE wallet=? AND sequence='good'", 
+						[wallet], 
+						function(rows){
+							for (var i=0; i<rows.length; i++){
+								var row = rows[i];
+								var asset = row.asset || "base";
+								if (!assocBalances[asset])
+									assocBalances[asset] = {stable: 0, pending: 0};
+								assocBalances[asset].is_private = row.is_private;
+							}
+							handleBalance(assocBalances);
+							if (conf.bLight){ // make sure we have all asset definitions available
+								var arrAssets = Object.keys(assocBalances).filter(function(asset){ return (asset !== 'base'); });
+								if (arrAssets.length === 0)
+									return;
+								network.requestProofsOfJointsIfNewOrUnstable(arrAssets);
+							}
+						}
+					);
 				}
 			);
 		}
