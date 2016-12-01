@@ -8,7 +8,7 @@ exports.MAJORITY_OF_WITNESSES = (exports.COUNT_WITNESSES%2===0) ? (exports.COUNT
 exports.COUNT_MC_BALLS_FOR_PAID_WITNESSING = 100;
 
 exports.version = '1.0t';
-exports.alt = '1';
+exports.alt = '2';
 
 exports.GENESIS_UNIT = (exports.alt === '2') ? 'LRY0B48hS1FMDD0rmjYTetACQd9XsuYAvi19OXcm10g=' : 'ogf38q2JkBtVjL5XNW9BYNDqu1M1q/yYggNpEqKmg+8=';
 exports.BLACKBYTES_ASSET = 'JY4RvlUGv0qWItikizmNOIjIYZeEciODOog8AzLju50=';
