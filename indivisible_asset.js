@@ -940,4 +940,5 @@ exports.getSavingCallbacks = getSavingCallbacks;
 exports.validateAndSavePrivatePaymentChain = validateAndSavePrivatePaymentChain;
 exports.composeAndSaveIndivisibleAssetPaymentJoint = composeAndSaveIndivisibleAssetPaymentJoint;
 exports.composeAndSaveMinimalIndivisibleAssetPaymentJoint = composeAndSaveMinimalIndivisibleAssetPaymentJoint;
+exports.updateIndivisibleOutputsThatWereReceivedUnstable = updateIndivisibleOutputsThatWereReceivedUnstable;
 
