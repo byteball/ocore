@@ -18,7 +18,6 @@ var mc_outputs = require("./mc_outputs.js");
 var validation = require('./validation.js');
 var writer = require('./writer.js');
 var conf = require('./conf.js');
-var network = require('./network.js');
 var profiler = require('./profiler.js');
 
 var TRANSFER_INPUT_SIZE = 0 // type: "transfer" omitted
@@ -366,6 +365,7 @@ function composeJoint(params){
 	}
 	
 	if (conf.bLight && !params.lightProps){
+		var network = require('./network.js');
 		network.requestFromLightVendor(
 			'light/get_parents_and_last_ball_and_witness_list_unit', 
 			{witnesses: arrWitnesses}, 
