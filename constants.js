@@ -10,7 +10,7 @@ exports.GENESIS_UNIT = 'ogf38q2JkBtVjL5XNW9BYNDqu1M1q/yYggNpEqKmg+8=';
 exports.BLACKBYTES_ASSET = 'JY4RvlUGv0qWItikizmNOIjIYZeEciODOog8AzLju50=';
 
 exports.version = '1.0t';
-exports.alt = '1';
+exports.alt = '2';
 
 exports.HASH_LENGTH = 44;
 exports.PUBKEY_LENGTH = 44;
