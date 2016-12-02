@@ -826,6 +826,7 @@ function getSavingCallbacks(callbacks){
 
 function postJointToLightVendorIfNecessaryAndSave(objJoint, onLightError, save){
 	if (conf.bLight) // light clients cannot save before receiving OK from light vendor
+		var network = require('./network.js');
 		network.postJointToLightVendor(objJoint, function(response){
 			if (response === 'accepted')
 				save();
