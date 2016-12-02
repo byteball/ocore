@@ -8,7 +8,10 @@ function mergeExports(anotherModule){
 }
 
 // port we are listening on.  Set to null to disable accepting connections
-exports.port = 6611;
+// recommended port for livenet: 6611
+// recommended port for testnet: 16611
+exports.port = null;
+//exports.port = 6611;
 
 // how peers connect to me
 //exports.myUrl = 'wss://example.org/bb';
