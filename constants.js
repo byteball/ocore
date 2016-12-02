@@ -11,7 +11,7 @@ exports.version = '1.0t';
 exports.alt = '2';
 
 exports.GENESIS_UNIT = (exports.alt === '2') ? 'LRY0B48hS1FMDD0rmjYTetACQd9XsuYAvi19OXcm10g=' : 'ogf38q2JkBtVjL5XNW9BYNDqu1M1q/yYggNpEqKmg+8=';
-exports.BLACKBYTES_ASSET = 'JY4RvlUGv0qWItikizmNOIjIYZeEciODOog8AzLju50=';
+exports.BLACKBYTES_ASSET = (exports.alt === '2') ? 'yN6xDyMbuo4Sxgrzn/YS0+rOMBFCx8zc0JS+SjLaLpQ=' : 'JY4RvlUGv0qWItikizmNOIjIYZeEciODOog8AzLju50=';
 
 exports.HASH_LENGTH = 44;
 exports.PUBKEY_LENGTH = 44;
