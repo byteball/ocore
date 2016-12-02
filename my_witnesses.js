@@ -8,7 +8,13 @@ var ValidationUtils = require("./validation_utils.js");
 
 function readMyWitnesses(handleWitnesses, actionIfEmpty){
 	db.query("SELECT address FROM my_witnesses ORDER BY address", function(rows){
-		if (rows.length === 0){
+		var arrWitnesses = rows.map(function(row){ return row.address; });
+		// reset witness list if old witnesses found
+		if (constants.alt === '2' && arrWitnesses.indexOf('5K7CSLTRPC5LFLOS3D34GBHG7RFD4TPO') >= 0){
+			db.query("DELETE FROM my_witnesses");
+			arrWitnesses = [];
+		}
+		if (arrWitnesses.length === 0){
 			if (actionIfEmpty === 'ignore')
 				return handleWitnesses([]);
 			if (actionIfEmpty === 'wait'){
@@ -19,9 +25,8 @@ function readMyWitnesses(handleWitnesses, actionIfEmpty){
 				return;
 			}
 		}
-		if (rows.length !== constants.COUNT_WITNESSES)
+		if (arrWitnesses.length !== constants.COUNT_WITNESSES)
 			throw Error("wrong number of my witnesses: "+rows.length);
-		var arrWitnesses = rows.map(function(row){ return row.address; });
 		handleWitnesses(arrWitnesses);
 	});
 }
