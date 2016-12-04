@@ -932,17 +932,14 @@ function readBalance(wallet, handleBalance){
 				assocBalances[asset][row.is_stable ? 'stable' : 'pending'] = row.balance;
 			}
 			db.query(
-				"SELECT SUM(total) AS total FROM ( \
-				SELECT SUM(amount) AS total FROM my_addresses JOIN witnessing_outputs USING(address) WHERE is_spent=0 and wallet=? \
-				UNION \
-				SELECT SUM(amount) AS total FROM my_addresses JOIN headers_commission_outputs USING(address) WHERE is_spent=0 and wallet=? )",
+				"SELECT SUM(total) AS total FROM ( \n\
+				SELECT SUM(amount) AS total FROM my_addresses JOIN witnessing_outputs USING(address) WHERE is_spent=0 AND wallet=? \n\
+				UNION \n\
+				SELECT SUM(amount) AS total FROM my_addresses JOIN headers_commission_outputs USING(address) WHERE is_spent=0 AND wallet=? )",
 				[wallet,wallet],
 				function(rows) {
 					if(rows.length){
-						var asset = "base";
-						if (!assocBalances[asset])
-							assocBalances[asset] = {stable: 0, pending: 0};
-						assocBalances[asset]["stable"] += rows[0].total;
+						assocBalances["base"]["stable"] += rows[0].total;
 					}
 					// add 0-balance assets
 					db.query(
