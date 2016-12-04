@@ -41,6 +41,7 @@ var assocReroutedConnectionsByTag = {};
 var arrWatchedAddresses = []; // does not include my addresses, therefore always empty
 var last_hearbeat_wake_ts = Date.now();
 var peer_events_buffer = [];
+var assocKnownPeers = {};
 
 if (process.browser){ // browser
 	console.log("defining .on() on ws");
@@ -406,8 +407,10 @@ function addOutboundPeers(multiplier){
 		ORDER BY "+order_by+" LIMIT ?", 
 		[conf.MAX_TOLERATED_INVALID_RATIO*multiplier, max_new_outbound_peers], 
 		function(rows){
-			for (var i=0; i<rows.length; i++)
+			for (var i=0; i<rows.length; i++){
+				assocKnownPeers[rows[i].peer] = true;
 				findOutboundPeerOrConnect(rows[i].peer);
+			}
 			if (arrOutboundPeerUrls.length === 0 && rows.length === 0) // if no outbound connections at all, get less strict
 				addOutboundPeers(multiplier*2);
 		}
@@ -430,6 +433,9 @@ function addPeerHost(host, onDone){
 }
 
 function addPeer(peer){
+	if (assocKnownPeers[peer])
+		return;
+	assocKnownPeers[peer] = true;
 	var host = getHostByPeer(peer);
 	addPeerHost(host, function(){
 		console.log("will insert peer "+peer);
