@@ -10,7 +10,10 @@ function readMyWitnesses(handleWitnesses, actionIfEmpty){
 	db.query("SELECT address FROM my_witnesses ORDER BY address", function(rows){
 		var arrWitnesses = rows.map(function(row){ return row.address; });
 		// reset witness list if old witnesses found
-		if (constants.alt === '2' && arrWitnesses.indexOf('5K7CSLTRPC5LFLOS3D34GBHG7RFD4TPO') >= 0){
+		if (constants.alt === '2' && arrWitnesses.indexOf('5K7CSLTRPC5LFLOS3D34GBHG7RFD4TPO') >= 0
+			|| constants.version === '1.0' && arrWitnesses.indexOf('2FF7PSL7FYXVU5UIQHCVDTTPUOOG75GX') >= 0
+		){
+			console.log('deleting old witnesses');
 			db.query("DELETE FROM my_witnesses");
 			arrWitnesses = [];
 		}
