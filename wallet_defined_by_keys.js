@@ -972,20 +972,22 @@ function readBalance(wallet, handleBalance){
 
 
 function readTransactionHistory(wallet, asset, handleHistory){
+    var walletIsAddress = ValidationUtils.isValidAddress(wallet);
+    var where_condition = walletIsAddress ? "address=?" : "wallet=?";
 	var asset_condition = (asset && asset !== "base") ? "asset="+db.escape(asset) : "asset IS NULL";
 	db.query(
 		"SELECT unit, level, is_stable, sequence, address, \n\
 			"+db.getUnixTimestamp("units.creation_date")+" AS ts, headers_commission+payload_commission AS fee, \n\
 			SUM(amount) AS amount, address AS to_address, NULL AS from_address \n\
 		FROM my_addresses JOIN outputs USING(address) JOIN units USING(unit) \n\
-		WHERE wallet=? AND "+asset_condition+" \n\
+		WHERE "+where_condition+" AND "+asset_condition+" \n\
 		GROUP BY unit, address \n\
 		UNION \n\
 		SELECT unit, level, is_stable, sequence, address, \n\
 			"+db.getUnixTimestamp("units.creation_date")+" AS ts, headers_commission+payload_commission AS fee, \n\
 			NULL AS amount, NULL AS to_address, address AS from_address \n\
 		FROM my_addresses JOIN inputs USING(address) JOIN units USING(unit) \n\
-		WHERE wallet=? AND "+asset_condition,
+		WHERE "+where_condition+" AND "+asset_condition,
 		[wallet, wallet],
 		function(rows){
 			var assocMovements = {};
@@ -1041,13 +1043,23 @@ function readTransactionHistory(wallet, asset, handleHistory){
 						);
 					}
 					else if (movement.has_minus){
-						db.query(
-							"SELECT outputs.address, SUM(amount) AS amount \n\
-							FROM outputs \n\
-							LEFT JOIN my_addresses ON outputs.address=my_addresses.address AND wallet=? \n\
-							WHERE unit=? AND "+asset_condition+" AND my_addresses.address IS NULL \n\
-							GROUP BY outputs.address", 
-							[wallet, unit], 
+					    var queryString, parameters;
+					    if(walletIsAddress){
+					        queryString =   "SELECT address, SUM(amount) AS amount \n\
+							                FROM outputs \n\
+                							WHERE unit=? AND "+asset_condition+" AND address!=? \n\
+                							GROUP BY address";
+                			parameters = [unit, wallet];
+					    }
+					    else {
+					        queryString =   "SELECT outputs.address, SUM(amount) AS amount \n\
+							                FROM outputs \n\
+                							LEFT JOIN my_addresses ON outputs.address=my_addresses.address AND wallet=? \n\
+                							WHERE unit=? AND "+asset_condition+" AND my_addresses.address IS NULL \n\
+                							GROUP BY outputs.address";
+					        parameters = [wallet, unit];
+					    }
+						db.query(queryString, parameters, 
 							function(payee_rows){
 								for (var i=0; i<payee_rows.length; i++){
 									var payee = payee_rows[i];
