@@ -857,7 +857,7 @@ function sendMultiPaymentFromWallet(opts, handleResult)
 					}
 					else if (recipient_device_address) // send notification about public payment
 						walletGeneral.sendPaymentNotification(recipient_device_address, objJoint.unit.unit);
-					handleResult();
+					handleResult(null, objJoint.unit.unit);
 				}
 			}
 		};
