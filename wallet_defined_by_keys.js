@@ -663,9 +663,12 @@ function issueOrSelectAddressForApp(wallet, app_name, handleAddress){
 	});
 }
 
-function readExternalAddresses(wallet, opts, handleAddresses){
-	var sql = "SELECT address, address_index, "+db.getUnixTimestamp("creation_date")+" AS creation_ts \n\
-		FROM my_addresses WHERE wallet=? AND is_change=0 ORDER BY address_index";
+function readAddresses(wallet, opts, handleAddresses){
+	var sql = "SELECT address, address_index, is_change, "+db.getUnixTimestamp("creation_date")+" AS creation_ts \n\
+		FROM my_addresses WHERE wallet=?";
+	if (opts.is_change === 0 || opts.is_change === 1)
+		sql += " AND is_change="+opts.is_change;
+	sql += " ORDER BY address_index";
 	if (opts.reverse)
 		sql += " DESC";
 	if (opts.limit)
@@ -679,16 +682,15 @@ function readExternalAddresses(wallet, opts, handleAddresses){
 	);
 }
 
+function readExternalAddresses(wallet, opts, handleAddresses){
+	opts.is_change = 0;
+	readAddresses(wallet, opts, handleAddresses);
+}
+
 function readChangeAddresses(wallet, handleAddresses){
-	var sql = "SELECT address \n\
-		FROM my_addresses WHERE wallet=? AND is_change=1 ORDER BY address_index DESC";
-	db.query(
-		sql, 
-		[wallet], 
-		function(rows){
-			handleAddresses(rows.map(function(row){ return row.address; }));
-		}
-	);
+	opts.is_change = 1;
+	opts.reverse = 1;
+	readAddresses(wallet, opts, handleAddresses);
 }
 
 // unused so far
@@ -1116,6 +1118,7 @@ exports.addNewAddress = addNewAddress;
 exports.issueNextAddress = issueNextAddress;
 exports.issueOrSelectNextAddress = issueOrSelectNextAddress;
 exports.issueOrSelectNextChangeAddress = issueOrSelectNextChangeAddress;
+exports.readAddresses = readAddresses;
 exports.readExternalAddresses = readExternalAddresses;
 exports.readChangeAddresses = readChangeAddresses;
 exports.readAddressInfo = readAddressInfo;
