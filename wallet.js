@@ -262,7 +262,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				}
 			}
 			// findAddress handles both types of addresses
-			walletDefinedByAddresses.findAddress(body.address, body.signing_path, {
+			findAddress(body.address, body.signing_path, {
 				ifError: callbacks.ifError,
 				ifLocal: function(objAddress){
 					// the commented check would make multilateral signing impossible
@@ -485,6 +485,48 @@ function emitNewPrivatePaymentReceived(payer_device_address, arrChains){
 			if (assocAmountsByAsset[asset])
 				eventBus.emit('received_payment', payer_device_address, assocAmountsByAsset[asset], asset);
 	});
+}
+
+
+function findAddress(address, signing_path, callbacks){
+	db.query(
+		"SELECT wallet, account, is_change, address_index, full_approval_date, device_address \n\
+		FROM my_addresses JOIN wallets USING(wallet) JOIN wallet_signing_paths USING(wallet) \n\
+		WHERE address=? AND signing_path=?",
+		[address, signing_path],
+		function(rows){
+			if (rows.length > 1)
+				throw Error("more than 1 address found");
+			if (rows.length === 1){
+				var row = rows[0];
+				if (!row.full_approval_date)
+					return callbacks.ifError("wallet of address "+address+" not approved");
+				if (row.device_address !== device.getMyDeviceAddress())
+					return callbacks.ifRemote(row.device_address);
+				var objAddress = {
+					address: address,
+					wallet: row.wallet,
+					account: row.account,
+					is_change: row.is_change,
+					address_index: row.address_index
+				};
+				callbacks.ifLocal(objAddress);
+				return;
+			}
+			db.query(
+				"SELECT address, device_address, member_signing_path FROM shared_address_signing_paths WHERE shared_address=? AND signing_path=?", 
+				[address, signing_path],
+				function(sa_rows){
+					if (sa_rows.length !== 1)
+						return callbacks.ifUnknownAddress();
+					var objSharedAddress = sa_rows[0];
+					(objSharedAddress.device_address === device.getMyDeviceAddress()) // local keys
+						? findAddress(objSharedAddress.address, objSharedAddress.member_signing_path, callbacks)
+						: callbacks.ifRemote(objSharedAddress.device_address);
+				}
+			);
+		}
+	);
 }
 
 function emitNewPublicPaymentReceived(payer_device_address, objUnit){
