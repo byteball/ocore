@@ -578,6 +578,170 @@ function readSharedBalance(wallet, handleBalance){
 
 
 
+
+function sendPaymentFromWallet(
+		asset, wallet, to_address, amount, change_address, arrSigningDeviceAddresses, recipient_device_address, signWithLocalPrivateKey, handleResult)
+{
+	sendMultiPaymentFromWallet({
+		asset: asset,
+		wallet: wallet,
+		to_address: to_address,
+		amount: amount,
+		change_address: change_address,
+		arrSigningDeviceAddresses: arrSigningDeviceAddresses,
+		recipient_device_address: recipient_device_address,
+		signWithLocalPrivateKey: signWithLocalPrivateKey
+	}, handleResult);
+}
+
+function sendMultiPaymentFromWallet(opts, handleResult)
+{
+	var asset = opts.asset;
+	var wallet = opts.wallet;
+	var to_address = opts.to_address;
+	var amount = opts.amount;
+	var change_address = opts.change_address;
+	var arrSigningDeviceAddresses = opts.arrSigningDeviceAddresses;
+	var recipient_device_address = opts.recipient_device_address;
+	var signWithLocalPrivateKey = opts.signWithLocalPrivateKey;
+	
+	var base_outputs = opts.base_outputs;
+	var asset_outputs = opts.asset_outputs;
+	
+	if (!wallet)
+		throw Error("no wallet id");
+	if ((to_address || amount) && (base_outputs || asset_outputs))
+		throw Error('to_address and outputs at the same time');
+	if (!asset && asset_outputs)
+		throw Error('base asset and asset outputs');
+	
+	walletDefinedByKeys.readFundedAddresses(asset, wallet, function(arrFromAddresses){
+		if (arrFromAddresses.length === 0)
+			return handleResult("There are no funded addresses in wallet "+wallet);
+		
+		var bRequestedConfirmation = false;
+		var signer = {
+			getSignatureLength: function(address, path){
+				return constants.SIG_LENGTH;
+			},
+			readSigningPaths: function(conn, address, handleSigningPaths){
+				var sql = "SELECT signing_path FROM my_addresses JOIN wallet_signing_paths USING(wallet) WHERE address=?";
+				var arrParams = [address];
+				if (arrSigningDeviceAddresses && arrSigningDeviceAddresses.length > 0){
+					sql += " AND device_address IN(?)";
+					arrParams.push(arrSigningDeviceAddresses);
+				}
+				sql += " ORDER BY signing_path";   
+				conn.query(
+					sql, 
+					arrParams,
+					function(rows){
+						var arrSigningPaths = rows.map(function(row){ return row.signing_path; });
+						handleSigningPaths(arrSigningPaths);
+					}
+				);
+			},
+			readDefinition: function(conn, address, handleDefinition){
+				conn.query("SELECT definition FROM my_addresses WHERE address=?", [address], function(rows){
+					if (rows.length !== 1)
+						throw Error("definition not found");
+					handleDefinition(null, JSON.parse(rows[0].definition));
+				});
+			},
+			sign: function(objUnsignedUnit, assocPrivatePayloads, address, signing_path, handleSignature){
+				var buf_to_sign = objectHash.getUnitHashToSign(objUnsignedUnit);
+				db.query(
+					"SELECT device_address, account, is_change, address_index \n\
+					FROM my_addresses JOIN wallets USING(wallet) JOIN wallet_signing_paths USING(wallet) \n\
+					WHERE address=? AND signing_path=?", 
+					[address, signing_path],
+					function(rows){
+						if (rows.length !== 1)
+							throw Error("not 1 hub");
+						var row = rows[0];
+						if (row.device_address === device.getMyDeviceAddress()){
+							signWithLocalPrivateKey(wallet, row.account, row.is_change, row.address_index, buf_to_sign, function(sig){
+								handleSignature(null, sig);
+							});
+							return;
+						}
+						// we'll receive this event after the peer signs
+						eventBus.once("signature-"+row.device_address+"-"+address+"-"+signing_path+"-"+buf_to_sign.toString("base64"), function(sig){
+							handleSignature(null, sig);
+							if (sig === '[refused]')
+								eventBus.emit('refused_to_sign', row.device_address);
+						});
+						walletGeneral.sendOfferToSign(row.device_address, address, signing_path, objUnsignedUnit, assocPrivatePayloads);
+						if (!bRequestedConfirmation){
+							eventBus.emit("confirm_on_other_devices");
+							bRequestedConfirmation = true;
+						}
+					}
+				);
+			}
+		};
+		
+		var params = {
+			available_paying_addresses: arrFromAddresses, // some of them may hold 0 coins
+			signer: signer, 
+			callbacks: {
+				ifNotEnoughFunds: function(err){
+					handleResult(err);
+				},
+				ifError: function(err){
+					handleResult(err);
+				},
+				// for asset payments, 2nd argument is array of chains of private elements
+				// for base asset, 2nd argument is assocPrivatePayloads which is null
+				ifOk: function(objJoint, arrChainsOfRecipientPrivateElements, arrChainsOfCosignerPrivateElements){
+					network.broadcastJoint(objJoint);
+					if (arrChainsOfRecipientPrivateElements){
+						walletDefinedByKeys.forwardPrivateChainsToOtherMembersOfWallets(arrChainsOfCosignerPrivateElements, [wallet]);
+						walletGeneral.sendPrivatePayments(recipient_device_address, arrChainsOfRecipientPrivateElements);
+					}
+					else if (recipient_device_address) // send notification about public payment
+						walletGeneral.sendPaymentNotification(recipient_device_address, objJoint.unit.unit);
+					handleResult(null, objJoint.unit.unit);
+				}
+			}
+		};
+		
+		if (asset && asset !== "base"){
+			params.asset = asset;
+			if (to_address){
+				params.to_address = to_address;
+				params.amount = amount; // in asset units
+			}
+			else{
+				params.asset_outputs = asset_outputs;
+				params.base_outputs = base_outputs; // only destinations, without the change
+			}
+			params.change_address = change_address;
+			storage.readAsset(db, asset, null, function(err, objAsset){
+				if (err)
+					throw Error(err);
+				if (objAsset.is_private && !recipient_device_address)
+					return handleResult("for private asset, need recipient's device address to send private payload to");
+				if (objAsset.fixed_denominations){ // indivisible
+					params.tolerance_plus = 0;
+					params.tolerance_minus = 0;
+					indivisibleAsset.composeAndSaveMinimalIndivisibleAssetPaymentJoint(params);
+				}
+				else{ // divisible
+					divisibleAsset.composeAndSaveMinimalDivisibleAssetPaymentJoint(params);
+				}
+			});
+		}
+		else{ // base asset
+			params.outputs = to_address ? [{address: to_address, amount: amount}] : base_outputs;
+			params.outputs.push({address: change_address, amount: 0});
+			composer.composeAndSaveMinimalJoint(params);
+		}
+	
+	});
+}
+
+
 // todo, almost same as payment
 function signAuthRequest(wallet, objRequest, handleResult){
 	
