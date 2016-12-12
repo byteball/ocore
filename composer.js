@@ -227,7 +227,8 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 				objInputWithProof.spend_proof = objSpendProof;
 			}
 			arrInputsWithProofs.push(objInputWithProof);
-			(total_amount > required_amount) ? onDone(arrInputsWithProofs, total_amount) : onDone(null);
+			var bFound = is_base ? (total_amount > required_amount) : (total_amount >= required_amount);
+			bFound ? onDone(arrInputsWithProofs, total_amount) : onDone(null);
 		}
 		
 		if (objAsset.cap){
