@@ -918,11 +918,14 @@ function forwardPrivateChainsToOtherMembersOfWallets(arrChains, arrWallets){
 
 
 function readBalance(wallet, handleBalance){
+	var walletIsAddress = ValidationUtils.isValidAddress(wallet);
+	var join_my_addresses = walletIsAddress ? "" : "JOIN my_addresses USING(address)";
+	var where_condition = walletIsAddress ? "address=?" : "wallet=?";
 	var assocBalances = {base: {stable: 0, pending: 0}};
 	db.query(
 		"SELECT asset, is_stable, SUM(amount) AS balance \n\
-		FROM my_addresses JOIN outputs USING(address) JOIN units USING(unit) \n\
-		WHERE is_spent=0 AND wallet=? AND sequence='good' \n\
+		FROM outputs "+join_my_addresses+" JOIN units USING(unit) \n\
+		WHERE is_spent=0 AND "+where_condition+" AND sequence='good' \n\
 		GROUP BY asset, is_stable", 
 		[wallet], 
 		function(rows){
@@ -932,12 +935,13 @@ function readBalance(wallet, handleBalance){
 				if (!assocBalances[asset])
 					assocBalances[asset] = {stable: 0, pending: 0};
 				assocBalances[asset][row.is_stable ? 'stable' : 'pending'] = row.balance;
+			//	assocBalances[asset]['pending'] = row.balance;
 			}
 			db.query(
 				"SELECT SUM(total) AS total FROM ( \n\
-				SELECT SUM(amount) AS total FROM my_addresses JOIN witnessing_outputs USING(address) WHERE is_spent=0 AND wallet=? \n\
+				SELECT SUM(amount) AS total FROM witnessing_outputs "+join_my_addresses+" WHERE is_spent=0 AND "+where_condition+" \n\
 				UNION \n\
-				SELECT SUM(amount) AS total FROM my_addresses JOIN headers_commission_outputs USING(address) WHERE is_spent=0 AND wallet=? )",
+				SELECT SUM(amount) AS total FROM headers_commission_outputs "+join_my_addresses+" WHERE is_spent=0 AND "+where_condition+" )",
 				[wallet,wallet],
 				function(rows) {
 					if(rows.length){
@@ -946,8 +950,8 @@ function readBalance(wallet, handleBalance){
 					// add 0-balance assets
 					db.query(
 						"SELECT DISTINCT outputs.asset, is_private \n\
-						FROM my_addresses JOIN outputs USING(address) JOIN units USING(unit) LEFT JOIN assets ON asset=assets.unit \n\
-						WHERE wallet=? AND sequence='good'", 
+						FROM outputs "+join_my_addresses+" JOIN units USING(unit) LEFT JOIN assets ON asset=assets.unit \n\
+						WHERE "+where_condition+" AND sequence='good'", 
 						[wallet], 
 						function(rows){
 							for (var i=0; i<rows.length; i++){
@@ -974,21 +978,22 @@ function readBalance(wallet, handleBalance){
 
 
 function readTransactionHistory(wallet, asset, handleHistory){
-    var walletIsAddress = ValidationUtils.isValidAddress(wallet);
-    var where_condition = walletIsAddress ? "address=?" : "wallet=?";
+	var walletIsAddress = ValidationUtils.isValidAddress(wallet);
+	var join_my_addresses = walletIsAddress ? "" : "JOIN my_addresses USING(address)";
+	var where_condition = walletIsAddress ? "address=?" : "wallet=?";
 	var asset_condition = (asset && asset !== "base") ? "asset="+db.escape(asset) : "asset IS NULL";
 	db.query(
 		"SELECT unit, level, is_stable, sequence, address, \n\
 			"+db.getUnixTimestamp("units.creation_date")+" AS ts, headers_commission+payload_commission AS fee, \n\
 			SUM(amount) AS amount, address AS to_address, NULL AS from_address \n\
-		FROM my_addresses JOIN outputs USING(address) JOIN units USING(unit) \n\
+		FROM outputs "+join_my_addresses+" JOIN units USING(unit) \n\
 		WHERE "+where_condition+" AND "+asset_condition+" \n\
 		GROUP BY unit, address \n\
 		UNION \n\
 		SELECT unit, level, is_stable, sequence, address, \n\
 			"+db.getUnixTimestamp("units.creation_date")+" AS ts, headers_commission+payload_commission AS fee, \n\
 			NULL AS amount, NULL AS to_address, address AS from_address \n\
-		FROM my_addresses JOIN inputs USING(address) JOIN units USING(unit) \n\
+		FROM inputs "+join_my_addresses+" JOIN units USING(unit) \n\
 		WHERE "+where_condition+" AND "+asset_condition,
 		[wallet, wallet],
 		function(rows){
