@@ -509,6 +509,32 @@ function emitNewPublicPaymentReceived(payer_device_address, objUnit){
 }
 
 
+function readSharedBalance(wallet, handleBalance){
+	var assocBalances = {};
+	db.query(
+		"SELECT asset, shared_address, is_stable, SUM(amount) AS balance \n\
+		FROM shared_addresses JOIN outputs ON shared_address=address JOIN units USING(unit) \n\
+		WHERE is_spent=0 AND sequence='good' AND shared_address IN ( \n\
+			SELECT DISTINCT shared_address FROM my_addresses JOIN shared_address_signing_paths USING(address) WHERE wallet=? \n\
+		) \n\
+		GROUP BY asset, shared_address, is_stable", 
+		[wallet], 
+		function(rows){
+			for (var i=0; i<rows.length; i++){
+				var row = rows[i];
+				var asset = row.asset || "base";
+				if (!assocBalances[asset])
+					assocBalances[asset] = {};
+				if (!assocBalances[asset][row.shared_address])
+					assocBalances[asset][row.shared_address] = {stable: 0, pending: 0};
+				assocBalances[asset][row.shared_address][row.is_stable ? 'stable' : 'pending'] = row.balance;
+			}
+			handleBalance(assocBalances);
+		}
+	);
+}
+
+
 
 // todo, almost same as payment
 function signAuthRequest(wallet, objRequest, handleResult){
@@ -526,4 +552,5 @@ walletGeneral.readMyAddresses(function(arrAddresses){
 
 
 exports.sendSignature = sendSignature;
+exports.readSharedBalance = readSharedBalance;
 
