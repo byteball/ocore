@@ -306,133 +306,42 @@ function validateAddressDefinition(arrDefinition, handleResult){
 }
 
 
-
-
-function findAddress(address, signing_path, callbacks){
+function forwardPrivateChainsToOtherMembersOfAddresses(arrChains, arrAddresses){
 	db.query(
-		"SELECT wallet, account, is_change, address_index, full_approval_date, device_address \n\
-		FROM my_addresses JOIN wallets USING(wallet) JOIN wallet_signing_paths USING(wallet) \n\
-		WHERE address=? AND signing_path=?",
-		[address, signing_path],
+		"SELECT device_address FROM shared_address_signing_paths WHERE shared_address IN(?) AND device_address!=?", 
+		[arrAddresses, device.getMyDeviceAddress()], 
 		function(rows){
-			if (rows.length > 1)
-				throw Error("more than 1 address found");
-			if (rows.length === 1){
-				var row = rows[0];
-				if (!row.full_approval_date)
-					return callbacks.ifError("wallet of address "+address+" not approved");
-				if (row.device_address !== device.getMyDeviceAddress())
-					return callbacks.ifRemote(row.device_address);
-				var objAddress = {
-					address: address,
-					wallet: row.wallet,
-					account: row.account,
-					is_change: row.is_change,
-					address_index: row.address_index
-				};
-				callbacks.ifLocal(objAddress);
-				return;
-			}
-			db.query(
-				"SELECT address, device_address, member_signing_path FROM shared_address_signing_paths WHERE shared_address=? AND signing_path=?", 
-				[address, signing_path],
-				function(sa_rows){
-					if (sa_rows.length !== 1)
-						return callbacks.ifUnknownAddress();
-					var objSharedAddress = sa_rows[0];
-					(objSharedAddress.device_address === device.getMyDeviceAddress()) // local keys
-						? findAddress(objSharedAddress.address, objSharedAddress.member_signing_path, callbacks)
-						: callbacks.ifRemote(objSharedAddress.device_address);
-				}
-			);
+			console.log("shared address devices: "+rows.length);
+			rows.forEach(function(row){
+				console.log("forwarding to device "+row.device_address);
+				walletGeneral.sendPrivatePayments(row.device_address, arrChains, true);
+			});
 		}
 	);
 }
 
-// todo handle asset payments
-function sendPaymentFromAddress(from_address, to_address, amount, change_address, arrSigningDeviceAddresses, signWithLocalPrivateKey, handleResult){
-	var bRequestedConfirmation = false;
-	var signer = {
-		getSignatureLength: function(address, path){
-			return constants.SIG_LENGTH;
-		},
-		readSigningPaths: function(conn, address, handleSigningPaths){
-			var sql = "SELECT signing_path FROM my_addresses JOIN wallet_signing_paths USING(wallet) WHERE address=?";
-			var arrParams = [address];
-			if (arrSigningDeviceAddresses && arrSigningDeviceAddresses.length > 0){
-				sql += " AND device_address IN(?)";
-				arrParams.push(arrSigningDeviceAddresses);
-			}
-			sql += " UNION SELECT signing_path FROM shared_address_signing_paths WHERE shared_address=?";
-			arrParams.push(address);
-			if (arrSigningDeviceAddresses && arrSigningDeviceAddresses.length > 0){
-				sql += " AND device_address IN(?)";
-				arrParams.push(arrSigningDeviceAddresses);
-			}
-			sql += " ORDER BY signing_path";   
-			conn.query(
-				sql, 
-				arrParams,
-				function(rows){
-					var arrSigningPaths = rows.map(function(row){ return row.signing_path; });
-					handleSigningPaths(arrSigningPaths);
-				}
-			);
-		},
-		readDefinition: function(conn, address, handleDefinition){
-			conn.query(
-				"SELECT definition FROM my_addresses WHERE address=? UNION SELECT definition FROM shared_addresses WHERE shared_address=?", 
-				[address, address], 
-				function(rows){
-					if (rows.length !== 1)
-						throw Error("definition not found");
-					handleDefinition(null, JSON.parse(rows[0].definition));
-				}
-			);
-		},
-		sign: function(objUnsignedUnit, assocPrivatePayloads, address, signing_path, handleSignature){
-			var buf_to_sign = objectHash.getUnitHashToSign(objUnsignedUnit);
-			findAddress(address, signing_path, {
-				ifError: function(err){
-					throw Error(err);
-				},
-				ifUnknownAddress: function(err){
-					throw Error("unknown address");
-				},
-				ifLocal: function(objAddress){
-					signWithLocalPrivateKey(objAddress.wallet, objAddress.account, objAddress.is_change, objAddress.address_index, buf_to_sign, function(sig){
-						handleSignature(null, sig);
-					});
-				},
-				ifRemote: function(device_address){
-					// we'll receive this event after the peer signs
-					eventBus.once("signature-"+device_address+"-"+address+"-"+signing_path+"-"+buf_to_sign.toString("base64"), function(sig){
-						handleSignature(null, sig);
-					});
-					walletGeneral.sendOfferToSign(device_address, address, signing_path, objUnsignedUnit, assocPrivatePayloads);
-					if (!bRequestedConfirmation){
-						eventBus.emit("confirm_on_other_devices");
-						bRequestedConfirmation = true;
-					}
-				}
-			});
+function readRequiredCosigners(shared_address, arrSigningDeviceAddresses, handleCosigners){
+	db.query(
+		"SELECT shared_address_signing_paths.address \n\
+		FROM shared_address_signing_paths \n\
+		LEFT JOIN unit_authors USING(address) \n\
+		WHERE shared_address=? AND device_address IN(?) AND unit_authors.address IS NULL",
+		[shared_address, arrSigningDeviceAddresses],
+		function(rows){
+			handleCosigners(rows.map(function(row){ return row.address; }));
 		}
-	};
-	
-	composer.composeAndSavePaymentJoint([from_address], [{address: to_address, amount: amount}, {address: change_address, amount: 0}], signer, {
-		ifNotEnoughFunds: function(err){
-			handleResult(err);
-		},
-		ifError: function(err){
-			handleResult(err);
-		},
-		ifOk: function(objJoint, assocPrivatePayloads){
-			// todo handle private payloads
-			network.broadcastJoint(objJoint);
-			handleResult();
-		}
+	);
+}
+
+function readSharedAddressDefinition(shared_address, handleDefinition){
+	db.query("SELECT definition FROM shared_addresses WHERE shared_address=?", [shared_address], function(rows){
+		if (rows.length !== 1)
+			throw Error('shared definition not found '+shared_address);
+		var arrDefinition = JSON.parse(rows[0].definition);
+		handleDefinition(arrDefinition);
 	});
 }
+
 
 
 
@@ -441,6 +350,7 @@ exports.approvePendingSharedAddress = approvePendingSharedAddress;
 exports.deletePendingSharedAddress = deletePendingSharedAddress;
 exports.validateAddressDefinition = validateAddressDefinition;
 exports.handleNewSharedAddress = handleNewSharedAddress;
-exports.findAddress = findAddress;
-exports.sendPaymentFromAddress = sendPaymentFromAddress;
+exports.forwardPrivateChainsToOtherMembersOfAddresses = forwardPrivateChainsToOtherMembersOfAddresses;
+exports.readRequiredCosigners = readRequiredCosigners;
+exports.readSharedAddressDefinition = readSharedAddressDefinition;
 
