@@ -17,6 +17,8 @@ var walletDefinedByAddresses = require('./wallet_defined_by_addresses.js');
 var eventBus = require('./event_bus.js');
 var ValidationUtils = require("./validation_utils.js");
 var composer = require('./composer.js');
+var indivisibleAsset = require('./indivisible_asset.js');
+var divisibleAsset = require('./divisible_asset.js');
 var profiler = require('./profiler.js');
 var breadcrumbs = require('./breadcrumbs.js');
 

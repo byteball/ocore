@@ -333,6 +333,15 @@ function readRequiredCosigners(shared_address, arrSigningDeviceAddresses, handle
 	);
 }
 
+function readSharedAddressDefinition(shared_address, handleDefinition){
+	db.query("SELECT definition FROM shared_addresses WHERE shared_address=?", [shared_address], function(rows){
+		if (rows.length !== 1)
+			throw Error('shared definition not found '+shared_address);
+		var arrDefinition = JSON.parse(rows[0].definition);
+		handleDefinition(arrDefinition);
+	});
+}
+
 
 // todo handle asset payments
 function sendPaymentFromAddress(from_address, to_address, amount, change_address, arrSigningDeviceAddresses, signWithLocalPrivateKey, handleResult){
@@ -428,5 +437,5 @@ exports.validateAddressDefinition = validateAddressDefinition;
 exports.handleNewSharedAddress = handleNewSharedAddress;
 exports.forwardPrivateChainsToOtherMembersOfAddresses = forwardPrivateChainsToOtherMembersOfAddresses;
 exports.readRequiredCosigners = readRequiredCosigners;
-exports.sendPaymentFromAddress = sendPaymentFromAddress;
+exports.readSharedAddressDefinition = readSharedAddressDefinition;
 

@@ -15,8 +15,6 @@ var walletGeneral = require('./wallet_general.js');
 var eventBus = require('./event_bus.js');
 var Definition = require("./definition.js");
 var ValidationUtils = require("./validation_utils.js");
-var indivisibleAsset = require('./indivisible_asset.js');
-var divisibleAsset = require('./divisible_asset.js');
 try{
 	var Bitcore = require('bitcore-lib');
 }
