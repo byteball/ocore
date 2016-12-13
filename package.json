@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "ws": "^1.0.1",
+    "socksv5": "0.0.6",
     "thirty-two": "^1.0.1",
     "longjohn": "^0.2.11",
     "lodash": "^4.6.1",
