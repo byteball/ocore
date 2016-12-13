@@ -306,6 +306,32 @@ function validateAddressDefinition(arrDefinition, handleResult){
 }
 
 
+function forwardPrivateChainsToOtherMembersOfAddresses(arrChains, arrAddresses){
+	db.query(
+		"SELECT device_address FROM shared_address_signing_paths WHERE shared_address IN(?) AND device_address!=?", 
+		[arrAddresses, device.getMyDeviceAddress()], 
+		function(rows){
+			console.log("shared address devices: "+rows.length);
+			rows.forEach(function(row){
+				console.log("forwarding to device "+row.device_address);
+				walletGeneral.sendPrivatePayments(row.device_address, arrChains, true);
+			});
+		}
+	);
+}
+
+function readRequiredCosigners(shared_address, arrSigningDeviceAddresses, handleCosigners){
+	db.query(
+		"SELECT shared_address_signing_paths.address \n\
+		FROM shared_address_signing_paths \n\
+		LEFT JOIN unit_authors USING(address) \n\
+		WHERE shared_address=? AND device_address IN(?) AND unit_authors.address IS NULL",
+		[shared_address, arrSigningDeviceAddresses],
+		function(rows){
+			handleCosigners(rows.map(function(row){ return row.address; }));
+		}
+	);
+}
 
 
 // todo handle asset payments
@@ -400,5 +426,7 @@ exports.approvePendingSharedAddress = approvePendingSharedAddress;
 exports.deletePendingSharedAddress = deletePendingSharedAddress;
 exports.validateAddressDefinition = validateAddressDefinition;
 exports.handleNewSharedAddress = handleNewSharedAddress;
+exports.forwardPrivateChainsToOtherMembersOfAddresses = forwardPrivateChainsToOtherMembersOfAddresses;
+exports.readRequiredCosigners = readRequiredCosigners;
 exports.sendPaymentFromAddress = sendPaymentFromAddress;
 

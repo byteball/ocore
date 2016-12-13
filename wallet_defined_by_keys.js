@@ -713,25 +713,6 @@ function readAllAddresses(wallet, handleAddresses){
 }
 
 
-function readFundedAddresses(asset, wallet, handleFundedAddresses){
-	db.query(
-		"SELECT DISTINCT address \n\
-		FROM my_addresses \n\
-		JOIN outputs USING(address) \n\
-		JOIN units USING(unit) \n\
-		WHERE wallet=? AND is_stable=1 AND sequence='good' AND is_spent=0 AND "+(asset ? "(asset=? OR asset IS NULL)" : "asset IS NULL")+" \n\
-			AND NOT EXISTS ( \n\
-				SELECT * FROM unit_authors JOIN units USING(unit) \n\
-				WHERE is_stable=0 AND unit_authors.address=outputs.address AND definition_chash IS NOT NULL \n\
-			)",
-		asset ? [wallet, asset] : [wallet],
-		function(rows){
-			var arrFundedAddresses = rows.map(function(row){ return row.address; });
-			return handleFundedAddresses(arrFundedAddresses);
-		}
-	);
-}
-
 
 
 
@@ -774,11 +755,13 @@ function readBalance(wallet, handleBalance){
 				assocBalances[asset][row.is_stable ? 'stable' : 'pending'] = row.balance;
 			//	assocBalances[asset]['pending'] = row.balance;
 			}
+			var my_addresses_join = walletIsAddress ? "" : "my_addresses CROSS JOIN";
+			var using = walletIsAddress ? "" : "USING(address)";
 			db.query(
 				"SELECT SUM(total) AS total FROM ( \n\
-				SELECT SUM(amount) AS total FROM witnessing_outputs "+join_my_addresses+" WHERE is_spent=0 AND "+where_condition+" \n\
+				SELECT SUM(amount) AS total FROM "+my_addresses_join+" witnessing_outputs "+using+" WHERE is_spent=0 AND "+where_condition+" \n\
 				UNION \n\
-				SELECT SUM(amount) AS total FROM headers_commission_outputs "+join_my_addresses+" WHERE is_spent=0 AND "+where_condition+" )",
+				SELECT SUM(amount) AS total FROM "+my_addresses_join+" headers_commission_outputs "+using+" WHERE is_spent=0 AND "+where_condition+" )",
 				[wallet,wallet],
 				function(rows) {
 					if(rows.length){
@@ -965,8 +948,6 @@ exports.readExternalAddresses = readExternalAddresses;
 exports.readChangeAddresses = readChangeAddresses;
 exports.readAddressInfo = readAddressInfo;
 
-exports.sendPaymentFromWallet = sendPaymentFromWallet;
-exports.sendMultiPaymentFromWallet = sendMultiPaymentFromWallet;
 exports.forwardPrivateChainsToOtherMembersOfWallets = forwardPrivateChainsToOtherMembersOfWallets;
 
 exports.readBalance = readBalance;
