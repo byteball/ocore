@@ -414,17 +414,22 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			var unit = body;
 			if (!ValidationUtils.isStringOfLength(unit, constants.HASH_LENGTH))
 				return callbacks.ifError("invalid unit in payment notification");
-			eventBus.once('new_my_unit-'+unit, function(objJoint){
+			var bEmitted = false;
+			var emitPn = function(objJoint){
+				if (bEmitted)
+					return;
+				bEmitted = true;
 				emitNewPublicPaymentReceived(from_address, objJoint.unit);
-			});
+			};
+			eventBus.once('saved_unit-'+unit, emitPn);
 			storage.readJoint(db, unit, {
 				ifNotFound: function(){
 					console.log("received payment notification for unit "+unit+" which is not known yet, will wait for it");
 					callbacks.ifOk();
 				},
 				ifFound: function(objJoint){
-					// we emit rather than calling the handler directly to ensure that it is handled only once
-					eventBus.emit('new_my_unit-'+unit, objJoint);
+					emitPn(objJoint);
+					eventBus.removeListener('saved_unit-'+unit, emitPn);
 					callbacks.ifOk();
 				}
 			});

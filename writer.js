@@ -10,6 +10,7 @@ var objectHash = require("./object_hash.js");
 var mutex = require('./mutex.js');
 var main_chain = require("./main_chain.js");
 var Definition = require("./definition.js");
+var eventBus = require('./event_bus.js');
 var profiler = require('./profiler.js');
 
 var count_writes = 0;
@@ -450,6 +451,7 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 							profiler.stop('write-commit');
 							profiler.increment();
 							unlock();
+							eventBus.emit('saved_unit-'+objUnit.unit, objJoint);
 							if (onDone)
 								onDone();
 							count_writes++;
