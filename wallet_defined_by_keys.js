@@ -686,9 +686,7 @@ function readExternalAddresses(wallet, opts, handleAddresses){
 }
 
 function readChangeAddresses(wallet, handleAddresses){
-	opts.is_change = 1;
-	opts.reverse = 1;
-	readAddresses(wallet, opts, handleAddresses);
+	readAddresses(wallet, {is_change: 1, reverse: 1}, handleAddresses);
 }
 
 // unused so far
