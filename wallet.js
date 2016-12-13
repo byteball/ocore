@@ -582,6 +582,199 @@ function readSharedBalance(wallet, handleBalance){
 }
 
 
+function readBalance(wallet, handleBalance){
+	var walletIsAddress = ValidationUtils.isValidAddress(wallet);
+	var join_my_addresses = walletIsAddress ? "" : "JOIN my_addresses USING(address)";
+	var where_condition = walletIsAddress ? "address=?" : "wallet=?";
+	var assocBalances = {base: {stable: 0, pending: 0}};
+	db.query(
+		"SELECT asset, is_stable, SUM(amount) AS balance \n\
+		FROM outputs "+join_my_addresses+" JOIN units USING(unit) \n\
+		WHERE is_spent=0 AND "+where_condition+" AND sequence='good' \n\
+		GROUP BY asset, is_stable", 
+		[wallet], 
+		function(rows){
+			for (var i=0; i<rows.length; i++){
+				var row = rows[i];
+				var asset = row.asset || "base";
+				if (!assocBalances[asset])
+					assocBalances[asset] = {stable: 0, pending: 0};
+				assocBalances[asset][row.is_stable ? 'stable' : 'pending'] = row.balance;
+			}
+			var my_addresses_join = walletIsAddress ? "" : "my_addresses CROSS JOIN";
+			var using = walletIsAddress ? "" : "USING(address)";
+			db.query(
+				"SELECT SUM(total) AS total FROM ( \n\
+				SELECT SUM(amount) AS total FROM "+my_addresses_join+" witnessing_outputs "+using+" WHERE is_spent=0 AND "+where_condition+" \n\
+				UNION \n\
+				SELECT SUM(amount) AS total FROM "+my_addresses_join+" headers_commission_outputs "+using+" WHERE is_spent=0 AND "+where_condition+" )",
+				[wallet,wallet],
+				function(rows) {
+					if(rows.length){
+						assocBalances["base"]["stable"] += rows[0].total;
+					}
+					// add 0-balance assets
+					db.query(
+						"SELECT DISTINCT outputs.asset, is_private \n\
+						FROM outputs "+join_my_addresses+" JOIN units USING(unit) LEFT JOIN assets ON asset=assets.unit \n\
+						WHERE "+where_condition+" AND sequence='good'", 
+						[wallet], 
+						function(rows){
+							for (var i=0; i<rows.length; i++){
+								var row = rows[i];
+								var asset = row.asset || "base";
+								if (!assocBalances[asset])
+									assocBalances[asset] = {stable: 0, pending: 0};
+								assocBalances[asset].is_private = row.is_private;
+							}
+							handleBalance(assocBalances);
+							if (conf.bLight){ // make sure we have all asset definitions available
+								var arrAssets = Object.keys(assocBalances).filter(function(asset){ return (asset !== 'base'); });
+								if (arrAssets.length === 0)
+									return;
+								network.requestProofsOfJointsIfNewOrUnstable(arrAssets);
+							}
+						}
+					);
+				}
+			);
+		}
+	);
+}
+
+
+function readTransactionHistory(wallet, asset, handleHistory){
+	var walletIsAddress = ValidationUtils.isValidAddress(wallet);
+	var join_my_addresses = walletIsAddress ? "" : "JOIN my_addresses USING(address)";
+	var where_condition = walletIsAddress ? "address=?" : "wallet=?";
+	var asset_condition = (asset && asset !== "base") ? "asset="+db.escape(asset) : "asset IS NULL";
+	db.query(
+		"SELECT unit, level, is_stable, sequence, address, \n\
+			"+db.getUnixTimestamp("units.creation_date")+" AS ts, headers_commission+payload_commission AS fee, \n\
+			SUM(amount) AS amount, address AS to_address, NULL AS from_address \n\
+		FROM outputs "+join_my_addresses+" JOIN units USING(unit) \n\
+		WHERE "+where_condition+" AND "+asset_condition+" \n\
+		GROUP BY unit, address \n\
+		UNION \n\
+		SELECT unit, level, is_stable, sequence, address, \n\
+			"+db.getUnixTimestamp("units.creation_date")+" AS ts, headers_commission+payload_commission AS fee, \n\
+			NULL AS amount, NULL AS to_address, address AS from_address \n\
+		FROM inputs "+join_my_addresses+" JOIN units USING(unit) \n\
+		WHERE "+where_condition+" AND "+asset_condition,
+		[wallet, wallet],
+		function(rows){
+			var assocMovements = {};
+			for (var i=0; i<rows.length; i++){
+				var row = rows[i];
+				//if (asset !== "base")
+				//    row.fee = null;
+				if (!assocMovements[row.unit])
+					assocMovements[row.unit] = {
+						plus:0, has_minus:false, ts: row.ts, level: row.level, is_stable: row.is_stable, sequence: row.sequence, fee: row.fee
+					};
+				if (row.to_address)
+					assocMovements[row.unit].plus += row.amount;
+				if (row.from_address)
+					assocMovements[row.unit].has_minus = true;
+			}
+			var arrTransactions = [];
+			async.forEachOfSeries(
+				assocMovements,
+				function(movement, unit, cb){
+					if (movement.sequence !== 'good'){
+						var transaction = {
+							action: 'invalid',
+							confirmations: movement.is_stable,
+							unit: unit,
+							fee: movement.fee,
+							time: movement.ts,
+							level: movement.level
+						};
+						arrTransactions.push(transaction);
+						cb();
+					}
+					else if (movement.plus && !movement.has_minus){
+						// light clients will sometimes have input address = NULL
+						db.query(
+							"SELECT DISTINCT address FROM inputs WHERE unit=? AND "+asset_condition+" ORDER BY address", 
+							[unit], 
+							function(address_rows){
+								var arrPayerAddresses = address_rows.map(function(address_row){ return address_row.address; });
+								var transaction = {
+									action: 'received',
+									amount: movement.plus,
+									arrPayerAddresses: arrPayerAddresses,
+									confirmations: movement.is_stable,
+									unit: unit,
+									fee: movement.fee,
+									time: movement.ts,
+									level: movement.level
+								};
+								arrTransactions.push(transaction);
+								cb();
+							}
+						);
+					}
+					else if (movement.has_minus){
+						var queryString, parameters;
+						if(walletIsAddress){
+							queryString =   "SELECT address, SUM(amount) AS amount \n\
+											FROM outputs \n\
+											WHERE unit=? AND "+asset_condition+" AND address!=? \n\
+											GROUP BY address";
+							parameters = [unit, wallet];
+						}
+						else {
+							queryString =   "SELECT outputs.address, SUM(amount) AS amount \n\
+											FROM outputs \n\
+											LEFT JOIN my_addresses ON outputs.address=my_addresses.address AND wallet=? \n\
+											WHERE unit=? AND "+asset_condition+" AND my_addresses.address IS NULL \n\
+											GROUP BY outputs.address";
+							parameters = [wallet, unit];
+						}
+						db.query(queryString, parameters, 
+							function(payee_rows){
+								for (var i=0; i<payee_rows.length; i++){
+									var payee = payee_rows[i];
+									var transaction = {
+										action: 'sent',
+										amount: payee.amount,
+										addressTo: payee.address,
+										confirmations: movement.is_stable,
+										unit: unit,
+										fee: movement.fee,
+										time: movement.ts,
+										level: movement.level
+									};
+									arrTransactions.push(transaction);
+								}
+								cb();
+							}
+						);
+					}
+				},
+				function(){
+					arrTransactions.sort(function(a, b){
+						if (a.level < b.level)
+							return 1;
+						if (a.level > b.level)
+							return -1;
+						if (a.time < b.time)
+							return 1;
+						if (a.time > b.time)
+							return -1;
+						return 0;
+					});
+					arrTransactions.forEach(function(transaction){ transaction.asset = asset; });
+					handleHistory(arrTransactions);
+				}
+			);
+		}
+	);
+}
+
+
+
 function readFundedAddresses(asset, wallet, handleFundedAddresses){
 	var walletIsAddresses = ValidationUtils.isNonemptyArray(wallet);
 	var join_my_addresses = walletIsAddresses ? "" : "JOIN my_addresses USING(address)";
@@ -801,6 +994,8 @@ walletGeneral.readMyAddresses(function(arrAddresses){
 
 exports.sendSignature = sendSignature;
 exports.readSharedBalance = readSharedBalance;
+exports.readBalance = readBalance;
+exports.readTransactionHistory = readTransactionHistory;
 exports.sendPaymentFromWallet = sendPaymentFromWallet;
 exports.sendMultiPayment = sendMultiPayment;
 
