@@ -563,29 +563,43 @@ function findAddress(address, signing_path, callbacks){
 
 
 
+function readSharedAddressesOnWallet(wallet, handleSharedAddresses){
+	db.query("SELECT DISTINCT shared_address FROM my_addresses JOIN shared_address_signing_paths USING(address) WHERE wallet=?", [wallet], function(rows){
+		handleSharedAddresses(rows.map(function(row){ return row.shared_address; }));
+	});
+}
+
 function readSharedBalance(wallet, handleBalance){
 	var assocBalances = {};
-	db.query(
-		"SELECT asset, shared_address, is_stable, SUM(amount) AS balance \n\
-		FROM shared_addresses JOIN outputs ON shared_address=address JOIN units USING(unit) \n\
-		WHERE is_spent=0 AND sequence='good' AND shared_address IN ( \n\
-			SELECT DISTINCT shared_address FROM my_addresses JOIN shared_address_signing_paths USING(address) WHERE wallet=? \n\
-		) \n\
-		GROUP BY asset, shared_address, is_stable", 
-		[wallet], 
-		function(rows){
-			for (var i=0; i<rows.length; i++){
-				var row = rows[i];
-				var asset = row.asset || "base";
-				if (!assocBalances[asset])
-					assocBalances[asset] = {};
-				if (!assocBalances[asset][row.shared_address])
-					assocBalances[asset][row.shared_address] = {stable: 0, pending: 0};
-				assocBalances[asset][row.shared_address][row.is_stable ? 'stable' : 'pending'] = row.balance;
+	readSharedAddressesOnWallet(wallet, function(arrSharedAddresses){
+		if (arrSharedAddresses.length === 0)
+			return handleBalance(assocBalances);
+		db.query(
+			"SELECT asset, address, is_stable, SUM(amount) AS balance \n\
+			FROM outputs JOIN units USING(unit) \n\
+			WHERE is_spent=0 AND sequence='good' AND address IN(?) \n\
+			GROUP BY asset, address, is_stable \n\
+			UNION ALL \n\
+			SELECT NULL AS asset, address, 1 AS is_stable, SUM(amount) AS balance FROM witnessing_outputs \n\
+			WHERE is_spent=0 AND address IN(?) GROUP BY address \n\
+			UNION ALL \n\
+			SELECT NULL AS asset, address, 1 AS is_stable, SUM(amount) AS balance FROM headers_commission_outputs \n\
+			WHERE is_spent=0 AND address IN(?) GROUP BY address", 
+			[arrSharedAddresses, arrSharedAddresses, arrSharedAddresses], 
+			function(rows){
+				for (var i=0; i<rows.length; i++){
+					var row = rows[i];
+					var asset = row.asset || "base";
+					if (!assocBalances[asset])
+						assocBalances[asset] = {};
+					if (!assocBalances[asset][row.address])
+						assocBalances[asset][row.address] = {stable: 0, pending: 0};
+					assocBalances[asset][row.address][row.is_stable ? 'stable' : 'pending'] += row.balance;
+				}
+				handleBalance(assocBalances);
 			}
-			handleBalance(assocBalances);
-		}
-	);
+		);
+	});
 }
 
 
@@ -613,7 +627,7 @@ function readBalance(wallet, handleBalance){
 			db.query(
 				"SELECT SUM(total) AS total FROM ( \n\
 				SELECT SUM(amount) AS total FROM "+my_addresses_join+" witnessing_outputs "+using+" WHERE is_spent=0 AND "+where_condition+" \n\
-				UNION \n\
+				UNION ALL \n\
 				SELECT SUM(amount) AS total FROM "+my_addresses_join+" headers_commission_outputs "+using+" WHERE is_spent=0 AND "+where_condition+" )",
 				[wallet,wallet],
 				function(rows) {
@@ -828,6 +842,7 @@ function sendMultiPayment(opts, handleResult)
 	var arrSigningAddresses = opts.signing_addresses;
 	var to_address = opts.to_address;
 	var amount = opts.amount;
+	var bSendAll = opts.send_all;
 	var change_address = opts.change_address;
 	var arrSigningDeviceAddresses = opts.arrSigningDeviceAddresses;
 	var recipient_device_address = opts.recipient_device_address;
@@ -949,6 +964,8 @@ function sendMultiPayment(opts, handleResult)
 		};
 		
 		if (asset && asset !== "base"){
+			if (bSendAll)
+				throw Error('send_all with asset');
 			params.asset = asset;
 			if (to_address){
 				params.to_address = to_address;
@@ -975,8 +992,14 @@ function sendMultiPayment(opts, handleResult)
 			});
 		}
 		else{ // base asset
-			params.outputs = to_address ? [{address: to_address, amount: amount}] : base_outputs;
-			params.outputs.push({address: change_address, amount: 0});
+			if (bSendAll){
+				params.send_all = bSendAll;
+				params.outputs = [{address: to_address, amount: 0}];
+			}
+			else{
+				params.outputs = to_address ? [{address: to_address, amount: amount}] : (base_outputs || []);
+				params.outputs.push({address: change_address, amount: 0});
+			}
 			composer.composeAndSaveMinimalJoint(params);
 		}
 	
