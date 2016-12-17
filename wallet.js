@@ -693,8 +693,10 @@ function readTransactionHistory(wallet, asset, handleHistory){
 					assocMovements[row.unit] = {
 						plus:0, has_minus:false, ts: row.ts, level: row.level, is_stable: row.is_stable, sequence: row.sequence, fee: row.fee
 					};
-				if (row.to_address)
+				if (row.to_address){
 					assocMovements[row.unit].plus += row.amount;
+					assocMovements[row.unit].my_address += row.to_address;
+				}
 				if (row.from_address)
 					assocMovements[row.unit].has_minus = true;
 			}
@@ -724,6 +726,7 @@ function readTransactionHistory(wallet, asset, handleHistory){
 								var transaction = {
 									action: 'received',
 									amount: movement.plus,
+									my_address: movement.my_address,
 									arrPayerAddresses: arrPayerAddresses,
 									confirmations: movement.is_stable,
 									unit: unit,
