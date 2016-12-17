@@ -664,7 +664,11 @@ function readBalance(wallet, handleBalance){
 }
 
 
-function readTransactionHistory(wallet, asset, handleHistory){
+function readTransactionHistory(opts, handleHistory){
+	var asset = opts.asset;
+	if (opts.wallet && opts.address || !opts.wallet && !opts.address)
+		throw Error('invalid wallet and address params');
+	var wallet = opts.wallet || opts.address;
 	var walletIsAddress = ValidationUtils.isValidAddress(wallet);
 	var join_my_addresses = walletIsAddress ? "" : "JOIN my_addresses USING(address)";
 	var where_condition = walletIsAddress ? "address=?" : "wallet=?";
@@ -681,8 +685,9 @@ function readTransactionHistory(wallet, asset, handleHistory){
 			"+db.getUnixTimestamp("units.creation_date")+" AS ts, headers_commission+payload_commission AS fee, \n\
 			NULL AS amount, NULL AS to_address, address AS from_address \n\
 		FROM inputs "+join_my_addresses+" JOIN units USING(unit) \n\
-		WHERE "+where_condition+" AND "+asset_condition,
-		[wallet, wallet],
+		WHERE "+where_condition+" AND "+asset_condition+" \n\
+		"+(opts.limit ? "ORDER BY ts DESC LIMIT ?" : ""),
+		opts.limit ? [wallet, wallet, opts.limit] : [wallet, wallet],
 		function(rows){
 			var assocMovements = {};
 			for (var i=0; i<rows.length; i++){
