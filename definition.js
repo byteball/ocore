@@ -363,6 +363,18 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 					return cb("incorrect length of element hash");
 				return cb();
 				
+			case 'mci':
+			case 'age':
+				var relation = args[0];
+				var value = args[1];
+				if (!isNonemptyString(relation))
+					return cb("no relation");
+				if (["=", ">", "<", ">=", "<=", "!="].indexOf(relation) === -1)
+					return cb("invalid relation: "+relation);
+				if (!isNonnegativeInteger(value))
+					return cb(op+" must be a non-neg number");
+				break;
+				
 			case 'has':
 			case 'has one':
 				if (objValidationState.bNoReferences)
@@ -701,6 +713,50 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				);
 				break;
 				
+			case 'mci':
+				var relation = args[0];
+				var mci = args[1];
+				switch(relation){
+					case '>': return cb2(objValidationState.last_ball_mci > mci);
+					case '>=': return cb2(objValidationState.last_ball_mci >= mci);
+					case '<': return cb2(objValidationState.last_ball_mci < mci);
+					case '<=': return cb2(objValidationState.last_ball_mci <= mci);
+					case '=': return cb2(objValidationState.last_ball_mci === mci);
+					default: throw Error('unknown relation in mci: '+relation);
+				}
+				break;
+				
+			case 'age':
+				var relation = args[0];
+				var age = args[1];
+				var arrSrcUnits = [];
+				for (var i=0; i<objUnit.messages.length; i++){
+					var message = objUnit.messages[i];
+					if (message.app !== 'payment' || !message.payload)
+						continue;
+					var inputs = message.payload.inputs;
+					for (var j=0; j<inputs.length; j++){
+						var input = inputs[j];
+						if (!input.address) // augment should add it
+							throw Error('no input address');
+						if (input.address === address)
+							arrSrcUnits.push(input.unit);
+					}
+				}
+				if (arrSrcUnits.length === 0) // not spending anything from our address
+					return cb2(false);
+				conn.query(
+					"SELECT 1 FROM units \n\
+					WHERE unit IN(?) AND ?"+relation+"main_chain_index AND main_chain_index<=? AND sequence='good' AND is_stable=1",
+					[arrSrcUnits, objValidationState.last_ball_mci - age, objValidationState.last_ball_mci],
+					function(rows){
+						var bSatisfies = (rows.length === arrSrcUnits.length);
+						console.log(op+" "+bSatisfies);
+						cb2(bSatisfies);
+					}
+				);
+				break;
+				
 			case 'has':
 			case 'has one':
 				// ['has', {what: 'input', asset: 'asset or base', type: 'transfer'|'issue', own_funds: true, amount_at_least: 123, amount_at_most: 123, amount: 123, address: 'BASE32'}]
@@ -1000,6 +1056,8 @@ function hasReferences(arrDefinition){
 			case 'seen address':
 			case 'in data feed':
 			case 'in merkle':
+			case 'mci':
+			case 'age':
 			case 'has':
 			case 'has one':
 			case 'has equal':
