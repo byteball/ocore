@@ -700,7 +700,7 @@ function readTransactionHistory(opts, handleHistory){
 					};
 				if (row.to_address){
 					assocMovements[row.unit].plus += row.amount;
-					assocMovements[row.unit].my_address += row.to_address;
+					assocMovements[row.unit].my_address = row.to_address;
 				}
 				if (row.from_address)
 					assocMovements[row.unit].has_minus = true;
