@@ -596,7 +596,7 @@ function isGenesisBall(ball){
 
 function readUnitProps(conn, unit, handleProps){
 	conn.query(
-		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free FROM units WHERE unit=?", 
+		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable FROM units WHERE unit=?", 
 		[unit], 
 		function(rows){
 			if (rows.length !== 1)
