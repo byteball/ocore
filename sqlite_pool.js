@@ -18,7 +18,8 @@ else{
 	console.log("path="+path);
 }
 
-module.exports = function(db_name, MAX_CONNECTIONS){
+module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
+	console.log('---- read only = '+bReadOnly);
 
 	function openDb(cb){
 		if (bCordova){
@@ -27,7 +28,7 @@ module.exports = function(db_name, MAX_CONNECTIONS){
 			return db;
 		}
 		else
-			return new sqlite3.Database(path + db_name, sqlite3.OPEN_READWRITE /*| sqlite3.OPEN_CREATE*/, cb);
+			return new sqlite3.Database(path + db_name, bReadOnly ? sqlite3.OPEN_READONLY : sqlite3.OPEN_READWRITE, cb);
 	}
 
 	var eventEmitter = new EventEmitter();
