@@ -95,7 +95,7 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 					//console.log("query done: "+sql);
 					if (err){
 						console.error("\nfailed query:", new_args);
-						throw Error(err);
+						throw Error(err+"\n"+sql+"\n"+new_args[1].join(', '));
 					}
 					// note that sqlite3 sets nonzero this.changes even when rows were matched but nothing actually changed (new values are same as old)
 					// this.changes appears to be correct for INSERTs despite the documentation states the opposite
