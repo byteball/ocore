@@ -4,4 +4,7 @@ require('./enforce_singleton.js');
 
 var EventEmitter = require('events').EventEmitter;
 
-module.exports = new EventEmitter();
+var eventEmitter = new EventEmitter();
+eventEmitter.setMaxListeners(20);
+
+module.exports = eventEmitter;
