@@ -1,6 +1,7 @@
 /*jslint node: true */
 "use strict";
 var WebSocket = process.browser ? global.WebSocket : require('ws');
+var socksv5 = process.browser ? null : require('socksv5'+'');
 var WebSocketServer = WebSocket.Server;
 var crypto = require('crypto');
 var _ = require('lodash');
@@ -323,7 +324,15 @@ function checkIfHaveEnoughOutboundPeersAndAdd(){
 
 function connectToPeer(url, onOpen) {
 	addPeer(url);
-	var ws = new WebSocket(url);
+	var options = {};
+	if (socksv5 && conf.socksHost && conf.socksPort)
+		options.agent = new socksv5.HttpsAgent({
+								localDNS: conf.socksLocalDNS,
+								proxyHost: conf.socksHost,
+								proxyPort: conf.socksPort,
+								auths: [ socksv5.auth.None() ]
+							});
+	var ws = options.agent ? new WebSocket(url,options) : new WebSocket(url);
 	assocConnectingOutboundWebsockets[url] = ws;
 	setTimeout(function(){
 		if (assocConnectingOutboundWebsockets[url]){
