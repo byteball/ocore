@@ -19,7 +19,6 @@ else{
 }
 
 module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
-	console.log('---- read only = '+bReadOnly);
 
 	function openDb(cb){
 		if (bCordova){
