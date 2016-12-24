@@ -92,6 +92,8 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
    
 	// first, try to find a coin just bigger than the required amount
 	function pickOneCoinJustBiggerAndContinue(){
+		if (amount === Infinity)
+			return pickMultipleCoinsAndContinue();
 		var more = is_base ? '>' : '>=';
 		conn.query(
 			"SELECT unit, message_index, output_index, amount, blinding, address \n\
@@ -155,7 +157,7 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 	}
 	
 	function addWitnessingInputs(){
-		addMcInputs("witnessing", WITNESSING_INPUT_SIZE, paid_witnessing.getMaxSpendableMciForLastBallMci(last_ball_mci), onDone);
+		addMcInputs("witnessing", WITNESSING_INPUT_SIZE, paid_witnessing.getMaxSpendableMciForLastBallMci(last_ball_mci), issueAsset);
 	}
 	
 	function addMcInputs(type, input_size, max_mci, onStillNotEnough){
@@ -196,10 +198,16 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 	}
 	
 	function issueAsset(){
+		if (!asset)
+			return finish();
+		else{
+			if (amount === Infinity && !objAsset.cap) // don't try to create infinite issue
+				return onDone(null);
+		}
 		console.log("will try to issue asset "+asset);
 		// for issue, we use full list of addresses rather than spendable addresses
 		if (objAsset.issued_by_definer_only && arrAddresses.indexOf(objAsset.definer_address) === -1)
-			return onDone(null);
+			return finish();
 		var issuer_address = objAsset.issued_by_definer_only ? objAsset.definer_address : arrAddresses[0];
 		var issue_amount = objAsset.cap || (required_amount - total_amount) || 1; // 1 currency unit in case required_amount = total_amount
 		
@@ -227,13 +235,14 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 				objInputWithProof.spend_proof = objSpendProof;
 			}
 			arrInputsWithProofs.push(objInputWithProof);
-			(total_amount > required_amount) ? onDone(arrInputsWithProofs, total_amount) : onDone(null);
+			var bFound = is_base ? (total_amount > required_amount) : (total_amount >= required_amount);
+			bFound ? onDone(arrInputsWithProofs, total_amount) : finish();
 		}
 		
 		if (objAsset.cap){
 			conn.query("SELECT 1 FROM inputs WHERE type='issue' AND asset=?", [asset], function(rows){
 				if (rows.length > 0) // already issued
-					return onDone(null);
+					return finish();
 				addIssueInput(1);
 			});
 		}
@@ -247,6 +256,13 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 				}
 			);
 		}
+	}
+	
+	function finish(){
+		if (amount === Infinity && arrInputsWithProofs.length > 0)
+			onDone(arrInputsWithProofs, total_amount);
+		else
+			onDone(null);
 	}
 	
 	var arrSpendableAddresses = arrAddresses.concat(); // cloning
@@ -380,7 +396,7 @@ function composeJoint(params){
 	}
 	
 	// try to use as few paying_addresses as possible. Assuming paying_addresses are sorted such that the most well-funded addresses come first
-	if (params.minimal){
+	if (params.minimal && !params.send_all){
 		var callbacks = params.callbacks;
 		var arrCandidatePayingAddresses = params.paying_addresses;
 
@@ -641,13 +657,14 @@ function composeJoint(params){
 			}
 			
 			// all inputs must appear before last_ball
+			var target_amount = params.send_all ? Infinity : (total_amount + objUnit.headers_commission + naked_payload_commission);
 			pickDivisibleCoinsForAmount(
-				conn, null, arrPayingAddresses, last_ball_mci, total_amount + objUnit.headers_commission + naked_payload_commission, bMultiAuthored, 
+				conn, null, arrPayingAddresses, last_ball_mci, target_amount, bMultiAuthored, 
 				function(arrInputsWithProofs, _total_input){
 					if (!arrInputsWithProofs)
 						return cb({ 
 							error_code: "NOT_ENOUGH_FUNDS", 
-							error: "not enough spendable funds from "+arrPayingAddresses+" for "+(total_amount + objUnit.headers_commission + naked_payload_commission)
+							error: "not enough spendable funds from "+arrPayingAddresses+" for "+target_amount
 						});
 					total_input = _total_input;
 					objPaymentMessage.payload.inputs = arrInputsWithProofs.map(function(objInputWithProof){ return objInputWithProof.input; });

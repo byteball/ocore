@@ -19,6 +19,6 @@ if (conf.storage === 'mysql'){
 }
 else if (conf.storage === 'sqlite'){
 	var sqlitePool = require('./sqlite_pool.js');
-	module.exports = sqlitePool(conf.database.filename, conf.database.max_connections);
+	module.exports = sqlitePool(conf.database.filename, conf.database.max_connections, conf.database.bReadOnly);
 }
 

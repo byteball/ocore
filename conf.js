@@ -30,6 +30,12 @@ exports.port = null;
 //exports.bug_sink_email = 'admin@example.org';
 //exports.bugs_from_email = 'bugs@example.org';
 
+// Connects through socks v5 proxy without auth, WS_PROTOCOL has to be 'wss'
+// exports.socksHost = 'localhost';
+// exports.socksPort = '9050';
+// For better security you should not use local DNS with socks proxy 
+// exports.socksLocalDNS = false;
+
 // WebSocket protocol prefixed to all hosts.  Must be wss:// on livenet, ws:// is allowed on testnet
 exports.WS_PROTOCOL = "wss://";
 

@@ -15,8 +15,6 @@ var walletGeneral = require('./wallet_general.js');
 var eventBus = require('./event_bus.js');
 var Definition = require("./definition.js");
 var ValidationUtils = require("./validation_utils.js");
-var indivisibleAsset = require('./indivisible_asset.js');
-var divisibleAsset = require('./divisible_asset.js');
 try{
 	var Bitcore = require('bitcore-lib');
 }
@@ -663,9 +661,12 @@ function issueOrSelectAddressForApp(wallet, app_name, handleAddress){
 	});
 }
 
-function readExternalAddresses(wallet, opts, handleAddresses){
-	var sql = "SELECT address, address_index, "+db.getUnixTimestamp("creation_date")+" AS creation_ts \n\
-		FROM my_addresses WHERE wallet=? AND is_change=0 ORDER BY address_index";
+function readAddresses(wallet, opts, handleAddresses){
+	var sql = "SELECT address, address_index, is_change, "+db.getUnixTimestamp("creation_date")+" AS creation_ts \n\
+		FROM my_addresses WHERE wallet=?";
+	if (opts.is_change === 0 || opts.is_change === 1)
+		sql += " AND is_change="+opts.is_change;
+	sql += " ORDER BY address_index";
 	if (opts.reverse)
 		sql += " DESC";
 	if (opts.limit)
@@ -679,16 +680,13 @@ function readExternalAddresses(wallet, opts, handleAddresses){
 	);
 }
 
+function readExternalAddresses(wallet, opts, handleAddresses){
+	opts.is_change = 0;
+	readAddresses(wallet, opts, handleAddresses);
+}
+
 function readChangeAddresses(wallet, handleAddresses){
-	var sql = "SELECT address \n\
-		FROM my_addresses WHERE wallet=? AND is_change=1 ORDER BY address_index DESC";
-	db.query(
-		sql, 
-		[wallet], 
-		function(rows){
-			handleAddresses(rows.map(function(row){ return row.address; }));
-		}
-	);
+	readAddresses(wallet, {is_change: 1, reverse: 1}, handleAddresses);
 }
 
 // unused so far
@@ -711,191 +709,9 @@ function readAllAddresses(wallet, handleAddresses){
 }
 
 
-function readFundedAddresses(asset, wallet, handleFundedAddresses){
-	db.query(
-		"SELECT DISTINCT address \n\
-		FROM my_addresses \n\
-		JOIN outputs USING(address) \n\
-		JOIN units USING(unit) \n\
-		WHERE wallet=? AND is_stable=1 AND sequence='good' AND is_spent=0 AND "+(asset ? "(asset=? OR asset IS NULL)" : "asset IS NULL")+" \n\
-			AND NOT EXISTS ( \n\
-				SELECT * FROM unit_authors JOIN units USING(unit) \n\
-				WHERE is_stable=0 AND unit_authors.address=outputs.address AND definition_chash IS NOT NULL \n\
-			)",
-		asset ? [wallet, asset] : [wallet],
-		function(rows){
-			var arrFundedAddresses = rows.map(function(row){ return row.address; });
-			return handleFundedAddresses(arrFundedAddresses);
-		}
-	);
-}
 
 
 
-
-
-
-function sendPaymentFromWallet(
-		asset, wallet, to_address, amount, change_address, arrSigningDeviceAddresses, recipient_device_address, signWithLocalPrivateKey, handleResult)
-{
-	sendMultiPaymentFromWallet({
-		asset: asset,
-		wallet: wallet,
-		to_address: to_address,
-		amount: amount,
-		change_address: change_address,
-		arrSigningDeviceAddresses: arrSigningDeviceAddresses,
-		recipient_device_address: recipient_device_address,
-		signWithLocalPrivateKey: signWithLocalPrivateKey
-	}, handleResult);
-}
-
-function sendMultiPaymentFromWallet(opts, handleResult)
-{
-	var asset = opts.asset;
-	var wallet = opts.wallet;
-	var to_address = opts.to_address;
-	var amount = opts.amount;
-	var change_address = opts.change_address;
-	var arrSigningDeviceAddresses = opts.arrSigningDeviceAddresses;
-	var recipient_device_address = opts.recipient_device_address;
-	var signWithLocalPrivateKey = opts.signWithLocalPrivateKey;
-	
-	var base_outputs = opts.base_outputs;
-	var asset_outputs = opts.asset_outputs;
-	
-	if (!wallet)
-		throw Error("no wallet id");
-	if ((to_address || amount) && (base_outputs || asset_outputs))
-		throw Error('to_address and outputs at the same time');
-	if (!asset && asset_outputs)
-		throw Error('base asset and asset outputs');
-	
-	readFundedAddresses(asset, wallet, function(arrFromAddresses){
-		if (arrFromAddresses.length === 0)
-			return handleResult("There are no funded addresses in wallet "+wallet);
-		
-		var bRequestedConfirmation = false;
-		var signer = {
-			getSignatureLength: function(address, path){
-				return constants.SIG_LENGTH;
-			},
-			readSigningPaths: function(conn, address, handleSigningPaths){
-				var sql = "SELECT signing_path FROM my_addresses JOIN wallet_signing_paths USING(wallet) WHERE address=?";
-				var arrParams = [address];
-				if (arrSigningDeviceAddresses && arrSigningDeviceAddresses.length > 0){
-					sql += " AND device_address IN(?)";
-					arrParams.push(arrSigningDeviceAddresses);
-				}
-				sql += " ORDER BY signing_path";   
-				conn.query(
-					sql, 
-					arrParams,
-					function(rows){
-						var arrSigningPaths = rows.map(function(row){ return row.signing_path; });
-						handleSigningPaths(arrSigningPaths);
-					}
-				);
-			},
-			readDefinition: function(conn, address, handleDefinition){
-				conn.query("SELECT definition FROM my_addresses WHERE address=?", [address], function(rows){
-					if (rows.length !== 1)
-						throw Error("definition not found");
-					handleDefinition(null, JSON.parse(rows[0].definition));
-				});
-			},
-			sign: function(objUnsignedUnit, assocPrivatePayloads, address, signing_path, handleSignature){
-				var buf_to_sign = objectHash.getUnitHashToSign(objUnsignedUnit);
-				db.query(
-					"SELECT device_address, account, is_change, address_index \n\
-					FROM my_addresses JOIN wallets USING(wallet) JOIN wallet_signing_paths USING(wallet) \n\
-					WHERE address=? AND signing_path=?", 
-					[address, signing_path],
-					function(rows){
-						if (rows.length !== 1)
-							throw Error("not 1 hub");
-						var row = rows[0];
-						if (row.device_address === device.getMyDeviceAddress()){
-							signWithLocalPrivateKey(wallet, row.account, row.is_change, row.address_index, buf_to_sign, function(sig){
-								handleSignature(null, sig);
-							});
-							return;
-						}
-						// we'll receive this event after the peer signs
-						eventBus.once("signature-"+row.device_address+"-"+address+"-"+signing_path+"-"+buf_to_sign.toString("base64"), function(sig){
-							handleSignature(null, sig);
-							if (sig === '[refused]')
-								eventBus.emit('refused_to_sign', row.device_address);
-						});
-						walletGeneral.sendOfferToSign(row.device_address, address, signing_path, objUnsignedUnit, assocPrivatePayloads);
-						if (!bRequestedConfirmation){
-							eventBus.emit("confirm_on_other_devices");
-							bRequestedConfirmation = true;
-						}
-					}
-				);
-			}
-		};
-		
-		var params = {
-			available_paying_addresses: arrFromAddresses, // some of them may hold 0 coins
-			signer: signer, 
-			callbacks: {
-				ifNotEnoughFunds: function(err){
-					handleResult(err);
-				},
-				ifError: function(err){
-					handleResult(err);
-				},
-				// for asset payments, 2nd argument is array of chains of private elements
-				// for base asset, 2nd argument is assocPrivatePayloads which is null
-				ifOk: function(objJoint, arrChainsOfRecipientPrivateElements, arrChainsOfCosignerPrivateElements){
-					network.broadcastJoint(objJoint);
-					if (arrChainsOfRecipientPrivateElements){
-						forwardPrivateChainsToOtherMembersOfWallets(arrChainsOfCosignerPrivateElements, [wallet]);
-						walletGeneral.sendPrivatePayments(recipient_device_address, arrChainsOfRecipientPrivateElements);
-					}
-					else if (recipient_device_address) // send notification about public payment
-						walletGeneral.sendPaymentNotification(recipient_device_address, objJoint.unit.unit);
-					handleResult();
-				}
-			}
-		};
-		
-		if (asset && asset !== "base"){
-			params.asset = asset;
-			if (to_address){
-				params.to_address = to_address;
-				params.amount = amount; // in asset units
-			}
-			else{
-				params.asset_outputs = asset_outputs;
-				params.base_outputs = base_outputs; // only destinations, without the change
-			}
-			params.change_address = change_address;
-			storage.readAsset(db, asset, null, function(err, objAsset){
-				if (err)
-					throw Error(err);
-				if (objAsset.is_private && !recipient_device_address)
-					return handleResult("for private asset, need recipient's device address to send private payload to");
-				if (objAsset.fixed_denominations){ // indivisible
-					params.tolerance_plus = 0;
-					params.tolerance_minus = 0;
-					indivisibleAsset.composeAndSaveMinimalIndivisibleAssetPaymentJoint(params);
-				}
-				else{ // divisible
-					divisibleAsset.composeAndSaveMinimalDivisibleAssetPaymentJoint(params);
-				}
-			});
-		}
-		else{ // base asset
-			params.outputs = to_address ? [{address: to_address, amount: amount}] : base_outputs;
-			params.outputs.push({address: change_address, amount: 0});
-			composer.composeAndSaveMinimalJoint(params);
-		}
-	
-	});
-}
 
 
 function forwardPrivateChainsToOtherMembersOfWallets(arrChains, arrWallets){
@@ -915,179 +731,6 @@ function forwardPrivateChainsToOtherMembersOfWallets(arrChains, arrWallets){
 
 
 
-function readBalance(wallet, handleBalance){
-	var assocBalances = {base: {stable: 0, pending: 0}};
-	db.query(
-		"SELECT asset, is_stable, SUM(amount) AS balance \n\
-		FROM my_addresses JOIN outputs USING(address) JOIN units USING(unit) \n\
-		WHERE is_spent=0 AND wallet=? AND sequence='good' \n\
-		GROUP BY asset, is_stable", 
-		[wallet], 
-		function(rows){
-			for (var i=0; i<rows.length; i++){
-				var row = rows[i];
-				var asset = row.asset || "base";
-				if (!assocBalances[asset])
-					assocBalances[asset] = {stable: 0, pending: 0};
-				assocBalances[asset][row.is_stable ? 'stable' : 'pending'] = row.balance;
-			}
-			db.query(
-				"SELECT SUM(total) AS total FROM ( \n\
-				SELECT SUM(amount) AS total FROM my_addresses JOIN witnessing_outputs USING(address) WHERE is_spent=0 AND wallet=? \n\
-				UNION \n\
-				SELECT SUM(amount) AS total FROM my_addresses JOIN headers_commission_outputs USING(address) WHERE is_spent=0 AND wallet=? )",
-				[wallet,wallet],
-				function(rows) {
-					if(rows.length){
-						assocBalances["base"]["stable"] += rows[0].total;
-					}
-					// add 0-balance assets
-					db.query(
-						"SELECT DISTINCT outputs.asset, is_private \n\
-						FROM my_addresses JOIN outputs USING(address) JOIN units USING(unit) LEFT JOIN assets ON asset=assets.unit \n\
-						WHERE wallet=? AND sequence='good'", 
-						[wallet], 
-						function(rows){
-							for (var i=0; i<rows.length; i++){
-								var row = rows[i];
-								var asset = row.asset || "base";
-								if (!assocBalances[asset])
-									assocBalances[asset] = {stable: 0, pending: 0};
-								assocBalances[asset].is_private = row.is_private;
-							}
-							handleBalance(assocBalances);
-							if (conf.bLight){ // make sure we have all asset definitions available
-								var arrAssets = Object.keys(assocBalances).filter(function(asset){ return (asset !== 'base'); });
-								if (arrAssets.length === 0)
-									return;
-								network.requestProofsOfJointsIfNewOrUnstable(arrAssets);
-							}
-						}
-					);
-				}
-			);
-		}
-	);
-}
-
-
-function readTransactionHistory(wallet, asset, handleHistory){
-	var asset_condition = (asset && asset !== "base") ? "asset="+db.escape(asset) : "asset IS NULL";
-	db.query(
-		"SELECT unit, level, is_stable, sequence, address, \n\
-			"+db.getUnixTimestamp("units.creation_date")+" AS ts, headers_commission+payload_commission AS fee, \n\
-			SUM(amount) AS amount, address AS to_address, NULL AS from_address \n\
-		FROM my_addresses JOIN outputs USING(address) JOIN units USING(unit) \n\
-		WHERE wallet=? AND "+asset_condition+" \n\
-		GROUP BY unit, address \n\
-		UNION \n\
-		SELECT unit, level, is_stable, sequence, address, \n\
-			"+db.getUnixTimestamp("units.creation_date")+" AS ts, headers_commission+payload_commission AS fee, \n\
-			NULL AS amount, NULL AS to_address, address AS from_address \n\
-		FROM my_addresses JOIN inputs USING(address) JOIN units USING(unit) \n\
-		WHERE wallet=? AND "+asset_condition,
-		[wallet, wallet],
-		function(rows){
-			var assocMovements = {};
-			for (var i=0; i<rows.length; i++){
-				var row = rows[i];
-				//if (asset !== "base")
-				//    row.fee = null;
-				if (!assocMovements[row.unit])
-					assocMovements[row.unit] = {
-						plus:0, has_minus:false, ts: row.ts, level: row.level, is_stable: row.is_stable, sequence: row.sequence, fee: row.fee
-					};
-				if (row.to_address)
-					assocMovements[row.unit].plus += row.amount;
-				if (row.from_address)
-					assocMovements[row.unit].has_minus = true;
-			}
-			var arrTransactions = [];
-			async.forEachOfSeries(
-				assocMovements,
-				function(movement, unit, cb){
-					if (movement.sequence !== 'good'){
-						var transaction = {
-							action: 'invalid',
-							confirmations: movement.is_stable,
-							unit: unit,
-							fee: movement.fee,
-							time: movement.ts,
-							level: movement.level
-						};
-						arrTransactions.push(transaction);
-						cb();
-					}
-					else if (movement.plus && !movement.has_minus){
-						// light clients will sometimes have input address = NULL
-						db.query(
-							"SELECT DISTINCT address FROM inputs WHERE unit=? AND "+asset_condition+" ORDER BY address", 
-							[unit], 
-							function(address_rows){
-								var arrPayerAddresses = address_rows.map(function(address_row){ return address_row.address; });
-								var transaction = {
-									action: 'received',
-									amount: movement.plus,
-									arrPayerAddresses: arrPayerAddresses,
-									confirmations: movement.is_stable,
-									unit: unit,
-									fee: movement.fee,
-									time: movement.ts,
-									level: movement.level
-								};
-								arrTransactions.push(transaction);
-								cb();
-							}
-						);
-					}
-					else if (movement.has_minus){
-						db.query(
-							"SELECT outputs.address, SUM(amount) AS amount \n\
-							FROM outputs \n\
-							LEFT JOIN my_addresses ON outputs.address=my_addresses.address AND wallet=? \n\
-							WHERE unit=? AND "+asset_condition+" AND my_addresses.address IS NULL \n\
-							GROUP BY outputs.address", 
-							[wallet, unit], 
-							function(payee_rows){
-								for (var i=0; i<payee_rows.length; i++){
-									var payee = payee_rows[i];
-									var transaction = {
-										action: 'sent',
-										amount: payee.amount,
-										addressTo: payee.address,
-										confirmations: movement.is_stable,
-										unit: unit,
-										fee: movement.fee,
-										time: movement.ts,
-										level: movement.level
-									};
-									arrTransactions.push(transaction);
-								}
-								cb();
-							}
-						);
-					}
-				},
-				function(){
-					arrTransactions.sort(function(a, b){
-						if (a.level < b.level)
-							return 1;
-						if (a.level > b.level)
-							return -1;
-						if (a.time < b.time)
-							return 1;
-						if (a.time > b.time)
-							return -1;
-						return 0;
-					});
-					arrTransactions.forEach(function(transaction){ transaction.asset = asset; });
-					handleHistory(arrTransactions);
-				}
-			);
-		}
-	);
-}
-
 
 exports.readNextAccount = readNextAccount;
 exports.createWalletByDevices = createWalletByDevices;
@@ -1104,16 +747,12 @@ exports.addNewAddress = addNewAddress;
 exports.issueNextAddress = issueNextAddress;
 exports.issueOrSelectNextAddress = issueOrSelectNextAddress;
 exports.issueOrSelectNextChangeAddress = issueOrSelectNextChangeAddress;
+exports.readAddresses = readAddresses;
 exports.readExternalAddresses = readExternalAddresses;
 exports.readChangeAddresses = readChangeAddresses;
 exports.readAddressInfo = readAddressInfo;
 
-exports.sendPaymentFromWallet = sendPaymentFromWallet;
-exports.sendMultiPaymentFromWallet = sendMultiPaymentFromWallet;
 exports.forwardPrivateChainsToOtherMembersOfWallets = forwardPrivateChainsToOtherMembersOfWallets;
-
-exports.readBalance = readBalance;
-exports.readTransactionHistory = readTransactionHistory;
 
 exports.readCosigners = readCosigners;
 

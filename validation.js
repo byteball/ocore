@@ -1867,7 +1867,7 @@ function validateAssetDefinition(conn, payload, objUnit, objValidationState, cal
 	if (typeof payload.is_private !== "boolean" || typeof payload.is_transferrable !== "boolean" || typeof payload.auto_destroy !== "boolean" || typeof payload.fixed_denominations !== "boolean" || typeof payload.issued_by_definer_only !== "boolean" || typeof payload.cosigned_by_definer !== "boolean" || typeof payload.spender_attested !== "boolean")
 		return callback("some required fields in asset definition are missing");
 
-	if ("cap" in payload && !isPositiveInteger(payload.cap))
+	if ("cap" in payload && !(isPositiveInteger(payload.cap) && payload.cap <= constants.MAX_CAP))
 		return callback("invalid cap");
 
 	// attestors
