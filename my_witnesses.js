@@ -29,7 +29,7 @@ function readMyWitnesses(handleWitnesses, actionIfEmpty){
 			}
 		}
 		if (arrWitnesses.length !== constants.COUNT_WITNESSES)
-			throw Error("wrong number of my witnesses: "+rows.length);
+			throw Error("wrong number of my witnesses: "+arrWitnesses.length);
 		handleWitnesses(arrWitnesses);
 	});
 }
