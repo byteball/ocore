@@ -11,7 +11,7 @@ exports.version = '1.0';
 exports.alt = '1';
 
 exports.GENESIS_UNIT = (exports.alt === '2' && exports.version === '1.0t') ? 'TvqutGPz3T4Cs6oiChxFlclY92M2MvCvfXR5/FETato=' : 'oj8yEksX9Ubq7lLc+p6F2uyHUuynugeVq4+ikT67X6E=';
-exports.BLACKBYTES_ASSET = (exports.alt === '2' && exports.version === '1.0t') ? 'LUQu5ik4WLfCrr8OwXezqBa+i3IlZLqxj2itQZQm8WY=' : 'JY4RvlUGv0qWItikizmNOIjIYZeEciODOog8AzLju50=';
+exports.BLACKBYTES_ASSET = (exports.alt === '2' && exports.version === '1.0t') ? 'LUQu5ik4WLfCrr8OwXezqBa+i3IlZLqxj2itQZQm8WY=' : 'qO2JsiuDMh/j+pqJYZw3u82O71WjCDf0vTNvsnntr8o=';
 
 exports.HASH_LENGTH = 44;
 exports.PUBKEY_LENGTH = 44;
