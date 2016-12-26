@@ -2193,6 +2193,7 @@ function onWebsocketMessage(message) {
 	
 	switch (message_type){
 		case 'justsaying':
+			eventBus.emit('justsaying', ws, {subject: content.subject, body: content.body});
 			return handleJustsaying(ws, content.subject, content.body);
 			
 		case 'request':

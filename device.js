@@ -172,6 +172,17 @@ function createTempPubkeyPackage(temp_pubkey){
 	return objTempPubkey;
 }
 
+function getWsConnect(cb){
+  network.findOutboundPeerOrConnect(conf.WS_PROTOCOL+my_device_hub, function(err, ws){
+    if (err){
+      cb(err);
+      return console.log('will not rotate because: '+err);
+    }else{
+      cb(null,ws);
+    }
+  });
+}
+
 // ------------------------------
 // rotation of temp keys
 
@@ -627,3 +638,4 @@ exports.readCorrespondent = readCorrespondent;
 exports.readCorrespondentsByDeviceAddresses = readCorrespondentsByDeviceAddresses;
 exports.updateCorrespondentProps = updateCorrespondentProps;
 exports.addIndirectCorrespondents = addIndirectCorrespondents;
+exports.getWsConnect = getWsConnect;
