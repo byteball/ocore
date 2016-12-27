@@ -24,6 +24,7 @@ var eventBus = require('./event_bus.js');
 var light = require('./light.js');
 var breadcrumbs = require('./breadcrumbs.js');
 var mail = process.browser ? null : require('./mail.js'+'');
+var device = require('./device');
 
 var FORWARDING_TIMEOUT = 10*1000; // don't forward if the joint was received more than FORWARDING_TIMEOUT ms ago
 var STALLED_TIMEOUT = 5000; // a request is treated as stalled if no response received within STALLED_TIMEOUT ms
@@ -1701,6 +1702,15 @@ function initWitnessesIfNecessary(ws, onDone){
 	}, 'ignore');
 }
 
+function getWitnessesFromHub(cb){
+  device.getWsConnect(function(err,ws) {
+    if(err) return cb(err);
+    network.sendRequest(ws, 'get_witnesses', null, false, function(ws, request, arrWitnessesFromHub){
+      cb(null, arrWitnessesFromHub);
+    });
+  });
+}
+
 // hub
 
 function sendStoredDeviceMessages(ws, device_address){
@@ -2341,6 +2351,7 @@ exports.requestFromLightVendor = requestFromLightVendor;
 exports.addPeer = addPeer;
 
 exports.initWitnessesIfNecessary = initWitnessesIfNecessary;
+exports.getWitnessesFromHub = getWitnessesFromHub;
 
 exports.setMyDeviceProps = setMyDeviceProps;
 
