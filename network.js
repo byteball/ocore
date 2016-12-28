@@ -1702,14 +1702,6 @@ function initWitnessesIfNecessary(ws, onDone){
 	}, 'ignore');
 }
 
-function getWitnessesFromHub(cb){
-  device.getWsConnect(function(err,ws) {
-    if(err) return cb(err);
-    network.sendRequest(ws, 'get_witnesses', null, false, function(ws, request, arrWitnessesFromHub){
-      cb(null, arrWitnessesFromHub);
-    });
-  });
-}
 
 // hub
 
@@ -1747,7 +1739,12 @@ function handleJustsaying(ws, subject, body){
 				ws.close(1000, 'incompatible alts');
 				return;
 			}
+    eventBus.emit('peer_version', ws, {subject: subject, body: body});
 			break;
+
+			case 'new_version':
+					eventBus.emit('new_version', ws, body);
+				break;
 		
 		case 'bugreport':
 			mail.sendBugEmail(body.message, body.exception);
@@ -2203,7 +2200,6 @@ function onWebsocketMessage(message) {
 	
 	switch (message_type){
 		case 'justsaying':
-			eventBus.emit('justsaying', ws, {subject: content.subject, body: content.body});
 			return handleJustsaying(ws, content.subject, content.body);
 			
 		case 'request':
@@ -2351,7 +2347,6 @@ exports.requestFromLightVendor = requestFromLightVendor;
 exports.addPeer = addPeer;
 
 exports.initWitnessesIfNecessary = initWitnessesIfNecessary;
-exports.getWitnessesFromHub = getWitnessesFromHub;
 
 exports.setMyDeviceProps = setMyDeviceProps;
 

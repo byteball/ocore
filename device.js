@@ -172,16 +172,6 @@ function createTempPubkeyPackage(temp_pubkey){
 	return objTempPubkey;
 }
 
-function getWsConnect(cb){
-  network.findOutboundPeerOrConnect(conf.WS_PROTOCOL+my_device_hub, function(err, ws){
-    if (err){
-      cb(err);
-      return console.log('will not rotate because: '+err);
-    }else{
-      cb(null,ws);
-    }
-  });
-}
 
 // ------------------------------
 // rotation of temp keys
@@ -608,6 +598,24 @@ function addIndirectCorrespondents(arrOtherCosigners, onDone){
 }
 
 
+// -------------------------------
+// witnesses
+
+
+function getWitnessesFromHub(cb){
+  network.findOutboundPeerOrConnect(conf.WS_PROTOCOL+my_device_hub, function(err, ws){
+    if (err){
+      return cb(err);
+    }else{
+      network.sendRequest(ws, 'get_witnesses', null, false, function(ws, request, arrWitnessesFromHub){
+        cb(null, arrWitnessesFromHub);
+      });
+    }
+  });
+}
+
+
+
 
 exports.getMyDevicePubKey = getMyDevicePubKey;
 exports.getMyDeviceAddress = getMyDeviceAddress;
@@ -638,4 +646,4 @@ exports.readCorrespondent = readCorrespondent;
 exports.readCorrespondentsByDeviceAddresses = readCorrespondentsByDeviceAddresses;
 exports.updateCorrespondentProps = updateCorrespondentProps;
 exports.addIndirectCorrespondents = addIndirectCorrespondents;
-exports.getWsConnect = getWsConnect;
+exports.getWitnessesFromHub = getWitnessesFromHub;
