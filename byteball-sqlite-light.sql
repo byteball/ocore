@@ -390,6 +390,11 @@ CREATE TABLE known_bad_joints (
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE joints (
+	unit CHAR(44) NOT NULL PRIMARY KEY,
+	json TEXT NOT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
 CREATE TABLE unhandled_private_payments (
 	unit CHAR(44) NOT NULL,
