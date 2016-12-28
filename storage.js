@@ -699,6 +699,10 @@ function findLastBallMciOfMci(conn, mci, handleLastBallMci){
 	);
 }
 
+function getMinRetrievableMci(){
+	return min_retrievable_mci;
+}
+
 function updateMinRetrievableMciAfterStabilizingMci(conn, last_stable_mci, handleMinRetrievableMci){
 	console.log("updateMinRetrievableMciAfterStabilizingMci "+last_stable_mci);
 	findLastBallMciOfMci(conn, last_stable_mci, function(last_ball_mci){
@@ -1189,6 +1193,7 @@ exports.readLastStableMcIndex = readLastStableMcIndex;
 
 
 exports.findLastBallMciOfMci = findLastBallMciOfMci;
+exports.getMinRetrievableMci = getMinRetrievableMci;
 exports.updateMinRetrievableMciAfterStabilizingMci = updateMinRetrievableMciAfterStabilizingMci;
 
 exports.generateQueriesToArchiveJoint = generateQueriesToArchiveJoint;
