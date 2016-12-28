@@ -791,7 +791,7 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 			ifUnitError: function(error){
 				console.log(objJoint.unit.unit+" validation failed: "+error);
 				callbacks.ifUnitError(error);
-				throw Error(error);
+			//	throw Error(error);
 				purgeJointAndDependenciesAndNotifyPeers(objJoint, error, function(){
 					delete assocUnitsInWork[unit];
 				});
