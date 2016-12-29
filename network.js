@@ -24,7 +24,6 @@ var eventBus = require('./event_bus.js');
 var light = require('./light.js');
 var breadcrumbs = require('./breadcrumbs.js');
 var mail = process.browser ? null : require('./mail.js'+'');
-var device = require('./device');
 
 var FORWARDING_TIMEOUT = 10*1000; // don't forward if the joint was received more than FORWARDING_TIMEOUT ms ago
 var STALLED_TIMEOUT = 5000; // a request is treated as stalled if no response received within STALLED_TIMEOUT ms
@@ -1739,12 +1738,13 @@ function handleJustsaying(ws, subject, body){
 				ws.close(1000, 'incompatible alts');
 				return;
 			}
-    eventBus.emit('peer_version', ws, {subject: subject, body: body});
+			eventBus.emit('peer_version', ws, body); // handled elsewhere
 			break;
 
-			case 'new_version':
-					eventBus.emit('new_version', ws, body);
-				break;
+		case 'new_version': // a new version is available
+			if (ws.bLoggingIn || ws.bLoggedIn) // accept from hub only
+				eventBus.emit('new_version', ws, body);
+			break;
 		
 		case 'bugreport':
 			mail.sendBugEmail(body.message, body.exception);
