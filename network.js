@@ -2302,7 +2302,8 @@ function startRelay(){
 
 	// retry lost and failed connections every 1 minute
 	setInterval(addOutboundPeers, 60*1000);
-	setTimeout(checkIfHaveEnoughOutboundPeersAndAdd, 30*1000);
+	if (conf.bWantNewPeers)
+		setTimeout(checkIfHaveEnoughOutboundPeersAndAdd, 30*1000);
 	setInterval(rerequestLostJoints, 8*1000);
 	setInterval(purgeJunkUnhandledJoints, 30*60*1000);
 	setInterval(joint_storage.purgeUncoveredNonserialJointsUnderLock, 6*1000);
