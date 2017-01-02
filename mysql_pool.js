@@ -1,6 +1,7 @@
 /*jslint node: true */
 "use strict";
 var mysql = require('mysql');
+var profiler = require('./profiler.js');
 
 module.exports = function(connection_or_pool){
 
@@ -8,9 +9,11 @@ module.exports = function(connection_or_pool){
 	var safe_connection = connection_or_pool;
 	safe_connection.original_query = safe_connection.query;
 	safe_connection.original_release = safe_connection.release;
+	var id = 0;
 	
 	// this is a hack to make all errors throw exception that would kill the program
 	safe_connection.query = function () {
+		profiler.mark_start("mysql_query", id++);
 		var last_arg = arguments[arguments.length - 1];
 		var bHasCallback = (typeof last_arg === 'function');
 		if (!bHasCallback){ // no callback
@@ -45,6 +48,7 @@ module.exports = function(connection_or_pool){
 		//console.log(new_args);
 		q = connection_or_pool.original_query.apply(connection_or_pool, new_args);
 		//console.log(q.sql);
+		profiler.mark_end("mysql_query", id-1);
 		return q;
 	};
 
