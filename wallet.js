@@ -958,14 +958,7 @@ function sendMultiPayment(opts, handleResult)
 				// for base asset, 2nd argument is assocPrivatePayloads which is null
 				ifOk: function(objJoint, arrChainsOfRecipientPrivateElements, arrChainsOfCosignerPrivateElements){
 					network.broadcastJoint(objJoint);
-					if (arrChainsOfRecipientPrivateElements){
-						if (wallet)
-							walletDefinedByKeys.forwardPrivateChainsToOtherMembersOfWallets(arrChainsOfCosignerPrivateElements, [wallet]);
-						else // arrPayingAddresses can be only shared addresses
-							walletDefinedByAddresses.forwardPrivateChainsToOtherMembersOfAddresses(arrChainsOfCosignerPrivateElements, arrPayingAddresses);
-						walletGeneral.sendPrivatePayments(recipient_device_address, arrChainsOfRecipientPrivateElements);
-					}
-					else if (recipient_device_address) // send notification about public payment
+					if (!arrChainsOfRecipientPrivateElements && recipient_device_address) // send notification about public payment
 						walletGeneral.sendPaymentNotification(recipient_device_address, objJoint.unit.unit);
 					handleResult(null, objJoint.unit.unit);
 				}
@@ -990,6 +983,19 @@ function sendMultiPayment(opts, handleResult)
 					throw Error(err);
 				if (objAsset.is_private && !recipient_device_address)
 					return handleResult("for private asset, need recipient's device address to send private payload to");
+				if (objAsset.is_private){
+					// save messages in outbox before committing
+					params.callbacks.preCommitCb = function(conn, arrChainsOfRecipientPrivateElements, arrChainsOfCosignerPrivateElements, cb){
+						if (!arrChainsOfRecipientPrivateElements || !arrChainsOfCosignerPrivateElements)
+							throw Error('no private elements');
+						walletGeneral.sendPrivatePayments(recipient_device_address, arrChainsOfRecipientPrivateElements, false, conn, function(){
+							if (wallet)
+								walletDefinedByKeys.forwardPrivateChainsToOtherMembersOfWallets(arrChainsOfCosignerPrivateElements, [wallet], conn, cb);
+							else // arrPayingAddresses can be only shared addresses
+								walletDefinedByAddresses.forwardPrivateChainsToOtherMembersOfAddresses(arrChainsOfCosignerPrivateElements, arrPayingAddresses, conn, cb);
+						});
+					};
+				}
 				if (objAsset.fixed_denominations){ // indivisible
 					params.tolerance_plus = 0;
 					params.tolerance_minus = 0;

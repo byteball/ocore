@@ -329,7 +329,7 @@ setInterval(resendStalledMessages, SEND_RETRY_PERIOD);
 
 // reliable delivery
 // first param is either WebSocket or hostname of the hub
-function reliablySendPreparedMessageToHub(ws, recipient_device_pubkey, json, callbacks){
+function reliablySendPreparedMessageToHub(ws, recipient_device_pubkey, json, callbacks, conn){
 	var recipient_device_address = objectHash.getDeviceAddress(recipient_device_pubkey);
 	// encrypt to recipient's permanent pubkey before storing the message into outbox
 	var objEncryptedPackage = createEncryptedPackage(json, recipient_device_pubkey);
@@ -338,10 +338,13 @@ function reliablySendPreparedMessageToHub(ws, recipient_device_pubkey, json, cal
 		encrypted_package: objEncryptedPackage
 	};
 	var message_hash = objectHash.getBase64Hash(objDeviceMessage);
-	db.query(
+	conn = conn || db;
+	conn.query(
 		"INSERT INTO outbox (message_hash, `to`, message) VALUES (?,?,?)", 
 		[message_hash, recipient_device_address, JSON.stringify(objDeviceMessage)], 
 		function(){
+			if (callbacks && callbacks.onSaved)
+				callbacks.onSaved();
 			sendPreparedMessageToHub(ws, recipient_device_pubkey, message_hash, json, callbacks);
 		}
 	);
@@ -437,7 +440,7 @@ function createEncryptedPackage(json, recipient_device_pubkey){
 }
 
 // first param is either WebSocket or hostname of the hub or null
-function sendMessageToHub(ws, recipient_device_pubkey, subject, body, callbacks){
+function sendMessageToHub(ws, recipient_device_pubkey, subject, body, callbacks, conn){
 	// this content is hidden from the hub by encryption
 	var json = {
 		from: my_device_address, // presence of this field guarantees that you cannot strip off the signature and add your own signature instead
@@ -445,21 +448,23 @@ function sendMessageToHub(ws, recipient_device_pubkey, subject, body, callbacks)
 		subject: subject, 
 		body: body
 	};
+	conn = conn || db;
 	if (ws)
-		return reliablySendPreparedMessageToHub(ws, recipient_device_pubkey, json, callbacks);
+		return reliablySendPreparedMessageToHub(ws, recipient_device_pubkey, json, callbacks, conn);
 	var recipient_device_address = objectHash.getDeviceAddress(recipient_device_pubkey);
-	db.query("SELECT hub FROM correspondent_devices WHERE device_address=?", [recipient_device_address], function(rows){
+	conn.query("SELECT hub FROM correspondent_devices WHERE device_address=?", [recipient_device_address], function(rows){
 		if (rows.length !== 1)
 			throw Error("no hub in correspondents");
-		reliablySendPreparedMessageToHub(rows[0].hub, recipient_device_pubkey, json, callbacks);
+		reliablySendPreparedMessageToHub(rows[0].hub, recipient_device_pubkey, json, callbacks, conn);
 	});
 }
 
-function sendMessageToDevice(device_address, subject, body, callbacks){
-	db.query("SELECT hub, pubkey FROM correspondent_devices WHERE device_address=?", [device_address], function(rows){
+function sendMessageToDevice(device_address, subject, body, callbacks, conn){
+	conn = conn || db;
+	conn.query("SELECT hub, pubkey FROM correspondent_devices WHERE device_address=?", [device_address], function(rows){
 		if (rows.length !== 1)
 			throw Error("correspondent not found");
-		sendMessageToHub(rows[0].hub, rows[0].pubkey, subject, body, callbacks);
+		sendMessageToHub(rows[0].hub, rows[0].pubkey, subject, body, callbacks, conn);
 	});
 }
 

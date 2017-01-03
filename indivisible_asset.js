@@ -826,9 +826,13 @@ function getSavingCallbacks(to_address, callbacks){
 									);
 								},
 								function(err){
-									if (err)
+									if (err){
 										bPreCommitCallbackFailed = true;
-									cb(err);
+										return cb(err);
+									}
+									if (!callbacks.preCommitCb)
+										return cb();
+									callbacks.preCommitCb(conn, arrRecipientChains, arrCosignerChains, cb);
 								}
 							);
 						};

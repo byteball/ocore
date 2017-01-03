@@ -714,17 +714,25 @@ function readAllAddresses(wallet, handleAddresses){
 
 
 
-function forwardPrivateChainsToOtherMembersOfWallets(arrChains, arrWallets){
+function forwardPrivateChainsToOtherMembersOfWallets(arrChains, arrWallets, conn, onSaved){
 	console.log("forwardPrivateChainsToOtherMembersOfWallets", arrWallets);
-	db.query(
+	conn = conn || db;
+	conn.query(
 		"SELECT device_address FROM extended_pubkeys WHERE wallet IN(?) AND device_address!=?", 
 		[arrWallets, device.getMyDeviceAddress()], 
 		function(rows){
 			console.log("devices: "+rows.length);
-			rows.forEach(function(row){
-				console.log("forwarding to device "+row.device_address);
-				walletGeneral.sendPrivatePayments(row.device_address, arrChains, true);
-			});
+			async.eachSeries(
+				rows,
+				function(row, cb){
+					console.log("forwarding to device "+row.device_address);
+					walletGeneral.sendPrivatePayments(row.device_address, arrChains, true, conn, cb);
+				},
+				function(){
+					if (onSaved)
+						onSaved();
+				}
+			);
 		}
 	);
 }
