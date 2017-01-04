@@ -807,13 +807,13 @@ function readTransactionHistory(opts, handleHistory){
 
 function readFundedAddresses(asset, wallet, handleFundedAddresses){
 	var walletIsAddresses = ValidationUtils.isNonemptyArray(wallet);
-	var join_my_addresses = walletIsAddresses ? "" : "JOIN my_addresses USING(address)";
-	var where_condition = walletIsAddresses ? "address IN(?)" : "wallet=?";
+	if (walletIsAddresses)
+		return composer.readSortedFundedAddresses(asset, wallet, handleFundedAddresses);
 	db.query(
 		"SELECT DISTINCT address \n\
-		FROM outputs "+join_my_addresses+" \n\
+		FROM outputs JOIN my_addresses USING(address) \n\
 		JOIN units USING(unit) \n\
-		WHERE "+where_condition+" AND is_stable=1 AND sequence='good' AND is_spent=0 AND "+(asset ? "(asset=? OR asset IS NULL)" : "asset IS NULL")+" \n\
+		WHERE wallet=? AND is_stable=1 AND sequence='good' AND is_spent=0 AND "+(asset ? "asset=?" : "asset IS NULL")+" \n\
 			AND NOT EXISTS ( \n\
 				SELECT * FROM unit_authors JOIN units USING(unit) \n\
 				WHERE is_stable=0 AND unit_authors.address=outputs.address AND definition_chash IS NOT NULL \n\
@@ -821,7 +821,13 @@ function readFundedAddresses(asset, wallet, handleFundedAddresses){
 		asset ? [wallet, asset] : [wallet],
 		function(rows){
 			var arrFundedAddresses = rows.map(function(row){ return row.address; });
-			return handleFundedAddresses(arrFundedAddresses);
+			if (arrFundedAddresses.length === 0)
+				return handleFundedAddresses([]);
+			if (!asset)
+				return handleFundedAddresses(arrFundedAddresses);
+			readFundedAddresses(null, wallet, function(arrBytesFundedAddresses){
+				handleFundedAddresses(_.union(arrFundedAddresses, arrBytesFundedAddresses));
+			});
 		}
 	);
 }
