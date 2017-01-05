@@ -471,6 +471,8 @@ function getPeerWebSocket(peer){
 }
 
 function findOutboundPeerOrConnect(url, onOpen){
+	if (!url)
+		throw Error('no url');
 	if (!onOpen)
 		onOpen = function(){};
 	var ws = getOutboundPeerWsByUrl(url);
