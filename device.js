@@ -310,6 +310,8 @@ function decryptPackage(objEncryptedPackage){
 
 function resendStalledMessages(){
 	console.log("resending stalled messages");
+	if (!objMyPermanentDeviceKey)
+		return console.log("objMyPermanentDeviceKey not set yet, can't resend stalled messages");
 	db.query(
 		"SELECT message, message_hash, `to`, pubkey, hub FROM outbox JOIN correspondent_devices ON `to`=device_address \n\
 		WHERE outbox.creation_date<"+db.addTime("-1 MINUTE")+" ORDER BY outbox.creation_date", 
