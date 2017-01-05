@@ -268,6 +268,7 @@ function decryptPackage(objEncryptedPackage){
 	}
 	else{
 		console.log("message encrypted to unknown key");
+		eventBus.emit('nonfatal_error', "message encrypted to unknown key, device "+my_device_address, new Error('unknown key'));
 		return null;
 	}
 	
