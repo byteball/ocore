@@ -609,6 +609,8 @@ function addIndirectCorrespondents(arrOtherCosigners, onDone){
 
 
 function getWitnessesFromHub(cb){
+	if (!my_device_hub)
+		return setTimeout(function(){ getWitnessesFromHub(cb); }, 2000);
   network.findOutboundPeerOrConnect(conf.WS_PROTOCOL+my_device_hub, function(err, ws){
     if (err){
       return cb(err);
