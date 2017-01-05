@@ -852,6 +852,8 @@ function sendPaymentFromWallet(
 function sendMultiPayment(opts, handleResult)
 {
 	var asset = opts.asset;
+	if (asset === 'base')
+		asset = null;
 	var wallet = opts.wallet;
 	var arrPayingAddresses = opts.paying_addresses;
 	var arrSigningAddresses = opts.signing_addresses;
@@ -971,7 +973,7 @@ function sendMultiPayment(opts, handleResult)
 			}
 		};
 		
-		if (asset && asset !== "base"){
+		if (asset){
 			if (bSendAll)
 				throw Error('send_all with asset');
 			params.asset = asset;
