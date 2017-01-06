@@ -83,6 +83,8 @@ function parseUri(uri, callbacks){
 				return callbacks.ifError('invalid asset: '+asset);
 			objRequest.asset = asset;
 		}
+		if (!objRequest.asset && objRequest.amount) // when amount is set, asset must be also set
+			objRequest.asset = 'base';
 		var device_address = assocParams.device_address;
 		if (device_address){
 			if (!ValidationUtils.isValidDeviceAddress(device_address))
