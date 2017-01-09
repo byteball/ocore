@@ -471,6 +471,8 @@ function getPeerWebSocket(peer){
 }
 
 function findOutboundPeerOrConnect(url, onOpen){
+	if (!url)
+		throw Error('no url');
 	if (!onOpen)
 		onOpen = function(){};
 	var ws = getOutboundPeerWsByUrl(url);
@@ -791,7 +793,7 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 			ifUnitError: function(error){
 				console.log(objJoint.unit.unit+" validation failed: "+error);
 				callbacks.ifUnitError(error);
-				throw Error(error);
+			//	throw Error(error);
 				purgeJointAndDependenciesAndNotifyPeers(objJoint, error, function(){
 					delete assocUnitsInWork[unit];
 				});
@@ -1701,6 +1703,7 @@ function initWitnessesIfNecessary(ws, onDone){
 	}, 'ignore');
 }
 
+
 // hub
 
 function sendStoredDeviceMessages(ws, device_address){
@@ -1737,6 +1740,12 @@ function handleJustsaying(ws, subject, body){
 				ws.close(1000, 'incompatible alts');
 				return;
 			}
+			eventBus.emit('peer_version', ws, body); // handled elsewhere
+			break;
+
+		case 'new_version': // a new version is available
+			if (ws.bLoggingIn || ws.bLoggedIn) // accept from hub only
+				eventBus.emit('new_version', ws, body);
 			break;
 		
 		case 'bugreport':
@@ -2295,7 +2304,8 @@ function startRelay(){
 
 	// retry lost and failed connections every 1 minute
 	setInterval(addOutboundPeers, 60*1000);
-	setTimeout(checkIfHaveEnoughOutboundPeersAndAdd, 30*1000);
+	if (conf.bWantNewPeers)
+		setTimeout(checkIfHaveEnoughOutboundPeersAndAdd, 30*1000);
 	setInterval(rerequestLostJoints, 8*1000);
 	setInterval(purgeJunkUnhandledJoints, 30*60*1000);
 	setInterval(joint_storage.purgeUncoveredNonserialJointsUnderLock, 6*1000);

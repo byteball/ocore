@@ -91,6 +91,7 @@ CREATE TABLE unit_authors (
 );
 CREATE INDEX byDefinitionChash ON unit_authors(definition_chash);
 CREATE INDEX unitAuthorsIndexByAddress ON unit_authors(address);
+CREATE INDEX unitAuthorsIndexByAddressDefinitionChash ON unit_authors(address, definition_chash);
 
 
 CREATE TABLE authentifiers (
@@ -402,6 +403,12 @@ CREATE TABLE known_bad_joints (
 	unit CHAR(44) NULL UNIQUE,
 	json TEXT NOT NULL,
 	error TEXT NOT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE joints (
+	unit CHAR(44) NOT NULL PRIMARY KEY,
+	json TEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

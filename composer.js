@@ -755,6 +755,8 @@ function readSortedFundedAddresses(asset, arrAvailableAddresses, handleFundedAdd
 		asset ? [arrAvailableAddresses, asset] : [arrAvailableAddresses],
 		function(rows){
 			var arrFundedAddresses = rows.map(function(row){ return row.address; });
+			if (arrFundedAddresses.length === 0)
+				return handleFundedAddresses([]);
 			if (!asset || arrFundedAddresses.length === arrAvailableAddresses.length) // base asset or all available addresses already used
 				return handleFundedAddresses(arrFundedAddresses);
 			

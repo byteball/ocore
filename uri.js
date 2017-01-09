@@ -16,7 +16,7 @@ function parseUri(uri, callbacks){
 	
 	// pairing / start a chat
 //	var arrPairingMatches = value.match(/^([\w\/+]{44})@([\w.:\/-]+)(?:#|%23)([\w\/+]+)$/);
-	var arrPairingMatches = value.replace('%23', '#').match(/^([\w\/+]{44})@([\w.:\/-]+)#([\w\/+]+)$/);
+	var arrPairingMatches = value.replace('%23', '#').match(/^([\w\/+]{44})@([\w.:\/-]+)#([\w\/+-]+)$/);
 	if (arrPairingMatches){
 		objRequest.type = "pairing";
 		objRequest.pubkey = arrPairingMatches[1];
@@ -83,6 +83,8 @@ function parseUri(uri, callbacks){
 				return callbacks.ifError('invalid asset: '+asset);
 			objRequest.asset = asset;
 		}
+		if (!objRequest.asset && objRequest.amount) // when amount is set, asset must be also set
+			objRequest.asset = 'base';
 		var device_address = assocParams.device_address;
 		if (device_address){
 			if (!ValidationUtils.isValidDeviceAddress(device_address))

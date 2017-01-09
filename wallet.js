@@ -807,13 +807,13 @@ function readTransactionHistory(opts, handleHistory){
 
 function readFundedAddresses(asset, wallet, handleFundedAddresses){
 	var walletIsAddresses = ValidationUtils.isNonemptyArray(wallet);
-	var join_my_addresses = walletIsAddresses ? "" : "JOIN my_addresses USING(address)";
-	var where_condition = walletIsAddresses ? "address IN(?)" : "wallet=?";
+	if (walletIsAddresses)
+		return composer.readSortedFundedAddresses(asset, wallet, handleFundedAddresses);
 	db.query(
 		"SELECT DISTINCT address \n\
-		FROM outputs "+join_my_addresses+" \n\
+		FROM outputs JOIN my_addresses USING(address) \n\
 		JOIN units USING(unit) \n\
-		WHERE "+where_condition+" AND is_stable=1 AND sequence='good' AND is_spent=0 AND "+(asset ? "(asset=? OR asset IS NULL)" : "asset IS NULL")+" \n\
+		WHERE wallet=? AND is_stable=1 AND sequence='good' AND is_spent=0 AND "+(asset ? "asset=?" : "asset IS NULL")+" \n\
 			AND NOT EXISTS ( \n\
 				SELECT * FROM unit_authors JOIN units USING(unit) \n\
 				WHERE is_stable=0 AND unit_authors.address=outputs.address AND definition_chash IS NOT NULL \n\
@@ -821,7 +821,13 @@ function readFundedAddresses(asset, wallet, handleFundedAddresses){
 		asset ? [wallet, asset] : [wallet],
 		function(rows){
 			var arrFundedAddresses = rows.map(function(row){ return row.address; });
-			return handleFundedAddresses(arrFundedAddresses);
+			if (arrFundedAddresses.length === 0)
+				return handleFundedAddresses([]);
+			if (!asset)
+				return handleFundedAddresses(arrFundedAddresses);
+			readFundedAddresses(null, wallet, function(arrBytesFundedAddresses){
+				handleFundedAddresses(_.union(arrFundedAddresses, arrBytesFundedAddresses));
+			});
 		}
 	);
 }
@@ -846,6 +852,8 @@ function sendPaymentFromWallet(
 function sendMultiPayment(opts, handleResult)
 {
 	var asset = opts.asset;
+	if (asset === 'base')
+		asset = null;
 	var wallet = opts.wallet;
 	var arrPayingAddresses = opts.paying_addresses;
 	var arrSigningAddresses = opts.signing_addresses;
@@ -958,21 +966,14 @@ function sendMultiPayment(opts, handleResult)
 				// for base asset, 2nd argument is assocPrivatePayloads which is null
 				ifOk: function(objJoint, arrChainsOfRecipientPrivateElements, arrChainsOfCosignerPrivateElements){
 					network.broadcastJoint(objJoint);
-					if (arrChainsOfRecipientPrivateElements){
-						if (wallet)
-							walletDefinedByKeys.forwardPrivateChainsToOtherMembersOfWallets(arrChainsOfCosignerPrivateElements, [wallet]);
-						else // arrPayingAddresses can be only shared addresses
-							walletDefinedByAddresses.forwardPrivateChainsToOtherMembersOfAddresses(arrChainsOfCosignerPrivateElements, arrPayingAddresses);
-						walletGeneral.sendPrivatePayments(recipient_device_address, arrChainsOfRecipientPrivateElements);
-					}
-					else if (recipient_device_address) // send notification about public payment
+					if (!arrChainsOfRecipientPrivateElements && recipient_device_address) // send notification about public payment
 						walletGeneral.sendPaymentNotification(recipient_device_address, objJoint.unit.unit);
 					handleResult(null, objJoint.unit.unit);
 				}
 			}
 		};
 		
-		if (asset && asset !== "base"){
+		if (asset){
 			if (bSendAll)
 				throw Error('send_all with asset');
 			params.asset = asset;
@@ -990,6 +991,19 @@ function sendMultiPayment(opts, handleResult)
 					throw Error(err);
 				if (objAsset.is_private && !recipient_device_address)
 					return handleResult("for private asset, need recipient's device address to send private payload to");
+				if (objAsset.is_private){
+					// save messages in outbox before committing
+					params.callbacks.preCommitCb = function(conn, arrChainsOfRecipientPrivateElements, arrChainsOfCosignerPrivateElements, cb){
+						if (!arrChainsOfRecipientPrivateElements || !arrChainsOfCosignerPrivateElements)
+							throw Error('no private elements');
+						walletGeneral.sendPrivatePayments(recipient_device_address, arrChainsOfRecipientPrivateElements, false, conn, function(){
+							if (wallet)
+								walletDefinedByKeys.forwardPrivateChainsToOtherMembersOfWallets(arrChainsOfCosignerPrivateElements, [wallet], conn, cb);
+							else // arrPayingAddresses can be only shared addresses
+								walletDefinedByAddresses.forwardPrivateChainsToOtherMembersOfAddresses(arrChainsOfCosignerPrivateElements, arrPayingAddresses, conn, cb);
+						});
+					};
+				}
 				if (objAsset.fixed_denominations){ // indivisible
 					params.tolerance_plus = 0;
 					params.tolerance_minus = 0;

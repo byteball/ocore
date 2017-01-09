@@ -25,17 +25,27 @@ initializeMinRetrievableMci();
 
 
 function readJoint(conn, unit, callbacks) {
+	if (!conf.bSaveJointJson)
+		return readJointDirectly(conn, unit, callbacks);
+	conn.query("SELECT json FROM joints WHERE unit=?", [unit], function(rows){
+		if (rows.length === 0)
+			return readJointDirectly(conn, unit, callbacks);
+		callbacks.ifFound(JSON.parse(rows[0].json));
+	});
+}
+
+function readJointDirectly(conn, unit, callbacks) {
 	console.log("\nreading unit "+unit);
 	if (min_retrievable_mci === null){
 		console.log("min_retrievable_mci not known yet");
 		setTimeout(function(){
-			readJoint(conn, unit, callbacks);
+			readJointDirectly(conn, unit, callbacks);
 		}, 1000);
 		return;
 	}
 	//profiler.start();
 	conn.query(
-		"SELECT units.unit, version, alt, witness_list_unit, last_ball_unit, balls.ball AS last_ball, \n\
+		"SELECT units.unit, version, alt, witness_list_unit, last_ball_unit, balls.ball AS last_ball, is_stable, \n\
 			content_hash, headers_commission, payload_commission, main_chain_index, "+conn.getUnixTimestamp("units.creation_date")+" AS timestamp \n\
 		FROM units LEFT JOIN balls ON last_ball_unit=balls.unit WHERE units.unit=?", 
 		[unit], 
@@ -49,6 +59,9 @@ function readJoint(conn, unit, callbacks) {
 			var main_chain_index = objUnit.main_chain_index;
 			//delete objUnit.main_chain_index;
 			objUnit.timestamp = parseInt(objUnit.timestamp);
+			var bFinalBad = !!objUnit.content_hash;
+			var bStable = objUnit.is_stable;
+			delete objUnit.is_stable;
 
 			objectHash.cleanNulls(objUnit);
 			var bVoided = (objUnit.content_hash && main_chain_index < min_retrievable_mci);
@@ -449,7 +462,11 @@ function readJoint(conn, unit, callbacks) {
 				}
 			], function(){
 				//profiler.stop('read');
-				callbacks.ifFound(objJoint);
+				if (!conf.bSaveJointJson || !bStable || (bFinalBad && bRetrievable))
+					return callbacks.ifFound(objJoint);
+				conn.query("INSERT "+db.getIgnore()+" INTO joints (unit, json) VALUES (?,?)", [unit, JSON.stringify(objJoint)], function(){
+					callbacks.ifFound(objJoint);
+				});
 			});
 		}
 	);
@@ -680,6 +697,10 @@ function findLastBallMciOfMci(conn, mci, handleLastBallMci){
 			handleLastBallMci(rows[0].main_chain_index);
 		}
 	);
+}
+
+function getMinRetrievableMci(){
+	return min_retrievable_mci;
 }
 
 function updateMinRetrievableMciAfterStabilizingMci(conn, last_stable_mci, handleMinRetrievableMci){
@@ -1172,6 +1193,7 @@ exports.readLastStableMcIndex = readLastStableMcIndex;
 
 
 exports.findLastBallMciOfMci = findLastBallMciOfMci;
+exports.getMinRetrievableMci = getMinRetrievableMci;
 exports.updateMinRetrievableMciAfterStabilizingMci = updateMinRetrievableMciAfterStabilizingMci;
 
 exports.generateQueriesToArchiveJoint = generateQueriesToArchiveJoint;

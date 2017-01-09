@@ -82,6 +82,7 @@ CREATE TABLE unit_authors (
 	PRIMARY KEY (unit, address),
 	FOREIGN KEY byUnit(unit) REFERENCES units(unit),
 	CONSTRAINT unitAuthorsByAddress FOREIGN KEY byAddress(address) REFERENCES addresses(address),
+	KEY unitAuthorsIndexByAddressDefinitionChash (address, definition_chash),
 	FOREIGN KEY byDefinition(definition_chash) REFERENCES definitions(definition_chash)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
@@ -390,6 +391,11 @@ CREATE TABLE known_bad_joints (
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
+CREATE TABLE joints (
+	unit CHAR(44) BINARY NOT NULL PRIMARY KEY,
+	json LONGTEXT NOT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 CREATE TABLE unhandled_private_payments (
 	unit CHAR(44) BINARY NOT NULL,

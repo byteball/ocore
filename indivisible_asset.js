@@ -712,7 +712,7 @@ function composeIndivisibleAssetPaymentJoint(params){
 						var assocPrivatePayloads = {};
 						for (var i=0; i<arrPayloadsWithProofs.length; i++){
 							var payload = arrPayloadsWithProofs[i].payload;
-							var payload_hash = objectHash.getBase64Hash(payload);
+							var payload_hash;// = objectHash.getBase64Hash(payload);
 							if (objAsset.is_private){
 								payload.outputs.forEach(function(o){
 									o.output_hash = objectHash.getBase64Hash({address: o.address, blinding: o.blinding});
@@ -826,9 +826,13 @@ function getSavingCallbacks(to_address, callbacks){
 									);
 								},
 								function(err){
-									if (err)
+									if (err){
 										bPreCommitCallbackFailed = true;
-									cb(err);
+										return cb(err);
+									}
+									if (!callbacks.preCommitCb)
+										return cb();
+									callbacks.preCommitCb(conn, arrRecipientChains, arrCosignerChains, cb);
 								}
 							);
 						};
@@ -862,6 +866,82 @@ function getSavingCallbacks(to_address, callbacks){
 			}); // validate
 		} // ifOk compose
 	};
+}
+
+function restorePrivateChains(asset, unit, to_address, handleChains){
+	var arrRecipientChains = [];
+	var arrCosignerChains = [];
+	db.query(
+		"SELECT DISTINCT message_index, denomination, payload_hash FROM outputs JOIN messages USING(unit, message_index) WHERE unit=? AND asset=?", 
+		[unit, asset], 
+		function(rows){
+			async.eachSeries(
+				rows,
+				function(row, cb){
+					var payload = {asset: asset, denomination: row.denomination};
+					var message_index = row.message_index;
+					db.query(
+						"SELECT src_unit, src_message_index, src_output_index, denomination, asset FROM inputs WHERE unit=? AND message_index=?", 
+						[unit, message_index],
+						function(input_rows){
+							if (input_rows.length !== 1)
+								throw Error("not 1 input");
+							var input_row = input_rows[0];
+							if (input_row.asset !== asset)
+								throw Error("assets don't match");
+							if (input_row.denomination !== row.denomination)
+								throw Error("denominations don't match");
+							if (input_row.src_message_index === null || input_row.src_output_index === null)
+								throw Error("only transfers supported");
+							var input = {
+								unit: input_row.src_unit,
+								message_index: input_row.src_message_index,
+								output_index: input_row.src_output_index
+							};
+							payload.inputs = [input];
+							db.query(
+								"SELECT address, amount, blinding, output_hash FROM outputs \n\
+								WHERE unit=? AND asset=? AND message_index=? ORDER BY output_index", 
+								[unit, asset, message_index],
+								function(outputs){
+									if (outputs.length === 0)
+										throw Error("outputs not found for mi "+message_index);
+									payload.outputs = outputs;
+									var hidden_payload = _.cloneDeep(payload);
+									hidden_payload.outputs.forEach(function(o){
+										delete o.address;
+										delete o.blinding;
+									});
+									var payload_hash = objectHash.getBase64Hash(hidden_payload);
+									if (payload_hash !== row.payload_hash)
+										throw Error("wrong payload hash");
+									async.forEachOfSeries(
+										payload.outputs,
+										function(output, output_index, cb3){
+											// we have only heads of the chains so far. Now add the tails.
+											buildPrivateElementsChain(
+												db, unit, message_index, output_index, payload, 
+												function(arrPrivateElements){
+													if (output.address === to_address)
+														arrRecipientChains.push(arrPrivateElements);
+													arrCosignerChains.push(arrPrivateElements);
+													cb3();
+												}
+											);
+										},
+										cb
+									);
+								}
+							);
+						}
+					);
+				},
+				function(){
+					handleChains(arrRecipientChains, arrCosignerChains);
+				}
+			);
+		}
+	);
 }
 
 // {asset: asset, paying_addresses: arrFromAddresses, to_address: to_address, change_address: change_address, amount: amount, tolerance_plus: tolerance_plus, tolerance_minus: tolerance_minus, signer: signer, callbacks: callbacks}
@@ -938,6 +1018,7 @@ function composeAndSaveMinimalIndivisibleAssetPaymentJoint(params){
 
 exports.getSavingCallbacks = getSavingCallbacks;
 exports.validateAndSavePrivatePaymentChain = validateAndSavePrivatePaymentChain;
+exports.restorePrivateChains = restorePrivateChains;
 exports.composeAndSaveIndivisibleAssetPaymentJoint = composeAndSaveIndivisibleAssetPaymentJoint;
 exports.composeAndSaveMinimalIndivisibleAssetPaymentJoint = composeAndSaveMinimalIndivisibleAssetPaymentJoint;
 exports.updateIndivisibleOutputsThatWereReceivedUnstable = updateIndivisibleOutputsThatWereReceivedUnstable;

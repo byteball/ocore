@@ -15,6 +15,7 @@ var walletGeneral = require('./wallet_general.js');
 var eventBus = require('./event_bus.js');
 var Definition = require("./definition.js");
 var ValidationUtils = require("./validation_utils.js");
+var breadcrumbs = require('./breadcrumbs.js');
 try{
 	var Bitcore = require('bitcore-lib');
 }
@@ -406,6 +407,7 @@ function readCosigners(wallet, handleCosigners){
 
 // silently adds new address upon receiving a network message
 function addNewAddress(wallet, is_change, address_index, address, handleError){
+	breadcrumbs.add('addNewAddress is_change='+is_change+', index='+address_index+', address='+address);
 	deriveAddress(wallet, is_change, address_index, function(new_address, arrDefinition){
 		if (new_address !== address)
 			return handleError("I derived address "+new_address+", your address "+address);
@@ -525,7 +527,7 @@ function derivePubkey(xPubKey, path){
 function deriveAddress(wallet, is_change, address_index, handleNewAddress){
 	db.query("SELECT definition_template, full_approval_date FROM wallets WHERE wallet=?", [wallet], function(wallet_rows){
 		if (wallet_rows.length === 0)
-			throw Error("wallet not found");
+			throw Error("wallet not found: "+wallet+", is_change="+is_change+", index="+address_index);
 		if (!wallet_rows[0].full_approval_date)
 			throw Error("wallet not fully approved yet");
 		var arrDefinitionTemplate = JSON.parse(wallet_rows[0].definition_template);
@@ -579,6 +581,7 @@ function deriveAndRecordAddress(wallet, is_change, address_index, handleNewAddre
 }
 
 function issueAddress(wallet, is_change, address_index, handleNewAddress){
+	breadcrumbs.add('issueAddress wallet='+wallet+', is_change='+is_change+', index='+address_index);
 	deriveAndRecordAddress(wallet, is_change, address_index, function(address){
 		db.query("SELECT device_address FROM extended_pubkeys WHERE wallet=?", [wallet], function(rows){
 			rows.forEach(function(row){
@@ -714,17 +717,25 @@ function readAllAddresses(wallet, handleAddresses){
 
 
 
-function forwardPrivateChainsToOtherMembersOfWallets(arrChains, arrWallets){
+function forwardPrivateChainsToOtherMembersOfWallets(arrChains, arrWallets, conn, onSaved){
 	console.log("forwardPrivateChainsToOtherMembersOfWallets", arrWallets);
-	db.query(
+	conn = conn || db;
+	conn.query(
 		"SELECT device_address FROM extended_pubkeys WHERE wallet IN(?) AND device_address!=?", 
 		[arrWallets, device.getMyDeviceAddress()], 
 		function(rows){
 			console.log("devices: "+rows.length);
-			rows.forEach(function(row){
-				console.log("forwarding to device "+row.device_address);
-				walletGeneral.sendPrivatePayments(row.device_address, arrChains, true);
-			});
+			async.eachSeries(
+				rows,
+				function(row, cb){
+					console.log("forwarding to device "+row.device_address);
+					walletGeneral.sendPrivatePayments(row.device_address, arrChains, true, conn, cb);
+				},
+				function(){
+					if (onSaved)
+						onSaved();
+				}
+			);
 		}
 	);
 }

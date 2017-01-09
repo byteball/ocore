@@ -306,16 +306,24 @@ function validateAddressDefinition(arrDefinition, handleResult){
 }
 
 
-function forwardPrivateChainsToOtherMembersOfAddresses(arrChains, arrAddresses){
-	db.query(
+function forwardPrivateChainsToOtherMembersOfAddresses(arrChains, arrAddresses, conn, onSaved){
+	conn = conn || db;
+	conn.query(
 		"SELECT device_address FROM shared_address_signing_paths WHERE shared_address IN(?) AND device_address!=?", 
 		[arrAddresses, device.getMyDeviceAddress()], 
 		function(rows){
 			console.log("shared address devices: "+rows.length);
-			rows.forEach(function(row){
-				console.log("forwarding to device "+row.device_address);
-				walletGeneral.sendPrivatePayments(row.device_address, arrChains, true);
-			});
+			async.eachSeries(
+				rows,
+				function(row, cb){
+					console.log("forwarding to device "+row.device_address);
+					walletGeneral.sendPrivatePayments(row.device_address, arrChains, true, conn, cb);
+				},
+				function(){
+					if (onSaved)
+						onSaved();
+				}
+			);
 		}
 	);
 }

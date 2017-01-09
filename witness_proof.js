@@ -60,7 +60,7 @@ function prepareWitnessProof(arrWitnesses, last_stable_mci, handleResult){
 		function(cb){ // add definition changes and new definitions of witnesses
 			var after_last_stable_mci_cond = (last_stable_mci > 0) ? "latest_included_mc_index>="+last_stable_mci : "1";
 			db.query(
-				"SELECT DISTINCT units.unit \n\
+				/*"SELECT DISTINCT units.unit \n\
 				FROM unit_authors \n\
 				JOIN units USING(unit) \n\
 				LEFT JOIN address_definition_changes \n\
@@ -68,7 +68,18 @@ function prepareWitnessProof(arrWitnesses, last_stable_mci, handleResult){
 				WHERE unit_authors.address IN(?) AND "+after_last_stable_mci_cond+" AND is_stable=1 AND sequence='good' \n\
 					AND (unit_authors.definition_chash IS NOT NULL OR address_definition_changes.unit IS NOT NULL) \n\
 				ORDER BY `level`", 
-				[arrWitnesses],
+				[arrWitnesses],*/
+				"SELECT unit, `level` \n\
+				FROM unit_authors "+db.forceIndex('unitAuthorsIndexByAddressDefinitionChash')+" \n\
+				CROSS JOIN units USING(unit) \n\
+				WHERE address IN(?) AND definition_chash IS NOT NULL AND "+after_last_stable_mci_cond+" AND is_stable=1 AND sequence='good' \n\
+				UNION \n\
+				SELECT unit, `level` \n\
+				FROM address_definition_changes \n\
+				CROSS JOIN units USING(unit) \n\
+				WHERE address_definition_changes.address IN(?) AND "+after_last_stable_mci_cond+" AND is_stable=1 AND sequence='good' \n\
+				ORDER BY `level`", 
+				[arrWitnesses, arrWitnesses],
 				function(rows){
 					async.eachSeries(rows, function(row, cb2){
 						storage.readJoint(db, row.unit, {

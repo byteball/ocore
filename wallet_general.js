@@ -13,11 +13,15 @@ function sendOfferToSign(device_address, address, signing_path, objUnsignedUnit,
 }
 
 // unlike similar function in network, this function sends multiple chains in a single package
-function sendPrivatePayments(device_address, arrChains, bForwarded){
+function sendPrivatePayments(device_address, arrChains, bForwarded, conn, onSaved){
 	var body = {chains: arrChains};
 	if (bForwarded)
 		body.forwarded = true;
-	device.sendMessageToDevice(device_address, "private_payments", body);
+	device.sendMessageToDevice(device_address, "private_payments", body, {
+		ifOk: function(){},
+		ifError: function(){},
+		onSaved: onSaved
+	}, conn);
 }
 
 // notification about public payment
