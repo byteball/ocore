@@ -22,3 +22,17 @@ else if (conf.storage === 'sqlite'){
 	module.exports = sqlitePool(conf.database.filename, conf.database.max_connections, conf.database.bReadOnly);
 }
 
+function executeInTransaction(doWork, onDone){
+	module.exports.takeConnectionFromPool(function(conn){
+		conn.query("BEGIN", function(){
+			doWork(conn, function(err){
+				conn.query(err ? "ROLLBACK" : "COMMIT", function(){
+					conn.release();
+					onDone(err);
+				});
+			});
+		});
+	});
+}
+
+module.exports.executeInTransaction = executeInTransaction;
