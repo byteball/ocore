@@ -377,6 +377,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 				
 			case 'has':
 			case 'has one':
+			case 'seen':
 				if (objValidationState.bNoReferences)
 					return cb("no references allowed in address definition");
 				var err = getFilterError(args);
@@ -384,6 +385,14 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 					return cb(err);
 				if (!args.asset || args.asset === 'base' || bAssetCondition && args.asset === "this asset")
 					return cb();
+				if (op === 'seen'){
+					if (!args.address)
+						return cb('seen must specify address');
+					if (args.what === 'input' && (args.amount || args.amount_at_least || args.amount_at_most))
+						return cb('amount not allowed in seen input');
+					if ('own_funds' in args)
+						return cb('own_funds not allowed in seen');
+				}
 				determineIfAnyOfAssetsIsPrivate([args.asset], function(bPrivate){
 					if (bPrivate)
 						return cb("asset must be public");
@@ -651,6 +660,48 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 						cb2(rows.length > 0);
 					}
 				);
+				break;
+				
+			case 'seen':
+				// ['seen', {what: 'input', asset: 'asset or base', type: 'transfer'|'issue', own_funds: true, amount_at_least: 123, amount_at_most: 123, amount: 123, address: 'BASE32'}]
+				var filter = args;
+				var sql = "SELECT 1 FROM "+filter.what+"s JOIN units USING(unit) \n\
+					WHERE main_chain_index<=? AND sequence='good' AND is_stable=1 ";
+				var params = [objValidationState.last_ball_mci];
+				if (filter.asset){
+					if (filter.asset === 'base')
+						sql += " AND asset IS NULL ";
+					else{
+						sql += " AND asset=? ";
+						params.push(filter.address);
+					}
+				}
+				if (filter.type){
+					sql += " AND type=? ";
+					params.push(filter.type);
+				}
+				if (filter.address){
+					sql += " AND address=? ";
+					params.push(filter.address);
+				}
+				if (filter.what === 'output'){
+					if (filter.amount_at_least){
+						sql += " AND amount>=? ";
+						params.push(filter.amount_at_least);
+					}
+					if (filter.amount_at_most){
+						sql += " AND amount<=? ";
+						params.push(filter.amount_at_most);
+					}
+					if (filter.amount){
+						sql += " AND amount=? ";
+						params.push(filter.amount);
+					}
+				}
+				sql += " LIMIT 1";
+				conn.query(sql, params, function(rows){
+					cb2(rows.length > 0);
+				});
 				break;
 				
 			case 'cosigned by':
@@ -1054,6 +1105,7 @@ function hasReferences(arrDefinition){
 			case 'address':
 			case 'definition template':
 			case 'seen address':
+			case 'seen':
 			case 'in data feed':
 			case 'in merkle':
 			case 'mci':
