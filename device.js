@@ -318,7 +318,8 @@ function resendStalledMessages(){
 		function(rows){
 			rows.forEach(function(row){
 				if (!row.hub) // weird error
-					throw Error("no hub in resendStalledMessages: "+JSON.stringify(row));
+					return eventBus.emit('nonfatal_error', "no hub in resendStalledMessages: "+JSON.stringify(row)+", l="+rows.length, new Error('no hub'));
+				//	throw Error("no hub in resendStalledMessages: "+JSON.stringify(row));
 				var objDeviceMessage = JSON.parse(row.message);
 				//if (objDeviceMessage.to !== row.to)
 				//    throw "to mismatch";
