@@ -46,13 +46,21 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 					connection.query("PRAGMA journal_mode=WAL", function(){
 						connection.query("PRAGMA synchronous=NORMAL", function(){
 							connection.query("PRAGMA temp_store=MEMORY", function(){
-								handleConnection(connection);
+								migrateDb(function(){
+									handleConnection(connection);
+								});
 							});
 						});
 					});
 				});
 			});
 		});
+		
+		function migrateDb(onDone){
+			connection.query("CREATE INDEX IF NOT EXISTS unitAuthorsIndexByAddressDefinitionChash ON unit_authors(address, definition_chash)", function(){
+				onDone();
+			});
+		}
 		
 		var connection = {
 			db: db,
