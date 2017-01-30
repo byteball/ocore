@@ -767,3 +767,5 @@ exports.forwardPrivateChainsToOtherMembersOfWallets = forwardPrivateChainsToOthe
 
 exports.readCosigners = readCosigners;
 
+exports.derivePubkey = derivePubkey;
+exports.issueAddress = issueAddress;
