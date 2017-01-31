@@ -85,6 +85,12 @@ function setDeviceAddress(device_address){
 	my_device_address = device_address;
 }
 
+function setNewDeviceAddress(device_address){
+	console.log("setNewDeviceAddress", device_address);
+	breadcrumbs.add("setNewDeviceAddress: " + device_address);
+	my_device_address = device_address;
+}
+
 function setDeviceName(device_name){
 	console.log("setDeviceName", device_name);
 	my_device_name = device_name;
@@ -634,6 +640,7 @@ exports.genPrivKey = genPrivKey;
 exports.setDevicePrivateKey = setDevicePrivateKey;
 exports.setTempKeys = setTempKeys;
 exports.setDeviceAddress = setDeviceAddress;
+exports.setNewDeviceAddress = setNewDeviceAddress;
 exports.setDeviceName = setDeviceName;
 exports.setDeviceHub = setDeviceHub;
 
