@@ -623,7 +623,10 @@ function getWitnessesFromHub(cb){
 	network.findOutboundPeerOrConnect(conf.WS_PROTOCOL+my_device_hub, function(err, ws){
 		if (err)
 			return cb(err);
-		network.sendRequest(ws, 'get_witnesses', null, false, function(ws, request, arrWitnessesFromHub){
+		network.sendRequest(ws, 'get_witnesses', null, false, function(ws, request, response){
+			if (response.error)
+				return cb(response.error);
+			var arrWitnessesFromHub = response;
 			cb(null, arrWitnessesFromHub);
 		});
 	});
