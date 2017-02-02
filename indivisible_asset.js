@@ -405,7 +405,7 @@ function pickIndivisibleCoinsForAmount(
 				FROM outputs JOIN units USING(unit) \n\
 				WHERE asset=? AND address IN(?) AND is_serial=1 AND is_spent=0 AND sequence='good' \n\
 					AND main_chain_index<=? AND denomination<=? AND output_id NOT IN(?) \n\
-				ORDER BY denomination DESC, (amount<=?) DESC, ABS(amount-?) LIMIT 1",
+				ORDER BY denomination DESC, (amount>=?) DESC, ABS(amount-?) LIMIT 1",
 				[asset, arrAddresses, 
 				last_ball_mci, remaining_amount, (arrOutputIds.length > 0) ? arrOutputIds : -1, 
 				remaining_amount + tolerance_plus, remaining_amount],
