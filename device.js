@@ -85,6 +85,12 @@ function setDeviceAddress(device_address){
 	my_device_address = device_address;
 }
 
+function setNewDeviceAddress(device_address){
+	console.log("setNewDeviceAddress", device_address);
+	breadcrumbs.add("setNewDeviceAddress: " + device_address);
+	my_device_address = device_address;
+}
+
 function setDeviceName(device_name){
 	console.log("setDeviceName", device_name);
 	my_device_name = device_name;
@@ -318,7 +324,8 @@ function resendStalledMessages(){
 		function(rows){
 			rows.forEach(function(row){
 				if (!row.hub) // weird error
-					throw Error("no hub in resendStalledMessages: "+JSON.stringify(row));
+					return eventBus.emit('nonfatal_error', "no hub in resendStalledMessages: "+JSON.stringify(row)+", l="+rows.length, new Error('no hub'));
+				//	throw Error("no hub in resendStalledMessages: "+JSON.stringify(row));
 				var objDeviceMessage = JSON.parse(row.message);
 				//if (objDeviceMessage.to !== row.to)
 				//    throw "to mismatch";
@@ -616,7 +623,10 @@ function getWitnessesFromHub(cb){
 	network.findOutboundPeerOrConnect(conf.WS_PROTOCOL+my_device_hub, function(err, ws){
 		if (err)
 			return cb(err);
-		network.sendRequest(ws, 'get_witnesses', null, false, function(ws, request, arrWitnessesFromHub){
+		network.sendRequest(ws, 'get_witnesses', null, false, function(ws, request, response){
+			if (response.error)
+				return cb(response.error);
+			var arrWitnessesFromHub = response;
 			cb(null, arrWitnessesFromHub);
 		});
 	});
@@ -633,6 +643,7 @@ exports.genPrivKey = genPrivKey;
 exports.setDevicePrivateKey = setDevicePrivateKey;
 exports.setTempKeys = setTempKeys;
 exports.setDeviceAddress = setDeviceAddress;
+exports.setNewDeviceAddress = setNewDeviceAddress;
 exports.setDeviceName = setDeviceName;
 exports.setDeviceHub = setDeviceHub;
 

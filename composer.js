@@ -684,6 +684,14 @@ function composeJoint(params){
 			
 			// change, payload hash, signature, and unit hash
 			var change = total_input - total_amount - objUnit.headers_commission - objUnit.payload_commission;
+			if (change <= 0){
+				if (!params.send_all)
+					throw Error("change="+change+", params="+JSON.stringify(params));
+				return handleError({ 
+					error_code: "NOT_ENOUGH_FUNDS", 
+					error: "not enough spendable funds from "+arrPayingAddresses+" for fees"
+				});
+			}
 			objPaymentMessage.payload.outputs[0].amount = change;
 			objPaymentMessage.payload.outputs.sort(sortOutputs);
 			objPaymentMessage.payload_hash = objectHash.getBase64Hash(objPaymentMessage.payload);

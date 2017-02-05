@@ -457,7 +457,8 @@ function forwardPrivateChainsToOtherMembersOfOutputAddresses(arrChains){
 	db.query("SELECT DISTINCT wallet FROM my_addresses WHERE address IN(?)", [arrOutputAddresses], function(rows){
 		if (rows.length === 0){
 			breadcrumbs.add("forwardPrivateChainsToOtherMembersOfOutputAddresses: " + JSON.stringify(arrChains)); // remove in livenet
-			throw Error("not my wallet? output addresses: "+arrOutputAddresses.join(', '));
+			eventBus.emit('nonfatal_error', "not my wallet? output addresses: "+arrOutputAddresses.join(', '), new Error());
+		//	throw Error("not my wallet? output addresses: "+arrOutputAddresses.join(', '));
 		}
 		var arrWallets = rows.map(function(row){ return row.wallet; });
 		if (arrWallets.length > 0)

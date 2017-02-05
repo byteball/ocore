@@ -59,6 +59,8 @@ function findMcIndexIntervalToTargetAmount(conn, type, address, max_mci, target_
 			if (max_spendable_mci > max_mci)
 				max_spendable_mci = max_mci;
 			if (conf.storage === 'mysql'){
+				if (target_amount === Infinity)
+					target_amount = 1e15;
 				conn.query(
 					"SELECT main_chain_index, accumulated, has_sufficient \n\
 					FROM ( \n\
@@ -84,7 +86,7 @@ function findMcIndexIntervalToTargetAmount(conn, type, address, max_mci, target_
 				conn.query(
 					"SELECT main_chain_index, amount \n\
 					FROM "+table+" \n\
-					WHERE is_spent=0 AND address=? AND main_chain_index>=? AND main_chain_index<=? \n\
+					WHERE is_spent=0 AND address=? AND +main_chain_index>=? AND +main_chain_index<=? \n\
 					ORDER BY main_chain_index",
 					[address, from_mci, max_spendable_mci],
 					function(rows){

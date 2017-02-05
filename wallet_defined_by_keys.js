@@ -669,7 +669,7 @@ function readAddresses(wallet, opts, handleAddresses){
 		FROM my_addresses WHERE wallet=?";
 	if (opts.is_change === 0 || opts.is_change === 1)
 		sql += " AND is_change="+opts.is_change;
-	sql += " ORDER BY address_index";
+	sql += " ORDER BY creation_ts";
 	if (opts.reverse)
 		sql += " DESC";
 	if (opts.limit)
@@ -767,3 +767,5 @@ exports.forwardPrivateChainsToOtherMembersOfWallets = forwardPrivateChainsToOthe
 
 exports.readCosigners = readCosigners;
 
+exports.derivePubkey = derivePubkey;
+exports.issueAddress = issueAddress;
