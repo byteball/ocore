@@ -2328,6 +2328,12 @@ function start(){
 	setInterval(heartbeat, 3*1000 + getRandomInt(0, 1000));
 }
 
+function closeAllWsConnections() {
+	arrOutboundPeers.forEach(function(ws) {
+		ws.close(1000,'Re-connect');
+	});
+}
+
 start();
 
 exports.start = start;
@@ -2356,3 +2362,4 @@ exports.setMyDeviceProps = setMyDeviceProps;
 exports.setWatchedAddresses = setWatchedAddresses;
 exports.addWatchedAddress = addWatchedAddress;
 
+exports.closeAllWsConnections = closeAllWsConnections;
