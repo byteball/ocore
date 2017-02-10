@@ -2224,11 +2224,6 @@ function startAcceptingConnections(){
 		var ip = ws.upgradeReq.connection.remoteAddress;
 		if (ws.upgradeReq.headers['x-real-ip'] && (ip === '127.0.0.1' || ip.match(/^192\.168\./))) // we are behind a proxy
 			ip = ws.upgradeReq.headers['x-real-ip'];
-		if (wss.clients.length >= conf.MAX_INBOUND_CONNECTIONS){
-			console.log("inbound connections maxed out, rejecting new client "+ip);
-			ws.close(1000, "inbound connections maxed out"); // 1001 doesn't work in cordova
-			return;
-		}
 		ws.peer = ip + ":" + ws.upgradeReq.connection.remotePort;
 		ws.host = ip;
 		ws.assocPendingRequests = {};
@@ -2236,6 +2231,11 @@ function startAcceptingConnections(){
 		ws.bInbound = true;
 		ws.last_ts = Date.now();
 		console.log('got connection from '+ws.peer+", host "+ws.host);
+		if (wss.clients.length >= conf.MAX_INBOUND_CONNECTIONS){
+			console.log("inbound connections maxed out, rejecting new client "+ip);
+			ws.close(1000, "inbound connections maxed out"); // 1001 doesn't work in cordova
+			return;
+		}
 		var bStatsCheckUnderWay = true;
 		db.query(
 			"SELECT \n\
