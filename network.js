@@ -28,7 +28,7 @@ var mail = process.browser ? null : require('./mail.js'+'');
 var FORWARDING_TIMEOUT = 10*1000; // don't forward if the joint was received more than FORWARDING_TIMEOUT ms ago
 var STALLED_TIMEOUT = 5000; // a request is treated as stalled if no response received within STALLED_TIMEOUT ms
 var RESPONSE_TIMEOUT = 300*1000; // after this timeout, the request is abandoned
-var HEARTBEAT_TIMEOUT = 10*1000;
+var HEARTBEAT_TIMEOUT = conf.HEARTBEAT_TIMEOUT || 10*1000;
 var PAUSE_TIMEOUT = 2*HEARTBEAT_TIMEOUT;
 
 var wss;
