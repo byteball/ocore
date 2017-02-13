@@ -318,21 +318,31 @@ function resendStalledMessages(){
 	console.log("resending stalled messages");
 	if (!objMyPermanentDeviceKey)
 		return console.log("objMyPermanentDeviceKey not set yet, can't resend stalled messages");
-	db.query(
-		"SELECT message, message_hash, `to`, pubkey, hub FROM outbox JOIN correspondent_devices ON `to`=device_address \n\
-		WHERE outbox.creation_date<"+db.addTime("-1 MINUTE")+" ORDER BY outbox.creation_date", 
-		function(rows){
-			rows.forEach(function(row){
-				if (!row.hub) // weird error
-					return eventBus.emit('nonfatal_error', "no hub in resendStalledMessages: "+JSON.stringify(row)+", l="+rows.length, new Error('no hub'));
-				//	throw Error("no hub in resendStalledMessages: "+JSON.stringify(row));
-				var objDeviceMessage = JSON.parse(row.message);
-				//if (objDeviceMessage.to !== row.to)
-				//    throw "to mismatch";
-				sendPreparedMessageToHub(row.hub, row.pubkey, row.message_hash, objDeviceMessage);
-			});
-		}
-	);
+	mutex.lock(['stalled'], function(unlock){
+		db.query(
+			"SELECT message, message_hash, `to`, pubkey, hub FROM outbox JOIN correspondent_devices ON `to`=device_address \n\
+			WHERE outbox.creation_date<"+db.addTime("-1 MINUTE")+" ORDER BY outbox.creation_date", 
+			function(rows){
+				console.log(rows.length+" stalled messages");
+				async.eachSeries(
+					rows, 
+					function(row, cb){
+						if (!row.hub){ // weird error
+							eventBus.emit('nonfatal_error', "no hub in resendStalledMessages: "+JSON.stringify(row)+", l="+rows.length, new Error('no hub'));
+							return cb();
+						}
+						//	throw Error("no hub in resendStalledMessages: "+JSON.stringify(row));
+						var objDeviceMessage = JSON.parse(row.message);
+						//if (objDeviceMessage.to !== row.to)
+						//    throw "to mismatch";
+						console.log('sending stalled '+row.message_hash);
+						sendPreparedMessageToHub(row.hub, row.pubkey, row.message_hash, objDeviceMessage, {ifOk: cb, ifError: function(err){ cb(); }});
+					},
+					unlock
+				);
+			}
+		);
+	});
 }
 
 setInterval(resendStalledMessages, SEND_RETRY_PERIOD);
