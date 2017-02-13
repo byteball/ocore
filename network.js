@@ -29,6 +29,7 @@ var FORWARDING_TIMEOUT = 10*1000; // don't forward if the joint was received mor
 var STALLED_TIMEOUT = 5000; // a request is treated as stalled if no response received within STALLED_TIMEOUT ms
 var RESPONSE_TIMEOUT = 300*1000; // after this timeout, the request is abandoned
 var HEARTBEAT_TIMEOUT = conf.HEARTBEAT_TIMEOUT || 10*1000;
+var HEARTBEAT_RESPONSE_TIMEOUT = 60*1000;
 var PAUSE_TIMEOUT = 2*HEARTBEAT_TIMEOUT;
 
 var wss;
@@ -535,8 +536,11 @@ function heartbeat(){
 		var elapsed_since_last_received = Date.now() - ws.last_ts;
 		if (elapsed_since_last_received < HEARTBEAT_TIMEOUT)
 			return;
-		if (elapsed_since_last_received < 2*HEARTBEAT_TIMEOUT || bJustResumed)
+		var elapsed_since_last_sent_heartbeat = Date.now() - ws.last_sent_heartbeat_ts;
+		if (elapsed_since_last_sent_heartbeat < HEARTBEAT_RESPONSE_TIMEOUT || !ws.last_sent_heartbeat_ts || bJustResumed){
+			ws.last_sent_heartbeat_ts = Date.now();
 			return sendRequest(ws, 'heartbeat', null, false, handleHeartbeatResponse);
+		}
 		console.log('will disconnect peer '+ws.peer+' who was silent for '+elapsed_since_last_received+'ms');
 		ws.close(1000, "lost connection");
 	});
