@@ -378,7 +378,7 @@ function connectToPeer(url, onOpen) {
 	});
 	ws.on('close', function onWsClose() {
 		var i = arrOutboundPeers.indexOf(ws);
-		console.log('removing '+i+': '+url);
+		console.log('close event, removing '+i+': '+url);
 		if (i !== -1)
 			arrOutboundPeers.splice(i, 1);
 		cancelRequestsOnClosedConnection(ws);
