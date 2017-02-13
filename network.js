@@ -29,6 +29,7 @@ var FORWARDING_TIMEOUT = 10*1000; // don't forward if the joint was received mor
 var STALLED_TIMEOUT = 5000; // a request is treated as stalled if no response received within STALLED_TIMEOUT ms
 var RESPONSE_TIMEOUT = 300*1000; // after this timeout, the request is abandoned
 var HEARTBEAT_TIMEOUT = 10*1000;
+var PAUSE_TIMEOUT = 2*HEARTBEAT_TIMEOUT;
 
 var wss;
 var arrOutboundPeers = [];
@@ -1950,7 +1951,7 @@ function handleRequest(ws, tag, command, params){
 			// true if our timers were paused
 			// Happens only on android, which suspends timers when the app becomes paused but still keeps network connections
 			// Handling 'pause' event would've been more straightforward but with preference KeepRunning=false, the event is delayed till resume
-			var bPaused = (typeof window !== 'undefined' && window && window.cordova && Date.now() - last_hearbeat_wake_ts > 2*HEARTBEAT_TIMEOUT);
+			var bPaused = (typeof window !== 'undefined' && window && window.cordova && Date.now() - last_hearbeat_wake_ts > PAUSE_TIMEOUT);
 			if (bPaused)
 				return sendResponse(ws, tag, 'sleep'); // opt out of receiving heartbeats and move the connection into a sleeping state
 			sendResponse(ws, tag);
