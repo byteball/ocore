@@ -313,14 +313,32 @@ function decryptPackage(objEncryptedPackage){
 		return json;
 }
 
+// a hack to read large text from cordova sqlite
+function readMessageInChunksFromOutbox(message_hash, len, handleMessage){
+	var CHUNK_LEN = 1000000;
+	var start = 1;
+	var message = '';
+	function readChunk(){
+		db.query("SELECT SUBSTR(message, ?, ?) AS chunk FROM outbox WHERE message_hash=?", [start, CHUNK_LEN, message_hash], function(rows){
+			if (rows.length !== 1)
+				throw Error('not 1 msg in outbox');
+			message += rows[0].chunk;
+			start += CHUNK_LEN;
+			(start > len) ? handleMessage(message) : readChunk();
+		});
+	}
+	readChunk();
+}
 
 function resendStalledMessages(){
 	console.log("resending stalled messages");
 	if (!objMyPermanentDeviceKey)
 		return console.log("objMyPermanentDeviceKey not set yet, can't resend stalled messages");
 	mutex.lock(['stalled'], function(unlock){
+		var bCordova = (typeof window !== 'undefined' && window && window.cordova);
 		db.query(
-			"SELECT message, message_hash, `to`, pubkey, hub FROM outbox JOIN correspondent_devices ON `to`=device_address \n\
+			"SELECT "+(bCordova ? "LENGTH(message) AS len" : "message")+", message_hash, `to`, pubkey, hub \n\
+			FROM outbox JOIN correspondent_devices ON `to`=device_address \n\
 			WHERE outbox.creation_date<"+db.addTime("-1 MINUTE")+" ORDER BY outbox.creation_date", 
 			function(rows){
 				console.log(rows.length+" stalled messages");
@@ -332,11 +350,14 @@ function resendStalledMessages(){
 							return cb();
 						}
 						//	throw Error("no hub in resendStalledMessages: "+JSON.stringify(row));
-						var objDeviceMessage = JSON.parse(row.message);
-						//if (objDeviceMessage.to !== row.to)
-						//    throw "to mismatch";
-						console.log('sending stalled '+row.message_hash);
-						sendPreparedMessageToHub(row.hub, row.pubkey, row.message_hash, objDeviceMessage, {ifOk: cb, ifError: function(err){ cb(); }});
+						var send = function(message){
+							var objDeviceMessage = JSON.parse(message);
+							//if (objDeviceMessage.to !== row.to)
+							//    throw "to mismatch";
+							console.log('sending stalled '+row.message_hash);
+							sendPreparedMessageToHub(row.hub, row.pubkey, row.message_hash, objDeviceMessage, {ifOk: cb, ifError: function(err){ cb(); }});
+						};
+						bCordova ? readMessageInChunksFromOutbox(row.message_hash, row.len, send) : send(row.message);
 					},
 					unlock
 				);
