@@ -707,6 +707,7 @@ function readTransactionHistory(opts, handleHistory){
 				if (row.from_address)
 					assocMovements[row.unit].has_minus = true;
 			}
+			console.log(require('util').inspect(assocMovements));
 			var arrTransactions = [];
 			async.forEachOfSeries(
 				assocMovements,
@@ -749,28 +750,30 @@ function readTransactionHistory(opts, handleHistory){
 					else if (movement.has_minus){
 						var queryString, parameters;
 						if(walletIsAddress){
-							queryString =   "SELECT address, SUM(amount) AS amount \n\
+							queryString =   "SELECT address, SUM(amount) AS amount, (address!=?) AS is_external \n\
 											FROM outputs \n\
-											WHERE unit=? AND "+asset_condition+" AND address!=? \n\
+											WHERE unit=? AND "+asset_condition+" \n\
 											GROUP BY address";
-							parameters = [unit, wallet];
+							parameters = [wallet, unit];
 						}
 						else {
-							queryString =   "SELECT outputs.address, SUM(amount) AS amount \n\
+							queryString =   "SELECT outputs.address, SUM(amount) AS amount, (my_addresses.address IS NULL) AS is_external \n\
 											FROM outputs \n\
 											LEFT JOIN my_addresses ON outputs.address=my_addresses.address AND wallet=? \n\
-											WHERE unit=? AND "+asset_condition+" AND my_addresses.address IS NULL \n\
+											WHERE unit=? AND "+asset_condition+" \n\
 											GROUP BY outputs.address";
 							parameters = [wallet, unit];
 						}
 						db.query(queryString, parameters, 
 							function(payee_rows){
+								var action = payee_rows.some(function(payee){ return payee.is_external; }) ? 'sent' : 'moved';
 								for (var i=0; i<payee_rows.length; i++){
 									var payee = payee_rows[i];
 									var transaction = {
-										action: 'sent',
+										action: action,
 										amount: payee.amount,
 										addressTo: payee.address,
+										my_address: payee.address,
 										confirmations: movement.is_stable,
 										unit: unit,
 										fee: movement.fee,
