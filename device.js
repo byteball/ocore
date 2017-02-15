@@ -194,10 +194,8 @@ function genPrivKey(){
 }
 
 function rotateTempDeviceKeyIfCouldBeAlreadyUsed(){
-	if (objMyTempDeviceKey.use_count === 0){ // new key that was never used yet
-		console.log("the current temp key was not used yet, will not rotate");
-		return;
-	}
+	if (objMyTempDeviceKey.use_count === 0) // new key that was never used yet
+		return console.log("the current temp key was not used yet, will not rotate");
 	// if use_count === null, the key was set at start up, it could've been used before
 	rotateTempDeviceKey();
 }
