@@ -100,6 +100,14 @@ function handleJustsaying(ws, subject, body){
 			});
 			break;
 			
+		// I'm connected to a hub, received a report about my undelivered inbox
+		case 'hub/message_box_status':
+			if (!ws.bLoggedIn)
+				return respondWithError("you are not my hub");
+			if (body === 'empty')
+				device.scheduleTempDeviceKeyRotation();
+			break;
+			
 		case 'light/have_updates':
 			lightWallet.refreshLightClientHistory();
 			break;

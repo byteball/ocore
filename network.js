@@ -1717,6 +1717,7 @@ function sendStoredDeviceMessages(ws, device_address){
 			sendJustsaying(ws, 'hub/message', {message_hash: row.message_hash, message: JSON.parse(row.message)});
 		});
 		sendInfo(ws, rows.length+" messages sent");
+		sendJustsaying(ws, 'hub/message_box_status', (rows.length === 100) ? 'has_more' : 'empty');
 	});
 }
 
@@ -1916,6 +1917,7 @@ function handleJustsaying(ws, subject, body){
 		// I'm connected to a hub
 		case 'hub/challenge':
 		case 'hub/message':
+		case 'hub/message_box_status':
 			eventBus.emit("message_from_hub", ws, subject, body);
 			break;
 			

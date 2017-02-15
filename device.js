@@ -150,10 +150,6 @@ function sendLoginCommand(ws, challenge){
 	network.sendJustsaying(ws, 'hub/login', objLogin);
 	ws.bLoggedIn = true;
 	sendTempPubkey(ws, objMyTempDeviceKey.pub_b64);
-	if (!bScheduledTempDeviceKeyRotation){
-		bScheduledTempDeviceKeyRotation = true;
-		setTimeout(scheduleTempDeviceKeyRotation, 60*1000); // wait that we start handling incoming messages
-	}
 	network.initWitnessesIfNecessary(ws);
 	resendStalledMessages();
 }
@@ -237,14 +233,20 @@ function rotateTempDeviceKey(){
 }
 
 function scheduleTempDeviceKeyRotation(){
-	// due to timeout, we are probably last to request (and receive) this lock
-	mutex.lock(["from_hub"], function(unlock){
-		console.log("will schedule rotation");
-		rotateTempDeviceKeyIfCouldBeAlreadyUsed();
-		last_rotate_wake_ts = Date.now();
-		setInterval(rotateTempDeviceKeyIfCouldBeAlreadyUsed, TEMP_DEVICE_KEY_ROTATION_PERIOD);
-		unlock();
-	});
+	if (bScheduledTempDeviceKeyRotation)
+		return;
+	bScheduledTempDeviceKeyRotation = true;
+	console.log('will schedule rotation in 1 minute');
+	setTimeout(function(){
+		// due to timeout, we are probably last to request (and receive) this lock
+		mutex.lock(["from_hub"], function(unlock){
+			console.log("will schedule rotation");
+			rotateTempDeviceKeyIfCouldBeAlreadyUsed();
+			last_rotate_wake_ts = Date.now();
+			setInterval(rotateTempDeviceKeyIfCouldBeAlreadyUsed, TEMP_DEVICE_KEY_ROTATION_PERIOD);
+			unlock();
+		});
+	}, 60*1000);
 }
 
 
@@ -683,6 +685,8 @@ exports.setDeviceAddress = setDeviceAddress;
 exports.setNewDeviceAddress = setNewDeviceAddress;
 exports.setDeviceName = setDeviceName;
 exports.setDeviceHub = setDeviceHub;
+
+exports.scheduleTempDeviceKeyRotation = scheduleTempDeviceKeyRotation;
 
 exports.decryptPackage = decryptPackage;
 
