@@ -193,7 +193,13 @@ function genPrivKey(){
 	return privKey;
 }
 
+var last_rotate_wake_ts = Date.now();
+
 function rotateTempDeviceKeyIfCouldBeAlreadyUsed(){
+	var actual_interval = Date.now() - last_rotate_wake_ts;
+	last_rotate_wake_ts = Date.now();
+	if (actual_interval > TEMP_DEVICE_KEY_ROTATION_PERIOD + 1000)
+		return console.log("woke up after sleep or high load, will skip rotation");
 	if (objMyTempDeviceKey.use_count === 0) // new key that was never used yet
 		return console.log("the current temp key was not used yet, will not rotate");
 	// if use_count === null, the key was set at start up, it could've been used before
@@ -234,6 +240,7 @@ function scheduleTempDeviceKeyRotation(){
 	mutex.lock(["from_hub"], function(unlock){
 		console.log("will schedule rotation");
 		rotateTempDeviceKeyIfCouldBeAlreadyUsed();
+		last_rotate_wake_ts = Date.now();
 		setInterval(rotateTempDeviceKeyIfCouldBeAlreadyUsed, TEMP_DEVICE_KEY_ROTATION_PERIOD);
 		unlock();
 	});
