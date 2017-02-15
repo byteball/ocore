@@ -230,6 +230,7 @@ function rotateTempDeviceKey(){
 			}
 			objMyPrevTempDeviceKey = objMyTempDeviceKey;
 			objMyTempDeviceKey = objNewMyTempDeviceKey;
+			breadcrumbs.add('rotated temp device key');
 			sendTempPubkey(ws, objMyTempDeviceKey.pub_b64);
 		});
 	});
@@ -279,7 +280,7 @@ function decryptPackage(objEncryptedPackage){
 	}
 	else{
 		console.log("message encrypted to unknown key");
-		eventBus.emit('nonfatal_error', "message encrypted to unknown key, device "+my_device_address, new Error('unknown key'));
+		eventBus.emit('nonfatal_error', "message encrypted to unknown key, device "+my_device_address+", len="+objEncryptedPackage.encrypted_message.length, new Error('unknown key'));
 		return null;
 	}
 	
