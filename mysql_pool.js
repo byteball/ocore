@@ -87,6 +87,10 @@ module.exports = function(connection_or_pool){
 		return (safe_connection._allConnections.length - safe_connection._freeConnections.length);
 	};
 	
+	safe_connection.close = function(cb){
+		connection_or_pool.end(cb);
+	};
+	
 	safe_connection.addTime = function(interval){
 		return "NOW() + INTERVAL "+interval;
 	};

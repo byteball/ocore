@@ -226,6 +226,12 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 			connection.query.apply(connection, new_args);
 		});
 	}
+	
+	function close(cb){
+		if (arrConnections.length === 0)
+			return cb();
+		arrConnections[0].db.close(cb);
+	}
 
 	// interval is string such as -8 SECOND
 	function addTime(interval){
@@ -278,6 +284,7 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 	pool.addQuery = addQuery;
 	pool.takeConnectionFromPool = takeConnectionFromPool;
 	pool.getCountUsedConnections = getCountUsedConnections;
+	pool.close = close;
 	pool.escape = escape;
 	pool.addTime = addTime;
 	pool.getNow = getNow;
