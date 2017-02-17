@@ -2203,7 +2203,12 @@ function onWebsocketMessage(message) {
 	console.log('RECEIVED '+message+' from '+ws.peer);
 	ws.last_ts = Date.now();
 	
-	var arrMessage = JSON.parse(message);
+	try{
+		var arrMessage = JSON.parse(message);
+	}
+	catch(e){
+		return console.log('failed to json.parse message '+message);
+	}
 	var message_type = arrMessage[0];
 	var content = arrMessage[1];
 	
