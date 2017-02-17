@@ -23,6 +23,7 @@ CREATE TABLE units (
 	KEY byLevel(level),
 	KEY byFree(is_free),
 	KEY byStableMci(is_stable, main_chain_index),
+	KEY byDate(creation_date),
 	CONSTRAINT unitsByLastBallUnit FOREIGN KEY byLastBallUnit(last_ball_unit) REFERENCES units(unit),
 	FOREIGN KEY byBestParentUnit(best_parent_unit) REFERENCES units(unit),
 	CONSTRAINT unitsByWitnessListUnit FOREIGN KEY byWitnessList(witness_list_unit) REFERENCES units(unit)

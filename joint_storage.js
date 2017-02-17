@@ -7,6 +7,7 @@ var db = require('./db.js');
 var constants = require("./constants.js");
 var objectHash = require("./object_hash.js");
 var mutex = require('./mutex.js');
+var conf = require('./conf.js');
 
 
 
@@ -194,13 +195,14 @@ function purgeUncoveredNonserialJointsUnderLock(){
 
 function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 	var cond = bByExistenceOfChildren ? "(SELECT 1 FROM parenthoods WHERE parent_unit=unit LIMIT 1) IS NULL" : "is_free=1";
+	var order_column = (conf.storage === 'mysql') ? 'creation_date' : 'rowid'; // this column must be indexed!
 	// the purged units can arrive again, no problem
 	db.query( // purge the bad ball if we've already received at least 7 witnesses after receiving the bad ball
 		"SELECT unit FROM units \n\
 		WHERE "+cond+" AND sequence!='good' AND content_hash IS NULL \n\
 			AND ( \n\
-				SELECT COUNT(DISTINCT address) FROM units AS wunits JOIN unit_authors USING(unit) JOIN my_witnesses USING(address) \n\
-				WHERE wunits.creation_date > units.creation_date \n\
+				SELECT COUNT(DISTINCT address) FROM units AS wunits CROSS JOIN unit_authors USING(unit) CROSS JOIN my_witnesses USING(address) \n\
+				WHERE wunits."+order_column+" > units."+order_column+" \n\
 			) >= ? \n\
 			AND NOT EXISTS (SELECT * FROM dependencies WHERE depends_on_unit=units.unit) \n\
 			AND NOT EXISTS (SELECT * FROM unhandled_joints)", 
