@@ -777,6 +777,8 @@ function readTransactionHistory(opts, handleHistory){
 								var action = payee_rows.some(function(payee){ return payee.is_external; }) ? 'sent' : 'moved';
 								for (var i=0; i<payee_rows.length; i++){
 									var payee = payee_rows[i];
+									if (action === 'sent' && !payee.is_external)
+										continue;
 									var transaction = {
 										action: action,
 										amount: payee.amount,
