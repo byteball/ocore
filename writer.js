@@ -486,7 +486,7 @@ function readCountOfAnalyzedUnits(handleCount){
 function updateSqliteStats(){
 	if (count_writes % 100 !== 0)
 		return;
-	db.query("SELECT COUNT(*) AS count_units FROM units", function(rows){
+	db.query("SELECT MAX(rowid) AS count_units FROM units", function(rows){
 		var count_units = rows[0].count_units;
 		readCountOfAnalyzedUnits(function(count_analyzed_units){
 			console.log('count analyzed units: '+count_analyzed_units);
