@@ -466,19 +466,38 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 	});
 }
 
+function readCountOfAnalyzedUnits(handleCount){
+	if (count_units_in_prev_analyze)
+		return handleCount(count_units_in_prev_analyze);
+	db.query("SELECT * FROM sqlite_master WHERE type='table' AND name='sqlite_stat1'", function(rows){
+		if (rows.length === 0)
+			return handleCount(0);
+		db.query("SELECT stat FROM sqlite_stat1 WHERE tbl='units' AND idx='sqlite_autoindex_units_1'", function(rows){
+			if (rows.length !== 1){
+				console.log('no stat for sqlite_autoindex_units_1');
+				return handleCount(0);
+			}
+			handleCount(parseInt(rows[0].stat.split(' ')[0]));
+		});
+	});
+}
+
 // update stats for query planner
 function updateSqliteStats(){
 	if (count_writes % 100 !== 0)
 		return;
 	db.query("SELECT COUNT(*) AS count_units FROM units", function(rows){
 		var count_units = rows[0].count_units;
-		if (count_units < 2*count_units_in_prev_analyze)
-			return;
-		count_units_in_prev_analyze = count_units;
-		console.log("will update sqlite stats");
-		db.query("ANALYZE", function(){
-			db.query("ANALYZE sqlite_master", function(){
-				console.log("sqlite stats updated");
+		readCountOfAnalyzedUnits(function(count_analyzed_units){
+			console.log('count analyzed units: '+count_analyzed_units);
+			if (count_units < 2*count_analyzed_units)
+				return;
+			count_units_in_prev_analyze = count_units;
+			console.log("will update sqlite stats");
+			db.query("ANALYZE", function(){
+				db.query("ANALYZE sqlite_master", function(){
+					console.log("sqlite stats updated");
+				});
 			});
 		});
 	});
