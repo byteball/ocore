@@ -100,6 +100,14 @@ function handleJustsaying(ws, subject, body){
 			});
 			break;
 			
+		// I'm connected to a hub, received a report about my undelivered inbox
+		case 'hub/message_box_status':
+			if (!ws.bLoggedIn)
+				return respondWithError("you are not my hub");
+			if (body === 'empty')
+				device.scheduleTempDeviceKeyRotation();
+			break;
+			
 		case 'light/have_updates':
 			lightWallet.refreshLightClientHistory();
 			break;
@@ -707,6 +715,7 @@ function readTransactionHistory(opts, handleHistory){
 				if (row.from_address)
 					assocMovements[row.unit].has_minus = true;
 			}
+			console.log(require('util').inspect(assocMovements));
 			var arrTransactions = [];
 			async.forEachOfSeries(
 				assocMovements,
@@ -749,28 +758,32 @@ function readTransactionHistory(opts, handleHistory){
 					else if (movement.has_minus){
 						var queryString, parameters;
 						if(walletIsAddress){
-							queryString =   "SELECT address, SUM(amount) AS amount \n\
+							queryString =   "SELECT address, SUM(amount) AS amount, (address!=?) AS is_external \n\
 											FROM outputs \n\
-											WHERE unit=? AND "+asset_condition+" AND address!=? \n\
+											WHERE unit=? AND "+asset_condition+" \n\
 											GROUP BY address";
-							parameters = [unit, wallet];
+							parameters = [wallet, unit];
 						}
 						else {
-							queryString =   "SELECT outputs.address, SUM(amount) AS amount \n\
+							queryString =   "SELECT outputs.address, SUM(amount) AS amount, (my_addresses.address IS NULL) AS is_external \n\
 											FROM outputs \n\
 											LEFT JOIN my_addresses ON outputs.address=my_addresses.address AND wallet=? \n\
-											WHERE unit=? AND "+asset_condition+" AND my_addresses.address IS NULL \n\
+											WHERE unit=? AND "+asset_condition+" \n\
 											GROUP BY outputs.address";
 							parameters = [wallet, unit];
 						}
 						db.query(queryString, parameters, 
 							function(payee_rows){
+								var action = payee_rows.some(function(payee){ return payee.is_external; }) ? 'sent' : 'moved';
 								for (var i=0; i<payee_rows.length; i++){
 									var payee = payee_rows[i];
+									if (action === 'sent' && !payee.is_external)
+										continue;
 									var transaction = {
-										action: 'sent',
+										action: action,
 										amount: payee.amount,
 										addressTo: payee.address,
+										my_address: payee.address,
 										confirmations: movement.is_stable,
 										unit: unit,
 										fee: movement.fee,
@@ -833,7 +846,48 @@ function readFundedAddresses(asset, wallet, handleFundedAddresses){
 	);
 }
 
+// todo: deeper recursion
+function readAdditionalSigningAddresses(arrFromAddresses, arrSigningAddresses, arrSigningDeviceAddresses, handleAdditionalSigningAddresses){
+	var sql = "SELECT DISTINCT address FROM shared_address_signing_paths \n\
+		WHERE shared_address IN(?) \n\
+			AND ( \n\
+				NOT EXISTS (SELECT 1 FROM addresses WHERE addresses.address=shared_address_signing_paths.address) \n\
+				OR ( \n\
+					SELECT definition \n\
+					FROM address_definition_changes JOIN units USING(unit) LEFT JOIN definitions USING(definition_chash) \n\
+					WHERE address_definition_changes.address=shared_address_signing_paths.address AND is_stable=1 AND sequence='good' \n\
+					ORDER BY level DESC LIMIT 1 \n\
+				) IS NULL \n\
+			)";
+	var arrParams = [arrFromAddresses];
+	if (arrSigningDeviceAddresses && arrSigningDeviceAddresses.length > 0){
+		sql += " AND device_address IN(?)";
+		arrParams.push(arrSigningDeviceAddresses);
+	}
+	db.query(
+		sql, 
+		arrParams,
+		function(rows){
+			var arrAdditionalAddresses = [];
+			rows.forEach(function(row){
+				var address = row.address;
+				if (arrFromAddresses.indexOf(address) === -1 && arrSigningAddresses.indexOf(address) === -1)
+					arrAdditionalAddresses.push(address);
+			});
+			handleAdditionalSigningAddresses(arrAdditionalAddresses);
+		}
+	);
+}
 
+function readFundedAndSigningAddresses(asset, wallet, arrSigningAddresses, arrSigningDeviceAddresses, handleFundedAndSigningAddresses){
+	readFundedAddresses(asset, wallet, function(arrFromAddresses){
+		if (arrFromAddresses.length === 0)
+			return handleFundedAndSigningAddresses([], []);
+		readAdditionalSigningAddresses(arrFromAddresses, arrSigningAddresses, arrSigningDeviceAddresses, function(arrAdditionalAddresses){
+			handleFundedAndSigningAddresses(arrFromAddresses, arrSigningAddresses.concat(arrAdditionalAddresses));
+		});
+	});
+}
 
 function sendPaymentFromWallet(
 		asset, wallet, to_address, amount, change_address, arrSigningDeviceAddresses, recipient_device_address, signWithLocalPrivateKey, handleResult)
@@ -857,7 +911,7 @@ function sendMultiPayment(opts, handleResult)
 		asset = null;
 	var wallet = opts.wallet;
 	var arrPayingAddresses = opts.paying_addresses;
-	var arrSigningAddresses = opts.signing_addresses;
+	var arrSigningAddresses = opts.signing_addresses || [];
 	var to_address = opts.to_address;
 	var amount = opts.amount;
 	var bSendAll = opts.send_all;
@@ -878,7 +932,9 @@ function sendMultiPayment(opts, handleResult)
 	if (!asset && asset_outputs)
 		throw Error('base asset and asset outputs');
 	
-	readFundedAddresses(asset, wallet || arrPayingAddresses, function(arrFromAddresses){
+	readFundedAndSigningAddresses(
+			asset, wallet || arrPayingAddresses, arrSigningAddresses, arrSigningDeviceAddresses, function(arrFromAddresses, arrAllSigningAddresses){
+		
 		if (arrFromAddresses.length === 0)
 			return handleResult("There are no funded addresses");
 		
@@ -954,7 +1010,7 @@ function sendMultiPayment(opts, handleResult)
 		
 		var params = {
 			available_paying_addresses: arrFromAddresses, // forces 'minimal' for payments from shared addresses too, it doesn't hurt
-			signing_addresses: arrSigningAddresses,
+			signing_addresses: arrAllSigningAddresses,
 			signer: signer, 
 			callbacks: {
 				ifNotEnoughFunds: function(err){

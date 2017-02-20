@@ -565,7 +565,7 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 									
 									function addUnit(){
 										arrBestChildren.push(row.unit);
-										if (row.is_free === 0)
+									//	if (row.is_free === 0) // seems no reason to exclude
 											arrFilteredAltBranchRootUnits.push(row.unit);
 										cb2();
 									}

@@ -150,10 +150,6 @@ function sendLoginCommand(ws, challenge){
 	network.sendJustsaying(ws, 'hub/login', objLogin);
 	ws.bLoggedIn = true;
 	sendTempPubkey(ws, objMyTempDeviceKey.pub_b64);
-	if (!bScheduledTempDeviceKeyRotation){
-		bScheduledTempDeviceKeyRotation = true;
-		setTimeout(scheduleTempDeviceKeyRotation, 60*1000); // wait that we start handling incoming messages
-	}
 	network.initWitnessesIfNecessary(ws);
 	resendStalledMessages();
 }
@@ -193,11 +189,15 @@ function genPrivKey(){
 	return privKey;
 }
 
+var last_rotate_wake_ts = Date.now();
+
 function rotateTempDeviceKeyIfCouldBeAlreadyUsed(){
-	if (objMyTempDeviceKey.use_count === 0){ // new key that was never used yet
-		console.log("the current temp key was not used yet, will not rotate");
-		return;
-	}
+	var actual_interval = Date.now() - last_rotate_wake_ts;
+	last_rotate_wake_ts = Date.now();
+	if (actual_interval > TEMP_DEVICE_KEY_ROTATION_PERIOD + 1000)
+		return console.log("woke up after sleep or high load, will skip rotation");
+	if (objMyTempDeviceKey.use_count === 0) // new key that was never used yet
+		return console.log("the current temp key was not used yet, will not rotate");
 	// if use_count === null, the key was set at start up, it could've been used before
 	rotateTempDeviceKey();
 }
@@ -226,19 +226,27 @@ function rotateTempDeviceKey(){
 			}
 			objMyPrevTempDeviceKey = objMyTempDeviceKey;
 			objMyTempDeviceKey = objNewMyTempDeviceKey;
+			breadcrumbs.add('rotated temp device key');
 			sendTempPubkey(ws, objMyTempDeviceKey.pub_b64);
 		});
 	});
 }
 
 function scheduleTempDeviceKeyRotation(){
-	// due to timeout, we are probably last to request (and receive) this lock
-	mutex.lock(["from_hub"], function(unlock){
-		console.log("will schedule rotation");
-		rotateTempDeviceKeyIfCouldBeAlreadyUsed();
-		setInterval(rotateTempDeviceKeyIfCouldBeAlreadyUsed, TEMP_DEVICE_KEY_ROTATION_PERIOD);
-		unlock();
-	});
+	if (bScheduledTempDeviceKeyRotation)
+		return;
+	bScheduledTempDeviceKeyRotation = true;
+	console.log('will schedule rotation in 1 minute');
+	setTimeout(function(){
+		// due to timeout, we are probably last to request (and receive) this lock
+		mutex.lock(["from_hub"], function(unlock){
+			console.log("will schedule rotation");
+			rotateTempDeviceKeyIfCouldBeAlreadyUsed();
+			last_rotate_wake_ts = Date.now();
+			setInterval(rotateTempDeviceKeyIfCouldBeAlreadyUsed, TEMP_DEVICE_KEY_ROTATION_PERIOD);
+			unlock();
+		});
+	}, 60*1000);
 }
 
 
@@ -274,7 +282,7 @@ function decryptPackage(objEncryptedPackage){
 	}
 	else{
 		console.log("message encrypted to unknown key");
-		eventBus.emit('nonfatal_error', "message encrypted to unknown key, device "+my_device_address, new Error('unknown key'));
+		eventBus.emit('nonfatal_error', "message encrypted to unknown key, device "+my_device_address+", len="+objEncryptedPackage.encrypted_message.length, new Error('unknown key'));
 		return null;
 	}
 	
@@ -313,26 +321,57 @@ function decryptPackage(objEncryptedPackage){
 		return json;
 }
 
+// a hack to read large text from cordova sqlite
+function readMessageInChunksFromOutbox(message_hash, len, handleMessage){
+	var CHUNK_LEN = 1000000;
+	var start = 1;
+	var message = '';
+	function readChunk(){
+		db.query("SELECT SUBSTR(message, ?, ?) AS chunk FROM outbox WHERE message_hash=?", [start, CHUNK_LEN, message_hash], function(rows){
+			if (rows.length !== 1)
+				throw Error('not 1 msg in outbox');
+			message += rows[0].chunk;
+			start += CHUNK_LEN;
+			(start > len) ? handleMessage(message) : readChunk();
+		});
+	}
+	readChunk();
+}
 
 function resendStalledMessages(){
 	console.log("resending stalled messages");
 	if (!objMyPermanentDeviceKey)
 		return console.log("objMyPermanentDeviceKey not set yet, can't resend stalled messages");
-	db.query(
-		"SELECT message, message_hash, `to`, pubkey, hub FROM outbox JOIN correspondent_devices ON `to`=device_address \n\
-		WHERE outbox.creation_date<"+db.addTime("-1 MINUTE")+" ORDER BY outbox.creation_date", 
-		function(rows){
-			rows.forEach(function(row){
-				if (!row.hub) // weird error
-					return eventBus.emit('nonfatal_error', "no hub in resendStalledMessages: "+JSON.stringify(row)+", l="+rows.length, new Error('no hub'));
-				//	throw Error("no hub in resendStalledMessages: "+JSON.stringify(row));
-				var objDeviceMessage = JSON.parse(row.message);
-				//if (objDeviceMessage.to !== row.to)
-				//    throw "to mismatch";
-				sendPreparedMessageToHub(row.hub, row.pubkey, row.message_hash, objDeviceMessage);
-			});
-		}
-	);
+	mutex.lock(['stalled'], function(unlock){
+		var bCordova = (typeof window !== 'undefined' && window && window.cordova);
+		db.query(
+			"SELECT "+(bCordova ? "LENGTH(message) AS len" : "message")+", message_hash, `to`, pubkey, hub \n\
+			FROM outbox JOIN correspondent_devices ON `to`=device_address \n\
+			WHERE outbox.creation_date<"+db.addTime("-1 MINUTE")+" ORDER BY outbox.creation_date", 
+			function(rows){
+				console.log(rows.length+" stalled messages");
+				async.eachSeries(
+					rows, 
+					function(row, cb){
+						if (!row.hub){ // weird error
+							eventBus.emit('nonfatal_error', "no hub in resendStalledMessages: "+JSON.stringify(row)+", l="+rows.length, new Error('no hub'));
+							return cb();
+						}
+						//	throw Error("no hub in resendStalledMessages: "+JSON.stringify(row));
+						var send = function(message){
+							var objDeviceMessage = JSON.parse(message);
+							//if (objDeviceMessage.to !== row.to)
+							//    throw "to mismatch";
+							console.log('sending stalled '+row.message_hash);
+							sendPreparedMessageToHub(row.hub, row.pubkey, row.message_hash, objDeviceMessage, {ifOk: cb, ifError: function(err){ cb(); }});
+						};
+						bCordova ? readMessageInChunksFromOutbox(row.message_hash, row.len, send) : send(row.message);
+					},
+					unlock
+				);
+			}
+		);
+	});
 }
 
 setInterval(resendStalledMessages, SEND_RETRY_PERIOD);
@@ -646,6 +685,8 @@ exports.setDeviceAddress = setDeviceAddress;
 exports.setNewDeviceAddress = setNewDeviceAddress;
 exports.setDeviceName = setDeviceName;
 exports.setDeviceHub = setDeviceHub;
+
+exports.scheduleTempDeviceKeyRotation = scheduleTempDeviceKeyRotation;
 
 exports.decryptPackage = decryptPackage;
 

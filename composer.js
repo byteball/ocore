@@ -828,6 +828,9 @@ function getSavingCallbacks(callbacks){
 						objJoint, 
 						function onLightError(err){ // light only
 							console.log("failed to post base payment "+unit);
+							var eventBus = require('./event_bus.js');
+							if (err.match(/signature/))
+								eventBus.emit('nonfatal_error', "failed to post unit "+unit+": "+err+"; "+JSON.stringify(objUnit), new Error());
 							validation_unlock();
 							composer_unlock();
 							callbacks.ifError(err);

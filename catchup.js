@@ -391,7 +391,7 @@ function processHashTree(arrBalls, callbacks){
 }
 
 function purgeHandledBallsFromHashTree(conn, onDone){
-	conn.query("SELECT ball FROM hash_tree_balls JOIN balls USING(ball)", function(rows){
+	conn.query("SELECT ball FROM hash_tree_balls CROSS JOIN balls USING(ball)", function(rows){
 		if (rows.length === 0)
 			return onDone();
 		var arrHandledBalls = rows.map(function(row){ return row.ball; });

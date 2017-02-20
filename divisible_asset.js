@@ -177,6 +177,7 @@ function composeDivisibleAssetPaymentJoint(params){
 		arrBaseOutputs = arrBaseOutputs.concat(params.base_outputs);
 	composer.composeJoint({
 		paying_addresses: params.paying_addresses, // addresses that pay for commissions
+		signing_addresses: params.signing_addresses,
 		minimal: params.minimal,
 		outputs: arrBaseOutputs,
 		

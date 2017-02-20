@@ -85,7 +85,7 @@ function checkForDeadlocks(){
 //setInterval(checkForDeadlocks, 1000);
 
 setInterval(function(){
-	console.log("queued jobs: "+JSON.stringify(arrQueuedJobs.map(function(job){ return job.arrKeys; })));
+	console.log("queued jobs: "+JSON.stringify(arrQueuedJobs.map(function(job){ return job.arrKeys; }))+", locked keys: "+JSON.stringify(arrLockedKeyArrays));
 }, 10000);
 
 exports.lock = lock;

@@ -262,7 +262,7 @@ function validateAndSavePrivatePaymentChain(conn, arrPrivateElements, callbacks)
 						params.push(is_spent, objPrivateElement.output.address, objPrivateElement.output.blinding);
 					}
 					params.push(objPrivateElement.unit, objPrivateElement.message_index, output_index);
-					conn.addQuery(arrQueries, "UPDATE outputs SET "+fields+" WHERE unit=? AND message_index=? AND output_index=?", params);
+					conn.addQuery(arrQueries, "UPDATE outputs SET "+fields+" WHERE unit=? AND message_index=? AND output_index=? AND is_spent=0", params);
 				}
 			}
 		//	console.log("queries: "+JSON.stringify(arrQueries));
@@ -680,6 +680,7 @@ function composeIndivisibleAssetPaymentJoint(params){
 	console.log("indivisible payment from "+params.paying_addresses);
 	composer.composeJoint({
 		paying_addresses: params.paying_addresses, // addresses that pay for the transfer and commissions
+		signing_addresses: params.signing_addresses,
 		minimal: params.minimal,
 		outputs: [{address: params.paying_addresses[0], amount: 0}], // public outputs in bytes: the change only
 		

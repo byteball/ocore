@@ -28,7 +28,9 @@ var mail = process.browser ? null : require('./mail.js'+'');
 var FORWARDING_TIMEOUT = 10*1000; // don't forward if the joint was received more than FORWARDING_TIMEOUT ms ago
 var STALLED_TIMEOUT = 5000; // a request is treated as stalled if no response received within STALLED_TIMEOUT ms
 var RESPONSE_TIMEOUT = 300*1000; // after this timeout, the request is abandoned
-var HEARTBEAT_TIMEOUT = 10*1000;
+var HEARTBEAT_TIMEOUT = conf.HEARTBEAT_TIMEOUT || 10*1000;
+var HEARTBEAT_RESPONSE_TIMEOUT = 60*1000;
+var PAUSE_TIMEOUT = 2*HEARTBEAT_TIMEOUT;
 
 var wss;
 var arrOutboundPeers = [];
@@ -376,7 +378,7 @@ function connectToPeer(url, onOpen) {
 	});
 	ws.on('close', function onWsClose() {
 		var i = arrOutboundPeers.indexOf(ws);
-		console.log('removing '+i+': '+url);
+		console.log('close event, removing '+i+': '+url);
 		if (i !== -1)
 			arrOutboundPeers.splice(i, 1);
 		cancelRequestsOnClosedConnection(ws);
@@ -534,8 +536,11 @@ function heartbeat(){
 		var elapsed_since_last_received = Date.now() - ws.last_ts;
 		if (elapsed_since_last_received < HEARTBEAT_TIMEOUT)
 			return;
-		if (elapsed_since_last_received < 2*HEARTBEAT_TIMEOUT || bJustResumed)
+		var elapsed_since_last_sent_heartbeat = Date.now() - ws.last_sent_heartbeat_ts;
+		if (elapsed_since_last_sent_heartbeat < HEARTBEAT_RESPONSE_TIMEOUT || !ws.last_sent_heartbeat_ts || bJustResumed){
+			ws.last_sent_heartbeat_ts = Date.now();
 			return sendRequest(ws, 'heartbeat', null, false, handleHeartbeatResponse);
+		}
 		console.log('will disconnect peer '+ws.peer+' who was silent for '+elapsed_since_last_received+'ms');
 		ws.close(1000, "lost connection");
 	});
@@ -1712,6 +1717,7 @@ function sendStoredDeviceMessages(ws, device_address){
 			sendJustsaying(ws, 'hub/message', {message_hash: row.message_hash, message: JSON.parse(row.message)});
 		});
 		sendInfo(ws, rows.length+" messages sent");
+		sendJustsaying(ws, 'hub/message_box_status', (rows.length === 100) ? 'has_more' : 'empty');
 	});
 }
 
@@ -1911,6 +1917,7 @@ function handleJustsaying(ws, subject, body){
 		// I'm connected to a hub
 		case 'hub/challenge':
 		case 'hub/message':
+		case 'hub/message_box_status':
 			eventBus.emit("message_from_hub", ws, subject, body);
 			break;
 			
@@ -1950,7 +1957,7 @@ function handleRequest(ws, tag, command, params){
 			// true if our timers were paused
 			// Happens only on android, which suspends timers when the app becomes paused but still keeps network connections
 			// Handling 'pause' event would've been more straightforward but with preference KeepRunning=false, the event is delayed till resume
-			var bPaused = (typeof window !== 'undefined' && window && window.cordova && Date.now() - last_hearbeat_wake_ts > 2*HEARTBEAT_TIMEOUT);
+			var bPaused = (typeof window !== 'undefined' && window && window.cordova && Date.now() - last_hearbeat_wake_ts > PAUSE_TIMEOUT);
 			if (bPaused)
 				return sendResponse(ws, tag, 'sleep'); // opt out of receiving heartbeats and move the connection into a sleeping state
 			sendResponse(ws, tag);
@@ -2196,7 +2203,12 @@ function onWebsocketMessage(message) {
 	console.log('RECEIVED '+message+' from '+ws.peer);
 	ws.last_ts = Date.now();
 	
-	var arrMessage = JSON.parse(message);
+	try{
+		var arrMessage = JSON.parse(message);
+	}
+	catch(e){
+		return console.log('failed to json.parse message '+message);
+	}
 	var message_type = arrMessage[0];
 	var content = arrMessage[1];
 	
@@ -2224,11 +2236,6 @@ function startAcceptingConnections(){
 		var ip = ws.upgradeReq.connection.remoteAddress;
 		if (ws.upgradeReq.headers['x-real-ip'] && (ip === '127.0.0.1' || ip.match(/^192\.168\./))) // we are behind a proxy
 			ip = ws.upgradeReq.headers['x-real-ip'];
-		if (wss.clients.length >= conf.MAX_INBOUND_CONNECTIONS){
-			console.log("inbound connections maxed out, rejecting new client "+ip);
-			ws.close(1000, "inbound connections maxed out"); // 1001 doesn't work in cordova
-			return;
-		}
 		ws.peer = ip + ":" + ws.upgradeReq.connection.remotePort;
 		ws.host = ip;
 		ws.assocPendingRequests = {};
@@ -2236,6 +2243,11 @@ function startAcceptingConnections(){
 		ws.bInbound = true;
 		ws.last_ts = Date.now();
 		console.log('got connection from '+ws.peer+", host "+ws.host);
+		if (wss.clients.length >= conf.MAX_INBOUND_CONNECTIONS){
+			console.log("inbound connections maxed out, rejecting new client "+ip);
+			ws.close(1000, "inbound connections maxed out"); // 1001 doesn't work in cordova
+			return;
+		}
 		var bStatsCheckUnderWay = true;
 		db.query(
 			"SELECT \n\
@@ -2328,6 +2340,12 @@ function start(){
 	setInterval(heartbeat, 3*1000 + getRandomInt(0, 1000));
 }
 
+function closeAllWsConnections() {
+	arrOutboundPeers.forEach(function(ws) {
+		ws.close(1000,'Re-connect');
+	});
+}
+
 start();
 
 exports.start = start;
@@ -2356,3 +2374,4 @@ exports.setMyDeviceProps = setMyDeviceProps;
 exports.setWatchedAddresses = setWatchedAddresses;
 exports.addWatchedAddress = addWatchedAddress;
 
+exports.closeAllWsConnections = closeAllWsConnections;
