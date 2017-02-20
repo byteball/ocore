@@ -846,7 +846,48 @@ function readFundedAddresses(asset, wallet, handleFundedAddresses){
 	);
 }
 
+// todo: deeper recursion
+function readAdditionalSigningAddresses(arrFromAddresses, arrSigningAddresses, arrSigningDeviceAddresses, handleAdditionalSigningAddresses){
+	var sql = "SELECT DISTINCT address FROM shared_address_signing_paths \n\
+		WHERE shared_address IN(?) \n\
+			AND ( \n\
+				NOT EXISTS (SELECT 1 FROM addresses WHERE addresses.address=shared_address_signing_paths.address) \n\
+				OR ( \n\
+					SELECT definition \n\
+					FROM address_definition_changes JOIN units USING(unit) LEFT JOIN definitions USING(definition_chash) \n\
+					WHERE address_definition_changes.address=shared_address_signing_paths.address AND is_stable=1 AND sequence='good' \n\
+					ORDER BY level DESC LIMIT 1 \n\
+				) IS NULL \n\
+			)";
+	var arrParams = [arrFromAddresses];
+	if (arrSigningDeviceAddresses && arrSigningDeviceAddresses.length > 0){
+		sql += " AND device_address IN(?)";
+		arrParams.push(arrSigningDeviceAddresses);
+	}
+	db.query(
+		sql, 
+		arrParams,
+		function(rows){
+			var arrAdditionalAddresses = [];
+			rows.forEach(function(row){
+				var address = row.address;
+				if (arrFromAddresses.indexOf(address) === -1 && arrSigningAddresses.indexOf(address) === -1)
+					arrAdditionalAddresses.push(address);
+			});
+			handleAdditionalSigningAddresses(arrAdditionalAddresses);
+		}
+	);
+}
 
+function readFundedAndSigningAddresses(asset, wallet, arrSigningAddresses, arrSigningDeviceAddresses, handleFundedAndSigningAddresses){
+	readFundedAddresses(asset, wallet, function(arrFromAddresses){
+		if (arrFromAddresses.length === 0)
+			return handleFundedAndSigningAddresses([], []);
+		readAdditionalSigningAddresses(arrFromAddresses, arrSigningAddresses, arrSigningDeviceAddresses, function(arrAdditionalAddresses){
+			handleFundedAndSigningAddresses(arrFromAddresses, arrSigningAddresses.concat(arrAdditionalAddresses));
+		});
+	});
+}
 
 function sendPaymentFromWallet(
 		asset, wallet, to_address, amount, change_address, arrSigningDeviceAddresses, recipient_device_address, signWithLocalPrivateKey, handleResult)
@@ -870,7 +911,7 @@ function sendMultiPayment(opts, handleResult)
 		asset = null;
 	var wallet = opts.wallet;
 	var arrPayingAddresses = opts.paying_addresses;
-	var arrSigningAddresses = opts.signing_addresses;
+	var arrSigningAddresses = opts.signing_addresses || [];
 	var to_address = opts.to_address;
 	var amount = opts.amount;
 	var bSendAll = opts.send_all;
@@ -891,7 +932,9 @@ function sendMultiPayment(opts, handleResult)
 	if (!asset && asset_outputs)
 		throw Error('base asset and asset outputs');
 	
-	readFundedAddresses(asset, wallet || arrPayingAddresses, function(arrFromAddresses){
+	readFundedAndSigningAddresses(
+			asset, wallet || arrPayingAddresses, arrSigningAddresses, arrSigningDeviceAddresses, function(arrFromAddresses, arrAllSigningAddresses){
+		
 		if (arrFromAddresses.length === 0)
 			return handleResult("There are no funded addresses");
 		
@@ -967,7 +1010,7 @@ function sendMultiPayment(opts, handleResult)
 		
 		var params = {
 			available_paying_addresses: arrFromAddresses, // forces 'minimal' for payments from shared addresses too, it doesn't hurt
-			signing_addresses: arrSigningAddresses,
+			signing_addresses: arrAllSigningAddresses,
 			signer: signer, 
 			callbacks: {
 				ifNotEnoughFunds: function(err){

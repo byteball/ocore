@@ -680,6 +680,7 @@ function composeIndivisibleAssetPaymentJoint(params){
 	console.log("indivisible payment from "+params.paying_addresses);
 	composer.composeJoint({
 		paying_addresses: params.paying_addresses, // addresses that pay for the transfer and commissions
+		signing_addresses: params.signing_addresses,
 		minimal: params.minimal,
 		outputs: [{address: params.paying_addresses[0], amount: 0}], // public outputs in bytes: the change only
 		
