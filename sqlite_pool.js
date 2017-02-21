@@ -228,6 +228,7 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 	}
 	
 	function close(cb){
+		bReady = false;
 		if (arrConnections.length === 0)
 			return cb();
 		arrConnections[0].db.close(cb);
