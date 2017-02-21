@@ -161,6 +161,8 @@ function sendRequest(ws, command, params, bReroutable, responseHandler){
 				return console.log('will not reroute - the request was already handled by another peer');
 			ws.assocPendingRequests[tag].bRerouted = true;
 			findNextPeer(ws, function(next_ws){ // the callback may be called much later if findNextPeer has to wait for connection
+				if (!ws.assocPendingRequests[tag])
+					return console.log('will not reroute after findNextPeer - the request was already handled by another peer');
 				if (next_ws === ws){
 					console.log('will not reroute '+command+' to the same peer, will rather wait for a new connection');
 					eventBus.once('connected_to_source', function(){ // try again
