@@ -148,7 +148,7 @@ function sendRequest(ws, command, params, bReroutable, responseHandler){
 	//if (ws.assocPendingRequests[tag]) // ignore duplicate requests while still waiting for response from the same peer
 	//    return console.log("will not send identical "+command+" request");
 	if (ws.assocPendingRequests[tag]){
-		console.log('already sent a '+command+' request, will add one more response handler rather than sending a duplicate request to the wire');
+		console.log('already sent a '+command+' request to '+ws.peer+', will add one more response handler rather than sending a duplicate request to the wire');
 		ws.assocPendingRequests[tag].responseHandlers.push(responseHandler);
 	}
 	else{
