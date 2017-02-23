@@ -248,7 +248,9 @@ function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 // handleJoint is called for every joint younger than mci
 function readJointsSinceMci(mci, handleJoint, onDone){
 	db.query(
-		"SELECT unit FROM units WHERE is_stable=0 AND main_chain_index>=? OR main_chain_index IS NULL OR is_free=1 ORDER BY +level", 
+		"SELECT units.unit FROM units LEFT JOIN archived_joints USING(unit) \n\
+		WHERE (is_stable=0 AND main_chain_index>=? OR main_chain_index IS NULL OR is_free=1) AND archived_joints.unit IS NULL \n\
+		ORDER BY +level", 
 		[mci], 
 		function(rows){
 			async.eachSeries(

@@ -583,7 +583,7 @@ function readDefinition(conn, definition_chash, callbacks){
 }
 
 function readFreeJoints(ifFoundFreeBall, onDone){
-	db.query("SELECT unit FROM units WHERE is_free=1", function(rows){
+	db.query("SELECT units.unit FROM units LEFT JOIN archived_joints USING(unit) WHERE is_free=1 AND archived_joints.unit IS NULL", function(rows){
 		async.each(rows, function(row, cb){
 			readJoint(db, row.unit, {
 				ifNotFound: function(){
