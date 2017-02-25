@@ -518,13 +518,13 @@ function composeJoint(params){
 			function checkForUnstablePredecessors(){
 				conn.query(
 					// is_stable=0 condition is redundant given that last_ball_mci is stable
-					"SELECT 1 FROM units JOIN unit_authors USING(unit) \n\
+					"SELECT 1 FROM units CROSS JOIN unit_authors USING(unit) \n\
 					WHERE  (main_chain_index>? OR main_chain_index IS NULL) AND address IN(?) AND definition_chash IS NOT NULL \n\
 					UNION \n\
 					SELECT 1 FROM units JOIN address_definition_changes USING(unit) \n\
 					WHERE (main_chain_index>? OR main_chain_index IS NULL) AND address IN(?) \n\
 					UNION \n\
-					SELECT 1 FROM units JOIN unit_authors USING(unit) \n\
+					SELECT 1 FROM units CROSS JOIN unit_authors USING(unit) \n\
 					WHERE (main_chain_index>? OR main_chain_index IS NULL) AND address IN(?) AND sequence!='good'", 
 					[last_ball_mci, arrFromAddresses, last_ball_mci, arrFromAddresses, last_ball_mci, arrFromAddresses],
 					function(rows){
