@@ -538,17 +538,20 @@ function heartbeat(){
 		var elapsed_since_last_received = Date.now() - ws.last_ts;
 		if (elapsed_since_last_received < HEARTBEAT_TIMEOUT)
 			return;
-		var elapsed_since_last_sent_heartbeat = Date.now() - ws.last_sent_heartbeat_ts;
-		if (elapsed_since_last_sent_heartbeat < HEARTBEAT_RESPONSE_TIMEOUT || !ws.last_sent_heartbeat_ts || bJustResumed){
+		if (!ws.last_sent_heartbeat_ts || bJustResumed){
 			ws.last_sent_heartbeat_ts = Date.now();
 			return sendRequest(ws, 'heartbeat', null, false, handleHeartbeatResponse);
 		}
+		var elapsed_since_last_sent_heartbeat = Date.now() - ws.last_sent_heartbeat_ts;
+		if (elapsed_since_last_sent_heartbeat < HEARTBEAT_RESPONSE_TIMEOUT)
+			return;
 		console.log('will disconnect peer '+ws.peer+' who was silent for '+elapsed_since_last_received+'ms');
 		ws.close(1000, "lost connection");
 	});
 }
 
 function handleHeartbeatResponse(ws, request, response){
+	delete ws.last_sent_heartbeat_ts;
 	if (response === 'sleep') // the peer doesn't want to be bothered with heartbeats any more, but still wants to keep the connection open
 		ws.bSleeping = true;
 	// as soon as the peer sends a heartbeat himself, we'll think he's woken up and resume our heartbeats too
@@ -2348,6 +2351,10 @@ function closeAllWsConnections() {
 	});
 }
 
+function isConnected(){
+	return (arrOutboundPeers.length + wss.clients.length);
+}
+
 start();
 
 exports.start = start;
@@ -2377,3 +2384,4 @@ exports.setWatchedAddresses = setWatchedAddresses;
 exports.addWatchedAddress = addWatchedAddress;
 
 exports.closeAllWsConnections = closeAllWsConnections;
+exports.isConnected = isConnected;
