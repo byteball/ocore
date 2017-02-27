@@ -62,7 +62,7 @@ function sendNewSharedAddress(device_address, address, arrDefinition, assocSigne
 // called from UI
 // my address is not filled explicitly, it is specified as variable in the template like external addresses
 // assocMyDeviceAddressesByRelativeSigningPaths points to my device addresses that hold the actual signing keys
-function createNewSharedAddress(arrAddressDefinitionTemplate, my_address, assocMyDeviceAddressesByRelativeSigningPaths){
+function createNewSharedAddressByTemplate(arrAddressDefinitionTemplate, my_address, assocMyDeviceAddressesByRelativeSigningPaths){
 	validateAddressDefinitionTemplate(arrAddressDefinitionTemplate, device.getMyDeviceAddress(), function(err, assocMemberDeviceAddressesBySigningPaths){
 		// assocMemberDeviceAddressesBySigningPaths are keyed by paths from root to member addresses (not all the way to signing keys)
 		var arrMemberSigningPaths = Object.keys(assocMemberDeviceAddressesBySigningPaths);
