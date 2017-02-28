@@ -166,6 +166,8 @@ function approvePendingSharedAddress(address_definition_template_chash, from_add
 											if (row.device_address !== device.getMyDeviceAddress())
 												sendNewSharedAddress(row.device_address, shared_address, arrDefinition, assocSignersByPath);
 										});
+										if (conf.bLight)
+											network.addLightWatchedAddress(shared_address);
 									});
 								}
 							);
@@ -197,6 +199,8 @@ function addNewSharedAddress(address, arrDefinition, assocSignersByPath, onDone)
 		// todo: forward new shared address to devices that are members of my member address
 		async.series(arrQueries, function(){
 			eventBus.emit("new_address-"+address);
+			if (conf.bLight)
+				network.addLightWatchedAddress(address);
 			if (onDone)
 				onDone();
 		});
@@ -215,6 +219,26 @@ function handleNewSharedAddress(body, callbacks){
 		if (err)
 			return callbacks.ifError(err);
 		addNewSharedAddress(body.address, body.definition, body.signers, callbacks.ifOk);
+	});
+}
+
+function createNewSharedAddress(arrDefinition, assocSignersByPath, callbacks){
+	var address = objectHash.getChash160(arrDefinition);
+	handleNewSharedAddress({address: address, definition: arrDefinition, signers: assocSignersByPath}, {
+		ifError: callbacks.ifError,
+		ifOk: function(){
+			// share the new address with all cosigners
+			var arrDeviceAddresses = [];
+			for (var full_signing_path in assocSignersByPath){
+				var signerInfo = assocSignersByPath[full_signing_path];
+				if (signerInfo.device_address !== device.getMyDeviceAddress() && arrDeviceAddresses.indexOf(signerInfo.device_address) === -1)
+					arrDeviceAddresses.push(signerInfo.device_address);
+			}
+			arrDeviceAddresses.forEach(function(device_address){
+				sendNewSharedAddress(device_address, address, arrDefinition, assocSignersByPath);
+			});
+			callbacks.ifOk(address);
+		}
 	});
 }
 
@@ -361,4 +385,5 @@ exports.handleNewSharedAddress = handleNewSharedAddress;
 exports.forwardPrivateChainsToOtherMembersOfAddresses = forwardPrivateChainsToOtherMembersOfAddresses;
 exports.readRequiredCosigners = readRequiredCosigners;
 exports.readSharedAddressDefinition = readSharedAddressDefinition;
+exports.createNewSharedAddress = createNewSharedAddress;
 
