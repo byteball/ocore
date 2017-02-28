@@ -1191,6 +1191,16 @@ function notifyLocalWatchedAddressesAboutStableJoints(mci){
 	);
 }
 
+function addLightWatchedAddress(address){
+	if (!conf.bLight)
+		return;
+	findOutboundPeerOrConnect(exports.light_vendor_url, function(err, ws){
+		if (err)
+			return;
+		sendJustsaying(ws, 'light/new_address_to_watch', address);
+	});
+}
+
 function flushEvents(forceFlushing) {
 	if (peer_events_buffer.length == 0 || (!forceFlushing && peer_events_buffer.length != 100)) {
 		return;
@@ -2382,6 +2392,7 @@ exports.setMyDeviceProps = setMyDeviceProps;
 
 exports.setWatchedAddresses = setWatchedAddresses;
 exports.addWatchedAddress = addWatchedAddress;
+exports.addLightWatchedAddress = addLightWatchedAddress;
 
 exports.closeAllWsConnections = closeAllWsConnections;
 exports.isConnected = isConnected;
