@@ -727,7 +727,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				var relation = args[2];
 				var value = args[3];
 				conn.query(
-					"SELECT 1 FROM data_feeds JOIN units USING(unit) JOIN unit_authors USING(unit) \n\
+					"SELECT 1 FROM data_feeds CROSS JOIN units USING(unit) CROSS JOIN unit_authors USING(unit) \n\
 					WHERE address IN(?) AND feed_name=? AND "+(typeof value === "string" ? "`value`" : "int_value")+relation+"? \n\
 						AND main_chain_index<=? AND sequence='good' AND is_stable=1 LIMIT 1",
 					[arrAddresses, feed_name, value, objValidationState.last_ball_mci],
