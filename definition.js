@@ -348,7 +348,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 					return cb(op+" must have 3 args");
 				var arrAddresses = args[0];
 				var feed_name = args[1];
-				var element_hash = args[2];
+				var element = args[2];
 				if (!isNonemptyArray(arrAddresses))
 					return cb("no addresses in "+op);
 				for (var i=0; i<arrAddresses.length; i++)
@@ -359,8 +359,10 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 					return cb("no feed_name");
 				if (feed_name.length > 64)
 					return cb("feed_name too long");
-				if (!isStringOfLength(element_hash, constants.HASH_LENGTH))
-					return cb("incorrect length of element hash");
+			//	if (!isStringOfLength(element_hash, constants.HASH_LENGTH))
+			//		return cb("incorrect length of element hash");
+				if (!element.match(/[\w ~,.\/\\;:!@#$%^&*\(\)=+\[\]\{\}<>\?|-]{1,100}/))
+					return cb("incorrect format of merkled element");
 				return cb();
 				
 			case 'mci':
@@ -739,16 +741,16 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				break;
 				
 			case 'in merkle':
-				// ['in merkle', [['BASE32'], 'data feed name', 'hash of expected value']]
+				// ['in merkle', [['BASE32'], 'data feed name', 'expected value']]
 				if (!assocAuthentifiers[path])
 					return cb2(false);
 				arrUsedPaths.push(path);
 				var arrAddresses = args[0];
 				var feed_name = args[1];
-				var element_hash = args[2];
+				var element = args[2];
 				var serialized_proof = assocAuthentifiers[path];
 				var proof = merkle.deserializeMerkleProof(serialized_proof);
-				if (!merkle.verifyMerkleProof(element_hash, proof)){
+				if (!merkle.verifyMerkleProof(element, proof)){
 					fatal_error = "bad merkle proof at path "+path;
 					return cb2(false);
 				}
