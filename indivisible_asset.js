@@ -949,7 +949,7 @@ function restorePrivateChains(asset, unit, to_address, handleChains){
 	);
 }
 
-// {asset: asset, paying_addresses: arrFromAddresses, fee_paying_addresses: arrFeePayingAddresses, to_address: to_address, change_address: change_address, amount: amount, tolerance_plus: tolerance_plus, tolerance_minus: tolerance_minus, signer: signer, callbacks: callbacks}
+// {asset: asset, paying_addresses: arrPayingAddresses, fee_paying_addresses: arrFeePayingAddresses, to_address: to_address, change_address: change_address, amount: amount, tolerance_plus: tolerance_plus, tolerance_minus: tolerance_minus, signer: signer, callbacks: callbacks}
 function composeAndSaveIndivisibleAssetPaymentJoint(params){
 	var params_with_save = _.clone(params);
 	params_with_save.callbacks = getSavingCallbacks(params.to_address, params.callbacks);
@@ -1003,22 +1003,29 @@ function readFundedAddresses(asset, amount, arrAvailablePayingAddresses, arrAvai
 	});
 }
 
-// {asset: asset, available_paying_addresses: arrAvailableFromAddresses, to_address: to_address, change_address: change_address, amount: amount, tolerance_plus: tolerance_plus, tolerance_minus: tolerance_minus, signer: signer, callbacks: callbacks}
+// {asset: asset, available_paying_addresses: arrAvailablePayingAddresses, available_fee_paying_addresses: arrAvailableFeePayingAddresses, to_address: to_address, change_address: change_address, amount: amount, tolerance_plus: tolerance_plus, tolerance_minus: tolerance_minus, signer: signer, callbacks: callbacks}
 function composeMinimalIndivisibleAssetPaymentJoint(params){
-	readFundedAddresses(params.asset, params.amount, params.available_paying_addresses, params.available_fee_paying_addresses, function(arrFundedPayingAddresses, arrFundedFeePayingAddresses){
-		if (arrFundedPayingAddresses.length === 0)
-			return params.callbacks.ifNotEnoughFunds("all paying addresses are unfunded in asset");
-		var minimal_params = _.clone(params);
-		delete minimal_params.available_paying_addresses;
-		delete minimal_params.available_fee_paying_addresses;
-		minimal_params.minimal = true;
-		minimal_params.paying_addresses = arrFundedPayingAddresses;
-		minimal_params.fee_paying_addresses = arrFundedFeePayingAddresses;
-		composeIndivisibleAssetPaymentJoint(minimal_params);
-	});
+	if (!ValidationUtils.isNonemptyArray(params.available_paying_addresses))
+		throw Error('no available_paying_addresses');
+	if (!ValidationUtils.isNonemptyArray(params.available_fee_paying_addresses))
+		throw Error('no available_fee_paying_addresses');
+	readFundedAddresses(
+		params.asset, params.amount, params.available_paying_addresses, params.available_fee_paying_addresses, 
+		function(arrFundedPayingAddresses, arrFundedFeePayingAddresses){
+			if (arrFundedPayingAddresses.length === 0)
+				return params.callbacks.ifNotEnoughFunds("all paying addresses are unfunded in asset");
+			var minimal_params = _.clone(params);
+			delete minimal_params.available_paying_addresses;
+			delete minimal_params.available_fee_paying_addresses;
+			minimal_params.minimal = true;
+			minimal_params.paying_addresses = arrFundedPayingAddresses;
+			minimal_params.fee_paying_addresses = arrFundedFeePayingAddresses;
+			composeIndivisibleAssetPaymentJoint(minimal_params);
+		}
+	);
 }
 
-// {asset: asset, available_paying_addresses: arrAvailableFromAddresses, to_address: to_address, amount: amount, tolerance_plus: tolerance_plus, tolerance_minus: tolerance_minus, signer: signer, callbacks: callbacks}
+// {asset: asset, available_paying_addresses: arrAvailablePayingAddresses, available_fee_paying_addresses: arrAvailableFeePayingAddresses, to_address: to_address, amount: amount, tolerance_plus: tolerance_plus, tolerance_minus: tolerance_minus, signer: signer, callbacks: callbacks}
 function composeAndSaveMinimalIndivisibleAssetPaymentJoint(params){
 	var params_with_save = _.clone(params);
 	params_with_save.callbacks = getSavingCallbacks(params.to_address, params.callbacks);
