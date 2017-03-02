@@ -58,7 +58,9 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 		
 		function migrateDb(onDone){
 			connection.query("CREATE INDEX IF NOT EXISTS unitAuthorsIndexByAddressDefinitionChash ON unit_authors(address, definition_chash)", function(){
-				onDone();
+				connection.query("CREATE INDEX IF NOT EXISTS outputsIsSerial ON outputs(is_serial)", function(){
+					onDone();
+				});
 			});
 		}
 		

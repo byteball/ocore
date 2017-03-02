@@ -306,6 +306,7 @@ CREATE TABLE outputs (
 	is_spent TINYINT NOT NULL DEFAULT 0,
 	UNIQUE KEY (unit, message_index, output_index),
 	KEY byAddressSpent(address, is_spent),
+	KEY bySerial(is_serial),
 	FOREIGN KEY byUnit(unit) REFERENCES units(unit),
 	CONSTRAINT outputsByAsset FOREIGN KEY byAsset(asset) REFERENCES assets(unit)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
