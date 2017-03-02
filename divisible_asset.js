@@ -185,15 +185,16 @@ function composeDivisibleAssetPaymentJoint(params){
 		
 		// function that creates additional messages to be added to the joint
 		retrieveMessages: function(conn, last_ball_mci, bMultiAuthored, arrPayingAddresses, onDone){
-			storage.loadAssetWithListOfAttestedAuthors(conn, params.asset, last_ball_mci, arrPayingAddresses, function(err, objAsset){
+			var arrAssetPayingAddresses = _.intersection(arrPayingAddresses, params.paying_addresses);
+			storage.loadAssetWithListOfAttestedAuthors(conn, params.asset, last_ball_mci, arrAssetPayingAddresses, function(err, objAsset){
 				if (err)
 					return onDone(err);
 				if (objAsset.fixed_denominations)
 					return onDone("fixed denominations asset type");
 				// fix: also check change address when not transferrable
-				if (!objAsset.is_transferrable && params.to_address !== objAsset.definer_address && arrPayingAddresses.indexOf(objAsset.definer_address) === -1)
+				if (!objAsset.is_transferrable && params.to_address !== objAsset.definer_address && arrAssetPayingAddresses.indexOf(objAsset.definer_address) === -1)
 					return onDone("the asset is not transferrable and definer not found on either side of the deal");
-				if (objAsset.cosigned_by_definer && arrPayingAddresses.indexOf(objAsset.definer_address) === -1)
+				if (objAsset.cosigned_by_definer && arrPayingAddresses.concat(params.signing_addresses || []).indexOf(objAsset.definer_address) === -1)
 					return onDone("the asset must be cosigned by definer");
 				if (objAsset.spender_attested && objAsset.arrAttestedAddresses.length === 0)
 					return onDone("none of the authors is attested");
@@ -202,7 +203,7 @@ function composeDivisibleAssetPaymentJoint(params){
 					? params.amount 
 					: params.asset_outputs.reduce(function(accumulator, output){ return accumulator + output.amount; }, 0);
 				composer.pickDivisibleCoinsForAmount(
-					conn, objAsset, arrPayingAddresses, last_ball_mci, target_amount, bMultiAuthored, 
+					conn, objAsset, arrAssetPayingAddresses, last_ball_mci, target_amount, bMultiAuthored, 
 					function(arrInputsWithProofs, total_input){
 						console.log("pick coins callback "+arrInputsWithProofs);
 						if (!arrInputsWithProofs)

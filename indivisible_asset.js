@@ -688,20 +688,21 @@ function composeIndivisibleAssetPaymentJoint(params){
 		
 		// function that creates additional messages to be added to the joint
 		retrieveMessages: function createAdditionalMessages(conn, last_ball_mci, bMultiAuthored, arrPayingAddresses, onDone){
-			storage.loadAssetWithListOfAttestedAuthors(conn, params.asset, last_ball_mci, arrPayingAddresses, function(err, objAsset){
+			var arrAssetPayingAddresses = _.intersection(arrPayingAddresses, params.paying_addresses);
+			storage.loadAssetWithListOfAttestedAuthors(conn, params.asset, last_ball_mci, arrAssetPayingAddresses, function(err, objAsset){
 				if (err)
 					return onDone(err);
 				if (!objAsset.fixed_denominations)
 					return onDone("divisible asset type");
-				if (!objAsset.is_transferrable && params.to_address !== objAsset.definer_address && arrPayingAddresses.indexOf(objAsset.definer_address) === -1)
+				if (!objAsset.is_transferrable && params.to_address !== objAsset.definer_address && arrAssetPayingAddresses.indexOf(objAsset.definer_address) === -1)
 					return onDone("the asset is not transferrable and definer not found on either side of the deal");
-				if (objAsset.cosigned_by_definer && arrPayingAddresses.indexOf(objAsset.definer_address) === -1)
+				if (objAsset.cosigned_by_definer && arrPayingAddresses.concat(params.signing_addresses || []).indexOf(objAsset.definer_address) === -1)
 					return onDone("the asset must be cosigned by definer");
 				if (objAsset.spender_attested && objAsset.arrAttestedAddresses.length === 0)
 					return onDone("none of the authors is attested");
 				
 				pickIndivisibleCoinsForAmount(
-					conn, objAsset, arrPayingAddresses, last_ball_mci, 
+					conn, objAsset, arrAssetPayingAddresses, last_ball_mci, 
 					params.to_address, params.change_address,
 					params.amount, params.tolerance_plus || 0, params.tolerance_minus || 0, 
 					bMultiAuthored, 
