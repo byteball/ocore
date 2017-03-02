@@ -340,7 +340,7 @@ function composeAndSaveDivisibleAssetPaymentJoint(params){
 function composeMinimalDivisibleAssetPaymentJoint(params){
 		
 	// best funded addresses come first
-	composer.readSortedFundedAddresses(params.asset, params.available_paying_addresses, function(arrFundedPayingAddresses){
+	composer.readSortedFundedAddresses(params.asset, params.available_paying_addresses, params.amount, function(arrFundedPayingAddresses){
 		if (arrFundedPayingAddresses.length === 0)
 			return params.callbacks.ifNotEnoughFunds("all paying addresses are unfunded in asset");
 		var minimal_params = _.clone(params);

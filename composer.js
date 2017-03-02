@@ -746,10 +746,15 @@ function composeJoint(params){
 	});
 }
 
-function readSortedFundedAddresses(asset, arrAvailableAddresses, handleFundedAddresses){
+var TYPICAL_FEE = 1000;
+
+function readSortedFundedAddresses(asset, arrAvailableAddresses, estimated_amount, handleFundedAddresses){
 	if (arrAvailableAddresses.length === 0)
 		return handleFundedAddresses([]);
-	// best funded addresses come first
+	if (estimated_amount && typeof estimated_amount !== 'number')
+		throw Error('invalid estimayed amount: '+estimated_amount);
+	// addresses closest to estimated amount come first
+	var order_by = estimated_amount ? "(total>"+estimated_amount+") DESC, ABS(total-"+estimated_amount+") ASC" : "total DESC";
 	db.query(
 		"SELECT address, SUM(amount) AS total \n\
 		FROM outputs \n\
@@ -759,7 +764,7 @@ function readSortedFundedAddresses(asset, arrAvailableAddresses, handleFundedAdd
 				SELECT * FROM unit_authors JOIN units USING(unit) \n\
 				WHERE is_stable=0 AND unit_authors.address=outputs.address AND definition_chash IS NOT NULL \n\
 			) \n\
-		GROUP BY address ORDER BY total DESC",
+		GROUP BY address ORDER BY "+order_by,
 		asset ? [arrAvailableAddresses, asset] : [arrAvailableAddresses],
 		function(rows){
 			var arrFundedAddresses = rows.map(function(row){ return row.address; });
@@ -770,7 +775,7 @@ function readSortedFundedAddresses(asset, arrAvailableAddresses, handleFundedAdd
 			
 			// add other addresses to pay for commissions (in case arrFundedAddresses don't have enough bytes to pay commissions)
 			var arrOtherAddresses = _.difference(arrAvailableAddresses, arrFundedAddresses);
-			readSortedFundedAddresses(null, arrOtherAddresses, function(arrFundedOtherAddresses){
+			readSortedFundedAddresses(null, arrOtherAddresses, TYPICAL_FEE, function(arrFundedOtherAddresses){
 				if (arrFundedOtherAddresses.length === 0)
 					return handleFundedAddresses(arrFundedAddresses);
 				handleFundedAddresses(arrFundedAddresses.concat(arrFundedOtherAddresses));
@@ -782,7 +787,8 @@ function readSortedFundedAddresses(asset, arrAvailableAddresses, handleFundedAdd
 // tries to use as few of the params.available_paying_addresses as possible.
 // note: it doesn't select addresses that have _only_ witnessing or headers commissions outputs
 function composeMinimalJoint(params){
-	readSortedFundedAddresses(null, params.available_paying_addresses, function(arrFundedPayingAddresses){
+	var estimated_amount = params.retrieveMessages ? 0 : params.outputs.reduce(function(acc, output){ return acc+output.amount; }, 0) + TYPICAL_FEE;
+	readSortedFundedAddresses(null, params.available_paying_addresses, estimated_amount, function(arrFundedPayingAddresses){
 		if (arrFundedPayingAddresses.length === 0)
 			return params.callbacks.ifNotEnoughFunds("all paying addresses are unfunded");
 		var minimal_params = _.clone(params);
