@@ -752,7 +752,7 @@ function readSortedFundedAddresses(asset, arrAvailableAddresses, estimated_amoun
 	if (arrAvailableAddresses.length === 0)
 		return handleFundedAddresses([]);
 	if (estimated_amount && typeof estimated_amount !== 'number')
-		throw Error('invalid estimayed amount: '+estimated_amount);
+		throw Error('invalid estimated amount: '+estimated_amount);
 	// addresses closest to estimated amount come first
 	var order_by = estimated_amount ? "(total>"+estimated_amount+") DESC, ABS(total-"+estimated_amount+") ASC" : "total DESC";
 	db.query(
@@ -768,7 +768,8 @@ function readSortedFundedAddresses(asset, arrAvailableAddresses, estimated_amoun
 		asset ? [arrAvailableAddresses, asset] : [arrAvailableAddresses],
 		function(rows){
 			var arrFundedAddresses = rows.map(function(row){ return row.address; });
-			if (arrFundedAddresses.length === 0)
+			handleFundedAddresses(arrFundedAddresses);
+		/*	if (arrFundedAddresses.length === 0)
 				return handleFundedAddresses([]);
 			if (!asset || arrFundedAddresses.length === arrAvailableAddresses.length) // base asset or all available addresses already used
 				return handleFundedAddresses(arrFundedAddresses);
@@ -779,7 +780,7 @@ function readSortedFundedAddresses(asset, arrAvailableAddresses, estimated_amoun
 				if (arrFundedOtherAddresses.length === 0)
 					return handleFundedAddresses(arrFundedAddresses);
 				handleFundedAddresses(arrFundedAddresses.concat(arrFundedOtherAddresses));
-			});
+			});*/
 		}
 	);
 }
