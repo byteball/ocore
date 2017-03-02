@@ -182,24 +182,29 @@ function deletePendingSharedAddress(address_definition_template_chash){
 // called from network after the initiator collects approvals from all members of the address and then sends the completed address to all members
 function addNewSharedAddress(address, arrDefinition, assocSignersByPath, bForwarded, onDone){
 //	network.addWatchedAddress(address);
-	db.query("INSERT INTO shared_addresses (shared_address, definition) VALUES (?,?)", [address, JSON.stringify(arrDefinition)], function(){
-		var arrQueries = [];
-		for (var full_signing_path in assocSignersByPath){
-			var signerInfo = assocSignersByPath[full_signing_path];
-			db.addQuery(arrQueries, 
-				"INSERT INTO shared_address_signing_paths (shared_address, address, signing_path, member_signing_path, device_address) VALUES (?,?,?,?,?)", 
-				[address, signerInfo.address, full_signing_path, signerInfo.member_signing_path, signerInfo.device_address]);
+	db.query(
+		"INSERT "+db.getIgnore()+" INTO shared_addresses (shared_address, definition) VALUES (?,?)", 
+		[address, JSON.stringify(arrDefinition)], 
+		function(){
+			var arrQueries = [];
+			for (var full_signing_path in assocSignersByPath){
+				var signerInfo = assocSignersByPath[full_signing_path];
+				db.addQuery(arrQueries, 
+					"INSERT "+db.getIgnore()+" INTO shared_address_signing_paths \n\
+					(shared_address, address, signing_path, member_signing_path, device_address) VALUES (?,?,?,?,?)", 
+					[address, signerInfo.address, full_signing_path, signerInfo.member_signing_path, signerInfo.device_address]);
+			}
+			async.series(arrQueries, function(){
+				eventBus.emit("new_address-"+address);
+				if (conf.bLight)
+					network.addLightWatchedAddress(address);
+				if (!bForwarded)
+					forwardNewSharedAddressToCosignersOfMyMemberAddresses(address, arrDefinition, assocSignersByPath);
+				if (onDone)
+					onDone();
+			});
 		}
-		async.series(arrQueries, function(){
-			eventBus.emit("new_address-"+address);
-			if (conf.bLight)
-				network.addLightWatchedAddress(address);
-			if (!bForwarded)
-				forwardNewSharedAddressToCosignersOfMyMemberAddresses(address, arrDefinition, assocSignersByPath);
-			if (onDone)
-				onDone();
-		});
-	});
+	);
 }
 
 function includesMyDeviceAddress(assocSignersByPath){
@@ -245,7 +250,7 @@ function forwardNewSharedAddressToCosignersOfMyMemberAddresses(address, arrDefin
 		throw Error("my member addresses not found");
 	db.query(
 		"SELECT DISTINCT device_address FROM my_addresses JOIN wallet_signing_paths USING(wallet) WHERE address IN(?) AND device_address!=?", 
-		[arrMemberAddresses, device.getMyDeviceAddress()],
+		[arrMyMemberAddresses, device.getMyDeviceAddress()],
 		function(rows){
 			rows.forEach(function(row){
 				sendNewSharedAddress(row.device_address, address, arrDefinition, assocSignersByPath, true);
