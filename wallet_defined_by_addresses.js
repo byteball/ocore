@@ -1,13 +1,6 @@
 /*jslint node: true */
 "use strict";
 
-/* !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-This module is unfinished and barely tested!
-
-*/
-
-
 var async = require('async');
 var db = require('./db.js');
 var constants = require('./constants.js');
@@ -207,6 +200,37 @@ function addNewSharedAddress(address, arrDefinition, assocSignersByPath, onDone)
 	});
 }
 
+function includesMyDeviceAddress(assocSignersByPath){
+	for (var full_signing_path in assocSignersByPath){
+		var signerInfo = assocSignersByPath[full_signing_path];
+		if (signerInfo.device_address === device.getMyDeviceAddress())
+			return true;
+	}
+	return false;
+}
+
+// Checks if any of my payment addresses is mentioned.
+// It is possible that my device address is not mentioned in the definition if I'm a member of multisig address, one of my cosigners is mentioned instead
+function determineIfIncludesMe(assocSignersByPath, handleResult){
+	var assocMemberAddresses = {};
+	for (var full_signing_path in assocSignersByPath){
+		var signerInfo = assocSignersByPath[full_signing_path];
+	//	if (signerInfo.device_address === device.getMyDeviceAddress())
+			assocMemberAddresses[signerInfo.address] = true;
+	}
+	var arrMemberAddresses = Object.keys(assocMemberAddresses);
+	if (arrMemberAddresses.length === 0)
+		return handleResult("no member addresses?");
+	db.query(
+		"SELECT address FROM my_addresses WHERE address IN(?) UNION SELECT shared_address AS address FROM shared_addresses WHERE shared_address IN(?)", 
+		[arrMemberAddresses, arrMemberAddresses],
+		function(rows){
+		//	handleResult(rows.length === arrMyMemberAddresses.length ? null : "Some of my member addresses not found");
+			handleResult(rows.length > 0 ? null : "I am not a member of this shared address");
+		}
+	);
+}
+
 // {address: "BASE32", definition: [...], signers: {...}}
 function handleNewSharedAddress(body, callbacks){
 	if (!ValidationUtils.isArrayOfLength(body.definition, 2))
@@ -215,14 +239,20 @@ function handleNewSharedAddress(body, callbacks){
 		return callbacks.ifError("invalid signers");
 	if (body.address !== objectHash.getChash160(body.definition))
 		return callbacks.ifError("definition doesn't match its c-hash");
-	validateAddressDefinition(body.definition, function(err){
+	determineIfIncludesMe(body.signers, function(err){
 		if (err)
 			return callbacks.ifError(err);
-		addNewSharedAddress(body.address, body.definition, body.signers, callbacks.ifOk);
+		validateAddressDefinition(body.definition, function(err){
+			if (err)
+				return callbacks.ifError(err);
+			addNewSharedAddress(body.address, body.definition, body.signers, callbacks.ifOk);
+		});
 	});
 }
 
 function createNewSharedAddress(arrDefinition, assocSignersByPath, callbacks){
+	if (!includesMyDeviceAddress(assocSignersByPath))
+		return callbacks.ifError("my device address not mentioned");
 	var address = objectHash.getChash160(arrDefinition);
 	handleNewSharedAddress({address: address, definition: arrDefinition, signers: assocSignersByPath}, {
 		ifError: callbacks.ifError,
@@ -317,8 +347,6 @@ function validateAddressDefinitionTemplate(arrDefinitionTemplate, from_address, 
 
 // fix:
 // 1. check that my address is referenced in the definition
-// 2. check that signing paths reference my device address
-// 3. handle references to addresses whose definitions are not yet written onto the main chain
 function validateAddressDefinition(arrDefinition, handleResult){
 	var objFakeUnit = {authors: []};
 	var objFakeValidationState = {last_ball_mci: MAX_INT32, bAllowUnresolvedInnerDefinitions: true};
