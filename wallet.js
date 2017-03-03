@@ -601,7 +601,7 @@ function readSharedBalance(wallet, handleBalance){
 			return handleBalance(assocBalances);
 		db.query(
 			"SELECT asset, address, is_stable, SUM(amount) AS balance \n\
-			FROM outputs JOIN units USING(unit) \n\
+			FROM outputs CROSS JOIN units USING(unit) \n\
 			WHERE is_spent=0 AND sequence='good' AND address IN(?) \n\
 			GROUP BY asset, address, is_stable \n\
 			UNION ALL \n\
@@ -635,7 +635,7 @@ function readBalance(wallet, handleBalance){
 	var assocBalances = {base: {stable: 0, pending: 0}};
 	db.query(
 		"SELECT asset, is_stable, SUM(amount) AS balance \n\
-		FROM outputs "+join_my_addresses+" JOIN units USING(unit) \n\
+		FROM outputs "+join_my_addresses+" CROSS JOIN units USING(unit) \n\
 		WHERE is_spent=0 AND "+where_condition+" AND sequence='good' \n\
 		GROUP BY asset, is_stable", 
 		[wallet], 
@@ -662,7 +662,7 @@ function readBalance(wallet, handleBalance){
 					// add 0-balance assets
 					db.query(
 						"SELECT DISTINCT outputs.asset, is_private \n\
-						FROM outputs "+join_my_addresses+" JOIN units USING(unit) LEFT JOIN assets ON asset=assets.unit \n\
+						FROM outputs "+join_my_addresses+" CROSS JOIN units USING(unit) LEFT JOIN assets ON asset=assets.unit \n\
 						WHERE "+where_condition+" AND sequence='good'", 
 						[wallet], 
 						function(rows){
@@ -845,7 +845,7 @@ function readFundedAddresses(asset, wallet, estimated_amount, handleFundedAddres
 	db.query(
 		"SELECT address, SUM(amount) AS total \n\
 		FROM outputs JOIN my_addresses USING(address) \n\
-		JOIN units USING(unit) \n\
+		CROSS JOIN units USING(unit) \n\
 		WHERE wallet=? AND is_stable=1 AND sequence='good' AND is_spent=0 AND "+(asset ? "asset=?" : "asset IS NULL")+" \n\
 			AND NOT EXISTS ( \n\
 				SELECT * FROM unit_authors JOIN units USING(unit) \n\
@@ -870,12 +870,13 @@ function readFundedAddresses(asset, wallet, estimated_amount, handleFundedAddres
 // todo: deeper recursion
 function readAdditionalSigningAddresses(arrFromAddresses, arrSigningAddresses, arrSigningDeviceAddresses, handleAdditionalSigningAddresses){
 	var sql = "SELECT DISTINCT address FROM shared_address_signing_paths \n\
+		JOIN my_addresses USING(address) \n\
 		WHERE shared_address IN(?) \n\
 			AND ( \n\
 				NOT EXISTS (SELECT 1 FROM addresses WHERE addresses.address=shared_address_signing_paths.address) \n\
 				OR ( \n\
 					SELECT definition \n\
-					FROM address_definition_changes JOIN units USING(unit) LEFT JOIN definitions USING(definition_chash) \n\
+					FROM address_definition_changes CROSS JOIN units USING(unit) LEFT JOIN definitions USING(definition_chash) \n\
 					WHERE address_definition_changes.address=shared_address_signing_paths.address AND is_stable=1 AND sequence='good' \n\
 					ORDER BY level DESC LIMIT 1 \n\
 				) IS NULL \n\
@@ -1035,7 +1036,7 @@ function sendMultiPayment(opts, handleResult)
 							throw Error(err);
 						},
 						ifUnknownAddress: function(err){
-							throw Error("unknown address");
+							throw Error("unknown address "+address+" at "+signing_path);
 						},
 						ifLocal: function(objAddress){
 							signWithLocalPrivateKey(objAddress.wallet, objAddress.account, objAddress.is_change, objAddress.address_index, buf_to_sign, function(sig){
