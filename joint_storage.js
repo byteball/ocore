@@ -221,14 +221,15 @@ function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 							db.takeConnectionFromPool(function(conn){
 								var arrQueries = [];
 								conn.addQuery(arrQueries, "BEGIN");
-								storage.generateQueriesToArchiveJoint(conn, objJoint, 'uncovered', arrQueries);
-								conn.addQuery(arrQueries, "COMMIT");
-								mutex.lock(["write"], function(unlock){
-									async.series(arrQueries, function(){
-										unlock();
-										conn.release();
-										console.log("------- done archiving "+row.unit);
-										cb();
+								storage.generateQueriesToArchiveJoint(conn, objJoint, 'uncovered', arrQueries, function(){
+									conn.addQuery(arrQueries, "COMMIT");
+									mutex.lock(["write"], function(unlock){
+										async.series(arrQueries, function(){
+											unlock();
+											conn.release();
+											console.log("------- done archiving "+row.unit);
+											cb();
+										});
 									});
 								});
 							});
