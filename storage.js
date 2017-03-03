@@ -564,7 +564,7 @@ function readDefinitionByAddress(conn, address, max_mci, callbacks){
 		max_mci = MAX_INT32;
 	// try to find last definition change, otherwise definition_chash=address
 	conn.query(
-		"SELECT definition_chash FROM address_definition_changes JOIN units USING(unit) \n\
+		"SELECT definition_chash FROM address_definition_changes CROSS JOIN units USING(unit) \n\
 		WHERE address=? AND is_stable=1 AND sequence='good' AND main_chain_index<=? ORDER BY level DESC LIMIT 1", 
 		[address, max_mci], 
 		function(rows){
@@ -952,7 +952,7 @@ function readAsset(conn, asset, last_ball_mci, handleAsset){
 
 		// find latest list of attestors
 		conn.query(
-			"SELECT MAX(level) AS max_level FROM asset_attestors JOIN units USING(unit) \n\
+			"SELECT MAX(level) AS max_level FROM asset_attestors CROSS JOIN units USING(unit) \n\
 			WHERE asset=? AND main_chain_index<=? AND is_stable=1 AND sequence='good'", 
 			[asset, last_ball_mci],
 			function(latest_rows){
@@ -962,7 +962,7 @@ function readAsset(conn, asset, last_ball_mci, handleAsset){
 
 				// read the list
 				conn.query(
-					"SELECT attestor_address FROM asset_attestors JOIN units USING(unit) \n\
+					"SELECT attestor_address FROM asset_attestors CROSS JOIN units USING(unit) \n\
 					WHERE asset=? AND level=? AND main_chain_index<=? AND is_stable=1 AND sequence='good'",
 					[asset, max_level, last_ball_mci],
 					function(att_rows){
@@ -980,7 +980,7 @@ function readAsset(conn, asset, last_ball_mci, handleAsset){
 // filter only those authors that are attested (doesn't work for light clients)
 function filterAttestedAddresses(conn, objAsset, last_ball_mci, arrAuthorAddresses, handleAttestedAddresses){
 	conn.query(
-		"SELECT DISTINCT address FROM attestations JOIN units USING(unit) \n\
+		"SELECT DISTINCT address FROM attestations CROSS JOIN units USING(unit) \n\
 		WHERE attestor_address IN(?) AND address IN(?) AND main_chain_index<=? AND is_stable=1 AND sequence='good'",
 		[objAsset.arrAttestorAddresses, arrAuthorAddresses, last_ball_mci],
 		function(addr_rows){
@@ -1007,7 +1007,7 @@ function loadAssetWithListOfAttestedAuthors(conn, asset, last_ball_mci, arrAutho
 function findWitnessListUnit(conn, arrWitnesses, last_ball_mci, handleWitnessListUnit){
 	conn.query(
 		"SELECT witness_list_hashes.witness_list_unit \n\
-		FROM witness_list_hashes JOIN units ON witness_list_hashes.witness_list_unit=unit \n\
+		FROM witness_list_hashes CROSS JOIN units ON witness_list_hashes.witness_list_unit=unit \n\
 		WHERE witness_list_hash=? AND sequence='good' AND is_stable=1 AND main_chain_index<=?", 
 		[objectHash.getBase64Hash(arrWitnesses), last_ball_mci], 
 		function(rows){

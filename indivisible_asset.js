@@ -402,7 +402,7 @@ function pickIndivisibleCoinsForAmount(
 				throw Error("remaining amount is "+remaining_amount);
 			conn.query(
 				"SELECT output_id, unit, message_index, output_index, amount, denomination, address, blinding, is_stable \n\
-				FROM outputs JOIN units USING(unit) \n\
+				FROM outputs CROSS JOIN units USING(unit) \n\
 				WHERE asset=? AND address IN(?) AND +is_serial=1 AND is_spent=0 AND sequence='good' \n\
 					AND main_chain_index<=? AND denomination<=? AND output_id NOT IN(?) \n\
 				ORDER BY denomination DESC, (amount>=?) DESC, ABS(amount-?) LIMIT 1",
@@ -961,7 +961,7 @@ function readAddressesFundedInAsset(asset, amount, arrAvailablePayingAddresses, 
 	var remaining_amount = amount;
 	var assocAddresses = {};
 	db.query(
-		"SELECT amount, denomination, address FROM outputs JOIN units USING(unit) \n\
+		"SELECT amount, denomination, address FROM outputs CROSS JOIN units USING(unit) \n\
 		WHERE is_spent=0 AND address IN(?) AND is_stable=1 AND sequence='good' AND asset=? \n\
 			AND NOT EXISTS ( \n\
 				SELECT * FROM unit_authors JOIN units USING(unit) \n\

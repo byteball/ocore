@@ -260,7 +260,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 						return cb("each param must be string or number");
 				conn.query(
 					"SELECT payload FROM messages JOIN units USING(unit) \n\
-					WHERE unit=? AND app='definition_template' AND main_chain_index<=? AND sequence='good' AND is_stable=1", 
+					WHERE unit=? AND app='definition_template' AND main_chain_index<=? AND +sequence='good' AND is_stable=1", 
 					[unit, objValidationState.last_ball_mci], 
 					function(rows){
 						if (rows.length !== 1)
@@ -637,7 +637,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				var params = args[1];
 				conn.query(
 					"SELECT payload FROM messages JOIN units USING(unit) \n\
-					WHERE unit=? AND app='definition_template' AND main_chain_index<=? AND sequence='good' AND is_stable=1", 
+					WHERE unit=? AND app='definition_template' AND main_chain_index<=? AND +sequence='good' AND is_stable=1", 
 					[unit, objValidationState.last_ball_mci], 
 					function(rows){
 						if (rows.length !== 1)
@@ -654,7 +654,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				// ['seen address', 'BASE32']
 				var seen_address = args;
 				conn.query(
-					"SELECT 1 FROM unit_authors JOIN units USING(unit) \n\
+					"SELECT 1 FROM unit_authors CROSS JOIN units USING(unit) \n\
 					WHERE address=? AND main_chain_index<=? AND sequence='good' AND is_stable=1 \n\
 					LIMIT 1",
 					[seen_address, objValidationState.last_ball_mci],
@@ -667,7 +667,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 			case 'seen':
 				// ['seen', {what: 'input', asset: 'asset or base', type: 'transfer'|'issue', own_funds: true, amount_at_least: 123, amount_at_most: 123, amount: 123, address: 'BASE32'}]
 				var filter = args;
-				var sql = "SELECT 1 FROM "+filter.what+"s JOIN units USING(unit) \n\
+				var sql = "SELECT 1 FROM "+filter.what+"s CROSS JOIN units USING(unit) \n\
 					WHERE main_chain_index<=? AND sequence='good' AND is_stable=1 ";
 				var params = [objValidationState.last_ball_mci];
 				if (filter.asset){
@@ -755,7 +755,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 					return cb2(false);
 				}
 				conn.query(
-					"SELECT 1 FROM data_feeds JOIN units USING(unit) JOIN unit_authors USING(unit) \n\
+					"SELECT 1 FROM data_feeds CROSS JOIN units USING(unit) JOIN unit_authors USING(unit) \n\
 					WHERE address IN(?) AND name=? AND value=? AND main_chain_index<=? AND sequence='good' AND is_stable=1 LIMIT 1",
 					[arrAddresses, feed_name, proof.root, objValidationState.last_ball_mci],
 					function(rows){
@@ -800,7 +800,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 					return cb2(false);
 				conn.query(
 					"SELECT 1 FROM units \n\
-					WHERE unit IN(?) AND ?"+relation+"main_chain_index AND main_chain_index<=? AND sequence='good' AND is_stable=1",
+					WHERE unit IN(?) AND ?"+relation+"main_chain_index AND main_chain_index<=? AND +sequence='good' AND is_stable=1",
 					[arrSrcUnits, objValidationState.last_ball_mci - age, objValidationState.last_ball_mci],
 					function(rows){
 						var bSatisfies = (rows.length === arrSrcUnits.length);

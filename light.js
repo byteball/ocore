@@ -173,14 +173,14 @@ function prepareHistory(historyRequest, callbacks){
 	if (arrAddresses){
 		// we don't filter sequence='good' after the unit is stable, so the client will see final doublespends too
 		arrSelects = ["SELECT DISTINCT unit, main_chain_index, level FROM outputs JOIN units USING(unit) \n\
-			WHERE address IN(?) AND main_chain_index>=? AND (sequence='good' OR is_stable=1) \n\
+			WHERE address IN(?) AND main_chain_index>=? AND (+sequence='good' OR is_stable=1) \n\
 			UNION \n\
 			SELECT DISTINCT unit, main_chain_index, level FROM unit_authors JOIN units USING(unit) \n\
-			WHERE address IN(?) AND main_chain_index>=? AND (sequence='good' OR is_stable=1) \n"];
+			WHERE address IN(?) AND main_chain_index>=? AND (+sequence='good' OR is_stable=1) \n"];
 		arrParams = [arrAddresses, last_stable_mci, arrAddresses, last_stable_mci];
 	}
 	if (arrRequestedJoints){
-		arrSelects.push("SELECT unit, main_chain_index, level FROM units WHERE unit IN(?) AND (sequence='good' OR is_stable=1) \n");
+		arrSelects.push("SELECT unit, main_chain_index, level FROM units WHERE unit IN(?) AND (+sequence='good' OR is_stable=1) \n");
 		arrParams.push(arrRequestedJoints.slice(0, 400));
 	}
 	var sql = arrSelects.join("UNION \n") + "ORDER BY main_chain_index DESC, level DESC";
@@ -364,10 +364,10 @@ function determineIfHaveUnstableJoints(arrAddresses, handleResult){
 		return handleResult(false);
 	db.query(
 		"SELECT DISTINCT unit, main_chain_index FROM outputs JOIN units USING(unit) \n\
-		WHERE address IN(?) AND sequence='good' AND is_stable=0 \n\
+		WHERE address IN(?) AND +sequence='good' AND is_stable=0 \n\
 		UNION \n\
 		SELECT DISTINCT unit, main_chain_index FROM unit_authors JOIN units USING(unit) \n\
-		WHERE address IN(?) AND sequence='good' AND is_stable=0 \n\
+		WHERE address IN(?) AND +sequence='good' AND is_stable=0 \n\
 		LIMIT 1",
 		[arrAddresses, arrAddresses],
 		function(rows){

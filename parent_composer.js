@@ -20,7 +20,7 @@ function pickParentUnits(conn, arrWitnesses, onDone){
 			) AS count_matching_witnesses \n\
 		FROM units \n\
 		LEFT JOIN archived_joints USING(unit) \n\
-		WHERE sequence='good' AND is_free=1 AND archived_joints.unit IS NULL ORDER BY unit", 
+		WHERE +sequence='good' AND is_free=1 AND archived_joints.unit IS NULL ORDER BY unit", 
 		// exclude potential parents that were archived and then received again
 		[arrWitnesses], 
 		function(rows){
@@ -42,7 +42,7 @@ function pickDeepParentUnits(conn, arrWitnesses, onDone){
 	conn.query(
 		"SELECT unit \n\
 		FROM units \n\
-		WHERE sequence='good' \n\
+		WHERE +sequence='good' \n\
 			AND ( \n\
 				SELECT COUNT(*) \n\
 				FROM unit_witnesses \n\
@@ -61,7 +61,7 @@ function pickDeepParentUnits(conn, arrWitnesses, onDone){
 function findLastStableMcBall(conn, arrWitnesses, onDone){
 	conn.query(
 		"SELECT ball, unit, main_chain_index FROM units JOIN balls USING(unit) \n\
-		WHERE is_on_main_chain=1 AND is_stable=1 AND sequence='good' AND ( \n\
+		WHERE is_on_main_chain=1 AND is_stable=1 AND +sequence='good' AND ( \n\
 			SELECT COUNT(*) \n\
 			FROM unit_witnesses \n\
 			WHERE unit_witnesses.unit IN(units.unit, units.witness_list_unit) AND address IN(?) \n\

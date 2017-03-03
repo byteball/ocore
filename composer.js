@@ -98,7 +98,7 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 		conn.query(
 			"SELECT unit, message_index, output_index, amount, blinding, address \n\
 			FROM outputs \n\
-			JOIN units USING(unit) \n\
+			CROSS JOIN units USING(unit) \n\
 			WHERE address IN(?) AND asset"+(asset ? "="+conn.escape(asset) : " IS NULL")+" AND is_spent=0 AND amount "+more+" ? \n\
 				AND is_stable=1 AND sequence='good' AND main_chain_index<=?  \n\
 			ORDER BY amount LIMIT 1", 
@@ -121,7 +121,7 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 		conn.query(
 			"SELECT unit, message_index, output_index, amount, address, blinding \n\
 			FROM outputs \n\
-			JOIN units USING(unit) \n\
+			CROSS JOIN units USING(unit) \n\
 			WHERE address IN(?) AND asset"+(asset ? "="+conn.escape(asset) : " IS NULL")+" AND is_spent=0 \n\
 				AND is_stable=1 AND sequence='good' AND main_chain_index<=?  \n\
 			ORDER BY amount DESC",
@@ -581,7 +581,7 @@ function composeJoint(params){
 						// try to find last stable change of definition, then check if the definition was already disclosed
 						conn.query(
 							"SELECT definition \n\
-							FROM address_definition_changes JOIN units USING(unit) LEFT JOIN definitions USING(definition_chash) \n\
+							FROM address_definition_changes CROSS JOIN units USING(unit) LEFT JOIN definitions USING(definition_chash) \n\
 							WHERE address=? AND is_stable=1 AND sequence='good' AND main_chain_index<=? \n\
 							ORDER BY level DESC LIMIT 1", 
 							[from_address, last_ball_mci],
@@ -758,7 +758,7 @@ function readSortedFundedAddresses(asset, arrAvailableAddresses, estimated_amoun
 	db.query(
 		"SELECT address, SUM(amount) AS total \n\
 		FROM outputs \n\
-		JOIN units USING(unit) \n\
+		CROSS JOIN units USING(unit) \n\
 		WHERE address IN(?) AND is_stable=1 AND sequence='good' AND is_spent=0 AND asset"+(asset ? "=?" : " IS NULL")+" \n\
 			AND NOT EXISTS ( \n\
 				SELECT * FROM unit_authors JOIN units USING(unit) \n\
