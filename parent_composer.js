@@ -2,6 +2,7 @@
 "use strict";
 var db = require('./db.js');
 var constants = require("./constants.js");
+var conf = require("./conf.js");
 
 
 function pickParentUnits(conn, arrWitnesses, onDone){
@@ -18,7 +19,7 @@ function pickParentUnits(conn, arrWitnesses, onDone){
 				FROM unit_witnesses \n\
 				WHERE unit_witnesses.unit IN(units.unit, units.witness_list_unit) AND address IN(?) \n\
 			) AS count_matching_witnesses \n\
-		FROM units \n\
+		FROM units "+(conf.storage === 'sqlite' ? "INDEXED BY byFree" : "")+" \n\
 		LEFT JOIN archived_joints USING(unit) \n\
 		WHERE +sequence='good' AND is_free=1 AND archived_joints.unit IS NULL ORDER BY unit", 
 		// exclude potential parents that were archived and then received again
