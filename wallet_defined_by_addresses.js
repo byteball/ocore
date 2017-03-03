@@ -422,12 +422,16 @@ function readRequiredCosigners(shared_address, arrSigningDeviceAddresses, handle
 }
 
 function readSharedAddressDefinition(shared_address, handleDefinition){
-	db.query("SELECT definition FROM shared_addresses WHERE shared_address=?", [shared_address], function(rows){
-		if (rows.length !== 1)
-			throw Error('shared definition not found '+shared_address);
-		var arrDefinition = JSON.parse(rows[0].definition);
-		handleDefinition(arrDefinition);
-	});
+	db.query(
+		"SELECT definition, "+db.getUnixTimestamp("creation_date")+" AS creation_ts FROM shared_addresses WHERE shared_address=?", 
+		[shared_address], 
+		function(rows){
+			if (rows.length !== 1)
+				throw Error('shared definition not found '+shared_address);
+			var arrDefinition = JSON.parse(rows[0].definition);
+			handleDefinition(arrDefinition, rows[0].creation_ts);
+		}
+	);
 }
 
 
