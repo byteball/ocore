@@ -76,6 +76,7 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 				if (version < 1){
 					connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS unitAuthorsIndexByAddressDefinitionChash ON unit_authors(address, definition_chash)");
 					connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS outputsIsSerial ON outputs(is_serial)");
+					connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS bySequence ON units(sequence)");
 				}
 				connection.addQuery(arrQueries, "PRAGMA user_version="+VERSION);
 				async.series(arrQueries, onDone);

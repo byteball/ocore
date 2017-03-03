@@ -199,7 +199,7 @@ function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 	// the purged units can arrive again, no problem
 	db.query( // purge the bad ball if we've already received at least 7 witnesses after receiving the bad ball
 		"SELECT unit FROM units \n\
-		WHERE "+cond+" AND sequence!='good' AND content_hash IS NULL \n\
+		WHERE "+cond+" AND sequence IN('final-bad','temp-bad') AND content_hash IS NULL \n\
 			AND ( \n\
 				SELECT COUNT(DISTINCT address) FROM units AS wunits CROSS JOIN unit_authors USING(unit) CROSS JOIN my_witnesses USING(address) \n\
 				WHERE wunits."+order_column+" > units."+order_column+" \n\
