@@ -408,6 +408,7 @@ function forwardPrivateChainsToOtherMembersOfAddresses(arrChains, arrAddresses, 
 	);
 }
 
+/*
 function readRequiredCosigners(shared_address, arrSigningDeviceAddresses, handleCosigners){
 	db.query(
 		"SELECT shared_address_signing_paths.address \n\
@@ -419,7 +420,7 @@ function readRequiredCosigners(shared_address, arrSigningDeviceAddresses, handle
 			handleCosigners(rows.map(function(row){ return row.address; }));
 		}
 	);
-}
+}*/
 
 function readSharedAddressDefinition(shared_address, handleDefinition){
 	db.query(
@@ -434,6 +435,19 @@ function readSharedAddressDefinition(shared_address, handleDefinition){
 	);
 }
 
+function readSharedAddressCosigners(shared_address, handleCosigners){
+	db.query(
+		"SELECT DISTINCT device_address, name \n\
+		FROM shared_address_signing_paths \n\
+		JOIN correspondent_devices USING(device_address) \n\
+		WHERE shared_address=? AND device_address!=?",
+		[shared_address, device.getMyDeviceAddress()],
+		function(rows){
+			handleCosigners(rows);
+		}
+	);
+}
+
 
 
 
@@ -443,7 +457,7 @@ exports.deletePendingSharedAddress = deletePendingSharedAddress;
 exports.validateAddressDefinition = validateAddressDefinition;
 exports.handleNewSharedAddress = handleNewSharedAddress;
 exports.forwardPrivateChainsToOtherMembersOfAddresses = forwardPrivateChainsToOtherMembersOfAddresses;
-exports.readRequiredCosigners = readRequiredCosigners;
+exports.readSharedAddressCosigners = readSharedAddressCosigners;
 exports.readSharedAddressDefinition = readSharedAddressDefinition;
 exports.createNewSharedAddress = createNewSharedAddress;
 
