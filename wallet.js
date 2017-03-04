@@ -252,6 +252,13 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			var objUnit = body.unsigned_unit;
 			if (typeof objUnit !== "object")
 				return callbacks.ifError("no unsigned unit");
+			// replace all existing signatures with placeholders so that signing requests sent to us on different stages of signing become identical,
+			// hence the hashes of such unsigned units are also identical
+			objUnit.authors.forEach(function(author){
+				var authentifiers = author.authentifiers;
+				for (var path in authentifiers)
+					authentifiers[path] = authentifiers[path].replace(/./, '-'); 
+			});
 			var assocPrivatePayloads = body.private_payloads;
 			if ("private_payloads" in body){
 				if (typeof assocPrivatePayloads !== "object" || !assocPrivatePayloads)
@@ -293,7 +300,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 							// If we merge coins from several addresses of the same wallet, we'll fire this event multiple times for the same unit.
 							// The event handler must lock the unit before displaying a confirmation dialog, then remember user's choice and apply it to all
 							// subsequent requests related to the same unit
-							eventBus.emit("signing_request", objAddress, objUnit, assocPrivatePayloads, from_address, body.signing_path);
+							eventBus.emit("signing_request", objAddress, body.address, objUnit, assocPrivatePayloads, from_address, body.signing_path);
 						});
 						// if validation is already under way, handleOnlineJoint will quickly exit because of assocUnitsInWork.
 						// as soon as the previously started validation finishes, it will trigger our event handler (as well as its own)
@@ -301,6 +308,10 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					//});
 				},
 				ifRemote: function(device_address){
+					if (device_address === from_address){
+						callbacks.ifError("looping signing request for address "+body.address+", path "+body.signing_path);
+						throw Error("looping signing request for address "+body.address+", path "+body.signing_path);
+					}
 					var text_to_sign = objectHash.getUnitHashToSign(body.unsigned_unit).toString("base64");
 					// I'm a proxy, wait for response from the actual signer and forward to the requestor
 					eventBus.once("signature-"+device_address+"-"+body.address+"-"+body.signing_path+"-"+text_to_sign, function(sig){
@@ -544,7 +555,7 @@ function emitNewPublicPaymentReceived(payer_device_address, objUnit){
 }
 
 
-function findAddress(address, signing_path, callbacks){
+function findAddress(address, signing_path, callbacks, fallback_remote_device_address){
 	db.query(
 		"SELECT wallet, account, is_change, address_index, full_approval_date, device_address \n\
 		FROM my_addresses JOIN wallets USING(wallet) JOIN wallet_signing_paths USING(wallet) \n\
@@ -570,15 +581,23 @@ function findAddress(address, signing_path, callbacks){
 				return;
 			}
 			db.query(
-				"SELECT address, device_address, member_signing_path FROM shared_address_signing_paths WHERE shared_address=? AND signing_path=?", 
+			//	"SELECT address, device_address, member_signing_path FROM shared_address_signing_paths WHERE shared_address=? AND signing_path=?", 
+				// look for a prefix of the requested signing_path
+				"SELECT address, device_address, signing_path FROM shared_address_signing_paths \n\
+				WHERE shared_address=? AND signing_path=SUBSTR(?, 1, LENGTH(signing_path))", 
 				[address, signing_path],
 				function(sa_rows){
-					if (sa_rows.length !== 1)
+					if (rows.length > 1)
+						throw Error("more than 1 member address found for shared address "+address+" and signing path "+signing_path);
+					if (sa_rows.length === 0){
+						if (fallback_remote_device_address)
+							return callbacks.ifRemote(fallback_remote_device_address);
 						return callbacks.ifUnknownAddress();
+					}
 					var objSharedAddress = sa_rows[0];
-					(objSharedAddress.device_address === device.getMyDeviceAddress()) // local keys
-						? findAddress(objSharedAddress.address, objSharedAddress.member_signing_path, callbacks)
-						: callbacks.ifRemote(objSharedAddress.device_address);
+					var relative_signing_path = 'r' + signing_path.substr(objSharedAddress.signing_path.length);
+					var bLocal = (objSharedAddress.device_address === device.getMyDeviceAddress()); // local keys
+					findAddress(objSharedAddress.address, relative_signing_path, callbacks, bLocal ? null : objSharedAddress.device_address);
 				}
 			);
 		}
@@ -833,6 +852,45 @@ function readTransactionHistory(opts, handleHistory){
 }
 
 
+function readFullSigningPaths(conn, address, arrSigningDeviceAddresses, handleSigningPaths){
+	
+	var arrSigningPaths = [];
+	
+	function goDeeper(member_address, path_prefix, onDone){
+		// first, look for wallet addresses
+		var sql = "SELECT signing_path FROM my_addresses JOIN wallet_signing_paths USING(wallet) WHERE address=?";
+		var arrParams = [member_address];
+		if (arrSigningDeviceAddresses && arrSigningDeviceAddresses.length > 0){
+			sql += " AND device_address IN(?)";
+			arrParams.push(arrSigningDeviceAddresses);
+		}
+		// next, look for shared addresses, and search from there recursively
+		conn.query(sql, arrParams, function(rows){
+			rows.forEach(function(row){
+				arrSigningPaths.push(path_prefix + row.signing_path.substr(1))
+			});
+			sql = "SELECT signing_path, address FROM shared_address_signing_paths WHERE shared_address=?";
+			arrParams = [member_address];
+			if (arrSigningDeviceAddresses && arrSigningDeviceAddresses.length > 0){
+				sql += " AND device_address IN(?)";
+				arrParams.push(arrSigningDeviceAddresses);
+			}
+			conn.query(sql, arrParams, function(rows){
+				async.eachSeries(
+					rows,
+					function(row, cb){
+						goDeeper(row.address, path_prefix + row.signing_path.substr(1), cb);
+					},
+					onDone
+				);
+			});
+		});
+	}
+	
+	goDeeper(address, 'r', function(){
+		handleSigningPaths(arrSigningPaths); // order of signing paths is not significant
+	});
+}
 
 function readFundedAddresses(asset, wallet, estimated_amount, handleFundedAddresses){
 	var walletIsAddresses = ValidationUtils.isNonemptyArray(wallet);
@@ -999,27 +1057,7 @@ function sendMultiPayment(opts, handleResult)
 					return constants.SIG_LENGTH;
 				},
 				readSigningPaths: function(conn, address, handleSigningPaths){
-					var sql = "SELECT signing_path FROM my_addresses JOIN wallet_signing_paths USING(wallet) WHERE address=?";
-					var arrParams = [address];
-					if (arrSigningDeviceAddresses && arrSigningDeviceAddresses.length > 0){
-						sql += " AND device_address IN(?)";
-						arrParams.push(arrSigningDeviceAddresses);
-					}
-					sql += " UNION SELECT signing_path FROM shared_address_signing_paths WHERE shared_address=?";
-					arrParams.push(address);
-					if (arrSigningDeviceAddresses && arrSigningDeviceAddresses.length > 0){
-						sql += " AND device_address IN(?)";
-						arrParams.push(arrSigningDeviceAddresses);
-					}
-					sql += " ORDER BY signing_path";   
-					conn.query(
-						sql, 
-						arrParams,
-						function(rows){
-							var arrSigningPaths = rows.map(function(row){ return row.signing_path; });
-							handleSigningPaths(arrSigningPaths);
-						}
-					);
+					readFullSigningPaths(conn, address, arrSigningDeviceAddresses, handleSigningPaths);
 				},
 				readDefinition: function(conn, address, handleDefinition){
 					conn.query(
