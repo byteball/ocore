@@ -807,7 +807,7 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 				purgeJointAndDependenciesAndNotifyPeers(objJoint, error, function(){
 					delete assocUnitsInWork[unit];
 				});
-				if (ws)
+				if (ws && error !== 'authentifier verification failed')
 					writeEvent('invalid', ws.host);
 				if (objJoint.unsigned)
 					eventBus.emit("validated-"+unit, false);
