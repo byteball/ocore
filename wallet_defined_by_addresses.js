@@ -21,12 +21,12 @@ var MAX_INT32 = Math.pow(2, 31) - 1;
 
 
 
-
+// unused
 function sendOfferToCreateNewSharedAddress(device_address, arrAddressDefinitionTemplate){
 	device.sendMessageToDevice(device_address, "create_new_shared_address", {address_definition_template: arrAddressDefinitionTemplate});
 }
 
-// called from UI
+// called from UI (unused)
 function sendApprovalOfNewSharedAddress(device_address, address_definition_template_chash, address, assocDeviceAddressesByRelativeSigningPaths){
 	device.sendMessageToDevice(device_address, "approve_new_shared_address", {
 		address_definition_template_chash: address_definition_template_chash, 
@@ -35,7 +35,7 @@ function sendApprovalOfNewSharedAddress(device_address, address_definition_templ
 	});
 }
 
-// called from UI
+// called from UI (unused)
 function sendRejectionOfNewSharedAddress(device_address, address_definition_template_chash){
 	device.sendMessageToDevice(device_address, "reject_new_shared_address", {
 		address_definition_template_chash: address_definition_template_chash
@@ -52,7 +52,7 @@ function sendNewSharedAddress(device_address, address, arrDefinition, assocSigne
 
 
 
-// called from UI
+// called from UI (unused)
 // my address is not filled explicitly, it is specified as variable in the template like external addresses
 // assocMyDeviceAddressesByRelativeSigningPaths points to my device addresses that hold the actual signing keys
 function createNewSharedAddressByTemplate(arrAddressDefinitionTemplate, my_address, assocMyDeviceAddressesByRelativeSigningPaths){
@@ -93,6 +93,7 @@ function createNewSharedAddressByTemplate(arrAddressDefinitionTemplate, my_addre
 	});
 }
 
+// unused
 // received approval from co-signer address
 function approvePendingSharedAddress(address_definition_template_chash, from_address, address, assocDeviceAddressesByRelativeSigningPaths){
 	db.query( // may update several rows if the device is referenced multiple times from the definition template
@@ -173,6 +174,7 @@ function approvePendingSharedAddress(address_definition_template_chash, from_add
 	);
 }
 
+// unused
 function deletePendingSharedAddress(address_definition_template_chash){
 	db.query("DELETE FROM pending_shared_address_signing_paths WHERE definition_template_chash=?", [address_definition_template_chash], function(){
 		db.query("DELETE FROM pending_shared_addresses WHERE definition_template_chash=?", [address_definition_template_chash], function(){});
@@ -180,6 +182,8 @@ function deletePendingSharedAddress(address_definition_template_chash){
 }
 
 // called from network after the initiator collects approvals from all members of the address and then sends the completed address to all members
+// member_signing_path is now deprecated and unused
+// shared_address_signing_paths.signing_path is now path to member-address, not full path to a signing key
 function addNewSharedAddress(address, arrDefinition, assocSignersByPath, bForwarded, onDone){
 //	network.addWatchedAddress(address);
 	db.query(
@@ -187,12 +191,12 @@ function addNewSharedAddress(address, arrDefinition, assocSignersByPath, bForwar
 		[address, JSON.stringify(arrDefinition)], 
 		function(){
 			var arrQueries = [];
-			for (var full_signing_path in assocSignersByPath){
-				var signerInfo = assocSignersByPath[full_signing_path];
+			for (var signing_path in assocSignersByPath){
+				var signerInfo = assocSignersByPath[signing_path];
 				db.addQuery(arrQueries, 
 					"INSERT "+db.getIgnore()+" INTO shared_address_signing_paths \n\
 					(shared_address, address, signing_path, member_signing_path, device_address) VALUES (?,?,?,?,?)", 
-					[address, signerInfo.address, full_signing_path, signerInfo.member_signing_path, signerInfo.device_address]);
+					[address, signerInfo.address, signing_path, signerInfo.member_signing_path, signerInfo.device_address]);
 			}
 			async.series(arrQueries, function(){
 				eventBus.emit("new_address-"+address);
@@ -208,8 +212,8 @@ function addNewSharedAddress(address, arrDefinition, assocSignersByPath, bForwar
 }
 
 function includesMyDeviceAddress(assocSignersByPath){
-	for (var full_signing_path in assocSignersByPath){
-		var signerInfo = assocSignersByPath[full_signing_path];
+	for (var signing_path in assocSignersByPath){
+		var signerInfo = assocSignersByPath[signing_path];
 		if (signerInfo.device_address === device.getMyDeviceAddress())
 			return true;
 	}
@@ -220,8 +224,8 @@ function includesMyDeviceAddress(assocSignersByPath){
 // It is possible that my device address is not mentioned in the definition if I'm a member of multisig address, one of my cosigners is mentioned instead
 function determineIfIncludesMe(assocSignersByPath, handleResult){
 	var assocMemberAddresses = {};
-	for (var full_signing_path in assocSignersByPath){
-		var signerInfo = assocSignersByPath[full_signing_path];
+	for (var signing_path in assocSignersByPath){
+		var signerInfo = assocSignersByPath[signing_path];
 	//	if (signerInfo.device_address === device.getMyDeviceAddress())
 			assocMemberAddresses[signerInfo.address] = true;
 	}
@@ -240,8 +244,8 @@ function determineIfIncludesMe(assocSignersByPath, handleResult){
 
 function forwardNewSharedAddressToCosignersOfMyMemberAddresses(address, arrDefinition, assocSignersByPath){
 	var assocMyMemberAddresses = {};
-	for (var full_signing_path in assocSignersByPath){
-		var signerInfo = assocSignersByPath[full_signing_path];
+	for (var signing_path in assocSignersByPath){
+		var signerInfo = assocSignersByPath[signing_path];
 		if (signerInfo.device_address === device.getMyDeviceAddress())
 			assocMyMemberAddresses[signerInfo.address] = true;
 	}
@@ -287,8 +291,8 @@ function createNewSharedAddress(arrDefinition, assocSignersByPath, callbacks){
 		ifOk: function(){
 			// share the new address with all cosigners
 			var arrDeviceAddresses = [];
-			for (var full_signing_path in assocSignersByPath){
-				var signerInfo = assocSignersByPath[full_signing_path];
+			for (var signing_path in assocSignersByPath){
+				var signerInfo = assocSignersByPath[signing_path];
 				if (signerInfo.device_address !== device.getMyDeviceAddress() && arrDeviceAddresses.indexOf(signerInfo.device_address) === -1)
 					arrDeviceAddresses.push(signerInfo.device_address);
 			}
