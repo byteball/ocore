@@ -867,8 +867,8 @@ function readFundedAddresses(asset, wallet, estimated_amount, handleFundedAddres
 	);
 }
 
-// todo: deeper recursion
-function readAdditionalSigningAddresses(arrFromAddresses, arrSigningAddresses, arrSigningDeviceAddresses, handleAdditionalSigningAddresses){
+function readAdditionalSigningAddresses(arrPayingAddresses, arrSigningAddresses, arrSigningDeviceAddresses, handleAdditionalSigningAddresses){
+	var arrFromAddresses = arrPayingAddresses.concat(arrSigningAddresses);
 	var sql = "SELECT DISTINCT address FROM shared_address_signing_paths \n\
 		JOIN my_addresses USING(address) \n\
 		WHERE shared_address IN(?) \n\
@@ -882,6 +882,10 @@ function readAdditionalSigningAddresses(arrFromAddresses, arrSigningAddresses, a
 				) IS NULL \n\
 			)";
 	var arrParams = [arrFromAddresses];
+	if (arrSigningAddresses.length > 0){
+		sql += " AND address NOT IN(?)";
+		arrParams.push(arrSigningAddresses);
+	}
 	if (arrSigningDeviceAddresses && arrSigningDeviceAddresses.length > 0){
 		sql += " AND device_address IN(?)";
 		arrParams.push(arrSigningDeviceAddresses);
@@ -890,13 +894,12 @@ function readAdditionalSigningAddresses(arrFromAddresses, arrSigningAddresses, a
 		sql, 
 		arrParams,
 		function(rows){
-			var arrAdditionalAddresses = [];
-			rows.forEach(function(row){
-				var address = row.address;
-				if (arrFromAddresses.indexOf(address) === -1 && arrSigningAddresses.indexOf(address) === -1)
-					arrAdditionalAddresses.push(address);
+			var arrAdditionalAddresses = rows.map(function(row){ return row.address; });
+			if (arrAdditionalAddresses.length === 0)
+				return handleAdditionalSigningAddresses([]);
+			readAdditionalSigningAddresses([], arrSigningAddresses.concat(arrAdditionalAddresses), arrSigningDeviceAddresses, function(arrMoreAddresses){
+				handleAdditionalSigningAddresses(arrAdditionalAddresses.concat(arrMoreAddresses));
 			});
-			handleAdditionalSigningAddresses(arrAdditionalAddresses);
 		}
 	);
 }
@@ -912,8 +915,8 @@ function readFundedAndSigningAddresses(
 			return handleFundedAndSigningAddresses([], [], []);
 		var arrBaseFundedAddresses = [];
 		var addSigningAddressesAndReturn = function(){
-			var arrFromAddresses = _.union(arrFundedAddresses, arrBaseFundedAddresses);
-			readAdditionalSigningAddresses(arrFromAddresses, arrSigningAddresses, arrSigningDeviceAddresses, function(arrAdditionalAddresses){
+			var arrPayingAddresses = _.union(arrFundedAddresses, arrBaseFundedAddresses);
+			readAdditionalSigningAddresses(arrPayingAddresses, arrSigningAddresses, arrSigningDeviceAddresses, function(arrAdditionalAddresses){
 				handleFundedAndSigningAddresses(arrFundedAddresses, arrBaseFundedAddresses, arrSigningAddresses.concat(arrAdditionalAddresses));
 			});
 		};
