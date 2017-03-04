@@ -380,6 +380,7 @@ setInterval(resendStalledMessages, SEND_RETRY_PERIOD);
 // first param is either WebSocket or hostname of the hub
 function reliablySendPreparedMessageToHub(ws, recipient_device_pubkey, json, callbacks, conn){
 	var recipient_device_address = objectHash.getDeviceAddress(recipient_device_pubkey);
+	console.log('will encrypt and send to '+recipient_device_address+': '+JSON.stringify(json));
 	// encrypt to recipient's permanent pubkey before storing the message into outbox
 	var objEncryptedPackage = createEncryptedPackage(json, recipient_device_pubkey);
 	// if the first attempt fails, this will be the inner message
@@ -452,7 +453,7 @@ function sendPreparedMessageToConnectedHub(ws, recipient_device_pubkey, message_
 
 function createEncryptedPackage(json, recipient_device_pubkey){
 	var text = JSON.stringify(json);
-	console.log("will encrypt and send: "+text);
+//	console.log("will encrypt and send: "+text);
 	var ecdh = crypto.createECDH('secp256k1');
 	var sender_ephemeral_pubkey = ecdh.generateKeys("base64", "compressed");
 	var shared_secret = deriveSharedSecret(ecdh, recipient_device_pubkey); // Buffer
