@@ -715,5 +715,6 @@ exports.readCorrespondents = readCorrespondents;
 exports.readCorrespondent = readCorrespondent;
 exports.readCorrespondentsByDeviceAddresses = readCorrespondentsByDeviceAddresses;
 exports.updateCorrespondentProps = updateCorrespondentProps;
+exports.removeCorrespondentDevice = removeCorrespondentDevice;
 exports.addIndirectCorrespondents = addIndirectCorrespondents;
 exports.getWitnessesFromHub = getWitnessesFromHub;
