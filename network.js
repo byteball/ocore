@@ -204,7 +204,9 @@ function handleResponse(ws, tag, response){
 		//throw "no req by tag "+tag;
 		return console.log("no req by tag "+tag);
 	pendingRequest.responseHandlers.forEach(function(responseHandler){
-		responseHandler(ws, pendingRequest.request, response);
+		process.nextTick(function(){
+			responseHandler(ws, pendingRequest.request, response);
+		});
 	});
 	
 	clearTimeout(pendingRequest.reroute_timer);
