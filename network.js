@@ -1080,6 +1080,8 @@ function addWatchedAddress(address){
 function notifyWatchers(objJoint){
 	var objUnit = objJoint.unit;
 	var arrAddresses = objUnit.authors.map(function(author){ return author.address; });
+	if (!objUnit.messages) // voided unit
+		return;
 	for (var i=0; i<objUnit.messages.length; i++){
 		var message = objUnit.messages[i];
 		if (message.app !== "payment" || !message.payload)
