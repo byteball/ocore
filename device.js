@@ -422,15 +422,19 @@ function sendPreparedMessageToHub(ws, recipient_device_pubkey, message_hash, jso
 // first param is WebSocket only
 function sendPreparedMessageToConnectedHub(ws, recipient_device_pubkey, message_hash, json, callbacks){
 	network.sendRequest(ws, 'hub/get_temp_pubkey', recipient_device_pubkey, false, function(ws, request, response){
+		function handleError(error){
+			callbacks.ifError(error);
+			db.query("UPDATE outbox SET last_error=? WHERE message_hash=?", [error, message_hash], function(){});
+		}
 		if (response.error)
-			return callbacks.ifError(response.error);
+			return handleError(response.error);
 		var objTempPubkey = response;
 		if (!objTempPubkey.temp_pubkey || !objTempPubkey.pubkey || !objTempPubkey.signature)
-			return callbacks.ifError("missing fields in hub response");
+			return handleError("missing fields in hub response");
 		if (objTempPubkey.pubkey !== recipient_device_pubkey)
-			return callbacks.ifError("temp pubkey signed by wrong permanent pubkey");
+			return handleError("temp pubkey signed by wrong permanent pubkey");
 		if (!ecdsaSig.verify(objectHash.getDeviceMessageHashToSign(objTempPubkey), objTempPubkey.signature, objTempPubkey.pubkey))
-			return callbacks.ifError("wrong sig under temp pubkey");
+			return handleError("wrong sig under temp pubkey");
 		var objEncryptedPackage = createEncryptedPackage(json, objTempPubkey.temp_pubkey);
 		var recipient_device_address = objectHash.getDeviceAddress(recipient_device_pubkey);
 		var objDeviceMessage = {
@@ -445,11 +449,8 @@ function sendPreparedMessageToConnectedHub(ws, recipient_device_pubkey, message_
 					callbacks.ifOk();
 				});
 			}
-			else{
-				var error = response.error || ("unrecognized response: "+JSON.stringify(response));
-				callbacks.ifError(error);
-				db.query("UPDATE outbox SET last_error=? WHERE message_hash=?", [error, message_hash], function(){});
-			}
+			else
+				handleError( response.error || ("unrecognized response: "+JSON.stringify(response)) );
 		});
 	});
 }
