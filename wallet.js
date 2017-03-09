@@ -1050,6 +1050,8 @@ function sendMultiPayment(opts, handleResult)
 		
 			if (arrFundedAddresses.length === 0)
 				return handleResult("There are no funded addresses");
+			if (asset && arrBaseFundedAddresses.length === 0)
+				return handleResult("No bytes to pay fees");
 
 			var bRequestedConfirmation = false;
 			var signer = {
