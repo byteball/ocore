@@ -738,6 +738,9 @@ function updateMinRetrievableMciAfterStabilizingMci(conn, last_stable_mci, handl
 						if (arrQueries.length === 0)
 							return handleMinRetrievableMci(min_retrievable_mci);
 						async.series(arrQueries, function(){
+							unit_rows.forEach(function(unit_row){
+								forgetUnit(unit_row.unit);
+							});
 							handleMinRetrievableMci(min_retrievable_mci);
 						});
 					}
@@ -1109,6 +1112,13 @@ function setUnitIsKnown(unit){
 	return assocKnownUnits[unit] = true;
 }
 
+function forgetUnit(unit){
+	delete assocKnownUnits[unit];
+	delete assocCachedUnits[unit];
+	delete assocCachedUnitAuthors[unit];
+	delete assocCachedUnitWitnesses[unit];
+}
+
 function shrinkCache(){
 	if (Object.keys(assocCachedAssetInfos).length > MAX_ITEMS_IN_CACHE)
 		assocCachedAssetInfos = {};
@@ -1184,4 +1194,5 @@ exports.readUnitAuthors = readUnitAuthors;
 
 exports.isKnownUnit = isKnownUnit;
 exports.setUnitIsKnown = setUnitIsKnown;
+exports.forgetUnit = forgetUnit;
 

@@ -228,6 +228,7 @@ function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 											unlock();
 											conn.release();
 											console.log("------- done archiving "+row.unit);
+											storage.forgetUnit(row.unit);
 											cb();
 										});
 									});
