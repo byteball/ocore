@@ -2246,7 +2246,8 @@ function onWebsocketMessage(message) {
 			return handleResponse(ws, content.tag, content.response);
 			
 		default: 
-			throw Error("unknown type: "+message_type);
+			console.log("unknown type: "+message_type);
+		//	throw Error("unknown type: "+message_type);
 	}
 }
 
