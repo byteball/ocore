@@ -1482,7 +1482,8 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 					objUnit, objValidationState, 
 					function acceptDoublespends(cb3){
 						console.log("--- accepting doublespend on unit "+objUnit.unit);
-						var sql = "UPDATE inputs SET is_unique=NULL WHERE "+doubleSpendWhere;
+						var sql = "UPDATE inputs SET is_unique=NULL WHERE "+doubleSpendWhere+
+							" AND (SELECT is_stable FROM units WHERE units.unit=inputs.unit)=0";
 						if (!(objAsset && objAsset.is_private)){
 							objValidationState.arrAdditionalQueries.push({sql: sql, params: doubleSpendVars});
 							objValidationState.arrDoubleSpendInputs.push({message_index: message_index, input_index: input_index});
