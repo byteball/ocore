@@ -14,7 +14,7 @@ function pickParentUnits(conn, arrWitnesses, onDone){
 	
 	conn.query(
 		"SELECT \n\
-			unit, ( \n\
+			unit, version, alt, ( \n\
 				SELECT COUNT(*) \n\
 				FROM unit_witnesses \n\
 				WHERE unit_witnesses.unit IN(units.unit, units.witness_list_unit) AND address IN(?) \n\
@@ -25,6 +25,8 @@ function pickParentUnits(conn, arrWitnesses, onDone){
 		// exclude potential parents that were archived and then received again
 		[arrWitnesses], 
 		function(rows){
+			if (rows.some(function(row){ return (row.version !== constants.version || row.alt !== constants.alt); }))
+				throw Error('wrong network');
 			var count_required_matches = constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS;
 			// we need at least one compatible parent, otherwise go deep
 			if (rows.filter(function(row){ return (row.count_matching_witnesses >= count_required_matches); }).length === 0)
