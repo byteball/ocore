@@ -283,7 +283,7 @@ function decryptPackage(objEncryptedPackage){
 	else{
 		console.log("message encrypted to unknown key");
 		setTimeout(function(){
-			throw Error("message encrypted to unknown key, device "+my_device_address+", len="+objEncryptedPackage.encrypted_message.length);
+			throw Error("message encrypted to unknown key, device "+my_device_address+", len="+objEncryptedPackage.encrypted_message.length+". The error might be caused by restoring from an old backup or using the same keys on another device.");
 		}, 100);
 	//	eventBus.emit('nonfatal_error', "message encrypted to unknown key, device "+my_device_address+", len="+objEncryptedPackage.encrypted_message.length, new Error('unknown key'));
 		return null;
