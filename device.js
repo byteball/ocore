@@ -651,6 +651,30 @@ function addIndirectCorrespondents(arrOtherCosigners, onDone){
 	}, onDone);
 }
 
+function removeCorrespondentDevice(addr, onDone){
+	db.query(
+		"DELETE FROM correspondent_devices WHERE device_address=?", 
+		[addr], 
+		function(){
+			db.query(
+				"DELETE FROM device_messages WHERE device_address=?", 
+				[addr], 
+				function(){
+					onDone();
+				}
+			);
+		}
+	);
+}
+
+function readDeviceAddressesUsedInMultisigWallets(onDone){
+	db.query(
+		"SELECT distinct device_address FROM wallet_signing_paths", 
+		function(rows){
+			onDone(rows);
+		}
+	);
+}
 
 // -------------------------------
 // witnesses
@@ -705,5 +729,7 @@ exports.readCorrespondents = readCorrespondents;
 exports.readCorrespondent = readCorrespondent;
 exports.readCorrespondentsByDeviceAddresses = readCorrespondentsByDeviceAddresses;
 exports.updateCorrespondentProps = updateCorrespondentProps;
+exports.removeCorrespondentDevice = removeCorrespondentDevice;
+exports.readDeviceAddressesUsedInMultisigWallets = readDeviceAddressesUsedInMultisigWallets;
 exports.addIndirectCorrespondents = addIndirectCorrespondents;
 exports.getWitnessesFromHub = getWitnessesFromHub;
