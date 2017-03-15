@@ -687,7 +687,7 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 	for (var path in objAuthor.authentifiers){
 		if (!isNonemptyString(objAuthor.authentifiers[path]))
 			return callback("authentifiers must be nonempty strings");
-		if (objAuthor.authentifiers[path].length > 4096)
+		if (objAuthor.authentifiers[path].length > constants.MAX_AUTHENTIFIER_LENGTH)
 			return callback("authentifier too long");
 	}
 	
