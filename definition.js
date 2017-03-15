@@ -321,12 +321,12 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 					return cb("invalid relation: "+relation);
 				if (!isNonemptyString(feed_name))
 					return cb("no feed_name");
-				if (feed_name.length > 64)
+				if (feed_name.length > constants.MAX_DATA_FEED_NAME_LENGTH)
 					return cb("feed_name too long");
 				if (typeof value === "string"){
 					if (!isNonemptyString(value))
 						return cb("no value");
-					if (value.length > 64)
+					if (value.length > constants.MAX_DATA_FEED_VALUE_LENGTH)
 						return cb("value too long");
 				}
 				else if (typeof value === "number"){
@@ -357,7 +357,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 				complexity += arrAddresses.length-1; // 1 complexity point for each address (1 point was already counted)
 				if (!isNonemptyString(feed_name))
 					return cb("no feed_name");
-				if (feed_name.length > 64)
+				if (feed_name.length > constants.MAX_DATA_FEED_NAME_LENGTH)
 					return cb("feed_name too long");
 			//	if (!isStringOfLength(element_hash, constants.HASH_LENGTH))
 			//		return cb("incorrect length of element hash");
