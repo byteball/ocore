@@ -147,7 +147,14 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			eventBus.emit("text", from_address, body);
 			callbacks.ifOk();
 			break;
-		
+
+		case "remove_paired_device":
+			device.removeCorrespondentDevice(from_address, function(){
+				eventBus.emit("remove_paired_device", from_address, body);
+				callbacks.ifOk();
+			});
+			break;
+
 		case "create_new_wallet":
 			// {wallet: "base64", wallet_definition_template: [...]}
 			walletDefinedByKeys.handleOfferToCreateNewWallet(body, from_address, callbacks);
@@ -1086,6 +1093,18 @@ function sendMultiPayment(opts, handleResult)
 	});
 }
 
+function readDeviceAddressesUsedInSigningPaths(onDone){
+	db.query(
+		"SELECT distinct device_address FROM shared_address_signing_paths UNION SELECT distinct device_address FROM wallet_signing_paths", 
+		function(rows){
+			
+			var arrDeviceAddress = rows.map(e => e.device_address);
+
+			onDone(arrDeviceAddress);
+		}
+	);
+}
+
 
 // todo, almost same as payment
 function signAuthRequest(wallet, objRequest, handleResult){
@@ -1108,4 +1127,4 @@ exports.readBalance = readBalance;
 exports.readTransactionHistory = readTransactionHistory;
 exports.sendPaymentFromWallet = sendPaymentFromWallet;
 exports.sendMultiPayment = sendMultiPayment;
-
+exports.readDeviceAddressesUsedInSigningPaths = readDeviceAddressesUsedInSigningPaths;

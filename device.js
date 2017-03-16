@@ -652,16 +652,21 @@ function addIndirectCorrespondents(arrOtherCosigners, onDone){
 }
 
 function removeCorrespondentDevice(addr, onDone){
-	// todo: other tables to update? I found no foreign key constraint, so maybe that's it
-	// use transaction if multiple tables are involved 
 	db.query(
 		"DELETE FROM correspondent_devices WHERE device_address=?", 
 		[addr], 
 		function(){
-			onDone();
+			db.query(
+				"DELETE FROM device_messages WHERE device_address=?", 
+				[addr], 
+				function(){
+					onDone();
+				}
+			);
 		}
 	);
 }
+
 // -------------------------------
 // witnesses
 
