@@ -549,15 +549,15 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 			JOIN unit_authors USING(definition_chash) \n\
 			JOIN units AS definition_units ON unit_authors.unit=definition_units.unit   -- units where the definition was disclosed \n\
 			WHERE address_definition_changes.address IN(?) AND has_references=1 \n\
-				AND change_units.is_stable=1 AND change_units.main_chain_index<=? AND change_units.sequence='good' \n\
-				AND definition_units.is_stable=1 AND definition_units.main_chain_index<=? AND definition_units.sequence='good' \n\
+				AND change_units.is_stable=1 AND change_units.main_chain_index<=? AND +change_units.sequence='good' \n\
+				AND definition_units.is_stable=1 AND definition_units.main_chain_index<=? AND +definition_units.sequence='good' \n\
 			UNION \n\
 			SELECT 1 \n\
 			FROM definitions \n\
 			"+cross+" JOIN unit_authors USING(definition_chash) \n\
 			JOIN units AS definition_units ON unit_authors.unit=definition_units.unit   -- units where the definition was disclosed \n\
 			WHERE definition_chash IN(?) AND has_references=1 \n\
-				AND definition_units.is_stable=1 AND definition_units.main_chain_index<=? AND definition_units.sequence='good' \n\
+				AND definition_units.is_stable=1 AND definition_units.main_chain_index<=? AND +definition_units.sequence='good' \n\
 			LIMIT 1",
 			[arrWitnesses, objValidationState.last_ball_mci, objValidationState.last_ball_mci, arrWitnesses, objValidationState.last_ball_mci],
 			function(rows){
@@ -617,7 +617,7 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 			// address=definition_chash is true in the first appearence of the address
 			// (not just in first appearence: it can return to its initial definition_chash sometime later)
 			"SELECT COUNT(DISTINCT address) AS count_stable_good_witnesses FROM unit_authors JOIN units USING(unit) \n\
-			WHERE address=definition_chash AND sequence='good' AND is_stable=1 AND main_chain_index<=? AND address IN(?)",
+			WHERE address=definition_chash AND +sequence='good' AND is_stable=1 AND main_chain_index<=? AND address IN(?)",
 			[objValidationState.last_ball_mci, objUnit.witnesses],
 			function(rows){
 				if (rows[0].count_stable_good_witnesses !== constants.COUNT_WITNESSES)
@@ -687,7 +687,7 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 	for (var path in objAuthor.authentifiers){
 		if (!isNonemptyString(objAuthor.authentifiers[path]))
 			return callback("authentifiers must be nonempty strings");
-		if (objAuthor.authentifiers[path].length > 4096)
+		if (objAuthor.authentifiers[path].length > constants.MAX_AUTHENTIFIER_LENGTH)
 			return callback("authentifier too long");
 	}
 	
@@ -788,7 +788,7 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 				return next();
 			// we don't modify the db during validation, schedule the update for the write
 			objValidationState.arrAdditionalQueries.push(
-				{sql: "UPDATE units SET sequence='temp-bad' WHERE unit IN(?) AND sequence='good'", params: [arrUnstableConflictingUnits]});
+				{sql: "UPDATE units SET sequence='temp-bad' WHERE unit IN(?) AND +sequence='good'", params: [arrUnstableConflictingUnits]});
 			next();
 		});
 	}
@@ -1482,7 +1482,8 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 					objUnit, objValidationState, 
 					function acceptDoublespends(cb3){
 						console.log("--- accepting doublespend on unit "+objUnit.unit);
-						var sql = "UPDATE inputs SET is_unique=NULL WHERE "+doubleSpendWhere;
+						var sql = "UPDATE inputs SET is_unique=NULL WHERE "+doubleSpendWhere+
+							" AND (SELECT is_stable FROM units WHERE units.unit=inputs.unit)=0";
 						if (!(objAsset && objAsset.is_private)){
 							objValidationState.arrAdditionalQueries.push({sql: sql, params: doubleSpendVars});
 							objValidationState.arrDoubleSpendInputs.push({message_index: message_index, input_index: input_index});

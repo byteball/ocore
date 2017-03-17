@@ -148,7 +148,7 @@ function sendRequest(ws, command, params, bReroutable, responseHandler){
 	//if (ws.assocPendingRequests[tag]) // ignore duplicate requests while still waiting for response from the same peer
 	//    return console.log("will not send identical "+command+" request");
 	if (ws.assocPendingRequests[tag]){
-		console.log('already sent a '+command+' request, will add one more response handler rather than sending a duplicate request to the wire');
+		console.log('already sent a '+command+' request to '+ws.peer+', will add one more response handler rather than sending a duplicate request to the wire');
 		ws.assocPendingRequests[tag].responseHandlers.push(responseHandler);
 	}
 	else{
@@ -161,7 +161,9 @@ function sendRequest(ws, command, params, bReroutable, responseHandler){
 				return console.log('will not reroute - the request was already handled by another peer');
 			ws.assocPendingRequests[tag].bRerouted = true;
 			findNextPeer(ws, function(next_ws){ // the callback may be called much later if findNextPeer has to wait for connection
-				if (next_ws === ws){
+				if (!ws.assocPendingRequests[tag])
+					return console.log('will not reroute after findNextPeer - the request was already handled by another peer');
+				if (next_ws === ws || assocReroutedConnectionsByTag[tag] && assocReroutedConnectionsByTag[tag].indexOf(next_ws) >= 0){
 					console.log('will not reroute '+command+' to the same peer, will rather wait for a new connection');
 					eventBus.once('connected_to_source', function(){ // try again
 						console.log('got new connection, retrying reroute '+command);
@@ -202,7 +204,9 @@ function handleResponse(ws, tag, response){
 		//throw "no req by tag "+tag;
 		return console.log("no req by tag "+tag);
 	pendingRequest.responseHandlers.forEach(function(responseHandler){
-		responseHandler(ws, pendingRequest.request, response);
+		process.nextTick(function(){
+			responseHandler(ws, pendingRequest.request, response);
+		});
 	});
 	
 	clearTimeout(pendingRequest.reroute_timer);
@@ -536,17 +540,20 @@ function heartbeat(){
 		var elapsed_since_last_received = Date.now() - ws.last_ts;
 		if (elapsed_since_last_received < HEARTBEAT_TIMEOUT)
 			return;
-		var elapsed_since_last_sent_heartbeat = Date.now() - ws.last_sent_heartbeat_ts;
-		if (elapsed_since_last_sent_heartbeat < HEARTBEAT_RESPONSE_TIMEOUT || !ws.last_sent_heartbeat_ts || bJustResumed){
+		if (!ws.last_sent_heartbeat_ts || bJustResumed){
 			ws.last_sent_heartbeat_ts = Date.now();
 			return sendRequest(ws, 'heartbeat', null, false, handleHeartbeatResponse);
 		}
+		var elapsed_since_last_sent_heartbeat = Date.now() - ws.last_sent_heartbeat_ts;
+		if (elapsed_since_last_sent_heartbeat < HEARTBEAT_RESPONSE_TIMEOUT)
+			return;
 		console.log('will disconnect peer '+ws.peer+' who was silent for '+elapsed_since_last_received+'ms');
 		ws.close(1000, "lost connection");
 	});
 }
 
 function handleHeartbeatResponse(ws, request, response){
+	delete ws.last_sent_heartbeat_ts;
 	if (response === 'sleep') // the peer doesn't want to be bothered with heartbeats any more, but still wants to keep the connection open
 		ws.bSleeping = true;
 	// as soon as the peer sends a heartbeat himself, we'll think he's woken up and resume our heartbeats too
@@ -802,7 +809,7 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 				purgeJointAndDependenciesAndNotifyPeers(objJoint, error, function(){
 					delete assocUnitsInWork[unit];
 				});
-				if (ws)
+				if (ws && error !== 'authentifier verification failed' && !error.match(/bad merkle proof at path/))
 					writeEvent('invalid', ws.host);
 				if (objJoint.unsigned)
 					eventBus.emit("validated-"+unit, false);
@@ -1075,6 +1082,8 @@ function addWatchedAddress(address){
 function notifyWatchers(objJoint){
 	var objUnit = objJoint.unit;
 	var arrAddresses = objUnit.authors.map(function(author){ return author.address; });
+	if (!objUnit.messages) // voided unit
+		return;
 	for (var i=0; i<objUnit.messages.length; i++){
 		var message = objUnit.messages[i];
 		if (message.app !== "payment" || !message.payload)
@@ -1184,6 +1193,16 @@ function notifyLocalWatchedAddressesAboutStableJoints(mci){
 		[mci, mci, mci, mci],
 		handleRows
 	);
+}
+
+function addLightWatchedAddress(address){
+	if (!conf.bLight)
+		return;
+	findOutboundPeerOrConnect(exports.light_vendor_url, function(err, ws){
+		if (err)
+			return;
+		sendJustsaying(ws, 'light/new_address_to_watch', address);
+	});
 }
 
 function flushEvents(forceFlushing) {
@@ -1766,8 +1785,12 @@ function handleJustsaying(ws, subject, body){
 				return sendError(ws, 'only requested joint can contain a ball');
 			if (conf.bLight && !ws.bLightVendor)
 				return sendError(ws, "I'm a light client and you are not my vendor");
-			// light clients accept the joint without proof, it'll be saved as unconfirmed (non-stable)
-			return conf.bLight ? handleLightOnlineJoint(ws, objJoint) : handleOnlineJoint(ws, objJoint);
+			db.query("SELECT 1 FROM archived_joints WHERE unit=? AND reason='uncovered'", [objJoint.unit.unit], function(rows){
+				if (rows.length > 0) // ignore it as long is it was unsolicited
+					return sendError(ws, "this unit is already known and archived");
+				// light clients accept the joint without proof, it'll be saved as unconfirmed (non-stable)
+				return conf.bLight ? handleLightOnlineJoint(ws, objJoint) : handleOnlineJoint(ws, objJoint);
+			});
 			
 		case 'free_joints_end':
 		case 'result':
@@ -2223,7 +2246,8 @@ function onWebsocketMessage(message) {
 			return handleResponse(ws, content.tag, content.response);
 			
 		default: 
-			throw Error("unknown type: "+message_type);
+			console.log("unknown type: "+message_type);
+		//	throw Error("unknown type: "+message_type);
 	}
 }
 
@@ -2346,6 +2370,10 @@ function closeAllWsConnections() {
 	});
 }
 
+function isConnected(){
+	return (arrOutboundPeers.length + wss.clients.length);
+}
+
 start();
 
 exports.start = start;
@@ -2373,5 +2401,7 @@ exports.setMyDeviceProps = setMyDeviceProps;
 
 exports.setWatchedAddresses = setWatchedAddresses;
 exports.addWatchedAddress = addWatchedAddress;
+exports.addLightWatchedAddress = addLightWatchedAddress;
 
 exports.closeAllWsConnections = closeAllWsConnections;
+exports.isConnected = isConnected;

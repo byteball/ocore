@@ -564,7 +564,7 @@ function readDefinitionByAddress(conn, address, max_mci, callbacks){
 		max_mci = MAX_INT32;
 	// try to find last definition change, otherwise definition_chash=address
 	conn.query(
-		"SELECT definition_chash FROM address_definition_changes JOIN units USING(unit) \n\
+		"SELECT definition_chash FROM address_definition_changes CROSS JOIN units USING(unit) \n\
 		WHERE address=? AND is_stable=1 AND sequence='good' AND main_chain_index<=? ORDER BY level DESC LIMIT 1", 
 		[address, max_mci], 
 		function(rows){
@@ -583,7 +583,7 @@ function readDefinition(conn, definition_chash, callbacks){
 }
 
 function readFreeJoints(ifFoundFreeBall, onDone){
-	db.query("SELECT unit FROM units WHERE is_free=1", function(rows){
+	db.query("SELECT units.unit FROM units LEFT JOIN archived_joints USING(unit) WHERE is_free=1 AND archived_joints.unit IS NULL", function(rows){
 		async.each(rows, function(row, cb){
 			readJoint(db, row.unit, {
 				ifNotFound: function(){
@@ -730,8 +730,7 @@ function updateMinRetrievableMciAfterStabilizingMci(conn, last_stable_mci, handl
 								throw Error("bad unit not found: "+unit);
 							},
 							ifFound: function(objJoint){
-								generateQueriesToArchiveJoint(conn, objJoint, 'voided', arrQueries);
-								cb();
+								generateQueriesToArchiveJoint(conn, objJoint, 'voided', arrQueries, cb);
 							}
 						});
 					},
@@ -739,6 +738,9 @@ function updateMinRetrievableMciAfterStabilizingMci(conn, last_stable_mci, handl
 						if (arrQueries.length === 0)
 							return handleMinRetrievableMci(min_retrievable_mci);
 						async.series(arrQueries, function(){
+							unit_rows.forEach(function(unit_row){
+								forgetUnit(unit_row.unit);
+							});
 							handleMinRetrievableMci(min_retrievable_mci);
 						});
 					}
@@ -763,172 +765,147 @@ function initializeMinRetrievableMci(){
 	);
 }
 
-function generateQueriesToArchiveJoint(conn, objJoint, reason, arrQueries){
-	(reason === 'uncovered') 
-		? generateQueriesToRemoveJoint(conn, objJoint.unit.unit, arrQueries)
-		: generateQueriesToVoidJoint(conn, objJoint.unit.unit, arrQueries);
-	conn.addQuery(arrQueries, "INSERT "+conn.getIgnore()+" INTO archived_joints (unit, reason, json) VALUES (?,?,?)", 
-		[objJoint.unit.unit, reason, JSON.stringify(objJoint)]);
+function generateQueriesToArchiveJoint(conn, objJoint, reason, arrQueries, cb){
+	var func = (reason === 'uncovered') ? generateQueriesToRemoveJoint : generateQueriesToVoidJoint;
+	func(conn, objJoint.unit.unit, arrQueries, function(){
+		conn.addQuery(arrQueries, "INSERT "+conn.getIgnore()+" INTO archived_joints (unit, reason, json) VALUES (?,?,?)", 
+			[objJoint.unit.unit, reason, JSON.stringify(objJoint)]);
+		cb();
+	});
 }
 
-function generateQueriesToRemoveJoint(conn, unit, arrQueries){
-	generateQueriesToUnspendOutputsSpentInArchivedUnit(conn, unit, arrQueries);
-	conn.addQuery(arrQueries, "DELETE FROM witness_list_hashes WHERE witness_list_unit=?", [unit]);
-	conn.addQuery(arrQueries, "DELETE FROM earned_headers_commission_recipients WHERE unit=?", [unit]);
-	conn.addQuery(arrQueries, "DELETE FROM unit_witnesses WHERE unit=?", [unit]);
-	conn.addQuery(arrQueries, "DELETE FROM authentifiers WHERE unit=?", [unit]);
-	conn.addQuery(arrQueries, "DELETE FROM unit_authors WHERE unit=?", [unit]);
-	conn.addQuery(arrQueries, "DELETE FROM parenthoods WHERE parent_unit=? OR child_unit=?", [unit, unit]);
-	conn.addQuery(arrQueries, "DELETE FROM address_definition_changes WHERE unit=?", [unit]);
-	conn.addQuery(arrQueries, "DELETE FROM inputs WHERE unit=?", [unit]);
-	conn.addQuery(arrQueries, "DELETE FROM outputs WHERE unit=?", [unit]);
-	conn.addQuery(arrQueries, "DELETE FROM spend_proofs WHERE unit=?", [unit]);
-	conn.addQuery(arrQueries, "DELETE FROM messages WHERE unit=?", [unit]);
-	conn.addQuery(arrQueries, "DELETE FROM balls WHERE unit=?", [unit]);
-	conn.addQuery(arrQueries, "DELETE FROM units WHERE unit=?", [unit]);
+function generateQueriesToRemoveJoint(conn, unit, arrQueries, cb){
+	generateQueriesToUnspendOutputsSpentInArchivedUnit(conn, unit, arrQueries, function(){
+		conn.addQuery(arrQueries, "DELETE FROM witness_list_hashes WHERE witness_list_unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM earned_headers_commission_recipients WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM unit_witnesses WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM authentifiers WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM unit_authors WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM parenthoods WHERE parent_unit=? OR child_unit=?", [unit, unit]);
+		conn.addQuery(arrQueries, "DELETE FROM address_definition_changes WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM inputs WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM outputs WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM spend_proofs WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM messages WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM balls WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM units WHERE unit=?", [unit]);
+		cb();
+	});
 }
 
-function generateQueriesToVoidJoint(conn, unit, arrQueries){
-	generateQueriesToUnspendOutputsSpentInArchivedUnit(conn, unit, arrQueries);
-	// we keep witnesses, author addresses, and the unit itself
-	conn.addQuery(arrQueries, "DELETE FROM witness_list_hashes WHERE witness_list_unit=?", [unit]);
-	conn.addQuery(arrQueries, "DELETE FROM earned_headers_commission_recipients WHERE unit=?", [unit]);
-	conn.addQuery(arrQueries, "DELETE FROM authentifiers WHERE unit=?", [unit]);
-	conn.addQuery(arrQueries, "UPDATE unit_authors SET definition_chash=NULL WHERE unit=?", [unit]);
-	conn.addQuery(arrQueries, "DELETE FROM address_definition_changes WHERE unit=?", [unit]);
-	conn.addQuery(arrQueries, "DELETE FROM inputs WHERE unit=?", [unit]);
-	conn.addQuery(arrQueries, "DELETE FROM outputs WHERE unit=?", [unit]);
-	conn.addQuery(arrQueries, "DELETE FROM spend_proofs WHERE unit=?", [unit]);
-	conn.addQuery(arrQueries, "DELETE FROM messages WHERE unit=?", [unit]);
+function generateQueriesToVoidJoint(conn, unit, arrQueries, cb){
+	generateQueriesToUnspendOutputsSpentInArchivedUnit(conn, unit, arrQueries, function(){
+		// we keep witnesses, author addresses, and the unit itself
+		conn.addQuery(arrQueries, "DELETE FROM witness_list_hashes WHERE witness_list_unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM earned_headers_commission_recipients WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM authentifiers WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "UPDATE unit_authors SET definition_chash=NULL WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM address_definition_changes WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM inputs WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM outputs WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM spend_proofs WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM messages WHERE unit=?", [unit]);
+		cb();
+	});
 }
 
-function generateQueriesToUnspendOutputsSpentInArchivedUnit(conn, unit, arrQueries){
-	
-	// divisible transfers
-	conn.addQuery(
-		arrQueries, 
-		"UPDATE outputs SET is_spent=0 WHERE EXISTS ( \n\
-			SELECT * \n\
-			FROM inputs \n\
-			WHERE inputs.unit=? \n\
-				AND inputs.type='transfer' \n\
-				AND inputs.src_unit=outputs.unit \n\
-				AND inputs.src_message_index=outputs.message_index \n\
-				AND inputs.src_output_index=outputs.output_index \n\
-				AND NOT EXISTS ( \n\
-					SELECT 1 FROM inputs AS alt_inputs \n\
-					WHERE inputs.src_unit=alt_inputs.src_unit \n\
-						AND inputs.src_message_index=alt_inputs.src_message_index \n\
-						AND inputs.src_output_index=alt_inputs.src_output_index \n\
-						AND alt_inputs.type='transfer' \n\
-						AND inputs.unit!=alt_inputs.unit \n\
-				) \n\
-		)",
-		/*
-		// mysql only
-		"UPDATE inputs \n\
-		JOIN divisible_outputs \n\
-			ON inputs.src_unit=divisible_outputs.unit \n\
-			AND inputs.src_message_index=divisible_outputs.message_index \n\
-			AND inputs.src_output_index=divisible_outputs.output_index \n\
-		SET is_spent=0 \n\
-		WHERE inputs.unit=? AND inputs.type='transfer' \n\
-			AND ( \n\
+function generateQueriesToUnspendOutputsSpentInArchivedUnit(conn, unit, arrQueries, cb){
+	generateQueriesToUnspendTransferOutputsSpentInArchivedUnit(conn, unit, arrQueries, function(){
+		generateQueriesToUnspendHeadersCommissionOutputsSpentInArchivedUnit(conn, unit, arrQueries, function(){
+			generateQueriesToUnspendWitnessingOutputsSpentInArchivedUnit(conn, unit, arrQueries, cb);
+		});
+	});
+}
+
+function generateQueriesToUnspendTransferOutputsSpentInArchivedUnit(conn, unit, arrQueries, cb){
+	conn.query(
+		"SELECT src_unit, src_message_index, src_output_index \n\
+		FROM inputs \n\
+		WHERE inputs.unit=? \n\
+			AND inputs.type='transfer' \n\
+			AND NOT EXISTS ( \n\
 				SELECT 1 FROM inputs AS alt_inputs \n\
 				WHERE inputs.src_unit=alt_inputs.src_unit \n\
 					AND inputs.src_message_index=alt_inputs.src_message_index \n\
 					AND inputs.src_output_index=alt_inputs.src_output_index \n\
 					AND alt_inputs.type='transfer' \n\
 					AND inputs.unit!=alt_inputs.unit \n\
-				LIMIT 1 \n\
-			) IS NULL", 
-		*/
-		[unit]
+			)",
+		[unit],
+		function(rows){
+			rows.forEach(function(row){
+				conn.addQuery(
+					arrQueries, 
+					"UPDATE outputs SET is_spent=0 WHERE unit=? AND message_index=? AND output_index=?", 
+					[row.src_unit, row.src_message_index, row.src_output_index]
+				);
+			});
+			cb();
+		}
 	);
-	
-	
-	// headers commissions
-	conn.addQuery(
-		arrQueries, 
-		"UPDATE headers_commission_outputs SET is_spent=0 WHERE EXISTS ( \n\
-			SELECT * \n\
-			FROM inputs \n\
-			WHERE inputs.unit=? \n\
-				AND inputs.type='headers_commission' \n\
-				AND inputs.from_main_chain_index <= headers_commission_outputs.main_chain_index \n\
-				AND inputs.to_main_chain_index >= headers_commission_outputs.main_chain_index \n\
-				AND inputs.address = headers_commission_outputs.address \n\
-				AND NOT EXISTS ( \n\
-					SELECT 1 FROM inputs AS alt_inputs \n\
-					WHERE headers_commission_outputs.main_chain_index >= alt_inputs.from_main_chain_index \n\
-						AND headers_commission_outputs.main_chain_index <= alt_inputs.to_main_chain_index \n\
-						AND inputs.address=alt_inputs.address \n\
-						AND alt_inputs.type='headers_commission' \n\
-						AND inputs.unit!=alt_inputs.unit \n\
-				) \n\
-		)",
-		/*
-		// mysql only
-		"UPDATE inputs \n\
-		JOIN headers_commission_outputs \n\
-			ON inputs.from_main_chain_index <= headers_commission_outputs.main_chain_index \n\
-			AND inputs.to_main_chain_index >= headers_commission_outputs.main_chain_index \n\
+}
+
+function generateQueriesToUnspendHeadersCommissionOutputsSpentInArchivedUnit(conn, unit, arrQueries, cb){
+	conn.query(
+		"SELECT headers_commission_outputs.address, headers_commission_outputs.main_chain_index \n\
+		FROM inputs \n\
+		CROSS JOIN headers_commission_outputs \n\
+			ON inputs.from_main_chain_index <= +headers_commission_outputs.main_chain_index \n\
+			AND inputs.to_main_chain_index >= +headers_commission_outputs.main_chain_index \n\
 			AND inputs.address = headers_commission_outputs.address \n\
-		SET is_spent=0 \n\
-		WHERE inputs.unit=? AND inputs.type='headers_commission' \n\
-			AND ( \n\
+		WHERE inputs.unit=? \n\
+			AND inputs.type='headers_commission' \n\
+			AND NOT EXISTS ( \n\
 				SELECT 1 FROM inputs AS alt_inputs \n\
 				WHERE headers_commission_outputs.main_chain_index >= alt_inputs.from_main_chain_index \n\
 					AND headers_commission_outputs.main_chain_index <= alt_inputs.to_main_chain_index \n\
 					AND inputs.address=alt_inputs.address \n\
 					AND alt_inputs.type='headers_commission' \n\
 					AND inputs.unit!=alt_inputs.unit \n\
-				LIMIT 1 \n\
-			) IS NULL", 
-		*/
-		[unit]
+			)",
+		[unit],
+		function(rows){
+			rows.forEach(function(row){
+				conn.addQuery(
+					arrQueries, 
+					"UPDATE headers_commission_outputs SET is_spent=0 WHERE address=? AND main_chain_index=?", 
+					[row.address, row.main_chain_index]
+				);
+			});
+			cb();
+		}
 	);
-	
-	// witnessing
-	conn.addQuery(
-		arrQueries, 
-		"UPDATE witnessing_outputs SET is_spent=0 WHERE EXISTS ( \n\
-			SELECT * \n\
-			FROM inputs \n\
-			WHERE inputs.unit=? \n\
-				AND inputs.type='witnessing' \n\
-				AND inputs.from_main_chain_index <= witnessing_outputs.main_chain_index \n\
-				AND inputs.to_main_chain_index >= witnessing_outputs.main_chain_index \n\
-				AND inputs.address = witnessing_outputs.address \n\
-				AND NOT EXISTS ( \n\
-					SELECT 1 FROM inputs AS alt_inputs \n\
-					WHERE witnessing_outputs.main_chain_index >= alt_inputs.from_main_chain_index \n\
-						AND witnessing_outputs.main_chain_index <= alt_inputs.to_main_chain_index \n\
-						AND inputs.address=alt_inputs.address \n\
-						AND alt_inputs.type='witnessing' \n\
-						AND inputs.unit!=alt_inputs.unit \n\
-				) \n\
-		)",
-		/*
-		// mysql only
-		"UPDATE inputs \n\
-		JOIN witnessing_outputs \n\
-			ON inputs.from_main_chain_index <= witnessing_outputs.main_chain_index \n\
-			AND inputs.to_main_chain_index >= witnessing_outputs.main_chain_index \n\
+}
+
+function generateQueriesToUnspendWitnessingOutputsSpentInArchivedUnit(conn, unit, arrQueries, cb){
+	conn.query(
+		"SELECT witnessing_outputs.address, witnessing_outputs.main_chain_index \n\
+		FROM inputs \n\
+		CROSS JOIN witnessing_outputs \n\
+			ON inputs.from_main_chain_index <= +witnessing_outputs.main_chain_index \n\
+			AND inputs.to_main_chain_index >= +witnessing_outputs.main_chain_index \n\
 			AND inputs.address = witnessing_outputs.address \n\
-		SET is_spent=0 \n\
-		WHERE inputs.unit=? AND inputs.type='witnessing' \n\
-			AND ( \n\
+		WHERE inputs.unit=? \n\
+			AND inputs.type='witnessing' \n\
+			AND NOT EXISTS ( \n\
 				SELECT 1 FROM inputs AS alt_inputs \n\
 				WHERE witnessing_outputs.main_chain_index >= alt_inputs.from_main_chain_index \n\
 					AND witnessing_outputs.main_chain_index <= alt_inputs.to_main_chain_index \n\
 					AND inputs.address=alt_inputs.address \n\
 					AND alt_inputs.type='witnessing' \n\
 					AND inputs.unit!=alt_inputs.unit \n\
-				LIMIT 1 \n\
-			) IS NULL", 
-		*/
-		[unit]
+			)",
+		[unit],
+		function(rows){
+			rows.forEach(function(row){
+				conn.addQuery(
+					arrQueries, 
+					"UPDATE witnessing_outputs SET is_spent=0 WHERE address=? AND main_chain_index=?", 
+					[row.address, row.main_chain_index]
+				);
+			});
+			cb();
+		}
 	);
 }
 
@@ -978,7 +955,7 @@ function readAsset(conn, asset, last_ball_mci, handleAsset){
 
 		// find latest list of attestors
 		conn.query(
-			"SELECT MAX(level) AS max_level FROM asset_attestors JOIN units USING(unit) \n\
+			"SELECT MAX(level) AS max_level FROM asset_attestors CROSS JOIN units USING(unit) \n\
 			WHERE asset=? AND main_chain_index<=? AND is_stable=1 AND sequence='good'", 
 			[asset, last_ball_mci],
 			function(latest_rows){
@@ -988,7 +965,7 @@ function readAsset(conn, asset, last_ball_mci, handleAsset){
 
 				// read the list
 				conn.query(
-					"SELECT attestor_address FROM asset_attestors JOIN units USING(unit) \n\
+					"SELECT attestor_address FROM asset_attestors CROSS JOIN units USING(unit) \n\
 					WHERE asset=? AND level=? AND main_chain_index<=? AND is_stable=1 AND sequence='good'",
 					[asset, max_level, last_ball_mci],
 					function(att_rows){
@@ -1006,7 +983,7 @@ function readAsset(conn, asset, last_ball_mci, handleAsset){
 // filter only those authors that are attested (doesn't work for light clients)
 function filterAttestedAddresses(conn, objAsset, last_ball_mci, arrAuthorAddresses, handleAttestedAddresses){
 	conn.query(
-		"SELECT DISTINCT address FROM attestations JOIN units USING(unit) \n\
+		"SELECT DISTINCT address FROM attestations CROSS JOIN units USING(unit) \n\
 		WHERE attestor_address IN(?) AND address IN(?) AND main_chain_index<=? AND is_stable=1 AND sequence='good'",
 		[objAsset.arrAttestorAddresses, arrAuthorAddresses, last_ball_mci],
 		function(addr_rows){
@@ -1033,7 +1010,7 @@ function loadAssetWithListOfAttestedAuthors(conn, asset, last_ball_mci, arrAutho
 function findWitnessListUnit(conn, arrWitnesses, last_ball_mci, handleWitnessListUnit){
 	conn.query(
 		"SELECT witness_list_hashes.witness_list_unit \n\
-		FROM witness_list_hashes JOIN units ON witness_list_hashes.witness_list_unit=unit \n\
+		FROM witness_list_hashes CROSS JOIN units ON witness_list_hashes.witness_list_unit=unit \n\
 		WHERE witness_list_hash=? AND sequence='good' AND is_stable=1 AND main_chain_index<=?", 
 		[objectHash.getBase64Hash(arrWitnesses), last_ball_mci], 
 		function(rows){
@@ -1135,6 +1112,13 @@ function setUnitIsKnown(unit){
 	return assocKnownUnits[unit] = true;
 }
 
+function forgetUnit(unit){
+	delete assocKnownUnits[unit];
+	delete assocCachedUnits[unit];
+	delete assocCachedUnitAuthors[unit];
+	delete assocCachedUnitWitnesses[unit];
+}
+
 function shrinkCache(){
 	if (Object.keys(assocCachedAssetInfos).length > MAX_ITEMS_IN_CACHE)
 		assocCachedAssetInfos = {};
@@ -1210,4 +1194,5 @@ exports.readUnitAuthors = readUnitAuthors;
 
 exports.isKnownUnit = isKnownUnit;
 exports.setUnitIsKnown = setUnitIsKnown;
+exports.forgetUnit = forgetUnit;
 

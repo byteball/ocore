@@ -16,16 +16,16 @@ function readNextSpendableMcIndex(conn, type, address, handleNextSpendableMcInde
 		ORDER BY to_main_chain_index DESC LIMIT 1", [type, address],
 		function(rows){
 			var mci = (rows.length > 0) ? (rows[0].to_main_chain_index+1) : 0;
-			readNextUnspentMcIndex(conn, type, address, function(next_unspent_mci){
-				if (next_unspent_mci !== mci)
-					throw Error("next unspent mci !== next spendable mci: "+next_unspent_mci+" !== "+mci+", address "+address);
+		//	readNextUnspentMcIndex(conn, type, address, function(next_unspent_mci){
+		//		if (next_unspent_mci !== mci)
+		//			throw Error("next unspent mci !== next spendable mci: "+next_unspent_mci+" !== "+mci+", address "+address);
 				handleNextSpendableMcIndex(mci);
-			});
+		//	});
 		}
 	);
 }
 
-
+/*
 function readNextUnspentMcIndex(conn, type, address, handleNextUnspentMcIndex){
 	var table = type + '_outputs';
 	conn.query(
@@ -36,7 +36,7 @@ function readNextUnspentMcIndex(conn, type, address, handleNextUnspentMcIndex){
 		}
 	);
 }
-
+*/
 
 function readMaxSpendableMcIndex(conn, type, handleMaxSpendableMcIndex){
 	var table = type + '_outputs';

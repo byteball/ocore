@@ -199,7 +199,7 @@ function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 	// the purged units can arrive again, no problem
 	db.query( // purge the bad ball if we've already received at least 7 witnesses after receiving the bad ball
 		"SELECT unit FROM units \n\
-		WHERE "+cond+" AND sequence!='good' AND content_hash IS NULL \n\
+		WHERE "+cond+" AND sequence IN('final-bad','temp-bad') AND content_hash IS NULL \n\
 			AND ( \n\
 				SELECT COUNT(DISTINCT address) FROM units AS wunits CROSS JOIN unit_authors USING(unit) CROSS JOIN my_witnesses USING(address) \n\
 				WHERE wunits."+order_column+" > units."+order_column+" \n\
@@ -221,14 +221,16 @@ function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 							db.takeConnectionFromPool(function(conn){
 								var arrQueries = [];
 								conn.addQuery(arrQueries, "BEGIN");
-								storage.generateQueriesToArchiveJoint(conn, objJoint, 'uncovered', arrQueries);
-								conn.addQuery(arrQueries, "COMMIT");
-								mutex.lock(["write"], function(unlock){
-									async.series(arrQueries, function(){
-										unlock();
-										conn.release();
-										console.log("------- done archiving "+row.unit);
-										cb();
+								storage.generateQueriesToArchiveJoint(conn, objJoint, 'uncovered', arrQueries, function(){
+									conn.addQuery(arrQueries, "COMMIT");
+									mutex.lock(["write"], function(unlock){
+										async.series(arrQueries, function(){
+											unlock();
+											conn.release();
+											console.log("------- done archiving "+row.unit);
+											storage.forgetUnit(row.unit);
+											cb();
+										});
 									});
 								});
 							});
@@ -248,7 +250,9 @@ function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 // handleJoint is called for every joint younger than mci
 function readJointsSinceMci(mci, handleJoint, onDone){
 	db.query(
-		"SELECT unit FROM units WHERE is_stable=0 AND main_chain_index>=? OR main_chain_index IS NULL OR is_free=1 ORDER BY +level", 
+		"SELECT units.unit FROM units LEFT JOIN archived_joints USING(unit) \n\
+		WHERE (is_stable=0 AND main_chain_index>=? OR main_chain_index IS NULL OR is_free=1) AND archived_joints.unit IS NULL \n\
+		ORDER BY +level", 
 		[mci], 
 		function(rows){
 			async.eachSeries(

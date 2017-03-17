@@ -98,7 +98,7 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 		conn.query(
 			"SELECT unit, message_index, output_index, amount, blinding, address \n\
 			FROM outputs \n\
-			JOIN units USING(unit) \n\
+			CROSS JOIN units USING(unit) \n\
 			WHERE address IN(?) AND asset"+(asset ? "="+conn.escape(asset) : " IS NULL")+" AND is_spent=0 AND amount "+more+" ? \n\
 				AND is_stable=1 AND sequence='good' AND main_chain_index<=?  \n\
 			ORDER BY amount LIMIT 1", 
@@ -121,7 +121,7 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 		conn.query(
 			"SELECT unit, message_index, output_index, amount, address, blinding \n\
 			FROM outputs \n\
-			JOIN units USING(unit) \n\
+			CROSS JOIN units USING(unit) \n\
 			WHERE address IN(?) AND asset"+(asset ? "="+conn.escape(asset) : " IS NULL")+" AND is_spent=0 \n\
 				AND is_stable=1 AND sequence='good' AND main_chain_index<=?  \n\
 			ORDER BY amount DESC",
@@ -518,13 +518,13 @@ function composeJoint(params){
 			function checkForUnstablePredecessors(){
 				conn.query(
 					// is_stable=0 condition is redundant given that last_ball_mci is stable
-					"SELECT 1 FROM units JOIN unit_authors USING(unit) \n\
+					"SELECT 1 FROM units CROSS JOIN unit_authors USING(unit) \n\
 					WHERE  (main_chain_index>? OR main_chain_index IS NULL) AND address IN(?) AND definition_chash IS NOT NULL \n\
 					UNION \n\
 					SELECT 1 FROM units JOIN address_definition_changes USING(unit) \n\
 					WHERE (main_chain_index>? OR main_chain_index IS NULL) AND address IN(?) \n\
 					UNION \n\
-					SELECT 1 FROM units JOIN unit_authors USING(unit) \n\
+					SELECT 1 FROM units CROSS JOIN unit_authors USING(unit) \n\
 					WHERE (main_chain_index>? OR main_chain_index IS NULL) AND address IN(?) AND sequence!='good'", 
 					[last_ball_mci, arrFromAddresses, last_ball_mci, arrFromAddresses, last_ball_mci, arrFromAddresses],
 					function(rows){
@@ -570,10 +570,11 @@ function composeJoint(params){
 					address: from_address,
 					authentifiers: {}
 				};
-				signer.readSigningPaths(conn, from_address, function(arrSigningPaths){
+				signer.readSigningPaths(conn, from_address, function(assocLengthsBySigningPaths){
+					var arrSigningPaths = Object.keys(assocLengthsBySigningPaths);
 					assocSigningPaths[from_address] = arrSigningPaths;
 					for (var j=0; j<arrSigningPaths.length; j++)
-						objAuthor.authentifiers[arrSigningPaths[j]] = repeatString("-", signer.getSignatureLength(from_address, arrSigningPaths[j]));
+						objAuthor.authentifiers[arrSigningPaths[j]] = repeatString("-", assocLengthsBySigningPaths[arrSigningPaths[j]]);
 					objUnit.authors.push(objAuthor);
 					conn.query("SELECT 1 FROM addresses WHERE address=?", [from_address], function(rows){
 						if (rows.length === 0) // first message from this address
@@ -581,7 +582,7 @@ function composeJoint(params){
 						// try to find last stable change of definition, then check if the definition was already disclosed
 						conn.query(
 							"SELECT definition \n\
-							FROM address_definition_changes JOIN units USING(unit) LEFT JOIN definitions USING(definition_chash) \n\
+							FROM address_definition_changes CROSS JOIN units USING(unit) LEFT JOIN definitions USING(definition_chash) \n\
 							WHERE address=? AND is_stable=1 AND sequence='good' AND main_chain_index<=? \n\
 							ORDER BY level DESC LIMIT 1", 
 							[from_address, last_ball_mci],
@@ -746,35 +747,41 @@ function composeJoint(params){
 	});
 }
 
-function readSortedFundedAddresses(asset, arrAvailableAddresses, handleFundedAddresses){
+var TYPICAL_FEE = 1000;
+
+function readSortedFundedAddresses(asset, arrAvailableAddresses, estimated_amount, handleFundedAddresses){
 	if (arrAvailableAddresses.length === 0)
 		return handleFundedAddresses([]);
-	// best funded addresses come first
+	if (estimated_amount && typeof estimated_amount !== 'number')
+		throw Error('invalid estimated amount: '+estimated_amount);
+	// addresses closest to estimated amount come first
+	var order_by = estimated_amount ? "(total>"+estimated_amount+") DESC, ABS(total-"+estimated_amount+") ASC" : "total DESC";
 	db.query(
 		"SELECT address, SUM(amount) AS total \n\
 		FROM outputs \n\
-		JOIN units USING(unit) \n\
+		CROSS JOIN units USING(unit) \n\
 		WHERE address IN(?) AND is_stable=1 AND sequence='good' AND is_spent=0 AND asset"+(asset ? "=?" : " IS NULL")+" \n\
 			AND NOT EXISTS ( \n\
 				SELECT * FROM unit_authors JOIN units USING(unit) \n\
 				WHERE is_stable=0 AND unit_authors.address=outputs.address AND definition_chash IS NOT NULL \n\
 			) \n\
-		GROUP BY address ORDER BY total DESC",
+		GROUP BY address ORDER BY "+order_by,
 		asset ? [arrAvailableAddresses, asset] : [arrAvailableAddresses],
 		function(rows){
 			var arrFundedAddresses = rows.map(function(row){ return row.address; });
-			if (arrFundedAddresses.length === 0)
+			handleFundedAddresses(arrFundedAddresses);
+		/*	if (arrFundedAddresses.length === 0)
 				return handleFundedAddresses([]);
 			if (!asset || arrFundedAddresses.length === arrAvailableAddresses.length) // base asset or all available addresses already used
 				return handleFundedAddresses(arrFundedAddresses);
 			
 			// add other addresses to pay for commissions (in case arrFundedAddresses don't have enough bytes to pay commissions)
 			var arrOtherAddresses = _.difference(arrAvailableAddresses, arrFundedAddresses);
-			readSortedFundedAddresses(null, arrOtherAddresses, function(arrFundedOtherAddresses){
+			readSortedFundedAddresses(null, arrOtherAddresses, TYPICAL_FEE, function(arrFundedOtherAddresses){
 				if (arrFundedOtherAddresses.length === 0)
 					return handleFundedAddresses(arrFundedAddresses);
 				handleFundedAddresses(arrFundedAddresses.concat(arrFundedOtherAddresses));
-			});
+			});*/
 		}
 	);
 }
@@ -782,7 +789,8 @@ function readSortedFundedAddresses(asset, arrAvailableAddresses, handleFundedAdd
 // tries to use as few of the params.available_paying_addresses as possible.
 // note: it doesn't select addresses that have _only_ witnessing or headers commissions outputs
 function composeMinimalJoint(params){
-	readSortedFundedAddresses(null, params.available_paying_addresses, function(arrFundedPayingAddresses){
+	var estimated_amount = params.retrieveMessages ? 0 : params.outputs.reduce(function(acc, output){ return acc+output.amount; }, 0) + TYPICAL_FEE;
+	readSortedFundedAddresses(null, params.available_paying_addresses, estimated_amount, function(arrFundedPayingAddresses){
 		if (arrFundedPayingAddresses.length === 0)
 			return params.callbacks.ifNotEnoughFunds("all paying addresses are unfunded");
 		var minimal_params = _.clone(params);
@@ -808,7 +816,9 @@ function getSavingCallbacks(callbacks){
 			var unit = objUnit.unit;
 			validation.validate(objJoint, {
 				ifUnitError: function(err){
-					throw Error("unexpected validation error: "+err);
+					composer_unlock();
+					callbacks.ifError("Validation error: "+err);
+				//	throw Error("unexpected validation error: "+err);
 				},
 				ifJointError: function(err){
 					throw Error("unexpected validation joint error: "+err);
@@ -824,6 +834,7 @@ function getSavingCallbacks(callbacks){
 				},
 				ifOk: function(objValidationState, validation_unlock){
 					console.log("base asset OK "+objValidationState.sequence);
+					throw Error("validation ok");
 					postJointToLightVendorIfNecessaryAndSave(
 						objJoint, 
 						function onLightError(err){ // light only
