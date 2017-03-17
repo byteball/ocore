@@ -426,8 +426,14 @@ function validateParents(conn, objJoint, objValidationState, callback){
 		function(err){
 			if (err)
 				return callback(err);
-			if (arrMissingParentUnits.length > 0)
-				return callback({error_code: "unresolved_dependency", arrMissingUnits: arrMissingParentUnits});
+			if (arrMissingParentUnits.length > 0){
+				conn.query("SELECT 1 FROM known_bad_joints WHERE unit IN(?)", [arrMissingParentUnits], function(rows){
+					(rows.length > 0)
+						? callback("some of the unit's parents are known bad")
+						: callback({error_code: "unresolved_dependency", arrMissingUnits: arrMissingParentUnits});
+				});
+				return;
+			}
 			// this is redundant check, already checked in validateHashTree()
 			if (objJoint.ball){
 				var arrParentBalls = arrPrevParentUnitProps.map(function(objParentUnitProps){ return objParentUnitProps.ball; }).sort();

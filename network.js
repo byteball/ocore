@@ -670,7 +670,10 @@ function requestNewMissingJoints(ws, arrUnits){
 					cb();
 				},
 				ifKnown: function(){console.log("known"); cb();}, // it has just been handled
-				ifKnownUnverified: function(){console.log("known unverified"); cb();} // I was already waiting for it
+				ifKnownUnverified: function(){console.log("known unverified"); cb();}, // I was already waiting for it
+				ifKnownBad: function(){
+					throw Error("known bad "+unit);
+				}
 			});
 		},
 		function(){
@@ -1507,7 +1510,10 @@ function handleOnlinePrivatePayment(ws, arrPrivateElements, bViaHub, callbacks){
 			// It would be better to request missing joints from somebody else
 			requestNewMissingJoints(ws, [unit]);
 		},
-		ifKnownUnverified: savePrivatePayment
+		ifKnownUnverified: savePrivatePayment,
+		ifKnownBad: function(){
+			callbacks.ifValidationError(unit, "known bad");
+		}
 	});
 }
 	
