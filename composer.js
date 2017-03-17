@@ -570,10 +570,11 @@ function composeJoint(params){
 					address: from_address,
 					authentifiers: {}
 				};
-				signer.readSigningPaths(conn, from_address, function(arrSigningPaths){
+				signer.readSigningPaths(conn, from_address, function(assocLengthsBySigningPaths){
+					var arrSigningPaths = Object.keys(assocLengthsBySigningPaths);
 					assocSigningPaths[from_address] = arrSigningPaths;
 					for (var j=0; j<arrSigningPaths.length; j++)
-						objAuthor.authentifiers[arrSigningPaths[j]] = repeatString("-", signer.getSignatureLength(from_address, arrSigningPaths[j]));
+						objAuthor.authentifiers[arrSigningPaths[j]] = repeatString("-", assocLengthsBySigningPaths[arrSigningPaths[j]]);
 					objUnit.authors.push(objAuthor);
 					conn.query("SELECT 1 FROM addresses WHERE address=?", [from_address], function(rows){
 						if (rows.length === 0) // first message from this address
@@ -833,6 +834,7 @@ function getSavingCallbacks(callbacks){
 				},
 				ifOk: function(objValidationState, validation_unlock){
 					console.log("base asset OK "+objValidationState.sequence);
+					throw Error("validation ok");
 					postJointToLightVendorIfNecessaryAndSave(
 						objJoint, 
 						function onLightError(err){ // light only

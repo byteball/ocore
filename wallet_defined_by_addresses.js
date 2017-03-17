@@ -227,6 +227,7 @@ function determineIfIncludesMe(assocSignersByPath, handleResult){
 	for (var signing_path in assocSignersByPath){
 		var signerInfo = assocSignersByPath[signing_path];
 	//	if (signerInfo.device_address === device.getMyDeviceAddress())
+		if (signerInfo.address)
 			assocMemberAddresses[signerInfo.address] = true;
 	}
 	var arrMemberAddresses = Object.keys(assocMemberAddresses);
@@ -246,7 +247,7 @@ function forwardNewSharedAddressToCosignersOfMyMemberAddresses(address, arrDefin
 	var assocMyMemberAddresses = {};
 	for (var signing_path in assocSignersByPath){
 		var signerInfo = assocSignersByPath[signing_path];
-		if (signerInfo.device_address === device.getMyDeviceAddress())
+		if (signerInfo.device_address === device.getMyDeviceAddress() && signerInfo.address)
 			assocMyMemberAddresses[signerInfo.address] = true;
 	}
 	var arrMyMemberAddresses = Object.keys(assocMyMemberAddresses);
@@ -271,6 +272,11 @@ function handleNewSharedAddress(body, callbacks){
 		return callbacks.ifError("invalid signers");
 	if (body.address !== objectHash.getChash160(body.definition))
 		return callbacks.ifError("definition doesn't match its c-hash");
+	for (var signing_path in body.signers){
+		var signerInfo = body.signers[signing_path];
+		if (signerInfo.address && !ValidationUtils.isValidAddress(signerInfo.address))
+			return callbacks.ifError("invalid member address: "+signerInfo.address);
+	}
 	determineIfIncludesMe(body.signers, function(err){
 		if (err)
 			return callbacks.ifError(err);
@@ -452,6 +458,16 @@ function readSharedAddressCosigners(shared_address, handleCosigners){
 	);
 }
 
+function determineIfHasMerkle(shared_address, handleResult){
+	db.query(
+		"SELECT 1 FROM shared_address_signing_paths WHERE shared_address=? AND device_address=? AND address=''",
+		[shared_address, device.getMyDeviceAddress()],
+		function(rows){
+			handleResult(rows.length > 0);
+		}
+	);
+}
+
 
 
 
@@ -463,5 +479,6 @@ exports.handleNewSharedAddress = handleNewSharedAddress;
 exports.forwardPrivateChainsToOtherMembersOfAddresses = forwardPrivateChainsToOtherMembersOfAddresses;
 exports.readSharedAddressCosigners = readSharedAddressCosigners;
 exports.readSharedAddressDefinition = readSharedAddressDefinition;
+exports.determineIfHasMerkle = determineIfHasMerkle;
 exports.createNewSharedAddress = createNewSharedAddress;
 

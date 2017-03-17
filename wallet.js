@@ -321,6 +321,9 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					device.sendMessageToDevice(device_address, subject, body);
 					callbacks.ifOk();
 				},
+				ifMerkle: function(bLocal){
+					callbacks.ifError("there is merkle proof at signing path "+body.signing_path);
+				},
 				ifUnknownAddress: function(){
 					callbacks.ifError("not aware of address "+body.address+" but will see if I learn about it later");
 					eventBus.once("new_address-"+body.address, function(){
@@ -454,6 +457,9 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				}
 			});
 			break;
+			
+		default:
+			callbacks.ifError("unknnown subject: "+subject);
 	}
 }
 
@@ -597,6 +603,8 @@ function findAddress(address, signing_path, callbacks, fallback_remote_device_ad
 					var objSharedAddress = sa_rows[0];
 					var relative_signing_path = 'r' + signing_path.substr(objSharedAddress.signing_path.length);
 					var bLocal = (objSharedAddress.device_address === device.getMyDeviceAddress()); // local keys
+					if (objSharedAddress.address === '')
+						return callbacks.ifMerkle(bLocal);
 					findAddress(objSharedAddress.address, relative_signing_path, callbacks, bLocal ? null : objSharedAddress.device_address);
 				}
 			);
@@ -851,10 +859,10 @@ function readTransactionHistory(opts, handleHistory){
 	);
 }
 
-
+// returns assoc array signing_path => (key|merkle)
 function readFullSigningPaths(conn, address, arrSigningDeviceAddresses, handleSigningPaths){
 	
-	var arrSigningPaths = [];
+	var assocSigningPaths = {};
 	
 	function goDeeper(member_address, path_prefix, onDone){
 		// first, look for wallet addresses
@@ -864,11 +872,13 @@ function readFullSigningPaths(conn, address, arrSigningDeviceAddresses, handleSi
 			sql += " AND device_address IN(?)";
 			arrParams.push(arrSigningDeviceAddresses);
 		}
-		// next, look for shared addresses, and search from there recursively
 		conn.query(sql, arrParams, function(rows){
 			rows.forEach(function(row){
-				arrSigningPaths.push(path_prefix + row.signing_path.substr(1))
+				assocSigningPaths[path_prefix + row.signing_path.substr(1)] = 'key';
 			});
+			if (rows.length > 0)
+				return onDone();
+			// next, look for shared addresses, and search from there recursively
 			sql = "SELECT signing_path, address FROM shared_address_signing_paths WHERE shared_address=?";
 			arrParams = [member_address];
 			if (arrSigningDeviceAddresses && arrSigningDeviceAddresses.length > 0){
@@ -879,6 +889,10 @@ function readFullSigningPaths(conn, address, arrSigningDeviceAddresses, handleSi
 				async.eachSeries(
 					rows,
 					function(row, cb){
+						if (row.address === ''){ // merkle
+							assocSigningPaths[path_prefix + row.signing_path.substr(1)] = 'merkle';
+							return cb();
+						}
 						goDeeper(row.address, path_prefix + row.signing_path.substr(1), cb);
 					},
 					onDone
@@ -888,7 +902,7 @@ function readFullSigningPaths(conn, address, arrSigningDeviceAddresses, handleSi
 	}
 	
 	goDeeper(address, 'r', function(){
-		handleSigningPaths(arrSigningPaths); // order of signing paths is not significant
+		handleSigningPaths(assocSigningPaths); // order of signing paths is not significant
 	});
 }
 
@@ -1025,6 +1039,7 @@ function sendMultiPayment(opts, handleResult)
 	var arrSigningDeviceAddresses = opts.arrSigningDeviceAddresses;
 	var recipient_device_address = opts.recipient_device_address;
 	var signWithLocalPrivateKey = opts.signWithLocalPrivateKey;
+	var merkle_proof = opts.merkle_proof;
 	
 	var base_outputs = opts.base_outputs;
 	var asset_outputs = opts.asset_outputs;
@@ -1055,11 +1070,22 @@ function sendMultiPayment(opts, handleResult)
 
 			var bRequestedConfirmation = false;
 			var signer = {
-				getSignatureLength: function(address, path){
-					return constants.SIG_LENGTH;
-				},
-				readSigningPaths: function(conn, address, handleSigningPaths){
-					readFullSigningPaths(conn, address, arrSigningDeviceAddresses, handleSigningPaths);
+				readSigningPaths: function(conn, address, handleLengthsBySigningPaths){ // returns assoc array signing_path => length
+					readFullSigningPaths(conn, address, arrSigningDeviceAddresses, function(assocTypesBySigningPaths){
+						var assocLengthsBySigningPaths = {};
+						for (var signing_path in assocTypesBySigningPaths){
+							var type = assocTypesBySigningPaths[signing_path];
+							if (type === 'key')
+								assocLengthsBySigningPaths[signing_path] = constants.SIG_LENGTH;
+							else if (type === 'merkle'){
+								if (merkle_proof)
+									assocLengthsBySigningPaths[signing_path] = merkle_proof.length;
+							}
+							else
+								throw Error("unknown type "+type+" at "+signing_path);
+						}
+						handleLengthsBySigningPaths(assocLengthsBySigningPaths);
+					});
 				},
 				readDefinition: function(conn, address, handleDefinition){
 					conn.query(
@@ -1098,6 +1124,13 @@ function sendMultiPayment(opts, handleResult)
 								eventBus.emit("confirm_on_other_devices");
 								bRequestedConfirmation = true;
 							}
+						},
+						ifMerkle: function(bLocal){
+							if (!bLocal)
+								throw Error("merkle proof at path "+signing_path+" should be provided by another device");
+							if (!merkle_proof)
+								throw Error("merkle proof at path "+signing_path+" not provided");
+							handleSignature(null, merkle_proof);
 						}
 					});
 				}
