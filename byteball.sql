@@ -285,6 +285,7 @@ CREATE TABLE inputs (
 	UNIQUE KEY byIndexAddress(type, from_main_chain_index, address, is_unique), -- UNIQUE guarantees there'll be no double spend for type=hc/witnessing
 	UNIQUE KEY byAssetDenominationSerialAddress(asset, denomination, serial_number, address, is_unique), -- UNIQUE guarantees there'll be no double issue
 	KEY byAssetType(asset, type),
+	KEY byAddressTypeToMci(address, type, to_main_chain_index),
 	FOREIGN KEY byUnit(unit) REFERENCES units(unit),
 	CONSTRAINT inputsBySrcUnit FOREIGN KEY bySrcUnit(src_unit) REFERENCES units(unit),
 	CONSTRAINT inputsByAddress FOREIGN KEY byAddress(address) REFERENCES addresses(address),
@@ -332,6 +333,7 @@ CREATE TABLE headers_commission_outputs (
 	is_spent TINYINT NOT NULL DEFAULT 0,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (main_chain_index, address),
+	UNIQUE (address, main_chain_index),
 	KEY byAddressSpent(address, is_spent)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
@@ -352,6 +354,7 @@ CREATE TABLE witnessing_outputs (
 	is_spent TINYINT NOT NULL DEFAULT 0,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (main_chain_index, address),
+	UNIQUE (address, main_chain_index),
 	KEY byWitnessAddressSpent(address, is_spent),
 	FOREIGN KEY byWitnessAddress(address) REFERENCES addresses(address)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;

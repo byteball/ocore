@@ -654,4 +654,4 @@ CREATE INDEX "bySequence" ON "units" ("sequence");
 
 DROP TABLE IF EXISTS paid_witness_events;
 
-PRAGMA user_version=1;
+PRAGMA user_version=2;
