@@ -715,6 +715,15 @@ function readBalance(wallet, handleBalance){
 	);
 }
 
+function readBalancesOnAddresses(walletId, handleBalancesOnAddresses) {
+	db.query("SELECT outputs.address, COALESCE(outputs.asset, 'base') as asset, sum(outputs.amount) as amount \n\
+	FROM outputs, my_addresses \n\
+	WHERE outputs.address = my_addresses.address AND my_addresses.wallet = ? AND outputs.is_spent=0 \n\
+	GROUP BY outputs.address, outputs.asset \n\
+	ORDER BY my_addresses.address_index ASC", [walletId], function(rows) {
+		handleBalancesOnAddresses(rows);
+	});
+}
 
 function readTransactionHistory(opts, handleHistory){
 	var asset = opts.asset;
@@ -1242,6 +1251,7 @@ walletGeneral.readMyAddresses(function(arrAddresses){
 exports.sendSignature = sendSignature;
 exports.readSharedBalance = readSharedBalance;
 exports.readBalance = readBalance;
+exports.readBalancesOnAddresses = readBalancesOnAddresses;
 exports.readTransactionHistory = readTransactionHistory;
 exports.sendPaymentFromWallet = sendPaymentFromWallet;
 exports.sendMultiPayment = sendMultiPayment;
