@@ -82,6 +82,7 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 					connection.addQuery(arrQueries, "CREATE UNIQUE INDEX IF NOT EXISTS hcobyAddressMci ON headers_commission_outputs(address, main_chain_index)");
 					connection.addQuery(arrQueries, "CREATE UNIQUE INDEX IF NOT EXISTS byWitnessAddressMci ON witnessing_outputs(address, main_chain_index)");
 					connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS inputsIndexByAddressTypeToMci ON inputs(address, type, to_main_chain_index)");
+					connection.addQuery(arrQueries, "DELETE FROM known_bad_joints");
 				}
 				connection.addQuery(arrQueries, "PRAGMA user_version="+VERSION);
 				async.series(arrQueries, onDone);

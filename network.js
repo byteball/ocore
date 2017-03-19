@@ -329,7 +329,8 @@ function checkIfHaveEnoughOutboundPeersAndAdd(){
 }
 
 function connectToPeer(url, onOpen) {
-	addPeer(url);
+	if (conf.bWantNewPeers)
+		addPeer(url);
 	var options = {};
 	if (socksv5 && conf.socksHost && conf.socksPort)
 		options.agent = new socksv5.HttpsAgent({
@@ -379,6 +380,7 @@ function connectToPeer(url, onOpen) {
 		if (onOpen)
 			onOpen(null, ws);
 		eventBus.emit('connected', ws);
+		eventBus.emit('open-'+url);
 	});
 	ws.on('close', function onWsClose() {
 		var i = arrOutboundPeers.indexOf(ws);
@@ -390,9 +392,12 @@ function connectToPeer(url, onOpen) {
 	ws.on('error', function onWsError(e){
 		delete assocConnectingOutboundWebsockets[url];
 		console.log("error from server "+url+": "+e);
+		var err = JSON.stringify(e);
 		// !ws.bOutbound means not connected yet. This is to distinguish connection errors from later errors that occur on open connection
 		if (!ws.bOutbound && onOpen)
-			onOpen(JSON.stringify(e));
+			onOpen(err);
+		if (!ws.bOutbound)
+			eventBus.emit('open-'+url, err);
 	});
 	ws.on('message', onWebsocketMessage);
 	console.log('connectToPeer done');
@@ -489,7 +494,10 @@ function findOutboundPeerOrConnect(url, onOpen){
 	if (ws){ // add second event handler
 		console.log("already connecting to "+url);
 		breadcrumbs.add('already connecting to '+url);
-		return ws.once('open', function secondOnOpen(){
+		return eventBus.once('open-'+url, function secondOnOpen(err){
+			console.log('second open '+url+", err="+err);
+			if (err)
+				return onOpen(err);
 			if (ws.readyState === ws.OPEN)
 				onOpen(null, ws);
 			else{
@@ -670,7 +678,10 @@ function requestNewMissingJoints(ws, arrUnits){
 					cb();
 				},
 				ifKnown: function(){console.log("known"); cb();}, // it has just been handled
-				ifKnownUnverified: function(){console.log("known unverified"); cb();} // I was already waiting for it
+				ifKnownUnverified: function(){console.log("known unverified"); cb();}, // I was already waiting for it
+				ifKnownBad: function(){
+					throw Error("known bad "+unit);
+				}
 			});
 		},
 		function(){
@@ -1507,7 +1518,10 @@ function handleOnlinePrivatePayment(ws, arrPrivateElements, bViaHub, callbacks){
 			// It would be better to request missing joints from somebody else
 			requestNewMissingJoints(ws, [unit]);
 		},
-		ifKnownUnverified: savePrivatePayment
+		ifKnownUnverified: savePrivatePayment,
+		ifKnownBad: function(){
+			callbacks.ifValidationError(unit, "known bad");
+		}
 	});
 }
 	
