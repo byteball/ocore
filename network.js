@@ -329,7 +329,8 @@ function checkIfHaveEnoughOutboundPeersAndAdd(){
 }
 
 function connectToPeer(url, onOpen) {
-	addPeer(url);
+	if (conf.bWantNewPeers)
+		addPeer(url);
 	var options = {};
 	if (socksv5 && conf.socksHost && conf.socksPort)
 		options.agent = new socksv5.HttpsAgent({
