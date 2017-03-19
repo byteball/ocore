@@ -380,7 +380,7 @@ function connectToPeer(url, onOpen) {
 		if (onOpen)
 			onOpen(null, ws);
 		eventBus.emit('connected', ws);
-		ws.emit('second_open');
+		eventBus.emit('open-'+url);
 	});
 	ws.on('close', function onWsClose() {
 		var i = arrOutboundPeers.indexOf(ws);
@@ -397,7 +397,7 @@ function connectToPeer(url, onOpen) {
 		if (!ws.bOutbound && onOpen)
 			onOpen(err);
 		if (!ws.bOutbound)
-			ws.emit('second_open', err);
+			eventBus.emit('open-'+url, err);
 	});
 	ws.on('message', onWebsocketMessage);
 	console.log('connectToPeer done');
@@ -494,7 +494,7 @@ function findOutboundPeerOrConnect(url, onOpen){
 	if (ws){ // add second event handler
 		console.log("already connecting to "+url);
 		breadcrumbs.add('already connecting to '+url);
-		return ws.once('second_open', function secondOnOpen(err){
+		return eventBus.once('open-'+url, function secondOnOpen(err){
 			console.log('second open '+url+", err="+err);
 			if (err)
 				return onOpen(err);
