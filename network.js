@@ -379,6 +379,7 @@ function connectToPeer(url, onOpen) {
 		if (onOpen)
 			onOpen(null, ws);
 		eventBus.emit('connected', ws);
+		ws.emit('second_open');
 	});
 	ws.on('close', function onWsClose() {
 		var i = arrOutboundPeers.indexOf(ws);
@@ -390,9 +391,12 @@ function connectToPeer(url, onOpen) {
 	ws.on('error', function onWsError(e){
 		delete assocConnectingOutboundWebsockets[url];
 		console.log("error from server "+url+": "+e);
+		var err = JSON.stringify(e);
 		// !ws.bOutbound means not connected yet. This is to distinguish connection errors from later errors that occur on open connection
 		if (!ws.bOutbound && onOpen)
-			onOpen(JSON.stringify(e));
+			onOpen(err);
+		if (!ws.bOutbound)
+			ws.emit('second_open', err);
 	});
 	ws.on('message', onWebsocketMessage);
 	console.log('connectToPeer done');
@@ -489,7 +493,10 @@ function findOutboundPeerOrConnect(url, onOpen){
 	if (ws){ // add second event handler
 		console.log("already connecting to "+url);
 		breadcrumbs.add('already connecting to '+url);
-		return ws.once('open', function secondOnOpen(){
+		return ws.once('second_open', function secondOnOpen(err){
+			console.log('second open '+url+", err="+err);
+			if (err)
+				return onOpen(err);
 			if (ws.readyState === ws.OPEN)
 				onOpen(null, ws);
 			else{
