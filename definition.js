@@ -11,8 +11,6 @@ var merkle = require('./merkle.js');
 var ValidationUtils = require("./validation_utils.js");
 var objectHash = require("./object_hash.js");
 
-var MAX_COMPLEXITY = 100;
-
 
 var hasFieldsExcept = ValidationUtils.hasFieldsExcept;
 var isStringOfLength = ValidationUtils.isStringOfLength;
@@ -74,7 +72,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 	
 	function evaluate(arr, bInNegation, cb){
 		complexity++;
-		if (complexity > MAX_COMPLEXITY)
+		if (complexity > constants.MAX_COMPLEXITY)
 			return cb("complexity exceeded");
 		if (!isArrayOfLength(arr, 2))
 			return cb("expression must be 2-element array");
@@ -479,7 +477,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 			return handleResult(err);
 		if (!bHasSig && !bAssetCondition)
 			return handleResult("each branch must have a signature");
-		if (complexity > MAX_COMPLEXITY)
+		if (complexity > constants.MAX_COMPLEXITY)
 			return handleResult("complexity exceeded");
 		handleResult();
 	});
