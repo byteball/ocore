@@ -147,6 +147,11 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			eventBus.emit("text", from_address, body);
 			callbacks.ifOk();
 			break;
+
+		case "chat_recording_pref":
+			eventBus.emit("chat_recording_pref", from_address, body);
+			callbacks.ifOk();
+			break;
 		
 		case "create_new_wallet":
 			// {wallet: "base64", wallet_definition_template: [...]}

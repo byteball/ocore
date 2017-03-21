@@ -634,3 +634,14 @@ CREATE TABLE watched_light_addresses (
 ALTER TABLE `units` ADD INDEX `bySequence` (`sequence`);
 
 DROP TABLE IF EXISTS paid_witness_events;
+
+CREATE TABLE chat_messages (
+	correspondent_address CHAR(33) NOT NULL, -- the device this message is came from
+	message LONGTEXT NOT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	is_incoming TINYINT NOT NULL,
+	type CHAR(15) NOT NULL DEFAULT 'text'
+--	FOREIGN KEY byAddress(correspondent_address) REFERENCES devices(device_address)
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+ALTER TABLE correspondent_devices ADD COLUMN my_record_pref INTEGER DEFAULT 1;
+ALTER TABLE correspondent_devices ADD COLUMN peer_record_pref INTEGER DEFAULT 1;
