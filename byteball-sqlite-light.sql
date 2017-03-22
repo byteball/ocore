@@ -649,4 +649,3 @@ ALTER TABLE correspondent_devices ADD COLUMN my_record_pref INTEGER DEFAULT 1;
 ALTER TABLE correspondent_devices ADD COLUMN peer_record_pref INTEGER DEFAULT 1;
 
 PRAGMA user_version=3;
-
