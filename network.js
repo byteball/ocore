@@ -1,7 +1,7 @@
 /*jslint node: true */
 "use strict";
 var WebSocket = process.browser ? global.WebSocket : require('ws');
-var socksv5 = process.browser ? null : require('socksv5'+'');
+var socks = process.browser ? null : require('socks'+'');
 var WebSocketServer = WebSocket.Server;
 var crypto = require('crypto');
 var _ = require('lodash');
@@ -332,13 +332,8 @@ function connectToPeer(url, onOpen) {
 	if (conf.bWantNewPeers)
 		addPeer(url);
 	var options = {};
-	if (socksv5 && conf.socksHost && conf.socksPort)
-		options.agent = new socksv5.HttpsAgent({
-								localDNS: conf.socksLocalDNS,
-								proxyHost: conf.socksHost,
-								proxyPort: conf.socksPort,
-								auths: [ socksv5.auth.None() ]
-							});
+	if (socks && conf.socksHost && conf.socksPort)
+		options.agent = new socks.Agent({ proxy: { ipaddress: conf.socksHost, port: conf.socksPort, type: 5 } }, /^wss/i.test(url) );
 	var ws = options.agent ? new WebSocket(url,options) : new WebSocket(url);
 	assocConnectingOutboundWebsockets[url] = ws;
 	setTimeout(function(){
@@ -388,6 +383,8 @@ function connectToPeer(url, onOpen) {
 		if (i !== -1)
 			arrOutboundPeers.splice(i, 1);
 		cancelRequestsOnClosedConnection(ws);
+		if (options.agent && options.agent.destroy)
+			options.agent.destroy();
 	});
 	ws.on('error', function onWsError(e){
 		delete assocConnectingOutboundWebsockets[url];
