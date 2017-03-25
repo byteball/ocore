@@ -1,13 +1,6 @@
 /*jslint node: true */
 "use strict";
 
-/* !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-This module is unfinished and barely tested!
-
-*/
-
-
 var async = require('async');
 var db = require('./db.js');
 var constants = require('./constants.js');
@@ -28,12 +21,12 @@ var MAX_INT32 = Math.pow(2, 31) - 1;
 
 
 
-
+// unused
 function sendOfferToCreateNewSharedAddress(device_address, arrAddressDefinitionTemplate){
 	device.sendMessageToDevice(device_address, "create_new_shared_address", {address_definition_template: arrAddressDefinitionTemplate});
 }
 
-// called from UI
+// called from UI (unused)
 function sendApprovalOfNewSharedAddress(device_address, address_definition_template_chash, address, assocDeviceAddressesByRelativeSigningPaths){
 	device.sendMessageToDevice(device_address, "approve_new_shared_address", {
 		address_definition_template_chash: address_definition_template_chash, 
@@ -42,16 +35,16 @@ function sendApprovalOfNewSharedAddress(device_address, address_definition_templ
 	});
 }
 
-// called from UI
+// called from UI (unused)
 function sendRejectionOfNewSharedAddress(device_address, address_definition_template_chash){
 	device.sendMessageToDevice(device_address, "reject_new_shared_address", {
 		address_definition_template_chash: address_definition_template_chash
 	});
 }
 
-function sendNewSharedAddress(device_address, address, arrDefinition, assocSignersByPath){
+function sendNewSharedAddress(device_address, address, arrDefinition, assocSignersByPath, bForwarded){
 	device.sendMessageToDevice(device_address, "new_shared_address", {
-		address: address, definition: arrDefinition, signers: assocSignersByPath
+		address: address, definition: arrDefinition, signers: assocSignersByPath, forwarded: bForwarded
 	});
 }
 
@@ -59,10 +52,10 @@ function sendNewSharedAddress(device_address, address, arrDefinition, assocSigne
 
 
 
-// called from UI
+// called from UI (unused)
 // my address is not filled explicitly, it is specified as variable in the template like external addresses
 // assocMyDeviceAddressesByRelativeSigningPaths points to my device addresses that hold the actual signing keys
-function createNewSharedAddress(arrAddressDefinitionTemplate, my_address, assocMyDeviceAddressesByRelativeSigningPaths){
+function createNewSharedAddressByTemplate(arrAddressDefinitionTemplate, my_address, assocMyDeviceAddressesByRelativeSigningPaths){
 	validateAddressDefinitionTemplate(arrAddressDefinitionTemplate, device.getMyDeviceAddress(), function(err, assocMemberDeviceAddressesBySigningPaths){
 		// assocMemberDeviceAddressesBySigningPaths are keyed by paths from root to member addresses (not all the way to signing keys)
 		var arrMemberSigningPaths = Object.keys(assocMemberDeviceAddressesBySigningPaths);
@@ -100,6 +93,7 @@ function createNewSharedAddress(arrAddressDefinitionTemplate, my_address, assocM
 	});
 }
 
+// unused
 // received approval from co-signer address
 function approvePendingSharedAddress(address_definition_template_chash, from_address, address, assocDeviceAddressesByRelativeSigningPaths){
 	db.query( // may update several rows if the device is referenced multiple times from the definition template
@@ -166,6 +160,9 @@ function approvePendingSharedAddress(address_definition_template_chash, from_add
 											if (row.device_address !== device.getMyDeviceAddress())
 												sendNewSharedAddress(row.device_address, shared_address, arrDefinition, assocSignersByPath);
 										});
+										forwardNewSharedAddressToCosignersOfMyMemberAddresses(shared_address, arrDefinition, assocSignersByPath);
+										if (conf.bLight)
+											network.addLightWatchedAddress(shared_address);
 									});
 								}
 							);
@@ -177,6 +174,7 @@ function approvePendingSharedAddress(address_definition_template_chash, from_add
 	);
 }
 
+// unused
 function deletePendingSharedAddress(address_definition_template_chash){
 	db.query("DELETE FROM pending_shared_address_signing_paths WHERE definition_template_chash=?", [address_definition_template_chash], function(){
 		db.query("DELETE FROM pending_shared_addresses WHERE definition_template_chash=?", [address_definition_template_chash], function(){});
@@ -184,23 +182,86 @@ function deletePendingSharedAddress(address_definition_template_chash){
 }
 
 // called from network after the initiator collects approvals from all members of the address and then sends the completed address to all members
-function addNewSharedAddress(address, arrDefinition, assocSignersByPath, onDone){
+// member_signing_path is now deprecated and unused
+// shared_address_signing_paths.signing_path is now path to member-address, not full path to a signing key
+function addNewSharedAddress(address, arrDefinition, assocSignersByPath, bForwarded, onDone){
 //	network.addWatchedAddress(address);
-	db.query("INSERT INTO shared_addresses (shared_address, definition) VALUES (?,?)", [address, JSON.stringify(arrDefinition)], function(){
-		var arrQueries = [];
-		for (var full_signing_path in assocSignersByPath){
-			var signerInfo = assocSignersByPath[full_signing_path];
-			db.addQuery(arrQueries, 
-				"INSERT INTO shared_address_signing_paths (shared_address, address, signing_path, member_signing_path, device_address) VALUES (?,?,?,?,?)", 
-				[address, signerInfo.address, full_signing_path, signerInfo.member_signing_path, signerInfo.device_address]);
+	db.query(
+		"INSERT "+db.getIgnore()+" INTO shared_addresses (shared_address, definition) VALUES (?,?)", 
+		[address, JSON.stringify(arrDefinition)], 
+		function(){
+			var arrQueries = [];
+			for (var signing_path in assocSignersByPath){
+				var signerInfo = assocSignersByPath[signing_path];
+				db.addQuery(arrQueries, 
+					"INSERT "+db.getIgnore()+" INTO shared_address_signing_paths \n\
+					(shared_address, address, signing_path, member_signing_path, device_address) VALUES (?,?,?,?,?)", 
+					[address, signerInfo.address, signing_path, signerInfo.member_signing_path, signerInfo.device_address]);
+			}
+			async.series(arrQueries, function(){
+				eventBus.emit("new_address-"+address);
+				if (conf.bLight)
+					network.addLightWatchedAddress(address);
+				if (!bForwarded)
+					forwardNewSharedAddressToCosignersOfMyMemberAddresses(address, arrDefinition, assocSignersByPath);
+				if (onDone)
+					onDone();
+			});
 		}
-		// todo: forward new shared address to devices that are members of my member address
-		async.series(arrQueries, function(){
-			eventBus.emit("new_address-"+address);
-			if (onDone)
-				onDone();
-		});
-	});
+	);
+}
+
+function includesMyDeviceAddress(assocSignersByPath){
+	for (var signing_path in assocSignersByPath){
+		var signerInfo = assocSignersByPath[signing_path];
+		if (signerInfo.device_address === device.getMyDeviceAddress())
+			return true;
+	}
+	return false;
+}
+
+// Checks if any of my payment addresses is mentioned.
+// It is possible that my device address is not mentioned in the definition if I'm a member of multisig address, one of my cosigners is mentioned instead
+function determineIfIncludesMe(assocSignersByPath, handleResult){
+	var assocMemberAddresses = {};
+	for (var signing_path in assocSignersByPath){
+		var signerInfo = assocSignersByPath[signing_path];
+	//	if (signerInfo.device_address === device.getMyDeviceAddress())
+		if (signerInfo.address)
+			assocMemberAddresses[signerInfo.address] = true;
+	}
+	var arrMemberAddresses = Object.keys(assocMemberAddresses);
+	if (arrMemberAddresses.length === 0)
+		return handleResult("no member addresses?");
+	db.query(
+		"SELECT address FROM my_addresses WHERE address IN(?) UNION SELECT shared_address AS address FROM shared_addresses WHERE shared_address IN(?)", 
+		[arrMemberAddresses, arrMemberAddresses],
+		function(rows){
+		//	handleResult(rows.length === arrMyMemberAddresses.length ? null : "Some of my member addresses not found");
+			handleResult(rows.length > 0 ? null : "I am not a member of this shared address");
+		}
+	);
+}
+
+function forwardNewSharedAddressToCosignersOfMyMemberAddresses(address, arrDefinition, assocSignersByPath){
+	var assocMyMemberAddresses = {};
+	for (var signing_path in assocSignersByPath){
+		var signerInfo = assocSignersByPath[signing_path];
+		if (signerInfo.device_address === device.getMyDeviceAddress() && signerInfo.address)
+			assocMyMemberAddresses[signerInfo.address] = true;
+	}
+	var arrMyMemberAddresses = Object.keys(assocMyMemberAddresses);
+	if (arrMyMemberAddresses.length === 0)
+		throw Error("my member addresses not found");
+	db.query(
+		"SELECT DISTINCT device_address FROM my_addresses JOIN wallet_signing_paths USING(wallet) WHERE address IN(?) AND device_address!=?", 
+		[arrMyMemberAddresses, device.getMyDeviceAddress()],
+		function(rows){
+			rows.forEach(function(row){
+				sendNewSharedAddress(row.device_address, address, arrDefinition, assocSignersByPath, true);
+			});
+		}
+	);
 }
 
 // {address: "BASE32", definition: [...], signers: {...}}
@@ -211,10 +272,41 @@ function handleNewSharedAddress(body, callbacks){
 		return callbacks.ifError("invalid signers");
 	if (body.address !== objectHash.getChash160(body.definition))
 		return callbacks.ifError("definition doesn't match its c-hash");
-	validateAddressDefinition(body.definition, function(err){
+	for (var signing_path in body.signers){
+		var signerInfo = body.signers[signing_path];
+		if (signerInfo.address && !ValidationUtils.isValidAddress(signerInfo.address))
+			return callbacks.ifError("invalid member address: "+signerInfo.address);
+	}
+	determineIfIncludesMe(body.signers, function(err){
 		if (err)
 			return callbacks.ifError(err);
-		addNewSharedAddress(body.address, body.definition, body.signers, callbacks.ifOk);
+		validateAddressDefinition(body.definition, function(err){
+			if (err)
+				return callbacks.ifError(err);
+			addNewSharedAddress(body.address, body.definition, body.signers, body.forwarded, callbacks.ifOk);
+		});
+	});
+}
+
+function createNewSharedAddress(arrDefinition, assocSignersByPath, callbacks){
+	if (!includesMyDeviceAddress(assocSignersByPath))
+		return callbacks.ifError("my device address not mentioned");
+	var address = objectHash.getChash160(arrDefinition);
+	handleNewSharedAddress({address: address, definition: arrDefinition, signers: assocSignersByPath}, {
+		ifError: callbacks.ifError,
+		ifOk: function(){
+			// share the new address with all cosigners
+			var arrDeviceAddresses = [];
+			for (var signing_path in assocSignersByPath){
+				var signerInfo = assocSignersByPath[signing_path];
+				if (signerInfo.device_address !== device.getMyDeviceAddress() && arrDeviceAddresses.indexOf(signerInfo.device_address) === -1)
+					arrDeviceAddresses.push(signerInfo.device_address);
+			}
+			arrDeviceAddresses.forEach(function(device_address){
+				sendNewSharedAddress(device_address, address, arrDefinition, assocSignersByPath);
+			});
+			callbacks.ifOk(address);
+		}
 	});
 }
 
@@ -293,8 +385,6 @@ function validateAddressDefinitionTemplate(arrDefinitionTemplate, from_address, 
 
 // fix:
 // 1. check that my address is referenced in the definition
-// 2. check that signing paths reference my device address
-// 3. handle references to addresses whose definitions are not yet written onto the main chain
 function validateAddressDefinition(arrDefinition, handleResult){
 	var objFakeUnit = {authors: []};
 	var objFakeValidationState = {last_ball_mci: MAX_INT32, bAllowUnresolvedInnerDefinitions: true};
@@ -328,6 +418,7 @@ function forwardPrivateChainsToOtherMembersOfAddresses(arrChains, arrAddresses, 
 	);
 }
 
+/*
 function readRequiredCosigners(shared_address, arrSigningDeviceAddresses, handleCosigners){
 	db.query(
 		"SELECT shared_address_signing_paths.address \n\
@@ -339,15 +430,42 @@ function readRequiredCosigners(shared_address, arrSigningDeviceAddresses, handle
 			handleCosigners(rows.map(function(row){ return row.address; }));
 		}
 	);
-}
+}*/
 
 function readSharedAddressDefinition(shared_address, handleDefinition){
-	db.query("SELECT definition FROM shared_addresses WHERE shared_address=?", [shared_address], function(rows){
-		if (rows.length !== 1)
-			throw Error('shared definition not found '+shared_address);
-		var arrDefinition = JSON.parse(rows[0].definition);
-		handleDefinition(arrDefinition);
-	});
+	db.query(
+		"SELECT definition, "+db.getUnixTimestamp("creation_date")+" AS creation_ts FROM shared_addresses WHERE shared_address=?", 
+		[shared_address], 
+		function(rows){
+			if (rows.length !== 1)
+				throw Error('shared definition not found '+shared_address);
+			var arrDefinition = JSON.parse(rows[0].definition);
+			handleDefinition(arrDefinition, rows[0].creation_ts);
+		}
+	);
+}
+
+function readSharedAddressCosigners(shared_address, handleCosigners){
+	db.query(
+		"SELECT DISTINCT device_address, name \n\
+		FROM shared_address_signing_paths \n\
+		JOIN correspondent_devices USING(device_address) \n\
+		WHERE shared_address=? AND device_address!=?",
+		[shared_address, device.getMyDeviceAddress()],
+		function(rows){
+			handleCosigners(rows);
+		}
+	);
+}
+
+function determineIfHasMerkle(shared_address, handleResult){
+	db.query(
+		"SELECT 1 FROM shared_address_signing_paths WHERE shared_address=? AND device_address=? AND address=''",
+		[shared_address, device.getMyDeviceAddress()],
+		function(rows){
+			handleResult(rows.length > 0);
+		}
+	);
 }
 
 
@@ -359,6 +477,8 @@ exports.deletePendingSharedAddress = deletePendingSharedAddress;
 exports.validateAddressDefinition = validateAddressDefinition;
 exports.handleNewSharedAddress = handleNewSharedAddress;
 exports.forwardPrivateChainsToOtherMembersOfAddresses = forwardPrivateChainsToOtherMembersOfAddresses;
-exports.readRequiredCosigners = readRequiredCosigners;
+exports.readSharedAddressCosigners = readSharedAddressCosigners;
 exports.readSharedAddressDefinition = readSharedAddressDefinition;
+exports.determineIfHasMerkle = determineIfHasMerkle;
+exports.createNewSharedAddress = createNewSharedAddress;
 

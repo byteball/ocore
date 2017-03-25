@@ -204,7 +204,9 @@ function handleResponse(ws, tag, response){
 		//throw "no req by tag "+tag;
 		return console.log("no req by tag "+tag);
 	pendingRequest.responseHandlers.forEach(function(responseHandler){
-		responseHandler(ws, pendingRequest.request, response);
+		process.nextTick(function(){
+			responseHandler(ws, pendingRequest.request, response);
+		});
 	});
 	
 	clearTimeout(pendingRequest.reroute_timer);
@@ -327,7 +329,8 @@ function checkIfHaveEnoughOutboundPeersAndAdd(){
 }
 
 function connectToPeer(url, onOpen) {
-	addPeer(url);
+	if (conf.bWantNewPeers)
+		addPeer(url);
 	var options = {};
 	if (socksv5 && conf.socksHost && conf.socksPort)
 		options.agent = new socksv5.HttpsAgent({
@@ -377,6 +380,7 @@ function connectToPeer(url, onOpen) {
 		if (onOpen)
 			onOpen(null, ws);
 		eventBus.emit('connected', ws);
+		eventBus.emit('open-'+url);
 	});
 	ws.on('close', function onWsClose() {
 		var i = arrOutboundPeers.indexOf(ws);
@@ -388,9 +392,12 @@ function connectToPeer(url, onOpen) {
 	ws.on('error', function onWsError(e){
 		delete assocConnectingOutboundWebsockets[url];
 		console.log("error from server "+url+": "+e);
+		var err = JSON.stringify(e);
 		// !ws.bOutbound means not connected yet. This is to distinguish connection errors from later errors that occur on open connection
 		if (!ws.bOutbound && onOpen)
-			onOpen(JSON.stringify(e));
+			onOpen(err);
+		if (!ws.bOutbound)
+			eventBus.emit('open-'+url, err);
 	});
 	ws.on('message', onWebsocketMessage);
 	console.log('connectToPeer done');
@@ -487,7 +494,10 @@ function findOutboundPeerOrConnect(url, onOpen){
 	if (ws){ // add second event handler
 		console.log("already connecting to "+url);
 		breadcrumbs.add('already connecting to '+url);
-		return ws.once('open', function secondOnOpen(){
+		return eventBus.once('open-'+url, function secondOnOpen(err){
+			console.log('second open '+url+", err="+err);
+			if (err)
+				return onOpen(err);
 			if (ws.readyState === ws.OPEN)
 				onOpen(null, ws);
 			else{
@@ -668,7 +678,10 @@ function requestNewMissingJoints(ws, arrUnits){
 					cb();
 				},
 				ifKnown: function(){console.log("known"); cb();}, // it has just been handled
-				ifKnownUnverified: function(){console.log("known unverified"); cb();} // I was already waiting for it
+				ifKnownUnverified: function(){console.log("known unverified"); cb();}, // I was already waiting for it
+				ifKnownBad: function(){
+					throw Error("known bad "+unit);
+				}
 			});
 		},
 		function(){
@@ -807,7 +820,7 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 				purgeJointAndDependenciesAndNotifyPeers(objJoint, error, function(){
 					delete assocUnitsInWork[unit];
 				});
-				if (ws)
+				if (ws && error !== 'authentifier verification failed' && !error.match(/bad merkle proof at path/))
 					writeEvent('invalid', ws.host);
 				if (objJoint.unsigned)
 					eventBus.emit("validated-"+unit, false);
@@ -1080,6 +1093,8 @@ function addWatchedAddress(address){
 function notifyWatchers(objJoint){
 	var objUnit = objJoint.unit;
 	var arrAddresses = objUnit.authors.map(function(author){ return author.address; });
+	if (!objUnit.messages) // voided unit
+		return;
 	for (var i=0; i<objUnit.messages.length; i++){
 		var message = objUnit.messages[i];
 		if (message.app !== "payment" || !message.payload)
@@ -1189,6 +1204,16 @@ function notifyLocalWatchedAddressesAboutStableJoints(mci){
 		[mci, mci, mci, mci],
 		handleRows
 	);
+}
+
+function addLightWatchedAddress(address){
+	if (!conf.bLight)
+		return;
+	findOutboundPeerOrConnect(exports.light_vendor_url, function(err, ws){
+		if (err)
+			return;
+		sendJustsaying(ws, 'light/new_address_to_watch', address);
+	});
 }
 
 function flushEvents(forceFlushing) {
@@ -1493,7 +1518,10 @@ function handleOnlinePrivatePayment(ws, arrPrivateElements, bViaHub, callbacks){
 			// It would be better to request missing joints from somebody else
 			requestNewMissingJoints(ws, [unit]);
 		},
-		ifKnownUnverified: savePrivatePayment
+		ifKnownUnverified: savePrivatePayment,
+		ifKnownBad: function(){
+			callbacks.ifValidationError(unit, "known bad");
+		}
 	});
 }
 	
@@ -1771,8 +1799,12 @@ function handleJustsaying(ws, subject, body){
 				return sendError(ws, 'only requested joint can contain a ball');
 			if (conf.bLight && !ws.bLightVendor)
 				return sendError(ws, "I'm a light client and you are not my vendor");
-			// light clients accept the joint without proof, it'll be saved as unconfirmed (non-stable)
-			return conf.bLight ? handleLightOnlineJoint(ws, objJoint) : handleOnlineJoint(ws, objJoint);
+			db.query("SELECT 1 FROM archived_joints WHERE unit=? AND reason='uncovered'", [objJoint.unit.unit], function(rows){
+				if (rows.length > 0) // ignore it as long is it was unsolicited
+					return sendError(ws, "this unit is already known and archived");
+				// light clients accept the joint without proof, it'll be saved as unconfirmed (non-stable)
+				return conf.bLight ? handleLightOnlineJoint(ws, objJoint) : handleOnlineJoint(ws, objJoint);
+			});
 			
 		case 'free_joints_end':
 		case 'result':
@@ -2228,7 +2260,8 @@ function onWebsocketMessage(message) {
 			return handleResponse(ws, content.tag, content.response);
 			
 		default: 
-			throw Error("unknown type: "+message_type);
+			console.log("unknown type: "+message_type);
+		//	throw Error("unknown type: "+message_type);
 	}
 }
 
@@ -2382,6 +2415,7 @@ exports.setMyDeviceProps = setMyDeviceProps;
 
 exports.setWatchedAddresses = setWatchedAddresses;
 exports.addWatchedAddress = addWatchedAddress;
+exports.addLightWatchedAddress = addLightWatchedAddress;
 
 exports.closeAllWsConnections = closeAllWsConnections;
 exports.isConnected = isConnected;

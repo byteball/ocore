@@ -75,11 +75,13 @@ function parseUri(uri, callbacks){
 			var amount = parseInt(strAmount);
 			if (amount + '' !== strAmount)
 				return callbacks.ifError("invalid amount: "+strAmount);
+			if (!ValidationUtils.isPositiveInteger(amount))
+				return callbacks.ifError("nonpositive amount: "+strAmount);
 			objRequest.amount = amount;
 		}
 		var asset = assocParams.asset;
 		if (typeof asset === 'string'){
-			if (asset !== 'base' && asset.length !== constants.HASH_LENGTH) // invalid asset
+			if (asset !== 'base' && !ValidationUtils.isValidBase64(asset, constants.HASH_LENGTH)) // invalid asset
 				return callbacks.ifError('invalid asset: '+asset);
 			objRequest.asset = asset;
 		}

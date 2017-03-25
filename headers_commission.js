@@ -22,7 +22,7 @@ function calcHeadersCommissions(conn, onDone){
 				var best_child_sql = "SELECT unit \n\
 					FROM parenthoods \n\
 					JOIN units AS alt_child_units ON parenthoods.child_unit=alt_child_units.unit \n\
-					WHERE parent_unit=punits.unit AND alt_child_units.main_chain_index-punits.main_chain_index<=1 AND alt_child_units.sequence='good' \n\
+					WHERE parent_unit=punits.unit AND alt_child_units.main_chain_index-punits.main_chain_index<=1 AND +alt_child_units.sequence='good' \n\
 					ORDER BY SHA1(CONCAT(alt_child_units.unit, next_mc_units.unit)) \n\
 					LIMIT 1";
 				// headers commissions to single unit author
@@ -35,10 +35,10 @@ function calcHeadersCommissions(conn, onDone){
 					JOIN units AS punits ON parenthoods.parent_unit=punits.unit \n\
 					JOIN units AS next_mc_units ON next_mc_units.is_on_main_chain=1 AND next_mc_units.main_chain_index=punits.main_chain_index+1 \n\
 					WHERE chunits.is_stable=1 \n\
-						AND chunits.sequence='good' \n\
+						AND +chunits.sequence='good' \n\
 						AND punits.main_chain_index>? \n\
 						AND chunits.main_chain_index-punits.main_chain_index<=1 \n\
-						AND punits.sequence='good' \n\
+						AND +punits.sequence='good' \n\
 						AND punits.is_stable=1 \n\
 						AND next_mc_units.is_stable=1 \n\
 						AND chunits.unit=( "+best_child_sql+" ) \n\
@@ -53,10 +53,10 @@ function calcHeadersCommissions(conn, onDone){
 					JOIN units AS punits ON parenthoods.parent_unit=punits.unit \n\
 					JOIN units AS next_mc_units ON next_mc_units.is_on_main_chain=1 AND next_mc_units.main_chain_index=punits.main_chain_index+1 \n\
 					WHERE chunits.is_stable=1 \n\
-						AND chunits.sequence='good' \n\
+						AND +chunits.sequence='good' \n\
 						AND punits.main_chain_index>? \n\
 						AND chunits.main_chain_index-punits.main_chain_index<=1 \n\
-						AND punits.sequence='good' \n\
+						AND +punits.sequence='good' \n\
 						AND punits.is_stable=1 \n\
 						AND next_mc_units.is_stable=1 \n\
 						AND chunits.unit=( "+best_child_sql+" )", 
@@ -73,9 +73,9 @@ function calcHeadersCommissions(conn, onDone){
 					JOIN units AS punits ON parenthoods.parent_unit=punits.unit \n\
 					JOIN units AS next_mc_units ON next_mc_units.is_on_main_chain=1 AND next_mc_units.main_chain_index=punits.main_chain_index+1 \n\
 					WHERE chunits.is_stable=1 \n\
-						AND chunits.sequence='good' \n\
+						AND +chunits.sequence='good' \n\
 						AND punits.main_chain_index>? \n\
-						AND punits.sequence='good' \n\
+						AND +punits.sequence='good' \n\
 						AND punits.is_stable=1 \n\
 						AND chunits.main_chain_index-punits.main_chain_index<=1 \n\
 						AND next_mc_units.is_stable=1", 

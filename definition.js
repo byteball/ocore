@@ -260,7 +260,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 						return cb("each param must be string or number");
 				conn.query(
 					"SELECT payload FROM messages JOIN units USING(unit) \n\
-					WHERE unit=? AND app='definition_template' AND main_chain_index<=? AND sequence='good' AND is_stable=1", 
+					WHERE unit=? AND app='definition_template' AND main_chain_index<=? AND +sequence='good' AND is_stable=1", 
 					[unit, objValidationState.last_ball_mci], 
 					function(rows){
 						if (rows.length !== 1)
@@ -321,12 +321,12 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 					return cb("invalid relation: "+relation);
 				if (!isNonemptyString(feed_name))
 					return cb("no feed_name");
-				if (feed_name.length > 64)
+				if (feed_name.length > constants.MAX_DATA_FEED_NAME_LENGTH)
 					return cb("feed_name too long");
 				if (typeof value === "string"){
 					if (!isNonemptyString(value))
 						return cb("no value");
-					if (value.length > 64)
+					if (value.length > constants.MAX_DATA_FEED_VALUE_LENGTH)
 						return cb("value too long");
 				}
 				else if (typeof value === "number"){
@@ -348,7 +348,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 					return cb(op+" must have 3 args");
 				var arrAddresses = args[0];
 				var feed_name = args[1];
-				var element_hash = args[2];
+				var element = args[2];
 				if (!isNonemptyArray(arrAddresses))
 					return cb("no addresses in "+op);
 				for (var i=0; i<arrAddresses.length; i++)
@@ -357,10 +357,12 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 				complexity += arrAddresses.length-1; // 1 complexity point for each address (1 point was already counted)
 				if (!isNonemptyString(feed_name))
 					return cb("no feed_name");
-				if (feed_name.length > 64)
+				if (feed_name.length > constants.MAX_DATA_FEED_NAME_LENGTH)
 					return cb("feed_name too long");
-				if (!isStringOfLength(element_hash, constants.HASH_LENGTH))
-					return cb("incorrect length of element hash");
+			//	if (!isStringOfLength(element_hash, constants.HASH_LENGTH))
+			//		return cb("incorrect length of element hash");
+				if (!element.match(/[\w ~,.\/\\;:!@#$%^&*\(\)=+\[\]\{\}<>\?|-]{1,100}/))
+					return cb("incorrect format of merkled element");
 				return cb();
 				
 			case 'mci':
@@ -635,7 +637,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				var params = args[1];
 				conn.query(
 					"SELECT payload FROM messages JOIN units USING(unit) \n\
-					WHERE unit=? AND app='definition_template' AND main_chain_index<=? AND sequence='good' AND is_stable=1", 
+					WHERE unit=? AND app='definition_template' AND main_chain_index<=? AND +sequence='good' AND is_stable=1", 
 					[unit, objValidationState.last_ball_mci], 
 					function(rows){
 						if (rows.length !== 1)
@@ -652,7 +654,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				// ['seen address', 'BASE32']
 				var seen_address = args;
 				conn.query(
-					"SELECT 1 FROM unit_authors JOIN units USING(unit) \n\
+					"SELECT 1 FROM unit_authors CROSS JOIN units USING(unit) \n\
 					WHERE address=? AND main_chain_index<=? AND sequence='good' AND is_stable=1 \n\
 					LIMIT 1",
 					[seen_address, objValidationState.last_ball_mci],
@@ -665,7 +667,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 			case 'seen':
 				// ['seen', {what: 'input', asset: 'asset or base', type: 'transfer'|'issue', own_funds: true, amount_at_least: 123, amount_at_most: 123, amount: 123, address: 'BASE32'}]
 				var filter = args;
-				var sql = "SELECT 1 FROM "+filter.what+"s JOIN units USING(unit) \n\
+				var sql = "SELECT 1 FROM "+filter.what+"s CROSS JOIN units USING(unit) \n\
 					WHERE main_chain_index<=? AND sequence='good' AND is_stable=1 ";
 				var params = [objValidationState.last_ball_mci];
 				if (filter.asset){
@@ -727,7 +729,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				var relation = args[2];
 				var value = args[3];
 				conn.query(
-					"SELECT 1 FROM data_feeds JOIN units USING(unit) JOIN unit_authors USING(unit) \n\
+					"SELECT 1 FROM data_feeds CROSS JOIN units USING(unit) CROSS JOIN unit_authors USING(unit) \n\
 					WHERE address IN(?) AND feed_name=? AND "+(typeof value === "string" ? "`value`" : "int_value")+relation+"? \n\
 						AND main_chain_index<=? AND sequence='good' AND is_stable=1 LIMIT 1",
 					[arrAddresses, feed_name, value, objValidationState.last_ball_mci],
@@ -739,22 +741,22 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				break;
 				
 			case 'in merkle':
-				// ['in merkle', [['BASE32'], 'data feed name', 'hash of expected value']]
+				// ['in merkle', [['BASE32'], 'data feed name', 'expected value']]
 				if (!assocAuthentifiers[path])
 					return cb2(false);
 				arrUsedPaths.push(path);
 				var arrAddresses = args[0];
 				var feed_name = args[1];
-				var element_hash = args[2];
+				var element = args[2];
 				var serialized_proof = assocAuthentifiers[path];
 				var proof = merkle.deserializeMerkleProof(serialized_proof);
-				if (!merkle.verifyMerkleProof(element_hash, proof)){
+				if (!merkle.verifyMerkleProof(element, proof)){
 					fatal_error = "bad merkle proof at path "+path;
 					return cb2(false);
 				}
 				conn.query(
-					"SELECT 1 FROM data_feeds JOIN units USING(unit) JOIN unit_authors USING(unit) \n\
-					WHERE address IN(?) AND name=? AND value=? AND main_chain_index<=? AND sequence='good' AND is_stable=1 LIMIT 1",
+					"SELECT 1 FROM data_feeds CROSS JOIN units USING(unit) JOIN unit_authors USING(unit) \n\
+					WHERE address IN(?) AND feed_name=? AND value=? AND main_chain_index<=? AND sequence='good' AND is_stable=1 LIMIT 1",
 					[arrAddresses, feed_name, proof.root, objValidationState.last_ball_mci],
 					function(rows){
 						if (rows.length === 0)
@@ -798,7 +800,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 					return cb2(false);
 				conn.query(
 					"SELECT 1 FROM units \n\
-					WHERE unit IN(?) AND ?"+relation+"main_chain_index AND main_chain_index<=? AND sequence='good' AND is_stable=1",
+					WHERE unit IN(?) AND ?"+relation+"main_chain_index AND main_chain_index<=? AND +sequence='good' AND is_stable=1",
 					[arrSrcUnits, objValidationState.last_ball_mci - age, objValidationState.last_ball_mci],
 					function(rows){
 						var bSatisfies = (rows.length === arrSrcUnits.length);

@@ -202,7 +202,7 @@ function buildPaidWitnesses(conn, objUnitProps, arrWitnesses, onDone){
 			"SELECT address, MIN(main_chain_index-?) AS delay \n\
 			FROM units \n\
 			LEFT JOIN unit_authors USING(unit) \n\
-			WHERE unit IN(?) AND address IN(?) AND sequence='good' \n\
+			WHERE unit IN(?) AND address IN(?) AND +sequence='good' \n\
 			GROUP BY address",
 			[objUnitProps.main_chain_index, arrUnits, arrWitnesses],
 			function(rows){

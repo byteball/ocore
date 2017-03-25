@@ -563,11 +563,7 @@ function recordAddress(wallet, is_change, address_index, address, arrDefinition,
 				onDone();
 		//	network.addWatchedAddress(address);
 			if (conf.bLight && !is_change)
-				network.findOutboundPeerOrConnect(network.light_vendor_url, function(err, ws){
-					if (err)
-						return;
-					network.sendJustsaying(ws, 'light/new_address_to_watch', address);
-				});
+				network.addLightWatchedAddress(address);
 		}
 	);
 }

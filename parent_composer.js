@@ -2,6 +2,7 @@
 "use strict";
 var db = require('./db.js');
 var constants = require("./constants.js");
+var conf = require("./conf.js");
 
 
 function pickParentUnits(conn, arrWitnesses, onDone){
@@ -13,17 +14,19 @@ function pickParentUnits(conn, arrWitnesses, onDone){
 	
 	conn.query(
 		"SELECT \n\
-			unit, ( \n\
+			unit, version, alt, ( \n\
 				SELECT COUNT(*) \n\
 				FROM unit_witnesses \n\
 				WHERE unit_witnesses.unit IN(units.unit, units.witness_list_unit) AND address IN(?) \n\
 			) AS count_matching_witnesses \n\
-		FROM units \n\
+		FROM units "+(conf.storage === 'sqlite' ? "INDEXED BY byFree" : "")+" \n\
 		LEFT JOIN archived_joints USING(unit) \n\
-		WHERE sequence='good' AND is_free=1 AND archived_joints.unit IS NULL ORDER BY unit", 
+		WHERE +sequence='good' AND is_free=1 AND archived_joints.unit IS NULL ORDER BY unit", 
 		// exclude potential parents that were archived and then received again
 		[arrWitnesses], 
 		function(rows){
+			if (rows.some(function(row){ return (row.version !== constants.version || row.alt !== constants.alt); }))
+				throw Error('wrong network');
 			var count_required_matches = constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS;
 			// we need at least one compatible parent, otherwise go deep
 			if (rows.filter(function(row){ return (row.count_matching_witnesses >= count_required_matches); }).length === 0)
@@ -42,7 +45,7 @@ function pickDeepParentUnits(conn, arrWitnesses, onDone){
 	conn.query(
 		"SELECT unit \n\
 		FROM units \n\
-		WHERE sequence='good' \n\
+		WHERE +sequence='good' \n\
 			AND ( \n\
 				SELECT COUNT(*) \n\
 				FROM unit_witnesses \n\
@@ -61,7 +64,7 @@ function pickDeepParentUnits(conn, arrWitnesses, onDone){
 function findLastStableMcBall(conn, arrWitnesses, onDone){
 	conn.query(
 		"SELECT ball, unit, main_chain_index FROM units JOIN balls USING(unit) \n\
-		WHERE is_on_main_chain=1 AND is_stable=1 AND sequence='good' AND ( \n\
+		WHERE is_on_main_chain=1 AND is_stable=1 AND +sequence='good' AND ( \n\
 			SELECT COUNT(*) \n\
 			FROM unit_witnesses \n\
 			WHERE unit_witnesses.unit IN(units.unit, units.witness_list_unit) AND address IN(?) \n\

@@ -764,7 +764,7 @@ function markMcIndexStable(conn, mci, onDone){
 			JOIN unit_authors AS competitor_unit_authors USING(address) \n\
 			JOIN units AS competitor_units ON competitor_unit_authors.unit=competitor_units.unit \n\
 			JOIN units AS this_unit ON this_unit_authors.unit=this_unit.unit \n\
-			WHERE this_unit_authors.unit=? AND competitor_units.is_stable=1 AND competitor_units.sequence='good' \n\
+			WHERE this_unit_authors.unit=? AND competitor_units.is_stable=1 AND +competitor_units.sequence='good' \n\
 				-- if it were main_chain_index <= this_unit_limci, the competitor would've been included \n\
 				AND (competitor_units.main_chain_index > this_unit.latest_included_mc_index) \n\
 				AND (competitor_units.main_chain_index <= this_unit.main_chain_index)",
