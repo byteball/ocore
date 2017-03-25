@@ -148,9 +148,9 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			callbacks.ifOk();
 			break;
 
-		case "remove_paired_device":
+		case "removed_paired_device":
 			device.removeCorrespondentDevice(from_address, function(){
-				eventBus.emit("remove_paired_device", from_address, body);
+				eventBus.emit("removed_paired_device", from_address, body);
 				callbacks.ifOk();
 			});
 			break;
@@ -1240,11 +1240,16 @@ function sendMultiPayment(opts, handleResult)
 }
 
 function readDeviceAddressesUsedInSigningPaths(onDone){
+
+	var sql = "SELECT DISTINCT device_address FROM shared_address_signing_paths ";
+	sql += "UNION SELECT DISTINCT device_address FROM wallet_signing_paths ";
+	sql += "UNION SELECT DISTINCT device_address FROM pending_shared_address_signing_paths";
+	
 	db.query(
-		"SELECT distinct device_address FROM shared_address_signing_paths UNION SELECT distinct device_address FROM wallet_signing_paths", 
+		sql, 
 		function(rows){
 			
-			var arrDeviceAddress = rows.map(e => e.device_address);
+			var arrDeviceAddress = rows.map(function(r) { return r.device_address; });
 
 			onDone(arrDeviceAddress);
 		}
