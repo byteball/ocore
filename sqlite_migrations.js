@@ -32,7 +32,7 @@ function migrateDb(connection, onDone){
 			connection.addQuery(arrQueries, "DELETE FROM known_bad_joints");
 		}
 		if (version < 3){
-			connection.addQuery(arrQueries, "CREATE TABLE chat_messages ( \n\
+			connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS chat_messages ( \n\
 				id INTEGER PRIMARY KEY, \n\
 				correspondent_address CHAR(33) NOT NULL, \n\
 				message LONGTEXT NOT NULL, \n\
@@ -40,7 +40,7 @@ function migrateDb(connection, onDone){
 				is_incoming INTEGER(1) NOT NULL, \n\
 				type CHAR(15) NOT NULL DEFAULT 'text' \n\
 			)");
-			connection.addQuery(arrQueries, "CREATE INDEX chatMessagesIndexByDeviceAddress ON chat_messages(correspondent_address, id)");
+			connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS chatMessagesIndexByDeviceAddress ON chat_messages(correspondent_address, id)");
 			connection.addQuery(arrQueries, "ALTER TABLE correspondent_devices ADD COLUMN my_record_pref INTEGER DEFAULT 1");
 			connection.addQuery(arrQueries, "ALTER TABLE correspondent_devices ADD COLUMN peer_record_pref INTEGER DEFAULT 1");
 		}
