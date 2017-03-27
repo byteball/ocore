@@ -33,13 +33,14 @@ function migrateDb(connection, onDone){
 		}
 		if (version < 3){
 			connection.addQuery(arrQueries, "CREATE TABLE chat_messages ( \n\
+				id INTEGER PRIMARY KEY, \n\
 				correspondent_address CHAR(33) NOT NULL, \n\
 				message LONGTEXT NOT NULL, \n\
 				creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, \n\
 				is_incoming INTEGER(1) NOT NULL, \n\
 				type CHAR(15) NOT NULL DEFAULT 'text' \n\
 			)");
-			connection.addQuery(arrQueries, "CREATE INDEX chatMessagesIndexByDeviceAddress ON chat_messages(correspondent_address)");
+			connection.addQuery(arrQueries, "CREATE INDEX chatMessagesIndexByDeviceAddress ON chat_messages(correspondent_address, id)");
 			connection.addQuery(arrQueries, "ALTER TABLE correspondent_devices ADD COLUMN my_record_pref INTEGER DEFAULT 1");
 			connection.addQuery(arrQueries, "ALTER TABLE correspondent_devices ADD COLUMN peer_record_pref INTEGER DEFAULT 1");
 		}
