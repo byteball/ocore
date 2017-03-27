@@ -7,9 +7,9 @@ function store(correspondent_address, message, is_incoming, type) {
 	db.query("INSERT INTO chat_messages ('correspondent_address', 'message', 'is_incoming', 'type') VALUES (?, ?, ?, ?)", [correspondent_address, message, is_incoming, type]);
 }
 
-function load(correspondent_address, up_to_ts, limit, cb) {
-	db.query("SELECT message, creation_date, is_incoming, type FROM chat_messages \n\
-		WHERE correspondent_address=? AND creation_date < "+db.getFromUnixTime(up_to_ts)+" ORDER BY creation_date DESC LIMIT ?", [correspondent_address, limit], function(rows){
+function load(correspondent_address, up_to_id, limit, cb) {
+	db.query("SELECT id, message, creation_date, is_incoming, type FROM chat_messages \n\
+		WHERE correspondent_address=? AND id < "+up_to_id+" ORDER BY id DESC LIMIT ?", [correspondent_address, limit], function(rows){
 			for (var i in rows) {
 				rows[i] = parseMessage(rows[i]);
 			}
