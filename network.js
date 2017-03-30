@@ -389,7 +389,7 @@ function connectToPeer(url, onOpen) {
 	ws.on('error', function onWsError(e){
 		delete assocConnectingOutboundWebsockets[url];
 		console.log("error from server "+url+": "+e);
-		var err = JSON.stringify(e);
+		var err = e.toString();
 		// !ws.bOutbound means not connected yet. This is to distinguish connection errors from later errors that occur on open connection
 		if (!ws.bOutbound && onOpen)
 			onOpen(err);
