@@ -287,6 +287,19 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 					return cb("invalid seen address");
 				return cb();
 				
+			case 'seen definition change':
+				if (objValidationState.bNoReferences)
+					return cb("no references allowed in address definition");
+				if (!isArrayOfLength(args, 2))
+					return cb(op+" must have 2 args");
+				var changed_address = args[0];
+				var new_definition_chash = args[1];
+				if (!isValidAddress(changed_address)) // it is ok if the address was never used yet
+					return cb("invalid changed address");
+				if (!isValidAddress(new_definition_chash))
+					return cb("invalid new definition chash");
+				return cb();
+				
 			case 'cosigned by':
 				if (bInNegation)
 					return cb(op+" cannot be negated");
@@ -656,6 +669,21 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 					WHERE address=? AND main_chain_index<=? AND sequence='good' AND is_stable=1 \n\
 					LIMIT 1",
 					[seen_address, objValidationState.last_ball_mci],
+					function(rows){
+						cb2(rows.length > 0);
+					}
+				);
+				break;
+				
+			case 'seen definition change':
+				// ['seen definition change', ['BASE32', 'BASE32']]
+				var changed_address = args[0];
+				var new_definition_chash = args[1];
+				conn.query(
+					"SELECT 1 FROM address_definition_changes CROSS JOIN units USING(unit) \n\
+					WHERE address=? AND definition_chash=? AND main_chain_index<=? AND sequence='good' AND is_stable=1 \n\
+					LIMIT 1",
+					[changed_address, new_definition_chash, objValidationState.last_ball_mci],
 					function(rows){
 						cb2(rows.length > 0);
 					}
