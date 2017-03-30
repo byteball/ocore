@@ -288,6 +288,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 				return cb();
 				
 			case 'seen definition change':
+			case 'has definition change':
 				if (objValidationState.bNoReferences)
 					return cb("no references allowed in address definition");
 				if (!isArrayOfLength(args, 2))
@@ -887,6 +888,22 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 						return cb2(true);
 					cb2(false);
 				});
+				break;
+				
+			case 'has definition change':
+				// ['has definition change', ['BASE32', 'BASE32']]
+				var changed_address = args[0];
+				var new_definition_chash = args[1];
+				cb2(objUnit.messages.some(function(message){
+					if (message.app !== 'address_definition_change')
+						return false;
+					if (!message.payload)
+						return false;
+					if (message.payload.definition_chash !== new_definition_chash)
+						return false;
+					var address = message.payload.address || objUnit.authors[0].address;
+					return (address === changed_address);
+				}));
 				break;
 				
 		}
