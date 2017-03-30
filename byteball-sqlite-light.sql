@@ -642,8 +642,8 @@ CREATE TABLE chat_messages (
 	message LONGTEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	is_incoming INTEGER(1) NOT NULL,
-	type CHAR(15) NOT NULL DEFAULT 'text'
---	FOREIGN KEY (correspondent_address) REFERENCES devices(device_address)
+	type CHAR(15) NOT NULL DEFAULT 'text',
+	FOREIGN KEY (correspondent_address) REFERENCES correspondent_devices(device_address)
 );
 CREATE INDEX chatMessagesIndexByDeviceAddress ON chat_messages(correspondent_address, id);
 ALTER TABLE correspondent_devices ADD COLUMN my_record_pref INTEGER DEFAULT 1;

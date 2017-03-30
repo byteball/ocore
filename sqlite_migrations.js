@@ -38,7 +38,8 @@ function migrateDb(connection, onDone){
 				message LONGTEXT NOT NULL, \n\
 				creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, \n\
 				is_incoming INTEGER(1) NOT NULL, \n\
-				type CHAR(15) NOT NULL DEFAULT 'text' \n\
+				type CHAR(15) NOT NULL DEFAULT 'text', \n\
+				FOREIGN KEY (correspondent_address) REFERENCES correspondent_devices(device_address) \n\
 			)");
 			connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS chatMessagesIndexByDeviceAddress ON chat_messages(correspondent_address, id)");
 			connection.addQuery(arrQueries, "ALTER TABLE correspondent_devices ADD COLUMN my_record_pref INTEGER DEFAULT 1");
