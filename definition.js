@@ -396,8 +396,6 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 				var err = getFilterError(args);
 				if (err)
 					return cb(err);
-				if (!args.asset || args.asset === 'base' || bAssetCondition && args.asset === "this asset")
-					return cb();
 				if (op === 'seen'){
 					if (!args.address)
 						return cb('seen must specify address');
@@ -406,6 +404,8 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 					if ('own_funds' in args)
 						return cb('own_funds not allowed in seen');
 				}
+				if (!args.asset || args.asset === 'base' || bAssetCondition && args.asset === "this asset")
+					return cb();
 				determineIfAnyOfAssetsIsPrivate([args.asset], function(bPrivate){
 					if (bPrivate)
 						return cb("asset must be public");
