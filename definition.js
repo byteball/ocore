@@ -315,12 +315,15 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 			case 'in data feed':
 				if (objValidationState.bNoReferences)
 					return cb("no references allowed in address definition");
-				if (!isArrayOfLength(args, 4))
-					return cb(op+" must have 4 args");
+				if (!Array.isArray(args))
+					return cb(op+" arg must be array");
+				if (args.length !== 4 && args.length !== 5)
+					return cb(op+" must have 4 or 5 args");
 				var arrAddresses = args[0];
 				var feed_name = args[1];
 				var relation = args[2];
 				var value = args[3];
+				var min_mci = args[4];
 				if (!isNonemptyArray(arrAddresses))
 					return cb("no addresses in "+op);
 				for (var i=0; i<arrAddresses.length; i++)
@@ -347,6 +350,8 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 				}
 				else
 					return cb("invalid value");
+				if (typeof min_mci !== 'undefined' && !isNonnegativeInteger(min_mci))
+					return cb(op+": invalid min_mci");
 				return cb();
 				
 			case 'in merkle':
@@ -356,11 +361,14 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 					return cb("no references allowed in address definition");
 				if (bAssetCondition)
 					return cb("asset condition cannot have "+op);
-				if (!isArrayOfLength(args, 3))
-					return cb(op+" must have 3 args");
+				if (!Array.isArray(args))
+					return cb(op+" arg must be array");
+				if (args.length !== 3 && args.length !== 4)
+					return cb(op+" must have 3 or 4 args");
 				var arrAddresses = args[0];
 				var feed_name = args[1];
 				var element = args[2];
+				var min_mci = args[3];
 				if (!isNonemptyArray(arrAddresses))
 					return cb("no addresses in "+op);
 				for (var i=0; i<arrAddresses.length; i++)
@@ -375,6 +383,8 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 			//		return cb("incorrect length of element hash");
 				if (!element.match(/[\w ~,.\/\\;:!@#$%^&*\(\)=+\[\]\{\}<>\?|-]{1,100}/))
 					return cb("incorrect format of merkled element");
+				if (typeof min_mci !== 'undefined' && !isNonnegativeInteger(min_mci))
+					return cb(op+": invalid min_mci");
 				return cb();
 				
 			case 'mci':
@@ -755,11 +765,12 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				var feed_name = args[1];
 				var relation = args[2];
 				var value = args[3];
+				var min_mci = args[4];
 				conn.query(
 					"SELECT 1 FROM data_feeds CROSS JOIN units USING(unit) CROSS JOIN unit_authors USING(unit) \n\
 					WHERE address IN(?) AND feed_name=? AND "+(typeof value === "string" ? "`value`" : "int_value")+relation+"? \n\
-						AND main_chain_index<=? AND sequence='good' AND is_stable=1 LIMIT 1",
-					[arrAddresses, feed_name, value, objValidationState.last_ball_mci],
+						AND main_chain_index<=? AND main_chain_index>=? AND sequence='good' AND is_stable=1 LIMIT 1",
+					[arrAddresses, feed_name, value, objValidationState.last_ball_mci, min_mci],
 					function(rows){
 						console.log(op+" "+rows.length);
 						cb2(rows.length > 0);
@@ -775,6 +786,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				var arrAddresses = args[0];
 				var feed_name = args[1];
 				var element = args[2];
+				var min_mci = args[3] || 0;
 				var serialized_proof = assocAuthentifiers[path];
 				var proof = merkle.deserializeMerkleProof(serialized_proof);
 				if (!merkle.verifyMerkleProof(element, proof)){
@@ -783,8 +795,9 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				}
 				conn.query(
 					"SELECT 1 FROM data_feeds CROSS JOIN units USING(unit) JOIN unit_authors USING(unit) \n\
-					WHERE address IN(?) AND feed_name=? AND value=? AND main_chain_index<=? AND sequence='good' AND is_stable=1 LIMIT 1",
-					[arrAddresses, feed_name, proof.root, objValidationState.last_ball_mci],
+					WHERE address IN(?) AND feed_name=? AND value=? AND main_chain_index<=? AND main_chain_index>=? AND sequence='good' AND is_stable=1 \n\
+					LIMIT 1",
+					[arrAddresses, feed_name, proof.root, objValidationState.last_ball_mci, min_mci],
 					function(rows){
 						if (rows.length === 0)
 							fatal_error = "merkle proof at path "+path+" not found";
