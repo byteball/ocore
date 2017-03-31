@@ -712,7 +712,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 						sql += " AND asset IS NULL ";
 					else{
 						sql += " AND asset=? ";
-						params.push(filter.address);
+						params.push(filter.asset);
 					}
 				}
 				if (filter.type){
