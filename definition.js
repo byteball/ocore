@@ -48,7 +48,9 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 			return "invalid type: "+filter.type;
 		if ("own_funds" in filter && typeof filter.own_funds !== "boolean")
 			return "own_funds must be boolean";
-		if ("address" in filter && !isValidAddress(filter.address)) // it is ok if the address was never used yet
+		if (bAssetCondition && filter.address === 'this address')
+			return "asset condition cannot reference this address";
+		if ("address" in filter && !isValidAddress(filter.address) && filter.address !== 'this address') // it is ok if the address was never used yet
 			return "invalid address: "+filter.address;
 		if ("amount" in filter && !isPositiveInteger(filter.amount))
 			return "amount must be positive int";
@@ -297,9 +299,11 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 					return cb(op+" must have 2 args");
 				var changed_address = args[0];
 				var new_definition_chash = args[1];
-				if (!isValidAddress(changed_address)) // it is ok if the address was never used yet
+				if (bAssetCondition && (changed_address === 'this address' || new_definition_chash === 'this address'))
+					return cb("asset condition cannot reference this address in "+op);
+				if (!isValidAddress(changed_address) && changed_address !== 'this address') // it is ok if the address was never used yet
 					return cb("invalid changed address");
-				if (!isValidAddress(new_definition_chash))
+				if (!isValidAddress(new_definition_chash) && new_definition_chash !== 'this address')
 					return cb("invalid new definition chash");
 				return cb();
 				
@@ -692,6 +696,10 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				// ['seen definition change', ['BASE32', 'BASE32']]
 				var changed_address = args[0];
 				var new_definition_chash = args[1];
+				if (changed_address === 'this address')
+					changed_address = address;
+				if (new_definition_chash === 'this address')
+					new_definition_chash = address;
 				conn.query(
 					"SELECT 1 FROM address_definition_changes CROSS JOIN units USING(unit) \n\
 					WHERE address=? AND definition_chash=? AND main_chain_index<=? AND sequence='good' AND is_stable=1 \n\
@@ -724,7 +732,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				}
 				if (filter.address){
 					sql += " AND address=? ";
-					params.push(filter.address);
+					params.push((filter.address === 'this address') ? address : filter.address);
 				}
 				if (filter.what === 'output'){
 					if (filter.amount_at_least){
@@ -910,6 +918,10 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				// ['has definition change', ['BASE32', 'BASE32']]
 				var changed_address = args[0];
 				var new_definition_chash = args[1];
+				if (changed_address === 'this address')
+					changed_address = address;
+				if (new_definition_chash === 'this address')
+					new_definition_chash = address;
 				cb2(objUnit.messages.some(function(message){
 					if (message.app !== 'address_definition_change')
 						return false;
@@ -939,6 +951,9 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 	
 	
 	function evaluateFilter(op, filter, handleResult){
+		var filter_address = filter.address;
+		if (filter_address === 'this address')
+			filter_address = address;
 		var arrFoundObjects = [];
 		for (var i=0; i<objUnit.messages.length; i++){
 			var message = objUnit.messages[i];
@@ -973,7 +988,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 						continue;
 					if (filter.own_funds === false && objValidationState.arrAugmentedMessages[i].payload.inputs[j].address === address)
 						continue;
-					if (filter.address && objValidationState.arrAugmentedMessages[i].payload.inputs[j].address !== filter.address)
+					if (filter_address && objValidationState.arrAugmentedMessages[i].payload.inputs[j].address !== filter_address)
 						continue;
 					if (filter.amount && objValidationState.arrAugmentedMessages[i].payload.inputs[j].amount !== filter.amount)
 						continue;
@@ -987,7 +1002,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 			else if (filter.what === "output"){
 				for (var j=0; j<payload.outputs.length; j++){
 					var output = payload.outputs[j];
-					if (filter.address && output.address !== filter.address)
+					if (filter_address && output.address !== filter_address)
 						continue;
 					if (filter.amount && output.amount !== filter.amount)
 						continue;
