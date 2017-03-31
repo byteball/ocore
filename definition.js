@@ -32,6 +32,8 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 			return "unknown fields in filter";
 		if (filter.what !== "input" && filter.what !== "output")
 			return "invalid what="+filter.what;
+		if (bAssetCondition && filter.asset === "this asset" && objValidationState.bDefiningPrivateAsset)
+			return "private asset cannot reference itself";
 		if ("asset" in filter && !(filter.asset === "base" || isStringOfLength(filter.asset, constants.HASH_LENGTH) || bAssetCondition && filter.asset === "this asset"))
 			return "invalid asset: "+filter.asset;
 		if (filter.what === "output"){
@@ -705,7 +707,8 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				// ['seen', {what: 'input', asset: 'asset or base', type: 'transfer'|'issue', own_funds: true, amount_at_least: 123, amount_at_most: 123, amount: 123, address: 'BASE32'}]
 				var filter = args;
 				var sql = "SELECT 1 FROM "+filter.what+"s CROSS JOIN units USING(unit) \n\
-					WHERE main_chain_index<=? AND sequence='good' AND is_stable=1 ";
+					LEFT JOIN assets ON asset=assets.unit \n\
+					WHERE main_chain_index<=? AND sequence='good' AND is_stable=1 AND (asset IS NULL OR is_private=0) ";
 				var params = [objValidationState.last_ball_mci];
 				if (filter.asset){
 					if (filter.asset === 'base')

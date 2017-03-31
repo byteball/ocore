@@ -1933,6 +1933,8 @@ function validateAssetDefinition(conn, payload, objUnit, objValidationState, cal
 	//if (!payload.issued_by_definer_only && !payload.is_transferrable)
 	//    return callback("if issued by anybody, must be transferrable");
 	
+	objValidationState.bDefiningPrivateAsset = payload.is_private;
+	
 	async.series([
 		function(cb){
 			if (!("issue_condition" in payload))
