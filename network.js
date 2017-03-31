@@ -2082,6 +2082,12 @@ function handleRequest(ws, tag, command, params){
 			}, 'wait');
 			break;
 			
+		case 'get_last_mci':
+			storage.readLastMainChainIndex(function(last_mci){
+				sendResponse(ws, tag, last_mci);
+			});
+			break;
+			
 		// I'm a hub, the peer wants to deliver a message to one of my clients
 		case 'hub/deliver':
 			var objDeviceMessage = params;
