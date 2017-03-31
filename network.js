@@ -855,12 +855,12 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 					throw Error("ifOk() unsigned");
 				writer.saveJoint(objJoint, objValidationState, null, function(){
 					validation_unlock();
+					callbacks.ifOk();
 					if (ws)
 						writeEvent((objValidationState.sequence !== 'good') ? 'nonserial' : 'new_good', ws.host);
 					notifyWatchers(objJoint);
 					if (!bCatchingUp)
 						eventBus.emit('new_joint', objJoint);
-					callbacks.ifOk();
 				});
 			},
 			ifOkUnsigned: function(bSerial){
