@@ -858,7 +858,7 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 					callbacks.ifOk();
 					if (ws)
 						writeEvent((objValidationState.sequence !== 'good') ? 'nonserial' : 'new_good', ws.host);
-					notifyWatchers(objJoint);
+					notifyWatchers(objJoint, ws);
 					if (!bCatchingUp)
 						eventBus.emit('new_joint', objJoint);
 				});
@@ -1087,7 +1087,7 @@ function addWatchedAddress(address){
 }
 
 // if any of the watched addresses are affected, notifies:  1. own UI  2. light clients
-function notifyWatchers(objJoint){
+function notifyWatchers(objJoint, source_ws){
 	var objUnit = objJoint.unit;
 	var arrAddresses = objUnit.authors.map(function(author){ return author.address; });
 	if (!objUnit.messages) // voided unit
@@ -1130,7 +1130,7 @@ function notifyWatchers(objJoint){
 		objUnit.timestamp = Math.round(Date.now()/1000); // light clients need timestamp
 		rows.forEach(function(row){
 			var ws = getPeerWebSocket(row.peer);
-			if (ws && ws.readyState === ws.OPEN)
+			if (ws && ws.readyState === ws.OPEN && ws !== source_ws)
 				sendJoint(ws, objJoint);
 		});
 	});
