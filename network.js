@@ -676,8 +676,8 @@ function requestNewMissingJoints(ws, arrUnits){
 				},
 				ifKnown: function(){console.log("known"); cb();}, // it has just been handled
 				ifKnownUnverified: function(){console.log("known unverified"); cb();}, // I was already waiting for it
-				ifKnownBad: function(){
-					throw Error("known bad "+unit);
+				ifKnownBad: function(error){
+					throw Error("known bad "+unit+": "+error);
 				}
 			});
 		},
