@@ -834,13 +834,14 @@ function readTransactionHistory(opts, handleHistory){
 										action: action,
 										amount: payee.amount,
 										addressTo: payee.address,
-										my_address: payee.address,
 										confirmations: movement.is_stable,
 										unit: unit,
 										fee: movement.fee,
 										time: movement.ts,
 										level: movement.level
 									};
+									if (action === 'moved')
+										transaction.my_address = payee.address;
 									arrTransactions.push(transaction);
 								}
 								cb();
