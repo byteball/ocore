@@ -776,7 +776,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				var feed_name = args[1];
 				var relation = args[2];
 				var value = args[3];
-				var min_mci = args[4];
+				var min_mci = args[4] || 0;
 				conn.query(
 					"SELECT 1 FROM data_feeds CROSS JOIN units USING(unit) CROSS JOIN unit_authors USING(unit) \n\
 					WHERE address IN(?) AND feed_name=? AND "+(typeof value === "string" ? "`value`" : "int_value")+relation+"? \n\
