@@ -1975,6 +1975,15 @@ function handleJustsaying(ws, subject, body){
 				return sendError(ws, "address not valid");
 			db.query("INSERT "+db.getIgnore()+" INTO watched_light_addresses (peer, address) VALUES (?,?)", [ws.peer, address], function(){
 				sendInfo(ws, "now watching "+address);
+				// check if we already have something on this address
+				db.query(
+					"SELECT 1 FROM unit_authors WHERE address=? UNION SELECT 1 FROM outputs WHERE address=? LIMIT 1", 
+					[address, address], 
+					function(rows){
+						if (rows.length > 0)
+							sendJustsaying(ws, 'light/have_updates');
+					}
+				);
 			});            
 			break;
 	}
