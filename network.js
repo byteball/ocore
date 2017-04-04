@@ -697,8 +697,11 @@ function requestJoints(ws, arrUnits) {
 	arrUnits.forEach(function(unit){
 		if (assocRequestedUnits[unit]){
 			var diff = Date.now() - assocRequestedUnits[unit];
+			// since response handlers are called in nextTick(), there is a period when the pending request is already cleared but the response
+			// handler is not yet called, hence assocRequestedUnits[unit] not yet cleared
 			if (diff <= STALLED_TIMEOUT)
-				throw new Error("unit "+unit+" already requested "+diff+" ms ago, assocUnitsInWork="+assocUnitsInWork[unit]);
+				return console.log("unit "+unit+" already requested "+diff+" ms ago, assocUnitsInWork="+assocUnitsInWork[unit]);
+			//	throw new Error("unit "+unit+" already requested "+diff+" ms ago, assocUnitsInWork="+assocUnitsInWork[unit]);
 		}
 		if (ws.readyState === ws.OPEN)
 			assocRequestedUnits[unit] = Date.now();
