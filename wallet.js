@@ -734,6 +734,10 @@ function readTransactionHistory(opts, handleHistory){
 	var join_my_addresses = walletIsAddress ? "" : "JOIN my_addresses USING(address)";
 	var where_condition = walletIsAddress ? "address=?" : "wallet=?";
 	var asset_condition = (asset && asset !== "base") ? "asset="+db.escape(asset) : "asset IS NULL";
+	if (opts.unit)
+		where_condition += " AND unit="+db.escape(opts.unit);
+	else if (opts.since_mci && ValidationUtils.isNonnegativeInteger(opts.since_mci))
+		where_condition += " AND main_chain_index>="+opts.since_mci;
 	db.query(
 		"SELECT unit, level, is_stable, sequence, address, \n\
 			"+db.getUnixTimestamp("units.creation_date")+" AS ts, headers_commission+payload_commission AS fee, \n\
@@ -747,7 +751,7 @@ function readTransactionHistory(opts, handleHistory){
 			NULL AS amount, NULL AS to_address, address AS from_address \n\
 		FROM inputs "+join_my_addresses+" JOIN units USING(unit) \n\
 		WHERE "+where_condition+" AND "+asset_condition+" \n\
-		"+(opts.limit ? "ORDER BY ts DESC LIMIT ?" : ""),
+		ORDER BY ts DESC"+(opts.limit ? " LIMIT ?" : ""),
 		opts.limit ? [wallet, wallet, opts.limit] : [wallet, wallet],
 		function(rows){
 			var assocMovements = {};
