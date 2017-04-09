@@ -125,6 +125,9 @@ function sendVersion(ws){
 		program: conf.program, 
 		program_version: conf.program_version
 	});
+	if(conf.pushApiProjectNumber && conf.pushApiKey){
+		sendJustsaying(ws, 'pushProjectNumber',{projectNumber: conf.pushApiProjectNumber});
+	}
 }
 
 function sendResponse(ws, tag, response){
@@ -1786,6 +1789,11 @@ function handleJustsaying(ws, subject, body){
 			if (ws.bLoggingIn || ws.bLoggedIn) // accept from hub only
 				eventBus.emit('new_version', ws, body);
 			break;
+
+		case 'pushProjectNumber':
+			if (ws.bLoggingIn || ws.bLoggedIn)
+				eventBus.emit('receivedPushProjectNumber', ws, body);
+			break;
 		
 		case 'bugreport':
 			mail.sendBugEmail(body.message, body.exception);
@@ -2136,6 +2144,7 @@ function handleRequest(ws, tag, command, params){
 								sendJustsaying(client, 'hub/message', {message_hash: message_hash, message: objDeviceMessage});
 						});
 						sendResponse(ws, tag, "accepted");
+						eventBus.emit('peer_sent_new_message', ws, objDeviceMessage);
 					}
 				);
 			});
@@ -2241,6 +2250,16 @@ function handleRequest(ws, tag, command, params){
 					sendResponse(ws, tag, objResponse);
 				}
 			});
+			break;
+
+		case 'enableNotification':
+			eventBus.emit("enableNotification", ws, params);
+			sendResponse(ws, tag, 'ok');
+			break;
+
+		case 'disableNotification':
+			eventBus.emit("disableNotification", ws, params);
+			sendResponse(ws, tag, 'ok');
 			break;
 	}
 }
