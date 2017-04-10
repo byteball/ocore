@@ -127,6 +127,8 @@ function sendVersion(ws){
 	});
 	if(conf.pushApiProjectNumber && conf.pushApiKey){
 		sendJustsaying(ws, 'push_project_number',{projectNumber: conf.pushApiProjectNumber});
+	}else{
+		sendJustsaying(ws, 'push_project_number',{projectNumber: 0});
 	}
 }
 
