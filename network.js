@@ -126,7 +126,7 @@ function sendVersion(ws){
 		program_version: conf.program_version
 	});
 	if(conf.pushApiProjectNumber && conf.pushApiKey){
-		sendJustsaying(ws, 'pushProjectNumber',{projectNumber: conf.pushApiProjectNumber});
+		sendJustsaying(ws, 'push_project_number',{projectNumber: conf.pushApiProjectNumber});
 	}
 }
 
@@ -1790,7 +1790,7 @@ function handleJustsaying(ws, subject, body){
 				eventBus.emit('new_version', ws, body);
 			break;
 
-		case 'pushProjectNumber':
+		case 'push_project_number':
 			if (ws.bLoggingIn || ws.bLoggedIn)
 				eventBus.emit('receivedPushProjectNumber', ws, body);
 			break;
@@ -2138,13 +2138,19 @@ function handleRequest(ws, tag, command, params){
 					"INSERT "+db.getIgnore()+" INTO device_messages (message_hash, message, device_address) VALUES (?,?,?)", 
 					[message_hash, JSON.stringify(objDeviceMessage), objDeviceMessage.to],
 					function(){
-						// if the adressee is connected, deliver immediately
+						// if the addressee is connected, deliver immediately
+						var addresseeIsConnect = false;
 						wss.clients.forEach(function(client){
-							if (client.device_address === objDeviceMessage.to)
-								sendJustsaying(client, 'hub/message', {message_hash: message_hash, message: objDeviceMessage});
+							if (client.device_address === objDeviceMessage.to) {
+								sendJustsaying(client, 'hub/message', {
+									message_hash: message_hash,
+									message: objDeviceMessage
+								});
+								addresseeIsConnect = true;
+							}
 						});
 						sendResponse(ws, tag, "accepted");
-						eventBus.emit('peer_sent_new_message', ws, objDeviceMessage);
+						if(!addresseeIsConnect) eventBus.emit('peer_sent_new_message', ws, objDeviceMessage);
 					}
 				);
 			});
@@ -2252,12 +2258,12 @@ function handleRequest(ws, tag, command, params){
 			});
 			break;
 
-		case 'enableNotification':
+		case 'hub/enable_notification':
 			eventBus.emit("enableNotification", ws, params);
 			sendResponse(ws, tag, 'ok');
 			break;
 
-		case 'disableNotification':
+		case 'hub/disable_notification':
 			eventBus.emit("disableNotification", ws, params);
 			sendResponse(ws, tag, 'ok');
 			break;
