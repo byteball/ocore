@@ -427,9 +427,9 @@ function validateParents(conn, objJoint, objValidationState, callback){
 			if (err)
 				return callback(err);
 			if (arrMissingParentUnits.length > 0){
-				conn.query("SELECT 1 FROM known_bad_joints WHERE unit IN(?)", [arrMissingParentUnits], function(rows){
+				conn.query("SELECT error FROM known_bad_joints WHERE unit IN(?)", [arrMissingParentUnits], function(rows){
 					(rows.length > 0)
-						? callback("some of the unit's parents are known bad")
+						? callback("some of the unit's parents are known bad: "+rows[0].error)
 						: callback({error_code: "unresolved_dependency", arrMissingUnits: arrMissingParentUnits});
 				});
 				return;
@@ -1932,6 +1932,8 @@ function validateAssetDefinition(conn, payload, objUnit, objValidationState, cal
 	// possible: the entire issue should go to the definer
 	//if (!payload.issued_by_definer_only && !payload.is_transferrable)
 	//    return callback("if issued by anybody, must be transferrable");
+	
+	objValidationState.bDefiningPrivateAsset = payload.is_private;
 	
 	async.series([
 		function(cb){

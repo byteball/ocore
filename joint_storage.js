@@ -22,8 +22,8 @@ function checkIfNewUnit(unit, callbacks) {
 		db.query("SELECT 1 FROM unhandled_joints WHERE unit=?", [unit], function(unhandled_rows){
 			if (unhandled_rows.length > 0)
 				return callbacks.ifKnownUnverified();
-			db.query("SELECT 1 FROM known_bad_joints WHERE unit=?", [unit], function(bad_rows){
-				(bad_rows.length === 0) ? callbacks.ifNew() : callbacks.ifKnownBad();
+			db.query("SELECT error FROM known_bad_joints WHERE unit=?", [unit], function(bad_rows){
+				(bad_rows.length === 0) ? callbacks.ifNew() : callbacks.ifKnownBad(bad_rows[0].error);
 			});
 		});
 	});
@@ -35,8 +35,8 @@ function checkIfNewJoint(objJoint, callbacks) {
 		ifKnownUnverified: callbacks.ifKnownUnverified,
 		ifKnownBad: callbacks.ifKnownBad,
 		ifNew: function(){
-			db.query("SELECT 1 FROM known_bad_joints WHERE joint=?", [objectHash.getJointHash(objJoint)], function(bad_rows){
-				(bad_rows.length === 0) ? callbacks.ifNew() : callbacks.ifKnownBad();
+			db.query("SELECT error FROM known_bad_joints WHERE joint=?", [objectHash.getJointHash(objJoint)], function(bad_rows){
+				(bad_rows.length === 0) ? callbacks.ifNew() : callbacks.ifKnownBad(bad_rows[0].error);
 			});
 		}
 	});

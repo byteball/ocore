@@ -1,7 +1,7 @@
 /*jslint node: true */
 "use strict";
 var WebSocket = process.browser ? global.WebSocket : require('ws');
-var socksv5 = process.browser ? null : require('socksv5'+'');
+var socks = process.browser ? null : require('socks'+'');
 var WebSocketServer = WebSocket.Server;
 var crypto = require('crypto');
 var _ = require('lodash');
@@ -332,13 +332,8 @@ function connectToPeer(url, onOpen) {
 	if (conf.bWantNewPeers)
 		addPeer(url);
 	var options = {};
-	if (socksv5 && conf.socksHost && conf.socksPort)
-		options.agent = new socksv5.HttpsAgent({
-								localDNS: conf.socksLocalDNS,
-								proxyHost: conf.socksHost,
-								proxyPort: conf.socksPort,
-								auths: [ socksv5.auth.None() ]
-							});
+	if (socks && conf.socksHost && conf.socksPort)
+		options.agent = new socks.Agent({ proxy: { ipaddress: conf.socksHost, port: conf.socksPort, type: 5 } }, /^wss/i.test(url) );
 	var ws = options.agent ? new WebSocket(url,options) : new WebSocket(url);
 	assocConnectingOutboundWebsockets[url] = ws;
 	setTimeout(function(){
@@ -388,11 +383,13 @@ function connectToPeer(url, onOpen) {
 		if (i !== -1)
 			arrOutboundPeers.splice(i, 1);
 		cancelRequestsOnClosedConnection(ws);
+		if (options.agent && options.agent.destroy)
+			options.agent.destroy();
 	});
 	ws.on('error', function onWsError(e){
 		delete assocConnectingOutboundWebsockets[url];
 		console.log("error from server "+url+": "+e);
-		var err = JSON.stringify(e);
+		var err = e.toString();
 		// !ws.bOutbound means not connected yet. This is to distinguish connection errors from later errors that occur on open connection
 		if (!ws.bOutbound && onOpen)
 			onOpen(err);
@@ -679,8 +676,8 @@ function requestNewMissingJoints(ws, arrUnits){
 				},
 				ifKnown: function(){console.log("known"); cb();}, // it has just been handled
 				ifKnownUnverified: function(){console.log("known unverified"); cb();}, // I was already waiting for it
-				ifKnownBad: function(){
-					throw Error("known bad "+unit);
+				ifKnownBad: function(error){
+					throw Error("known bad "+unit+": "+error);
 				}
 			});
 		},
@@ -700,8 +697,11 @@ function requestJoints(ws, arrUnits) {
 	arrUnits.forEach(function(unit){
 		if (assocRequestedUnits[unit]){
 			var diff = Date.now() - assocRequestedUnits[unit];
+			// since response handlers are called in nextTick(), there is a period when the pending request is already cleared but the response
+			// handler is not yet called, hence assocRequestedUnits[unit] not yet cleared
 			if (diff <= STALLED_TIMEOUT)
-				throw new Error("unit "+unit+" already requested "+diff+" ms ago, assocUnitsInWork="+assocUnitsInWork[unit]);
+				return console.log("unit "+unit+" already requested "+diff+" ms ago, assocUnitsInWork="+assocUnitsInWork[unit]);
+			//	throw new Error("unit "+unit+" already requested "+diff+" ms ago, assocUnitsInWork="+assocUnitsInWork[unit]);
 		}
 		if (ws.readyState === ws.OPEN)
 			assocRequestedUnits[unit] = Date.now();
@@ -858,12 +858,12 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 					throw Error("ifOk() unsigned");
 				writer.saveJoint(objJoint, objValidationState, null, function(){
 					validation_unlock();
+					callbacks.ifOk();
 					if (ws)
 						writeEvent((objValidationState.sequence !== 'good') ? 'nonserial' : 'new_good', ws.host);
-					notifyWatchers(objJoint);
+					notifyWatchers(objJoint, ws);
 					if (!bCatchingUp)
 						eventBus.emit('new_joint', objJoint);
-					callbacks.ifOk();
 				});
 			},
 			ifOkUnsigned: function(bSerial){
@@ -1090,7 +1090,7 @@ function addWatchedAddress(address){
 }
 
 // if any of the watched addresses are affected, notifies:  1. own UI  2. light clients
-function notifyWatchers(objJoint){
+function notifyWatchers(objJoint, source_ws){
 	var objUnit = objJoint.unit;
 	var arrAddresses = objUnit.authors.map(function(author){ return author.address; });
 	if (!objUnit.messages) // voided unit
@@ -1133,7 +1133,7 @@ function notifyWatchers(objJoint){
 		objUnit.timestamp = Math.round(Date.now()/1000); // light clients need timestamp
 		rows.forEach(function(row){
 			var ws = getPeerWebSocket(row.peer);
-			if (ws && ws.readyState === ws.OPEN)
+			if (ws && ws.readyState === ws.OPEN && ws !== source_ws)
 				sendJoint(ws, objJoint);
 		});
 	});
@@ -1978,6 +1978,15 @@ function handleJustsaying(ws, subject, body){
 				return sendError(ws, "address not valid");
 			db.query("INSERT "+db.getIgnore()+" INTO watched_light_addresses (peer, address) VALUES (?,?)", [ws.peer, address], function(){
 				sendInfo(ws, "now watching "+address);
+				// check if we already have something on this address
+				db.query(
+					"SELECT 1 FROM unit_authors WHERE address=? UNION SELECT 1 FROM outputs WHERE address=? LIMIT 1", 
+					[address, address], 
+					function(rows){
+						if (rows.length > 0)
+							sendJustsaying(ws, 'light/have_updates');
+					}
+				);
 			});            
 			break;
 	}
@@ -2083,6 +2092,12 @@ function handleRequest(ws, tag, command, params){
 			myWitnesses.readMyWitnesses(function(arrWitnesses){
 				sendResponse(ws, tag, arrWitnesses);
 			}, 'wait');
+			break;
+			
+		case 'get_last_mci':
+			storage.readLastMainChainIndex(function(last_mci){
+				sendResponse(ws, tag, last_mci);
+			});
 			break;
 			
 		// I'm a hub, the peer wants to deliver a message to one of my clients

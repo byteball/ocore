@@ -58,8 +58,6 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 			});
 		});
 		
-		
-		
 		var connection = {
 			db: db,
 			bInUse: true,
