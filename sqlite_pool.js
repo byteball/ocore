@@ -4,7 +4,7 @@ var _ = require('lodash');
 var async = require('async');
 var EventEmitter = require('events').EventEmitter;
 
-var VERSION = 3;
+var VERSION = 4;
 
 var bCordova = (typeof window === 'object' && window.cordova);
 var sqlite3;
@@ -88,7 +88,6 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 					connection.addQuery(arrQueries, "DELETE FROM known_bad_joints");
 				if (version < 4){
 					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS push_registrations (registrationId TEXT, device_address TEXT NOT NULL, PRIMARY KEY (device_address))");
-					connection.addQuery(arrQueries, "CREATE INDEX byPushAddress ON push_registrations(device_address)");
 				}
 				connection.addQuery(arrQueries, "PRAGMA user_version="+VERSION);
 				async.series(arrQueries, onDone);
