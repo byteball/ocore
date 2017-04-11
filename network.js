@@ -126,9 +126,9 @@ function sendVersion(ws){
 		program_version: conf.program_version
 	});
 	if(conf.pushApiProjectNumber && conf.pushApiKey){
-		sendJustsaying(ws, 'push_project_number',{projectNumber: conf.pushApiProjectNumber});
+		sendJustsaying(ws, 'hub/push_project_number',{projectNumber: conf.pushApiProjectNumber});
 	}else{
-		sendJustsaying(ws, 'push_project_number',{projectNumber: 0});
+		sendJustsaying(ws, 'hub/push_project_number',{projectNumber: 0});
 	}
 }
 
@@ -1792,7 +1792,7 @@ function handleJustsaying(ws, subject, body){
 				eventBus.emit('new_version', ws, body);
 			break;
 
-		case 'push_project_number':
+		case 'hub/push_project_number':
 			if (ws.bLoggingIn || ws.bLoggedIn)
 				eventBus.emit('receivedPushProjectNumber', ws, body);
 			break;
@@ -2141,18 +2141,18 @@ function handleRequest(ws, tag, command, params){
 					[message_hash, JSON.stringify(objDeviceMessage), objDeviceMessage.to],
 					function(){
 						// if the addressee is connected, deliver immediately
-						var addresseeIsConnect = false;
+						var addresseeIsConnected = false;
 						wss.clients.forEach(function(client){
 							if (client.device_address === objDeviceMessage.to) {
 								sendJustsaying(client, 'hub/message', {
 									message_hash: message_hash,
 									message: objDeviceMessage
 								});
-								addresseeIsConnect = true;
+								addresseeIsConnected = true;
 							}
 						});
 						sendResponse(ws, tag, "accepted");
-						if(!addresseeIsConnect) eventBus.emit('peer_sent_new_message', ws, objDeviceMessage);
+						if(!addresseeIsConnected) eventBus.emit('peer_sent_new_message', ws, objDeviceMessage);
 					}
 				);
 			});
