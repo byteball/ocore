@@ -634,3 +634,9 @@ CREATE TABLE watched_light_addresses (
 ALTER TABLE `units` ADD INDEX `bySequence` (`sequence`);
 
 DROP TABLE IF EXISTS paid_witness_events;
+
+CREATE TABLE IF NOT EXISTS push_registrations (
+    registrationId VARCHAR(200), 
+    device_address CHAR(33) NOT NULL, 
+    PRIMARY KEY (device_address)
+);

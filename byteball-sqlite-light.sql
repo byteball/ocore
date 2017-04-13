@@ -636,4 +636,10 @@ CREATE INDEX "bySequence" ON "units" ("sequence");
 
 DROP TABLE IF EXISTS paid_witness_events;
 
-PRAGMA user_version=2;
+CREATE TABLE IF NOT EXISTS push_registrations (
+    registrationId TEXT, 
+    device_address TEXT NOT NULL, 
+    PRIMARY KEY (device_address)
+);
+
+PRAGMA user_version=4;
