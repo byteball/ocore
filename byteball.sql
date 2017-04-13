@@ -635,6 +635,12 @@ ALTER TABLE `units` ADD INDEX `bySequence` (`sequence`);
 
 DROP TABLE IF EXISTS paid_witness_events;
 
+CREATE TABLE IF NOT EXISTS push_registrations (
+    registrationId VARCHAR(200), 
+    device_address CHAR(33) NOT NULL, 
+    PRIMARY KEY (device_address)
+);
+
 CREATE TABLE chat_messages (
 	id INTEGER PRIMARY KEY AUTO_INCREMENT,
 	correspondent_address CHAR(33) NOT NULL, -- the device this message is came from

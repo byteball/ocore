@@ -777,11 +777,34 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				var relation = args[2];
 				var value = args[3];
 				var min_mci = args[4] || 0;
+				var value_condition;
+				var index;
+				var params = [arrAddresses, feed_name];
+				if (typeof value === "string"){
+					index = 'byNameStringValue';
+					var isNumber = /^-?\d+\.?\d*$/.test(value);
+					if (isNumber){
+						var bForceNumericComparison = (['>','>=','<','<='].indexOf(relation) >= 0);
+						var plus_0 = bForceNumericComparison ? '+0' : '';
+						value_condition = '(value'+plus_0+relation+'? OR int_value'+relation+'?)';
+						params.push(value, value);
+					}
+					else{
+						value_condition = 'value'+relation+'?';
+						params.push(value);
+					}
+				}
+				else{
+					index = 'byNameIntValue';
+					value_condition = 'int_value'+relation+'?';
+					params.push(value);
+				}
+				params.push(objValidationState.last_ball_mci, min_mci);
 				conn.query(
-					"SELECT 1 FROM data_feeds CROSS JOIN units USING(unit) CROSS JOIN unit_authors USING(unit) \n\
-					WHERE address IN(?) AND feed_name=? AND "+(typeof value === "string" ? "`value`" : "int_value")+relation+"? \n\
+					"SELECT 1 FROM data_feeds "+db.forceIndex(index)+" CROSS JOIN units USING(unit) CROSS JOIN unit_authors USING(unit) \n\
+					WHERE address IN(?) AND feed_name=? AND "+value_condition+" \n\
 						AND main_chain_index<=? AND main_chain_index>=? AND sequence='good' AND is_stable=1 LIMIT 1",
-					[arrAddresses, feed_name, value, objValidationState.last_ball_mci, min_mci],
+					params,
 					function(rows){
 						console.log(op+" "+rows.length);
 						cb2(rows.length > 0);

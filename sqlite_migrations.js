@@ -1,7 +1,7 @@
 /*jslint node: true */
 "use strict";
 
-var VERSION = 4;
+var VERSION = 6;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -31,10 +31,13 @@ function migrateDb(connection, onDone){
 			connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS inputsIndexByAddressTypeToMci ON inputs(address, type, to_main_chain_index)");
 			connection.addQuery(arrQueries, "DELETE FROM known_bad_joints");
 		}
-		if (version < 3) {
-					connection.addQuery(arrQueries, "DELETE FROM known_bad_joints");
+		if (version < 4) {
+			connection.addQuery(arrQueries, "DELETE FROM known_bad_joints");
 		}
-		if (version < 4){
+		if (version < 5){
+			connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS push_registrations (registrationId TEXT, device_address TEXT NOT NULL, PRIMARY KEY (device_address))");
+		}
+		if (version < 6){
 			connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS chat_messages ( \n\
 				id INTEGER PRIMARY KEY, \n\
 				correspondent_address CHAR(33) NOT NULL, \n\

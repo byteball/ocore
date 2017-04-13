@@ -636,6 +636,12 @@ CREATE INDEX "bySequence" ON "units" ("sequence");
 
 DROP TABLE IF EXISTS paid_witness_events;
 
+CREATE TABLE IF NOT EXISTS push_registrations (
+    registrationId TEXT, 
+    device_address TEXT NOT NULL, 
+    PRIMARY KEY (device_address)
+);
+
 CREATE TABLE chat_messages (
 	id INTEGER PRIMARY KEY,
 	correspondent_address CHAR(33) NOT NULL,
@@ -649,4 +655,4 @@ CREATE INDEX chatMessagesIndexByDeviceAddress ON chat_messages(correspondent_add
 ALTER TABLE correspondent_devices ADD COLUMN my_record_pref INTEGER DEFAULT 1;
 ALTER TABLE correspondent_devices ADD COLUMN peer_record_pref INTEGER DEFAULT 1;
 
-PRAGMA user_version=3;
+PRAGMA user_version=6;

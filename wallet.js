@@ -746,14 +746,14 @@ function readTransactionHistory(opts, handleHistory){
 	db.query(
 		"SELECT unit, level, is_stable, sequence, address, \n\
 			"+db.getUnixTimestamp("units.creation_date")+" AS ts, headers_commission+payload_commission AS fee, \n\
-			SUM(amount) AS amount, address AS to_address, NULL AS from_address \n\
+			SUM(amount) AS amount, address AS to_address, NULL AS from_address, main_chain_index AS mci \n\
 		FROM outputs "+join_my_addresses+" JOIN units USING(unit) \n\
 		WHERE "+where_condition+" AND "+asset_condition+" \n\
 		GROUP BY unit, address \n\
 		UNION \n\
 		SELECT unit, level, is_stable, sequence, address, \n\
 			"+db.getUnixTimestamp("units.creation_date")+" AS ts, headers_commission+payload_commission AS fee, \n\
-			NULL AS amount, NULL AS to_address, address AS from_address \n\
+			NULL AS amount, NULL AS to_address, address AS from_address, main_chain_index AS mci \n\
 		FROM inputs "+join_my_addresses+" JOIN units USING(unit) \n\
 		WHERE "+where_condition+" AND "+asset_condition+" \n\
 		ORDER BY ts DESC"+(opts.limit ? " LIMIT ?" : ""),
@@ -766,7 +766,7 @@ function readTransactionHistory(opts, handleHistory){
 				//    row.fee = null;
 				if (!assocMovements[row.unit])
 					assocMovements[row.unit] = {
-						plus:0, has_minus:false, ts: row.ts, level: row.level, is_stable: row.is_stable, sequence: row.sequence, fee: row.fee
+						plus:0, has_minus:false, ts: row.ts, level: row.level, is_stable: row.is_stable, sequence: row.sequence, fee: row.fee, mci: row.mci
 					};
 				if (row.to_address){
 					assocMovements[row.unit].plus += row.amount;
@@ -787,7 +787,8 @@ function readTransactionHistory(opts, handleHistory){
 							unit: unit,
 							fee: movement.fee,
 							time: movement.ts,
-							level: movement.level
+							level: movement.level,
+                            mci: movement.mci
 						};
 						arrTransactions.push(transaction);
 						cb();
@@ -808,7 +809,8 @@ function readTransactionHistory(opts, handleHistory){
 									unit: unit,
 									fee: movement.fee,
 									time: movement.ts,
-									level: movement.level
+									level: movement.level,
+                                    mci: movement.mci
 								};
 								arrTransactions.push(transaction);
 								cb();
@@ -847,7 +849,8 @@ function readTransactionHistory(opts, handleHistory){
 										unit: unit,
 										fee: movement.fee,
 										time: movement.ts,
-										level: movement.level
+										level: movement.level,
+                                        mci: movement.mci
 									};
 									if (action === 'moved')
 										transaction.my_address = payee.address;

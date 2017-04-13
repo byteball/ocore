@@ -635,7 +635,9 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 									if (max_alt_rows.length !== 1)
 										throw "not a single max alt level";
 									var max_alt_level = max_alt_rows[0].max_alt_level;
-									handleResult(min_mc_wl > max_alt_level);
+									// allow '=' since alt WL will *never* reach max_alt_level.
+									// The comparison when moving the stability point above is still strict for compatibility
+									handleResult(min_mc_wl >= max_alt_level);
 								}
 							);
 						});
