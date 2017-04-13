@@ -125,11 +125,6 @@ function sendVersion(ws){
 		program: conf.program, 
 		program_version: conf.program_version
 	});
-	if(conf.pushApiProjectNumber && conf.pushApiKey){
-		sendJustsaying(ws, 'hub/push_project_number',{projectNumber: conf.pushApiProjectNumber});
-	}else{
-		sendJustsaying(ws, 'hub/push_project_number',{projectNumber: 0});
-	}
 }
 
 function sendResponse(ws, tag, response){
@@ -1936,6 +1931,10 @@ function handleJustsaying(ws, subject, body){
 					finishLogin();
 				}
 			});
+			if (conf.pushApiProjectNumber && conf.pushApiKey)
+				sendJustsaying(ws, 'hub/push_project_number', {projectNumber: conf.pushApiProjectNumber});
+			else
+				sendJustsaying(ws, 'hub/push_project_number', {projectNumber: 0});
 			break;
 			
 		// I'm a hub, the peer wants to download new messages
@@ -2152,7 +2151,8 @@ function handleRequest(ws, tag, command, params){
 							}
 						});
 						sendResponse(ws, tag, "accepted");
-						if(!addresseeIsConnected) eventBus.emit('peer_sent_new_message', ws, objDeviceMessage);
+						if (!addresseeIsConnected)
+							eventBus.emit('peer_sent_new_message', ws, objDeviceMessage);
 					}
 				);
 			});
@@ -2260,11 +2260,13 @@ function handleRequest(ws, tag, command, params){
 			});
 			break;
 
+		// I'm a hub, the peer wants to enable push notifications
 		case 'hub/enable_notification':
 			eventBus.emit("enableNotification", ws, params);
 			sendResponse(ws, tag, 'ok');
 			break;
 
+		// I'm a hub, the peer wants to disable push notifications
 		case 'hub/disable_notification':
 			eventBus.emit("disableNotification", ws, params);
 			sendResponse(ws, tag, 'ok');
