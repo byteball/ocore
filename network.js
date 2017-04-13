@@ -2262,13 +2262,15 @@ function handleRequest(ws, tag, command, params){
 
 		// I'm a hub, the peer wants to enable push notifications
 		case 'hub/enable_notification':
-			eventBus.emit("enableNotification", ws, params);
+			if(ws.device_address)
+				eventBus.emit("enableNotification", ws.device_address, params);
 			sendResponse(ws, tag, 'ok');
 			break;
 
 		// I'm a hub, the peer wants to disable push notifications
 		case 'hub/disable_notification':
-			eventBus.emit("disableNotification", ws, params);
+			if(ws.device_address)
+				eventBus.emit("disableNotification", ws.device_address, params);
 			sendResponse(ws, tag, 'ok');
 			break;
 	}
