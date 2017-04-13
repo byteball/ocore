@@ -2261,12 +2261,14 @@ function handleRequest(ws, tag, command, params){
 			break;
 
 		case 'hub/enable_notification':
-			eventBus.emit("enableNotification", ws, params);
+			if(ws.device_address)
+				eventBus.emit("enableNotification", ws.device_address, params);
 			sendResponse(ws, tag, 'ok');
 			break;
 
 		case 'hub/disable_notification':
-			eventBus.emit("disableNotification", ws, params);
+			if(ws.device_address)
+				eventBus.emit("disableNotification", ws.device_address, params);
 			sendResponse(ws, tag, 'ok');
 			break;
 	}
