@@ -149,10 +149,15 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			break;
 
 		case "removed_paired_device":
-			device.removeCorrespondentDevice(from_address, function(){
-				eventBus.emit("removed_paired_device", from_address, body);
-				callbacks.ifOk();
-			});
+			if(conf.bIgnoreUnpairRequests) {
+				// unpairing is ignored
+				console.log("removed_paired_device ignored: "+from_address);
+			} else {
+				device.removeCorrespondentDevice(from_address, function(){
+					eventBus.emit("removed_paired_device", from_address, body);
+					callbacks.ifOk();
+				});
+			}
 			break;
 
 		case "create_new_wallet":
