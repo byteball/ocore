@@ -508,6 +508,42 @@ function findOutboundPeerOrConnect(url, onOpen){
 	connectToPeer(url, onOpen);
 }
 
+function purgeDeadPeers(){
+	if (conf.storage !== 'sqlite')
+		return;
+	console.log('will purge dead peers');
+	var arrOutboundPeerUrls = arrOutboundPeers.map(function(ws){ return ws.peer; });
+	db.query("SELECT rowid, "+db.getUnixTimestamp('event_date')+" AS ts FROM peer_events ORDER BY rowid DESC LIMIT 1", function(lrows){
+		if (lrows.length === 0)
+			return;
+		var last_rowid = lrows[0].rowid;
+		var last_event_ts = lrows[0].ts;
+		db.query("SELECT peer, peer_host FROM peers", function(rows){
+			async.eachSeries(rows, function(row, cb){
+				if (arrOutboundPeerUrls.indexOf(row.peer) >= 0)
+					return cb();
+				db.query(
+					"SELECT MAX(rowid) AS max_rowid, MAX("+db.getUnixTimestamp('event_date')+") AS max_event_ts FROM peer_events WHERE peer_host=?", 
+					[row.peer_host], 
+					function(mrows){
+						var max_rowid = mrows[0].max_rowid || 0;
+						var max_event_ts = mrows[0].max_event_ts || 0;
+						var count_other_events = last_rowid - max_rowid;
+						var days_since_last_event = (last_event_ts - max_event_ts)/24/3600;
+						if (count_other_events < 20000 || days_since_last_event < 7)
+							return cb();
+						console.log('peer '+row.peer+' is dead, will delete');
+						db.query("DELETE FROM peers WHERE peer=?", [row.peer], function(){
+							delete assocKnownPeers[row.peer];
+							cb();
+						});
+					}
+				);
+			});
+		});
+	});
+}
+
 function requestPeers(ws){
 	sendRequest(ws, 'get_peers', null, false, handleNewPeers);
 }
@@ -2397,6 +2433,7 @@ function startRelay(){
 		// retry lost and failed connections every 1 minute
 		setInterval(addOutboundPeers, 60*1000);
 		setTimeout(checkIfHaveEnoughOutboundPeersAndAdd, 30*1000);
+		setInterval(purgeDeadPeers, 30*60*1000);
 	}
 	
 	// request needed joints that were not received during the previous session
