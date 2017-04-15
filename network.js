@@ -329,8 +329,7 @@ function checkIfHaveEnoughOutboundPeersAndAdd(){
 }
 
 function connectToPeer(url, onOpen) {
-	if (conf.bWantNewPeers)
-		addPeer(url);
+	addPeer(url);
 	var options = {};
 	if (socks && conf.socksHost && conf.socksPort)
 		options.agent = new socks.Agent({ proxy: { ipaddress: conf.socksHost, port: conf.socksPort, type: 5 } }, /^wss/i.test(url) );
@@ -2391,18 +2390,19 @@ function startRelay(){
 		wss = {clients: []};
 	else
 		startAcceptingConnections();
-	
-	// outbound connections
-	addOutboundPeers();
+
+	if (conf.bWantNewPeers){
+		// outbound connections
+		addOutboundPeers();
+		// retry lost and failed connections every 1 minute
+		setInterval(addOutboundPeers, 60*1000);
+		setTimeout(checkIfHaveEnoughOutboundPeersAndAdd, 30*1000);
+	}
 	
 	// request needed joints that were not received during the previous session
 	rerequestLostJoints();
-
-	// retry lost and failed connections every 1 minute
-	setInterval(addOutboundPeers, 60*1000);
-	if (conf.bWantNewPeers)
-		setTimeout(checkIfHaveEnoughOutboundPeersAndAdd, 30*1000);
 	setInterval(rerequestLostJoints, 8*1000);
+	
 	setInterval(purgeJunkUnhandledJoints, 30*60*1000);
 	setInterval(joint_storage.purgeUncoveredNonserialJointsUnderLock, 6*1000);
 	setInterval(findAndHandleJointsThatAreReady, 5*1000);
