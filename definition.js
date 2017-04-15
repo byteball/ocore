@@ -786,8 +786,8 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 					if (isNumber){
 						var bForceNumericComparison = (['>','>=','<','<='].indexOf(relation) >= 0);
 						var plus_0 = bForceNumericComparison ? '+0' : '';
-						value_condition = '(value'+plus_0+relation+'? OR int_value'+relation+'?)';
-						params.push(value, value);
+						value_condition = '(value'+plus_0+relation+value+' OR int_value'+relation+value+')';
+					//	params.push(value, value);
 					}
 					else{
 						value_condition = 'value'+relation+'?';
@@ -806,7 +806,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 						AND main_chain_index<=? AND main_chain_index>=? AND sequence='good' AND is_stable=1 LIMIT 1",
 					params,
 					function(rows){
-						console.log(op+" "+rows.length);
+						console.log(op+" "+feed_name+" "+rows.length);
 						cb2(rows.length > 0);
 					}
 				);
