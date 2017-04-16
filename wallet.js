@@ -160,6 +160,11 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			}
 			break;
 
+		case "chat_recording_pref":
+			eventBus.emit("chat_recording_pref", from_address, body);
+			callbacks.ifOk();
+			break;
+		
 		case "create_new_wallet":
 			// {wallet: "base64", wallet_definition_template: [...]}
 			walletDefinedByKeys.handleOfferToCreateNewWallet(body, from_address, callbacks);
@@ -501,7 +506,7 @@ function forwardPrivateChainsToOtherMembersOfOutputAddresses(arrChains, conn, on
 		[arrOutputAddresses, arrOutputAddresses], 
 		function(rows){
 			if (rows.length === 0){
-				breadcrumbs.add("forwardPrivateChainsToOtherMembersOfOutputAddresses: " + JSON.stringify(arrChains)); // remove in livenet
+			//	breadcrumbs.add("forwardPrivateChainsToOtherMembersOfOutputAddresses: " + JSON.stringify(arrChains)); // remove in livenet
 				eventBus.emit('nonfatal_error', "not my wallet? output addresses: "+arrOutputAddresses.join(', '), new Error());
 			//	throw Error("not my wallet? output addresses: "+arrOutputAddresses.join(', '));
 			}
@@ -746,20 +751,24 @@ function readTransactionHistory(opts, handleHistory){
 	var join_my_addresses = walletIsAddress ? "" : "JOIN my_addresses USING(address)";
 	var where_condition = walletIsAddress ? "address=?" : "wallet=?";
 	var asset_condition = (asset && asset !== "base") ? "asset="+db.escape(asset) : "asset IS NULL";
+	if (opts.unit)
+		where_condition += " AND unit="+db.escape(opts.unit);
+	else if (opts.since_mci && ValidationUtils.isNonnegativeInteger(opts.since_mci))
+		where_condition += " AND main_chain_index>="+opts.since_mci;
 	db.query(
 		"SELECT unit, level, is_stable, sequence, address, \n\
 			"+db.getUnixTimestamp("units.creation_date")+" AS ts, headers_commission+payload_commission AS fee, \n\
-			SUM(amount) AS amount, address AS to_address, NULL AS from_address \n\
+			SUM(amount) AS amount, address AS to_address, NULL AS from_address, main_chain_index AS mci \n\
 		FROM outputs "+join_my_addresses+" JOIN units USING(unit) \n\
 		WHERE "+where_condition+" AND "+asset_condition+" \n\
 		GROUP BY unit, address \n\
 		UNION \n\
 		SELECT unit, level, is_stable, sequence, address, \n\
 			"+db.getUnixTimestamp("units.creation_date")+" AS ts, headers_commission+payload_commission AS fee, \n\
-			NULL AS amount, NULL AS to_address, address AS from_address \n\
+			NULL AS amount, NULL AS to_address, address AS from_address, main_chain_index AS mci \n\
 		FROM inputs "+join_my_addresses+" JOIN units USING(unit) \n\
 		WHERE "+where_condition+" AND "+asset_condition+" \n\
-		"+(opts.limit ? "ORDER BY ts DESC LIMIT ?" : ""),
+		ORDER BY ts DESC"+(opts.limit ? " LIMIT ?" : ""),
 		opts.limit ? [wallet, wallet, opts.limit] : [wallet, wallet],
 		function(rows){
 			var assocMovements = {};
@@ -769,7 +778,7 @@ function readTransactionHistory(opts, handleHistory){
 				//    row.fee = null;
 				if (!assocMovements[row.unit])
 					assocMovements[row.unit] = {
-						plus:0, has_minus:false, ts: row.ts, level: row.level, is_stable: row.is_stable, sequence: row.sequence, fee: row.fee
+						plus:0, has_minus:false, ts: row.ts, level: row.level, is_stable: row.is_stable, sequence: row.sequence, fee: row.fee, mci: row.mci
 					};
 				if (row.to_address){
 					assocMovements[row.unit].plus += row.amount;
@@ -790,7 +799,8 @@ function readTransactionHistory(opts, handleHistory){
 							unit: unit,
 							fee: movement.fee,
 							time: movement.ts,
-							level: movement.level
+							level: movement.level,
+                            mci: movement.mci
 						};
 						arrTransactions.push(transaction);
 						cb();
@@ -811,7 +821,8 @@ function readTransactionHistory(opts, handleHistory){
 									unit: unit,
 									fee: movement.fee,
 									time: movement.ts,
-									level: movement.level
+									level: movement.level,
+                                    mci: movement.mci
 								};
 								arrTransactions.push(transaction);
 								cb();
@@ -846,13 +857,15 @@ function readTransactionHistory(opts, handleHistory){
 										action: action,
 										amount: payee.amount,
 										addressTo: payee.address,
-										my_address: payee.address,
 										confirmations: movement.is_stable,
 										unit: unit,
 										fee: movement.fee,
 										time: movement.ts,
-										level: movement.level
+										level: movement.level,
+                                        mci: movement.mci
 									};
+									if (action === 'moved')
+										transaction.my_address = payee.address;
 									arrTransactions.push(transaction);
 								}
 								cb();

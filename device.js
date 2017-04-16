@@ -596,7 +596,6 @@ function handlePairingMessage(json, device_pubkey, callbacks){
 // -------------------------------
 // correspondents
 
-
 function addUnconfirmedCorrespondent(device_pubkey, device_hub, device_name, onDone){
 	console.log("addUnconfirmedCorrespondent");
 	var device_address = objectHash.getDeviceAddress(device_pubkey);
@@ -611,20 +610,20 @@ function addUnconfirmedCorrespondent(device_pubkey, device_hub, device_name, onD
 }
 
 function readCorrespondents(handleCorrespondents){
-	db.query("SELECT device_address, hub, name FROM correspondent_devices ORDER BY name", function(rows){
+	db.query("SELECT device_address, hub, name, my_record_pref, peer_record_pref FROM correspondent_devices ORDER BY name", function(rows){
 		handleCorrespondents(rows);
 	});
 }
 
 function readCorrespondent(device_address, handleCorrespondent){
-	db.query("SELECT device_address, hub, name FROM correspondent_devices WHERE device_address=?", [device_address], function(rows){
+	db.query("SELECT device_address, hub, name, my_record_pref, peer_record_pref FROM correspondent_devices WHERE device_address=?", [device_address], function(rows){
 		handleCorrespondent(rows[0]);
 	});
 }
 
 function readCorrespondentsByDeviceAddresses(arrDeviceAddresses, handleCorrespondents){
 	db.query(
-		"SELECT device_address, hub, name, pubkey FROM correspondent_devices WHERE device_address IN(?) ORDER BY name", 
+		"SELECT device_address, hub, name, pubkey, my_record_pref, peer_record_pref FROM correspondent_devices WHERE device_address IN(?) ORDER BY name", 
 		[arrDeviceAddresses], 
 		function(rows){
 			handleCorrespondents(rows);
@@ -634,10 +633,10 @@ function readCorrespondentsByDeviceAddresses(arrDeviceAddresses, handleCorrespon
 
 function updateCorrespondentProps(correspondent, onDone){
 	db.query(
-		"UPDATE correspondent_devices SET hub=?, name=? WHERE device_address=?", 
-		[correspondent.hub, correspondent.name, correspondent.device_address], 
+		"UPDATE correspondent_devices SET hub=?, name=?, my_record_pref=?, peer_record_pref=? WHERE device_address=?", 
+		[correspondent.hub, correspondent.name, correspondent.my_record_pref, correspondent.peer_record_pref, correspondent.device_address], 
 		function(){
-			onDone();
+			if (onDone) onDone();
 		}
 	);
 }

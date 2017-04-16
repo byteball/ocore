@@ -2,7 +2,7 @@
   "name": "byteballcore",
   "description": "Byteball Core",
   "author": "Byteball",
-  "version": "0.2.3",
+  "version": "0.2.15",
   "keywords": [
     "byteball",
     "multisignature"
@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "ws": "^1.0.1",
-    "socksv5": "0.0.6",
+    "socks": "1.1.10",
     "thirty-two": "^1.0.1",
     "longjohn": "^0.2.11",
     "lodash": "^4.6.1",

@@ -11,8 +11,6 @@ var merkle = require('./merkle.js');
 var ValidationUtils = require("./validation_utils.js");
 var objectHash = require("./object_hash.js");
 
-var MAX_COMPLEXITY = 100;
-
 
 var hasFieldsExcept = ValidationUtils.hasFieldsExcept;
 var isStringOfLength = ValidationUtils.isStringOfLength;
@@ -34,6 +32,8 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 			return "unknown fields in filter";
 		if (filter.what !== "input" && filter.what !== "output")
 			return "invalid what="+filter.what;
+		if (bAssetCondition && filter.asset === "this asset" && objValidationState.bDefiningPrivateAsset)
+			return "private asset cannot reference itself";
 		if ("asset" in filter && !(filter.asset === "base" || isStringOfLength(filter.asset, constants.HASH_LENGTH) || bAssetCondition && filter.asset === "this asset"))
 			return "invalid asset: "+filter.asset;
 		if (filter.what === "output"){
@@ -48,7 +48,9 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 			return "invalid type: "+filter.type;
 		if ("own_funds" in filter && typeof filter.own_funds !== "boolean")
 			return "own_funds must be boolean";
-		if ("address" in filter && !isValidAddress(filter.address)) // it is ok if the address was never used yet
+		if (bAssetCondition && filter.address === 'this address')
+			return "asset condition cannot reference this address";
+		if ("address" in filter && !isValidAddress(filter.address) && filter.address !== 'this address') // it is ok if the address was never used yet
 			return "invalid address: "+filter.address;
 		if ("amount" in filter && !isPositiveInteger(filter.amount))
 			return "amount must be positive int";
@@ -74,7 +76,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 	
 	function evaluate(arr, bInNegation, cb){
 		complexity++;
-		if (complexity > MAX_COMPLEXITY)
+		if (complexity > constants.MAX_COMPLEXITY)
 			return cb("complexity exceeded");
 		if (!isArrayOfLength(arr, 2))
 			return cb("expression must be 2-element array");
@@ -289,6 +291,22 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 					return cb("invalid seen address");
 				return cb();
 				
+			case 'seen definition change':
+			case 'has definition change':
+				if (objValidationState.bNoReferences)
+					return cb("no references allowed in address definition");
+				if (!isArrayOfLength(args, 2))
+					return cb(op+" must have 2 args");
+				var changed_address = args[0];
+				var new_definition_chash = args[1];
+				if (bAssetCondition && (changed_address === 'this address' || new_definition_chash === 'this address'))
+					return cb("asset condition cannot reference this address in "+op);
+				if (!isValidAddress(changed_address) && changed_address !== 'this address') // it is ok if the address was never used yet
+					return cb("invalid changed address");
+				if (!isValidAddress(new_definition_chash) && new_definition_chash !== 'this address')
+					return cb("invalid new definition chash");
+				return cb();
+				
 			case 'cosigned by':
 				if (bInNegation)
 					return cb(op+" cannot be negated");
@@ -303,12 +321,15 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 			case 'in data feed':
 				if (objValidationState.bNoReferences)
 					return cb("no references allowed in address definition");
-				if (!isArrayOfLength(args, 4))
-					return cb(op+" must have 4 args");
+				if (!Array.isArray(args))
+					return cb(op+" arg must be array");
+				if (args.length !== 4 && args.length !== 5)
+					return cb(op+" must have 4 or 5 args");
 				var arrAddresses = args[0];
 				var feed_name = args[1];
 				var relation = args[2];
 				var value = args[3];
+				var min_mci = args[4];
 				if (!isNonemptyArray(arrAddresses))
 					return cb("no addresses in "+op);
 				for (var i=0; i<arrAddresses.length; i++)
@@ -335,6 +356,8 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 				}
 				else
 					return cb("invalid value");
+				if (typeof min_mci !== 'undefined' && !isNonnegativeInteger(min_mci))
+					return cb(op+": invalid min_mci");
 				return cb();
 				
 			case 'in merkle':
@@ -344,11 +367,14 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 					return cb("no references allowed in address definition");
 				if (bAssetCondition)
 					return cb("asset condition cannot have "+op);
-				if (!isArrayOfLength(args, 3))
-					return cb(op+" must have 3 args");
+				if (!Array.isArray(args))
+					return cb(op+" arg must be array");
+				if (args.length !== 3 && args.length !== 4)
+					return cb(op+" must have 3 or 4 args");
 				var arrAddresses = args[0];
 				var feed_name = args[1];
 				var element = args[2];
+				var min_mci = args[3];
 				if (!isNonemptyArray(arrAddresses))
 					return cb("no addresses in "+op);
 				for (var i=0; i<arrAddresses.length; i++)
@@ -363,6 +389,8 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 			//		return cb("incorrect length of element hash");
 				if (!element.match(/[\w ~,.\/\\;:!@#$%^&*\(\)=+\[\]\{\}<>\?|-]{1,100}/))
 					return cb("incorrect format of merkled element");
+				if (typeof min_mci !== 'undefined' && !isNonnegativeInteger(min_mci))
+					return cb(op+": invalid min_mci");
 				return cb();
 				
 			case 'mci':
@@ -385,8 +413,6 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 				var err = getFilterError(args);
 				if (err)
 					return cb(err);
-				if (!args.asset || args.asset === 'base' || bAssetCondition && args.asset === "this asset")
-					return cb();
 				if (op === 'seen'){
 					if (!args.address)
 						return cb('seen must specify address');
@@ -395,6 +421,8 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 					if ('own_funds' in args)
 						return cb('own_funds not allowed in seen');
 				}
+				if (!args.asset || args.asset === 'base' || bAssetCondition && args.asset === "this asset")
+					return cb();
 				determineIfAnyOfAssetsIsPrivate([args.asset], function(bPrivate){
 					if (bPrivate)
 						return cb("asset must be public");
@@ -479,7 +507,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 			return handleResult(err);
 		if (!bHasSig && !bAssetCondition)
 			return handleResult("each branch must have a signature");
-		if (complexity > MAX_COMPLEXITY)
+		if (complexity > constants.MAX_COMPLEXITY)
 			return handleResult("complexity exceeded");
 		handleResult();
 	});
@@ -664,18 +692,38 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				);
 				break;
 				
+			case 'seen definition change':
+				// ['seen definition change', ['BASE32', 'BASE32']]
+				var changed_address = args[0];
+				var new_definition_chash = args[1];
+				if (changed_address === 'this address')
+					changed_address = address;
+				if (new_definition_chash === 'this address')
+					new_definition_chash = address;
+				conn.query(
+					"SELECT 1 FROM address_definition_changes CROSS JOIN units USING(unit) \n\
+					WHERE address=? AND definition_chash=? AND main_chain_index<=? AND sequence='good' AND is_stable=1 \n\
+					LIMIT 1",
+					[changed_address, new_definition_chash, objValidationState.last_ball_mci],
+					function(rows){
+						cb2(rows.length > 0);
+					}
+				);
+				break;
+				
 			case 'seen':
 				// ['seen', {what: 'input', asset: 'asset or base', type: 'transfer'|'issue', own_funds: true, amount_at_least: 123, amount_at_most: 123, amount: 123, address: 'BASE32'}]
 				var filter = args;
 				var sql = "SELECT 1 FROM "+filter.what+"s CROSS JOIN units USING(unit) \n\
-					WHERE main_chain_index<=? AND sequence='good' AND is_stable=1 ";
+					LEFT JOIN assets ON asset=assets.unit \n\
+					WHERE main_chain_index<=? AND sequence='good' AND is_stable=1 AND (asset IS NULL OR is_private=0) ";
 				var params = [objValidationState.last_ball_mci];
 				if (filter.asset){
 					if (filter.asset === 'base')
 						sql += " AND asset IS NULL ";
 					else{
 						sql += " AND asset=? ";
-						params.push(filter.address);
+						params.push(filter.asset);
 					}
 				}
 				if (filter.type){
@@ -684,7 +732,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				}
 				if (filter.address){
 					sql += " AND address=? ";
-					params.push(filter.address);
+					params.push((filter.address === 'this address') ? address : filter.address);
 				}
 				if (filter.what === 'output'){
 					if (filter.amount_at_least){
@@ -728,13 +776,37 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				var feed_name = args[1];
 				var relation = args[2];
 				var value = args[3];
+				var min_mci = args[4] || 0;
+				var value_condition;
+				var index;
+				var params = [arrAddresses, feed_name];
+				if (typeof value === "string"){
+					index = 'byNameStringValue';
+					var isNumber = /^-?\d+\.?\d*$/.test(value);
+					if (isNumber){
+						var bForceNumericComparison = (['>','>=','<','<='].indexOf(relation) >= 0);
+						var plus_0 = bForceNumericComparison ? '+0' : '';
+						value_condition = '(value'+plus_0+relation+value+' OR int_value'+relation+value+')';
+					//	params.push(value, value);
+					}
+					else{
+						value_condition = 'value'+relation+'?';
+						params.push(value);
+					}
+				}
+				else{
+					index = 'byNameIntValue';
+					value_condition = 'int_value'+relation+'?';
+					params.push(value);
+				}
+				params.push(objValidationState.last_ball_mci, min_mci);
 				conn.query(
-					"SELECT 1 FROM data_feeds CROSS JOIN units USING(unit) CROSS JOIN unit_authors USING(unit) \n\
-					WHERE address IN(?) AND feed_name=? AND "+(typeof value === "string" ? "`value`" : "int_value")+relation+"? \n\
-						AND main_chain_index<=? AND sequence='good' AND is_stable=1 LIMIT 1",
-					[arrAddresses, feed_name, value, objValidationState.last_ball_mci],
+					"SELECT 1 FROM data_feeds "+db.forceIndex(index)+" CROSS JOIN units USING(unit) CROSS JOIN unit_authors USING(unit) \n\
+					WHERE address IN(?) AND feed_name=? AND "+value_condition+" \n\
+						AND main_chain_index<=? AND main_chain_index>=? AND sequence='good' AND is_stable=1 LIMIT 1",
+					params,
 					function(rows){
-						console.log(op+" "+rows.length);
+						console.log(op+" "+feed_name+" "+rows.length);
 						cb2(rows.length > 0);
 					}
 				);
@@ -748,6 +820,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				var arrAddresses = args[0];
 				var feed_name = args[1];
 				var element = args[2];
+				var min_mci = args[3] || 0;
 				var serialized_proof = assocAuthentifiers[path];
 				var proof = merkle.deserializeMerkleProof(serialized_proof);
 				if (!merkle.verifyMerkleProof(element, proof)){
@@ -756,8 +829,9 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				}
 				conn.query(
 					"SELECT 1 FROM data_feeds CROSS JOIN units USING(unit) JOIN unit_authors USING(unit) \n\
-					WHERE address IN(?) AND feed_name=? AND value=? AND main_chain_index<=? AND sequence='good' AND is_stable=1 LIMIT 1",
-					[arrAddresses, feed_name, proof.root, objValidationState.last_ball_mci],
+					WHERE address IN(?) AND feed_name=? AND value=? AND main_chain_index<=? AND main_chain_index>=? AND sequence='good' AND is_stable=1 \n\
+					LIMIT 1",
+					[arrAddresses, feed_name, proof.root, objValidationState.last_ball_mci, min_mci],
 					function(rows){
 						if (rows.length === 0)
 							fatal_error = "merkle proof at path "+path+" not found";
@@ -863,6 +937,26 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				});
 				break;
 				
+			case 'has definition change':
+				// ['has definition change', ['BASE32', 'BASE32']]
+				var changed_address = args[0];
+				var new_definition_chash = args[1];
+				if (changed_address === 'this address')
+					changed_address = address;
+				if (new_definition_chash === 'this address')
+					new_definition_chash = address;
+				cb2(objUnit.messages.some(function(message){
+					if (message.app !== 'address_definition_change')
+						return false;
+					if (!message.payload)
+						return false;
+					if (message.payload.definition_chash !== new_definition_chash)
+						return false;
+					var address = message.payload.address || objUnit.authors[0].address;
+					return (address === changed_address);
+				}));
+				break;
+				
 		}
 	}
 	
@@ -880,6 +974,9 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 	
 	
 	function evaluateFilter(op, filter, handleResult){
+		var filter_address = filter.address;
+		if (filter_address === 'this address')
+			filter_address = address;
 		var arrFoundObjects = [];
 		for (var i=0; i<objUnit.messages.length; i++){
 			var message = objUnit.messages[i];
@@ -914,7 +1011,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 						continue;
 					if (filter.own_funds === false && objValidationState.arrAugmentedMessages[i].payload.inputs[j].address === address)
 						continue;
-					if (filter.address && objValidationState.arrAugmentedMessages[i].payload.inputs[j].address !== filter.address)
+					if (filter_address && objValidationState.arrAugmentedMessages[i].payload.inputs[j].address !== filter_address)
 						continue;
 					if (filter.amount && objValidationState.arrAugmentedMessages[i].payload.inputs[j].amount !== filter.amount)
 						continue;
@@ -928,7 +1025,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 			else if (filter.what === "output"){
 				for (var j=0; j<payload.outputs.length; j++){
 					var output = payload.outputs[j];
-					if (filter.address && output.address !== filter.address)
+					if (filter_address && output.address !== filter_address)
 						continue;
 					if (filter.amount && output.amount !== filter.amount)
 						continue;
