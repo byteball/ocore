@@ -642,4 +642,17 @@ CREATE TABLE IF NOT EXISTS push_registrations (
     PRIMARY KEY (device_address)
 );
 
-PRAGMA user_version=4;
+CREATE TABLE chat_messages (
+	id INTEGER PRIMARY KEY,
+	correspondent_address CHAR(33) NOT NULL,
+	message LONGTEXT NOT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	is_incoming INTEGER(1) NOT NULL,
+	type CHAR(15) NOT NULL DEFAULT 'text',
+	FOREIGN KEY (correspondent_address) REFERENCES correspondent_devices(device_address)
+);
+CREATE INDEX chatMessagesIndexByDeviceAddress ON chat_messages(correspondent_address, id);
+ALTER TABLE correspondent_devices ADD COLUMN my_record_pref INTEGER DEFAULT 1;
+ALTER TABLE correspondent_devices ADD COLUMN peer_record_pref INTEGER DEFAULT 1;
+
+PRAGMA user_version=6;
