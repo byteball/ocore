@@ -126,6 +126,7 @@ function sendSignature(device_address, signed_text, signature, signing_path, add
 	device.sendMessageToDevice(device_address, "signature", {signed_text: signed_text, signature: signature, signing_path: signing_path, address: address});
 }
 
+// one of callbacks MUST be called, otherwise the mutex will stay locked
 function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, callbacks){
 	var subject = json.subject;
 	var body = json.body;
@@ -151,11 +152,15 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 		case "removed_paired_device":
 			if(conf.bIgnoreUnpairRequests) {
 				// unpairing is ignored
-				console.log("removed_paired_device ignored: "+from_address);
+				callbacks.ifError("removed_paired_device ignored: "+from_address);
 			} else {
-				device.removeCorrespondentDevice(from_address, function(){
-					eventBus.emit("removed_paired_device", from_address, body);
-					callbacks.ifOk();
+				determineIfDeviceCanBeRemoved(from_address, function(bRemovable){
+					if (!bRemovable)
+						return callbacks.ifError("device "+from_address+" is not removable");
+					device.removeCorrespondentDevice(from_address, function(){
+						eventBus.emit("removed_paired_device", from_address);
+						callbacks.ifOk();
+					});
 				});
 			}
 			break;
@@ -1274,6 +1279,12 @@ function readDeviceAddressesUsedInSigningPaths(onDone){
 	);
 }
 
+function determineIfDeviceCanBeRemoved(device_address, handleResult) {
+	readDeviceAddressesUsedInSigningPaths(function(arrDeviceAddresses){
+		handleResult(arrDeviceAddresses.indexOf(device_address) === -1);
+	});
+};
+
 
 // todo, almost same as payment
 function signAuthRequest(wallet, objRequest, handleResult){
@@ -1298,3 +1309,4 @@ exports.readTransactionHistory = readTransactionHistory;
 exports.sendPaymentFromWallet = sendPaymentFromWallet;
 exports.sendMultiPayment = sendMultiPayment;
 exports.readDeviceAddressesUsedInSigningPaths = readDeviceAddressesUsedInSigningPaths;
+exports.determineIfDeviceCanBeRemoved = determineIfDeviceCanBeRemoved;
