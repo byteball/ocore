@@ -655,20 +655,12 @@ function addIndirectCorrespondents(arrOtherCosigners, onDone){
 	}, onDone);
 }
 
-function removeCorrespondentDevice(addr, onDone){
-	db.query(
-		"DELETE FROM correspondent_devices WHERE device_address=?", 
-		[addr], 
-		function(){
-			db.query(
-				"DELETE FROM device_messages WHERE device_address=?", 
-				[addr], 
-				function(){
-					onDone();
-				}
-			);
-		}
-	);
+function removeCorrespondentDevice(device_address, onDone){
+	var arrQueries = [];
+	db.addQuery(arrQueries, "DELETE FROM chat_messages WHERE correspondent_address=?", [device_address]);
+	db.addQuery(arrQueries, "DELETE FROM outbox WHERE `to`=?", [device_address]);
+	db.addQuery(arrQueries, "DELETE FROM correspondent_devices WHERE device_address=?", [device_address]);
+	async.series(arrQueries, onDone);
 }
 
 // -------------------------------
