@@ -2175,19 +2175,16 @@ function handleRequest(ws, tag, command, params){
 					[message_hash, JSON.stringify(objDeviceMessage), objDeviceMessage.to],
 					function(){
 						// if the addressee is connected, deliver immediately
-						var addresseeIsConnected = false;
 						wss.clients.forEach(function(client){
 							if (client.device_address === objDeviceMessage.to) {
 								sendJustsaying(client, 'hub/message', {
 									message_hash: message_hash,
 									message: objDeviceMessage
 								});
-								addresseeIsConnected = true;
 							}
 						});
 						sendResponse(ws, tag, "accepted");
-						if (!addresseeIsConnected)
-							eventBus.emit('peer_sent_new_message', ws, objDeviceMessage);
+						eventBus.emit('peer_sent_new_message', ws, objDeviceMessage);
 					}
 				);
 			});
