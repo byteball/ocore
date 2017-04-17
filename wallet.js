@@ -129,7 +129,7 @@ function sendSignature(device_address, signed_text, signature, signing_path, add
 function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, callbacks){
 	var subject = json.subject;
 	var body = json.body;
-	if (!subject || !body)
+	if (!subject || typeof body == "undefined")
 		return callbacks.ifError("no subject or body");
 	//if (bIndirectCorrespondent && ["cancel_new_wallet", "my_xpubkey", "new_wallet_address"].indexOf(subject) === -1)
 	//    return callbacks.ifError("you're indirect correspondent, cannot trust "+subject+" from you");
