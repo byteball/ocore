@@ -50,6 +50,7 @@ function migrateDb(connection, onDone){
 			connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS chatMessagesIndexByDeviceAddress ON chat_messages(correspondent_address, id)");
 			connection.addQuery(arrQueries, "ALTER TABLE correspondent_devices ADD COLUMN my_record_pref INTEGER DEFAULT 1");
 			connection.addQuery(arrQueries, "ALTER TABLE correspondent_devices ADD COLUMN peer_record_pref INTEGER DEFAULT 1");
+			connection.addQuery(arrQueries, "DELETE FROM known_bad_joints");
 		}
 		connection.addQuery(arrQueries, "PRAGMA user_version="+VERSION);
 		async.series(arrQueries, onDone);
