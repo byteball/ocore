@@ -126,10 +126,11 @@ function sendSignature(device_address, signed_text, signature, signing_path, add
 	device.sendMessageToDevice(device_address, "signature", {signed_text: signed_text, signature: signature, signing_path: signing_path, address: address});
 }
 
+// one of callbacks MUST be called, otherwise the mutex will stay locked
 function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, callbacks){
 	var subject = json.subject;
 	var body = json.body;
-	if (!subject || !body)
+	if (!subject || typeof body == "undefined")
 		return callbacks.ifError("no subject or body");
 	//if (bIndirectCorrespondent && ["cancel_new_wallet", "my_xpubkey", "new_wallet_address"].indexOf(subject) === -1)
 	//    return callbacks.ifError("you're indirect correspondent, cannot trust "+subject+" from you");
@@ -145,6 +146,27 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				return callbacks.ifError("text body must be string");
 			// the wallet should have an event handler that displays the text to the user
 			eventBus.emit("text", from_address, body);
+			callbacks.ifOk();
+			break;
+
+		case "removed_paired_device":
+			if(conf.bIgnoreUnpairRequests) {
+				// unpairing is ignored
+				callbacks.ifError("removed_paired_device ignored: "+from_address);
+			} else {
+				determineIfDeviceCanBeRemoved(from_address, function(bRemovable){
+					if (!bRemovable)
+						return callbacks.ifError("device "+from_address+" is not removable");
+					device.removeCorrespondentDevice(from_address, function(){
+						eventBus.emit("removed_paired_device", from_address);
+						callbacks.ifOk();
+					});
+				});
+			}
+			break;
+
+		case "chat_recording_pref":
+			eventBus.emit("chat_recording_pref", from_address, body);
 			callbacks.ifOk();
 			break;
 		
@@ -741,14 +763,14 @@ function readTransactionHistory(opts, handleHistory){
 	db.query(
 		"SELECT unit, level, is_stable, sequence, address, \n\
 			"+db.getUnixTimestamp("units.creation_date")+" AS ts, headers_commission+payload_commission AS fee, \n\
-			SUM(amount) AS amount, address AS to_address, NULL AS from_address \n\
+			SUM(amount) AS amount, address AS to_address, NULL AS from_address, main_chain_index AS mci \n\
 		FROM outputs "+join_my_addresses+" JOIN units USING(unit) \n\
 		WHERE "+where_condition+" AND "+asset_condition+" \n\
 		GROUP BY unit, address \n\
 		UNION \n\
 		SELECT unit, level, is_stable, sequence, address, \n\
 			"+db.getUnixTimestamp("units.creation_date")+" AS ts, headers_commission+payload_commission AS fee, \n\
-			NULL AS amount, NULL AS to_address, address AS from_address \n\
+			NULL AS amount, NULL AS to_address, address AS from_address, main_chain_index AS mci \n\
 		FROM inputs "+join_my_addresses+" JOIN units USING(unit) \n\
 		WHERE "+where_condition+" AND "+asset_condition+" \n\
 		ORDER BY ts DESC"+(opts.limit ? " LIMIT ?" : ""),
@@ -761,7 +783,7 @@ function readTransactionHistory(opts, handleHistory){
 				//    row.fee = null;
 				if (!assocMovements[row.unit])
 					assocMovements[row.unit] = {
-						plus:0, has_minus:false, ts: row.ts, level: row.level, is_stable: row.is_stable, sequence: row.sequence, fee: row.fee
+						plus:0, has_minus:false, ts: row.ts, level: row.level, is_stable: row.is_stable, sequence: row.sequence, fee: row.fee, mci: row.mci
 					};
 				if (row.to_address){
 					assocMovements[row.unit].plus += row.amount;
@@ -782,7 +804,8 @@ function readTransactionHistory(opts, handleHistory){
 							unit: unit,
 							fee: movement.fee,
 							time: movement.ts,
-							level: movement.level
+							level: movement.level,
+                            mci: movement.mci
 						};
 						arrTransactions.push(transaction);
 						cb();
@@ -803,7 +826,8 @@ function readTransactionHistory(opts, handleHistory){
 									unit: unit,
 									fee: movement.fee,
 									time: movement.ts,
-									level: movement.level
+									level: movement.level,
+                                    mci: movement.mci
 								};
 								arrTransactions.push(transaction);
 								cb();
@@ -842,7 +866,8 @@ function readTransactionHistory(opts, handleHistory){
 										unit: unit,
 										fee: movement.fee,
 										time: movement.ts,
-										level: movement.level
+										level: movement.level,
+                                        mci: movement.mci
 									};
 									if (action === 'moved')
 										transaction.my_address = payee.address;
@@ -1237,6 +1262,29 @@ function sendMultiPayment(opts, handleResult)
 	);
 }
 
+function readDeviceAddressesUsedInSigningPaths(onDone){
+
+	var sql = "SELECT DISTINCT device_address FROM shared_address_signing_paths ";
+	sql += "UNION SELECT DISTINCT device_address FROM wallet_signing_paths ";
+	sql += "UNION SELECT DISTINCT device_address FROM pending_shared_address_signing_paths";
+	
+	db.query(
+		sql, 
+		function(rows){
+			
+			var arrDeviceAddress = rows.map(function(r) { return r.device_address; });
+
+			onDone(arrDeviceAddress);
+		}
+	);
+}
+
+function determineIfDeviceCanBeRemoved(device_address, handleResult) {
+	readDeviceAddressesUsedInSigningPaths(function(arrDeviceAddresses){
+		handleResult(arrDeviceAddresses.indexOf(device_address) === -1);
+	});
+};
+
 
 // todo, almost same as payment
 function signAuthRequest(wallet, objRequest, handleResult){
@@ -1260,4 +1308,5 @@ exports.readBalancesOnAddresses = readBalancesOnAddresses;
 exports.readTransactionHistory = readTransactionHistory;
 exports.sendPaymentFromWallet = sendPaymentFromWallet;
 exports.sendMultiPayment = sendMultiPayment;
-
+exports.readDeviceAddressesUsedInSigningPaths = readDeviceAddressesUsedInSigningPaths;
+exports.determineIfDeviceCanBeRemoved = determineIfDeviceCanBeRemoved;

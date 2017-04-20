@@ -329,8 +329,7 @@ function checkIfHaveEnoughOutboundPeersAndAdd(){
 }
 
 function connectToPeer(url, onOpen) {
-	if (conf.bWantNewPeers)
-		addPeer(url);
+	addPeer(url);
 	var options = {};
 	if (socks && conf.socksHost && conf.socksPort)
 		options.agent = new socks.Agent({ proxy: { ipaddress: conf.socksHost, port: conf.socksPort, type: 5 } }, /^wss/i.test(url) );
@@ -507,6 +506,42 @@ function findOutboundPeerOrConnect(url, onOpen){
 	}
 	console.log("will connect to "+url);
 	connectToPeer(url, onOpen);
+}
+
+function purgeDeadPeers(){
+	if (conf.storage !== 'sqlite')
+		return;
+	console.log('will purge dead peers');
+	var arrOutboundPeerUrls = arrOutboundPeers.map(function(ws){ return ws.peer; });
+	db.query("SELECT rowid, "+db.getUnixTimestamp('event_date')+" AS ts FROM peer_events ORDER BY rowid DESC LIMIT 1", function(lrows){
+		if (lrows.length === 0)
+			return;
+		var last_rowid = lrows[0].rowid;
+		var last_event_ts = lrows[0].ts;
+		db.query("SELECT peer, peer_host FROM peers", function(rows){
+			async.eachSeries(rows, function(row, cb){
+				if (arrOutboundPeerUrls.indexOf(row.peer) >= 0)
+					return cb();
+				db.query(
+					"SELECT MAX(rowid) AS max_rowid, MAX("+db.getUnixTimestamp('event_date')+") AS max_event_ts FROM peer_events WHERE peer_host=?", 
+					[row.peer_host], 
+					function(mrows){
+						var max_rowid = mrows[0].max_rowid || 0;
+						var max_event_ts = mrows[0].max_event_ts || 0;
+						var count_other_events = last_rowid - max_rowid;
+						var days_since_last_event = (last_event_ts - max_event_ts)/24/3600;
+						if (count_other_events < 20000 || days_since_last_event < 7)
+							return cb();
+						console.log('peer '+row.peer+' is dead, will delete');
+						db.query("DELETE FROM peers WHERE peer=?", [row.peer], function(){
+							delete assocKnownPeers[row.peer];
+							cb();
+						});
+					}
+				);
+			});
+		});
+	});
 }
 
 function requestPeers(ws){
@@ -1786,6 +1821,11 @@ function handleJustsaying(ws, subject, body){
 			if (ws.bLoggingIn || ws.bLoggedIn) // accept from hub only
 				eventBus.emit('new_version', ws, body);
 			break;
+
+		case 'hub/push_project_number':
+			if (ws.bLoggingIn || ws.bLoggedIn)
+				eventBus.emit('receivedPushProjectNumber', ws, body);
+			break;
 		
 		case 'bugreport':
 			mail.sendBugEmail(body.message, body.exception);
@@ -1926,6 +1966,10 @@ function handleJustsaying(ws, subject, body){
 					finishLogin();
 				}
 			});
+			if (conf.pushApiProjectNumber && conf.pushApiKey)
+				sendJustsaying(ws, 'hub/push_project_number', {projectNumber: conf.pushApiProjectNumber});
+			else
+				sendJustsaying(ws, 'hub/push_project_number', {projectNumber: 0});
 			break;
 			
 		// I'm a hub, the peer wants to download new messages
@@ -2130,12 +2174,17 @@ function handleRequest(ws, tag, command, params){
 					"INSERT "+db.getIgnore()+" INTO device_messages (message_hash, message, device_address) VALUES (?,?,?)", 
 					[message_hash, JSON.stringify(objDeviceMessage), objDeviceMessage.to],
 					function(){
-						// if the adressee is connected, deliver immediately
+						// if the addressee is connected, deliver immediately
 						wss.clients.forEach(function(client){
-							if (client.device_address === objDeviceMessage.to)
-								sendJustsaying(client, 'hub/message', {message_hash: message_hash, message: objDeviceMessage});
+							if (client.device_address === objDeviceMessage.to) {
+								sendJustsaying(client, 'hub/message', {
+									message_hash: message_hash,
+									message: objDeviceMessage
+								});
+							}
 						});
 						sendResponse(ws, tag, "accepted");
+						eventBus.emit('peer_sent_new_message', ws, objDeviceMessage);
 					}
 				);
 			});
@@ -2241,6 +2290,20 @@ function handleRequest(ws, tag, command, params){
 					sendResponse(ws, tag, objResponse);
 				}
 			});
+			break;
+
+		// I'm a hub, the peer wants to enable push notifications
+		case 'hub/enable_notification':
+			if(ws.device_address)
+				eventBus.emit("enableNotification", ws.device_address, params);
+			sendResponse(ws, tag, 'ok');
+			break;
+
+		// I'm a hub, the peer wants to disable push notifications
+		case 'hub/disable_notification':
+			if(ws.device_address)
+				eventBus.emit("disableNotification", ws.device_address, params);
+			sendResponse(ws, tag, 'ok');
 			break;
 	}
 }
@@ -2360,18 +2423,20 @@ function startRelay(){
 		wss = {clients: []};
 	else
 		startAcceptingConnections();
-	
-	// outbound connections
-	addOutboundPeers();
+
+	if (conf.bWantNewPeers){
+		// outbound connections
+		addOutboundPeers();
+		// retry lost and failed connections every 1 minute
+		setInterval(addOutboundPeers, 60*1000);
+		setTimeout(checkIfHaveEnoughOutboundPeersAndAdd, 30*1000);
+		setInterval(purgeDeadPeers, 30*60*1000);
+	}
 	
 	// request needed joints that were not received during the previous session
 	rerequestLostJoints();
-
-	// retry lost and failed connections every 1 minute
-	setInterval(addOutboundPeers, 60*1000);
-	if (conf.bWantNewPeers)
-		setTimeout(checkIfHaveEnoughOutboundPeersAndAdd, 30*1000);
 	setInterval(rerequestLostJoints, 8*1000);
+	
 	setInterval(purgeJunkUnhandledJoints, 30*60*1000);
 	setInterval(joint_storage.purgeUncoveredNonserialJointsUnderLock, 6*1000);
 	setInterval(findAndHandleJointsThatAreReady, 5*1000);
