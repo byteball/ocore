@@ -656,6 +656,7 @@ function addIndirectCorrespondents(arrOtherCosigners, onDone){
 }
 
 function removeCorrespondentDevice(device_address, onDone){
+	breadcrumbs.add('correspondent removed: '+device_address);
 	var arrQueries = [];
 	db.addQuery(arrQueries, "DELETE FROM chat_messages WHERE correspondent_address=?", [device_address]);
 	db.addQuery(arrQueries, "DELETE FROM outbox WHERE `to`=?", [device_address]);
