@@ -748,8 +748,20 @@ function requestJoints(ws, arrUnits) {
 function handleResponseToJointRequest(ws, request, response){
 	delete assocRequestedUnits[request.params];
 	if (!response.joint){
-		if (response.joint_not_found === request.params)
-			purgeDependenciesAndNotifyPeers(unit, "unit "+response.joint_not_found+" does not exist");
+		var unit = request.params;
+		if (response.joint_not_found === unit){
+			if (!bCatchingUp)
+				return purgeDependenciesAndNotifyPeers(unit, "unit "+unit+" does not exist");
+			db.query("SELECT 1 FROM hash_tree_balls WHERE unit=?", [unit], function(rows){
+				if (rows.length === 0)
+					return purgeDependenciesAndNotifyPeers(unit, "unit "+unit+" does not exist (catching up)");
+				findNextPeer(ws, function(next_ws){
+					console.log("found next peer to reroute joint_not_found "+unit+": "+next_ws.peer);
+					breadcrumbs.add("found next peer to reroute joint_not_found "+unit+": "+next_ws.peer);
+					requestJoints(next_ws, [unit]);
+				});
+			});
+		}
 		// if it still exists, we'll request it again
 		// we requst joints in two cases:
 		// - when referenced from parents, in this case we request it from the same peer who sent us the referencing joint, 
