@@ -778,6 +778,7 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 			console.log("========== found conflicting units "+arrConflictingUnits+" =========");
 			console.log("========== will accept a conflicting unit "+objUnit.unit+" =========");
 			objValidationState.arrAddressesWithForkedPath.push(objAuthor.address);
+			objValidationState.arrConflictingUnits = (objValidationState.arrConflictingUnits || []).concat(arrConflictingUnits);
 			bNonserial = true;
 			var arrUnstableConflictingUnitProps = arrConflictingUnitProps.filter(function(objConflictingUnitProps){
 				return (objConflictingUnitProps.is_stable === 0);
@@ -785,7 +786,7 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 			var bConflictsWithStableUnits = arrConflictingUnitProps.some(function(objConflictingUnitProps){
 				return (objConflictingUnitProps.is_stable === 1);
 			});
-			if (objValidationState.sequence !== 'final-bad') // if it were already final-bad because of 1st author, it can't became temp-bad due to 2nd author
+			if (objValidationState.sequence !== 'final-bad') // if it were already final-bad because of 1st author, it can't become temp-bad due to 2nd author
 				objValidationState.sequence = bConflictsWithStableUnits ? 'final-bad' : 'temp-bad';
 			var arrUnstableConflictingUnits = arrUnstableConflictingUnitProps.map(function(objConflictingUnitProps){ return objConflictingUnitProps.unit; });
 			if (bConflictsWithStableUnits) // don't temp-bad the unstable conflicting units
@@ -1752,9 +1753,9 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 					doubleSpendWhere = "type=? AND from_main_chain_index=? AND address=? AND asset IS NULL";
 					doubleSpendVars = [type, input.from_main_chain_index, address];
 
-					mc_outputs.readNextSpendableMcIndex(conn, type, address, function(next_spendable_mc_index){
-						if (input.from_main_chain_index !== next_spendable_mc_index)
-							return cb(type+" ranges must leave no gaps and not overlap");
+					mc_outputs.readNextSpendableMcIndex(conn, type, address, objValidationState.arrConflictingUnits, function(next_spendable_mc_index){
+						if (input.from_main_chain_index < next_spendable_mc_index)
+							return cb(type+" ranges must not overlap"); // gaps allowed, in case a unit becomes bad due to another address being nonserial
 						var max_mci = (type === "headers_commission") 
 							? headers_commission.getMaxSpendableMciForLastBallMci(objValidationState.last_ball_mci)
 							: paid_witnessing.getMaxSpendableMciForLastBallMci(objValidationState.last_ball_mci);
