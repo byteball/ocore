@@ -16,7 +16,7 @@ function migrateDb(connection, onDone){
 		var version = rows[0].user_version;
 		console.log("db version "+version);
 		if (version > VERSION)
-			throw Error("user version "+version+" > "+VERSION);
+			throw Error("user version "+version+" > "+VERSION+": looks like you are using a new database with an old client");
 		if (version === VERSION)
 			return onDone();
 		var arrQueries = [];
