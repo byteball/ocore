@@ -909,6 +909,68 @@ function generateQueriesToUnspendWitnessingOutputsSpentInArchivedUnit(conn, unit
 	);
 }
 
+function archiveJointAndDescendantsIfExists(from_unit){
+	console.log('will archive if exists from unit '+from_unit);
+	db.query("SELECT 1 FROM units WHERE unit=?", [from_unit], function(rows){
+		if (rows.length > 0)
+			archiveJointAndDescendants(from_unit);
+	});
+}
+
+function archiveJointAndDescendants(from_unit){
+	db.executeInTransaction(function doWork(conn, cb){
+		
+		function addChildren(arrParentUnits){
+			conn.query("SELECT DISTINCT child_unit FROM parenthoods WHERE parent_unit IN(?)", [arrParentUnits], function(rows){
+				if (rows.length === 0)
+					return archive();
+				var arrChildUnits = rows.map(function(row){ return row.child_unit; });
+				arrUnits = arrUnits.concat(arrChildUnits);
+				addChildren(arrChildUnits);
+			});
+		}
+		
+		function archive(){
+			arrUnits = _.uniq(arrUnits); // does not affect the order
+			arrUnits.reverse();
+			console.log('will archive', arrUnits);
+			var arrQueries = [];
+			async.eachSeries(
+				arrUnits,
+				function(unit, cb2){
+					readJoint(conn, unit, {
+						ifNotFound: function(){
+							throw Error("unit to be archived not found: "+unit);
+						},
+						ifFound: function(objJoint){
+							generateQueriesToArchiveJoint(conn, objJoint, 'uncovered', arrQueries, cb2);
+						}
+					});
+				},
+				function(){
+					conn.addQuery(arrQueries, "DELETE FROM known_bad_joints");
+					console.log('will execute '+arrQueries.length+' queries to archive');
+					async.series(arrQueries, function(){
+						arrUnits.forEach(forgetUnit);
+						cb();
+					});
+				}
+			);
+		}
+		
+		console.log('will archive from unit '+from_unit);
+		var arrUnits = [from_unit];
+		addChildren([from_unit]);
+	},
+	function onDone(){
+		console.log('done archiving from unit '+from_unit);
+	});
+}
+
+
+//_______________________________________________________________________________________________
+// Assets
+
 function readAssetInfo(conn, asset, handleAssetInfo){
 	var objAsset = assocCachedAssetInfos[asset];
 	if (objAsset)
@@ -1151,6 +1213,10 @@ function shrinkCache(){
 	});
 }
 setInterval(shrinkCache, 300*1000);
+
+if (!conf.bLight)
+	archiveJointAndDescendantsIfExists('N6QadI9yg3zLxPMphfNGJcPfddW4yHPkoGMbbGZsWa0=');
+
 
 exports.isGenesisUnit = isGenesisUnit;
 exports.isGenesisBall = isGenesisBall;
