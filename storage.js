@@ -462,7 +462,7 @@ function readJointDirectly(conn, unit, callbacks) {
 				}
 			], function(){
 				//profiler.stop('read');
-				if (!conf.bSaveJointJson || !bStable || (bFinalBad && bRetrievable))
+				if (!conf.bSaveJointJson || !bStable || (bFinalBad && bRetrievable) || bRetrievable)
 					return callbacks.ifFound(objJoint);
 				conn.query("INSERT "+db.getIgnore()+" INTO joints (unit, json) VALUES (?,?)", [unit, JSON.stringify(objJoint)], function(){
 					callbacks.ifFound(objJoint);
