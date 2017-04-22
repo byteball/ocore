@@ -110,7 +110,7 @@ function buildPaidWitnessesForMainChainIndex(conn, main_chain_index, cb){
 			if (count !== constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING+2)
 				throw Error("main chain is not long enough yet for MC index "+main_chain_index);
 			if (count_on_stable_mc !== count)
-				throw Error("not enough stable MC units yet after MC index "+main_chain_index);
+				throw Error("not enough stable MC units yet after MC index "+main_chain_index+": count_on_stable_mc="+count_on_stable_mc+", count="+count);
 			
 			profiler.start();
 			// we read witnesses from MC unit (users can cheat with side-chains to flip the witness list and pay commissions to their own witnesses)
