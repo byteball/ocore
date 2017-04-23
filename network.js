@@ -2036,11 +2036,28 @@ function handleJustsaying(ws, subject, body){
 				sendInfo(ws, "now watching "+address);
 				// check if we already have something on this address
 				db.query(
-					"SELECT 1 FROM unit_authors WHERE address=? UNION SELECT 1 FROM outputs WHERE address=? LIMIT 1", 
+					"SELECT unit, is_stable FROM unit_authors JOIN units USING(unit) WHERE address=? \n\
+					UNION \n\
+					SELECT unit, is_stable FROM outputs JOIN units USING(unit) WHERE address=? \n\
+					ORDER BY is_stable LIMIT 10", 
 					[address, address], 
 					function(rows){
-						if (rows.length > 0)
+						if (rows.length === 0)
+							return;
+						if (rows.length === 10 || rows.some(function(row){ return row.is_stable; }))
 							sendJustsaying(ws, 'light/have_updates');
+						rows.forEach(function(row){
+							if (row.is_stable)
+								return;
+							storage.readJoint(db, row.unit, {
+								ifFound: function(objJoint){
+									sendJoint(ws, objJoint);
+								},
+								ifNotFound: function(){
+									throw Error("watched unit "+row.unit+" not found");
+								}
+							});
+						});
 					}
 				);
 			});            
