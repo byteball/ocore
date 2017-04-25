@@ -23,9 +23,9 @@ function pickParentUnits(conn, arrWitnesses, onDone){
 			) AS count_matching_witnesses \n\
 		FROM units "+(conf.storage === 'sqlite' ? "INDEXED BY byFree" : "")+" \n\
 		LEFT JOIN archived_joints USING(unit) \n\
-		WHERE +sequence='good' AND is_free=1 AND archived_joints.unit IS NULL ORDER BY unit", 
+		WHERE +sequence='good' AND is_free=1 AND archived_joints.unit IS NULL ORDER BY unit LIMIT ?", 
 		// exclude potential parents that were archived and then received again
-		[arrWitnesses], 
+		[arrWitnesses, constants.MAX_PARENTS_PER_UNIT], 
 		function(rows){
 			if (rows.some(function(row){ return (row.version !== constants.version || row.alt !== constants.alt); }))
 				throw Error('wrong network');

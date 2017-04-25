@@ -377,6 +377,8 @@ function validateParents(conn, objJoint, objValidationState, callback){
 	}
 	
 	var objUnit = objJoint.unit;
+	if (objUnit.parent_units.length > constants.MAX_PARENTS_PER_UNIT) // anti-spam
+		return callback("too many parents: "+objUnit.parent_units.length);
 	// obsolete: when handling a ball, we can't trust parent list before we verify ball hash
 	// obsolete: when handling a fresh unit, we can begin trusting parent list earlier, after we verify parents_hash
 	var createError = objJoint.ball ? createJointError : function(err){ return err; };
