@@ -1,7 +1,7 @@
 /*jslint node: true */
 "use strict";
 
-var VERSION = 6;
+var VERSION = 7;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -31,9 +31,6 @@ function migrateDb(connection, onDone){
 			connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS inputsIndexByAddressTypeToMci ON inputs(address, type, to_main_chain_index)");
 			connection.addQuery(arrQueries, "DELETE FROM known_bad_joints");
 		}
-		if (version < 4) {
-			connection.addQuery(arrQueries, "DELETE FROM known_bad_joints");
-		}
 		if (version < 5){
 			connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS push_registrations (registrationId TEXT, device_address TEXT NOT NULL, PRIMARY KEY (device_address))");
 		}
@@ -50,6 +47,9 @@ function migrateDb(connection, onDone){
 			connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS chatMessagesIndexByDeviceAddress ON chat_messages(correspondent_address, id)");
 			connection.addQuery(arrQueries, "ALTER TABLE correspondent_devices ADD COLUMN my_record_pref INTEGER DEFAULT 1");
 			connection.addQuery(arrQueries, "ALTER TABLE correspondent_devices ADD COLUMN peer_record_pref INTEGER DEFAULT 1");
+			connection.addQuery(arrQueries, "DELETE FROM known_bad_joints");
+		}
+		if (version < 7) {
 			connection.addQuery(arrQueries, "DELETE FROM known_bad_joints");
 		}
 		connection.addQuery(arrQueries, "PRAGMA user_version="+VERSION);

@@ -438,6 +438,9 @@ function createListOfPrivateMcUnits(start_unit, min_level, handleList){
 function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handleResult){
 	if (storage.isGenesisUnit(earlier_unit))
 		return handleResult(true);
+	// hack to workaround past validation error
+	if (earlier_unit === 'LGFzduLJNQNzEqJqUXdkXr58wDYx77V8WurDF3+GIws=' && arrLaterUnits.join(',') === '6O4t3j8kW0/Lo7n2nuS8ITDv2UbOhlL9fF1M6j/PrJ4=')
+		return handleResult(true);
 	storage.readPropsOfUnits(conn, earlier_unit, arrLaterUnits, function(objEarlierUnitProps, arrLaterUnitProps){
 		if (objEarlierUnitProps.is_free === 1)
 			return handleResult(false);
@@ -908,6 +911,7 @@ function getSimilarMcis(mci){
 
 exports.updateMainChain = updateMainChain;
 exports.determineIfStableInLaterUnitsAndUpdateStableMcFlag = determineIfStableInLaterUnitsAndUpdateStableMcFlag;
+exports.determineIfStableInLaterUnits = determineIfStableInLaterUnits;
 
 /*
 determineIfStableInLaterUnits(db, "oeS2p87yO9DFkpjj+z+mo+RNoieaTN/8vOPGn/cUHhM=", [ '8vh0/buS3NaknEjBF/+vyLS3X5T0t5imA2mg8juVmJQ=', 'oO/INGsFr8By+ggALCdVkiT8GIPzB2k3PQ3TxPWq8Ac='], function(bStable){

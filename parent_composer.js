@@ -3,6 +3,8 @@
 var db = require('./db.js');
 var constants = require("./constants.js");
 var conf = require("./conf.js");
+var storage = require("./storage.js");
+var main_chain = require("./main_chain.js");
 
 
 function pickParentUnits(conn, arrWitnesses, onDone){
@@ -79,18 +81,32 @@ function findLastStableMcBall(conn, arrWitnesses, onDone){
 	);
 }
 
+function adjustLastStableMcBall(conn, last_stable_mc_ball_unit, arrParentUnits, handleAdjustedLastStableUnit){
+	main_chain.determineIfStableInLaterUnits(conn, last_stable_mc_ball_unit, arrParentUnits, function(bStable){
+		if (bStable){
+			conn.query("SELECT ball, main_chain_index FROM units JOIN balls USING(unit) WHERE unit=?", [last_stable_mc_ball_unit], function(rows){
+				if (rows.length !== 1)
+					throw Error("not 1 ball by unit "+last_stable_mc_ball_unit);
+				var row = rows[0];
+				handleAdjustedLastStableUnit(row.ball, last_stable_mc_ball_unit, row.main_chain_index);
+			});
+			return;
+		}
+		console.log('will adjust last stable ball because '+last_stable_mc_ball_unit+' is not stable in view of parents '+arrParentUnits.join(', '));
+		storage.readStaticUnitProps(conn, last_stable_mc_ball_unit, function(objUnitProps){
+			if (!objUnitProps.best_parent_unit)
+				throw Error("no best parent of "+last_stable_mc_ball_unit);
+			adjustLastStableMcBall(conn, objUnitProps.best_parent_unit, arrParentUnits, handleAdjustedLastStableUnit)
+		});
+	});
+}
+
 function pickParentUnitsAndLastBall(conn, arrWitnesses, onDone){
 	pickParentUnits(conn, arrWitnesses, function(arrParentUnits){
 		findLastStableMcBall(conn, arrWitnesses, function(last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
-			onDone(arrParentUnits, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci);
-			/*
-			graph.determineIfIncludedOrEqual(conn, last_stable_mc_ball_unit, arrParentUnits, function(bIncluded){
-				if (!bIncluded && !conf.bLight)
-					throw "last ball not included in parents";
-				objUnit.last_ball = last_stable_mc_ball;
-				objUnit.last_ball_unit = last_stable_mc_ball_unit;
-				last_ball_mci = last_stable_mc_ball_mci;
-			});*/
+			adjustLastStableMcBall(conn, last_stable_mc_ball_unit, arrParentUnits, function(last_stable_ball, last_stable_unit, last_stable_mci){
+				onDone(arrParentUnits, last_stable_ball, last_stable_unit, last_stable_mci);
+			});
 		});
 	});
 }
