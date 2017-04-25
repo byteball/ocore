@@ -501,6 +501,7 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 			if (arrMcUnits.length === 0)
 				return checkNoReferencesInWitnessAddressDefinitions(arrWitnesses);
 			profiler.start();
+			// BUG: this || is interpreted as concat in sqlite, this query never worked as intended
 			conn.query(
 				"SELECT units.unit, COUNT(*) AS count_matching_witnesses \n\
 				FROM units JOIN unit_witnesses ON (units.unit=unit_witnesses.unit || units.witness_list_unit=unit_witnesses.unit) AND address IN(?) \n\

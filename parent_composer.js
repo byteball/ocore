@@ -105,7 +105,16 @@ function pickParentUnitsAndLastBall(conn, arrWitnesses, onDone){
 	pickParentUnits(conn, arrWitnesses, function(arrParentUnits){
 		findLastStableMcBall(conn, arrWitnesses, function(last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
 			adjustLastStableMcBall(conn, last_stable_mc_ball_unit, arrParentUnits, function(last_stable_ball, last_stable_unit, last_stable_mci){
-				onDone(arrParentUnits, last_stable_ball, last_stable_unit, last_stable_mci);
+				storage.findWitnessListUnit(conn, arrWitnesses, last_stable_mci, function(witness_list_unit){
+					var objFakeUnit = {parent_units: arrParentUnits};
+					if (witness_list_unit)
+						objFakeUnit.witness_list_unit = witness_list_unit;
+					storage.determineIfHasWitnessListMutationsAlongMc(conn, objFakeUnit, last_stable_unit, arrWitnesses, function(err){
+						if (err)
+							return onDone(err); // if first arg is not array, it is error
+						onDone(arrParentUnits, last_stable_ball, last_stable_unit, last_stable_mci);
+					});
+				});
 			});
 		});
 	});

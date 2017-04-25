@@ -1137,6 +1137,58 @@ function determineBestParent(conn, objUnit, arrWitnesses, handleBestParent){
 	);
 }
 
+function determineIfHasWitnessListMutationsAlongMc(conn, objUnit, last_ball_unit, arrWitnesses, handleResult){
+	if (!objUnit.parent_units) // genesis
+		return handleResult();
+	buildListOfMcUnitsWithPotentiallyDifferentWitnesslists(conn, objUnit, last_ball_unit, arrWitnesses, function(bHasBestParent, arrMcUnits){
+		if (!bHasBestParent)
+			return handleResult("no compatible best parent");
+		console.log("###### MC units ", arrMcUnits);
+		if (arrMcUnits.length === 0)
+			return handleResult();
+		conn.query(
+			"SELECT units.unit, COUNT(*) AS count_matching_witnesses \n\
+			FROM units CROSS JOIN unit_witnesses ON (units.unit=unit_witnesses.unit OR units.witness_list_unit=unit_witnesses.unit) AND address IN(?) \n\
+			WHERE units.unit IN(?) \n\
+			GROUP BY units.unit \n\
+			HAVING count_matching_witnesses<?",
+			[arrWitnesses, arrMcUnits, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS],
+			function(rows){
+				console.log(rows);
+				if (rows.length > 0)
+					return handleResult("too many ("+(constants.COUNT_WITNESSES - rows[0].count_matching_witnesses)+") witness list mutations relative to MC unit "+rows[0].unit);
+				handleResult();
+			}
+		);
+	});
+}
+
+// the MC for this function is the MC built from this unit, not our current MC
+function buildListOfMcUnitsWithPotentiallyDifferentWitnesslists(conn, objUnit, last_ball_unit, arrWitnesses, handleList){
+
+	function addAndGoUp(unit){
+		readStaticUnitProps(conn, unit, function(props){
+			// the parent has the same witness list and the parent has already passed the MC compatibility test
+			if (0 && objUnit.witness_list_unit && objUnit.witness_list_unit === props.witness_list_unit)
+				return handleList(true, arrMcUnits);
+			else
+				arrMcUnits.push(unit);
+			if (unit === last_ball_unit)
+				return handleList(true, arrMcUnits);
+			if (!props.best_parent_unit)
+				throw Error("no best parent of unit "+unit+"?");
+			addAndGoUp(props.best_parent_unit);
+		});
+	}
+
+	var arrMcUnits = [];
+	determineBestParent(conn, objUnit, arrWitnesses, function(best_parent_unit){
+		if (!best_parent_unit)
+			return handleList(false);
+		addAndGoUp(best_parent_unit);
+	});
+}
+
 
 function readStaticUnitProps(conn, unit, handleProps){
 	var props = assocCachedUnits[unit];
@@ -1254,6 +1306,7 @@ exports.loadAssetWithListOfAttestedAuthors = loadAssetWithListOfAttestedAuthors;
 exports.filterNewOrUnstableUnits = filterNewOrUnstableUnits;
 
 exports.determineBestParent = determineBestParent;
+exports.determineIfHasWitnessListMutationsAlongMc = determineIfHasWitnessListMutationsAlongMc;
 
 exports.readStaticUnitProps = readStaticUnitProps;
 exports.readUnitAuthors = readUnitAuthors;
