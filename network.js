@@ -2474,9 +2474,9 @@ function startRelay(){
 		setInterval(addOutboundPeers, 60*1000);
 		setTimeout(checkIfHaveEnoughOutboundPeersAndAdd, 30*1000);
 		setInterval(purgeDeadPeers, 30*60*1000);
-                // purge peer_events every other day, removing those older than 3 days ago.
-		setInterval(purgePeerEvents, 60*60*24*2*1000);
 	}
+	// purge peer_events every 6 hours, removing those older than 3 days ago.
+	setInterval(purgePeerEvents, 6*60*60*1000);
 	
 	// request needed joints that were not received during the previous session
 	rerequestLostJoints();
