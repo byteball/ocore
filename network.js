@@ -761,7 +761,8 @@ function handleResponseToJointRequest(ws, request, response){
 		var unit = request.params;
 		if (response.joint_not_found === unit){
 			if (!bCatchingUp)
-				return purgeDependenciesAndNotifyPeers(unit, "unit "+unit+" does not exist");
+				return console.log("unit "+unit+" does not exist"); // if it is in unhandled_joints, it'll be deleted in 1 hour
+			//	return purgeDependenciesAndNotifyPeers(unit, "unit "+unit+" does not exist");
 			db.query("SELECT 1 FROM hash_tree_balls WHERE unit=?", [unit], function(rows){
 				if (rows.length === 0)
 					return purgeDependenciesAndNotifyPeers(unit, "unit "+unit+" does not exist (catching up)");
