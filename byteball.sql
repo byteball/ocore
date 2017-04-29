@@ -334,7 +334,8 @@ CREATE TABLE headers_commission_outputs (
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (main_chain_index, address),
 	UNIQUE (address, main_chain_index),
-	KEY byAddressSpent(address, is_spent)
+	UNIQUE (address, is_spent, main_chain_index)
+--	KEY byAddressSpent(address, is_spent)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 CREATE TABLE paid_witness_events (
@@ -355,7 +356,8 @@ CREATE TABLE witnessing_outputs (
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (main_chain_index, address),
 	UNIQUE (address, main_chain_index),
-	KEY byWitnessAddressSpent(address, is_spent),
+	UNIQUE (address, is_spent, main_chain_index),
+--	KEY byWitnessAddressSpent(address, is_spent),
 	FOREIGN KEY byWitnessAddress(address) REFERENCES addresses(address)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 

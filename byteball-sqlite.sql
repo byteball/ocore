@@ -347,8 +347,9 @@ CREATE TABLE headers_commission_outputs (
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (main_chain_index, address)
 );
-CREATE INDEX hcobyAddressSpent ON headers_commission_outputs(address, is_spent);
+-- CREATE INDEX hcobyAddressSpent ON headers_commission_outputs(address, is_spent);
 CREATE UNIQUE INDEX hcobyAddressMci ON headers_commission_outputs(address, main_chain_index);
+CREATE UNIQUE INDEX hcobyAddressSpentMci ON headers_commission_outputs(address, is_spent, main_chain_index);
 
 CREATE TABLE paid_witness_events (
 	unit CHAR(44) NOT NULL,
@@ -371,8 +372,9 @@ CREATE TABLE witnessing_outputs (
 	PRIMARY KEY (main_chain_index, address),
 	FOREIGN KEY (address) REFERENCES addresses(address)
 );
-CREATE INDEX byWitnessAddressSpent ON witnessing_outputs(address, is_spent);
-CREATE UNIQUE INDEX IF NOT EXISTS byWitnessAddressMci ON witnessing_outputs(address, main_chain_index);
+-- CREATE INDEX byWitnessAddressSpent ON witnessing_outputs(address, is_spent);
+CREATE UNIQUE INDEX byWitnessAddressMci ON witnessing_outputs(address, main_chain_index);
+CREATE UNIQUE INDEX byWitnessAddressSpentMci ON witnessing_outputs(address, is_spent, main_chain_index);
 
 
 -- ---------------------------------------
