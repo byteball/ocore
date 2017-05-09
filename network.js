@@ -2482,7 +2482,7 @@ function startRelay(){
 	setInterval(rerequestLostJoints, 8*1000);
 	
 	setInterval(purgeJunkUnhandledJoints, 30*60*1000);
-	setInterval(joint_storage.purgeUncoveredNonserialJointsUnderLock, 6*1000);
+	setInterval(joint_storage.purgeUncoveredNonserialJointsUnderLock, 60*1000);
 	setInterval(findAndHandleJointsThatAreReady, 5*1000);
 }
 
