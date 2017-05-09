@@ -341,7 +341,7 @@ function resendStalledMessages(){
 	console.log("resending stalled messages");
 	if (!objMyPermanentDeviceKey)
 		return console.log("objMyPermanentDeviceKey not set yet, can't resend stalled messages");
-	mutex.lock(['stalled'], function(unlock){
+	mutex.lockOrSkip(['stalled'], function(unlock){
 		var bCordova = (typeof window !== 'undefined' && window && window.cordova);
 		db.query(
 			"SELECT "+(bCordova ? "LENGTH(message) AS len" : "message")+", message_hash, `to`, pubkey, hub \n\

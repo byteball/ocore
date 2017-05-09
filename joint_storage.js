@@ -188,7 +188,7 @@ function collectQueriesToPurgeDependentJoints(conn, arrQueries, unit, onPurgedDe
 }
 
 function purgeUncoveredNonserialJointsUnderLock(){
-	mutex.lock(["purge_uncovered"], function(unlock){
+	mutex.lockOrSkip(["purge_uncovered"], function(unlock){
 		purgeUncoveredNonserialJoints(false, unlock);
 	});
 }
