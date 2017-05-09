@@ -1,7 +1,7 @@
 /*jslint node: true */
 "use strict";
 
-var VERSION = 7;
+var VERSION = 8;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -49,7 +49,8 @@ function migrateDb(connection, onDone){
 			connection.addQuery(arrQueries, "ALTER TABLE correspondent_devices ADD COLUMN peer_record_pref INTEGER DEFAULT 1");
 			connection.addQuery(arrQueries, "DELETE FROM known_bad_joints");
 		}
-		if (version < 7) {
+		if (version < 8) {
+			connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS bySequence ON units(sequence)");
 			connection.addQuery(arrQueries, "DELETE FROM known_bad_joints");
 		}
 		connection.addQuery(arrQueries, "PRAGMA user_version="+VERSION);
