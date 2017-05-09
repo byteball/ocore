@@ -569,9 +569,20 @@ function readDefinitionByAddress(conn, address, max_mci, callbacks){
 		[address, max_mci], 
 		function(rows){
 			var definition_chash = (rows.length > 0) ? rows[0].definition_chash : address;
-			readDefinition(conn, definition_chash, callbacks);
+			readDefinitionAtMci(conn, definition_chash, max_mci, callbacks);
 		}
 	);
+}
+
+function readDefinitionAtMci(conn, definition_chash, max_mci, callbacks){
+	var sql = "SELECT definition FROM definitions CROSS JOIN unit_authors USING(definition_chash) CROSS JOIN units USING(unit) \n\
+		WHERE definition_chash=? AND main_chain_index<=?";
+	var params = [definition_chash, max_mci];
+	conn.query(sql, params, function(rows){
+		if (rows.length === 0)
+			return callbacks.ifDefinitionNotFound(definition_chash);
+		callbacks.ifFound(JSON.parse(rows[0].definition));
+	});
 }
 
 function readDefinition(conn, definition_chash, callbacks){
