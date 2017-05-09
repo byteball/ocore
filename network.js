@@ -1796,6 +1796,10 @@ function initWitnessesIfNecessary(ws, onDone){
 		if (arrWitnesses.length > 0) // already have witnesses
 			return onDone();
 		sendRequest(ws, 'get_witnesses', null, false, function(ws, request, arrWitnesses){
+			if (arrWitnesses.error){
+				console.log('get_witnesses returned error: '+arrWitnesses.error);
+				return onDone();
+			}
 			myWitnesses.insertWitnesses(arrWitnesses, onDone);
 		});
 	}, 'ignore');
