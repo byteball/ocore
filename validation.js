@@ -816,7 +816,7 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 			function(rows){
 				if (rows.length === 0)
 					return next();
-				if (!bNonserial)
+				if (!bNonserial || objValidationState.arrAddressesWithForkedPath.indexOf(objAuthor.address) === -1)
 					callback("you can't send anything before your last keychange is stable and before last ball");
 				// from this point, our unit is nonserial
 				async.eachSeries(
@@ -851,7 +851,7 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 			function(rows){
 				if (rows.length === 0)
 					return next();
-				if (!bNonserial)
+				if (!bNonserial || objValidationState.arrAddressesWithForkedPath.indexOf(objAuthor.address) === -1)
 					callback("you can't send anything before your last definition is stable and before last ball");
 				// from this point, our unit is nonserial
 				async.eachSeries(
@@ -934,8 +934,8 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 	}
 	
 	function handleDuplicateAddressDefinition(arrAddressDefinition){
-		if (!bNonserial)
-			return callback("duplicate definition of address "+objAuthor.address);
+		if (!bNonserial || objValidationState.arrAddressesWithForkedPath.indexOf(objAuthor.address) === -1)
+			return callback("duplicate definition of address "+objAuthor.address+", bNonserial="+bNonserial);
 		// todo: investigate if this can split the nodes
 		// in one particular case, the attacker changes his definition then quickly sends a new ball with the old definition - the new definition will not be active yet
 		if (objectHash.getChash160(arrAddressDefinition) !== objectHash.getChash160(objAuthor.definition))
