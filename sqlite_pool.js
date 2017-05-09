@@ -275,10 +275,15 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 			throw Error("escape: unknown type "+(typeof str));
 	}
 
-	function createConnect() {
-		connect(function() {
-			onDbReady();
+	function lockConnect(cb) {
+		takeConnectionFromPool(function(connection){
+			cb(connection);
 		});
+	}
+
+	function unlockConnect(connection, cb) {
+		connection.release();
+		cb();
 	}
 	
 	createDatabaseIfNecessary(db_name, onDbReady);
@@ -298,7 +303,8 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 	pool.getIgnore = getIgnore;
 	pool.forceIndex = forceIndex;
 	pool.dropTemporaryTable = dropTemporaryTable;
-	pool.createConnect = createConnect;
+	pool.blockConnect = lockConnect;
+	pool.unlockConnect = unlockConnect;
 	
 	return pool;
 };
