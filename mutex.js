@@ -99,6 +99,7 @@ setInterval(function(){
 }, 10000);
 
 exports.lock = lock;
+exports.lockOrSkip = lockOrSkip;
 exports.getCountOfQueuedJobs = getCountOfQueuedJobs;
 exports.getCountOfLocks = getCountOfLocks;
 
