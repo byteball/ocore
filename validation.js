@@ -17,6 +17,7 @@ var ValidationUtils = require("./validation_utils.js");
 var Definition = require("./definition.js");
 var conf = require('./conf.js');
 var profiler = require('./profiler.js');
+var breadcrumbs = require('./breadcrumbs.js');
 
 var MAX_INT32 = Math.pow(2, 31) - 1;
 
@@ -778,8 +779,8 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 				return next();
 			}
 			var arrConflictingUnits = arrConflictingUnitProps.map(function(objConflictingUnitProps){ return objConflictingUnitProps.unit; });
-			console.log("========== found conflicting units "+arrConflictingUnits+" =========");
-			console.log("========== will accept a conflicting unit "+objUnit.unit+" =========");
+			breadcrumbs.add("========== found conflicting units "+arrConflictingUnits+" =========");
+			breadcrumbs.add("========== will accept a conflicting unit "+objUnit.unit+" =========");
 			objValidationState.arrAddressesWithForkedPath.push(objAuthor.address);
 			objValidationState.arrConflictingUnits = (objValidationState.arrConflictingUnits || []).concat(arrConflictingUnits);
 			bNonserial = true;

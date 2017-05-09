@@ -488,7 +488,6 @@ function findOutboundPeerOrConnect(url, onOpen){
 	// check if we are already connecting to the peer
 	ws = assocConnectingOutboundWebsockets[url];
 	if (ws){ // add second event handler
-		console.log("already connecting to "+url);
 		breadcrumbs.add('already connecting to '+url);
 		return eventBus.once('open-'+url, function secondOnOpen(err){
 			console.log('second open '+url+", err="+err);
@@ -767,7 +766,6 @@ function handleResponseToJointRequest(ws, request, response){
 				if (rows.length === 0)
 					return purgeDependenciesAndNotifyPeers(unit, "unit "+unit+" does not exist (catching up)");
 				findNextPeer(ws, function(next_ws){
-					console.log("found next peer to reroute joint_not_found "+unit+": "+next_ws.peer);
 					breadcrumbs.add("found next peer to reroute joint_not_found "+unit+": "+next_ws.peer);
 					requestJoints(next_ws, [unit]);
 				});
