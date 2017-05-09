@@ -228,6 +228,7 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 		if (arrConnections.length === 0)
 			return cb();
 		arrConnections[0].db.close(cb);
+		arrConnections.shift();
 	}
 
 	// interval is string such as -8 SECOND
@@ -273,6 +274,12 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 		else
 			throw Error("escape: unknown type "+(typeof str));
 	}
+
+	function createConnect() {
+		connect(function() {
+			onDbReady();
+		});
+	}
 	
 	createDatabaseIfNecessary(db_name, onDbReady);
 
@@ -291,6 +298,7 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 	pool.getIgnore = getIgnore;
 	pool.forceIndex = forceIndex;
 	pool.dropTemporaryTable = dropTemporaryTable;
+	pool.createConnect = createConnect;
 	
 	return pool;
 };
