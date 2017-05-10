@@ -34,7 +34,7 @@ function readJoint(conn, unit, callbacks) {
 	});
 }
 
-function readJointDirectly(conn, unit, callbacks) {
+function readJointDirectly(conn, unit, callbacks, bRetrying) {
 	console.log("\nreading unit "+unit);
 	if (min_retrievable_mci === null){
 		console.log("min_retrievable_mci not known yet");
@@ -462,6 +462,13 @@ function readJointDirectly(conn, unit, callbacks) {
 				}
 			], function(){
 				//profiler.stop('read');
+				// verify unit hash. Might fail if the unit was archived while reading, in this case retry
+				if (objectHash.getUnitHash(objUnit) !== unit){
+					if (bRetrying)
+						throw Error("unit hash verification failed");
+					console.log("unit hash verification failed, will retry");
+					return readJointDirectly(conn, unit, callbacks, true);
+				}
 				if (!conf.bSaveJointJson || !bStable || (bFinalBad && bRetrievable) || bRetrievable)
 					return callbacks.ifFound(objJoint);
 				conn.query("INSERT "+db.getIgnore()+" INTO joints (unit, json) VALUES (?,?)", [unit, JSON.stringify(objJoint)], function(){
