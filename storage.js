@@ -34,7 +34,7 @@ function readJoint(conn, unit, callbacks) {
 	});
 }
 
-function readJointDirectly(conn, unit, callbacks) {
+function readJointDirectly(conn, unit, callbacks, bRetrying) {
 	console.log("\nreading unit "+unit);
 	if (min_retrievable_mci === null){
 		console.log("min_retrievable_mci not known yet");
@@ -462,7 +462,14 @@ function readJointDirectly(conn, unit, callbacks) {
 				}
 			], function(){
 				//profiler.stop('read');
-				if (!conf.bSaveJointJson || !bStable || (bFinalBad && bRetrievable))
+				// verify unit hash. Might fail if the unit was archived while reading, in this case retry
+				if (objectHash.getUnitHash(objUnit) !== unit){
+					if (bRetrying)
+						throw Error("unit hash verification failed");
+					console.log("unit hash verification failed, will retry");
+					return readJointDirectly(conn, unit, callbacks, true);
+				}
+				if (!conf.bSaveJointJson || !bStable || (bFinalBad && bRetrievable) || bRetrievable)
 					return callbacks.ifFound(objJoint);
 				conn.query("INSERT "+db.getIgnore()+" INTO joints (unit, json) VALUES (?,?)", [unit, JSON.stringify(objJoint)], function(){
 					callbacks.ifFound(objJoint);
@@ -569,9 +576,20 @@ function readDefinitionByAddress(conn, address, max_mci, callbacks){
 		[address, max_mci], 
 		function(rows){
 			var definition_chash = (rows.length > 0) ? rows[0].definition_chash : address;
-			readDefinition(conn, definition_chash, callbacks);
+			readDefinitionAtMci(conn, definition_chash, max_mci, callbacks);
 		}
 	);
+}
+
+function readDefinitionAtMci(conn, definition_chash, max_mci, callbacks){
+	var sql = "SELECT definition FROM definitions CROSS JOIN unit_authors USING(definition_chash) CROSS JOIN units USING(unit) \n\
+		WHERE definition_chash=? AND main_chain_index<=?";
+	var params = [definition_chash, max_mci];
+	conn.query(sql, params, function(rows){
+		if (rows.length === 0)
+			return callbacks.ifDefinitionNotFound(definition_chash);
+		callbacks.ifFound(JSON.parse(rows[0].definition));
+	});
 }
 
 function readDefinition(conn, definition_chash, callbacks){
@@ -909,6 +927,68 @@ function generateQueriesToUnspendWitnessingOutputsSpentInArchivedUnit(conn, unit
 	);
 }
 
+function archiveJointAndDescendantsIfExists(from_unit){
+	console.log('will archive if exists from unit '+from_unit);
+	db.query("SELECT 1 FROM units WHERE unit=?", [from_unit], function(rows){
+		if (rows.length > 0)
+			archiveJointAndDescendants(from_unit);
+	});
+}
+
+function archiveJointAndDescendants(from_unit){
+	db.executeInTransaction(function doWork(conn, cb){
+		
+		function addChildren(arrParentUnits){
+			conn.query("SELECT DISTINCT child_unit FROM parenthoods WHERE parent_unit IN(?)", [arrParentUnits], function(rows){
+				if (rows.length === 0)
+					return archive();
+				var arrChildUnits = rows.map(function(row){ return row.child_unit; });
+				arrUnits = arrUnits.concat(arrChildUnits);
+				addChildren(arrChildUnits);
+			});
+		}
+		
+		function archive(){
+			arrUnits = _.uniq(arrUnits); // does not affect the order
+			arrUnits.reverse();
+			console.log('will archive', arrUnits);
+			var arrQueries = [];
+			async.eachSeries(
+				arrUnits,
+				function(unit, cb2){
+					readJoint(conn, unit, {
+						ifNotFound: function(){
+							throw Error("unit to be archived not found: "+unit);
+						},
+						ifFound: function(objJoint){
+							generateQueriesToArchiveJoint(conn, objJoint, 'uncovered', arrQueries, cb2);
+						}
+					});
+				},
+				function(){
+					conn.addQuery(arrQueries, "DELETE FROM known_bad_joints");
+					console.log('will execute '+arrQueries.length+' queries to archive');
+					async.series(arrQueries, function(){
+						arrUnits.forEach(forgetUnit);
+						cb();
+					});
+				}
+			);
+		}
+		
+		console.log('will archive from unit '+from_unit);
+		var arrUnits = [from_unit];
+		addChildren([from_unit]);
+	},
+	function onDone(){
+		console.log('done archiving from unit '+from_unit);
+	});
+}
+
+
+//_______________________________________________________________________________________________
+// Assets
+
 function readAssetInfo(conn, asset, handleAssetInfo){
 	var objAsset = assocCachedAssetInfos[asset];
 	if (objAsset)
@@ -1075,6 +1155,58 @@ function determineBestParent(conn, objUnit, arrWitnesses, handleBestParent){
 	);
 }
 
+function determineIfHasWitnessListMutationsAlongMc(conn, objUnit, last_ball_unit, arrWitnesses, handleResult){
+	if (!objUnit.parent_units) // genesis
+		return handleResult();
+	buildListOfMcUnitsWithPotentiallyDifferentWitnesslists(conn, objUnit, last_ball_unit, arrWitnesses, function(bHasBestParent, arrMcUnits){
+		if (!bHasBestParent)
+			return handleResult("no compatible best parent");
+		console.log("###### MC units ", arrMcUnits);
+		if (arrMcUnits.length === 0)
+			return handleResult();
+		conn.query(
+			"SELECT units.unit, COUNT(*) AS count_matching_witnesses \n\
+			FROM units CROSS JOIN unit_witnesses ON (units.unit=unit_witnesses.unit OR units.witness_list_unit=unit_witnesses.unit) AND address IN(?) \n\
+			WHERE units.unit IN(?) \n\
+			GROUP BY units.unit \n\
+			HAVING count_matching_witnesses<?",
+			[arrWitnesses, arrMcUnits, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS],
+			function(rows){
+				console.log(rows);
+				if (rows.length > 0)
+					return handleResult("too many ("+(constants.COUNT_WITNESSES - rows[0].count_matching_witnesses)+") witness list mutations relative to MC unit "+rows[0].unit);
+				handleResult();
+			}
+		);
+	});
+}
+
+// the MC for this function is the MC built from this unit, not our current MC
+function buildListOfMcUnitsWithPotentiallyDifferentWitnesslists(conn, objUnit, last_ball_unit, arrWitnesses, handleList){
+
+	function addAndGoUp(unit){
+		readStaticUnitProps(conn, unit, function(props){
+			// the parent has the same witness list and the parent has already passed the MC compatibility test
+			if (0 && objUnit.witness_list_unit && objUnit.witness_list_unit === props.witness_list_unit)
+				return handleList(true, arrMcUnits);
+			else
+				arrMcUnits.push(unit);
+			if (unit === last_ball_unit)
+				return handleList(true, arrMcUnits);
+			if (!props.best_parent_unit)
+				throw Error("no best parent of unit "+unit+"?");
+			addAndGoUp(props.best_parent_unit);
+		});
+	}
+
+	var arrMcUnits = [];
+	determineBestParent(conn, objUnit, arrWitnesses, function(best_parent_unit){
+		if (!best_parent_unit)
+			return handleList(false);
+		addAndGoUp(best_parent_unit);
+	});
+}
+
 
 function readStaticUnitProps(conn, unit, handleProps){
 	var props = assocCachedUnits[unit];
@@ -1152,6 +1284,10 @@ function shrinkCache(){
 }
 setInterval(shrinkCache, 300*1000);
 
+if (!conf.bLight)
+	archiveJointAndDescendantsIfExists('N6QadI9yg3zLxPMphfNGJcPfddW4yHPkoGMbbGZsWa0=');
+
+
 exports.isGenesisUnit = isGenesisUnit;
 exports.isGenesisBall = isGenesisBall;
 
@@ -1188,6 +1324,7 @@ exports.loadAssetWithListOfAttestedAuthors = loadAssetWithListOfAttestedAuthors;
 exports.filterNewOrUnstableUnits = filterNewOrUnstableUnits;
 
 exports.determineBestParent = determineBestParent;
+exports.determineIfHasWitnessListMutationsAlongMc = determineIfHasWitnessListMutationsAlongMc;
 
 exports.readStaticUnitProps = readStaticUnitProps;
 exports.readUnitAuthors = readUnitAuthors;

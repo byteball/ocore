@@ -188,7 +188,7 @@ function collectQueriesToPurgeDependentJoints(conn, arrQueries, unit, onPurgedDe
 }
 
 function purgeUncoveredNonserialJointsUnderLock(){
-	mutex.lock(["purge_uncovered"], function(unlock){
+	mutex.lockOrSkip(["purge_uncovered"], function(unlock){
 		purgeUncoveredNonserialJoints(false, unlock);
 	});
 }
@@ -200,14 +200,15 @@ function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 	db.query( // purge the bad ball if we've already received at least 7 witnesses after receiving the bad ball
 		"SELECT unit FROM units \n\
 		WHERE "+cond+" AND sequence IN('final-bad','temp-bad') AND content_hash IS NULL \n\
-			AND ( \n\
-				SELECT COUNT(DISTINCT address) FROM units AS wunits CROSS JOIN unit_authors USING(unit) CROSS JOIN my_witnesses USING(address) \n\
+			AND EXISTS ( \n\
+				SELECT DISTINCT address FROM units AS wunits CROSS JOIN unit_authors USING(unit) CROSS JOIN my_witnesses USING(address) \n\
 				WHERE wunits."+order_column+" > units."+order_column+" \n\
-			) >= ? \n\
-			AND NOT EXISTS (SELECT * FROM dependencies WHERE depends_on_unit=units.unit) \n\
-			AND NOT EXISTS (SELECT * FROM unhandled_joints)", 
+				LIMIT ?,1 \n\
+			) \n\
+			/* AND NOT EXISTS (SELECT * FROM dependencies WHERE depends_on_unit=units.unit) \n\
+			AND NOT EXISTS (SELECT * FROM unhandled_joints) */", 
 		// some unhandled joints may depend on the unit to be archived but it is not in dependencies because it was known when its child was received
-		[constants.MAJORITY_OF_WITNESSES],
+		[constants.MAJORITY_OF_WITNESSES - 1],
 		function(rows){
 			async.eachSeries(
 				rows,

@@ -488,7 +488,6 @@ function findOutboundPeerOrConnect(url, onOpen){
 	// check if we are already connecting to the peer
 	ws = assocConnectingOutboundWebsockets[url];
 	if (ws){ // add second event handler
-		console.log("already connecting to "+url);
 		breadcrumbs.add('already connecting to '+url);
 		return eventBus.once('open-'+url, function secondOnOpen(err){
 			console.log('second open '+url+", err="+err);
@@ -506,6 +505,16 @@ function findOutboundPeerOrConnect(url, onOpen){
 	}
 	console.log("will connect to "+url);
 	connectToPeer(url, onOpen);
+}
+
+function purgePeerEvents(){
+    if (conf.storage !== 'sqlite') {
+        return;
+    }
+    console.log('will purge peer events');
+    db.query("DELETE FROM peer_events WHERE event_date <= datetime('now', '-3 day')", function() {
+        console.log("deleted some old peer_events");
+    });
 }
 
 function purgeDeadPeers(){
@@ -748,8 +757,20 @@ function requestJoints(ws, arrUnits) {
 function handleResponseToJointRequest(ws, request, response){
 	delete assocRequestedUnits[request.params];
 	if (!response.joint){
-		if (response.joint_not_found === request.params)
-			purgeDependenciesAndNotifyPeers(unit, "unit "+response.joint_not_found+" does not exist");
+		var unit = request.params;
+		if (response.joint_not_found === unit){
+			if (!bCatchingUp)
+				return console.log("unit "+unit+" does not exist"); // if it is in unhandled_joints, it'll be deleted in 1 hour
+			//	return purgeDependenciesAndNotifyPeers(unit, "unit "+unit+" does not exist");
+			db.query("SELECT 1 FROM hash_tree_balls WHERE unit=?", [unit], function(rows){
+				if (rows.length === 0)
+					return purgeDependenciesAndNotifyPeers(unit, "unit "+unit+" does not exist (catching up)");
+				findNextPeer(ws, function(next_ws){
+					breadcrumbs.add("found next peer to reroute joint_not_found "+unit+": "+next_ws.peer);
+					requestJoints(next_ws, [unit]);
+				});
+			});
+		}
 		// if it still exists, we'll request it again
 		// we requst joints in two cases:
 		// - when referenced from parents, in this case we request it from the same peer who sent us the referencing joint, 
@@ -805,6 +826,10 @@ function purgeJunkUnhandledJoints(){
 }
 
 function purgeJointAndDependenciesAndNotifyPeers(objJoint, error, onDone){
+	if (error.indexOf('is not stable in view of your parents') >= 0){ // give it a chance to be retried after adding other units
+		eventBus.emit('nonfatal_error', "error on unit "+objJoint.unit.unit+": "+error+"; "+JSON.stringify(objJoint), new Error());
+		return onDone();
+	}
 	joint_storage.purgeJointAndDependencies(
 		objJoint, 
 		error, 
@@ -1771,6 +1796,10 @@ function initWitnessesIfNecessary(ws, onDone){
 		if (arrWitnesses.length > 0) // already have witnesses
 			return onDone();
 		sendRequest(ws, 'get_witnesses', null, false, function(ws, request, arrWitnesses){
+			if (arrWitnesses.error){
+				console.log('get_witnesses returned error: '+arrWitnesses.error);
+				return onDone();
+			}
 			myWitnesses.insertWitnesses(arrWitnesses, onDone);
 		});
 	}, 'ignore');
@@ -2024,11 +2053,28 @@ function handleJustsaying(ws, subject, body){
 				sendInfo(ws, "now watching "+address);
 				// check if we already have something on this address
 				db.query(
-					"SELECT 1 FROM unit_authors WHERE address=? UNION SELECT 1 FROM outputs WHERE address=? LIMIT 1", 
+					"SELECT unit, is_stable FROM unit_authors JOIN units USING(unit) WHERE address=? \n\
+					UNION \n\
+					SELECT unit, is_stable FROM outputs JOIN units USING(unit) WHERE address=? \n\
+					ORDER BY is_stable LIMIT 10", 
 					[address, address], 
 					function(rows){
-						if (rows.length > 0)
+						if (rows.length === 0)
+							return;
+						if (rows.length === 10 || rows.some(function(row){ return row.is_stable; }))
 							sendJustsaying(ws, 'light/have_updates');
+						rows.forEach(function(row){
+							if (row.is_stable)
+								return;
+							storage.readJoint(db, row.unit, {
+								ifFound: function(objJoint){
+									sendJoint(ws, objJoint);
+								},
+								ifNotFound: function(){
+									throw Error("watched unit "+row.unit+" not found");
+								}
+							});
+						});
 					}
 				);
 			});            
@@ -2432,13 +2478,15 @@ function startRelay(){
 		setTimeout(checkIfHaveEnoughOutboundPeersAndAdd, 30*1000);
 		setInterval(purgeDeadPeers, 30*60*1000);
 	}
+	// purge peer_events every 6 hours, removing those older than 3 days ago.
+	setInterval(purgePeerEvents, 6*60*60*1000);
 	
 	// request needed joints that were not received during the previous session
 	rerequestLostJoints();
 	setInterval(rerequestLostJoints, 8*1000);
 	
 	setInterval(purgeJunkUnhandledJoints, 30*60*1000);
-	setInterval(joint_storage.purgeUncoveredNonserialJointsUnderLock, 6*1000);
+	setInterval(joint_storage.purgeUncoveredNonserialJointsUnderLock, 60*1000);
 	setInterval(findAndHandleJointsThatAreReady, 5*1000);
 }
 

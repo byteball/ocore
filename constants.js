@@ -19,6 +19,7 @@ exports.SIG_LENGTH = 88;
 
 // anti-spam limits
 exports.MAX_AUTHORS_PER_UNIT = 16;
+exports.MAX_PARENTS_PER_UNIT = 16;
 exports.MAX_MESSAGES_PER_UNIT = 128;
 exports.MAX_SPEND_PROOFS_PER_MESSAGE = 128;
 exports.MAX_INPUTS_PER_PAYMENT_MESSAGE = 128;

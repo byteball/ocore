@@ -17,6 +17,7 @@ var ValidationUtils = require("./validation_utils.js");
 var Definition = require("./definition.js");
 var conf = require('./conf.js');
 var profiler = require('./profiler.js');
+var breadcrumbs = require('./breadcrumbs.js');
 
 var MAX_INT32 = Math.pow(2, 31) - 1;
 
@@ -377,6 +378,8 @@ function validateParents(conn, objJoint, objValidationState, callback){
 	}
 	
 	var objUnit = objJoint.unit;
+	if (objUnit.parent_units.length > constants.MAX_PARENTS_PER_UNIT) // anti-spam
+		return callback("too many parents: "+objUnit.parent_units.length);
 	// obsolete: when handling a ball, we can't trust parent list before we verify ball hash
 	// obsolete: when handling a fresh unit, we can begin trusting parent list earlier, after we verify parents_hash
 	var createError = objJoint.ball ? createJointError : function(err){ return err; };
@@ -501,6 +504,7 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 			if (arrMcUnits.length === 0)
 				return checkNoReferencesInWitnessAddressDefinitions(arrWitnesses);
 			profiler.start();
+			// BUG: this || is interpreted as concat in sqlite, this query never worked as intended
 			conn.query(
 				"SELECT units.unit, COUNT(*) AS count_matching_witnesses \n\
 				FROM units JOIN unit_witnesses ON (units.unit=unit_witnesses.unit || units.witness_list_unit=unit_witnesses.unit) AND address IN(?) \n\
@@ -775,9 +779,10 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 				return next();
 			}
 			var arrConflictingUnits = arrConflictingUnitProps.map(function(objConflictingUnitProps){ return objConflictingUnitProps.unit; });
-			console.log("========== found conflicting units "+arrConflictingUnits+" =========");
-			console.log("========== will accept a conflicting unit "+objUnit.unit+" =========");
+			breadcrumbs.add("========== found conflicting units "+arrConflictingUnits+" =========");
+			breadcrumbs.add("========== will accept a conflicting unit "+objUnit.unit+" =========");
 			objValidationState.arrAddressesWithForkedPath.push(objAuthor.address);
+			objValidationState.arrConflictingUnits = (objValidationState.arrConflictingUnits || []).concat(arrConflictingUnits);
 			bNonserial = true;
 			var arrUnstableConflictingUnitProps = arrConflictingUnitProps.filter(function(objConflictingUnitProps){
 				return (objConflictingUnitProps.is_stable === 0);
@@ -785,7 +790,7 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 			var bConflictsWithStableUnits = arrConflictingUnitProps.some(function(objConflictingUnitProps){
 				return (objConflictingUnitProps.is_stable === 1);
 			});
-			if (objValidationState.sequence !== 'final-bad') // if it were already final-bad because of 1st author, it can't became temp-bad due to 2nd author
+			if (objValidationState.sequence !== 'final-bad') // if it were already final-bad because of 1st author, it can't become temp-bad due to 2nd author
 				objValidationState.sequence = bConflictsWithStableUnits ? 'final-bad' : 'temp-bad';
 			var arrUnstableConflictingUnits = arrUnstableConflictingUnitProps.map(function(objConflictingUnitProps){ return objConflictingUnitProps.unit; });
 			if (bConflictsWithStableUnits) // don't temp-bad the unstable conflicting units
@@ -811,7 +816,7 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 			function(rows){
 				if (rows.length === 0)
 					return next();
-				if (!bNonserial)
+				if (!bNonserial || objValidationState.arrAddressesWithForkedPath.indexOf(objAuthor.address) === -1)
 					callback("you can't send anything before your last keychange is stable and before last ball");
 				// from this point, our unit is nonserial
 				async.eachSeries(
@@ -846,7 +851,7 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 			function(rows){
 				if (rows.length === 0)
 					return next();
-				if (!bNonserial)
+				if (!bNonserial || objValidationState.arrAddressesWithForkedPath.indexOf(objAuthor.address) === -1)
 					callback("you can't send anything before your last definition is stable and before last ball");
 				// from this point, our unit is nonserial
 				async.eachSeries(
@@ -929,8 +934,8 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 	}
 	
 	function handleDuplicateAddressDefinition(arrAddressDefinition){
-		if (!bNonserial)
-			return callback("duplicate definition of address");
+		if (!bNonserial || objValidationState.arrAddressesWithForkedPath.indexOf(objAuthor.address) === -1)
+			return callback("duplicate definition of address "+objAuthor.address+", bNonserial="+bNonserial);
 		// todo: investigate if this can split the nodes
 		// in one particular case, the attacker changes his definition then quickly sends a new ball with the old definition - the new definition will not be active yet
 		if (objectHash.getChash160(arrAddressDefinition) !== objectHash.getChash160(objAuthor.definition))
@@ -1752,9 +1757,9 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 					doubleSpendWhere = "type=? AND from_main_chain_index=? AND address=? AND asset IS NULL";
 					doubleSpendVars = [type, input.from_main_chain_index, address];
 
-					mc_outputs.readNextSpendableMcIndex(conn, type, address, function(next_spendable_mc_index){
-						if (input.from_main_chain_index !== next_spendable_mc_index)
-							return cb(type+" ranges must leave no gaps and not overlap");
+					mc_outputs.readNextSpendableMcIndex(conn, type, address, objValidationState.arrConflictingUnits, function(next_spendable_mc_index){
+						if (input.from_main_chain_index < next_spendable_mc_index)
+							return cb(type+" ranges must not overlap"); // gaps allowed, in case a unit becomes bad due to another address being nonserial
 						var max_mci = (type === "headers_commission") 
 							? headers_commission.getMaxSpendableMciForLastBallMci(objValidationState.last_ball_mci)
 							: paid_witnessing.getMaxSpendableMciForLastBallMci(objValidationState.last_ball_mci);

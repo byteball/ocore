@@ -228,6 +228,7 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 		if (arrConnections.length === 0)
 			return cb();
 		arrConnections[0].db.close(cb);
+		arrConnections.shift();
 	}
 
 	// interval is string such as -8 SECOND
@@ -273,6 +274,7 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 		else
 			throw Error("escape: unknown type "+(typeof str));
 	}
+	
 	
 	createDatabaseIfNecessary(db_name, onDbReady);
 

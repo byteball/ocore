@@ -43,7 +43,6 @@ function getMyDeviceAddress(){
 
 
 function setDevicePrivateKey(priv_key){
-	console.log("setDevicePrivateKey");
 	breadcrumbs.add("setDevicePrivateKey");
 	var bChanged = (!objMyPermanentDeviceKey || priv_key !== objMyPermanentDeviceKey.priv);
 	objMyPermanentDeviceKey = {
@@ -78,7 +77,6 @@ function setTempKeys(temp_priv_key, prev_temp_priv_key, fnSaveTempKeys){
 }
 
 function setDeviceAddress(device_address){
-	console.log("setDeviceAddress", device_address);
 	breadcrumbs.add("setDeviceAddress: " + device_address);
 	if (my_device_address && my_device_address !== device_address)
 		throw Error('different device address');
@@ -86,7 +84,6 @@ function setDeviceAddress(device_address){
 }
 
 function setNewDeviceAddress(device_address){
-	console.log("setNewDeviceAddress", device_address);
 	breadcrumbs.add("setNewDeviceAddress: " + device_address);
 	my_device_address = device_address;
 }
@@ -310,7 +307,6 @@ function decryptPackage(objEncryptedPackage){
 	var decrypted1 = Buffer.concat(arrChunks);
 	arrChunks = null;
 	var decrypted2 = decipher.final();
-	console.log("decrypted lengths: "+decrypted1.length+" + "+decrypted2.length);
 	breadcrumbs.add("decrypted lengths: "+decrypted1.length+" + "+decrypted2.length);
 	var decrypted_message_buf = Buffer.concat([decrypted1, decrypted2]);
 	var decrypted_message = decrypted_message_buf.toString("utf8");
@@ -345,7 +341,7 @@ function resendStalledMessages(){
 	console.log("resending stalled messages");
 	if (!objMyPermanentDeviceKey)
 		return console.log("objMyPermanentDeviceKey not set yet, can't resend stalled messages");
-	mutex.lock(['stalled'], function(unlock){
+	mutex.lockOrSkip(['stalled'], function(unlock){
 		var bCordova = (typeof window !== 'undefined' && window && window.cordova);
 		db.query(
 			"SELECT "+(bCordova ? "LENGTH(message) AS len" : "message")+", message_hash, `to`, pubkey, hub \n\
@@ -656,6 +652,7 @@ function addIndirectCorrespondents(arrOtherCosigners, onDone){
 }
 
 function removeCorrespondentDevice(device_address, onDone){
+	breadcrumbs.add('correspondent removed: '+device_address);
 	var arrQueries = [];
 	db.addQuery(arrQueries, "DELETE FROM chat_messages WHERE correspondent_address=?", [device_address]);
 	db.addQuery(arrQueries, "DELETE FROM outbox WHERE `to`=?", [device_address]);

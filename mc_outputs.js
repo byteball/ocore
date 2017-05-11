@@ -10,10 +10,12 @@ var conf = require('./conf.js');
 // In all functions below, type=(headers_commission|witnessing)
 
 
-function readNextSpendableMcIndex(conn, type, address, handleNextSpendableMcIndex){
+function readNextSpendableMcIndex(conn, type, address, arrConflictingUnits, handleNextSpendableMcIndex){
 	conn.query(
-		"SELECT to_main_chain_index FROM inputs WHERE type=? AND address=? \n\
-		ORDER BY to_main_chain_index DESC LIMIT 1", [type, address],
+		"SELECT to_main_chain_index FROM inputs CROSS JOIN units USING(unit) \n\
+		WHERE type=? AND address=? AND sequence='good' AND unit NOT IN(?) \n\
+		ORDER BY to_main_chain_index DESC LIMIT 1", 
+		[type, address, (arrConflictingUnits && arrConflictingUnits.length > 0) ? arrConflictingUnits : -1],
 		function(rows){
 			var mci = (rows.length > 0) ? (rows[0].to_main_chain_index+1) : 0;
 		//	readNextUnspentMcIndex(conn, type, address, function(next_unspent_mci){
@@ -50,7 +52,7 @@ function readMaxSpendableMcIndex(conn, type, handleMaxSpendableMcIndex){
 
 function findMcIndexIntervalToTargetAmount(conn, type, address, max_mci, target_amount, callbacks){
 	var table = type + '_outputs';
-	readNextSpendableMcIndex(conn, type, address, function(from_mci){
+	readNextSpendableMcIndex(conn, type, address, null, function(from_mci){
 		if (from_mci > max_mci)
 			return callbacks.ifNothing();
 		readMaxSpendableMcIndex(conn, type, function(max_spendable_mci){
@@ -86,7 +88,7 @@ function findMcIndexIntervalToTargetAmount(conn, type, address, max_mci, target_
 				conn.query(
 					"SELECT main_chain_index, amount \n\
 					FROM "+table+" \n\
-					WHERE is_spent=0 AND address=? AND +main_chain_index>=? AND +main_chain_index<=? \n\
+					WHERE is_spent=0 AND address=? AND main_chain_index>=? AND main_chain_index<=? \n\
 					ORDER BY main_chain_index",
 					[address, from_mci, max_spendable_mci],
 					function(rows){

@@ -3,6 +3,8 @@
 var db = require('./db.js');
 var constants = require("./constants.js");
 var conf = require("./conf.js");
+var storage = require("./storage.js");
+var main_chain = require("./main_chain.js");
 
 
 function pickParentUnits(conn, arrWitnesses, onDone){
@@ -21,9 +23,9 @@ function pickParentUnits(conn, arrWitnesses, onDone){
 			) AS count_matching_witnesses \n\
 		FROM units "+(conf.storage === 'sqlite' ? "INDEXED BY byFree" : "")+" \n\
 		LEFT JOIN archived_joints USING(unit) \n\
-		WHERE +sequence='good' AND is_free=1 AND archived_joints.unit IS NULL ORDER BY unit", 
+		WHERE +sequence='good' AND is_free=1 AND archived_joints.unit IS NULL ORDER BY unit LIMIT ?", 
 		// exclude potential parents that were archived and then received again
-		[arrWitnesses], 
+		[arrWitnesses, constants.MAX_PARENTS_PER_UNIT], 
 		function(rows){
 			if (rows.some(function(row){ return (row.version !== constants.version || row.alt !== constants.alt); }))
 				throw Error('wrong network');
@@ -79,18 +81,41 @@ function findLastStableMcBall(conn, arrWitnesses, onDone){
 	);
 }
 
+function adjustLastStableMcBall(conn, last_stable_mc_ball_unit, arrParentUnits, handleAdjustedLastStableUnit){
+	main_chain.determineIfStableInLaterUnits(conn, last_stable_mc_ball_unit, arrParentUnits, function(bStable){
+		if (bStable){
+			conn.query("SELECT ball, main_chain_index FROM units JOIN balls USING(unit) WHERE unit=?", [last_stable_mc_ball_unit], function(rows){
+				if (rows.length !== 1)
+					throw Error("not 1 ball by unit "+last_stable_mc_ball_unit);
+				var row = rows[0];
+				handleAdjustedLastStableUnit(row.ball, last_stable_mc_ball_unit, row.main_chain_index);
+			});
+			return;
+		}
+		console.log('will adjust last stable ball because '+last_stable_mc_ball_unit+' is not stable in view of parents '+arrParentUnits.join(', '));
+		storage.readStaticUnitProps(conn, last_stable_mc_ball_unit, function(objUnitProps){
+			if (!objUnitProps.best_parent_unit)
+				throw Error("no best parent of "+last_stable_mc_ball_unit);
+			adjustLastStableMcBall(conn, objUnitProps.best_parent_unit, arrParentUnits, handleAdjustedLastStableUnit)
+		});
+	});
+}
+
 function pickParentUnitsAndLastBall(conn, arrWitnesses, onDone){
 	pickParentUnits(conn, arrWitnesses, function(arrParentUnits){
 		findLastStableMcBall(conn, arrWitnesses, function(last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
-			onDone(arrParentUnits, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci);
-			/*
-			graph.determineIfIncludedOrEqual(conn, last_stable_mc_ball_unit, arrParentUnits, function(bIncluded){
-				if (!bIncluded && !conf.bLight)
-					throw "last ball not included in parents";
-				objUnit.last_ball = last_stable_mc_ball;
-				objUnit.last_ball_unit = last_stable_mc_ball_unit;
-				last_ball_mci = last_stable_mc_ball_mci;
-			});*/
+			adjustLastStableMcBall(conn, last_stable_mc_ball_unit, arrParentUnits, function(last_stable_ball, last_stable_unit, last_stable_mci){
+				storage.findWitnessListUnit(conn, arrWitnesses, last_stable_mci, function(witness_list_unit){
+					var objFakeUnit = {parent_units: arrParentUnits};
+					if (witness_list_unit)
+						objFakeUnit.witness_list_unit = witness_list_unit;
+					storage.determineIfHasWitnessListMutationsAlongMc(conn, objFakeUnit, last_stable_unit, arrWitnesses, function(err){
+						if (err)
+							return onDone(err); // if first arg is not array, it is error
+						onDone(arrParentUnits, last_stable_ball, last_stable_unit, last_stable_mci);
+					});
+				});
+			});
 		});
 	});
 }

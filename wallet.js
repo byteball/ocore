@@ -792,7 +792,7 @@ function readTransactionHistory(opts, handleHistory){
 				if (row.from_address)
 					assocMovements[row.unit].has_minus = true;
 			}
-			console.log(require('util').inspect(assocMovements));
+		//	console.log(require('util').inspect(assocMovements));
 			var arrTransactions = [];
 			async.forEachOfSeries(
 				assocMovements,

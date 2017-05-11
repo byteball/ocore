@@ -73,6 +73,16 @@ function lock(arrKeys, proc, next_proc){
 		exec(arrKeys, proc, next_proc);
 }
 
+function lockOrSkip(arrKeys, proc, next_proc){
+	if (isAnyOfKeysLocked(arrKeys)){
+		console.log("skipping job held by keys", arrKeys);
+		if (next_proc)
+			next_proc();
+	}
+	else
+		exec(arrKeys, proc, next_proc);
+}
+
 function checkForDeadlocks(){
 	for (var i=0; i<arrQueuedJobs.length; i++){
 		var job = arrQueuedJobs[i];
@@ -89,6 +99,7 @@ setInterval(function(){
 }, 10000);
 
 exports.lock = lock;
+exports.lockOrSkip = lockOrSkip;
 exports.getCountOfQueuedJobs = getCountOfQueuedJobs;
 exports.getCountOfLocks = getCountOfLocks;
 

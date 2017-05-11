@@ -1,7 +1,7 @@
 /*jslint node: true */
 "use strict";
 
-var VERSION = 6;
+var VERSION = 8;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -16,7 +16,7 @@ function migrateDb(connection, onDone){
 		var version = rows[0].user_version;
 		console.log("db version "+version);
 		if (version > VERSION)
-			throw Error("user version "+version+" > "+VERSION);
+			throw Error("user version "+version+" > "+VERSION+": looks like you are using a new database with an old client");
 		if (version === VERSION)
 			return onDone();
 		var arrQueries = [];
@@ -29,9 +29,6 @@ function migrateDb(connection, onDone){
 			connection.addQuery(arrQueries, "CREATE UNIQUE INDEX IF NOT EXISTS hcobyAddressMci ON headers_commission_outputs(address, main_chain_index)");
 			connection.addQuery(arrQueries, "CREATE UNIQUE INDEX IF NOT EXISTS byWitnessAddressMci ON witnessing_outputs(address, main_chain_index)");
 			connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS inputsIndexByAddressTypeToMci ON inputs(address, type, to_main_chain_index)");
-			connection.addQuery(arrQueries, "DELETE FROM known_bad_joints");
-		}
-		if (version < 4) {
 			connection.addQuery(arrQueries, "DELETE FROM known_bad_joints");
 		}
 		if (version < 5){
@@ -50,6 +47,10 @@ function migrateDb(connection, onDone){
 			connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS chatMessagesIndexByDeviceAddress ON chat_messages(correspondent_address, id)");
 			connection.addQuery(arrQueries, "ALTER TABLE correspondent_devices ADD COLUMN my_record_pref INTEGER DEFAULT 1");
 			connection.addQuery(arrQueries, "ALTER TABLE correspondent_devices ADD COLUMN peer_record_pref INTEGER DEFAULT 1");
+			connection.addQuery(arrQueries, "DELETE FROM known_bad_joints");
+		}
+		if (version < 8) {
+			connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS bySequence ON units(sequence)");
 			connection.addQuery(arrQueries, "DELETE FROM known_bad_joints");
 		}
 		connection.addQuery(arrQueries, "PRAGMA user_version="+VERSION);

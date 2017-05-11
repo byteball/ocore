@@ -152,7 +152,7 @@ function processWitnessProof(arrUnstableMcJoints, arrWitnessChangeAndDefinitionJ
 			var objJoint = arrWitnessChangeAndDefinitionJoints[i];
 			var objUnit = objJoint.unit;
 			if (!objJoint.ball)
-				return handleResult("witness_change_and_definition_joint without ball");
+				return handleResult("witness_change_and_definition_joints: joint without ball");
 			if (!validation.hasValidHashes(objJoint))
 				return handleResult("witness_change_and_definition_joints: invalid hash");
 			var bAuthoredByWitness = false;
