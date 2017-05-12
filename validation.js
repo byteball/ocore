@@ -371,7 +371,7 @@ function validateParents(conn, objJoint, objValidationState, callback){
 			function(rows){
 				var max_parent_last_ball_mci = rows[0].max_parent_last_ball_mci;
 				if (max_parent_last_ball_mci > objValidationState.last_ball_mci)
-					return callback("last ball mci must not retreat");
+					return callback("last ball mci must not retreat, parents: "+objUnit.parent_units.join(', '));
 				callback();
 			}
 		);

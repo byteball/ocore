@@ -463,9 +463,10 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 			], function(){
 				//profiler.stop('read');
 				// verify unit hash. Might fail if the unit was archived while reading, in this case retry
-				if (objectHash.getUnitHash(objUnit) !== unit){
+				// light wallets don't have last_ball, don't verify their hashes
+				if (!conf.bLight && objectHash.getUnitHash(objUnit) !== unit){
 					if (bRetrying)
-						throw Error("unit hash verification failed");
+						throw Error("unit hash verification failed, unit: "+unit+", objUnit: "+JSON.stringify(objUnit));
 					console.log("unit hash verification failed, will retry");
 					return readJointDirectly(conn, unit, callbacks, true);
 				}
