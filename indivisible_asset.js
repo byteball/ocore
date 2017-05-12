@@ -834,6 +834,7 @@ function getSavingCallbacks(to_address, callbacks){
 								},
 								function(err){
 									if (err){
+										console.log("===== error in precommit callback: "+err);
 										bPreCommitCallbackFailed = true;
 										return cb(err);
 									}
