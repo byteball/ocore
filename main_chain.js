@@ -839,7 +839,7 @@ function markMcIndexStable(conn, mci, onDone){
 									var ball = objectHash.getBallHash(unit, arrParentBalls, arrSkiplistBalls.sort(), objUnitProps.sequence === 'final-bad');
 									if (objUnitProps.ball){ // already inserted
 										if (objUnitProps.ball !== ball)
-											throw Error("stored and calculated ball hashes do not match");
+											throw Error("stored and calculated ball hashes do not match, ball="+ball+", objUnitProps="+JSON.stringify(objUnitProps));
 										return cb();
 									}
 									conn.query("INSERT INTO balls (ball, unit) VALUES(?,?)", [ball, unit], function(){
