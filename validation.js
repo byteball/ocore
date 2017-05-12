@@ -1382,7 +1382,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 		if (hasFieldsExcept(output, ["address", "amount", "blinding", "output_hash"]))
 			return callback("unknown fields in payment output");
 		if (!isPositiveInteger(output.amount))
-			return callback("amount must be positive integer");
+			return callback("amount must be positive integer, found "+output.amount);
 		if (objAsset && objAsset.fixed_denominations && output.amount % denomination !== 0)
 			return callback("output amount must be divisible by denomination");
 		if (objAsset && objAsset.is_private){
