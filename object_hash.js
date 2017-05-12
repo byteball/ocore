@@ -33,6 +33,8 @@ function getSourceString(obj) {
 					if (keys.length === 0)
 						throw Error("empty object");
 					keys.forEach(function(key){
+						if (typeof variable[key] === "undefined")
+							throw Error("undefined at "+key+" of "+JSON.stringify(obj));
 						arrComponents.push(key);
 						extractComponents(variable[key]);
 					});
