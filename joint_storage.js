@@ -220,11 +220,11 @@ function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 						},
 						ifFound: function(objJoint){
 							db.takeConnectionFromPool(function(conn){
-								var arrQueries = [];
-								conn.addQuery(arrQueries, "BEGIN");
-								storage.generateQueriesToArchiveJoint(conn, objJoint, 'uncovered', arrQueries, function(){
-									conn.addQuery(arrQueries, "COMMIT");
-									mutex.lock(["write"], function(unlock){
+								mutex.lock(["write"], function(unlock){
+									var arrQueries = [];
+									conn.addQuery(arrQueries, "BEGIN");
+									storage.generateQueriesToArchiveJoint(conn, objJoint, 'uncovered', arrQueries, function(){
+										conn.addQuery(arrQueries, "COMMIT");
 										async.series(arrQueries, function(){
 											unlock();
 											conn.release();
