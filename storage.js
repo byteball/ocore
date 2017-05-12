@@ -800,7 +800,7 @@ function generateQueriesToRemoveJoint(conn, unit, arrQueries, cb){
 		conn.addQuery(arrQueries, "DELETE FROM unit_witnesses WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM authentifiers WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM unit_authors WHERE unit=?", [unit]);
-		conn.addQuery(arrQueries, "DELETE FROM parenthoods WHERE parent_unit=? OR child_unit=?", [unit, unit]);
+		conn.addQuery(arrQueries, "DELETE FROM parenthoods WHERE child_unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM address_definition_changes WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM inputs WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM outputs WHERE unit=?", [unit]);
