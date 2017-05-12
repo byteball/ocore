@@ -468,7 +468,9 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 					if (bRetrying)
 						throw Error("unit hash verification failed, unit: "+unit+", objUnit: "+JSON.stringify(objUnit));
 					console.log("unit hash verification failed, will retry");
-					return readJointDirectly(conn, unit, callbacks, true);
+					return setTimeout(function(){
+						readJointDirectly(conn, unit, callbacks, true);
+					}, 60*1000);
 				}
 				if (!conf.bSaveJointJson || !bStable || (bFinalBad && bRetrievable) || bRetrievable)
 					return callbacks.ifFound(objJoint);
