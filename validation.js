@@ -598,7 +598,7 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 						return callback("referenced witness list unit "+objUnit.witness_list_unit+" has no witnesses");
 					var arrWitnesses = rows.map(function(row){ return row.address; });
 					if (arrWitnesses.length !== constants.COUNT_WITNESSES)
-						throw Error("wrong number of witnesses");
+						throw Error("wrong number of witnesses: "+arrWitnesses.length);
 					profiler.stop('validation-witnesses-read-list');
 					validateWitnessListMutations(arrWitnesses);
 				}
