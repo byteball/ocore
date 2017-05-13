@@ -121,6 +121,8 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 					});
 				},
 				function(callback){ // earned_headers_commission_recipients
+					if (bVoided)
+						return callback();
 					conn.query("SELECT address, earned_headers_commission_share FROM earned_headers_commission_recipients \
 						WHERE unit=? ORDER BY address", 
 						[unit], 
