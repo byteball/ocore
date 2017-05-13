@@ -8,6 +8,7 @@ var constants = require("./constants.js");
 var objectHash = require("./object_hash.js");
 var mutex = require('./mutex.js');
 var conf = require('./conf.js');
+var breadcrumbs = require('./breadcrumbs.js');
 
 
 
@@ -213,7 +214,7 @@ function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 			async.eachSeries(
 				rows,
 				function(row, cb){
-					console.log("--------------- archiving uncovered unit "+row.unit);
+					breadcrumbs.add("--------------- archiving uncovered unit "+row.unit);
 					storage.readJoint(db, row.unit, {
 						ifNotFound: function(){
 							throw Error("nonserial unit not found?");
@@ -228,7 +229,7 @@ function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 										async.series(arrQueries, function(){
 											unlock();
 											conn.release();
-											console.log("------- done archiving "+row.unit);
+											breadcrumbs.add("------- done archiving "+row.unit);
 											storage.forgetUnit(row.unit);
 											cb();
 										});
