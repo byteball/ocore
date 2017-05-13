@@ -66,6 +66,11 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 			objectHash.cleanNulls(objUnit);
 			var bVoided = (objUnit.content_hash && main_chain_index < min_retrievable_mci);
 			var bRetrievable = (main_chain_index >= min_retrievable_mci || main_chain_index === null);
+			
+			// unit hash verification below will fail if:
+			// 1. the unit was received already voided, i.e. its messages are stripped and content_hash is set
+			// 2. the unit is still retrievable (e.g. we are syncing)
+			// In this case, bVoided=false hence content_hash will be deleted but the messages are missing
 			if (bVoided){
 				//delete objUnit.last_ball;
 				//delete objUnit.last_ball_unit;
@@ -186,8 +191,11 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 						"SELECT app, payload_hash, payload_location, payload, payload_uri, payload_uri_hash, message_index \n\
 						FROM messages WHERE unit=? ORDER BY message_index", [unit], 
 						function(rows){
-							if (rows.length === 0)
-								throw new Error("no messages in unit "+unit);
+							if (rows.length === 0){
+								if (conf.bLight)
+									throw new Error("no messages in unit "+unit);
+								return callback(); // any errors will be caught by verifying unit hash
+							}
 							objUnit.messages = [];
 							async.eachSeries(
 								rows,
