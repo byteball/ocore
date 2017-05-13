@@ -887,7 +887,7 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 			},
 			ifJointError: function(error){
 				callbacks.ifJointError(error);
-				throw Error(error);
+			//	throw Error(error);
 				db.query(
 					"INSERT INTO known_bad_joints (joint, json, error) VALUES (?,?,?)", 
 					[objectHash.getJointHash(objJoint), JSON.stringify(objJoint), error],
