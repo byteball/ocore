@@ -262,7 +262,9 @@ function readJointsSinceMci(mci, handleJoint, onDone){
 				function(row, cb){
 					storage.readJoint(db, row.unit, {
 						ifNotFound: function(){
-							throw Error("unit "+row.unit+" not found");
+						//	throw Error("unit "+row.unit+" not found");
+							breadcrumbs.add("unit "+row.unit+" not found");
+							cb();
 						},
 						ifFound: function(objJoint){
 							handleJoint(objJoint);
