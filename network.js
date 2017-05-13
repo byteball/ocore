@@ -255,9 +255,10 @@ function findNextPeer(ws, handleNextPeer){
 	tryFindNextPeer(ws, function(next_ws){
 		if (next_ws)
 			return handleNextPeer(next_ws);
-		console.log('findNextPeer after '+ws.peer+' found no appropriate peer, will wait for a new connection');
+		var peer = ws ? ws.peer : '[none]';
+		console.log('findNextPeer after '+peer+' found no appropriate peer, will wait for a new connection');
 		eventBus.once('connected_to_source', function(new_ws){
-			console.log('got new connection, retrying findNextPeer after '+ws.peer);
+			console.log('got new connection, retrying findNextPeer after '+peer);
 			findNextPeer(ws, handleNextPeer);
 		});
 	});
@@ -1367,6 +1368,25 @@ function broadcastJoint(objJoint){
 
 // catchup
 
+function checkCatchupLeftovers(){
+	db.query(
+		"SELECT 1 FROM hash_tree_balls \n\
+		UNION \n\
+		SELECT 1 FROM catchup_chain_balls \n\
+		LIMIT 1",
+		function(rows){
+			if (rows.length === 0)
+				return console.log('no leftovers');
+			console.log('have catchup leftovers from the previous run');
+			findNextPeer(null, function(ws){
+				console.log('will request leftovers from '+ws.peer);
+				if (!bCatchingUp && !isWaitingForCatchupChain())
+					requestCatchup(ws);
+			});
+		}
+	);
+}
+
 function requestCatchup(ws){
 	console.log("will request catchup");
 	eventBus.emit('catching_up_started');
@@ -2469,6 +2489,8 @@ function startRelay(){
 		wss = {clients: []};
 	else
 		startAcceptingConnections();
+	
+	checkCatchupLeftovers();
 
 	if (conf.bWantNewPeers){
 		// outbound connections
