@@ -2,8 +2,6 @@
 "use strict";
 var db = require('./db.js');
 var device = require('./device.js');
-var conf = require('./conf');
-var lightWallet = require('./light_wallet');
 
 
 
@@ -20,10 +18,7 @@ function sendPrivatePayments(device_address, arrChains, bForwarded, conn, onSave
 	if (bForwarded)
 		body.forwarded = true;
 	device.sendMessageToDevice(device_address, "private_payments", body, {
-		ifOk: function(){
-			if(conf.bLight)
-				lightWallet.refreshLightClientHistory();
-		},
+		ifOk: function(){},
 		ifError: function(){},
 		onSaved: onSaved
 	}, conn);
@@ -32,8 +27,6 @@ function sendPrivatePayments(device_address, arrChains, bForwarded, conn, onSave
 // notification about public payment
 function sendPaymentNotification(device_address, unit){
 	device.sendMessageToDevice(device_address, "payment_notification", unit);
-	if(conf.bLight)
-		lightWallet.refreshLightClientHistory();
 }
 
 
