@@ -711,7 +711,7 @@ function composeIndivisibleAssetPaymentJoint(params){
 						if (!arrPayloadsWithProofs)
 							return onDone({
 								error_code: "NOT_ENOUGH_FUNDS", 
-								error: "not enough indivisible asset coins that fit the desired amount within the specified tolerances"
+								error: "not enough indivisible asset coins that fit the desired amount within the specified tolerances, make sure all your funds are confirmed"
 							});
 						var arrMessages = [];
 						var assocPrivatePayloads = {};
@@ -1016,7 +1016,7 @@ function composeMinimalIndivisibleAssetPaymentJoint(params){
 		params.asset, params.amount, params.available_paying_addresses, params.available_fee_paying_addresses, 
 		function(arrFundedPayingAddresses, arrFundedFeePayingAddresses){
 			if (arrFundedPayingAddresses.length === 0)
-				return params.callbacks.ifNotEnoughFunds("all paying addresses are unfunded in asset");
+				return params.callbacks.ifNotEnoughFunds("all paying addresses are unfunded in asset, make sure all your funds are confirmed");
 			var minimal_params = _.clone(params);
 			delete minimal_params.available_paying_addresses;
 			delete minimal_params.available_fee_paying_addresses;
