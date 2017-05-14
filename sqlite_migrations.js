@@ -54,7 +54,7 @@ function migrateDb(connection, onDone){
 			connection.addQuery(arrQueries, "DELETE FROM known_bad_joints");
 		}
 		if(version < 9){
-			connection.addQuery(arrQueries, "CREATE TABLE watched_light_units (peer VARCHAR(100) NOT NULL, unit CHAR(32) NOT NULL, creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (peer, unit))");
+			connection.addQuery(arrQueries, "CREATE TABLE watched_light_units (peer VARCHAR(100) NOT NULL, unit CHAR(44) NOT NULL, creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (peer, unit))");
 			connection.addQuery(arrQueries, "CREATE INDEX wlabyUnit ON watched_light_units(unit)");
 		}
 		connection.addQuery(arrQueries, "PRAGMA user_version="+VERSION);

@@ -659,7 +659,7 @@ ALTER TABLE correspondent_devices ADD COLUMN peer_record_pref INTEGER DEFAULT 1;
 
 CREATE TABLE watched_light_units (
 	peer VARCHAR(100) NOT NULL,
-	unit CHAR(32) NOT NULL,
+	unit CHAR(44) NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (peer, unit)
 );
