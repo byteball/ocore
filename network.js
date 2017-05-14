@@ -1098,7 +1098,18 @@ function handleSavedJoint(objJoint, creation_ts, peer){
 			throw Error("handleSavedJoint: need hash tree");
 		},
 		ifNeedParentUnits: function(arrMissingUnits){
-			throw Error("unit "+objJoint.unit.unit+" still has unresolved dependencies: "+arrMissingUnits.join(", "));
+			db.query("SELECT 1 FROM archived_joints WHERE unit IN(?) LIMIT 1", [arrMissingUnits], function(rows){
+				if (rows.length === 0)
+					throw Error("unit "+unit+" still has unresolved dependencies: "+arrMissingUnits.join(", "));
+				breadcrumbs.add("unit "+unit+" has unresolved dependencies that were archived: "+arrMissingUnits.join(", "))
+				if (ws)
+					requestNewMissingJoints(ws, arrMissingUnits);
+				else
+					findNextPeer(null, function(next_ws){
+						requestNewMissingJoints(next_ws, arrMissingUnits);
+					});
+				delete assocUnitsInWork[unit];
+			});
 		},
 		ifOk: function(){
 			if (ws)
