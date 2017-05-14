@@ -339,14 +339,15 @@ function processHistory(objResponse, callbacks){
 								unlock();
 								return callbacks.ifError(err);
 							}
-							if (arrProvenUnits.length === 0){
-								unlock();
-								callbacks.ifOk();
-								return;
-							}
-							db.query("UPDATE units SET is_stable=1, is_free=0 WHERE unit IN(?)", [arrProvenUnits], function(){
-								unlock();
-								callbacks.ifOk();
+							fixIsSpentFlag(function(){
+								if (arrProvenUnits.length === 0){
+									unlock();
+									return callbacks.ifOk();
+								}
+								db.query("UPDATE units SET is_stable=1, is_free=0 WHERE unit IN(?)", [arrProvenUnits], function(){
+									unlock();
+									callbacks.ifOk();
+								});
 							});
 						}
 					);
@@ -356,6 +357,27 @@ function processHistory(objResponse, callbacks){
 		}
 	);
 
+}
+
+// fixes is_spent in case units were received out of order
+function fixIsSpentFlag(onDone){
+	db.query(
+		"SELECT outputs.unit, outputs.message_index, outputs.output_index \n\
+		FROM outputs \n\
+		JOIN inputs ON outputs.unit=inputs.src_unit AND outputs.message_index=inputs.src_message_index AND outputs.output_index=inputs.src_output_index \n\
+		WHERE is_spent=0 AND type='transfer'",
+		function(rows){
+			if (rows.length === 0)
+				return onDone();
+			console.log(rows.length+" previous outputs appear to be spent");
+			var arrQueries = [];
+			rows.forEach(function(row){
+				db.addQuery(arrQueries, 
+					"UPDATE outputs SET is_spent=1 WHERE unit=? AND message_index=? AND output_index=?", [row.unit, row.message_index, row.output_index]);
+			});
+			async.series(arrQueries, onDone);
+		}
+	);
 }
 
 
