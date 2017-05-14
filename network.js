@@ -2310,7 +2310,7 @@ function handleRequest(ws, tag, command, params){
 							params.addresses.map(function(address){ return "("+db.escape(ws.peer)+", "+db.escape(address)+")"; }).join(", ")
 						);
 					if (params.requested_joints) {
-						db.query("SELECT unit FROM units WHERE is_stable=0 AND unit IN(?)", [params.requested_joints], function(rows) {
+						db.query("SELECT unit FROM units WHERE main_chain_index >= ? AND unit IN(?)",[storage.getMinRetrievableMci(), params.requested_joints], function(rows) {
 							if(rows.length) {
 								db.query(
 									"INSERT " + db.getIgnore() + " INTO watched_light_units (peer, unit) VALUES " +
