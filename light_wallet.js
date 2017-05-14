@@ -62,9 +62,8 @@ function prepareRequestForHistory(handleResult){
 					SELECT unit FROM outputs JOIN units USING(unit) WHERE is_stable=1 AND address IN(?)",
 					[arrAddresses, arrAddresses],
 					function(rows){
-						var arrKnownStableUnits = rows.map(function(row){ return row.unit; });
-						if (arrKnownStableUnits)
-							objHistoryRequest.known_stable_units = arrKnownStableUnits;
+						if (rows.length)
+							objHistoryRequest.known_stable_units = rows.map(function(row){ return row.unit; });
 						handleResult(objHistoryRequest);
 					}
 				);
