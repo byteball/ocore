@@ -1228,13 +1228,20 @@ function notifyLightClientsAboutStableJoints(from_mci, to_mci){
 		WHERE main_chain_index>? AND main_chain_index<=? \n\
 		UNION \n\
 		SELECT peer FROM units JOIN outputs USING(unit) JOIN watched_light_addresses USING(address) \n\
+		WHERE main_chain_index>? AND main_chain_index<=? \n\
+		UNION \n\
+		SELECT peer FROM units JOIN watched_light_units USING(unit) \n\
 		WHERE main_chain_index>? AND main_chain_index<=?",
-		[from_mci, to_mci, from_mci, to_mci],
+		[from_mci, to_mci, from_mci, to_mci, from_mci, to_mci],
 		function(rows){
 			rows.forEach(function(row){
 				var ws = getPeerWebSocket(row.peer);
 				if (ws && ws.readyState === ws.OPEN)
 					sendJustsaying(ws, 'light/have_updates');
+			});
+			db.query("DELETE FROM watched_light_units \n\
+				WHERE unit IN (SELECT unit FROM units WHERE main_chain_index>? AND main_chain_index<=?)", [from_mci, to_mci], function() {
+				
 			});
 		}
 	);
@@ -1680,7 +1687,7 @@ function rerequestLostJointsOfPrivatePayments(){
 function requestUnfinishedPastUnitsOfPrivateChains(arrChains, onDone){
 	if (!onDone)
 		onDone = function(){};
-	privatePayment.findUnfinishedPastUnitsOfPrivateChains(arrChains, function(arrUnits){
+	privatePayment.findUnfinishedPastUnitsOfPrivateChains(arrChains, true, function(arrUnits){
 		if (arrUnits.length === 0)
 			return onDone();
 		breadcrumbs.add(arrUnits.length+" unfinished past units of private chains");
@@ -2302,6 +2309,18 @@ function handleRequest(ws, tag, command, params){
 							"INSERT "+db.getIgnore()+" INTO watched_light_addresses (peer, address) VALUES "+
 							params.addresses.map(function(address){ return "("+db.escape(ws.peer)+", "+db.escape(address)+")"; }).join(", ")
 						);
+					if (params.requested_joints) {
+						db.query("SELECT unit FROM units WHERE is_stable=0 AND unit IN(?)",params.requested_joints, function(rows) {
+							if(rows.length) {
+								db.query(
+									"INSERT " + db.getIgnore() + " INTO watched_light_units (peer, unit) VALUES " +
+									rows.map(function(row) {
+										return "(" + db.escape(ws.peer) + ", " + db.escape(row.unit) + ")";
+									}).join(", ")
+								);
+							}
+						});
+					}
 					//db.query("INSERT "+db.getIgnore()+" INTO light_peer_witnesses (peer, witness_address) VALUES "+
 					//    params.witnesses.map(function(address){ return "("+db.escape(ws.peer)+", "+db.escape(address)+")"; }).join(", "));
 				}
@@ -2391,6 +2410,7 @@ function onWebsocketMessage(message) {
 
 function startAcceptingConnections(){
 	db.query("DELETE FROM watched_light_addresses");
+	db.query("DELETE FROM watched_light_units");
 	//db.query("DELETE FROM light_peer_witnesses");
 	// listen for new connections
 	wss = new WebSocketServer({ port: conf.port });
@@ -2451,6 +2471,7 @@ function startAcceptingConnections(){
 		});
 		ws.on('close', function(){
 			db.query("DELETE FROM watched_light_addresses WHERE peer=?", [ws.peer]);
+			db.query("DELETE FROM watched_light_units WHERE peer=?", [ws.peer]);
 			//db.query("DELETE FROM light_peer_witnesses WHERE peer=?", [ws.peer]);
 			console.log("client "+ws.peer+" disconnected");
 			cancelRequestsOnClosedConnection(ws);

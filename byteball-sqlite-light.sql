@@ -657,4 +657,12 @@ CREATE INDEX chatMessagesIndexByDeviceAddress ON chat_messages(correspondent_add
 ALTER TABLE correspondent_devices ADD COLUMN my_record_pref INTEGER DEFAULT 1;
 ALTER TABLE correspondent_devices ADD COLUMN peer_record_pref INTEGER DEFAULT 1;
 
-PRAGMA user_version=6;
+CREATE TABLE watched_light_units (
+	peer VARCHAR(100) NOT NULL,
+	unit CHAR(32) NOT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	PRIMARY KEY (peer, unit)
+);
+CREATE INDEX wlabyUnit ON watched_light_units(unit);
+
+PRAGMA user_version=9;

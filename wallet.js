@@ -465,6 +465,8 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					return;
 				bEmitted = true;
 				emitNewPublicPaymentReceived(from_address, objJoint.unit);
+				if(conf.bLight)
+					lightWallet.refreshLightClientHistory();
 			};
 			eventBus.once('saved_unit-'+unit, emitPn);
 			storage.readJoint(db, unit, {
