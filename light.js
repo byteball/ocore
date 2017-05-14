@@ -147,7 +147,7 @@ function buildLastMileOfProofChain(mci, unit, arrBalls, onDone){
 
 
 function prepareHistory(historyRequest, callbacks){
-	var last_stable_mci = historyRequest.last_stable_mci;
+	var arrKnownStableUnits = historyRequest.known_stable_units;
 	var arrWitnesses = historyRequest.witnesses;
 	var arrAddresses = historyRequest.addresses;
 	var arrRequestedJoints = historyRequest.requested_joints;
@@ -157,8 +157,8 @@ function prepareHistory(historyRequest, callbacks){
 	if (arrAddresses){
 		if (!ValidationUtils.isNonemptyArray(arrAddresses))
 			return callbacks.ifError("no addresses");
-		if (!ValidationUtils.isNonnegativeInteger(last_stable_mci))
-			return callbacks.ifError("last_stable_mci must be nonneg int");
+		if (arrKnownStableUnits && !ValidationUtils.isNonemptyArray(arrKnownStableUnits))
+			return callbacks.ifError("known_stable_units must be non-empty array");
 	}
 	if (arrRequestedJoints && !ValidationUtils.isNonemptyArray(arrRequestedJoints))
 		return callbacks.ifError("no requested joints");
@@ -173,11 +173,11 @@ function prepareHistory(historyRequest, callbacks){
 	if (arrAddresses){
 		// we don't filter sequence='good' after the unit is stable, so the client will see final doublespends too
 		arrSelects = ["SELECT DISTINCT unit, main_chain_index, level FROM outputs JOIN units USING(unit) \n\
-			WHERE address IN(?) AND main_chain_index>=? AND (+sequence='good' OR is_stable=1) \n\
+			WHERE address IN(?) AND unit NOT IN(?) AND (+sequence='good' OR is_stable=1) \n\
 			UNION \n\
 			SELECT DISTINCT unit, main_chain_index, level FROM unit_authors JOIN units USING(unit) \n\
-			WHERE address IN(?) AND main_chain_index>=? AND (+sequence='good' OR is_stable=1) \n"];
-		arrParams = [arrAddresses, last_stable_mci, arrAddresses, last_stable_mci];
+			WHERE address IN(?) AND unit NOT IN(?) AND (+sequence='good' OR is_stable=1) \n"];
+		arrParams = [arrAddresses, arrKnownStableUnits || -1, arrAddresses, arrKnownStableUnits || -1];
 	}
 	if (arrRequestedJoints){
 		arrSelects.push("SELECT unit, main_chain_index, level FROM units WHERE unit IN(?) AND (+sequence='good' OR is_stable=1) \n");
