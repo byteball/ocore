@@ -14,7 +14,7 @@ function migrateDb(connection, onDone){
 		if (rows.length !== 1)
 			throw Error("PRAGMA user_version returned "+rows.length+" rows");
 		var version = rows[0].user_version;
-		console.log("db version "+version+", actual version "+VERSION);
+		console.log("db version "+version+", software version "+VERSION);
 		if (version > VERSION)
 			throw Error("user version "+version+" > "+VERSION+": looks like you are using a new database with an old client");
 		if (version === VERSION)
