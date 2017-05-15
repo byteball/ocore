@@ -73,6 +73,7 @@ function migrateDb(connection, onDone){
 			connection.addQuery(arrQueries, "DROP TABLE chat_messages_old");
 			connection.addQuery(arrQueries, "CREATE INDEX chatMessagesIndexByDeviceAddress ON chat_messages(correspondent_address, id);");
 			connection.addQuery(arrQueries, "COMMIT");
+			connection.addQuery(arrQueries, "DELETE FROM known_bad_joints");
 		}
 		connection.addQuery(arrQueries, "PRAGMA user_version="+VERSION);
 		async.series(arrQueries, onDone);
