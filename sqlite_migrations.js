@@ -72,6 +72,7 @@ function migrateDb(connection, onDone){
 			connection.addQuery(arrQueries, "INSERT INTO chat_messages SELECT * FROM chat_messages_old");
 			connection.addQuery(arrQueries, "DROP TABLE chat_messages_old");
 			connection.addQuery(arrQueries, "COMMIT");
+			connection.addQuery(arrQueries, "DELETE FROM known_bad_joints");
 		}
 		connection.addQuery(arrQueries, "PRAGMA user_version="+VERSION);
 		async.series(arrQueries, onDone);
