@@ -1,7 +1,7 @@
 /*jslint node: true */
 "use strict";
 
-var VERSION = 9;
+var VERSION = 10;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -14,7 +14,7 @@ function migrateDb(connection, onDone){
 		if (rows.length !== 1)
 			throw Error("PRAGMA user_version returned "+rows.length+" rows");
 		var version = rows[0].user_version;
-		console.log("db version "+version);
+		console.log("db version "+version+", actual version "+VERSION);
 		if (version > VERSION)
 			throw Error("user version "+version+" > "+VERSION+": looks like you are using a new database with an old client");
 		if (version === VERSION)
@@ -56,6 +56,22 @@ function migrateDb(connection, onDone){
 		if(version < 9){
 			connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS watched_light_units (peer VARCHAR(100) NOT NULL, unit CHAR(44) NOT NULL, creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (peer, unit))");
 			connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS wlabyUnit ON watched_light_units(unit)");
+		}
+		if(version < 10){
+			connection.addQuery(arrQueries, "BEGIN TRANSACTION");
+			connection.addQuery(arrQueries, "ALTER TABLE chat_messages RENAME TO chat_messages_old");
+			connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS chat_messages ( \n\
+				id INTEGER PRIMARY KEY, \n\
+				correspondent_address CHAR(33) NOT NULL, \n\
+				message LONGTEXT NOT NULL, \n\
+				creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, \n\
+				is_incoming INTEGER(1) NOT NULL, \n\
+				type CHAR(15) NOT NULL DEFAULT 'text', \n\
+				FOREIGN KEY (correspondent_address) REFERENCES correspondent_devices(device_address) ON DELETE CASCADE \n\
+			)");
+			connection.addQuery(arrQueries, "INSERT INTO chat_messages SELECT * FROM chat_messages_old");
+			connection.addQuery(arrQueries, "DROP TABLE chat_messages_old");
+			connection.addQuery(arrQueries, "COMMIT");
 		}
 		connection.addQuery(arrQueries, "PRAGMA user_version="+VERSION);
 		async.series(arrQueries, onDone);
