@@ -650,7 +650,7 @@ CREATE TABLE chat_messages (
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	is_incoming TINYINT NOT NULL,
 	type CHAR(15) NOT NULL DEFAULT 'text',
-	FOREIGN KEY byAddress(correspondent_address) REFERENCES correspondent_devices(device_address)
+	FOREIGN KEY byAddress(correspondent_address) REFERENCES correspondent_devices(device_address) ON DELETE CASCADE
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 CREATE INDEX chatMessagesIndexByDeviceAddress ON chat_messages(correspondent_address, id);
 ALTER TABLE correspondent_devices ADD COLUMN my_record_pref INTEGER DEFAULT 1;

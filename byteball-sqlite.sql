@@ -670,7 +670,7 @@ CREATE TABLE chat_messages (
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	is_incoming INTEGER(1) NOT NULL,
 	type CHAR(15) NOT NULL DEFAULT 'text',
-	FOREIGN KEY (correspondent_address) REFERENCES correspondent_devices(device_address)
+	FOREIGN KEY (correspondent_address) REFERENCES correspondent_devices(device_address) ON DELETE CASCADE
 );
 CREATE INDEX chatMessagesIndexByDeviceAddress ON chat_messages(correspondent_address, id);
 ALTER TABLE correspondent_devices ADD COLUMN my_record_pref INTEGER DEFAULT 1;
@@ -684,4 +684,4 @@ CREATE TABLE watched_light_units (
 );
 CREATE INDEX wlabyUnit ON watched_light_units(unit);
 
-PRAGMA user_version=9;
+PRAGMA user_version=10;
