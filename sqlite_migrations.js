@@ -71,6 +71,7 @@ function migrateDb(connection, onDone){
 			)");
 			connection.addQuery(arrQueries, "INSERT INTO chat_messages SELECT * FROM chat_messages_old");
 			connection.addQuery(arrQueries, "DROP TABLE chat_messages_old");
+			connection.addQuery(arrQueries, "CREATE INDEX chatMessagesIndexByDeviceAddress ON chat_messages(correspondent_address, id);");
 			connection.addQuery(arrQueries, "COMMIT");
 		}
 		connection.addQuery(arrQueries, "PRAGMA user_version="+VERSION);
