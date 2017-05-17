@@ -23,7 +23,7 @@ var divisibleAsset = require('./divisible_asset.js');
 var profiler = require('./profiler.js');
 var breadcrumbs = require('./breadcrumbs.js');
 
-
+var message_counter = 0;
 
 function handleJustsaying(ws, subject, body){
 	switch (subject){
@@ -142,10 +142,11 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			break;
 		
 		case "text":
+			message_counter++;
 			if (!ValidationUtils.isNonemptyString(body))
 				return callbacks.ifError("text body must be string");
 			// the wallet should have an event handler that displays the text to the user
-			eventBus.emit("text", from_address, body);
+			eventBus.emit("text", from_address, body, message_counter);
 			callbacks.ifOk();
 			break;
 
@@ -166,7 +167,8 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			break;
 
 		case "chat_recording_pref":
-			eventBus.emit("chat_recording_pref", from_address, body);
+			message_counter++;
+			eventBus.emit("chat_recording_pref", from_address, body, message_counter);
 			callbacks.ifOk();
 			break;
 		
@@ -455,7 +457,8 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 		case 'payment_notification':
 			// note that since the payments are public, an evil user might notify us about a payment sent by someone else 
 			// (we'll be fooled to believe it was sent by the evil user).  It is only possible if he learns our address, e.g. if we make it public.
-			// Normally, we generate a one-time address and share it in chat session with the future payer only. 
+			// Normally, we generate a one-time address and share it in chat session with the future payer only.
+			var current_message_counter = ++message_counter;
 			var unit = body;
 			if (!ValidationUtils.isStringOfLength(unit, constants.HASH_LENGTH))
 				return callbacks.ifError("invalid unit in payment notification");
@@ -464,7 +467,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				if (bEmitted)
 					return;
 				bEmitted = true;
-				emitNewPublicPaymentReceived(from_address, objJoint.unit);
+				emitNewPublicPaymentReceived(from_address, objJoint.unit, current_message_counter);
 			};
 			eventBus.once('saved_unit-'+unit, emitPn);
 			storage.readJoint(db, unit, {
@@ -561,7 +564,7 @@ function emitNewPrivatePaymentReceived(payer_device_address, arrChains){
 	});
 }
 
-function emitNewPublicPaymentReceived(payer_device_address, objUnit){
+function emitNewPublicPaymentReceived(payer_device_address, objUnit, message_counter){
 	walletGeneral.readMyAddresses(function(arrAddresses){
 		var assocAmountsByAsset = {};
 		objUnit.messages.forEach(function(message){
@@ -578,7 +581,7 @@ function emitNewPublicPaymentReceived(payer_device_address, objUnit){
 		});
 		for (var asset in assocAmountsByAsset)
 			if (assocAmountsByAsset[asset])
-				eventBus.emit('received_payment', payer_device_address, assocAmountsByAsset[asset], asset);
+				eventBus.emit('received_payment', payer_device_address, assocAmountsByAsset[asset], asset, message_counter);
 	});
 }
 
