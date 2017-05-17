@@ -2341,7 +2341,8 @@ function handleRequest(ws, tag, command, params){
 							params.addresses.map(function(address){ return "("+db.escape(ws.peer)+", "+db.escape(address)+")"; }).join(", ")
 						);
 					if (params.requested_joints) {
-						db.query("SELECT unit FROM units WHERE main_chain_index >= ? AND unit IN(?)",[storage.getMinRetrievableMci(), params.requested_joints], function(rows) {
+						storage.sliceAndExecuteQuery("SELECT unit FROM units WHERE main_chain_index >= ? AND unit IN(?)",
+							[storage.getMinRetrievableMci(), params.requested_joints], params.requested_joints, function(rows) {
 							if(rows.length) {
 								db.query(
 									"INSERT " + db.getIgnore() + " INTO watched_light_units (peer, unit) VALUES " +
