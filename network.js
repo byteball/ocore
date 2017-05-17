@@ -2341,7 +2341,7 @@ function handleRequest(ws, tag, command, params){
 							params.addresses.map(function(address){ return "("+db.escape(ws.peer)+", "+db.escape(address)+")"; }).join(", ")
 						);
 					if (params.requested_joints) {
-						storage.sliceAndExecutionQuery("SELECT unit FROM units WHERE main_chain_index >= ? AND unit IN(?)",
+						storage.sliceAndExecuteQuery("SELECT unit FROM units WHERE main_chain_index >= ? AND unit IN(?)",
 							[storage.getMinRetrievableMci(), params.requested_joints], params.requested_joints, function(rows) {
 							if(rows.length) {
 								db.query(

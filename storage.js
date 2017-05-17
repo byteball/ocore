@@ -1121,17 +1121,17 @@ function findWitnessListUnit(conn, arrWitnesses, last_ball_mci, handleWitnessLis
 	);
 }
 
-function sliceAndExecutionQuery(query, params, largeParam, callback) {
+function sliceAndExecuteQuery(query, params, largeParam, callback) {
 	if (typeof largeParam !== 'object' || largeParam.length === 0) return callback([]);
 	var CHUNK_SIZE = 200;
 	var length = largeParam.length;
 	var arrParams = [];
 	var newParams;
-	var nullPosition = params.indexOf(largeParam);
+	var largeParamPosition = params.indexOf(largeParam);
 
 	for (var offset = 0; offset < length; offset += CHUNK_SIZE) {
 		newParams = params.slice(0);
-		newParams[nullPosition] = largeParam.slice(offset, offset + CHUNK_SIZE);
+		newParams[largeParamPosition] = largeParam.slice(offset, offset + CHUNK_SIZE);
 		arrParams.push(newParams);
 	}
 
@@ -1147,7 +1147,7 @@ function sliceAndExecutionQuery(query, params, largeParam, callback) {
 }
 
 function filterNewOrUnstableUnits(arrUnits, handleFilteredUnits){
-	sliceAndExecutionQuery("SELECT unit FROM units WHERE unit IN(?) AND is_stable=1", [arrUnits], arrUnits, function(rows) {
+	sliceAndExecuteQuery("SELECT unit FROM units WHERE unit IN(?) AND is_stable=1", [arrUnits], arrUnits, function(rows) {
 		var arrKnownStableUnits = rows.map(function(row){ return row.unit; });
 		var arrNewOrUnstableUnits = _.difference(arrUnits, arrKnownStableUnits);
 		handleFilteredUnits(arrNewOrUnstableUnits);
@@ -1359,4 +1359,4 @@ exports.isKnownUnit = isKnownUnit;
 exports.setUnitIsKnown = setUnitIsKnown;
 exports.forgetUnit = forgetUnit;
 
-exports.sliceAndExecutionQuery = sliceAndExecutionQuery;
+exports.sliceAndExecuteQuery = sliceAndExecuteQuery;
