@@ -387,6 +387,9 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				for (var key in assocValidatedByKey)
 					eventBus.removeAllListeners(key);
 			};
+
+			var current_message_counter = ++message_counter;
+
 			var checkIfAllValidated = function(){
 				if (!assocValidatedByKey) // duplicate call - ignore
 					return console.log('duplicate call of checkIfAllValidated');
@@ -395,7 +398,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 						return console.log('not all private payments validated yet');
 				assocValidatedByKey = null; // to avoid duplicate calls
 				if (!body.forwarded)
-					emitNewPrivatePaymentReceived(from_address, arrChains);
+					emitNewPrivatePaymentReceived(from_address, arrChains, current_message_counter);
 				profiler.print();
 			};
 			
@@ -538,7 +541,7 @@ function forwardPrivateChainsToOtherMembersOfOutputAddresses(arrChains, conn, on
 eventBus.on("new_direct_private_chains", forwardPrivateChainsToOtherMembersOfOutputAddresses);
 
 
-function emitNewPrivatePaymentReceived(payer_device_address, arrChains){
+function emitNewPrivatePaymentReceived(payer_device_address, arrChains, message_counter){
 	console.log('emitNewPrivatePaymentReceived');
 	walletGeneral.readMyAddresses(function(arrAddresses){
 		var assocAmountsByAsset = {};
@@ -560,7 +563,7 @@ function emitNewPrivatePaymentReceived(payer_device_address, arrChains){
 		console.log('assocAmountsByAsset', assocAmountsByAsset);
 		for (var asset in assocAmountsByAsset)
 			if (assocAmountsByAsset[asset])
-				eventBus.emit('received_payment', payer_device_address, assocAmountsByAsset[asset], asset);
+				eventBus.emit('received_payment', payer_device_address, assocAmountsByAsset[asset], asset, message_counter);
 	});
 }
 
