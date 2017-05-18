@@ -529,7 +529,7 @@ function deriveAddress(wallet, is_change, address_index, handleNewAddress){
 		if (wallet_rows.length === 0)
 			throw Error("wallet not found: "+wallet+", is_change="+is_change+", index="+address_index);
 		if (!wallet_rows[0].full_approval_date)
-			throw Error("wallet not fully approved yet");
+			throw Error("wallet not fully approved yet: "+wallet);
 		var arrDefinitionTemplate = JSON.parse(wallet_rows[0].definition_template);
 		db.query(
 			"SELECT device_address, extended_pubkey FROM extended_pubkeys WHERE wallet=?", 
