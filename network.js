@@ -957,6 +957,9 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 // handle joint posted to me by a light client
 function handlePostedJoint(ws, objJoint, onDone){
 	
+	if (!objJoint || !objJoint.unit || !objJoint.unit.unit)
+		return onDone('no unit');
+	
 	var unit = objJoint.unit.unit;
 	delete objJoint.unit.main_chain_index;
 	
