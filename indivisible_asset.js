@@ -838,14 +838,48 @@ function getSavingCallbacks(to_address, callbacks){
 										bPreCommitCallbackFailed = true;
 										return cb(err);
 									}
+									var onSuccessfulPrecommit = !conf.bLight ? cb : function(){
+										composer.postJointToLightVendorIfNecessaryAndSave(
+											objJoint, 
+											function onLightError(err){ // light only
+												console.log("failed to post indivisible payment "+unit);
+												bPreCommitCallbackFailed = true;
+												cb(err); // will rollback
+											},
+											function save(){ // not actually saving yet but greenlighting the commit
+												cb();
+											}
+										);
+									};
 									if (!callbacks.preCommitCb)
-										return cb();
-									callbacks.preCommitCb(conn, arrRecipientChains, arrCosignerChains, cb);
+										return onSuccessfulPrecommit();
+									callbacks.preCommitCb(conn, arrRecipientChains, arrCosignerChains, onSuccessfulPrecommit);
 								}
 							);
 						};
 					}
 					
+					var saveAndUnlock = function(){
+						writer.saveJoint(
+							objJoint, objValidationState, 
+							preCommitCallback,
+							function onDone(){
+								console.log("saved unit "+unit);
+								validation_unlock();
+								composer_unlock();
+								if (bPreCommitCallbackFailed)
+									callbacks.ifError("precommit callback failed");
+								else
+									callbacks.ifOk(objJoint, arrRecipientChains, arrCosignerChains);
+							}
+						);
+					};
+					
+					// if light and private, we'll post the joint later, in precommit 
+					// (saving private payloads can take quite some time and the app can be killed before saving them to its local database, 
+					// we should not broadcast the joint earlier)
+					if (bPrivate || !conf.bLight)
+						return saveAndUnlock();
 					composer.postJointToLightVendorIfNecessaryAndSave(
 						objJoint, 
 						function onLightError(err){ // light only
@@ -854,21 +888,7 @@ function getSavingCallbacks(to_address, callbacks){
 							composer_unlock();
 							callbacks.ifError(err);
 						},
-						function save(){
-							writer.saveJoint(
-								objJoint, objValidationState, 
-								preCommitCallback,
-								function onDone(){
-									console.log("saved unit "+unit);
-									validation_unlock();
-									composer_unlock();
-									if (bPreCommitCallbackFailed)
-										callbacks.ifError("precommit callback failed");
-									else
-										callbacks.ifOk(objJoint, arrRecipientChains, arrCosignerChains);
-								}
-							);
-						}
+						saveAndUnlock
 					);
 				} // ifOk validation
 			}); // validate
