@@ -409,6 +409,8 @@ function prepareParentsAndLastBallAndWitnessListUnit(arrWitnesses, callbacks){
 			db, 
 			arrWitnesses, 
 			function(arrParentUnits, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
+				if (!Array.isArray(arrParentUnits))
+					return callbacks.ifError("unable to find parents: "+arrParentUnits); // error message
 				var objResponse = {
 					parent_units: arrParentUnits,
 					last_stable_mc_ball: last_stable_mc_ball,
