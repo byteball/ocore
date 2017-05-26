@@ -1766,6 +1766,7 @@ function requestProofsOfJointsIfNewOrUnstable(arrUnits, onDone){
 function requestUnfinishedPastUnitsOfSavedPrivateElements(){
 	mutex.lock(['private_chains'], function(unlock){
 		db.query("SELECT json FROM unhandled_private_payments", function(rows){
+			eventBus.emit('unhandled_private_payments_left', rows.length);
 			if (rows.length === 0)
 				return unlock();
 			breadcrumbs.add(rows.length+" unhandled private payments");
