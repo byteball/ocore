@@ -116,7 +116,7 @@ function pickParentUnitsAndLastBall(conn, arrWitnesses, onDone){
 					storage.determineIfHasWitnessListMutationsAlongMc(conn, objFakeUnit, last_stable_unit, arrWitnesses, function(err){
 						if (err)
 							return onDone(err); // if first arg is not array, it is error
-						onDone(arrParentUnits, last_stable_ball, last_stable_unit, last_stable_mci);
+						onDone(null, arrParentUnits, last_stable_ball, last_stable_unit, last_stable_mci);
 					});
 				});
 			});

@@ -547,9 +547,9 @@ function composeJoint(params){
 			parentComposer.pickParentUnitsAndLastBall(
 				conn, 
 				arrWitnesses, 
-				function(arrParentUnits, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
-					if (!Array.isArray(arrParentUnits))
-						return cb("unable to find parents: "+arrParentUnits); // error message
+				function(err, arrParentUnits, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
+					if (err)
+						return cb("unable to find parents: "+err);
 					objUnit.parent_units = arrParentUnits;
 					objUnit.last_ball = last_stable_mc_ball;
 					objUnit.last_ball_unit = last_stable_mc_ball_unit;
