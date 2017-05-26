@@ -388,6 +388,8 @@ function composeJoint(params){
 			function(ws, request, response){
 				if (response.error)
 					return params.callbacks.ifError(response.error);
+				if (!response.parent_units || !response.last_stable_mc_ball || !response.last_stable_mc_ball_unit || typeof response.last_stable_mc_ball_mci !== 'number')
+					return params.callbacks.ifError("invalid parents from light vendor");
 				params.lightProps = response;
 				composeJoint(params);
 			}
