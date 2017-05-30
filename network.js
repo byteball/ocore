@@ -1952,7 +1952,7 @@ function handleJustsaying(ws, subject, body){
 			if (url.indexOf('ws://') !== 0 && url.indexOf('wss://') !== 0) // invalid url
 				break;
 			ws.claimed_url = url;
-			db.query("SELECT MAX(creation_date) AS latest_url_change_date, url FROM peer_host_urls WHERE peer_host=?", [ws.host], function(rows){
+			db.query("SELECT creation_date AS latest_url_change_date, url FROM peer_host_urls WHERE peer_host=? ORDER BY creation_date DESC LIMIT 1", [ws.host], function(rows){
 				var latest_change = rows[0];
 				if (latest_change.url === url) // advertises the same url
 					return;
