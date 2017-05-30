@@ -793,7 +793,10 @@ function readTransactionHistory(opts, handleHistory){
 					};
 				if (row.to_address){
 					assocMovements[row.unit].plus += row.amount;
-					assocMovements[row.unit].my_address = row.to_address;
+				//	assocMovements[row.unit].my_address = row.to_address;
+					if (!assocMovements[row.unit].arrMyRecipients)
+						assocMovements[row.unit].arrMyRecipients = [];
+					assocMovements[row.unit].arrMyRecipients.push({my_address: row.to_address, amount: row.amount})
 				}
 				if (row.from_address)
 					assocMovements[row.unit].has_minus = true;
@@ -823,19 +826,21 @@ function readTransactionHistory(opts, handleHistory){
 							[unit], 
 							function(address_rows){
 								var arrPayerAddresses = address_rows.map(function(address_row){ return address_row.address; });
-								var transaction = {
-									action: 'received',
-									amount: movement.plus,
-									my_address: movement.my_address,
-									arrPayerAddresses: arrPayerAddresses,
-									confirmations: movement.is_stable,
-									unit: unit,
-									fee: movement.fee,
-									time: movement.ts,
-									level: movement.level,
-                                    mci: movement.mci
-								};
-								arrTransactions.push(transaction);
+								movement.arrMyRecipients.forEach(function(objRecipient){
+									var transaction = {
+										action: 'received',
+										amount: objRecipient.amount,
+										my_address: objRecipient.my_address,
+										arrPayerAddresses: arrPayerAddresses,
+										confirmations: movement.is_stable,
+										unit: unit,
+										fee: movement.fee,
+										time: movement.ts,
+										level: movement.level,
+										mci: movement.mci
+									};
+									arrTransactions.push(transaction);
+								});
 								cb();
 							}
 						);
@@ -971,7 +976,7 @@ function readFundedAddresses(asset, wallet, estimated_amount, handleFundedAddres
 		GROUP BY address ORDER BY "+order_by,
 		asset ? [wallet, asset] : [wallet],
 		function(rows){
-			var arrFundedAddresses = rows.map(function(row){ return row.address; });
+			var arrFundedAddresses = composer.filterMostFundedAddresses(rows, estimated_amount);
 			handleFundedAddresses(arrFundedAddresses);
 			/*if (arrFundedAddresses.length === 0)
 				return handleFundedAddresses([]);

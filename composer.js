@@ -388,6 +388,8 @@ function composeJoint(params){
 			function(ws, request, response){
 				if (response.error)
 					return params.callbacks.ifError(response.error);
+				if (!response.parent_units || !response.last_stable_mc_ball || !response.last_stable_mc_ball_unit || typeof response.last_stable_mc_ball_mci !== 'number')
+					return params.callbacks.ifError("invalid parents from light vendor");
 				params.lightProps = response;
 				composeJoint(params);
 			}
@@ -545,9 +547,9 @@ function composeJoint(params){
 			parentComposer.pickParentUnitsAndLastBall(
 				conn, 
 				arrWitnesses, 
-				function(arrParentUnits, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
-					if (!Array.isArray(arrParentUnits))
-						return cb("unable to find parents: "+arrParentUnits); // error message
+				function(err, arrParentUnits, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
+					if (err)
+						return cb("unable to find parents: "+err);
 					objUnit.parent_units = arrParentUnits;
 					objUnit.last_ball = last_stable_mc_ball;
 					objUnit.last_ball_unit = last_stable_mc_ball_unit;
@@ -750,6 +752,21 @@ function composeJoint(params){
 }
 
 var TYPICAL_FEE = 1000;
+var MAX_FEE = 20000;
+
+function filterMostFundedAddresses(rows, estimated_amount){
+	if (!estimated_amount)
+		return rows.map(function(row){ return row.address; });
+	var arrFundedAddresses = [];
+	var accumulated_amount = 0;
+	for (var i=0; i<rows.length; i++){
+		arrFundedAddresses.push(rows[i].address);
+		accumulated_amount += rows[i].total;
+		if (accumulated_amount > estimated_amount + MAX_FEE)
+			break;
+	}
+	return arrFundedAddresses;
+}
 
 function readSortedFundedAddresses(asset, arrAvailableAddresses, estimated_amount, handleFundedAddresses){
 	if (arrAvailableAddresses.length === 0)
@@ -770,7 +787,7 @@ function readSortedFundedAddresses(asset, arrAvailableAddresses, estimated_amoun
 		GROUP BY address ORDER BY "+order_by,
 		asset ? [arrAvailableAddresses, asset] : [arrAvailableAddresses],
 		function(rows){
-			var arrFundedAddresses = rows.map(function(row){ return row.address; });
+			var arrFundedAddresses = filterMostFundedAddresses(rows, estimated_amount);
 			handleFundedAddresses(arrFundedAddresses);
 		/*	if (arrFundedAddresses.length === 0)
 				return handleFundedAddresses([]);
@@ -913,6 +930,7 @@ exports.composeAssetAttestorsJoint = composeAssetAttestorsJoint;
 
 exports.composeJoint = composeJoint;
 
+exports.filterMostFundedAddresses = filterMostFundedAddresses;
 exports.readSortedFundedAddresses = readSortedFundedAddresses;
 exports.composeAndSaveMinimalJoint = composeAndSaveMinimalJoint;
 

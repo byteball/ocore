@@ -957,6 +957,9 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 // handle joint posted to me by a light client
 function handlePostedJoint(ws, objJoint, onDone){
 	
+	if (!objJoint || !objJoint.unit || !objJoint.unit.unit)
+		return onDone('no unit');
+	
 	var unit = objJoint.unit.unit;
 	delete objJoint.unit.main_chain_index;
 	
@@ -1763,6 +1766,7 @@ function requestProofsOfJointsIfNewOrUnstable(arrUnits, onDone){
 function requestUnfinishedPastUnitsOfSavedPrivateElements(){
 	mutex.lock(['private_chains'], function(unlock){
 		db.query("SELECT json FROM unhandled_private_payments", function(rows){
+			eventBus.emit('unhandled_private_payments_left', rows.length);
 			if (rows.length === 0)
 				return unlock();
 			breadcrumbs.add(rows.length+" unhandled private payments");

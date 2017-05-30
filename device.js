@@ -103,6 +103,9 @@ function setDeviceHub(device_hub){
 	}
 }
 
+function isValidPubKey(b64_pubkey){
+	return ecdsa.publicKeyVerify(new Buffer(b64_pubkey, 'base64'));
+}
 
 // -------------------------
 // logging in to hub
@@ -683,6 +686,7 @@ function getWitnessesFromHub(cb){
 
 exports.getMyDevicePubKey = getMyDevicePubKey;
 exports.getMyDeviceAddress = getMyDeviceAddress;
+exports.isValidPubKey = isValidPubKey;
 
 exports.genPrivKey = genPrivKey;
 
