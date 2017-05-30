@@ -752,6 +752,21 @@ function composeJoint(params){
 }
 
 var TYPICAL_FEE = 1000;
+var MAX_FEE = 20000;
+
+function filterMostFundedAddresses(rows, estimated_amount){
+	if (!estimated_amount)
+		return rows.map(function(row){ return row.address; });
+	var arrFundedAddresses = [];
+	var accumulated_amount = 0;
+	for (var i=0; i<rows.length; i++){
+		arrFundedAddresses.push(rows[i].address);
+		accumulated_amount += rows[i].total;
+		if (accumulated_amount > estimated_amount + MAX_FEE)
+			break;
+	}
+	return arrFundedAddresses;
+}
 
 function readSortedFundedAddresses(asset, arrAvailableAddresses, estimated_amount, handleFundedAddresses){
 	if (arrAvailableAddresses.length === 0)
@@ -772,7 +787,7 @@ function readSortedFundedAddresses(asset, arrAvailableAddresses, estimated_amoun
 		GROUP BY address ORDER BY "+order_by,
 		asset ? [arrAvailableAddresses, asset] : [arrAvailableAddresses],
 		function(rows){
-			var arrFundedAddresses = rows.map(function(row){ return row.address; });
+			var arrFundedAddresses = filterMostFundedAddresses(rows, estimated_amount);
 			handleFundedAddresses(arrFundedAddresses);
 		/*	if (arrFundedAddresses.length === 0)
 				return handleFundedAddresses([]);
@@ -915,6 +930,7 @@ exports.composeAssetAttestorsJoint = composeAssetAttestorsJoint;
 
 exports.composeJoint = composeJoint;
 
+exports.filterMostFundedAddresses = filterMostFundedAddresses;
 exports.readSortedFundedAddresses = readSortedFundedAddresses;
 exports.composeAndSaveMinimalJoint = composeAndSaveMinimalJoint;
 

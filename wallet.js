@@ -976,7 +976,7 @@ function readFundedAddresses(asset, wallet, estimated_amount, handleFundedAddres
 		GROUP BY address ORDER BY "+order_by,
 		asset ? [wallet, asset] : [wallet],
 		function(rows){
-			var arrFundedAddresses = rows.map(function(row){ return row.address; });
+			var arrFundedAddresses = composer.filterMostFundedAddresses(rows, estimated_amount);
 			handleFundedAddresses(arrFundedAddresses);
 			/*if (arrFundedAddresses.length === 0)
 				return handleFundedAddresses([]);
