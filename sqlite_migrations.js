@@ -80,7 +80,7 @@ function migrateDb(connection, onDone){
 			connection.addQuery(arrQueries, "DELETE FROM catchup_chain_balls");
 		}
 		if (version < 11) {
-			connection.addQuery(arrQueries, "CREATE TABLE bots ( \n\
+			connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS bots ( \n\
 				id INTEGER PRIMARY KEY, \n\
 				name VARCHAR(100) NOT NULL, \n\
 				pairing_code VARCHAR(200) NOT NULL, \n\

@@ -2406,6 +2406,10 @@ function handleRequest(ws, tag, command, params){
 				eventBus.emit("disableNotification", ws.device_address, params);
 			sendResponse(ws, tag, 'ok');
 			break;
+		case 'hub/get_bots':
+			db.query("SELECT id, name, pairing_code, description FROM bots", [], function(rows){
+				sendResponse(ws, tag, rows);
+			});
 	}
 }
 

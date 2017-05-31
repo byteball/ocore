@@ -681,7 +681,20 @@ function getWitnessesFromHub(cb){
 	});
 }
 
-
+// responseHandler(error, response) callback
+function requestFromHub(command, params, responseHandler){
+	if (!my_device_hub)
+		return setTimeout(function(){ requestFromHub(command, params, responseHandler); }, 2000);
+	network.findOutboundPeerOrConnect(conf.WS_PROTOCOL+my_device_hub, function(err, ws){
+		if (err)
+			return responseHandler(err);
+		network.sendRequest(ws, command, params, false, function(ws, request, response){
+			if (response.error)
+				return responseHandler(response.error);
+			responseHandler(null, response);
+		});
+	});
+}
 
 
 exports.getMyDevicePubKey = getMyDevicePubKey;
@@ -719,3 +732,4 @@ exports.updateCorrespondentProps = updateCorrespondentProps;
 exports.removeCorrespondentDevice = removeCorrespondentDevice;
 exports.addIndirectCorrespondents = addIndirectCorrespondents;
 exports.getWitnessesFromHub = getWitnessesFromHub;
+exports.requestFromHub = requestFromHub;
