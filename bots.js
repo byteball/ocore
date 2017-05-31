@@ -5,11 +5,11 @@ var objectHash = require('./object_hash.js');
 var device = require('./device.js');
 var async = require('async');
 
-var bots = [];
+var bots_cache = [];
 
 function getBotByID(id, cb) {
-	for (var i in bots) {
-		var bot = bots[i];
+	for (var i in bots_cache) {
+		var bot = bots_cache[i];
 		if (bot.id == id) {
 			return setPairingStatus(bot, cb);
 		}
@@ -29,6 +29,7 @@ function load(cb) {
 				})
 			},
 			function(){
+				bots_cache = bots;
 				cb(err, bots);
 			}
 		);
