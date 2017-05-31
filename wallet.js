@@ -708,7 +708,7 @@ function readBalance(wallet, handleBalance){
 				"SELECT SUM(total) AS total FROM ( \n\
 				SELECT SUM(amount) AS total FROM "+my_addresses_join+" witnessing_outputs "+using+" WHERE is_spent=0 AND "+where_condition+" \n\
 				UNION ALL \n\
-				SELECT SUM(amount) AS total FROM "+my_addresses_join+" headers_commission_outputs "+using+" WHERE is_spent=0 AND "+where_condition+" )",
+				SELECT SUM(amount) AS total FROM "+my_addresses_join+" headers_commission_outputs "+using+" WHERE is_spent=0 AND "+where_condition+" ) AS t",
 				[wallet,wallet],
 				function(rows) {
 					if(rows.length){
