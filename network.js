@@ -2410,6 +2410,7 @@ function handleRequest(ws, tag, command, params){
 			db.query("SELECT id, name, pairing_code, description FROM bots", [], function(rows){
 				sendResponse(ws, tag, rows);
 			});
+			break;
 	}
 }
 

@@ -18,19 +18,20 @@ function getBotByID(id, cb) {
 
 function load(cb) {
 	device.requestFromHub("hub/get_bots", false, function(err, bots){
-		if (bots != null) {
-			async.eachSeries(bots, 
-				function(bot, cb) {
-					setPairingStatus(bot, function(handled_bot){
-						bot.isPaired = handled_bot.isPaired;
-						cb();
-					})
-				},
-				function(){
-					cb(err, bots);
-				}
-			);
+		if (err != null) {
+			return cb(err, null);
 		}
+		async.eachSeries(bots, 
+			function(bot, cb) {
+				setPairingStatus(bot, function(handled_bot){
+					bot.isPaired = handled_bot.isPaired;
+					cb();
+				})
+			},
+			function(){
+				cb(err, bots);
+			}
+		);
 	})
 }
 
