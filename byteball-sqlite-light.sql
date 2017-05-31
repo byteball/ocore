@@ -665,4 +665,11 @@ CREATE TABLE watched_light_units (
 );
 CREATE INDEX wlabyUnit ON watched_light_units(unit);
 
-PRAGMA user_version=10;
+CREATE TABLE bots (
+	id INTEGER PRIMARY KEY,
+	name VARCHAR(100) NOT NULL,
+	pairing_code VARCHAR(200) NOT NULL,
+	description LONGTEXT NOT NULL
+);
+
+PRAGMA user_version=11;
