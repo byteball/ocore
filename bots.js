@@ -8,7 +8,6 @@ var async = require('async');
 var bots_cache = [];
 
 function getBotByID(id, cb) {
-	debugger;
 	for (var i in bots_cache) {
 		var bot = bots_cache[i];
 		if (bot.id == id) {
