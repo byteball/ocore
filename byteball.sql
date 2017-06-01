@@ -565,7 +565,7 @@ CREATE TABLE wallet_signing_paths (
 	signing_path VARCHAR(255) NULL, -- NULL if xpubkey arrived earlier than the wallet was approved by the user
 	device_address CHAR(33) NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	PRIMARY KEY (wallet, signing_path),
+	UNIQUE KEY byWalletSigningPath(wallet, signing_path),
 	FOREIGN KEY byWallet(wallet) REFERENCES wallets(wallet)
 	-- own address is not present in correspondents
 --    FOREIGN KEY byDeviceAddress(device_address) REFERENCES correspondent_devices(device_address)
@@ -606,7 +606,7 @@ CREATE TABLE shared_address_signing_paths (
 	member_signing_path VARCHAR(255) NULL, -- path to signing key from root of the member address
 	device_address CHAR(33) NOT NULL, -- where this signing key lives or is reachable through
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	PRIMARY KEY (shared_address, signing_path),
+	UNIQUE KEY bySharedAddressSigningPath(shared_address, signing_path),
 	FOREIGN KEY bySharedAddress(shared_address) REFERENCES shared_addresses(shared_address)
 	-- own address is not present in correspondents
 --    FOREIGN KEY byDeviceAddress(device_address) REFERENCES correspondent_devices(device_address)
