@@ -82,6 +82,7 @@ function migrateDb(connection, onDone){
 		if (version < 11) {
 			connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS bots ( \n\
 				id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \n\
+				rank INTEGER NOT NULL DEFAULT 0, \n\
 				name VARCHAR(100) NOT NULL, \n\
 				pairing_code VARCHAR(200) NOT NULL, \n\
 				description LONGTEXT NOT NULL \n\

@@ -2407,7 +2407,7 @@ function handleRequest(ws, tag, command, params){
 			sendResponse(ws, tag, 'ok');
 			break;
 		case 'hub/get_bots':
-			db.query("SELECT id, name, pairing_code, description FROM bots", [], function(rows){
+			db.query("SELECT id, name, pairing_code, description FROM bots ORDER BY rank DESC, id", [], function(rows){
 				sendResponse(ws, tag, rows);
 			});
 			break;
