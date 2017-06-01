@@ -664,7 +664,7 @@ CREATE TABLE IF NOT EXISTS push_registrations (
 );
 
 CREATE TABLE chat_messages (
-	id INTEGER PRIMARY KEY,
+	id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
 	correspondent_address CHAR(33) NOT NULL,
 	message LONGTEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -685,7 +685,7 @@ CREATE TABLE watched_light_units (
 CREATE INDEX wlabyUnit ON watched_light_units(unit);
 
 CREATE TABLE bots (
-	id INTEGER PRIMARY KEY,
+	id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
 	name VARCHAR(100) NOT NULL,
 	pairing_code VARCHAR(200) NOT NULL,
 	description LONGTEXT NOT NULL

@@ -61,7 +61,7 @@ function migrateDb(connection, onDone){
 			connection.addQuery(arrQueries, "BEGIN TRANSACTION");
 			connection.addQuery(arrQueries, "ALTER TABLE chat_messages RENAME TO chat_messages_old");
 			connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS chat_messages ( \n\
-				id INTEGER PRIMARY KEY, \n\
+				id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \n\
 				correspondent_address CHAR(33) NOT NULL, \n\
 				message LONGTEXT NOT NULL, \n\
 				creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, \n\
@@ -81,7 +81,7 @@ function migrateDb(connection, onDone){
 		}
 		if (version < 11) {
 			connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS bots ( \n\
-				id INTEGER PRIMARY KEY, \n\
+				id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \n\
 				name VARCHAR(100) NOT NULL, \n\
 				pairing_code VARCHAR(200) NOT NULL, \n\
 				description LONGTEXT NOT NULL \n\
