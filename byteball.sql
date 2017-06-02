@@ -545,7 +545,7 @@ CREATE TABLE pairing_secrets (
 	pairing_secret VARCHAR(40) NOT NULL PRIMARY KEY,
 	is_permanent TINYINT NOT NULL DEFAULT 0,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	expiry_date TIMESTAMP NOT NULL
+	expiry_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP  -- DEFAULT for newer mysql versions (never used)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 CREATE TABLE extended_pubkeys (
