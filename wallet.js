@@ -963,7 +963,7 @@ function readFundedAddresses(asset, wallet, estimated_amount, handleFundedAddres
 	if (estimated_amount && typeof estimated_amount !== 'number')
 		throw Error('invalid estimated amount: '+estimated_amount);
 	// addresses closest to estimated amount come first
-	var order_by = estimated_amount ? "(total>"+estimated_amount+") DESC, ABS(total-"+estimated_amount+") ASC" : "total DESC";
+	var order_by = estimated_amount ? "(SUM(amount)>"+estimated_amount+") DESC, ABS(SUM(amount)-"+estimated_amount+") ASC" : "SUM(amount) DESC";
 	db.query(
 		"SELECT address, SUM(amount) AS total \n\
 		FROM outputs JOIN my_addresses USING(address) \n\
