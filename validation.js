@@ -503,11 +503,13 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 			//console.log("###### ", arrMcUnits);
 			if (arrMcUnits.length === 0)
 				return checkNoReferencesInWitnessAddressDefinitions(arrWitnesses);
+			if (objValidationState.last_ball_mci < 512000)
+				return checkNoReferencesInWitnessAddressDefinitions(arrWitnesses); // do not enforce before the || bug was fixed
 			profiler.start();
 			// BUG: this || is interpreted as concat in sqlite, this query never worked as intended
 			conn.query(
 				"SELECT units.unit, COUNT(*) AS count_matching_witnesses \n\
-				FROM units JOIN unit_witnesses ON (units.unit=unit_witnesses.unit || units.witness_list_unit=unit_witnesses.unit) AND address IN(?) \n\
+				FROM units JOIN unit_witnesses ON (units.unit=unit_witnesses.unit OR units.witness_list_unit=unit_witnesses.unit) AND address IN(?) \n\
 				WHERE units.unit IN(?) \n\
 				GROUP BY units.unit \n\
 				HAVING count_matching_witnesses<?",
