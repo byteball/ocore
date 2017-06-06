@@ -8,6 +8,7 @@ var constants = require("./constants.js");
 var objectHash = require("./object_hash.js");
 var mutex = require('./mutex.js');
 var conf = require('./conf.js');
+var breadcrumbs = require('./breadcrumbs.js');
 
 
 
@@ -200,35 +201,36 @@ function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 	db.query( // purge the bad ball if we've already received at least 7 witnesses after receiving the bad ball
 		"SELECT unit FROM units \n\
 		WHERE "+cond+" AND sequence IN('final-bad','temp-bad') AND content_hash IS NULL \n\
+			AND NOT EXISTS (SELECT * FROM dependencies WHERE depends_on_unit=units.unit) \n\
+			AND NOT EXISTS (SELECT * FROM balls WHERE balls.unit=units.unit) \n\
 			AND EXISTS ( \n\
 				SELECT DISTINCT address FROM units AS wunits CROSS JOIN unit_authors USING(unit) CROSS JOIN my_witnesses USING(address) \n\
 				WHERE wunits."+order_column+" > units."+order_column+" \n\
 				LIMIT ?,1 \n\
 			) \n\
-			/* AND NOT EXISTS (SELECT * FROM dependencies WHERE depends_on_unit=units.unit) \n\
-			AND NOT EXISTS (SELECT * FROM unhandled_joints) */", 
+			/* AND NOT EXISTS (SELECT * FROM unhandled_joints) */", 
 		// some unhandled joints may depend on the unit to be archived but it is not in dependencies because it was known when its child was received
 		[constants.MAJORITY_OF_WITNESSES - 1],
 		function(rows){
 			async.eachSeries(
 				rows,
 				function(row, cb){
-					console.log("--------------- archiving uncovered unit "+row.unit);
+					breadcrumbs.add("--------------- archiving uncovered unit "+row.unit);
 					storage.readJoint(db, row.unit, {
 						ifNotFound: function(){
 							throw Error("nonserial unit not found?");
 						},
 						ifFound: function(objJoint){
 							db.takeConnectionFromPool(function(conn){
-								var arrQueries = [];
-								conn.addQuery(arrQueries, "BEGIN");
-								storage.generateQueriesToArchiveJoint(conn, objJoint, 'uncovered', arrQueries, function(){
-									conn.addQuery(arrQueries, "COMMIT");
-									mutex.lock(["write"], function(unlock){
+								mutex.lock(["write"], function(unlock){
+									var arrQueries = [];
+									conn.addQuery(arrQueries, "BEGIN");
+									storage.generateQueriesToArchiveJoint(conn, objJoint, 'uncovered', arrQueries, function(){
+										conn.addQuery(arrQueries, "COMMIT");
 										async.series(arrQueries, function(){
 											unlock();
 											conn.release();
-											console.log("------- done archiving "+row.unit);
+											breadcrumbs.add("------- done archiving "+row.unit);
 											storage.forgetUnit(row.unit);
 											cb();
 										});
@@ -261,7 +263,9 @@ function readJointsSinceMci(mci, handleJoint, onDone){
 				function(row, cb){
 					storage.readJoint(db, row.unit, {
 						ifNotFound: function(){
-							throw Error("unit "+row.unit+" not found");
+						//	throw Error("unit "+row.unit+" not found");
+							breadcrumbs.add("unit "+row.unit+" not found");
+							cb();
 						},
 						ifFound: function(objJoint){
 							handleJoint(objJoint);

@@ -55,14 +55,26 @@ function prepareRequestForHistory(handleResult){
 					return handleResult(null);
 				if (!objHistoryRequest.addresses)
 					return handleResult(objHistoryRequest);
+				objHistoryRequest.last_stable_mci = 0;
 				db.query(
+					"SELECT unit FROM unit_authors JOIN units USING(unit) WHERE is_stable=1 AND address IN(?) \n\
+					UNION \n\
+					SELECT unit FROM outputs JOIN units USING(unit) WHERE is_stable=1 AND address IN(?)",
+					[arrAddresses, arrAddresses],
+					function(rows){
+						if (rows.length)
+							objHistoryRequest.known_stable_units = rows.map(function(row){ return row.unit; });
+						handleResult(objHistoryRequest);
+					}
+				);
+				/*db.query(
 					"SELECT MAX(main_chain_index) AS last_stable_mci FROM units JOIN unit_authors USING(unit) WHERE is_stable=1 AND address IN(?)",
 					[arrAddresses],
 					function(rows){
 						objHistoryRequest.last_stable_mci = rows[0].last_stable_mci || 0;
 						handleResult(objHistoryRequest);
 					}
-				);
+				);*/
 			});
 		});
 	}, 'wait');

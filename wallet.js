@@ -23,7 +23,7 @@ var divisibleAsset = require('./divisible_asset.js');
 var profiler = require('./profiler.js');
 var breadcrumbs = require('./breadcrumbs.js');
 
-
+var message_counter = 0;
 
 function handleJustsaying(ws, subject, body){
 	switch (subject){
@@ -142,10 +142,11 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			break;
 		
 		case "text":
+			message_counter++;
 			if (!ValidationUtils.isNonemptyString(body))
 				return callbacks.ifError("text body must be string");
 			// the wallet should have an event handler that displays the text to the user
-			eventBus.emit("text", from_address, body);
+			eventBus.emit("text", from_address, body, message_counter);
 			callbacks.ifOk();
 			break;
 
@@ -166,7 +167,8 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			break;
 
 		case "chat_recording_pref":
-			eventBus.emit("chat_recording_pref", from_address, body);
+			message_counter++;
+			eventBus.emit("chat_recording_pref", from_address, body, message_counter);
 			callbacks.ifOk();
 			break;
 		
@@ -385,6 +387,9 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				for (var key in assocValidatedByKey)
 					eventBus.removeAllListeners(key);
 			};
+
+			var current_message_counter = ++message_counter;
+
 			var checkIfAllValidated = function(){
 				if (!assocValidatedByKey) // duplicate call - ignore
 					return console.log('duplicate call of checkIfAllValidated');
@@ -393,7 +398,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 						return console.log('not all private payments validated yet');
 				assocValidatedByKey = null; // to avoid duplicate calls
 				if (!body.forwarded)
-					emitNewPrivatePaymentReceived(from_address, arrChains);
+					emitNewPrivatePaymentReceived(from_address, arrChains, current_message_counter);
 				profiler.print();
 			};
 			
@@ -455,7 +460,8 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 		case 'payment_notification':
 			// note that since the payments are public, an evil user might notify us about a payment sent by someone else 
 			// (we'll be fooled to believe it was sent by the evil user).  It is only possible if he learns our address, e.g. if we make it public.
-			// Normally, we generate a one-time address and share it in chat session with the future payer only. 
+			// Normally, we generate a one-time address and share it in chat session with the future payer only.
+			var current_message_counter = ++message_counter;
 			var unit = body;
 			if (!ValidationUtils.isStringOfLength(unit, constants.HASH_LENGTH))
 				return callbacks.ifError("invalid unit in payment notification");
@@ -464,7 +470,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				if (bEmitted)
 					return;
 				bEmitted = true;
-				emitNewPublicPaymentReceived(from_address, objJoint.unit);
+				emitNewPublicPaymentReceived(from_address, objJoint.unit, current_message_counter);
 			};
 			eventBus.once('saved_unit-'+unit, emitPn);
 			storage.readJoint(db, unit, {
@@ -535,7 +541,7 @@ function forwardPrivateChainsToOtherMembersOfOutputAddresses(arrChains, conn, on
 eventBus.on("new_direct_private_chains", forwardPrivateChainsToOtherMembersOfOutputAddresses);
 
 
-function emitNewPrivatePaymentReceived(payer_device_address, arrChains){
+function emitNewPrivatePaymentReceived(payer_device_address, arrChains, message_counter){
 	console.log('emitNewPrivatePaymentReceived');
 	walletGeneral.readMyAddresses(function(arrAddresses){
 		var assocAmountsByAsset = {};
@@ -557,11 +563,11 @@ function emitNewPrivatePaymentReceived(payer_device_address, arrChains){
 		console.log('assocAmountsByAsset', assocAmountsByAsset);
 		for (var asset in assocAmountsByAsset)
 			if (assocAmountsByAsset[asset])
-				eventBus.emit('received_payment', payer_device_address, assocAmountsByAsset[asset], asset);
+				eventBus.emit('received_payment', payer_device_address, assocAmountsByAsset[asset], asset, message_counter);
 	});
 }
 
-function emitNewPublicPaymentReceived(payer_device_address, objUnit){
+function emitNewPublicPaymentReceived(payer_device_address, objUnit, message_counter){
 	walletGeneral.readMyAddresses(function(arrAddresses){
 		var assocAmountsByAsset = {};
 		objUnit.messages.forEach(function(message){
@@ -578,7 +584,7 @@ function emitNewPublicPaymentReceived(payer_device_address, objUnit){
 		});
 		for (var asset in assocAmountsByAsset)
 			if (assocAmountsByAsset[asset])
-				eventBus.emit('received_payment', payer_device_address, assocAmountsByAsset[asset], asset);
+				eventBus.emit('received_payment', payer_device_address, assocAmountsByAsset[asset], asset, message_counter);
 	});
 }
 
@@ -702,7 +708,7 @@ function readBalance(wallet, handleBalance){
 				"SELECT SUM(total) AS total FROM ( \n\
 				SELECT SUM(amount) AS total FROM "+my_addresses_join+" witnessing_outputs "+using+" WHERE is_spent=0 AND "+where_condition+" \n\
 				UNION ALL \n\
-				SELECT SUM(amount) AS total FROM "+my_addresses_join+" headers_commission_outputs "+using+" WHERE is_spent=0 AND "+where_condition+" )",
+				SELECT SUM(amount) AS total FROM "+my_addresses_join+" headers_commission_outputs "+using+" WHERE is_spent=0 AND "+where_condition+" ) AS t",
 				[wallet,wallet],
 				function(rows) {
 					if(rows.length){
@@ -787,7 +793,10 @@ function readTransactionHistory(opts, handleHistory){
 					};
 				if (row.to_address){
 					assocMovements[row.unit].plus += row.amount;
-					assocMovements[row.unit].my_address = row.to_address;
+				//	assocMovements[row.unit].my_address = row.to_address;
+					if (!assocMovements[row.unit].arrMyRecipients)
+						assocMovements[row.unit].arrMyRecipients = [];
+					assocMovements[row.unit].arrMyRecipients.push({my_address: row.to_address, amount: row.amount})
 				}
 				if (row.from_address)
 					assocMovements[row.unit].has_minus = true;
@@ -817,19 +826,21 @@ function readTransactionHistory(opts, handleHistory){
 							[unit], 
 							function(address_rows){
 								var arrPayerAddresses = address_rows.map(function(address_row){ return address_row.address; });
-								var transaction = {
-									action: 'received',
-									amount: movement.plus,
-									my_address: movement.my_address,
-									arrPayerAddresses: arrPayerAddresses,
-									confirmations: movement.is_stable,
-									unit: unit,
-									fee: movement.fee,
-									time: movement.ts,
-									level: movement.level,
-                                    mci: movement.mci
-								};
-								arrTransactions.push(transaction);
+								movement.arrMyRecipients.forEach(function(objRecipient){
+									var transaction = {
+										action: 'received',
+										amount: objRecipient.amount,
+										my_address: objRecipient.my_address,
+										arrPayerAddresses: arrPayerAddresses,
+										confirmations: movement.is_stable,
+										unit: unit,
+										fee: movement.fee,
+										time: movement.ts,
+										level: movement.level,
+										mci: movement.mci
+									};
+									arrTransactions.push(transaction);
+								});
 								cb();
 							}
 						);
@@ -952,7 +963,7 @@ function readFundedAddresses(asset, wallet, estimated_amount, handleFundedAddres
 	if (estimated_amount && typeof estimated_amount !== 'number')
 		throw Error('invalid estimated amount: '+estimated_amount);
 	// addresses closest to estimated amount come first
-	var order_by = estimated_amount ? "(total>"+estimated_amount+") DESC, ABS(total-"+estimated_amount+") ASC" : "total DESC";
+	var order_by = estimated_amount ? "(SUM(amount)>"+estimated_amount+") DESC, ABS(SUM(amount)-"+estimated_amount+") ASC" : "SUM(amount) DESC";
 	db.query(
 		"SELECT address, SUM(amount) AS total \n\
 		FROM outputs JOIN my_addresses USING(address) \n\
@@ -965,7 +976,7 @@ function readFundedAddresses(asset, wallet, estimated_amount, handleFundedAddres
 		GROUP BY address ORDER BY "+order_by,
 		asset ? [wallet, asset] : [wallet],
 		function(rows){
-			var arrFundedAddresses = rows.map(function(row){ return row.address; });
+			var arrFundedAddresses = composer.filterMostFundedAddresses(rows, estimated_amount);
 			handleFundedAddresses(arrFundedAddresses);
 			/*if (arrFundedAddresses.length === 0)
 				return handleFundedAddresses([]);

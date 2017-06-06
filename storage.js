@@ -66,6 +66,11 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 			objectHash.cleanNulls(objUnit);
 			var bVoided = (objUnit.content_hash && main_chain_index < min_retrievable_mci);
 			var bRetrievable = (main_chain_index >= min_retrievable_mci || main_chain_index === null);
+			
+			// unit hash verification below will fail if:
+			// 1. the unit was received already voided, i.e. its messages are stripped and content_hash is set
+			// 2. the unit is still retrievable (e.g. we are syncing)
+			// In this case, bVoided=false hence content_hash will be deleted but the messages are missing
 			if (bVoided){
 				//delete objUnit.last_ball;
 				//delete objUnit.last_ball_unit;
@@ -121,6 +126,8 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 					});
 				},
 				function(callback){ // earned_headers_commission_recipients
+					if (bVoided)
+						return callback();
 					conn.query("SELECT address, earned_headers_commission_share FROM earned_headers_commission_recipients \
 						WHERE unit=? ORDER BY address", 
 						[unit], 
@@ -184,8 +191,11 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 						"SELECT app, payload_hash, payload_location, payload, payload_uri, payload_uri_hash, message_index \n\
 						FROM messages WHERE unit=? ORDER BY message_index", [unit], 
 						function(rows){
-							if (rows.length === 0)
-								throw new Error("no messages in unit "+unit);
+							if (rows.length === 0){
+								if (conf.bLight)
+									throw new Error("no messages in unit "+unit);
+								return callback(); // any errors will be caught by verifying unit hash
+							}
 							objUnit.messages = [];
 							async.eachSeries(
 								rows,
@@ -464,11 +474,13 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 				//profiler.stop('read');
 				// verify unit hash. Might fail if the unit was archived while reading, in this case retry
 				// light wallets don't have last_ball, don't verify their hashes
-				if (!conf.bLight && objectHash.getUnitHash(objUnit) !== unit){
+				if (!conf.bLight && !isCorrectHash(objUnit, unit)){
 					if (bRetrying)
 						throw Error("unit hash verification failed, unit: "+unit+", objUnit: "+JSON.stringify(objUnit));
 					console.log("unit hash verification failed, will retry");
-					return readJointDirectly(conn, unit, callbacks, true);
+					return setTimeout(function(){
+						readJointDirectly(conn, unit, callbacks, true);
+					}, 60*1000);
 				}
 				if (!conf.bSaveJointJson || !bStable || (bFinalBad && bRetrievable) || bRetrievable)
 					return callbacks.ifFound(objJoint);
@@ -480,6 +492,15 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 	);
 }
 
+
+function isCorrectHash(objUnit, unit){
+	try{
+		return (objectHash.getUnitHash(objUnit) === unit);
+	}
+	catch(e){
+		return false;
+	}
+}
 
 
 // add .ball even if it is not retrievable
@@ -800,13 +821,13 @@ function generateQueriesToRemoveJoint(conn, unit, arrQueries, cb){
 		conn.addQuery(arrQueries, "DELETE FROM unit_witnesses WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM authentifiers WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM unit_authors WHERE unit=?", [unit]);
-		conn.addQuery(arrQueries, "DELETE FROM parenthoods WHERE parent_unit=? OR child_unit=?", [unit, unit]);
+		conn.addQuery(arrQueries, "DELETE FROM parenthoods WHERE child_unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM address_definition_changes WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM inputs WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM outputs WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM spend_proofs WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM messages WHERE unit=?", [unit]);
-		conn.addQuery(arrQueries, "DELETE FROM balls WHERE unit=?", [unit]);
+	//	conn.addQuery(arrQueries, "DELETE FROM balls WHERE unit=?", [unit]); // if it has a ball, it can't be uncovered
 		conn.addQuery(arrQueries, "DELETE FROM units WHERE unit=?", [unit]);
 		cb();
 	});
@@ -1100,29 +1121,33 @@ function findWitnessListUnit(conn, arrWitnesses, last_ball_mci, handleWitnessLis
 	);
 }
 
-function filterNewOrUnstableUnits(arrUnits, handleFilteredUnits){
+function sliceAndExecuteQuery(query, params, largeParam, callback) {
+	if (typeof largeParam !== 'object' || largeParam.length === 0) return callback([]);
 	var CHUNK_SIZE = 200;
-	if (arrUnits.length > CHUNK_SIZE){
-		console.log('filterNewOrUnstableUnits: will split in chunks');
-		var arrChunks = [];
-		for (var offset=0; offset<arrUnits.length; offset+=CHUNK_SIZE)
-			arrChunks.push(arrUnits.slice(offset, offset+CHUNK_SIZE));
-		var arrFilteredUnits = [];
-		async.eachSeries(
-			arrChunks,
-			function(arrSubsetOfUnits, cb){
-				filterNewOrUnstableUnits(arrSubsetOfUnits, function(arrSubsetOfFilteredUnits){
-					arrFilteredUnits = arrFilteredUnits.concat(arrSubsetOfFilteredUnits);
-					cb();
-				});
-			},
-			function(){
-				handleFilteredUnits(arrFilteredUnits);
-			}
-		);
-		return;
+	var length = largeParam.length;
+	var arrParams = [];
+	var newParams;
+	var largeParamPosition = params.indexOf(largeParam);
+
+	for (var offset = 0; offset < length; offset += CHUNK_SIZE) {
+		newParams = params.slice(0);
+		newParams[largeParamPosition] = largeParam.slice(offset, offset + CHUNK_SIZE);
+		arrParams.push(newParams);
 	}
-	db.query("SELECT unit FROM units WHERE unit IN(?) AND is_stable=1", [arrUnits], function(rows){
+
+	var result = [];
+	async.eachSeries(arrParams, function(params, cb) {
+		db.query(query, params, function(rows) {
+			result = result.concat(rows);
+			cb();
+		});
+	}, function() {
+		callback(result);
+	});
+}
+
+function filterNewOrUnstableUnits(arrUnits, handleFilteredUnits){
+	sliceAndExecuteQuery("SELECT unit FROM units WHERE unit IN(?) AND is_stable=1", [arrUnits], arrUnits, function(rows) {
 		var arrKnownStableUnits = rows.map(function(row){ return row.unit; });
 		var arrNewOrUnstableUnits = _.difference(arrUnits, arrKnownStableUnits);
 		handleFilteredUnits(arrNewOrUnstableUnits);
@@ -1334,3 +1359,4 @@ exports.isKnownUnit = isKnownUnit;
 exports.setUnitIsKnown = setUnitIsKnown;
 exports.forgetUnit = forgetUnit;
 
+exports.sliceAndExecuteQuery = sliceAndExecuteQuery;

@@ -711,7 +711,7 @@ function composeIndivisibleAssetPaymentJoint(params){
 						if (!arrPayloadsWithProofs)
 							return onDone({
 								error_code: "NOT_ENOUGH_FUNDS", 
-								error: "not enough indivisible asset coins that fit the desired amount within the specified tolerances"
+								error: "not enough indivisible asset coins that fit the desired amount within the specified tolerances, make sure all your funds are confirmed"
 							});
 						var arrMessages = [];
 						var assocPrivatePayloads = {};
@@ -834,17 +834,52 @@ function getSavingCallbacks(to_address, callbacks){
 								},
 								function(err){
 									if (err){
+										console.log("===== error in precommit callback: "+err);
 										bPreCommitCallbackFailed = true;
 										return cb(err);
 									}
+									var onSuccessfulPrecommit = !conf.bLight ? cb : function(){
+										composer.postJointToLightVendorIfNecessaryAndSave(
+											objJoint, 
+											function onLightError(err){ // light only
+												console.log("failed to post indivisible payment "+unit);
+												bPreCommitCallbackFailed = true;
+												cb(err); // will rollback
+											},
+											function save(){ // not actually saving yet but greenlighting the commit
+												cb();
+											}
+										);
+									};
 									if (!callbacks.preCommitCb)
-										return cb();
-									callbacks.preCommitCb(conn, arrRecipientChains, arrCosignerChains, cb);
+										return onSuccessfulPrecommit();
+									callbacks.preCommitCb(conn, arrRecipientChains, arrCosignerChains, onSuccessfulPrecommit);
 								}
 							);
 						};
 					}
 					
+					var saveAndUnlock = function(){
+						writer.saveJoint(
+							objJoint, objValidationState, 
+							preCommitCallback,
+							function onDone(){
+								console.log("saved unit "+unit);
+								validation_unlock();
+								composer_unlock();
+								if (bPreCommitCallbackFailed)
+									callbacks.ifError("precommit callback failed");
+								else
+									callbacks.ifOk(objJoint, arrRecipientChains, arrCosignerChains);
+							}
+						);
+					};
+					
+					// if light and private, we'll post the joint later, in precommit 
+					// (saving private payloads can take quite some time and the app can be killed before saving them to its local database, 
+					// we should not broadcast the joint earlier)
+					if (bPrivate || !conf.bLight)
+						return saveAndUnlock();
 					composer.postJointToLightVendorIfNecessaryAndSave(
 						objJoint, 
 						function onLightError(err){ // light only
@@ -853,21 +888,7 @@ function getSavingCallbacks(to_address, callbacks){
 							composer_unlock();
 							callbacks.ifError(err);
 						},
-						function save(){
-							writer.saveJoint(
-								objJoint, objValidationState, 
-								preCommitCallback,
-								function onDone(){
-									console.log("saved unit "+unit);
-									validation_unlock();
-									composer_unlock();
-									if (bPreCommitCallbackFailed)
-										callbacks.ifError("precommit callback failed");
-									else
-										callbacks.ifOk(objJoint, arrRecipientChains, arrCosignerChains);
-								}
-							);
-						}
+						saveAndUnlock
 					);
 				} // ifOk validation
 			}); // validate
@@ -1015,7 +1036,7 @@ function composeMinimalIndivisibleAssetPaymentJoint(params){
 		params.asset, params.amount, params.available_paying_addresses, params.available_fee_paying_addresses, 
 		function(arrFundedPayingAddresses, arrFundedFeePayingAddresses){
 			if (arrFundedPayingAddresses.length === 0)
-				return params.callbacks.ifNotEnoughFunds("all paying addresses are unfunded in asset");
+				return params.callbacks.ifNotEnoughFunds("all paying addresses are unfunded in asset, make sure all your funds are confirmed");
 			var minimal_params = _.clone(params);
 			delete minimal_params.available_paying_addresses;
 			delete minimal_params.available_fee_paying_addresses;

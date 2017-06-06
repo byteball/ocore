@@ -545,7 +545,7 @@ CREATE TABLE pairing_secrets (
 	pairing_secret VARCHAR(40) NOT NULL PRIMARY KEY,
 	is_permanent TINYINT NOT NULL DEFAULT 0,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	expiry_date TIMESTAMP NOT NULL
+	expiry_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP  -- DEFAULT for newer mysql versions (never used)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 CREATE TABLE extended_pubkeys (
@@ -565,7 +565,7 @@ CREATE TABLE wallet_signing_paths (
 	signing_path VARCHAR(255) NULL, -- NULL if xpubkey arrived earlier than the wallet was approved by the user
 	device_address CHAR(33) NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	PRIMARY KEY (wallet, signing_path),
+	UNIQUE KEY byWalletSigningPath(wallet, signing_path),
 	FOREIGN KEY byWallet(wallet) REFERENCES wallets(wallet)
 	-- own address is not present in correspondents
 --    FOREIGN KEY byDeviceAddress(device_address) REFERENCES correspondent_devices(device_address)
@@ -606,7 +606,7 @@ CREATE TABLE shared_address_signing_paths (
 	member_signing_path VARCHAR(255) NULL, -- path to signing key from root of the member address
 	device_address CHAR(33) NOT NULL, -- where this signing key lives or is reachable through
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	PRIMARY KEY (shared_address, signing_path),
+	UNIQUE KEY bySharedAddressSigningPath(shared_address, signing_path),
 	FOREIGN KEY bySharedAddress(shared_address) REFERENCES shared_addresses(shared_address)
 	-- own address is not present in correspondents
 --    FOREIGN KEY byDeviceAddress(device_address) REFERENCES correspondent_devices(device_address)
@@ -644,14 +644,30 @@ CREATE TABLE IF NOT EXISTS push_registrations (
 );
 
 CREATE TABLE chat_messages (
-	id INTEGER PRIMARY KEY AUTO_INCREMENT,
+	id INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,
 	correspondent_address CHAR(33) NOT NULL, -- the device this message is came from
 	message LONGTEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	is_incoming TINYINT NOT NULL,
 	type CHAR(15) NOT NULL DEFAULT 'text',
-	FOREIGN KEY byAddress(correspondent_address) REFERENCES correspondent_devices(device_address)
+	FOREIGN KEY byAddress(correspondent_address) REFERENCES correspondent_devices(device_address) ON DELETE CASCADE
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 CREATE INDEX chatMessagesIndexByDeviceAddress ON chat_messages(correspondent_address, id);
 ALTER TABLE correspondent_devices ADD COLUMN my_record_pref INTEGER DEFAULT 1;
 ALTER TABLE correspondent_devices ADD COLUMN peer_record_pref INTEGER DEFAULT 1;
+
+CREATE TABLE watched_light_units (
+	peer VARCHAR(100) NOT NULL,
+	unit CHAR(44) NOT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	PRIMARY KEY (peer, unit)
+);
+CREATE INDEX wlabyUnit ON watched_light_units(unit);
+
+CREATE TABLE bots (
+	id INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,
+	rank INTEGER NOT NULL DEFAULT 0,
+	name VARCHAR(100) NOT NULL UNIQUE,
+	pairing_code VARCHAR(200) NOT NULL,
+	description LONGTEXT NOT NULL
+);

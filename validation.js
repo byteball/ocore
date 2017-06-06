@@ -503,11 +503,13 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 			//console.log("###### ", arrMcUnits);
 			if (arrMcUnits.length === 0)
 				return checkNoReferencesInWitnessAddressDefinitions(arrWitnesses);
+			if (objValidationState.last_ball_mci < 512000)
+				return checkNoReferencesInWitnessAddressDefinitions(arrWitnesses); // do not enforce before the || bug was fixed
 			profiler.start();
 			// BUG: this || is interpreted as concat in sqlite, this query never worked as intended
 			conn.query(
 				"SELECT units.unit, COUNT(*) AS count_matching_witnesses \n\
-				FROM units JOIN unit_witnesses ON (units.unit=unit_witnesses.unit || units.witness_list_unit=unit_witnesses.unit) AND address IN(?) \n\
+				FROM units JOIN unit_witnesses ON (units.unit=unit_witnesses.unit OR units.witness_list_unit=unit_witnesses.unit) AND address IN(?) \n\
 				WHERE units.unit IN(?) \n\
 				GROUP BY units.unit \n\
 				HAVING count_matching_witnesses<?",
@@ -598,7 +600,7 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 						return callback("referenced witness list unit "+objUnit.witness_list_unit+" has no witnesses");
 					var arrWitnesses = rows.map(function(row){ return row.address; });
 					if (arrWitnesses.length !== constants.COUNT_WITNESSES)
-						throw Error("wrong number of witnesses");
+						throw Error("wrong number of witnesses: "+arrWitnesses.length);
 					profiler.stop('validation-witnesses-read-list');
 					validateWitnessListMutations(arrWitnesses);
 				}
@@ -1382,7 +1384,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 		if (hasFieldsExcept(output, ["address", "amount", "blinding", "output_hash"]))
 			return callback("unknown fields in payment output");
 		if (!isPositiveInteger(output.amount))
-			return callback("amount must be positive integer");
+			return callback("amount must be positive integer, found "+output.amount);
 		if (objAsset && objAsset.fixed_denominations && output.amount % denomination !== 0)
 			return callback("output amount must be divisible by denomination");
 		if (objAsset && objAsset.is_private){

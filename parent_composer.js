@@ -33,7 +33,7 @@ function pickParentUnits(conn, arrWitnesses, onDone){
 			// we need at least one compatible parent, otherwise go deep
 			if (rows.filter(function(row){ return (row.count_matching_witnesses >= count_required_matches); }).length === 0)
 				return pickDeepParentUnits(conn, arrWitnesses, onDone);
-			onDone(rows.map(function(row){ return row.unit; }));
+			onDone(null, rows.map(function(row){ return row.unit; }));
 		}
 	);
 }
@@ -57,8 +57,8 @@ function pickDeepParentUnits(conn, arrWitnesses, onDone){
 		[arrWitnesses, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS], 
 		function(rows){
 			if (rows.length === 0)
-				throw Error("no deep units?");
-			onDone(rows.map(function(row){ return row.unit; }));
+				return onDone("failed to find compatible parents: no deep units");
+			onDone(null, rows.map(function(row){ return row.unit; }));
 		}
 	);
 }
@@ -75,8 +75,8 @@ function findLastStableMcBall(conn, arrWitnesses, onDone){
 		[arrWitnesses, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS], 
 		function(rows){
 			if (rows.length === 0)
-				throw Error("no last stable ball?");
-			onDone(rows[0].ball, rows[0].unit, rows[0].main_chain_index);
+				return onDone("failed to find last stable ball");
+			onDone(null, rows[0].ball, rows[0].unit, rows[0].main_chain_index);
 		}
 	);
 }
@@ -102,8 +102,12 @@ function adjustLastStableMcBall(conn, last_stable_mc_ball_unit, arrParentUnits, 
 }
 
 function pickParentUnitsAndLastBall(conn, arrWitnesses, onDone){
-	pickParentUnits(conn, arrWitnesses, function(arrParentUnits){
-		findLastStableMcBall(conn, arrWitnesses, function(last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
+	pickParentUnits(conn, arrWitnesses, function(err, arrParentUnits){
+		if (err)
+			return onDone(err);
+		findLastStableMcBall(conn, arrWitnesses, function(err, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
+			if (err)
+				return onDone(err);
 			adjustLastStableMcBall(conn, last_stable_mc_ball_unit, arrParentUnits, function(last_stable_ball, last_stable_unit, last_stable_mci){
 				storage.findWitnessListUnit(conn, arrWitnesses, last_stable_mci, function(witness_list_unit){
 					var objFakeUnit = {parent_units: arrParentUnits};
@@ -112,7 +116,7 @@ function pickParentUnitsAndLastBall(conn, arrWitnesses, onDone){
 					storage.determineIfHasWitnessListMutationsAlongMc(conn, objFakeUnit, last_stable_unit, arrWitnesses, function(err){
 						if (err)
 							return onDone(err); // if first arg is not array, it is error
-						onDone(arrParentUnits, last_stable_ball, last_stable_unit, last_stable_mci);
+						onDone(null, arrParentUnits, last_stable_ball, last_stable_unit, last_stable_mci);
 					});
 				});
 			});

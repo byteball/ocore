@@ -147,7 +147,7 @@ function buildLastMileOfProofChain(mci, unit, arrBalls, onDone){
 
 
 function prepareHistory(historyRequest, callbacks){
-	var last_stable_mci = historyRequest.last_stable_mci;
+	var arrKnownStableUnits = historyRequest.known_stable_units;
 	var arrWitnesses = historyRequest.witnesses;
 	var arrAddresses = historyRequest.addresses;
 	var arrRequestedJoints = historyRequest.requested_joints;
@@ -157,8 +157,8 @@ function prepareHistory(historyRequest, callbacks){
 	if (arrAddresses){
 		if (!ValidationUtils.isNonemptyArray(arrAddresses))
 			return callbacks.ifError("no addresses");
-		if (!ValidationUtils.isNonnegativeInteger(last_stable_mci))
-			return callbacks.ifError("last_stable_mci must be nonneg int");
+		if (arrKnownStableUnits && !ValidationUtils.isNonemptyArray(arrKnownStableUnits))
+			return callbacks.ifError("known_stable_units must be non-empty array");
 	}
 	if (arrRequestedJoints && !ValidationUtils.isNonemptyArray(arrRequestedJoints))
 		return callbacks.ifError("no requested joints");
@@ -173,11 +173,11 @@ function prepareHistory(historyRequest, callbacks){
 	if (arrAddresses){
 		// we don't filter sequence='good' after the unit is stable, so the client will see final doublespends too
 		arrSelects = ["SELECT DISTINCT unit, main_chain_index, level FROM outputs JOIN units USING(unit) \n\
-			WHERE address IN(?) AND main_chain_index>=? AND (+sequence='good' OR is_stable=1) \n\
+			WHERE address IN(?) AND unit NOT IN(?) AND (+sequence='good' OR is_stable=1) \n\
 			UNION \n\
 			SELECT DISTINCT unit, main_chain_index, level FROM unit_authors JOIN units USING(unit) \n\
-			WHERE address IN(?) AND main_chain_index>=? AND (+sequence='good' OR is_stable=1) \n"];
-		arrParams = [arrAddresses, last_stable_mci, arrAddresses, last_stable_mci];
+			WHERE address IN(?) AND unit NOT IN(?) AND (+sequence='good' OR is_stable=1) \n"];
+		arrParams = [arrAddresses, arrKnownStableUnits || -1, arrAddresses, arrKnownStableUnits || -1];
 	}
 	if (arrRequestedJoints){
 		arrSelects.push("SELECT unit, main_chain_index, level FROM units WHERE unit IN(?) AND (+sequence='good' OR is_stable=1) \n");
@@ -339,14 +339,15 @@ function processHistory(objResponse, callbacks){
 								unlock();
 								return callbacks.ifError(err);
 							}
-							if (arrProvenUnits.length === 0){
-								unlock();
-								callbacks.ifOk();
-								return;
-							}
-							db.query("UPDATE units SET is_stable=1, is_free=0 WHERE unit IN(?)", [arrProvenUnits], function(){
-								unlock();
-								callbacks.ifOk();
+							fixIsSpentFlag(function(){
+								if (arrProvenUnits.length === 0){
+									unlock();
+									return callbacks.ifOk();
+								}
+								db.query("UPDATE units SET is_stable=1, is_free=0 WHERE unit IN(?)", [arrProvenUnits], function(){
+									unlock();
+									callbacks.ifOk();
+								});
 							});
 						}
 					);
@@ -356,6 +357,27 @@ function processHistory(objResponse, callbacks){
 		}
 	);
 
+}
+
+// fixes is_spent in case units were received out of order
+function fixIsSpentFlag(onDone){
+	db.query(
+		"SELECT outputs.unit, outputs.message_index, outputs.output_index \n\
+		FROM outputs \n\
+		JOIN inputs ON outputs.unit=inputs.src_unit AND outputs.message_index=inputs.src_message_index AND outputs.output_index=inputs.src_output_index \n\
+		WHERE is_spent=0 AND type='transfer'",
+		function(rows){
+			if (rows.length === 0)
+				return onDone();
+			console.log(rows.length+" previous outputs appear to be spent");
+			var arrQueries = [];
+			rows.forEach(function(row){
+				db.addQuery(arrQueries, 
+					"UPDATE outputs SET is_spent=1 WHERE unit=? AND message_index=? AND output_index=?", [row.unit, row.message_index, row.output_index]);
+			});
+			async.series(arrQueries, onDone);
+		}
+	);
 }
 
 
@@ -386,7 +408,9 @@ function prepareParentsAndLastBallAndWitnessListUnit(arrWitnesses, callbacks){
 		parentComposer.pickParentUnitsAndLastBall(
 			db, 
 			arrWitnesses, 
-			function(arrParentUnits, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
+			function(err, arrParentUnits, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
+				if (err)
+					return callbacks.ifError("unable to find parents: "+err);
 				var objResponse = {
 					parent_units: arrParentUnits,
 					last_stable_mc_ball: last_stable_mc_ball,

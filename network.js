@@ -255,9 +255,10 @@ function findNextPeer(ws, handleNextPeer){
 	tryFindNextPeer(ws, function(next_ws){
 		if (next_ws)
 			return handleNextPeer(next_ws);
-		console.log('findNextPeer after '+ws.peer+' found no appropriate peer, will wait for a new connection');
+		var peer = ws ? ws.peer : '[none]';
+		console.log('findNextPeer after '+peer+' found no appropriate peer, will wait for a new connection');
 		eventBus.once('connected_to_source', function(new_ws){
-			console.log('got new connection, retrying findNextPeer after '+ws.peer);
+			console.log('got new connection, retrying findNextPeer after '+peer);
 			findNextPeer(ws, handleNextPeer);
 		});
 	});
@@ -887,7 +888,7 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 			},
 			ifJointError: function(error){
 				callbacks.ifJointError(error);
-				throw Error(error);
+			//	throw Error(error);
 				db.query(
 					"INSERT INTO known_bad_joints (joint, json, error) VALUES (?,?,?)", 
 					[objectHash.getJointHash(objJoint), JSON.stringify(objJoint), error],
@@ -955,6 +956,9 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 
 // handle joint posted to me by a light client
 function handlePostedJoint(ws, objJoint, onDone){
+	
+	if (!objJoint || !objJoint.unit || !objJoint.unit.unit)
+		return onDone('no unit');
 	
 	var unit = objJoint.unit.unit;
 	delete objJoint.unit.main_chain_index;
@@ -1097,7 +1101,18 @@ function handleSavedJoint(objJoint, creation_ts, peer){
 			throw Error("handleSavedJoint: need hash tree");
 		},
 		ifNeedParentUnits: function(arrMissingUnits){
-			throw Error("unit "+objJoint.unit.unit+" still has unresolved dependencies: "+arrMissingUnits.join(", "));
+			db.query("SELECT 1 FROM archived_joints WHERE unit IN(?) LIMIT 1", [arrMissingUnits], function(rows){
+				if (rows.length === 0)
+					throw Error("unit "+unit+" still has unresolved dependencies: "+arrMissingUnits.join(", "));
+				breadcrumbs.add("unit "+unit+" has unresolved dependencies that were archived: "+arrMissingUnits.join(", "))
+				if (ws)
+					requestNewMissingJoints(ws, arrMissingUnits);
+				else
+					findNextPeer(null, function(next_ws){
+						requestNewMissingJoints(next_ws, arrMissingUnits);
+					});
+				delete assocUnitsInWork[unit];
+			});
 		},
 		ifOk: function(){
 			if (ws)
@@ -1228,13 +1243,20 @@ function notifyLightClientsAboutStableJoints(from_mci, to_mci){
 		WHERE main_chain_index>? AND main_chain_index<=? \n\
 		UNION \n\
 		SELECT peer FROM units JOIN outputs USING(unit) JOIN watched_light_addresses USING(address) \n\
+		WHERE main_chain_index>? AND main_chain_index<=? \n\
+		UNION \n\
+		SELECT peer FROM units JOIN watched_light_units USING(unit) \n\
 		WHERE main_chain_index>? AND main_chain_index<=?",
-		[from_mci, to_mci, from_mci, to_mci],
+		[from_mci, to_mci, from_mci, to_mci, from_mci, to_mci],
 		function(rows){
 			rows.forEach(function(row){
 				var ws = getPeerWebSocket(row.peer);
 				if (ws && ws.readyState === ws.OPEN)
 					sendJustsaying(ws, 'light/have_updates');
+			});
+			db.query("DELETE FROM watched_light_units \n\
+				WHERE unit IN (SELECT unit FROM units WHERE main_chain_index>? AND main_chain_index<=?)", [from_mci, to_mci], function() {
+				
 			});
 		}
 	);
@@ -1366,6 +1388,25 @@ function broadcastJoint(objJoint){
 
 
 // catchup
+
+function checkCatchupLeftovers(){
+	db.query(
+		"SELECT 1 FROM hash_tree_balls \n\
+		UNION \n\
+		SELECT 1 FROM catchup_chain_balls \n\
+		LIMIT 1",
+		function(rows){
+			if (rows.length === 0)
+				return console.log('no leftovers');
+			console.log('have catchup leftovers from the previous run');
+			findNextPeer(null, function(ws){
+				console.log('will request leftovers from '+ws.peer);
+				if (!bCatchingUp && !isWaitingForCatchupChain())
+					requestCatchup(ws);
+			});
+		}
+	);
+}
 
 function requestCatchup(ws){
 	console.log("will request catchup");
@@ -1680,7 +1721,7 @@ function rerequestLostJointsOfPrivatePayments(){
 function requestUnfinishedPastUnitsOfPrivateChains(arrChains, onDone){
 	if (!onDone)
 		onDone = function(){};
-	privatePayment.findUnfinishedPastUnitsOfPrivateChains(arrChains, function(arrUnits){
+	privatePayment.findUnfinishedPastUnitsOfPrivateChains(arrChains, true, function(arrUnits){
 		if (arrUnits.length === 0)
 			return onDone();
 		breadcrumbs.add(arrUnits.length+" unfinished past units of private chains");
@@ -1725,6 +1766,7 @@ function requestProofsOfJointsIfNewOrUnstable(arrUnits, onDone){
 function requestUnfinishedPastUnitsOfSavedPrivateElements(){
 	mutex.lock(['private_chains'], function(unlock){
 		db.query("SELECT json FROM unhandled_private_payments", function(rows){
+			eventBus.emit('unhandled_private_payments_left', rows.length);
 			if (rows.length === 0)
 				return unlock();
 			breadcrumbs.add(rows.length+" unhandled private payments");
@@ -1910,9 +1952,9 @@ function handleJustsaying(ws, subject, body){
 			if (url.indexOf('ws://') !== 0 && url.indexOf('wss://') !== 0) // invalid url
 				break;
 			ws.claimed_url = url;
-			db.query("SELECT MAX(creation_date) AS latest_url_change_date, url FROM peer_host_urls WHERE peer_host=?", [ws.host], function(rows){
+			db.query("SELECT creation_date AS latest_url_change_date, url FROM peer_host_urls WHERE peer_host=? ORDER BY creation_date DESC LIMIT 1", [ws.host], function(rows){
 				var latest_change = rows[0];
-				if (latest_change.url === url) // advertises the same url
+				if (latest_change && latest_change.url === url) // advertises the same url
 					return;
 				//var elapsed_time = Date.now() - Date.parse(latest_change.latest_url_change_date);
 				//if (elapsed_time < 24*3600*1000) // change allowed no more often than once per day
@@ -2302,6 +2344,19 @@ function handleRequest(ws, tag, command, params){
 							"INSERT "+db.getIgnore()+" INTO watched_light_addresses (peer, address) VALUES "+
 							params.addresses.map(function(address){ return "("+db.escape(ws.peer)+", "+db.escape(address)+")"; }).join(", ")
 						);
+					if (params.requested_joints) {
+						storage.sliceAndExecuteQuery("SELECT unit FROM units WHERE main_chain_index >= ? AND unit IN(?)",
+							[storage.getMinRetrievableMci(), params.requested_joints], params.requested_joints, function(rows) {
+							if(rows.length) {
+								db.query(
+									"INSERT " + db.getIgnore() + " INTO watched_light_units (peer, unit) VALUES " +
+									rows.map(function(row) {
+										return "(" + db.escape(ws.peer) + ", " + db.escape(row.unit) + ")";
+									}).join(", ")
+								);
+							}
+						});
+					}
 					//db.query("INSERT "+db.getIgnore()+" INTO light_peer_witnesses (peer, witness_address) VALUES "+
 					//    params.witnesses.map(function(address){ return "("+db.escape(ws.peer)+", "+db.escape(address)+")"; }).join(", "));
 				}
@@ -2351,6 +2406,11 @@ function handleRequest(ws, tag, command, params){
 				eventBus.emit("disableNotification", ws.device_address, params);
 			sendResponse(ws, tag, 'ok');
 			break;
+		case 'hub/get_bots':
+			db.query("SELECT id, name, pairing_code, description FROM bots ORDER BY rank DESC, id", [], function(rows){
+				sendResponse(ws, tag, rows);
+			});
+			break;
 	}
 }
 
@@ -2391,11 +2451,17 @@ function onWebsocketMessage(message) {
 
 function startAcceptingConnections(){
 	db.query("DELETE FROM watched_light_addresses");
+	db.query("DELETE FROM watched_light_units");
 	//db.query("DELETE FROM light_peer_witnesses");
 	// listen for new connections
 	wss = new WebSocketServer({ port: conf.port });
 	wss.on('connection', function(ws) {
 		var ip = ws.upgradeReq.connection.remoteAddress;
+		if (!ip){
+			console.log("no ip in accepted connection");
+			ws.terminate();
+			return;
+		}
 		if (ws.upgradeReq.headers['x-real-ip'] && (ip === '127.0.0.1' || ip.match(/^192\.168\./))) // we are behind a proxy
 			ip = ws.upgradeReq.headers['x-real-ip'];
 		ws.peer = ip + ":" + ws.upgradeReq.connection.remotePort;
@@ -2451,6 +2517,7 @@ function startAcceptingConnections(){
 		});
 		ws.on('close', function(){
 			db.query("DELETE FROM watched_light_addresses WHERE peer=?", [ws.peer]);
+			db.query("DELETE FROM watched_light_units WHERE peer=?", [ws.peer]);
 			//db.query("DELETE FROM light_peer_witnesses WHERE peer=?", [ws.peer]);
 			console.log("client "+ws.peer+" disconnected");
 			cancelRequestsOnClosedConnection(ws);
@@ -2469,6 +2536,8 @@ function startRelay(){
 		wss = {clients: []};
 	else
 		startAcceptingConnections();
+	
+	checkCatchupLeftovers();
 
 	if (conf.bWantNewPeers){
 		// outbound connections

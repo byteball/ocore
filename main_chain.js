@@ -345,7 +345,7 @@ function updateMainChain(conn, last_unit, onDone){
 										[arrAltBestChildren, arrWitnesses, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS],
 										function(max_alt_rows){
 											if (max_alt_rows.length !== 1)
-												throw "not a single max alt level";
+												throw Error("not a single max alt level");
 											var max_alt_level = max_alt_rows[0].max_alt_level;
 											(min_mc_wl > max_alt_level) ? advanceLastStableMcUnitAndTryNext() : finish();
 										}
@@ -449,14 +449,14 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 		readBestParentAndItsWitnesses(conn, earlier_unit, function(best_parent_unit, arrWitnesses){
 			conn.query("SELECT unit, is_on_main_chain, main_chain_index, level FROM units WHERE best_parent_unit=?", [best_parent_unit], function(rows){
 				if (rows.length === 0)
-					throw "no best children of "+best_parent_unit+"?";
+					throw Error("no best children of "+best_parent_unit+"?");
 				var arrMcRows  = rows.filter(function(row){ return (row.is_on_main_chain === 1); }); // only one element
 				var arrAltRows = rows.filter(function(row){ return (row.is_on_main_chain === 0); });
 				if (arrMcRows.length !== 1)
-					throw "not a single MC child?";
+					throw Error("not a single MC child?");
 				var first_unstable_mc_unit = arrMcRows[0].unit;
 				if (first_unstable_mc_unit !== earlier_unit)
-					throw "first unstable MC unit is not our input unit";
+					throw Error("first unstable MC unit is not our input unit");
 				var first_unstable_mc_index = arrMcRows[0].main_chain_index;
 				var first_unstable_mc_level = arrMcRows[0].level;
 				var arrAltBranchRootUnits = arrAltRows.map(function(row){ return row.unit; });
@@ -475,7 +475,7 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 							FROM units WHERE unit=?", [arrWitnesses, start_unit],
 							function(rows){
 								if (rows.length !== 1)
-									throw "findMinMcWitnessedLevel: not 1 row";
+									throw Error("findMinMcWitnessedLevel: not 1 row");
 								var row = rows[0];
 								if (row.count > 0 && row.witnessed_level < min_mc_wl)
 									min_mc_wl = row.witnessed_level;
@@ -636,7 +636,7 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 								[arrAltBestChildren, arrWitnesses, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS],
 								function(max_alt_rows){
 									if (max_alt_rows.length !== 1)
-										throw "not a single max alt level";
+										throw Error("not a single max alt level");
 									var max_alt_level = max_alt_rows[0].max_alt_level;
 									// allow '=' since alt WL will *never* reach max_alt_level.
 									// The comparison when moving the stability point above is still strict for compatibility
@@ -669,7 +669,7 @@ function determineIfStableInLaterUnitsAndUpdateStableMcFlag(conn, earlier_unit, 
 				storage.readUnitProps(conn, earlier_unit, function(objEarlierUnitProps){
 					var new_last_stable_mci = objEarlierUnitProps.main_chain_index;
 					if (new_last_stable_mci <= last_stable_mci) // fix: it could've been changed by parallel tasks - No, our SQL transaction doesn't see the changes
-						throw "new last stable mci expected to be higher than existing";
+						throw Error("new last stable mci expected to be higher than existing");
 					var mci = last_stable_mci;
 					advanceLastStableMcUnitAndStepForward();
 
@@ -723,7 +723,7 @@ function markMcIndexStable(conn, mci, onDone){
 							return row.content_hash ? cb() : setContentHash(row.unit, cb);
 						// temp-bad
 						if (row.content_hash)
-							throw "temp-bad and with content_hash?";
+							throw Error("temp-bad and with content_hash?");
 						findStableConflictingUnits(row, function(arrConflictingUnits){
 							var sequence = (arrConflictingUnits.length > 0) ? 'final-bad' : 'good';
 							console.log("unit "+row.unit+" has competitors "+arrConflictingUnits+", it becomes "+sequence);
@@ -749,7 +749,7 @@ function markMcIndexStable(conn, mci, onDone){
 	function setContentHash(unit, onSet){
 		storage.readJoint(conn, unit, {
 			ifNotFound: function(){
-				throw "bad unit not found: "+unit;
+				throw Error("bad unit not found: "+unit);
 			},
 			ifFound: function(objJoint){
 				var content_hash = objectHash.getUnitContentHash(objJoint.unit);
@@ -809,7 +809,7 @@ function markMcIndexStable(conn, mci, onDone){
 							[unit], 
 							function(parent_ball_rows){
 								if (parent_ball_rows.some(function(parent_ball_row){ return (parent_ball_row.ball === null); }))
-									throw "some parent balls not found for unit "+unit;
+									throw Error("some parent balls not found for unit "+unit);
 								var arrParentBalls = parent_ball_rows.map(function(parent_ball_row){ return parent_ball_row.ball; });
 								var arrSimilarMcis = getSimilarMcis(mci);
 								var arrSkiplistUnits = [];
@@ -824,7 +824,7 @@ function markMcIndexStable(conn, mci, onDone){
 												var skiplist_unit = row.unit;
 												var skiplist_ball = row.ball;
 												if (!skiplist_ball)
-													throw "no skiplist ball";
+													throw Error("no skiplist ball");
 												arrSkiplistUnits.push(skiplist_unit);
 												arrSkiplistBalls.push(skiplist_ball);
 											});
@@ -839,7 +839,7 @@ function markMcIndexStable(conn, mci, onDone){
 									var ball = objectHash.getBallHash(unit, arrParentBalls, arrSkiplistBalls.sort(), objUnitProps.sequence === 'final-bad');
 									if (objUnitProps.ball){ // already inserted
 										if (objUnitProps.ball !== ball)
-											throw "stored and calculated ball hashes do not match";
+											throw Error("stored and calculated ball hashes do not match, ball="+ball+", objUnitProps="+JSON.stringify(objUnitProps));
 										return cb();
 									}
 									conn.query("INSERT INTO balls (ball, unit) VALUES(?,?)", [ball, unit], function(){

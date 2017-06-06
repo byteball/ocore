@@ -103,6 +103,9 @@ function setDeviceHub(device_hub){
 	}
 }
 
+function isValidPubKey(b64_pubkey){
+	return ecdsa.publicKeyVerify(new Buffer(b64_pubkey, 'base64'));
+}
 
 // -------------------------
 // logging in to hub
@@ -328,7 +331,7 @@ function readMessageInChunksFromOutbox(message_hash, len, handleMessage){
 	function readChunk(){
 		db.query("SELECT SUBSTR(message, ?, ?) AS chunk FROM outbox WHERE message_hash=?", [start, CHUNK_LEN, message_hash], function(rows){
 			if (rows.length !== 1)
-				throw Error('not 1 msg in outbox');
+				throw Error(rows.length+' msgs by hash in outbox');
 			message += rows[0].chunk;
 			start += CHUNK_LEN;
 			(start > len) ? handleMessage(message) : readChunk();
@@ -654,7 +657,6 @@ function addIndirectCorrespondents(arrOtherCosigners, onDone){
 function removeCorrespondentDevice(device_address, onDone){
 	breadcrumbs.add('correspondent removed: '+device_address);
 	var arrQueries = [];
-	db.addQuery(arrQueries, "DELETE FROM chat_messages WHERE correspondent_address=?", [device_address]);
 	db.addQuery(arrQueries, "DELETE FROM outbox WHERE `to`=?", [device_address]);
 	db.addQuery(arrQueries, "DELETE FROM correspondent_devices WHERE device_address=?", [device_address]);
 	async.series(arrQueries, onDone);
@@ -679,11 +681,25 @@ function getWitnessesFromHub(cb){
 	});
 }
 
-
+// responseHandler(error, response) callback
+function requestFromHub(command, params, responseHandler){
+	if (!my_device_hub)
+		return setTimeout(function(){ requestFromHub(command, params, responseHandler); }, 2000);
+	network.findOutboundPeerOrConnect(conf.WS_PROTOCOL+my_device_hub, function(err, ws){
+		if (err)
+			return responseHandler(err);
+		network.sendRequest(ws, command, params, false, function(ws, request, response){
+			if (response.error)
+				return responseHandler(response.error);
+			responseHandler(null, response);
+		});
+	});
+}
 
 
 exports.getMyDevicePubKey = getMyDevicePubKey;
 exports.getMyDeviceAddress = getMyDeviceAddress;
+exports.isValidPubKey = isValidPubKey;
 
 exports.genPrivKey = genPrivKey;
 
@@ -716,3 +732,4 @@ exports.updateCorrespondentProps = updateCorrespondentProps;
 exports.removeCorrespondentDevice = removeCorrespondentDevice;
 exports.addIndirectCorrespondents = addIndirectCorrespondents;
 exports.getWitnessesFromHub = getWitnessesFromHub;
+exports.requestFromHub = requestFromHub;

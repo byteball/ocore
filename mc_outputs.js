@@ -60,9 +60,9 @@ function findMcIndexIntervalToTargetAmount(conn, type, address, max_mci, target_
 				return callbacks.ifNothing();
 			if (max_spendable_mci > max_mci)
 				max_spendable_mci = max_mci;
+			if (target_amount === Infinity)
+				target_amount = 1e15;
 			if (conf.storage === 'mysql'){
-				if (target_amount === Infinity)
-					target_amount = 1e15;
 				conn.query(
 					"SELECT main_chain_index, accumulated, has_sufficient \n\
 					FROM ( \n\
@@ -85,12 +85,14 @@ function findMcIndexIntervalToTargetAmount(conn, type, address, max_mci, target_
 				);
 			}
 			else{
+				var MIN_MC_OUTPUT = (type === 'witnessing') ? 11 : 344;
+				var max_count_outputs = Math.ceil(target_amount/MIN_MC_OUTPUT);
 				conn.query(
 					"SELECT main_chain_index, amount \n\
 					FROM "+table+" \n\
 					WHERE is_spent=0 AND address=? AND main_chain_index>=? AND main_chain_index<=? \n\
-					ORDER BY main_chain_index",
-					[address, from_mci, max_spendable_mci],
+					ORDER BY main_chain_index LIMIT ?",
+					[address, from_mci, max_spendable_mci, max_count_outputs],
 					function(rows){
 						if (rows.length === 0)
 							return callbacks.ifNothing();
