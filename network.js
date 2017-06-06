@@ -2457,6 +2457,11 @@ function startAcceptingConnections(){
 	wss = new WebSocketServer({ port: conf.port });
 	wss.on('connection', function(ws) {
 		var ip = ws.upgradeReq.connection.remoteAddress;
+		if (!ip){
+			console.log("no ip in accepted connection");
+			ws.terminate();
+			return;
+		}
 		if (ws.upgradeReq.headers['x-real-ip'] && (ip === '127.0.0.1' || ip.match(/^192\.168\./))) // we are behind a proxy
 			ip = ws.upgradeReq.headers['x-real-ip'];
 		ws.peer = ip + ":" + ws.upgradeReq.connection.remotePort;
