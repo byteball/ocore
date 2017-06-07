@@ -1,8 +1,9 @@
+/*jslint node: true */
+"use strict";
 var db = require('./db');
-var ValidationUtils = require("./validation_utils.js");
 
 function readBalance(wallet, handleBalance){
-	var walletIsAddress = ValidationUtils.isValidAddress(wallet);
+	var walletIsAddress = typeof wallet === 'string' && wallet.length === 32; // ValidationUtils.isValidAddress
 	var join_my_addresses = walletIsAddress ? "" : "JOIN my_addresses USING(address)";
 	var where_condition = walletIsAddress ? "address=?" : "wallet=?";
 	var assocBalances = {base: {stable: 0, pending: 0}};
