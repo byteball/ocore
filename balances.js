@@ -1,3 +1,6 @@
+var db = require('./db');
+var ValidationUtils = require("./validation_utils.js");
+
 function readBalance(wallet, handleBalance){
 	var walletIsAddress = ValidationUtils.isValidAddress(wallet);
 	var join_my_addresses = walletIsAddress ? "" : "JOIN my_addresses USING(address)";
