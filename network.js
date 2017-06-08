@@ -907,6 +907,7 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 				delete assocUnitsInWork[unit];
 			},
 			ifNeedHashTree: function(){
+				console.log('need hash tree for unit '+unit);
 				if (objJoint.unsigned)
 					throw Error("ifNeedHashTree() unsigned");
 				callbacks.ifNeedHashTree();
@@ -1409,7 +1410,7 @@ function checkCatchupLeftovers(){
 }
 
 function requestCatchup(ws){
-	console.log("will request catchup");
+	console.log("will request catchup from "+ws.peer);
 	eventBus.emit('catching_up_started');
 	catchup.purgeHandledBallsFromHashTree(db, function(){
 		db.query(
