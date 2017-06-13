@@ -164,6 +164,12 @@ function prepareHistory(historyRequest, callbacks){
 		return callbacks.ifError("no requested joints");
 	if (!ValidationUtils.isArrayOfLength(arrWitnesses, constants.COUNT_WITNESSES))
 		return callbacks.ifError("wrong number of witnesses");
+		
+	var assocKnownStableUnits = {};
+	if (arrKnownStableUnits)
+		arrKnownStableUnits.forEach(function(unit){
+			assocKnownStableUnits[unit] = true;
+		});
 	
 	var objResponse = {};
 
@@ -173,11 +179,11 @@ function prepareHistory(historyRequest, callbacks){
 	if (arrAddresses){
 		// we don't filter sequence='good' after the unit is stable, so the client will see final doublespends too
 		arrSelects = ["SELECT DISTINCT unit, main_chain_index, level FROM outputs JOIN units USING(unit) \n\
-			WHERE address IN(?) AND unit NOT IN(?) AND (+sequence='good' OR is_stable=1) \n\
+			WHERE address IN(?) AND (+sequence='good' OR is_stable=1) \n\
 			UNION \n\
 			SELECT DISTINCT unit, main_chain_index, level FROM unit_authors JOIN units USING(unit) \n\
-			WHERE address IN(?) AND unit NOT IN(?) AND (+sequence='good' OR is_stable=1) \n"];
-		arrParams = [arrAddresses, arrKnownStableUnits || -1, arrAddresses, arrKnownStableUnits || -1];
+			WHERE address IN(?) AND (+sequence='good' OR is_stable=1) \n"];
+		arrParams = [arrAddresses, arrAddresses];
 	}
 	if (arrRequestedJoints){
 		arrSelects.push("SELECT unit, main_chain_index, level FROM units WHERE unit IN(?) AND (+sequence='good' OR is_stable=1) \n");
@@ -186,6 +192,7 @@ function prepareHistory(historyRequest, callbacks){
 	var sql = arrSelects.join("UNION \n") + "ORDER BY main_chain_index DESC, level DESC";
 	db.query(sql, arrParams, function(rows){
 		// if no matching units, don't build witness proofs
+		rows = rows.filter(function(row){ return !assocKnownStableUnits[row.unit]; });
 		if (rows.length === 0)
 			return callbacks.ifOk(objResponse);
 		if (rows.length > MAX_HISTORY_ITEMS)
