@@ -38,6 +38,7 @@ function getMyDevicePubKey(){
 function getMyDeviceAddress(){
 	if (!my_device_address)
 		throw Error('my_device_address not defined');
+	checkDeviceAddress();
 	return my_device_address;
 }
 
@@ -52,12 +53,21 @@ function setDevicePrivateKey(priv_key){
 	var new_my_device_address = objectHash.getDeviceAddress(objMyPermanentDeviceKey.pub_b64);
 	if (my_device_address && my_device_address !== new_my_device_address)
 		throw Error('different device address: old '+my_device_address+', new '+new_my_device_address);
+	breadcrumbs.add("same device addresses");
 	my_device_address = new_my_device_address;
 	// this temp pubkey package signs my permanent key and is actually used only if I'm my own hub. 
 	// In this case, there are no intermediaries and TLS already provides perfect forward security
 	network.setMyDeviceProps(my_device_address, createTempPubkeyPackage(objMyPermanentDeviceKey.pub_b64));
 	if (bChanged)
 		loginToHub();
+}
+
+function checkDeviceAddress(){
+	if (!objMyPermanentDeviceKey)
+		return;
+	var derived_my_device_address = objectHash.getDeviceAddress(objMyPermanentDeviceKey.pub_b64);
+	if (my_device_address !== derived_my_device_address)
+		throw Error('different device address: old '+my_device_address+', derived '+derived_my_device_address);
 }
 
 function setTempKeys(temp_priv_key, prev_temp_priv_key, fnSaveTempKeys){
