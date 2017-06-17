@@ -1,5 +1,6 @@
 /*jslint node: true */
 "use strict";
+var _ = require('lodash');
 var db = require('./db');
 
 function readBalance(wallet, handleBalance){
@@ -58,7 +59,26 @@ function readBalance(wallet, handleBalance){
 
 function readSharedAddressesOnWallet(wallet, handleSharedAddresses){
 	db.query("SELECT DISTINCT shared_address FROM my_addresses JOIN shared_address_signing_paths USING(address) WHERE wallet=?", [wallet], function(rows){
-		handleSharedAddresses(rows.map(function(row){ return row.shared_address; }));
+		var arrSharedAddresses = rows.map(function(row){ return row.shared_address; });
+		if (arrSharedAddresses.length === 0)
+			return handleSharedAddresses([]);
+		readSharedAddressesDependingOnAddresses(arrSharedAddresses, function(arrNewSharedAddresses){
+			handleSharedAddresses(arrSharedAddresses.concat(arrNewSharedAddresses));
+		});
+	});
+}
+
+function readSharedAddressesDependingOnAddresses(arrMemberAddresses, handleSharedAddresses){
+	db.query("SELECT DISTINCT shared_address FROM shared_address_signing_paths WHERE address IN(?)", [arrMemberAddresses], function(rows){
+		var arrSharedAddresses = rows.map(function(row){ return row.shared_address; });
+		if (arrSharedAddresses.length === 0)
+			return handleSharedAddresses([]);
+		var arrNewMemberAddresses = _.difference(arrSharedAddresses, arrMemberAddresses);
+		if (arrNewMemberAddresses.length === 0)
+			return handleSharedAddresses([]);
+		readSharedAddressesDependingOnAddresses(arrNewMemberAddresses, function(arrNewSharedAddresses){
+			handleSharedAddresses(arrNewMemberAddresses.concat(arrNewSharedAddresses));
+		});
 	});
 }
 

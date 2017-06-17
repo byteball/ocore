@@ -906,8 +906,12 @@ function readFundedAddresses(asset, wallet, estimated_amount, handleFundedAddres
 function readAdditionalSigningAddresses(arrPayingAddresses, arrSigningAddresses, arrSigningDeviceAddresses, handleAdditionalSigningAddresses){
 	var arrFromAddresses = arrPayingAddresses.concat(arrSigningAddresses);
 	var sql = "SELECT DISTINCT address FROM shared_address_signing_paths \n\
-		JOIN my_addresses USING(address) \n\
 		WHERE shared_address IN(?) \n\
+			AND ( \n\
+				EXISTS (SELECT 1 FROM my_addresses WHERE my_addresses.address=shared_address_signing_paths.address) \n\
+				OR \n\
+				EXISTS (SELECT 1 FROM shared_addresses WHERE shared_addresses.shared_address=shared_address_signing_paths.address) \n\
+			) \n\
 			AND ( \n\
 				NOT EXISTS (SELECT 1 FROM addresses WHERE addresses.address=shared_address_signing_paths.address) \n\
 				OR ( \n\
