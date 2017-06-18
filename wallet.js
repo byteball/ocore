@@ -511,29 +511,36 @@ function forwardPrivateChainsToOtherMembersOfOutputAddresses(arrChains, conn, on
 	conn = conn || db;
 	if (!onSaved)
 		onSaved = function(){};
-	conn.query(
-		"SELECT DISTINCT wallet FROM my_addresses WHERE address IN(?) \n\
-		UNION \n\
-		SELECT DISTINCT wallet FROM shared_address_signing_paths JOIN my_addresses USING(address) WHERE shared_address IN(?)", 
-		[arrOutputAddresses, arrOutputAddresses], 
-		function(rows){
-			if (rows.length === 0){
-			//	breadcrumbs.add("forwardPrivateChainsToOtherMembersOfOutputAddresses: " + JSON.stringify(arrChains)); // remove in livenet
-				eventBus.emit('nonfatal_error', "not my wallet? output addresses: "+arrOutputAddresses.join(', '), new Error());
-			//	throw Error("not my wallet? output addresses: "+arrOutputAddresses.join(', '));
-			}
-			var arrWallets = rows.map(function(row){ return row.wallet; });
-			var arrFuncs = [];
-			if (arrWallets.length > 0)
-				arrFuncs.push(function(cb){
-					walletDefinedByKeys.forwardPrivateChainsToOtherMembersOfWallets(arrChains, arrWallets, conn, cb);
-				});
-			arrFuncs.push(function(cb){
-				walletDefinedByAddresses.forwardPrivateChainsToOtherMembersOfAddresses(arrChains, arrOutputAddresses, conn, cb);
-			});
-			async.series(arrFuncs, onSaved);
+	readWalletsByAddresses(conn, arrOutputAddresses, function(arrWallets){
+		if (arrWallets.length === 0){
+		//	breadcrumbs.add("forwardPrivateChainsToOtherMembersOfOutputAddresses: " + JSON.stringify(arrChains)); // remove in livenet
+			eventBus.emit('nonfatal_error', "not my wallet? output addresses: "+arrOutputAddresses.join(', '), new Error());
+		//	throw Error("not my wallet? output addresses: "+arrOutputAddresses.join(', '));
 		}
-	);
+		var arrFuncs = [];
+		if (arrWallets.length > 0)
+			arrFuncs.push(function(cb){
+				walletDefinedByKeys.forwardPrivateChainsToOtherMembersOfWallets(arrChains, arrWallets, conn, cb);
+			});
+		arrFuncs.push(function(cb){
+			walletDefinedByAddresses.forwardPrivateChainsToOtherMembersOfAddresses(arrChains, arrOutputAddresses, conn, cb);
+		});
+		async.series(arrFuncs, onSaved);
+	});
+}
+
+function readWalletsByAddresses(conn, arrAddresses, handleWallets){
+	conn.query("SELECT DISTINCT wallet FROM my_addresses WHERE address IN(?)", [arrAddresses], function(rows){
+		var arrWallets = rows.map(function(row){ return row.wallet; });
+		conn.query("SELECT DISTINCT address FROM shared_address_signing_paths WHERE shared_address IN(?)", [arrAddresses], function(rows){
+			if (rows.length === 0)
+				return handleWallets(arrWallets);
+			var arrNewAddresses = rows.map(function(row){ return row.address; });
+			readWalletsByAddresses(conn, arrNewAddresses, function(arrNewWallets){
+				handleWallets(_.union(arrWallets, arrNewWallets));
+			});
+		});
+	});
 }
 
 // event emitted in two cases:
