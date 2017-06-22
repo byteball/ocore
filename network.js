@@ -1886,6 +1886,7 @@ function handleJustsaying(ws, subject, body){
 				ws.close(1000, 'incompatible alts');
 				return;
 			}
+			ws.library_version = body.library_version;
 			eventBus.emit('peer_version', ws, body); // handled elsewhere
 			break;
 
@@ -2158,6 +2159,14 @@ function handleRequest(ws, tag, command, params){
 				//if (ws.peer === exports.light_vendor_url)
 				//    sendFreeJoints(ws);
 				return sendErrorResponse(ws, tag, "I'm light, cannot subscribe you to updates");
+			}
+			function version2int(version){
+				var arr = version.split('.');
+				return arr[0]*10000 + arr[1]*100 + arr[2]*1;
+			}
+			if (version2int(ws.library_version) < version2int('0.2.22')){
+				sendErrorResponse(ws, tag, "old core");
+				return ws.close(1000, "old core");
 			}
 			ws.bSubscribed = true;
 			sendResponse(ws, tag, "subscribed");
