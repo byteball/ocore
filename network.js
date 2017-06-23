@@ -1290,7 +1290,7 @@ function notifyLocalWatchedAddressesAboutStableJoints(mci){
 }
 
 function addLightWatchedAddress(address){
-	if (!conf.bLight)
+	if (!conf.bLight || !exports.light_vendor_url)
 		return;
 	findOutboundPeerOrConnect(exports.light_vendor_url, function(err, ws){
 		if (err)
