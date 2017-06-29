@@ -33,8 +33,12 @@ function isValidChash(str, len){
 	return (isStringOfLength(str, len) && chash.isChashValid(str));
 }
 
-function isValidAddress(address){
+function isValidAddressAnyCase(address){
 	return isValidChash(address, 32);
+}
+
+function isValidAddress(address){
+	return (address === address.toUpperCase() && isValidChash(address, 32));
 }
 
 function isValidDeviceAddress(address){
@@ -71,6 +75,7 @@ exports.isNonemptyObject = isNonemptyObject;
 exports.isNonemptyArray = isNonemptyArray;
 exports.isArrayOfLength = isArrayOfLength;
 
+exports.isValidAddressAnyCase = isValidAddressAnyCase;
 exports.isValidAddress = isValidAddress;
 exports.isValidDeviceAddress = isValidDeviceAddress;
 exports.isValidBase64 = isValidBase64;

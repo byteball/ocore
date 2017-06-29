@@ -1404,7 +1404,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 				return callback("bad blinding");
 			if (("blinding" in output) !== ("address" in output))
 				return callback("address and bilinding must come together");
-			if ("address" in output && !isValidAddress(output.address))
+			if ("address" in output && !ValidationUtils.isValidAddressAnyCase(output.address))
 				return callback("output address "+output.address+" invalid");
 			if (output.address)
 				count_open_outputs++;
@@ -1414,7 +1414,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 				return callback("public output must not have blinding");
 			if ("output_hash" in output)
 				return callback("public output must not have output_hash");
-			if (!isValidAddress(output.address))
+			if (!ValidationUtils.isValidAddressAnyCase(output.address))
 				return callback("output address "+output.address+" invalid");
 			if (prev_address > output.address)
 				return callback("output addresses not sorted");
