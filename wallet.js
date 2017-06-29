@@ -22,6 +22,7 @@ var indivisibleAsset = require('./indivisible_asset.js');
 var divisibleAsset = require('./divisible_asset.js');
 var profiler = require('./profiler.js');
 var breadcrumbs = require('./breadcrumbs.js');
+var balances = require('./balances');
 
 var message_counter = 0;
 
@@ -510,29 +511,36 @@ function forwardPrivateChainsToOtherMembersOfOutputAddresses(arrChains, conn, on
 	conn = conn || db;
 	if (!onSaved)
 		onSaved = function(){};
-	conn.query(
-		"SELECT DISTINCT wallet FROM my_addresses WHERE address IN(?) \n\
-		UNION \n\
-		SELECT DISTINCT wallet FROM shared_address_signing_paths JOIN my_addresses USING(address) WHERE shared_address IN(?)", 
-		[arrOutputAddresses, arrOutputAddresses], 
-		function(rows){
-			if (rows.length === 0){
-			//	breadcrumbs.add("forwardPrivateChainsToOtherMembersOfOutputAddresses: " + JSON.stringify(arrChains)); // remove in livenet
-				eventBus.emit('nonfatal_error', "not my wallet? output addresses: "+arrOutputAddresses.join(', '), new Error());
-			//	throw Error("not my wallet? output addresses: "+arrOutputAddresses.join(', '));
-			}
-			var arrWallets = rows.map(function(row){ return row.wallet; });
-			var arrFuncs = [];
-			if (arrWallets.length > 0)
-				arrFuncs.push(function(cb){
-					walletDefinedByKeys.forwardPrivateChainsToOtherMembersOfWallets(arrChains, arrWallets, conn, cb);
-				});
-			arrFuncs.push(function(cb){
-				walletDefinedByAddresses.forwardPrivateChainsToOtherMembersOfAddresses(arrChains, arrOutputAddresses, conn, cb);
-			});
-			async.series(arrFuncs, onSaved);
+	readWalletsByAddresses(conn, arrOutputAddresses, function(arrWallets){
+		if (arrWallets.length === 0){
+		//	breadcrumbs.add("forwardPrivateChainsToOtherMembersOfOutputAddresses: " + JSON.stringify(arrChains)); // remove in livenet
+			eventBus.emit('nonfatal_error', "not my wallet? output addresses: "+arrOutputAddresses.join(', '), new Error());
+		//	throw Error("not my wallet? output addresses: "+arrOutputAddresses.join(', '));
 		}
-	);
+		var arrFuncs = [];
+		if (arrWallets.length > 0)
+			arrFuncs.push(function(cb){
+				walletDefinedByKeys.forwardPrivateChainsToOtherMembersOfWallets(arrChains, arrWallets, conn, cb);
+			});
+		arrFuncs.push(function(cb){
+			walletDefinedByAddresses.forwardPrivateChainsToOtherMembersOfAddresses(arrChains, arrOutputAddresses, conn, cb);
+		});
+		async.series(arrFuncs, onSaved);
+	});
+}
+
+function readWalletsByAddresses(conn, arrAddresses, handleWallets){
+	conn.query("SELECT DISTINCT wallet FROM my_addresses WHERE address IN(?)", [arrAddresses], function(rows){
+		var arrWallets = rows.map(function(row){ return row.wallet; });
+		conn.query("SELECT DISTINCT address FROM shared_address_signing_paths WHERE shared_address IN(?)", [arrAddresses], function(rows){
+			if (rows.length === 0)
+				return handleWallets(arrWallets);
+			var arrNewAddresses = rows.map(function(row){ return row.address; });
+			readWalletsByAddresses(conn, arrNewAddresses, function(arrNewWallets){
+				handleWallets(_.union(arrWallets, arrNewWallets));
+			});
+		});
+	});
 }
 
 // event emitted in two cases:
@@ -640,107 +648,20 @@ function findAddress(address, signing_path, callbacks, fallback_remote_device_ad
 	);
 }
 
-
-
-
-function readSharedAddressesOnWallet(wallet, handleSharedAddresses){
-	db.query("SELECT DISTINCT shared_address FROM my_addresses JOIN shared_address_signing_paths USING(address) WHERE wallet=?", [wallet], function(rows){
-		handleSharedAddresses(rows.map(function(row){ return row.shared_address; }));
-	});
-}
-
 function readSharedBalance(wallet, handleBalance){
-	var assocBalances = {};
-	readSharedAddressesOnWallet(wallet, function(arrSharedAddresses){
-		if (arrSharedAddresses.length === 0)
-			return handleBalance(assocBalances);
-		db.query(
-			"SELECT asset, address, is_stable, SUM(amount) AS balance \n\
-			FROM outputs CROSS JOIN units USING(unit) \n\
-			WHERE is_spent=0 AND sequence='good' AND address IN(?) \n\
-			GROUP BY asset, address, is_stable \n\
-			UNION ALL \n\
-			SELECT NULL AS asset, address, 1 AS is_stable, SUM(amount) AS balance FROM witnessing_outputs \n\
-			WHERE is_spent=0 AND address IN(?) GROUP BY address \n\
-			UNION ALL \n\
-			SELECT NULL AS asset, address, 1 AS is_stable, SUM(amount) AS balance FROM headers_commission_outputs \n\
-			WHERE is_spent=0 AND address IN(?) GROUP BY address", 
-			[arrSharedAddresses, arrSharedAddresses, arrSharedAddresses], 
-			function(rows){
-				for (var i=0; i<rows.length; i++){
-					var row = rows[i];
-					var asset = row.asset || "base";
-					if (!assocBalances[asset])
-						assocBalances[asset] = {};
-					if (!assocBalances[asset][row.address])
-						assocBalances[asset][row.address] = {stable: 0, pending: 0};
-					assocBalances[asset][row.address][row.is_stable ? 'stable' : 'pending'] += row.balance;
-				}
-				handleBalance(assocBalances);
-			}
-		);
-	});
+	balances.readSharedBalance(wallet, handleBalance);
 }
-
 
 function readBalance(wallet, handleBalance){
-	var walletIsAddress = ValidationUtils.isValidAddress(wallet);
-	var join_my_addresses = walletIsAddress ? "" : "JOIN my_addresses USING(address)";
-	var where_condition = walletIsAddress ? "address=?" : "wallet=?";
-	var assocBalances = {base: {stable: 0, pending: 0}};
-	db.query(
-		"SELECT asset, is_stable, SUM(amount) AS balance \n\
-		FROM outputs "+join_my_addresses+" CROSS JOIN units USING(unit) \n\
-		WHERE is_spent=0 AND "+where_condition+" AND sequence='good' \n\
-		GROUP BY asset, is_stable", 
-		[wallet], 
-		function(rows){
-			for (var i=0; i<rows.length; i++){
-				var row = rows[i];
-				var asset = row.asset || "base";
-				if (!assocBalances[asset])
-					assocBalances[asset] = {stable: 0, pending: 0};
-				assocBalances[asset][row.is_stable ? 'stable' : 'pending'] = row.balance;
-			}
-			var my_addresses_join = walletIsAddress ? "" : "my_addresses CROSS JOIN";
-			var using = walletIsAddress ? "" : "USING(address)";
-			db.query(
-				"SELECT SUM(total) AS total FROM ( \n\
-				SELECT SUM(amount) AS total FROM "+my_addresses_join+" witnessing_outputs "+using+" WHERE is_spent=0 AND "+where_condition+" \n\
-				UNION ALL \n\
-				SELECT SUM(amount) AS total FROM "+my_addresses_join+" headers_commission_outputs "+using+" WHERE is_spent=0 AND "+where_condition+" ) AS t",
-				[wallet,wallet],
-				function(rows) {
-					if(rows.length){
-						assocBalances["base"]["stable"] += rows[0].total;
-					}
-					// add 0-balance assets
-					db.query(
-						"SELECT DISTINCT outputs.asset, is_private \n\
-						FROM outputs "+join_my_addresses+" CROSS JOIN units USING(unit) LEFT JOIN assets ON asset=assets.unit \n\
-						WHERE "+where_condition+" AND sequence='good'", 
-						[wallet], 
-						function(rows){
-							for (var i=0; i<rows.length; i++){
-								var row = rows[i];
-								var asset = row.asset || "base";
-								if (!assocBalances[asset])
-									assocBalances[asset] = {stable: 0, pending: 0};
-								assocBalances[asset].is_private = row.is_private;
-							}
-							handleBalance(assocBalances);
-							if (conf.bLight){ // make sure we have all asset definitions available
-								var arrAssets = Object.keys(assocBalances).filter(function(asset){ return (asset !== 'base'); });
-								if (arrAssets.length === 0)
-									return;
-								network.requestProofsOfJointsIfNewOrUnstable(arrAssets);
-							}
-						}
-					);
-				}
-			);
+	balances.readBalance(wallet, function(assocBalances) {
+		handleBalance(assocBalances);
+		if (conf.bLight){ // make sure we have all asset definitions available
+			var arrAssets = Object.keys(assocBalances).filter(function(asset){ return (asset !== 'base'); });
+			if (arrAssets.length === 0)
+				return;
+			network.requestProofsOfJointsIfNewOrUnstable(arrAssets);
 		}
-	);
+	});
 }
 
 function readBalancesOnAddresses(walletId, handleBalancesOnAddresses) {
@@ -992,8 +913,12 @@ function readFundedAddresses(asset, wallet, estimated_amount, handleFundedAddres
 function readAdditionalSigningAddresses(arrPayingAddresses, arrSigningAddresses, arrSigningDeviceAddresses, handleAdditionalSigningAddresses){
 	var arrFromAddresses = arrPayingAddresses.concat(arrSigningAddresses);
 	var sql = "SELECT DISTINCT address FROM shared_address_signing_paths \n\
-		JOIN my_addresses USING(address) \n\
 		WHERE shared_address IN(?) \n\
+			AND ( \n\
+				EXISTS (SELECT 1 FROM my_addresses WHERE my_addresses.address=shared_address_signing_paths.address) \n\
+				OR \n\
+				EXISTS (SELECT 1 FROM shared_addresses WHERE shared_addresses.shared_address=shared_address_signing_paths.address) \n\
+			) \n\
 			AND ( \n\
 				NOT EXISTS (SELECT 1 FROM addresses WHERE addresses.address=shared_address_signing_paths.address) \n\
 				OR ( \n\

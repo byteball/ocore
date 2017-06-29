@@ -371,8 +371,9 @@ function processHashTree(arrBalls, callbacks){
 									
 									if (rows.length !== 2)
 										return finish("expecting to have 2 elements in the chain");
-									if (max_mci !== null && rows[0].main_chain_index !== null && rows[0].main_chain_index !== max_mci)
-										return finish("max mci doesn't match first chain element: max mci = "+max_mci+", first mci = "+rows[0].main_chain_index);
+									// removed: the main chain might be rebuilt if we are sending new units while syncing
+								//	if (max_mci !== null && rows[0].main_chain_index !== null && rows[0].main_chain_index !== max_mci)
+								//		return finish("max mci doesn't match first chain element: max mci = "+max_mci+", first mci = "+rows[0].main_chain_index);
 									if (rows[1].ball !== arrBalls[arrBalls.length-1].ball)
 										return finish("tree root doesn't match second chain element");
 									// remove the last chain element, we now have hash tree instead

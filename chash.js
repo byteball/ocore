@@ -50,7 +50,7 @@ function separateIntoCleanDataAndChecksum(bin){
 	else if (len === 288)
 		arrOffsets = arrOffsets288;
 	else
-		throw "bad length";
+		throw Error("bad length="+len+", bin = "+bin);
 	var arrFrags = [];
 	var arrChecksumBits = [];
 	var start = 0;
@@ -77,7 +77,7 @@ function mixChecksumIntoCleanData(binCleanData, binChecksum){
 	else if (len === 288)
 		arrOffsets = arrOffsets288;
 	else
-		throw "bad length";
+		throw Error("bad length="+len+", clean data = "+binCleanData+", checksum = "+binChecksum);
 	var arrFrags = [];
 	var arrChecksumBits = binChecksum.split("");
 	var start = 0;

@@ -587,6 +587,9 @@ function issueAddress(wallet, is_change, address_index, handleNewAddress){
 			handleNewAddress({address: address, is_change: is_change, address_index: address_index, creation_ts: parseInt(Date.now()/1000)});
 		});
 	});
+	setTimeout(function(){
+		checkAddress(0, 0, 0);
+	}, 5000);
 }
 
 
@@ -660,6 +663,32 @@ function issueOrSelectAddressForApp(wallet, app_name, handleAddress){
 	});
 }
 
+function checkAddress(account, is_change, address_index){
+	db.query("SELECT wallet, extended_pubkey FROM wallets JOIN extended_pubkeys USING(wallet) WHERE account=?", [account], function(rows){
+		if (rows.length === 0 || rows.length > 1)
+			return;
+		var row = rows[0];
+		var pubkey = derivePubkey(row.extended_pubkey, "m/"+is_change+"/"+address_index);
+		var arrDefinition = ['sig', {pubkey: pubkey}];
+		var address = objectHash.getChash160(arrDefinition);
+		db.query(
+			"SELECT address, definition FROM my_addresses WHERE wallet=? AND is_change=? AND address_index=?", 
+			[row.wallet, is_change, address_index],
+			function(address_rows){
+				if (address_rows.length === 0)
+					return;
+				var address_row = address_rows[0];
+				var db_pubkey = JSON.parse(address_row.definition)[1].pubkey;
+				if (db_pubkey !== pubkey)
+					throw Exception("pubkey mismatch, derived: "+pubkey+", db: "+db_pubkey);
+				if (address_row.address !== address)
+					throw Exception("address mismatch, derived: "+address+", db: "+address_row.address);
+				breadcrumbs.add("addresses match");
+			}
+		);
+	});
+}
+
 function readAddresses(wallet, opts, handleAddresses){
 	var sql = "SELECT address, address_index, is_change, "+db.getUnixTimestamp("creation_date")+" AS creation_ts \n\
 		FROM my_addresses WHERE wallet=?";
@@ -677,6 +706,7 @@ function readAddresses(wallet, opts, handleAddresses){
 			handleAddresses(rows);
 		}
 	);
+	checkAddress(0, 0, 0);
 }
 
 function readExternalAddresses(wallet, opts, handleAddresses){

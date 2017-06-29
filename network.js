@@ -907,6 +907,7 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 				delete assocUnitsInWork[unit];
 			},
 			ifNeedHashTree: function(){
+				console.log('need hash tree for unit '+unit);
 				if (objJoint.unsigned)
 					throw Error("ifNeedHashTree() unsigned");
 				callbacks.ifNeedHashTree();
@@ -1289,7 +1290,7 @@ function notifyLocalWatchedAddressesAboutStableJoints(mci){
 }
 
 function addLightWatchedAddress(address){
-	if (!conf.bLight)
+	if (!conf.bLight || !exports.light_vendor_url)
 		return;
 	findOutboundPeerOrConnect(exports.light_vendor_url, function(err, ws){
 		if (err)
@@ -1409,7 +1410,7 @@ function checkCatchupLeftovers(){
 }
 
 function requestCatchup(ws){
-	console.log("will request catchup");
+	console.log("will request catchup from "+ws.peer);
 	eventBus.emit('catching_up_started');
 	catchup.purgeHandledBallsFromHashTree(db, function(){
 		db.query(
@@ -1885,6 +1886,7 @@ function handleJustsaying(ws, subject, body){
 				ws.close(1000, 'incompatible alts');
 				return;
 			}
+			ws.library_version = body.library_version;
 			eventBus.emit('peer_version', ws, body); // handled elsewhere
 			break;
 
@@ -2157,6 +2159,14 @@ function handleRequest(ws, tag, command, params){
 				//if (ws.peer === exports.light_vendor_url)
 				//    sendFreeJoints(ws);
 				return sendErrorResponse(ws, tag, "I'm light, cannot subscribe you to updates");
+			}
+			function version2int(version){
+				var arr = version.split('.');
+				return arr[0]*10000 + arr[1]*100 + arr[2]*1;
+			}
+			if (version2int(ws.library_version) < version2int('0.2.22')){
+				sendErrorResponse(ws, tag, "old core");
+				return ws.close(1000, "old core");
 			}
 			ws.bSubscribed = true;
 			sendResponse(ws, tag, "subscribed");

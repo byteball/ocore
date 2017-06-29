@@ -447,9 +447,10 @@ function readSharedAddressDefinition(shared_address, handleDefinition){
 
 function readSharedAddressCosigners(shared_address, handleCosigners){
 	db.query(
-		"SELECT DISTINCT device_address, name \n\
+		"SELECT DISTINCT device_address, name, "+db.getUnixTimestamp("shared_addresses.creation_date")+" AS creation_ts \n\
 		FROM shared_address_signing_paths \n\
 		JOIN correspondent_devices USING(device_address) \n\
+		JOIN shared_addresses USING(shared_address) \n\
 		WHERE shared_address=? AND device_address!=?",
 		[shared_address, device.getMyDeviceAddress()],
 		function(rows){

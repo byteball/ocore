@@ -657,10 +657,12 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 
 // It is assumed earlier_unit is not marked as stable yet
 // If it appears to be stable, its MC index will be marked as stable, as well as all preceeding MC indexes
-function determineIfStableInLaterUnitsAndUpdateStableMcFlag(conn, earlier_unit, arrLaterUnits, handleResult){
+function determineIfStableInLaterUnitsAndUpdateStableMcFlag(conn, earlier_unit, arrLaterUnits, bStableInDb, handleResult){
 	determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, function(bStable){
 		console.log("determineIfStableInLaterUnits", earlier_unit, arrLaterUnits, bStable);
 		if (!bStable)
+			return handleResult(bStable);
+		if (bStable && bStableInDb)
 			return handleResult(bStable);
 		breadcrumbs.add('stable in parents, will wait for write lock');
 		mutex.lock(["write"], function(unlock){

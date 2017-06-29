@@ -138,7 +138,7 @@ function purgeJointAndDependencies(objJoint, error, onPurgedDependentJoint, onDo
 		conn.addQuery(arrQueries, "INSERT INTO known_bad_joints (unit, json, error) VALUES (?,?,?)", [unit, JSON.stringify(objJoint), error]);
 		conn.addQuery(arrQueries, "DELETE FROM unhandled_joints WHERE unit=?", [unit]); // if any
 		conn.addQuery(arrQueries, "DELETE FROM dependencies WHERE unit=?", [unit]);
-		collectQueriesToPurgeDependentJoints(conn, arrQueries, unit, onPurgedDependentJoint, function(){
+		collectQueriesToPurgeDependentJoints(conn, arrQueries, unit, error, onPurgedDependentJoint, function(){
 			conn.addQuery(arrQueries, "COMMIT");
 			async.series(arrQueries, function(){
 				conn.release();
@@ -154,7 +154,7 @@ function purgeDependencies(unit, error, onPurgedDependentJoint, onDone){
 	db.takeConnectionFromPool(function(conn){
 		var arrQueries = [];
 		conn.addQuery(arrQueries, "BEGIN");
-		collectQueriesToPurgeDependentJoints(conn, arrQueries, unit, onPurgedDependentJoint, function(){
+		collectQueriesToPurgeDependentJoints(conn, arrQueries, unit, error, onPurgedDependentJoint, function(){
 			conn.addQuery(arrQueries, "COMMIT");
 			async.series(arrQueries, function(){
 				conn.release();
@@ -166,14 +166,14 @@ function purgeDependencies(unit, error, onPurgedDependentJoint, onDone){
 }
 
 // onPurgedDependentJoint called for each purged dependent unit
-function collectQueriesToPurgeDependentJoints(conn, arrQueries, unit, onPurgedDependentJoint, onDone){
+function collectQueriesToPurgeDependentJoints(conn, arrQueries, unit, error, onPurgedDependentJoint, onDone){
 	conn.query("SELECT unit, peer FROM dependencies JOIN unhandled_joints USING(unit) WHERE depends_on_unit=?", [unit], function(rows){
 		if (rows.length === 0)
 			return onDone();
 		//conn.addQuery(arrQueries, "DELETE FROM dependencies WHERE depends_on_unit=?", [unit]);
 		var arrUnits = rows.map(function(row) { return row.unit; });
-		conn.addQuery(arrQueries, "INSERT "+conn.getIgnore()+" INTO known_bad_joints (unit, json) \n\
-			SELECT unit, json FROM unhandled_joints WHERE unit IN(?)", [arrUnits]);
+		conn.addQuery(arrQueries, "INSERT "+conn.getIgnore()+" INTO known_bad_joints (unit, json, error) \n\
+			SELECT unit, json, ? FROM unhandled_joints WHERE unit IN(?)", [error, arrUnits]);
 		conn.addQuery(arrQueries, "DELETE FROM unhandled_joints WHERE unit IN(?)", [arrUnits]);
 		conn.addQuery(arrQueries, "DELETE FROM dependencies WHERE unit IN(?)", [arrUnits]);
 		async.eachSeries(
@@ -181,7 +181,7 @@ function collectQueriesToPurgeDependentJoints(conn, arrQueries, unit, onPurgedDe
 			function(row, cb){
 				if (onPurgedDependentJoint)
 					onPurgedDependentJoint(row.unit, row.peer);
-				collectQueriesToPurgeDependentJoints(conn, arrQueries, row.unit, onPurgedDependentJoint, cb);
+				collectQueriesToPurgeDependentJoints(conn, arrQueries, row.unit, error, onPurgedDependentJoint, cb);
 			},
 			onDone
 		);
