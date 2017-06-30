@@ -2164,7 +2164,7 @@ function handleRequest(ws, tag, command, params){
 				var arr = version.split('.');
 				return arr[0]*10000 + arr[1]*100 + arr[2]*1;
 			}
-			if (version2int(ws.library_version) < version2int('0.2.22')){
+			if (typeof ws.library_version === 'string' && version2int(ws.library_version) < version2int('0.2.22')){
 				sendErrorResponse(ws, tag, "old core");
 				return ws.close(1000, "old core");
 			}
