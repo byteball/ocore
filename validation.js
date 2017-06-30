@@ -447,7 +447,8 @@ function validateParents(conn, objJoint, objValidationState, callback){
 				//}
 			}
 			conn.query(
-				"SELECT is_stable, is_on_main_chain, main_chain_index, ball FROM units LEFT JOIN balls USING(unit) WHERE unit=?", 
+				"SELECT is_stable, is_on_main_chain, main_chain_index, ball, (SELECT MAX(main_chain_index) FROM units) AS max_known_mci \n\
+				FROM units LEFT JOIN balls USING(unit) WHERE unit=?", 
 				[last_ball_unit], 
 				function(rows){
 					if (rows.length !== 1) // at the same time, direct parents already received
@@ -463,6 +464,7 @@ function validateParents(conn, objJoint, objValidationState, callback){
 					if (objLastBallUnitProps.ball && objLastBallUnitProps.ball !== last_ball)
 						return callback("last_ball "+last_ball+" and last_ball_unit "+last_ball_unit+" do not match");
 					objValidationState.last_ball_mci = objLastBallUnitProps.main_chain_index;
+					objValidationState.max_known_mci = objLastBallUnitProps.max_known_mci;
 					if (objValidationState.max_parent_limci < objValidationState.last_ball_mci)
 						return callback("last ball unit "+last_ball_unit+" is not included in parents, unit "+objUnit.unit);
 					if (objLastBallUnitProps.is_stable === 1){
@@ -752,10 +754,11 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 	
 	
 	function findConflictingUnits(handleConflictingUnits){
+		var cross = (objValidationState.max_known_mci - objValidationState.max_parent_limci < 100) ? 'CROSS' : '';
 		conn.query( // _left_ join forces use of indexes in units
 			"SELECT unit, is_stable \n\
 			FROM units \n\
-			LEFT JOIN unit_authors USING(unit) \n\
+			"+cross+" JOIN unit_authors USING(unit) \n\
 			WHERE address=? AND (main_chain_index>? OR main_chain_index IS NULL) AND unit != ?",
 			[objAuthor.address, objValidationState.max_parent_limci, objUnit.unit],
 			function(rows){
@@ -819,7 +822,7 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 		//var filter = bNonserial ? "AND sequence='good'" : "";
 		conn.query(
 			"SELECT unit FROM address_definition_changes JOIN units USING(unit) \n\
-			WHERE address=? AND (is_stable=0 OR main_chain_index>?)", 
+			WHERE address=? AND (is_stable=0 OR main_chain_index>? OR main_chain_index IS NULL)", 
 			[objAuthor.address, objValidationState.last_ball_mci], 
 			function(rows){
 				if (rows.length === 0)
@@ -852,9 +855,10 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 		//var next = checkNoPendingOrRetrievableNonserialIncluded;
 		var next = validateDefinition;
 		//var filter = bNonserial ? "AND sequence='good'" : "";
+		var cross = (objValidationState.max_known_mci - objValidationState.last_ball_mci < 100) ? 'CROSS' : '';
 		conn.query( // _left_ join forces use of indexes in units
-			"SELECT unit FROM units LEFT JOIN unit_authors USING(unit) \n\
-			WHERE address=? AND definition_chash IS NOT NULL AND ( /* is_stable=0 OR */ main_chain_index>?)", 
+			"SELECT unit FROM units "+cross+" JOIN unit_authors USING(unit) \n\
+			WHERE address=? AND definition_chash IS NOT NULL AND ( /* is_stable=0 OR */ main_chain_index>? OR main_chain_index IS NULL)", 
 			[objAuthor.address, objValidationState.last_ball_mci], 
 			function(rows){
 				if (rows.length === 0)
@@ -1404,7 +1408,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 				return callback("bad blinding");
 			if (("blinding" in output) !== ("address" in output))
 				return callback("address and bilinding must come together");
-			if ("address" in output && !isValidAddress(output.address))
+			if ("address" in output && !ValidationUtils.isValidAddressAnyCase(output.address))
 				return callback("output address "+output.address+" invalid");
 			if (output.address)
 				count_open_outputs++;
@@ -1414,7 +1418,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 				return callback("public output must not have blinding");
 			if ("output_hash" in output)
 				return callback("public output must not have output_hash");
-			if (!isValidAddress(output.address))
+			if (!ValidationUtils.isValidAddressAnyCase(output.address))
 				return callback("output address "+output.address+" invalid");
 			if (prev_address > output.address)
 				return callback("output addresses not sorted");
