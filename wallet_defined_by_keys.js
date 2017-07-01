@@ -680,9 +680,9 @@ function checkAddress(account, is_change, address_index){
 				var address_row = address_rows[0];
 				var db_pubkey = JSON.parse(address_row.definition)[1].pubkey;
 				if (db_pubkey !== pubkey)
-					throw Exception("pubkey mismatch, derived: "+pubkey+", db: "+db_pubkey);
+					throw Error("pubkey mismatch, derived: "+pubkey+", db: "+db_pubkey);
 				if (address_row.address !== address)
-					throw Exception("address mismatch, derived: "+address+", db: "+address_row.address);
+					throw Error("address mismatch, derived: "+address+", db: "+address_row.address);
 				breadcrumbs.add("addresses match");
 			}
 		);
