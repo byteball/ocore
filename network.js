@@ -1876,6 +1876,8 @@ function handleJustsaying(ws, subject, body){
 				return sendFreeJoints(ws);
 			
 		case 'version':
+			if (!body)
+				return;
 			if (body.protocol_version !== constants.version){
 				sendError(ws, 'Incompatible versions, mine '+constants.version+', yours '+body.protocol_version);
 				ws.close(1000, 'incompatible versions');
@@ -1891,22 +1893,28 @@ function handleJustsaying(ws, subject, body){
 			break;
 
 		case 'new_version': // a new version is available
+			if (!body)
+				return;
 			if (ws.bLoggingIn || ws.bLoggedIn) // accept from hub only
 				eventBus.emit('new_version', ws, body);
 			break;
 
 		case 'hub/push_project_number':
+			if (!body)
+				return;
 			if (ws.bLoggingIn || ws.bLoggedIn)
 				eventBus.emit('receivedPushProjectNumber', ws, body);
 			break;
 		
 		case 'bugreport':
+			if (!body)
+				return;
 			mail.sendBugEmail(body.message, body.exception);
 			break;
 			
 		case 'joint':
 			var objJoint = body;
-			if (!objJoint.unit || !objJoint.unit.unit)
+			if (!objJoint || !objJoint.unit || !objJoint.unit.unit)
 				return sendError(ws, 'no unit');
 			if (objJoint.ball && !storage.isGenesisUnit(objJoint.unit.unit))
 				return sendError(ws, 'only requested joint can contain a ball');
@@ -1926,6 +1934,8 @@ function handleJustsaying(ws, subject, body){
 			break;
 			
 		case 'private_payment':
+			if (!body)
+				return;
 			var arrPrivateElements = body;
 			handleOnlinePrivatePayment(ws, arrPrivateElements, false, {
 				ifError: function(error){
@@ -1944,6 +1954,8 @@ function handleJustsaying(ws, subject, body){
 			break;
 			
 		case 'my_url':
+			if (!body)
+				return;
 			var url = body;
 			if (ws.bOutbound) // ignore: if you are outbound, I already know your url
 				break;
@@ -1974,7 +1986,7 @@ function handleJustsaying(ws, subject, body){
 			
 		case 'want_echo':
 			var echo_string = body;
-			if (ws.bOutbound) // ignore
+			if (ws.bOutbound || !echo_string) // ignore
 				break;
 			// inbound only
 			if (!ws.claimed_url)
@@ -1987,7 +1999,7 @@ function handleJustsaying(ws, subject, body){
 			
 		case 'your_echo': // comes on the same ws as my_url, claimed_url is already set
 			var echo_string = body;
-			if (ws.bOutbound) // ignore
+			if (ws.bOutbound || !echo_string) // ignore
 				break;
 			// inbound only
 			if (!ws.claimed_url)
@@ -2008,6 +2020,8 @@ function handleJustsaying(ws, subject, body){
 			
 		// I'm a hub, the peer wants to authenticate
 		case 'hub/login':
+			if (!body)
+				return;
 			if (!conf.bServeAsHub)
 				return sendError(ws, "I'm not a hub");
 			var objLogin = body;
@@ -2017,6 +2031,8 @@ function handleJustsaying(ws, subject, body){
 				return sendError(ws, "no login params");
 			if (objLogin.pubkey.length !== constants.PUBKEY_LENGTH)
 				return sendError(ws, "wrong pubkey length");
+			if (objLogin.signature.length !== constants.SIG_LENGTH)
+				return sendError(ws, "wrong signature length");
 			if (!ecdsaSig.verify(objectHash.getDeviceMessageHashToSign(objLogin), objLogin.signature, objLogin.pubkey))
 				return sendError(ws, "wrong signature");
 			ws.device_address = objectHash.getDeviceAddress(objLogin.pubkey);
@@ -2072,6 +2088,8 @@ function handleJustsaying(ws, subject, body){
 		case 'hub/challenge':
 		case 'hub/message':
 		case 'hub/message_box_status':
+			if (!body)
+				return;
 			eventBus.emit("message_from_hub", ws, subject, body);
 			break;
 			
