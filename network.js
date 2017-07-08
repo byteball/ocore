@@ -38,6 +38,7 @@ var assocConnectingOutboundWebsockets = {};
 var assocUnitsInWork = {};
 var assocRequestedUnits = {};
 var bCatchingUp = false;
+var bWaitingForCatchupChain = false;
 var bWaitingTillIdle = false;
 var coming_online_time = Date.now();
 var assocReroutedConnectionsByTag = {};
@@ -1027,7 +1028,7 @@ function handleOnlineJoint(ws, objJoint, onDone){
 			onDone();
 		},
 		ifNeedHashTree: function(){
-			if (!bCatchingUp && !isWaitingForCatchupChain())
+			if (!bCatchingUp && !bWaitingForCatchupChain)
 				requestCatchup(ws);
 			// we are not saving the joint so that in case requestCatchup() fails, the joint will be requested again via findLostJoints, 
 			// which will trigger another attempt to request catchup
@@ -1402,7 +1403,7 @@ function checkCatchupLeftovers(){
 			console.log('have catchup leftovers from the previous run');
 			findNextPeer(null, function(ws){
 				console.log('will request leftovers from '+ws.peer);
-				if (!bCatchingUp && !isWaitingForCatchupChain())
+				if (!bCatchingUp && !bWaitingForCatchupChain)
 					requestCatchup(ws);
 			});
 		}
@@ -1434,7 +1435,7 @@ function requestCatchup(ws){
 					
 					// to avoid duplicate requests, we are raising this flag before actually sending the request 
 					// (will also reset the flag only after the response is fully processed)
-					ws.bWaitingForCatchupChain = true;
+					bWaitingForCatchupChain = true;
 					
 					storage.readLastStableMcIndex(db, function(last_stable_mci){
 						storage.readLastMainChainIndex(function(last_known_mci){
@@ -1452,7 +1453,7 @@ function requestCatchup(ws){
 
 function handleCatchupChain(ws, request, response){
 	if (response.error){
-		ws.bWaitingForCatchupChain = false;
+		bWaitingForCatchupChain = false;
 		console.log('catchup request got error response: '+response.error);
 		// findLostJoints will wake up and trigger another attempt to request catchup
 		return;
@@ -1460,23 +1461,20 @@ function handleCatchupChain(ws, request, response){
 	var catchupChain = response;
 	catchup.processCatchupChain(catchupChain, ws.peer, {
 		ifError: function(error){
-			ws.bWaitingForCatchupChain = false;
+			bWaitingForCatchupChain = false;
 			sendError(ws, error);
 		},
 		ifOk: function(){
-			ws.bWaitingForCatchupChain = false;
+			bWaitingForCatchupChain = false;
 			bCatchingUp = true;
 			requestNextHashTree(ws);
 		},
 		ifCurrent: function(){
-			ws.bWaitingForCatchupChain = false;
+			bWaitingForCatchupChain = false;
 		}
 	});
 }
 
-function isWaitingForCatchupChain(){
-	return wss.clients.concat(arrOutboundPeers).some(function(ws) { return ws.bWaitingForCatchupChain; });
-}
 
 
 // hash tree
