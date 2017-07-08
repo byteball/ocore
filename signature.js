@@ -8,7 +8,13 @@ exports.sign = function(hash, priv_key){
 };
 
 exports.verify = function(hash, b64_sig, b64_pub_key){
-	var signature = new Buffer(b64_sig, "base64"); // 64 bytes (32+32)
-	return ecdsa.verify(hash, signature, new Buffer(b64_pub_key, "base64"));
+	try{
+		var signature = new Buffer(b64_sig, "base64"); // 64 bytes (32+32)
+		return ecdsa.verify(hash, signature, new Buffer(b64_pub_key, "base64"));
+	}
+	catch(e){
+		console.log('signature verification exception: '+e.toString());
+		return false;
+	}
 };
 
