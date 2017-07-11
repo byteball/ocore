@@ -793,6 +793,11 @@ function getSavingCallbacks(to_address, callbacks){
 				},
 				ifOk: function(objValidationState, validation_unlock){
 					console.log("Private OK "+objValidationState.sequence);
+					if (objValidationState.sequence !== 'good'){
+						validation_unlock();
+						composer_unlock();
+						return callbacks.ifError("Indivisible asset bad sequence "+objValidationState.sequence);
+					}
 					var bPrivate = !!assocPrivatePayloads;
 					var arrRecipientChains = bPrivate ? [] : null; // chains for to_address
 					var arrCosignerChains = bPrivate ? [] : null; // chains for all output addresses, including change, to be shared with cosigners (if any)

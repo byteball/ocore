@@ -853,6 +853,11 @@ function getSavingCallbacks(callbacks){
 				},
 				ifOk: function(objValidationState, validation_unlock){
 					console.log("base asset OK "+objValidationState.sequence);
+					if (objValidationState.sequence !== 'good'){
+						validation_unlock();
+						composer_unlock();
+						return callbacks.ifError("Bad sequence "+objValidationState.sequence);
+					}
 					postJointToLightVendorIfNecessaryAndSave(
 						objJoint, 
 						function onLightError(err){ // light only
