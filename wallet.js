@@ -683,22 +683,25 @@ function readTransactionHistory(opts, handleHistory){
 	var join_my_addresses = walletIsAddress ? "" : "JOIN my_addresses USING(address)";
 	var where_condition = walletIsAddress ? "address=?" : "wallet=?";
 	var asset_condition = (asset && asset !== "base") ? "asset="+db.escape(asset) : "asset IS NULL";
+	var cross = "";
 	if (opts.unit)
 		where_condition += " AND unit="+db.escape(opts.unit);
-	else if (opts.since_mci && ValidationUtils.isNonnegativeInteger(opts.since_mci))
+	else if (opts.since_mci && ValidationUtils.isNonnegativeInteger(opts.since_mci)){
 		where_condition += " AND main_chain_index>="+opts.since_mci;
+		cross = "CROSS";
+	}
 	db.query(
 		"SELECT unit, level, is_stable, sequence, address, \n\
 			"+db.getUnixTimestamp("units.creation_date")+" AS ts, headers_commission+payload_commission AS fee, \n\
 			SUM(amount) AS amount, address AS to_address, NULL AS from_address, main_chain_index AS mci \n\
-		FROM outputs "+join_my_addresses+" JOIN units USING(unit) \n\
+		FROM units "+cross+" JOIN outputs USING(unit) "+join_my_addresses+" \n\
 		WHERE "+where_condition+" AND "+asset_condition+" \n\
 		GROUP BY unit, address \n\
 		UNION \n\
 		SELECT unit, level, is_stable, sequence, address, \n\
 			"+db.getUnixTimestamp("units.creation_date")+" AS ts, headers_commission+payload_commission AS fee, \n\
 			NULL AS amount, NULL AS to_address, address AS from_address, main_chain_index AS mci \n\
-		FROM inputs "+join_my_addresses+" JOIN units USING(unit) \n\
+		FROM units "+cross+" JOIN inputs USING(unit) "+join_my_addresses+" \n\
 		WHERE "+where_condition+" AND "+asset_condition+" \n\
 		ORDER BY ts DESC"+(opts.limit ? " LIMIT ?" : ""),
 		opts.limit ? [wallet, wallet, opts.limit] : [wallet, wallet],
