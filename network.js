@@ -484,6 +484,7 @@ function findOutboundPeerOrConnect(url, onOpen){
 		throw Error('no url');
 	if (!onOpen)
 		onOpen = function(){};
+	url = url.toLowerCase();
 	var ws = getOutboundPeerWsByUrl(url);
 	if (ws)
 		return onOpen(null, ws);
