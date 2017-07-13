@@ -766,7 +766,8 @@ function handleResponseToJointRequest(ws, request, response){
 			//	return purgeDependenciesAndNotifyPeers(unit, "unit "+unit+" does not exist");
 			db.query("SELECT 1 FROM hash_tree_balls WHERE unit=?", [unit], function(rows){
 				if (rows.length === 0)
-					return purgeDependenciesAndNotifyPeers(unit, "unit "+unit+" does not exist (catching up)");
+					return console.log("unit "+unit+" does not exist (catching up)");
+				//	return purgeDependenciesAndNotifyPeers(unit, "unit "+unit+" does not exist (catching up)");
 				findNextPeer(ws, function(next_ws){
 					breadcrumbs.add("found next peer to reroute joint_not_found "+unit+": "+next_ws.peer);
 					requestJoints(next_ws, [unit]);
