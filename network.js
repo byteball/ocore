@@ -348,6 +348,8 @@ function connectToPeer(url, onOpen) {
 	ws.once('open', function onWsOpen() {
 		breadcrumbs.add('connected to '+url);
 		delete assocConnectingOutboundWebsockets[url];
+		ws.assocPendingRequests = {};
+		ws.assocInPreparingResponse = {};
 		if (!ws.url)
 			throw Error("no url on ws");
 		if (ws.url !== url && ws.url !== url + "/") // browser implementatin of Websocket might add /
@@ -362,8 +364,6 @@ function connectToPeer(url, onOpen) {
 		}
 		ws.peer = url;
 		ws.host = getHostByPeer(ws.peer);
-		ws.assocPendingRequests = {};
-		ws.assocInPreparingResponse = {};
 		ws.bOutbound = true;
 		ws.last_ts = Date.now();
 		console.log('connected to '+url+", host "+ws.host);
