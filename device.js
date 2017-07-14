@@ -38,7 +38,8 @@ function getMyDevicePubKey(){
 function getMyDeviceAddress(){
 	if (!my_device_address)
 		throw Error('my_device_address not defined');
-	checkDeviceAddress();
+	if (typeof window !== 'undefined' && window && window.cordova)
+		checkDeviceAddress();
 	return my_device_address;
 }
 
