@@ -868,12 +868,12 @@ function getSavingCallbacks(to_address, callbacks){
 						writer.saveJoint(
 							objJoint, objValidationState, 
 							preCommitCallback,
-							function onDone(){
+							function onDone(err){
 								console.log("saved unit "+unit);
 								validation_unlock();
 								composer_unlock();
 								if (bPreCommitCallbackFailed)
-									callbacks.ifError("precommit callback failed");
+									callbacks.ifError("precommit callback failed: "+err);
 								else
 									callbacks.ifOk(objJoint, arrRecipientChains, arrCosignerChains);
 							}

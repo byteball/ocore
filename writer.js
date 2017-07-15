@@ -453,9 +453,10 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 							profiler.stop('write-commit');
 							profiler.increment();
 							unlock();
-							eventBus.emit('saved_unit-'+objUnit.unit, objJoint);
+							if (!err)
+								eventBus.emit('saved_unit-'+objUnit.unit, objJoint);
 							if (onDone)
-								onDone();
+								onDone(err);
 							count_writes++;
 							if (conf.storage === 'sqlite')
 								updateSqliteStats();

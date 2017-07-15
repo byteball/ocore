@@ -323,7 +323,7 @@ function getSavingCallbacks(callbacks){
 							writer.saveJoint(
 								objJoint, objValidationState, 
 								preCommitCallback,
-								function onDone(){
+								function onDone(err){
 									console.log("saved unit "+unit, objPrivateElement);
 									validation_unlock();
 									composer_unlock();
