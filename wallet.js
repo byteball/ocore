@@ -1216,8 +1216,12 @@ function readDeviceAddressesUsedInSigningPaths(onDone){
 }
 
 function determineIfDeviceCanBeRemoved(device_address, handleResult) {
-	readDeviceAddressesUsedInSigningPaths(function(arrDeviceAddresses){
-		handleResult(arrDeviceAddresses.indexOf(device_address) === -1);
+	device.readCorrespondent(device_address, function(correspondent){
+		if (!correspondent)
+			return handleResult(false);
+		readDeviceAddressesUsedInSigningPaths(function(arrDeviceAddresses){
+			handleResult(arrDeviceAddresses.indexOf(device_address) === -1);
+		});
 	});
 };
 

@@ -626,7 +626,7 @@ function readCorrespondents(handleCorrespondents){
 
 function readCorrespondent(device_address, handleCorrespondent){
 	db.query("SELECT device_address, hub, name, my_record_pref, peer_record_pref FROM correspondent_devices WHERE device_address=?", [device_address], function(rows){
-		handleCorrespondent(rows[0]);
+		handleCorrespondent(rows.length ? rows[0] : null);
 	});
 }
 
