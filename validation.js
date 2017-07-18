@@ -754,7 +754,7 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 	
 	
 	function findConflictingUnits(handleConflictingUnits){
-		var cross = (objValidationState.max_known_mci - objValidationState.max_parent_limci < 100) ? 'CROSS' : '';
+		var cross = (objValidationState.max_known_mci - objValidationState.max_parent_limci < 1000) ? 'CROSS' : '';
 		conn.query( // _left_ join forces use of indexes in units
 			"SELECT unit, is_stable \n\
 			FROM units \n\
