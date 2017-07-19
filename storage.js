@@ -833,7 +833,7 @@ function generateQueriesToRemoveJoint(conn, unit, arrQueries, cb){
 		conn.addQuery(arrQueries, "DELETE FROM polls WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM votes WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM attestations WHERE unit=?", [unit]);
-		conn.addQuery(arrQueries, "DELETE FROM asset_denominations WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM asset_denominations WHERE asset=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM asset_attestors WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM assets WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM messages WHERE unit=?", [unit]);
@@ -859,7 +859,7 @@ function generateQueriesToVoidJoint(conn, unit, arrQueries, cb){
 		conn.addQuery(arrQueries, "DELETE FROM polls WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM votes WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM attestations WHERE unit=?", [unit]);
-		conn.addQuery(arrQueries, "DELETE FROM asset_denominations WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM asset_denominations WHERE asset=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM asset_attestors WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM assets WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM messages WHERE unit=?", [unit]);
