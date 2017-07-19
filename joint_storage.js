@@ -244,7 +244,16 @@ function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 				function(){
 					if (rows.length > 0)
 						return purgeUncoveredNonserialJoints(true, onDone); // to clean chains of bad units
-					onDone();
+					if (!bByExistenceOfChildren)
+						return onDone();
+					// else 0 rows and bByExistenceOfChildren
+					db.query(
+						"UPDATE units SET is_free=1 WHERE is_free=0 AND main_chain_index IS NULL \n\
+						AND (SELECT 1 FROM parenthoods WHERE parent_unit=unit LIMIT 1) IS NULL",
+						function(){
+							onDone();
+						}
+					);
 				}
 			);
 		}
