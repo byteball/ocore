@@ -828,6 +828,14 @@ function generateQueriesToRemoveJoint(conn, unit, arrQueries, cb){
 		conn.addQuery(arrQueries, "DELETE FROM inputs WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM outputs WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM spend_proofs WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM data_feeds WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM poll_choices WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM polls WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM votes WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM attestations WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM asset_denominations WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM asset_attestors WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM assets WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM messages WHERE unit=?", [unit]);
 	//	conn.addQuery(arrQueries, "DELETE FROM balls WHERE unit=?", [unit]); // if it has a ball, it can't be uncovered
 		conn.addQuery(arrQueries, "DELETE FROM units WHERE unit=?", [unit]);
@@ -846,6 +854,14 @@ function generateQueriesToVoidJoint(conn, unit, arrQueries, cb){
 		conn.addQuery(arrQueries, "DELETE FROM inputs WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM outputs WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM spend_proofs WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM data_feeds WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM poll_choices WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM polls WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM votes WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM attestations WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM asset_denominations WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM asset_attestors WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM assets WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM messages WHERE unit=?", [unit]);
 		cb();
 	});
