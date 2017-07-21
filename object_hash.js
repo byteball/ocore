@@ -8,7 +8,7 @@ function getSourceString(obj) {
 	var arrComponents = [];
 	function extractComponents(variable){
 		if (variable === null)
-			throw Error("null value");
+			throw Error("null value in "+JSON.stringify(obj));
 		switch (typeof variable){
 			case "string":
 				arrComponents.push("s", variable);
