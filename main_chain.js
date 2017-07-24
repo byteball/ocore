@@ -242,7 +242,7 @@ function updateMainChain(conn, last_unit, onDone){
 					profiler.stop('mc-limci-select-initial');
 					profiler.start();
 					if (rows.length === 0 && bRebuiltMc)
-						throw Error("no latest_included_mc_index updated");
+						throw Error("no latest_included_mc_index updated, last_mci="+last_main_chain_index+", affected="+res.affectedRows);
 					async.eachSeries(
 						rows,
 						function(row, cb){
