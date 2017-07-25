@@ -471,14 +471,14 @@ function validateParents(conn, objJoint, objValidationState, callback){
 						// if it were not stable, we wouldn't have had the ball at all
 						if (objLastBallUnitProps.ball !== last_ball)
 							return callback("stable: last_ball "+last_ball+" and last_ball_unit "+last_ball_unit+" do not match");
-					//	if (objValidationState.last_ball_mci <= 625000)
+						if (objValidationState.last_ball_mci <= 800000)
 							return checkNoSameAddressInDifferentParents();
 					}
 					// Last ball is not stable yet in our view. Check if it is stable in view of the parents
 					main_chain.determineIfStableInLaterUnitsAndUpdateStableMcFlag(conn, last_ball_unit, objUnit.parent_units, objLastBallUnitProps.is_stable, function(bStable){
 						if (!bStable && objLastBallUnitProps.is_stable === 1){
-						//	var eventBus = require('./event_bus.js');
-						//	eventBus.emit('nonfatal_error', "last ball is stable, but not stable in parents, unit "+objUnit.unit, new Error());
+							var eventBus = require('./event_bus.js');
+							eventBus.emit('nonfatal_error', "last ball is stable, but not stable in parents, unit "+objUnit.unit, new Error());
 							return checkNoSameAddressInDifferentParents();
 						}
 						else if (!bStable)
