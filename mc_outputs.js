@@ -13,9 +13,13 @@ var conf = require('./conf.js');
 function readNextSpendableMcIndex(conn, type, address, arrConflictingUnits, handleNextSpendableMcIndex){
 	conn.query(
 		"SELECT to_main_chain_index FROM inputs CROSS JOIN units USING(unit) \n\
-		WHERE type=? AND address=? AND sequence='good' AND unit NOT IN(?) \n\
+		WHERE type=? AND address=? AND sequence='good' "+(
+			(arrConflictingUnits && arrConflictingUnits.length > 0) 
+			? " AND unit NOT IN("+arrConflictingUnits.map(function(unit){ return db.escape(unit); }).join(", ")+") " 
+			: ""
+		)+" \n\
 		ORDER BY to_main_chain_index DESC LIMIT 1", 
-		[type, address, (arrConflictingUnits && arrConflictingUnits.length > 0) ? arrConflictingUnits : -1],
+		[type, address],
 		function(rows){
 			var mci = (rows.length > 0) ? (rows[0].to_main_chain_index+1) : 0;
 		//	readNextUnspentMcIndex(conn, type, address, function(next_unspent_mci){
