@@ -52,9 +52,11 @@ function setDevicePrivateKey(priv_key){
 		pub_b64: ecdsa.publicKeyCreate(priv_key, true).toString('base64')
 	};
 	var new_my_device_address = objectHash.getDeviceAddress(objMyPermanentDeviceKey.pub_b64);
-	if (my_device_address && my_device_address !== new_my_device_address)
+	if (my_device_address && my_device_address !== new_my_device_address){
+		breadcrumbs.add('different device address: old '+my_device_address+', new '+new_my_device_address);
 		throw Error('different device address: old '+my_device_address+', new '+new_my_device_address);
-	breadcrumbs.add("same device addresses");
+	}
+	breadcrumbs.add("same device addresses: "+new_my_device_address);
 	my_device_address = new_my_device_address;
 	// this temp pubkey package signs my permanent key and is actually used only if I'm my own hub. 
 	// In this case, there are no intermediaries and TLS already provides perfect forward security
@@ -67,8 +69,10 @@ function checkDeviceAddress(){
 	if (!objMyPermanentDeviceKey)
 		return;
 	var derived_my_device_address = objectHash.getDeviceAddress(objMyPermanentDeviceKey.pub_b64);
-	if (my_device_address !== derived_my_device_address)
+	if (my_device_address !== derived_my_device_address){
+		breadcrumbs.add('different device address: old '+my_device_address+', derived '+derived_my_device_address);
 		throw Error('different device address: old '+my_device_address+', derived '+derived_my_device_address);
+	}
 }
 
 function setTempKeys(temp_priv_key, prev_temp_priv_key, fnSaveTempKeys){
@@ -678,8 +682,13 @@ function removeCorrespondentDevice(device_address, onDone){
 
 
 function getWitnessesFromHub(cb){
-	if (!my_device_hub)
-		return setTimeout(function(){ getWitnessesFromHub(cb); }, 2000);
+	console.log('getWitnessesFromHub');
+	if (!my_device_hub){
+		console.log('getWitnessesFromHub: no hub yet');
+		return setTimeout(function(){
+			getWitnessesFromHub(cb);
+		}, 2000);
+	}
 	network.findOutboundPeerOrConnect(conf.WS_PROTOCOL+my_device_hub, function(err, ws){
 		if (err)
 			return cb(err);

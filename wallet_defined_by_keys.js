@@ -180,7 +180,7 @@ function addWallet(wallet, xPubKey, account, arrWalletDefinitionTemplate, onDone
 			async.eachSeries(
 				arrDeviceAddresses,
 				function(device_address, cb2){
-					console.log("adding device "+device_address);
+					console.log("adding device "+device_address+' to wallet '+wallet);
 					var fields = "wallet, device_address";
 					var values = "?,?";
 					var arrParams = [wallet, device_address];
@@ -206,7 +206,7 @@ function addWallet(wallet, xPubKey, account, arrWalletDefinitionTemplate, onDone
 			async.eachSeries(
 				arrSigningPaths,
 				function(signing_path, cb2){
-					console.log("adding signing path "+signing_path);
+					console.log("adding signing path "+signing_path+' to wallet '+wallet);
 					var device_address = assocDeviceAddressesBySigningPaths[signing_path];
 					db.query(
 						"INSERT INTO wallet_signing_paths (wallet, signing_path, device_address) VALUES (?,?,?)", 
@@ -220,7 +220,7 @@ function addWallet(wallet, xPubKey, account, arrWalletDefinitionTemplate, onDone
 			);
 		}
 	], function(){
-		console.log("addWallet done");
+		console.log("addWallet done "+wallet);
 		(arrDeviceAddresses.length === 1) ? onDone() : checkAndFullyApproveWallet(wallet, onDone);
 	});
 }
@@ -228,6 +228,7 @@ function addWallet(wallet, xPubKey, account, arrWalletDefinitionTemplate, onDone
 // initiator of the new wallet creates records about itself and sends requests to other devices
 function createWallet(xPubKey, account, arrWalletDefinitionTemplate, walletName, handleWallet){
 	var wallet = crypto.createHash("sha256").update(xPubKey, "utf8").digest("base64");
+	console.log('will create wallet '+wallet);
 	var arrDeviceAddresses = getDeviceAddresses(arrWalletDefinitionTemplate);
 	addWallet(wallet, xPubKey, account, arrWalletDefinitionTemplate, function(){
 		handleWallet(wallet);
@@ -272,6 +273,7 @@ function createSinglesigWalletWithExternalPrivateKey(xPubKey, account, device_ad
 
 // called from UI
 function createWalletByDevices(xPubKey, account, count_required_signatures, arrOtherDeviceAddresses, walletName, handleWallet){
+	console.log('createWalletByDevices: xPubKey='+xPubKey+", account="+account);
 	if (arrOtherDeviceAddresses.length === 0)
 		createSinglesigWallet(xPubKey, account, walletName, handleWallet);
 	else
@@ -541,6 +543,7 @@ function deriveAddress(wallet, is_change, address_index, handleNewAddress){
 					if (!row.extended_pubkey)
 						throw Error("no extended_pubkey for wallet "+wallet);
 					params['pubkey@'+row.device_address] = derivePubkey(row.extended_pubkey, path);
+					console.log('pubkey for wallet '+wallet+' path '+path+' device '+row.device_address+' xpub '+row.extended_pubkey+': '+params['pubkey@'+row.device_address]);
 				});
 				var arrDefinition = Definition.replaceInTemplate(arrDefinitionTemplate, params);
 				var address = objectHash.getChash160(arrDefinition);
