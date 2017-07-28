@@ -785,6 +785,7 @@ exports.handleNotificationThatWalletFullyApproved = handleNotificationThatWallet
 exports.addNewAddress = addNewAddress;
 
 exports.issueNextAddress = issueNextAddress;
+exports.readAddressByIndex = readAddressByIndex;
 exports.issueOrSelectNextAddress = issueOrSelectNextAddress;
 exports.issueOrSelectNextChangeAddress = issueOrSelectNextChangeAddress;
 exports.readAddresses = readAddresses;
