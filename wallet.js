@@ -261,7 +261,13 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			
 		case "new_shared_address":
 			// {address: "BASE32", definition: [...], signers: {...}}
-			walletDefinedByAddresses.handleNewSharedAddress(body, callbacks);
+			walletDefinedByAddresses.handleNewSharedAddress(body, {
+				ifError: callbacks.ifError,
+				ifOk: function(){
+					callbacks.ifOk();
+					eventBus.emit('maybe_new_transactions');
+				}
+			});
 			break;
 			
 		// request to sign a unit created on another device

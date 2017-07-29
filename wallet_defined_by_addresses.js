@@ -199,6 +199,7 @@ function addNewSharedAddress(address, arrDefinition, assocSignersByPath, bForwar
 					[address, signerInfo.address, signing_path, signerInfo.member_signing_path, signerInfo.device_address]);
 			}
 			async.series(arrQueries, function(){
+				console.log('added new shared address '+address);
 				eventBus.emit("new_address-"+address);
 				if (conf.bLight)
 					network.addLightWatchedAddress(address);
