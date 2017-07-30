@@ -174,9 +174,9 @@ CREATE TABLE address_definition_changes (
 CREATE TABLE data_feeds (
 	unit CHAR(44) BINARY NOT NULL,
 	message_index TINYINT NOT NULL,
-	feed_name VARCHAR(64) NOT NULL,
+	feed_name VARCHAR(64) BINARY NOT NULL,
 --    type ENUM('string', 'number') NOT NULL,
-	`value` VARCHAR(64) NULL,
+	`value` VARCHAR(64) BINARY NULL,
 	`int_value` BIGINT NULL,
 	PRIMARY KEY (unit, feed_name),
 	KEY byNameStringValue(feed_name, `value`),
@@ -194,7 +194,7 @@ CREATE TABLE polls (
 CREATE TABLE poll_choices (
 	unit CHAR(44) BINARY NOT NULL,
 	choice_index TINYINT NOT NULL,
-	choice VARCHAR(32) NOT NULL,
+	choice VARCHAR(32) BINARY NOT NULL,
 	PRIMARY KEY (unit, choice_index),
 	UNIQUE KEY (unit, choice),
 	FOREIGN KEY byPoll(unit) REFERENCES polls(unit)
@@ -204,7 +204,7 @@ CREATE TABLE votes (
 	unit CHAR(44) BINARY NOT NULL,
 	message_index TINYINT NOT NULL,
 	poll_unit CHAR(44) BINARY NOT NULL,
-	choice VARCHAR(32) NOT NULL,
+	choice VARCHAR(32) BINARY NOT NULL,
 	PRIMARY KEY (unit, message_index),
 	UNIQUE KEY (unit, choice),
 	CONSTRAINT votesByChoice FOREIGN KEY byChoice(poll_unit, choice) REFERENCES poll_choices(unit, choice),
