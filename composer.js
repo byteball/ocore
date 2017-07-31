@@ -426,7 +426,7 @@ function composeJoint(params){
 	var arrSigningAddresses = params.signing_addresses || [];
 	var arrPayingAddresses = params.paying_addresses || [];
 	var arrOutputs = params.outputs || [];
-	var arrMessages = params.messages || [];
+	var arrMessages = _.clone(params.messages || []);
 	var assocPrivatePayloads = params.private_payloads || {}; // those that correspond to a subset of params.messages
 	var fnRetrieveMessages = params.retrieveMessages;
 	var lightProps = params.lightProps;

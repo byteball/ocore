@@ -1027,6 +1027,7 @@ function sendMultiPayment(opts, handleResult)
 	
 	var base_outputs = opts.base_outputs;
 	var asset_outputs = opts.asset_outputs;
+	var messages = opts.messages;
 	
 	if (!wallet && !arrPayingAddresses)
 		throw Error("neither wallet id nor paying addresses");
@@ -1123,6 +1124,7 @@ function sendMultiPayment(opts, handleResult)
 			var params = {
 				available_paying_addresses: arrFundedAddresses, // forces 'minimal' for payments from shared addresses too, it doesn't hurt
 				signing_addresses: arrAllSigningAddresses,
+				messages: messages, 
 				signer: signer, 
 				callbacks: {
 					ifNotEnoughFunds: function(err){
