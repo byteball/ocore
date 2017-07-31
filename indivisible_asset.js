@@ -14,6 +14,7 @@ var writer = require('./writer.js');
 var graph = require('./graph.js');
 var profiler = require('./profiler.js');
 
+var NOT_ENOUGH_FUNDS_ERROR_MESSAGE = "not enough indivisible asset coins that fit the desired amount within the specified tolerances, make sure all your funds are confirmed";
 
 function validatePrivatePayment(conn, objPrivateElement, objPrevPrivateElement, callbacks){
 		
@@ -458,7 +459,9 @@ function pickIndivisibleCoinsForAmount(
 					arrOutputIds.push(row.output_id);
 					accumulated_amount += amount_to_use;
 					if (accumulated_amount >= amount - tolerance_minus && accumulated_amount <= amount + tolerance_plus)
-						return onDone(arrPayloadsWithProofs);
+						return onDone(null, arrPayloadsWithProofs);
+					if (arrPayloadsWithProofs.length >= constants.MAX_MESSAGES_PER_UNIT - 1) // reserve 1 for fees
+						return onDone("Too many messages, try sending a smaller amount");
 					pickNextCoin(amount - accumulated_amount);
 				}
 			);
@@ -467,7 +470,7 @@ function pickIndivisibleCoinsForAmount(
 		function issueNextCoinIfAllowed(remaining_amount){
 			return (!objAsset.issued_by_definer_only || arrAddresses.indexOf(objAsset.definer_address) >= 0) 
 				? issueNextCoin(remaining_amount) 
-				: onDone(null);
+				: onDone(NOT_ENOUGH_FUNDS_ERROR_MESSAGE);
 		}
 		
 		function issueNextCoin(remaining_amount){
@@ -483,7 +486,7 @@ function pickIndivisibleCoinsForAmount(
 				[asset, remaining_amount+tolerance_plus], 
 				function(rows){
 					if (rows.length === 0)
-						return onDone(null);
+						return onDone(NOT_ENOUGH_FUNDS_ERROR_MESSAGE);
 					var row = rows[0];
 					if (!!row.count_coins !== !!objAsset.cap)
 						throw Error("invalid asset cap and count_coins");
@@ -536,7 +539,7 @@ function pickIndivisibleCoinsForAmount(
 							accumulated_amount += amount_to_use;
 							console.log("payloads with proofs: "+JSON.stringify(arrPayloadsWithProofs));
 							if (accumulated_amount >= amount - tolerance_minus && accumulated_amount <= amount + tolerance_plus)
-								return onDone(arrPayloadsWithProofs);
+								return onDone(null, arrPayloadsWithProofs);
 							pickNextCoin(amount - accumulated_amount);
 						}
 					);
@@ -707,11 +710,11 @@ function composeIndivisibleAssetPaymentJoint(params){
 					params.to_address, params.change_address,
 					params.amount, params.tolerance_plus || 0, params.tolerance_minus || 0, 
 					bMultiAuthored, 
-					function(arrPayloadsWithProofs){
+					function(err, arrPayloadsWithProofs){
 						if (!arrPayloadsWithProofs)
 							return onDone({
 								error_code: "NOT_ENOUGH_FUNDS", 
-								error: "not enough indivisible asset coins that fit the desired amount within the specified tolerances, make sure all your funds are confirmed"
+								error: err
 							});
 						var arrMessages = [];
 						var assocPrivatePayloads = {};
