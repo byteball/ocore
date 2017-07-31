@@ -886,6 +886,16 @@ function readFullSigningPaths(conn, address, arrSigningDeviceAddresses, handleSi
 	});
 }
 
+function determineIfFixedDenominations(asset, handleResult){
+	if (!asset)
+		return handleResult(false);
+	storage.readAsset(db, asset, null, function(err, objAsset){
+		if (err)
+			throw Error(err);
+		handleResult(objAsset.fixed_denominations);
+	});
+}
+
 function readFundedAddresses(asset, wallet, estimated_amount, handleFundedAddresses){
 	var walletIsAddresses = ValidationUtils.isNonemptyArray(wallet);
 	if (walletIsAddresses)
@@ -906,8 +916,11 @@ function readFundedAddresses(asset, wallet, estimated_amount, handleFundedAddres
 		GROUP BY address ORDER BY "+order_by,
 		asset ? [wallet, asset] : [wallet],
 		function(rows){
-			var arrFundedAddresses = composer.filterMostFundedAddresses(rows, estimated_amount);
-			handleFundedAddresses(arrFundedAddresses);
+			determineIfFixedDenominations(asset, function(bFixedDenominations){
+				if (bFixedDenominations)
+					estimated_amount = 0; // don't shorten the list of addresses, indivisible_asset.js will do it later according to denominations
+				handleFundedAddresses(composer.filterMostFundedAddresses(rows, estimated_amount));
+			});
 			/*if (arrFundedAddresses.length === 0)
 				return handleFundedAddresses([]);
 			if (!asset)
