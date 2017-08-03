@@ -342,6 +342,7 @@ function getMemberDeviceAddressesBySigningPaths(arrAddressDefinitionTemplate){
 					return;
 				var device_address = address.substr(prefix.length);
 				assocMemberDeviceAddressesBySigningPaths[path] = device_address;
+				break;
 			case 'definition template':
 				throw Error(op+" not supported yet");
 			// all other ops cannot reference device address
