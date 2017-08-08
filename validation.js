@@ -1593,7 +1593,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 						doubleSpendWhere += " AND denomination=?";
 						doubleSpendVars.push(denomination);
 					}
-					if (objAsset && !objAsset.cap){
+					if (objAsset){
 						doubleSpendWhere += " AND serial_number=?";
 						doubleSpendVars.push(input.serial_number);
 					}
