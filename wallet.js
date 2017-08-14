@@ -1050,6 +1050,12 @@ function sendMultiPayment(opts, handleResult)
 		throw Error('to_address and outputs at the same time');
 	if (!asset && asset_outputs)
 		throw Error('base asset and asset outputs');
+	if (amount){
+		if (typeof amount !== 'number')
+			throw Error('amount must be a number');
+		if (amount < 0)
+			throw Error('amount must be positive');
+	}
 	
 	var estimated_amount = amount;
 	if (!estimated_amount && asset_outputs)
