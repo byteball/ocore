@@ -942,6 +942,8 @@ function restorePrivateChains(asset, unit, to_address, handleChains){
 								function(outputs){
 									if (outputs.length === 0)
 										throw Error("outputs not found for mi "+message_index);
+									if (!outputs.some(function(output){ return (output.address && output.blinding); }))
+										throw Error("all outputs are hidden");
 									payload.outputs = outputs;
 									var hidden_payload = _.cloneDeep(payload);
 									hidden_payload.outputs.forEach(function(o){
@@ -954,6 +956,8 @@ function restorePrivateChains(asset, unit, to_address, handleChains){
 									async.forEachOfSeries(
 										payload.outputs,
 										function(output, output_index, cb3){
+											if (!output.address || !output.blinding) // skip
+												return cb3();
 											// we have only heads of the chains so far. Now add the tails.
 											buildPrivateElementsChain(
 												db, unit, message_index, output_index, payload, 
