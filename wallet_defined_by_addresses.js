@@ -58,8 +58,7 @@ function sendNewSharedAddress(device_address, address, arrDefinition, assocSigne
 function createNewSharedAddressByTemplate(arrAddressDefinitionTemplate, my_address, assocMyDeviceAddressesByRelativeSigningPaths){
 	validateAddressDefinitionTemplate(arrAddressDefinitionTemplate, device.getMyDeviceAddress(), function(err, assocMemberDeviceAddressesBySigningPaths){
 		if(err) {
-			console.error(err);
-			return;
+			throw Error(err);
 		}
 
 		// assocMemberDeviceAddressesBySigningPaths are keyed by paths from root to member addresses (not all the way to signing keys)
