@@ -866,17 +866,29 @@ function readFullSigningPaths(conn, address, arrSigningDeviceAddresses, handleSi
 				arrParams.push(arrSigningDeviceAddresses);
 			}
 			conn.query(sql, arrParams, function(rows){
-				async.eachSeries(
-					rows,
-					function(row, cb){
-						if (row.address === ''){ // merkle
-							assocSigningPaths[path_prefix + row.signing_path.substr(1)] = 'merkle';
-							return cb();
+				if(rows.length > 0) {
+					async.eachSeries(
+						rows,
+						function (row, cb) {
+							if (row.address === '') { // merkle
+								assocSigningPaths[path_prefix + row.signing_path.substr(1)] = 'merkle';
+								return cb();
+							}
+
+							goDeeper(row.address, path_prefix + row.signing_path.substr(1), cb);
+						},
+						function(err) {
+							if(err) {
+								console.error(err);
+							} else {
+								onDone();
+							}
 						}
-						goDeeper(row.address, path_prefix + row.signing_path.substr(1), cb);
-					},
-					onDone
-				);
+					);
+				} else {
+					assocSigningPaths[path_prefix] = 'key';
+					onDone();
+				}
 			});
 		});
 	}
