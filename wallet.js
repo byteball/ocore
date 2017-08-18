@@ -877,13 +877,7 @@ function readFullSigningPaths(conn, address, arrSigningDeviceAddresses, handleSi
 
 							goDeeper(row.address, path_prefix + row.signing_path.substr(1), cb);
 						},
-						function(err) {
-							if(err) {
-								console.error(err);
-							} else {
-								onDone();
-							}
-						}
+						onDone
 					);
 				} else {
 					assocSigningPaths[path_prefix] = 'key';
