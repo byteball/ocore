@@ -503,58 +503,10 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 	function validateWitnessListMutations(arrWitnesses){
 		if (!objUnit.parent_units) // genesis
 			return callback();
-		profiler.start();
-		buildListOfMcUnitsWithPotentiallyDifferentWitnesslists(arrWitnesses, function(bHasBestParent, arrMcUnits){
-			profiler.stop('validation-witnesses-build-list');
-			if (!bHasBestParent)
-				return callback("no compatible best parent");
-			//console.log("###### ", arrMcUnits);
-			if (arrMcUnits.length === 0)
-				return checkNoReferencesInWitnessAddressDefinitions(arrWitnesses);
-			if (objValidationState.last_ball_mci < 512000)
-				return checkNoReferencesInWitnessAddressDefinitions(arrWitnesses); // do not enforce before the || bug was fixed
-			profiler.start();
-			// BUG: this || is interpreted as concat in sqlite, this query never worked as intended
-			conn.query(
-				"SELECT units.unit, COUNT(*) AS count_matching_witnesses \n\
-				FROM units JOIN unit_witnesses ON (units.unit=unit_witnesses.unit OR units.witness_list_unit=unit_witnesses.unit) AND address IN(?) \n\
-				WHERE units.unit IN(?) \n\
-				GROUP BY units.unit \n\
-				HAVING count_matching_witnesses<?",
-				[arrWitnesses, arrMcUnits, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS],
-				function(rows){
-					profiler.stop('validation-witnesses-mutations');
-					if (rows.length > 0)
-						return callback("too many ("+(constants.COUNT_WITNESSES - rows[0].count_matching_witnesses)+") witness list mutations relative to MC unit "+rows[0].unit);
-					checkNoReferencesInWitnessAddressDefinitions(arrWitnesses);
-				}
-			);
-		});
-	}
-	
-	// the MC for this function is the MC built from this unit, not our current MC
-	function buildListOfMcUnitsWithPotentiallyDifferentWitnesslists(arrWitnesses, handleList){
-		
-		function addAndGoUp(unit){
-			storage.readStaticUnitProps(conn, unit, function(props){
-				// the parent has the same witness list and the parent has already passed the MC compatibility test
-				if (objUnit.witness_list_unit && objUnit.witness_list_unit === props.witness_list_unit)
-					return handleList(true, arrMcUnits);
-				else
-					arrMcUnits.push(unit);
-				if (unit === last_ball_unit)
-					return handleList(true, arrMcUnits);
-				if (!props.best_parent_unit)
-					throw Error("no best parent of unit "+unit+"?");
-				addAndGoUp(props.best_parent_unit);
-			});
-		}
-		
-		var arrMcUnits = [];
-		storage.determineBestParent(conn, objUnit, arrWitnesses, function(best_parent_unit){
-			if (!best_parent_unit)
-				return handleList(false);
-			addAndGoUp(best_parent_unit);
+		storage.determineIfHasWitnessListMutationsAlongMc(conn, objUnit, last_ball_unit, arrWitnesses, function(err){
+			if (err && objValidationState.last_ball_mci >= 512000) // do not enforce before the || bug was fixed
+				return callback(err);
+			checkNoReferencesInWitnessAddressDefinitions(arrWitnesses);
 		});
 	}
 	

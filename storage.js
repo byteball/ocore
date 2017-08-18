@@ -1231,7 +1231,7 @@ function buildListOfMcUnitsWithPotentiallyDifferentWitnesslists(conn, objUnit, l
 	function addAndGoUp(unit){
 		readStaticUnitProps(conn, unit, function(props){
 			// the parent has the same witness list and the parent has already passed the MC compatibility test
-			if (0 && objUnit.witness_list_unit && objUnit.witness_list_unit === props.witness_list_unit)
+			if (objUnit.witness_list_unit && objUnit.witness_list_unit === props.witness_list_unit)
 				return handleList(true, arrMcUnits);
 			else
 				arrMcUnits.push(unit);
