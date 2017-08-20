@@ -916,6 +916,7 @@ function markMcIndexStable(conn, mci, onDone){
 function getSimilarMcis(mci){
 	var arrSimilarMcis = [];
 	var divisor = 10;
+	if (mci <= 0) return arrSimilarMcis;
 	while (true){
 		if (mci % divisor === 0){
 			arrSimilarMcis.push(mci - divisor);
