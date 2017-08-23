@@ -57,6 +57,10 @@ function sendNewSharedAddress(device_address, address, arrDefinition, assocSigne
 // assocMyDeviceAddressesByRelativeSigningPaths points to my device addresses that hold the actual signing keys
 function createNewSharedAddressByTemplate(arrAddressDefinitionTemplate, my_address, assocMyDeviceAddressesByRelativeSigningPaths){
 	validateAddressDefinitionTemplate(arrAddressDefinitionTemplate, device.getMyDeviceAddress(), function(err, assocMemberDeviceAddressesBySigningPaths){
+		if(err) {
+			throw Error(err);
+		}
+
 		// assocMemberDeviceAddressesBySigningPaths are keyed by paths from root to member addresses (not all the way to signing keys)
 		var arrMemberSigningPaths = Object.keys(assocMemberDeviceAddressesBySigningPaths);
 		var address_definition_template_chash = objectHash.getChash160(arrAddressDefinitionTemplate);
@@ -64,7 +68,7 @@ function createNewSharedAddressByTemplate(arrAddressDefinitionTemplate, my_addre
 			"INSERT INTO pending_shared_addresses (definition_template_chash, definition_template) VALUES(?,?)", 
 			[address_definition_template_chash, JSON.stringify(arrAddressDefinitionTemplate)],
 			function(){
-				async.series(
+				async.eachSeries(
 					arrMemberSigningPaths, 
 					function(signing_path, cb){
 						var device_address = assocMemberDeviceAddressesBySigningPaths[signing_path];
@@ -199,6 +203,7 @@ function addNewSharedAddress(address, arrDefinition, assocSignersByPath, bForwar
 					[address, signerInfo.address, signing_path, signerInfo.member_signing_path, signerInfo.device_address]);
 			}
 			async.series(arrQueries, function(){
+				console.log('added new shared address '+address);
 				eventBus.emit("new_address-"+address);
 				if (conf.bLight)
 					network.addLightWatchedAddress(address);
@@ -341,6 +346,7 @@ function getMemberDeviceAddressesBySigningPaths(arrAddressDefinitionTemplate){
 					return;
 				var device_address = address.substr(prefix.length);
 				assocMemberDeviceAddressesBySigningPaths[path] = device_address;
+				break;
 			case 'definition template':
 				throw Error(op+" not supported yet");
 			// all other ops cannot reference device address
@@ -482,4 +488,4 @@ exports.readSharedAddressCosigners = readSharedAddressCosigners;
 exports.readSharedAddressDefinition = readSharedAddressDefinition;
 exports.determineIfHasMerkle = determineIfHasMerkle;
 exports.createNewSharedAddress = createNewSharedAddress;
-
+exports.createNewSharedAddressByTemplate = createNewSharedAddressByTemplate;

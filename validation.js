@@ -471,14 +471,14 @@ function validateParents(conn, objJoint, objValidationState, callback){
 						// if it were not stable, we wouldn't have had the ball at all
 						if (objLastBallUnitProps.ball !== last_ball)
 							return callback("stable: last_ball "+last_ball+" and last_ball_unit "+last_ball_unit+" do not match");
-					//	if (objValidationState.last_ball_mci <= 625000)
+						if (objValidationState.last_ball_mci <= 800000)
 							return checkNoSameAddressInDifferentParents();
 					}
 					// Last ball is not stable yet in our view. Check if it is stable in view of the parents
 					main_chain.determineIfStableInLaterUnitsAndUpdateStableMcFlag(conn, last_ball_unit, objUnit.parent_units, objLastBallUnitProps.is_stable, function(bStable){
 						if (!bStable && objLastBallUnitProps.is_stable === 1){
-						//	var eventBus = require('./event_bus.js');
-						//	eventBus.emit('nonfatal_error', "last ball is stable, but not stable in parents, unit "+objUnit.unit, new Error());
+							var eventBus = require('./event_bus.js');
+							eventBus.emit('nonfatal_error', "last ball is stable, but not stable in parents, unit "+objUnit.unit, new Error());
 							return checkNoSameAddressInDifferentParents();
 						}
 						else if (!bStable)
@@ -503,58 +503,10 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 	function validateWitnessListMutations(arrWitnesses){
 		if (!objUnit.parent_units) // genesis
 			return callback();
-		profiler.start();
-		buildListOfMcUnitsWithPotentiallyDifferentWitnesslists(arrWitnesses, function(bHasBestParent, arrMcUnits){
-			profiler.stop('validation-witnesses-build-list');
-			if (!bHasBestParent)
-				return callback("no compatible best parent");
-			//console.log("###### ", arrMcUnits);
-			if (arrMcUnits.length === 0)
-				return checkNoReferencesInWitnessAddressDefinitions(arrWitnesses);
-			if (objValidationState.last_ball_mci < 512000)
-				return checkNoReferencesInWitnessAddressDefinitions(arrWitnesses); // do not enforce before the || bug was fixed
-			profiler.start();
-			// BUG: this || is interpreted as concat in sqlite, this query never worked as intended
-			conn.query(
-				"SELECT units.unit, COUNT(*) AS count_matching_witnesses \n\
-				FROM units JOIN unit_witnesses ON (units.unit=unit_witnesses.unit OR units.witness_list_unit=unit_witnesses.unit) AND address IN(?) \n\
-				WHERE units.unit IN(?) \n\
-				GROUP BY units.unit \n\
-				HAVING count_matching_witnesses<?",
-				[arrWitnesses, arrMcUnits, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS],
-				function(rows){
-					profiler.stop('validation-witnesses-mutations');
-					if (rows.length > 0)
-						return callback("too many ("+(constants.COUNT_WITNESSES - rows[0].count_matching_witnesses)+") witness list mutations relative to MC unit "+rows[0].unit);
-					checkNoReferencesInWitnessAddressDefinitions(arrWitnesses);
-				}
-			);
-		});
-	}
-	
-	// the MC for this function is the MC built from this unit, not our current MC
-	function buildListOfMcUnitsWithPotentiallyDifferentWitnesslists(arrWitnesses, handleList){
-		
-		function addAndGoUp(unit){
-			storage.readStaticUnitProps(conn, unit, function(props){
-				// the parent has the same witness list and the parent has already passed the MC compatibility test
-				if (objUnit.witness_list_unit && objUnit.witness_list_unit === props.witness_list_unit)
-					return handleList(true, arrMcUnits);
-				else
-					arrMcUnits.push(unit);
-				if (unit === last_ball_unit)
-					return handleList(true, arrMcUnits);
-				if (!props.best_parent_unit)
-					throw Error("no best parent of unit "+unit+"?");
-				addAndGoUp(props.best_parent_unit);
-			});
-		}
-		
-		var arrMcUnits = [];
-		storage.determineBestParent(conn, objUnit, arrWitnesses, function(best_parent_unit){
-			if (!best_parent_unit)
-				return handleList(false);
-			addAndGoUp(best_parent_unit);
+		storage.determineIfHasWitnessListMutationsAlongMc(conn, objUnit, last_ball_unit, arrWitnesses, function(err){
+			if (err && objValidationState.last_ball_mci >= 512000) // do not enforce before the || bug was fixed
+				return callback(err);
+			checkNoReferencesInWitnessAddressDefinitions(arrWitnesses);
 		});
 	}
 	
@@ -754,7 +706,7 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 	
 	
 	function findConflictingUnits(handleConflictingUnits){
-		var cross = (objValidationState.max_known_mci - objValidationState.max_parent_limci < 100) ? 'CROSS' : '';
+		var cross = (objValidationState.max_known_mci - objValidationState.max_parent_limci < 1000) ? 'CROSS' : '';
 		conn.query( // _left_ join forces use of indexes in units
 			"SELECT unit, is_stable \n\
 			FROM units \n\
@@ -855,7 +807,7 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 		//var next = checkNoPendingOrRetrievableNonserialIncluded;
 		var next = validateDefinition;
 		//var filter = bNonserial ? "AND sequence='good'" : "";
-		var cross = (objValidationState.max_known_mci - objValidationState.last_ball_mci < 100) ? 'CROSS' : '';
+		var cross = (objValidationState.max_known_mci - objValidationState.last_ball_mci < 1000) ? 'CROSS' : '';
 		conn.query( // _left_ join forces use of indexes in units
 			"SELECT unit FROM units "+cross+" JOIN unit_authors USING(unit) \n\
 			WHERE address=? AND definition_chash IS NOT NULL AND ( /* is_stable=0 OR */ main_chain_index>? OR main_chain_index IS NULL)", 
@@ -1593,7 +1545,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 						doubleSpendWhere += " AND denomination=?";
 						doubleSpendVars.push(denomination);
 					}
-					if (objAsset && !objAsset.cap){
+					if (objAsset){
 						doubleSpendWhere += " AND serial_number=?";
 						doubleSpendVars.push(input.serial_number);
 					}

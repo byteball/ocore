@@ -57,6 +57,30 @@ function readBalance(wallet, handleBalance){
 	);
 }
 
+function readOutputsBalance(wallet, handleBalance){
+	var walletIsAddress = typeof wallet === 'string' && wallet.length === 32; // ValidationUtils.isValidAddress
+	var join_my_addresses = walletIsAddress ? "" : "JOIN my_addresses USING(address)";
+	var where_condition = walletIsAddress ? "address=?" : "wallet=?";
+	var assocBalances = {base: {stable: 0, pending: 0}};
+	db.query(
+		"SELECT asset, is_stable, SUM(amount) AS balance \n\
+		FROM outputs "+join_my_addresses+" CROSS JOIN units USING(unit) \n\
+		WHERE is_spent=0 AND "+where_condition+" AND sequence='good' \n\
+		GROUP BY asset, is_stable",
+		[wallet],
+		function(rows){
+			for (var i=0; i<rows.length; i++){
+				var row = rows[i];
+				var asset = row.asset || "base";
+				if (!assocBalances[asset])
+					assocBalances[asset] = {stable: 0, pending: 0};
+				assocBalances[asset][row.is_stable ? 'stable' : 'pending'] = row.balance;
+			}
+			handleBalance(assocBalances);
+		}
+	);
+}
+
 function readSharedAddressesOnWallet(wallet, handleSharedAddresses){
 	db.query("SELECT DISTINCT shared_address FROM my_addresses JOIN shared_address_signing_paths USING(address) WHERE wallet=?", [wallet], function(rows){
 		var arrSharedAddresses = rows.map(function(row){ return row.shared_address; });
@@ -115,5 +139,6 @@ function readSharedBalance(wallet, handleBalance){
 	});
 }
 
-exports.readBalance = readBalance; 
+exports.readBalance = readBalance;
+exports.readOutputsBalance = readOutputsBalance;
 exports.readSharedBalance = readSharedBalance;

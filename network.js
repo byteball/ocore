@@ -38,6 +38,7 @@ var assocConnectingOutboundWebsockets = {};
 var assocUnitsInWork = {};
 var assocRequestedUnits = {};
 var bCatchingUp = false;
+var bWaitingForCatchupChain = false;
 var bWaitingTillIdle = false;
 var coming_online_time = Date.now();
 var assocReroutedConnectionsByTag = {};
@@ -347,6 +348,8 @@ function connectToPeer(url, onOpen) {
 	ws.once('open', function onWsOpen() {
 		breadcrumbs.add('connected to '+url);
 		delete assocConnectingOutboundWebsockets[url];
+		ws.assocPendingRequests = {};
+		ws.assocInPreparingResponse = {};
 		if (!ws.url)
 			throw Error("no url on ws");
 		if (ws.url !== url && ws.url !== url + "/") // browser implementatin of Websocket might add /
@@ -361,8 +364,6 @@ function connectToPeer(url, onOpen) {
 		}
 		ws.peer = url;
 		ws.host = getHostByPeer(ws.peer);
-		ws.assocPendingRequests = {};
-		ws.assocInPreparingResponse = {};
 		ws.bOutbound = true;
 		ws.last_ts = Date.now();
 		console.log('connected to '+url+", host "+ws.host);
@@ -408,7 +409,7 @@ function addOutboundPeers(multiplier){
 	var order_by = (multiplier <= 4) ? "count_new_good_joints DESC" : db.getRandom(); // don't stick to old peers with most accumulated good joints
 	var arrOutboundPeerUrls = arrOutboundPeers.map(function(ws){ return ws.peer; });
 	var arrInboundHosts = wss.clients.map(function(ws){ return ws.host; });
-	var max_new_outbound_peers = conf.MAX_OUTBOUND_CONNECTIONS-arrOutboundPeerUrls.length;
+	var max_new_outbound_peers = Math.min(conf.MAX_OUTBOUND_CONNECTIONS-arrOutboundPeerUrls.length, 5); // having too many connections being opened creates odd delays in db functions
 	if (max_new_outbound_peers <= 0)
 		return;
 	db.query(
@@ -483,6 +484,7 @@ function findOutboundPeerOrConnect(url, onOpen){
 		throw Error('no url');
 	if (!onOpen)
 		onOpen = function(){};
+	url = url.toLowerCase();
 	var ws = getOutboundPeerWsByUrl(url);
 	if (ws)
 		return onOpen(null, ws);
@@ -765,7 +767,8 @@ function handleResponseToJointRequest(ws, request, response){
 			//	return purgeDependenciesAndNotifyPeers(unit, "unit "+unit+" does not exist");
 			db.query("SELECT 1 FROM hash_tree_balls WHERE unit=?", [unit], function(rows){
 				if (rows.length === 0)
-					return purgeDependenciesAndNotifyPeers(unit, "unit "+unit+" does not exist (catching up)");
+					return console.log("unit "+unit+" does not exist (catching up)");
+				//	return purgeDependenciesAndNotifyPeers(unit, "unit "+unit+" does not exist (catching up)");
 				findNextPeer(ws, function(next_ws){
 					breadcrumbs.add("found next peer to reroute joint_not_found "+unit+": "+next_ws.peer);
 					requestJoints(next_ws, [unit]);
@@ -1027,7 +1030,7 @@ function handleOnlineJoint(ws, objJoint, onDone){
 			onDone();
 		},
 		ifNeedHashTree: function(){
-			if (!bCatchingUp && !isWaitingForCatchupChain())
+			if (!bCatchingUp && !bWaitingForCatchupChain)
 				requestCatchup(ws);
 			// we are not saving the joint so that in case requestCatchup() fails, the joint will be requested again via findLostJoints, 
 			// which will trigger another attempt to request catchup
@@ -1402,7 +1405,7 @@ function checkCatchupLeftovers(){
 			console.log('have catchup leftovers from the previous run');
 			findNextPeer(null, function(ws){
 				console.log('will request leftovers from '+ws.peer);
-				if (!bCatchingUp && !isWaitingForCatchupChain())
+				if (!bCatchingUp && !bWaitingForCatchupChain)
 					requestCatchup(ws);
 			});
 		}
@@ -1434,7 +1437,7 @@ function requestCatchup(ws){
 					
 					// to avoid duplicate requests, we are raising this flag before actually sending the request 
 					// (will also reset the flag only after the response is fully processed)
-					ws.bWaitingForCatchupChain = true;
+					bWaitingForCatchupChain = true;
 					
 					storage.readLastStableMcIndex(db, function(last_stable_mci){
 						storage.readLastMainChainIndex(function(last_known_mci){
@@ -1452,7 +1455,7 @@ function requestCatchup(ws){
 
 function handleCatchupChain(ws, request, response){
 	if (response.error){
-		ws.bWaitingForCatchupChain = false;
+		bWaitingForCatchupChain = false;
 		console.log('catchup request got error response: '+response.error);
 		// findLostJoints will wake up and trigger another attempt to request catchup
 		return;
@@ -1460,23 +1463,20 @@ function handleCatchupChain(ws, request, response){
 	var catchupChain = response;
 	catchup.processCatchupChain(catchupChain, ws.peer, {
 		ifError: function(error){
-			ws.bWaitingForCatchupChain = false;
+			bWaitingForCatchupChain = false;
 			sendError(ws, error);
 		},
 		ifOk: function(){
-			ws.bWaitingForCatchupChain = false;
+			bWaitingForCatchupChain = false;
 			bCatchingUp = true;
 			requestNextHashTree(ws);
 		},
 		ifCurrent: function(){
-			ws.bWaitingForCatchupChain = false;
+			bWaitingForCatchupChain = false;
 		}
 	});
 }
 
-function isWaitingForCatchupChain(){
-	return wss.clients.concat(arrOutboundPeers).some(function(ws) { return ws.bWaitingForCatchupChain; });
-}
 
 
 // hash tree
@@ -1876,6 +1876,8 @@ function handleJustsaying(ws, subject, body){
 				return sendFreeJoints(ws);
 			
 		case 'version':
+			if (!body)
+				return;
 			if (body.protocol_version !== constants.version){
 				sendError(ws, 'Incompatible versions, mine '+constants.version+', yours '+body.protocol_version);
 				ws.close(1000, 'incompatible versions');
@@ -1891,22 +1893,28 @@ function handleJustsaying(ws, subject, body){
 			break;
 
 		case 'new_version': // a new version is available
+			if (!body)
+				return;
 			if (ws.bLoggingIn || ws.bLoggedIn) // accept from hub only
 				eventBus.emit('new_version', ws, body);
 			break;
 
 		case 'hub/push_project_number':
+			if (!body)
+				return;
 			if (ws.bLoggingIn || ws.bLoggedIn)
 				eventBus.emit('receivedPushProjectNumber', ws, body);
 			break;
 		
 		case 'bugreport':
+			if (!body)
+				return;
 			mail.sendBugEmail(body.message, body.exception);
 			break;
 			
 		case 'joint':
 			var objJoint = body;
-			if (!objJoint.unit || !objJoint.unit.unit)
+			if (!objJoint || !objJoint.unit || !objJoint.unit.unit)
 				return sendError(ws, 'no unit');
 			if (objJoint.ball && !storage.isGenesisUnit(objJoint.unit.unit))
 				return sendError(ws, 'only requested joint can contain a ball');
@@ -1926,6 +1934,8 @@ function handleJustsaying(ws, subject, body){
 			break;
 			
 		case 'private_payment':
+			if (!body)
+				return;
 			var arrPrivateElements = body;
 			handleOnlinePrivatePayment(ws, arrPrivateElements, false, {
 				ifError: function(error){
@@ -1944,6 +1954,8 @@ function handleJustsaying(ws, subject, body){
 			break;
 			
 		case 'my_url':
+			if (!body)
+				return;
 			var url = body;
 			if (ws.bOutbound) // ignore: if you are outbound, I already know your url
 				break;
@@ -1974,7 +1986,7 @@ function handleJustsaying(ws, subject, body){
 			
 		case 'want_echo':
 			var echo_string = body;
-			if (ws.bOutbound) // ignore
+			if (ws.bOutbound || !echo_string) // ignore
 				break;
 			// inbound only
 			if (!ws.claimed_url)
@@ -1987,7 +1999,7 @@ function handleJustsaying(ws, subject, body){
 			
 		case 'your_echo': // comes on the same ws as my_url, claimed_url is already set
 			var echo_string = body;
-			if (ws.bOutbound) // ignore
+			if (ws.bOutbound || !echo_string) // ignore
 				break;
 			// inbound only
 			if (!ws.claimed_url)
@@ -2008,6 +2020,8 @@ function handleJustsaying(ws, subject, body){
 			
 		// I'm a hub, the peer wants to authenticate
 		case 'hub/login':
+			if (!body)
+				return;
 			if (!conf.bServeAsHub)
 				return sendError(ws, "I'm not a hub");
 			var objLogin = body;
@@ -2017,6 +2031,8 @@ function handleJustsaying(ws, subject, body){
 				return sendError(ws, "no login params");
 			if (objLogin.pubkey.length !== constants.PUBKEY_LENGTH)
 				return sendError(ws, "wrong pubkey length");
+			if (objLogin.signature.length !== constants.SIG_LENGTH)
+				return sendError(ws, "wrong signature length");
 			if (!ecdsaSig.verify(objectHash.getDeviceMessageHashToSign(objLogin), objLogin.signature, objLogin.pubkey))
 				return sendError(ws, "wrong signature");
 			ws.device_address = objectHash.getDeviceAddress(objLogin.pubkey);
@@ -2072,6 +2088,8 @@ function handleJustsaying(ws, subject, body){
 		case 'hub/challenge':
 		case 'hub/message':
 		case 'hub/message_box_status':
+			if (!body)
+				return;
 			eventBus.emit("message_from_hub", ws, subject, body);
 			break;
 			
@@ -2164,7 +2182,7 @@ function handleRequest(ws, tag, command, params){
 				var arr = version.split('.');
 				return arr[0]*10000 + arr[1]*100 + arr[2]*1;
 			}
-			if (version2int(ws.library_version) < version2int('0.2.22')){
+			if (typeof ws.library_version === 'string' && version2int(ws.library_version) < version2int('0.2.22')){
 				sendErrorResponse(ws, tag, "old core");
 				return ws.close(1000, "old core");
 			}

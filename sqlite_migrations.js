@@ -1,7 +1,7 @@
 /*jslint node: true */
 "use strict";
 
-var VERSION = 11;
+var VERSION = 12;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -88,6 +88,8 @@ function migrateDb(connection, onDone){
 				description LONGTEXT NOT NULL \n\
 			);");
 		}
+		if (version < 12)
+			connection.addQuery(arrQueries, "DELETE FROM known_bad_joints");
 		connection.addQuery(arrQueries, "PRAGMA user_version="+VERSION);
 		async.series(arrQueries, onDone);
 	});

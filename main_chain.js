@@ -242,7 +242,7 @@ function updateMainChain(conn, last_unit, onDone){
 					profiler.stop('mc-limci-select-initial');
 					profiler.start();
 					if (rows.length === 0 && bRebuiltMc)
-						throw Error("no latest_included_mc_index updated");
+						throw Error("no latest_included_mc_index updated, last_mci="+last_main_chain_index+", affected="+res.affectedRows);
 					async.eachSeries(
 						rows,
 						function(row, cb){
@@ -765,6 +765,21 @@ function markMcIndexStable(conn, mci, onDone){
 	function findStableConflictingUnits(objUnitProps, handleConflictingUnits){
 		// find potential competitors.
 		// units come here sorted by original unit, so the smallest original on the same MCI comes first and will become good, all others will become final-bad
+		/*
+		Same query optimized for frequent addresses:
+		SELECT competitor_units.*
+		FROM unit_authors AS this_unit_authors 
+		CROSS JOIN units AS this_unit USING(unit)
+		CROSS JOIN units AS competitor_units 
+			ON competitor_units.is_stable=1 
+			AND +competitor_units.sequence='good' 
+			AND (competitor_units.main_chain_index > this_unit.latest_included_mc_index)
+			AND (competitor_units.main_chain_index <= this_unit.main_chain_index)
+		CROSS JOIN unit_authors AS competitor_unit_authors 
+			ON this_unit_authors.address=competitor_unit_authors.address 
+			AND competitor_units.unit = competitor_unit_authors.unit 
+		WHERE this_unit_authors.unit=?
+		*/
 		conn.query(
 			"SELECT competitor_units.* \n\
 			FROM unit_authors AS this_unit_authors \n\

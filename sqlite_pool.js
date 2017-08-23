@@ -81,7 +81,7 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 					last_arg = function(){};
 
 				var sql = arguments[0];
-				//console.log("query: "+sql);
+				//console.log("======= query: "+sql);
 				var bSelect = !!sql.match(/^SELECT/i);
 				var count_arguments_without_callback = bHasCallback ? (arguments.length-1) : arguments.length;
 				var new_args = [];
@@ -98,7 +98,7 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 					//console.log("query done: "+sql);
 					if (err){
 						console.error("\nfailed query:", new_args);
-						throw Error(err+"\n"+sql+"\n"+new_args[1].join(', '));
+						throw Error(err+"\n"+sql+"\n"+new_args[1].map(function(param){ if (param === null) return 'null'; if (param === undefined) return 'undefined'; return param;}).join(', '));
 					}
 					// note that sqlite3 sets nonzero this.changes even when rows were matched but nothing actually changed (new values are same as old)
 					// this.changes appears to be correct for INSERTs despite the documentation states the opposite
@@ -224,6 +224,8 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 	}
 	
 	function close(cb){
+		if (!cb)
+			cb = function(){};
 		bReady = false;
 		if (arrConnections.length === 0)
 			return cb();

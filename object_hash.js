@@ -8,7 +8,7 @@ function getSourceString(obj) {
 	var arrComponents = [];
 	function extractComponents(variable){
 		if (variable === null)
-			throw Error("null value");
+			throw Error("null value in "+JSON.stringify(obj));
 		switch (typeof variable){
 			case "string":
 				arrComponents.push("s", variable);
@@ -22,7 +22,7 @@ function getSourceString(obj) {
 			case "object":
 				if (Array.isArray(variable)){
 					if (variable.length === 0)
-						throw Error("empty array");
+						throw Error("empty array in "+JSON.stringify(obj));
 					arrComponents.push('[');
 					for (var i=0; i<variable.length; i++)
 						extractComponents(variable[i]);
@@ -31,7 +31,7 @@ function getSourceString(obj) {
 				else{
 					var keys = Object.keys(variable).sort();
 					if (keys.length === 0)
-						throw Error("empty object");
+						throw Error("empty object in "+JSON.stringify(obj));
 					keys.forEach(function(key){
 						if (typeof variable[key] === "undefined")
 							throw Error("undefined at "+key+" of "+JSON.stringify(obj));

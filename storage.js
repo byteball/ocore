@@ -588,6 +588,7 @@ function readWitnessesOnMcUnit(conn, main_chain_index, handleWitnesses){
 }*/
 
 
+// max_mci must be stable
 function readDefinitionByAddress(conn, address, max_mci, callbacks){
 	if (max_mci === null)
 		max_mci = MAX_INT32;
@@ -603,9 +604,10 @@ function readDefinitionByAddress(conn, address, max_mci, callbacks){
 	);
 }
 
+// max_mci must be stable
 function readDefinitionAtMci(conn, definition_chash, max_mci, callbacks){
 	var sql = "SELECT definition FROM definitions CROSS JOIN unit_authors USING(definition_chash) CROSS JOIN units USING(unit) \n\
-		WHERE definition_chash=? AND main_chain_index<=?";
+		WHERE definition_chash=? AND is_stable=1 AND sequence='good' AND main_chain_index<=?";
 	var params = [definition_chash, max_mci];
 	conn.query(sql, params, function(rows){
 		if (rows.length === 0)
@@ -826,6 +828,14 @@ function generateQueriesToRemoveJoint(conn, unit, arrQueries, cb){
 		conn.addQuery(arrQueries, "DELETE FROM inputs WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM outputs WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM spend_proofs WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM data_feeds WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM poll_choices WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM polls WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM votes WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM attestations WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM asset_denominations WHERE asset=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM asset_attestors WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM assets WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM messages WHERE unit=?", [unit]);
 	//	conn.addQuery(arrQueries, "DELETE FROM balls WHERE unit=?", [unit]); // if it has a ball, it can't be uncovered
 		conn.addQuery(arrQueries, "DELETE FROM units WHERE unit=?", [unit]);
@@ -844,6 +854,14 @@ function generateQueriesToVoidJoint(conn, unit, arrQueries, cb){
 		conn.addQuery(arrQueries, "DELETE FROM inputs WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM outputs WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM spend_proofs WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM data_feeds WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM poll_choices WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM polls WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM votes WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM attestations WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM asset_denominations WHERE asset=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM asset_attestors WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM assets WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM messages WHERE unit=?", [unit]);
 		cb();
 	});
@@ -1213,7 +1231,7 @@ function buildListOfMcUnitsWithPotentiallyDifferentWitnesslists(conn, objUnit, l
 	function addAndGoUp(unit){
 		readStaticUnitProps(conn, unit, function(props){
 			// the parent has the same witness list and the parent has already passed the MC compatibility test
-			if (0 && objUnit.witness_list_unit && objUnit.witness_list_unit === props.witness_list_unit)
+			if (objUnit.witness_list_unit && objUnit.witness_list_unit === props.witness_list_unit)
 				return handleList(true, arrMcUnits);
 			else
 				arrMcUnits.push(unit);

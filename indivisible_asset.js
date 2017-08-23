@@ -14,6 +14,7 @@ var writer = require('./writer.js');
 var graph = require('./graph.js');
 var profiler = require('./profiler.js');
 
+var NOT_ENOUGH_FUNDS_ERROR_MESSAGE = "not enough indivisible asset coins that fit the desired amount within the specified tolerances, make sure all your funds are confirmed";
 
 function validatePrivatePayment(conn, objPrivateElement, objPrevPrivateElement, callbacks){
 		
@@ -63,6 +64,10 @@ function validatePrivatePayment(conn, objPrivateElement, objPrevPrivateElement, 
 	var our_hidden_output = payload.outputs[objPrivateElement.output_index];
 	if (!ValidationUtils.isNonemptyObject(payload.outputs[objPrivateElement.output_index]))
 		return callbacks.ifError("no output at output_index");
+	if (!ValidationUtils.isValidAddress(objPrivateElement.output.address))
+		return callbacks.ifError("bad address in output");
+	if (!ValidationUtils.isNonemptyString(objPrivateElement.output.blinding))
+		return callbacks.ifError("bad blinding in output");
 	if (objectHash.getBase64Hash(objPrivateElement.output) !== our_hidden_output.output_hash)
 		return callbacks.ifError("output hash doesn't match, output="+JSON.stringify(objPrivateElement.output)+", hash="+our_hidden_output.output_hash);
 	if (!ValidationUtils.isArrayOfLength(payload.inputs, 1))
@@ -458,7 +463,9 @@ function pickIndivisibleCoinsForAmount(
 					arrOutputIds.push(row.output_id);
 					accumulated_amount += amount_to_use;
 					if (accumulated_amount >= amount - tolerance_minus && accumulated_amount <= amount + tolerance_plus)
-						return onDone(arrPayloadsWithProofs);
+						return onDone(null, arrPayloadsWithProofs);
+					if (arrPayloadsWithProofs.length >= constants.MAX_MESSAGES_PER_UNIT - 1) // reserve 1 for fees
+						return onDone("Too many messages, try sending a smaller amount");
 					pickNextCoin(amount - accumulated_amount);
 				}
 			);
@@ -467,7 +474,7 @@ function pickIndivisibleCoinsForAmount(
 		function issueNextCoinIfAllowed(remaining_amount){
 			return (!objAsset.issued_by_definer_only || arrAddresses.indexOf(objAsset.definer_address) >= 0) 
 				? issueNextCoin(remaining_amount) 
-				: onDone(null);
+				: onDone(NOT_ENOUGH_FUNDS_ERROR_MESSAGE);
 		}
 		
 		function issueNextCoin(remaining_amount){
@@ -483,7 +490,7 @@ function pickIndivisibleCoinsForAmount(
 				[asset, remaining_amount+tolerance_plus], 
 				function(rows){
 					if (rows.length === 0)
-						return onDone(null);
+						return onDone(NOT_ENOUGH_FUNDS_ERROR_MESSAGE);
 					var row = rows[0];
 					if (!!row.count_coins !== !!objAsset.cap)
 						throw Error("invalid asset cap and count_coins");
@@ -536,7 +543,7 @@ function pickIndivisibleCoinsForAmount(
 							accumulated_amount += amount_to_use;
 							console.log("payloads with proofs: "+JSON.stringify(arrPayloadsWithProofs));
 							if (accumulated_amount >= amount - tolerance_minus && accumulated_amount <= amount + tolerance_plus)
-								return onDone(arrPayloadsWithProofs);
+								return onDone(null, arrPayloadsWithProofs);
 							pickNextCoin(amount - accumulated_amount);
 						}
 					);
@@ -707,11 +714,11 @@ function composeIndivisibleAssetPaymentJoint(params){
 					params.to_address, params.change_address,
 					params.amount, params.tolerance_plus || 0, params.tolerance_minus || 0, 
 					bMultiAuthored, 
-					function(arrPayloadsWithProofs){
+					function(err, arrPayloadsWithProofs){
 						if (!arrPayloadsWithProofs)
 							return onDone({
 								error_code: "NOT_ENOUGH_FUNDS", 
-								error: "not enough indivisible asset coins that fit the desired amount within the specified tolerances, make sure all your funds are confirmed"
+								error: err
 							});
 						var arrMessages = [];
 						var assocPrivatePayloads = {};
@@ -793,6 +800,11 @@ function getSavingCallbacks(to_address, callbacks){
 				},
 				ifOk: function(objValidationState, validation_unlock){
 					console.log("Private OK "+objValidationState.sequence);
+					if (objValidationState.sequence !== 'good'){
+						validation_unlock();
+						composer_unlock();
+						return callbacks.ifError("Indivisible asset bad sequence "+objValidationState.sequence);
+					}
 					var bPrivate = !!assocPrivatePayloads;
 					var arrRecipientChains = bPrivate ? [] : null; // chains for to_address
 					var arrCosignerChains = bPrivate ? [] : null; // chains for all output addresses, including change, to be shared with cosigners (if any)
@@ -863,12 +875,12 @@ function getSavingCallbacks(to_address, callbacks){
 						writer.saveJoint(
 							objJoint, objValidationState, 
 							preCommitCallback,
-							function onDone(){
+							function onDone(err){
 								console.log("saved unit "+unit);
 								validation_unlock();
 								composer_unlock();
 								if (bPreCommitCallbackFailed)
-									callbacks.ifError("precommit callback failed");
+									callbacks.ifError("precommit callback failed: "+err);
 								else
 									callbacks.ifOk(objJoint, arrRecipientChains, arrCosignerChains);
 							}
@@ -934,6 +946,8 @@ function restorePrivateChains(asset, unit, to_address, handleChains){
 								function(outputs){
 									if (outputs.length === 0)
 										throw Error("outputs not found for mi "+message_index);
+									if (!outputs.some(function(output){ return (output.address && output.blinding); }))
+										throw Error("all outputs are hidden");
 									payload.outputs = outputs;
 									var hidden_payload = _.cloneDeep(payload);
 									hidden_payload.outputs.forEach(function(o){
@@ -946,6 +960,8 @@ function restorePrivateChains(asset, unit, to_address, handleChains){
 									async.forEachOfSeries(
 										payload.outputs,
 										function(output, output_index, cb3){
+											if (!output.address || !output.blinding) // skip
+												return cb3();
 											// we have only heads of the chains so far. Now add the tails.
 											buildPrivateElementsChain(
 												db, unit, message_index, output_index, payload, 

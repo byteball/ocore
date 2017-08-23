@@ -197,9 +197,10 @@ function purgeUncoveredNonserialJointsUnderLock(){
 function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 	var cond = bByExistenceOfChildren ? "(SELECT 1 FROM parenthoods WHERE parent_unit=unit LIMIT 1) IS NULL" : "is_free=1";
 	var order_column = (conf.storage === 'mysql') ? 'creation_date' : 'rowid'; // this column must be indexed!
+	var byIndex = (bByExistenceOfChildren && conf.storage === 'sqlite') ? 'INDEXED BY bySequence' : '';
 	// the purged units can arrive again, no problem
 	db.query( // purge the bad ball if we've already received at least 7 witnesses after receiving the bad ball
-		"SELECT unit FROM units \n\
+		"SELECT unit FROM units "+byIndex+" \n\
 		WHERE "+cond+" AND sequence IN('final-bad','temp-bad') AND content_hash IS NULL \n\
 			AND NOT EXISTS (SELECT * FROM dependencies WHERE depends_on_unit=units.unit) \n\
 			AND NOT EXISTS (SELECT * FROM balls WHERE balls.unit=units.unit) \n\
@@ -243,7 +244,16 @@ function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 				function(){
 					if (rows.length > 0)
 						return purgeUncoveredNonserialJoints(true, onDone); // to clean chains of bad units
-					onDone();
+					if (!bByExistenceOfChildren)
+						return onDone();
+					// else 0 rows and bByExistenceOfChildren
+					db.query(
+						"UPDATE units SET is_free=1 WHERE is_free=0 AND main_chain_index IS NULL \n\
+						AND (SELECT 1 FROM parenthoods WHERE parent_unit=unit LIMIT 1) IS NULL",
+						function(){
+							onDone();
+						}
+					);
 				}
 			);
 		}

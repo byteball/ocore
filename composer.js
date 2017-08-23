@@ -426,7 +426,7 @@ function composeJoint(params){
 	var arrSigningAddresses = params.signing_addresses || [];
 	var arrPayingAddresses = params.paying_addresses || [];
 	var arrOutputs = params.outputs || [];
-	var arrMessages = params.messages || [];
+	var arrMessages = _.clone(params.messages || []);
 	var assocPrivatePayloads = params.private_payloads || {}; // those that correspond to a subset of params.messages
 	var fnRetrieveMessages = params.retrieveMessages;
 	var lightProps = params.lightProps;
@@ -580,24 +580,30 @@ function composeJoint(params){
 					for (var j=0; j<arrSigningPaths.length; j++)
 						objAuthor.authentifiers[arrSigningPaths[j]] = repeatString("-", assocLengthsBySigningPaths[arrSigningPaths[j]]);
 					objUnit.authors.push(objAuthor);
-					conn.query("SELECT 1 FROM addresses WHERE address=?", [from_address], function(rows){
-						if (rows.length === 0) // first message from this address
-							return setDefinition();
-						// try to find last stable change of definition, then check if the definition was already disclosed
-						conn.query(
-							"SELECT definition \n\
-							FROM address_definition_changes CROSS JOIN units USING(unit) LEFT JOIN definitions USING(definition_chash) \n\
-							WHERE address=? AND is_stable=1 AND sequence='good' AND main_chain_index<=? \n\
-							ORDER BY level DESC LIMIT 1", 
-							[from_address, last_ball_mci],
-							function(rows){
-								if (rows.length === 0) // no definition changes at all
-									return cb2();
-								var row = rows[0];
-								row.definition ? cb2() : setDefinition(); // if definition not found in the db, add it into the json
-							}
-						);
-					});
+					conn.query(
+						"SELECT 1 FROM unit_authors CROSS JOIN units USING(unit) \n\
+						WHERE address=? AND is_stable=1 AND sequence='good' AND main_chain_index<=? \n\
+						LIMIT 1", 
+						[from_address, last_ball_mci], 
+						function(rows){
+							if (rows.length === 0) // first message from this address
+								return setDefinition();
+							// try to find last stable change of definition, then check if the definition was already disclosed
+							conn.query(
+								"SELECT definition \n\
+								FROM address_definition_changes CROSS JOIN units USING(unit) LEFT JOIN definitions USING(definition_chash) \n\
+								WHERE address=? AND is_stable=1 AND sequence='good' AND main_chain_index<=? \n\
+								ORDER BY level DESC LIMIT 1", 
+								[from_address, last_ball_mci],
+								function(rows){
+									if (rows.length === 0) // no definition changes at all
+										return cb2();
+									var row = rows[0];
+									row.definition ? cb2() : setDefinition(); // if definition not found in the db, add it into the json
+								}
+							);
+						}
+					);
 				});
 			}, cb);
 		},
@@ -853,6 +859,11 @@ function getSavingCallbacks(callbacks){
 				},
 				ifOk: function(objValidationState, validation_unlock){
 					console.log("base asset OK "+objValidationState.sequence);
+					if (objValidationState.sequence !== 'good'){
+						validation_unlock();
+						composer_unlock();
+						return callbacks.ifError("Bad sequence "+objValidationState.sequence);
+					}
 					postJointToLightVendorIfNecessaryAndSave(
 						objJoint, 
 						function onLightError(err){ // light only

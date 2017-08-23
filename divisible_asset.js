@@ -282,6 +282,11 @@ function getSavingCallbacks(callbacks){
 				},
 				ifOk: function(objValidationState, validation_unlock){
 					console.log("divisible asset OK "+objValidationState.sequence);
+					if (objValidationState.sequence !== 'good'){
+						validation_unlock();
+						composer_unlock();
+						return callbacks.ifError("Divisible asset bad sequence "+objValidationState.sequence);
+					}
 					var bPrivate = !!private_payload;
 					var objPrivateElement;
 					var preCommitCallback = null;
@@ -318,7 +323,7 @@ function getSavingCallbacks(callbacks){
 							writer.saveJoint(
 								objJoint, objValidationState, 
 								preCommitCallback,
-								function onDone(){
+								function onDone(err){
 									console.log("saved unit "+unit, objPrivateElement);
 									validation_unlock();
 									composer_unlock();

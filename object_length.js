@@ -22,7 +22,7 @@ function getLength(value) {
 			else    
 				for (var key in value){
 					if (typeof value[key] === "undefined")
-						throw Error("undefined at "+key);
+						throw Error("undefined at "+key+" of "+JSON.stringify(value));
 					len += getLength(value[key]);
 				}
 			return len;
