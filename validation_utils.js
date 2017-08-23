@@ -38,7 +38,7 @@ function isValidAddressAnyCase(address){
 }
 
 function isValidAddress(address){
-	return (address === address.toUpperCase() && isValidChash(address, 32));
+	return (typeof address === "string" && address === address.toUpperCase() && isValidChash(address, 32));
 }
 
 function isValidDeviceAddress(address){
@@ -58,7 +58,7 @@ function isNonemptyObject(obj){
 }
 
 function isValidBase64(b64, len){
-	return (b64.length === len && b64 === (new Buffer(b64, "base64")).toString("base64"));
+	return (typeof b64 === "string" && b64.length === len && b64 === (new Buffer(b64, "base64")).toString("base64"));
 }
 
 exports.hasFieldsExcept = hasFieldsExcept;
