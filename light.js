@@ -175,22 +175,21 @@ function prepareHistory(historyRequest, callbacks){
 
 	// add my joints and proofchain to these joints
 	var arrSelects = [];
-	var arrParams = [];
 	if (arrAddresses){
 		// we don't filter sequence='good' after the unit is stable, so the client will see final doublespends too
+		var strAddressList = arrAddresses.map(db.escape).join(', ');
 		arrSelects = ["SELECT DISTINCT unit, main_chain_index, level FROM outputs JOIN units USING(unit) \n\
-			WHERE address IN(?) AND (+sequence='good' OR is_stable=1) \n\
+			WHERE address IN("+strAddressList+") AND (+sequence='good' OR is_stable=1) \n\
 			UNION \n\
 			SELECT DISTINCT unit, main_chain_index, level FROM unit_authors JOIN units USING(unit) \n\
-			WHERE address IN(?) AND (+sequence='good' OR is_stable=1) \n"];
-		arrParams = [arrAddresses, arrAddresses];
+			WHERE address IN("+strAddressList+") AND (+sequence='good' OR is_stable=1) \n"];
 	}
 	if (arrRequestedJoints){
-		arrSelects.push("SELECT unit, main_chain_index, level FROM units WHERE unit IN(?) AND (+sequence='good' OR is_stable=1) \n");
-		arrParams.push(arrRequestedJoints.slice(0, 400));
+		var strUnitList = arrRequestedJoints.map(db.escape).join(', ');
+		arrSelects.push("SELECT unit, main_chain_index, level FROM units WHERE unit IN("+strUnitList+") AND (+sequence='good' OR is_stable=1) \n");
 	}
 	var sql = arrSelects.join("UNION \n") + "ORDER BY main_chain_index DESC, level DESC";
-	db.query(sql, arrParams, function(rows){
+	db.query(sql, function(rows){
 		// if no matching units, don't build witness proofs
 		rows = rows.filter(function(row){ return !assocKnownStableUnits[row.unit]; });
 		if (rows.length === 0)
