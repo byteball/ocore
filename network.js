@@ -1664,7 +1664,7 @@ function handleSavedPrivatePayments(unit){
 							},
 							ifError: function(error){
 								console.log("validation of priv: "+error);
-								throw Error(error);
+							//	throw Error(error);
 								if (ws)
 									sendResult(ws, {private_payment_in_unit: row.unit, result: 'error', error: error});
 								deleteHandledPrivateChain(row.unit, row.message_index, row.output_index, cb);
