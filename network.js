@@ -1909,6 +1909,8 @@ function handleJustsaying(ws, subject, body){
 		case 'bugreport':
 			if (!body)
 				return;
+			if (conf.ignoreBugreportRegexp && new RegExp(conf.ignoreBugreportRegexp).test(body.message))
+				return console.log('ignoring bugreport');
 			mail.sendBugEmail(body.message, body.exception);
 			break;
 			
