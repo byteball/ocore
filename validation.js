@@ -816,7 +816,7 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 				if (rows.length === 0)
 					return next();
 				if (!bNonserial || objValidationState.arrAddressesWithForkedPath.indexOf(objAuthor.address) === -1)
-					callback("you can't send anything before your last definition is stable and before last ball");
+					return callback("you can't send anything before your last definition is stable and before last ball");
 				// from this point, our unit is nonserial
 				async.eachSeries(
 					rows,
