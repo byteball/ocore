@@ -120,8 +120,11 @@ function readNextAccount(handleAccount){
 // check that all members agree that the wallet is fully approved now
 function checkAndFinalizeWallet(wallet, onDone){
 	db.query("SELECT member_ready_date FROM wallets LEFT JOIN extended_pubkeys USING(wallet) WHERE wallets.wallet=?", [wallet], function(rows){
-		if (rows.length === 0) // wallet not created yet
-			throw Error("no wallet in checkAndFinalizeWallet");
+		if (rows.length === 0){ // wallet not created yet or already deleted
+		//	throw Error("no wallet in checkAndFinalizeWallet");
+			console.log("no wallet in checkAndFinalizeWallet");
+			return onDone ? onDone() : null;
+		}
 		if (rows.some(function(row){ return !row.member_ready_date; }))
 			return onDone ? onDone() : null;
 		db.query("UPDATE wallets SET ready_date="+db.getNow()+" WHERE wallet=? AND ready_date IS NULL", [wallet], function(){
