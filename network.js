@@ -1909,7 +1909,7 @@ function handleJustsaying(ws, subject, body){
 		case 'bugreport':
 			if (!body)
 				return;
-			if (conf.ignoreBugreportRegexp && new RegExp(conf.ignoreBugreportRegexp).test(body.message))
+			if (conf.ignoreBugreportRegexp && new RegExp(conf.ignoreBugreportRegexp).test(body.exception.toString()))
 				return console.log('ignoring bugreport');
 			mail.sendBugEmail(body.message, body.exception);
 			break;
