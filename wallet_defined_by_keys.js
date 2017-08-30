@@ -413,12 +413,16 @@ function readCosigners(wallet, handleCosigners){
 // silently adds new address upon receiving a network message
 function addNewAddress(wallet, is_change, address_index, address, handleError){
 	breadcrumbs.add('addNewAddress is_change='+is_change+', index='+address_index+', address='+address);
-	deriveAddress(wallet, is_change, address_index, function(new_address, arrDefinition){
-		if (new_address !== address)
-			return handleError("I derived address "+new_address+", your address "+address);
-		recordAddress(wallet, is_change, address_index, address, arrDefinition, function(){
-			eventBus.emit("new_wallet_address", address);
-			handleError();
+	db.query("SELECT 1 FROM wallets WHERE wallet=?", [wallet], function(rows){
+		if (rows.length === 0)
+			return handleError("wallet "+wallet+" does not exist");
+		deriveAddress(wallet, is_change, address_index, function(new_address, arrDefinition){
+			if (new_address !== address)
+				return handleError("I derived address "+new_address+", your address "+address);
+			recordAddress(wallet, is_change, address_index, address, arrDefinition, function(){
+				eventBus.emit("new_wallet_address", address);
+				handleError();
+			});
 		});
 	});
 }
