@@ -1742,7 +1742,7 @@ function requestProofsOfJoints(arrUnits, onDone){
 			}
 			light.processHistory(response, {
 				ifError: function(err){
-					network.sendError(ws, err);
+					sendError(ws, err);
 					onDone(err);
 				},
 				ifOk: function(){
