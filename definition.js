@@ -866,7 +866,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 						var input = inputs[j];
 						if (!input.address) // augment should add it
 							throw Error('no input address');
-						if (input.address === address)
+						if (input.address === address && arrSrcUnits.indexOf(input.unit) === -1)
 							arrSrcUnits.push(input.unit);
 					}
 				}
