@@ -93,7 +93,8 @@ function readSharedAddressesOnWallet(wallet, handleSharedAddresses){
 }
 
 function readSharedAddressesDependingOnAddresses(arrMemberAddresses, handleSharedAddresses){
-	db.query("SELECT DISTINCT shared_address FROM shared_address_signing_paths WHERE address IN(?)", [arrMemberAddresses], function(rows){
+	var strAddressList = arrMemberAddresses.map(db.escape).join(', ');
+	db.query("SELECT DISTINCT shared_address FROM shared_address_signing_paths WHERE address IN("+strAddressList+")", function(rows){
 		var arrSharedAddresses = rows.map(function(row){ return row.shared_address; });
 		if (arrSharedAddresses.length === 0)
 			return handleSharedAddresses([]);
