@@ -307,7 +307,7 @@ function processHistory(objResponse, callbacks){
 			mutex.lock(["light_joints"], function(unlock){
 				var arrUnits = objResponse.joints.map(function(objJoint){ return objJoint.unit.unit; });
 				breadcrumbs.add('got light_joints for processHistory '+arrUnits.join(', '));
-				db.query("SELECT unit, is_stable FROM units WHERE unit IN(?)", [arrUnits], function(rows){
+				db.query("SELECT unit, is_stable FROM units WHERE unit IN("+arrUnits.map(db.escape).join(', ')+")", function(rows){
 					var assocExistingUnits = {};
 					rows.forEach(function(row){
 						assocExistingUnits[row.unit] = true;
