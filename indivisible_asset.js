@@ -688,6 +688,14 @@ function buildPrivateElementsChain(conn, unit, message_index, output_index, payl
 
 function composeIndivisibleAssetPaymentJoint(params){
 	console.log("indivisible payment from "+params.paying_addresses, params);
+	if ((params.to_address || params.amount) && params.asset_outputs)
+		throw Error("to_address and asset_outputs at the same time");
+	if (params.asset_outputs){
+		if (params.asset_outputs.length !== 1)
+			throw Error("multiple indivisible asset outputs not supported");
+		params.amount = params.asset_outputs[0].amount;
+		params.to_address = params.asset_outputs[0].address;
+	}
 	if (!ValidationUtils.isNonemptyArray(params.fee_paying_addresses))
 		throw Error('no fee_paying_addresses');
 	composer.composeJoint({
