@@ -13,7 +13,7 @@ function hasFieldsExcept(obj, arrFields){
 }
 
 /**
- * True if int is an integer.
+ * True if int is an integer as per ES6 Number.isInteger.
  */
 function isInteger(int){
 	return (typeof int === 'number' && int.toString().indexOf('.') === -1 && !isNaN(int));
