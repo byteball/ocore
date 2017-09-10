@@ -76,3 +76,38 @@ test('isPositiveInteger false for negInts', t => {
 test('isPositiveInteger false for 0', t => {
   t.false(ValidationUtils.isPositiveInteger(0));
 });
+
+/**
+ * isNonnegativeInteger
+ */
+
+test('isNonnegativeInteger false for not ints', t => {
+  const result = check(
+    property(
+      gen.any.suchThat(n => !Number.isInteger(n)),
+      e => !ValidationUtils.isNonnegativeInteger(e)
+    )
+  );
+  t.true(result.result, result);
+});
+
+test('isNonnegativeInteger true for posInts', t => {
+  const result = check(
+    property(
+      gen.posInt,
+      e => ValidationUtils.isNonnegativeInteger(e)
+    )
+  );
+  t.true(result.result, result);
+});
+
+test('isNonnegativeInteger false for negInts', t => {
+  const result = check(
+    property(
+      // https://github.com/byteball/byteballcore/issues/47
+      gen.sNegInt,
+      e => !ValidationUtils.isNonnegativeInteger(e)
+    )
+  );
+  t.true(result.result, result);
+});
