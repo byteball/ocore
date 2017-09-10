@@ -1,4 +1,5 @@
-import test from 'ava';
+const test = require('ava');
+const { check, gen, property } = require('testcheck');
 
 var ValidationUtils = require("./validation_utils.js");
 
@@ -28,31 +29,12 @@ test('hasFieldsExcept mixed bag', t => {
  * isInteger
  */
 
-test('ValidationUtils.isInteger matches Number.isInteger', t => {
-  [0,
-   1,
-   1.0,
-   10,
-   1E3,
-   -0,
-   -1,
-   -1.0,
-   -10,
-   -1E3,
-   Number.MAX_SAFE_INTEGER,
-   Number.MIN_SAFE_INTEGER,
-   Number.MAX_SAFE_INTEGER + 1,
-   Number.MIN_SAFE_INTEGER + 1,
-   "foo",
-   NaN,
-   {},
-   [],
-   true,
-   false,
-   undefined,
-   null
-  ]
-  .map(function(example) {
-    t.is(ValidationUtils.isInteger(example), Number.isInteger(example));
-  });
+test('isInteger matches Number.isInteger', t => {
+  const result = check(
+    property(
+      gen.any,
+      e => ValidationUtils.isInteger(e) === Number.isInteger(e)
+    )
+  );
+  t.true(result.result, result);
 });
