@@ -29,7 +29,7 @@ test('hasFieldsExcept mixed bag', t => {
  * isInteger
  */
 
-test('isInteger matches Number.isInteger', t => {
+test('isInteger === Number.isInteger', t => {
   const result = check(
     property(
       gen.any,
@@ -37,4 +37,42 @@ test('isInteger matches Number.isInteger', t => {
     )
   );
   t.true(result.result, result);
+});
+
+/**
+ * isPositiveInteger
+ */
+
+test('isPositiveInteger false for not ints', t => {
+  const result = check(
+    property(
+      gen.any.suchThat(n => !Number.isInteger(n)),
+      e => !ValidationUtils.isPositiveInteger(e)
+    )
+  );
+  t.true(result.result, result);
+});
+
+test('isPositiveInteger true for posInts', t => {
+  const result = check(
+    property(
+      gen.sPosInt,
+      e => ValidationUtils.isPositiveInteger(e)
+    )
+  );
+  t.true(result.result, result);
+});
+
+test('isPositiveInteger false for negInts', t => {
+  const result = check(
+    property(
+      gen.negInt,
+      e => !ValidationUtils.isPositiveInteger(e)
+    )
+  );
+  t.true(result.result, result);
+});
+
+test('isPositiveInteger false for 0', t => {
+  t.false(ValidationUtils.isPositiveInteger(0));
 });
