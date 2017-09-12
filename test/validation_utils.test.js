@@ -1,7 +1,7 @@
 const test = require('ava');
 const { check, gen, property } = require('testcheck');
 
-var ValidationUtils = require("./validation_utils.js");
+var ValidationUtils = require("../validation_utils.js");
 
 /**
  * hasFieldsExcept

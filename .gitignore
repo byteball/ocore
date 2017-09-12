@@ -40,3 +40,9 @@ Temporary Items
 Session.vim
 .netrwhist
 *~
+
+# IDEA IntelliJ
+
+*.iml
+.idea
+
