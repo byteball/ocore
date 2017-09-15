@@ -2638,6 +2638,10 @@ function isConnected(){
 	return (arrOutboundPeers.length + wss.clients.length);
 }
 
+function isCatchingUp(){
+	return bCatchingUp;
+}
+
 start();
 
 exports.start = start;
@@ -2669,3 +2673,4 @@ exports.addLightWatchedAddress = addLightWatchedAddress;
 
 exports.closeAllWsConnections = closeAllWsConnections;
 exports.isConnected = isConnected;
+exports.isCatchingUp = isCatchingUp;
