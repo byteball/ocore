@@ -467,20 +467,23 @@ function prepareLinkProofs(arrUnits, callbacks){
 		return callbacks.ifError("no units array");
 	if (arrUnits.length === 1)
 		return callbacks.ifError("chain of one element");
-	var arrChain = [];
-	async.forEachOfSeries(
-		arrUnits,
-		function(unit, i, cb){
-			if (i === 0)
-				return cb();
-			createLinkProof(arrUnits[i-1], arrUnits[i], arrChain, cb);
-		},
-		function(err){
-			if (err)
-				return callbacks.ifError(err);
-			callbacks.ifOk(arrChain);
-		}
-	);
+	mutex.lock(['prepareLinkProofs'], function(unlock){
+		var start_ts = Date.now();
+		var arrChain = [];
+		async.forEachOfSeries(
+			arrUnits,
+			function(unit, i, cb){
+				if (i === 0)
+					return cb();
+				createLinkProof(arrUnits[i-1], arrUnits[i], arrChain, cb);
+			},
+			function(err){
+				console.log("prepareLinkProofs for units "+arrUnits.join(', ')+" took "+(Date.now()-start_ts)+'ms, err='+err);
+				err ? callbacks.ifError(err) : callbacks.ifOk(arrChain);
+				unlock();
+			}
+		);
+	});
 }
 
 // adds later unit
