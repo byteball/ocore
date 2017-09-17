@@ -153,7 +153,13 @@ function isChashValid(encoded){
 	var encoded_len = encoded.length;
 	if (encoded_len !== 32 && encoded_len !== 48) // 160/5 = 32, 288/6 = 48
 		throw Error("wrong encoded length: "+encoded_len);
-	var chash = (encoded_len === 32) ? base32.decode(encoded) : new Buffer(encoded, 'base64');
+	try{
+		var chash = (encoded_len === 32) ? base32.decode(encoded) : new Buffer(encoded, 'base64');
+	}
+	catch(e){
+		console.log(e);
+		return false;
+	}
 	var binChash = buffer2bin(chash);
 	var separated = separateIntoCleanDataAndChecksum(binChash);
 	var clean_data = bin2buffer(separated.clean_data);
