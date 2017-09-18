@@ -87,10 +87,13 @@ function buildProofChainOnMc(later_mci, earlier_mci, arrBalls, onDone){
 // unit's MC index is mci, find a path from mci unit to this unit
 function buildLastMileOfProofChain(mci, unit, arrBalls, onDone){
 	function addBall(_unit){
-		db.query("SELECT unit, ball FROM units JOIN balls USING(unit) WHERE unit=?", [_unit], function(rows){
+		db.query("SELECT unit, ball, content_hash FROM units JOIN balls USING(unit) WHERE unit=?", [_unit], function(rows){
 			if (rows.length !== 1)
 				throw Error("no unit?");
 			var objBall = rows[0];
+			if (objBall.content_hash)
+				objBall.is_nonserial = true;
+			delete objBall.content_hash;
 			db.query(
 				"SELECT ball FROM parenthoods LEFT JOIN balls ON parent_unit=balls.unit WHERE child_unit=? ORDER BY ball", 
 				[objBall.unit],
@@ -99,10 +102,22 @@ function buildLastMileOfProofChain(mci, unit, arrBalls, onDone){
 						throw Error("some parents have no balls");
 					if (parent_rows.length > 0)
 						objBall.parent_balls = parent_rows.map(function(parent_row){ return parent_row.ball; });
-					arrBalls.push(objBall);
-					if (_unit === unit)
-						return onDone();
-					findParent(_unit);
+					db.query(
+						"SELECT ball \n\
+						FROM skiplist_units JOIN units ON skiplist_unit=units.unit LEFT JOIN balls ON units.unit=balls.unit \n\
+						WHERE skiplist_units.unit=? ORDER BY ball", 
+						[objBall.unit],
+						function(srows){
+							if (srows.some(function(srow){ return !srow.ball; }))
+								throw Error("last mile: some skiplist units have no balls");
+							if (srows.length > 0)
+								objBall.skiplist_balls = srows.map(function(srow){ return srow.ball; });
+							arrBalls.push(objBall);
+							if (_unit === unit)
+								return onDone();
+							findParent(_unit);
+						}
+					);
 				}
 			);
 		});
