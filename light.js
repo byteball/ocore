@@ -274,9 +274,9 @@ function processHistory(objResponse, callbacks){
 			for (var i=0; i<objResponse.proofchain_balls.length; i++){
 				var objBall = objResponse.proofchain_balls[i];
 				if (objBall.ball !== objectHash.getBallHash(objBall.unit, objBall.parent_balls, objBall.skiplist_balls, objBall.is_nonserial))
-					return callbacks.ifError("wrong ball hash");
+					return callbacks.ifError("wrong ball hash: unit "+objBall.unit+", ball "+objBall.ball);
 				if (!assocKnownBalls[objBall.ball])
-					return callbacks.ifError("ball not known");
+					return callbacks.ifError("ball not known: "+objBall.ball);
 				objBall.parent_balls.forEach(function(parent_ball){
 					assocKnownBalls[parent_ball] = true;
 				});
