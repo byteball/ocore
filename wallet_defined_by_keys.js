@@ -38,8 +38,8 @@ function loadBitcoreFromNearestParent(mod){
 	}
 }
 
-function sendOfferToCreateNewWallet(device_address, wallet, arrWalletDefinitionTemplate, walletName, arrOtherCosigners, callbacks){
-	var body = {wallet: wallet, wallet_definition_template: arrWalletDefinitionTemplate, wallet_name: walletName, other_cosigners: arrOtherCosigners};
+function sendOfferToCreateNewWallet(device_address, wallet, arrWalletDefinitionTemplate, walletName, arrOtherCosigners, callbacks, isSingleAddress){
+	var body = {wallet: wallet, wallet_definition_template: arrWalletDefinitionTemplate, wallet_name: walletName, other_cosigners: arrOtherCosigners, is_single_address: isSingleAddress};
 	device.sendMessageToDevice(device_address, "create_new_wallet", body, callbacks);
 }
 
@@ -103,7 +103,7 @@ function handleOfferToCreateNewWallet(body, from_address, callbacks){
 			if (cosigner.hub.length > 100)
 				return callbacks.ifError("cosigner hub too long");
 		}
-		eventBus.emit("create_new_wallet", body.wallet, body.wallet_definition_template, arrDeviceAddresses, body.wallet_name, body.other_cosigners);
+		eventBus.emit("create_new_wallet", body.wallet, body.wallet_definition_template, arrDeviceAddresses, body.wallet_name, body.other_cosigners, body.is_single_address);
 		callbacks.ifOk();
 	});
 }
@@ -226,7 +226,7 @@ function addWallet(wallet, xPubKey, account, arrWalletDefinitionTemplate, onDone
 }
 
 // initiator of the new wallet creates records about itself and sends requests to other devices
-function createWallet(xPubKey, account, arrWalletDefinitionTemplate, walletName, handleWallet){
+function createWallet(xPubKey, account, arrWalletDefinitionTemplate, walletName, handleWallet, isSingleAddress){
 	var wallet = crypto.createHash("sha256").update(xPubKey, "utf8").digest("base64");
 	console.log('will create wallet '+wallet);
 	var arrDeviceAddresses = getDeviceAddresses(arrWalletDefinitionTemplate);
@@ -245,19 +245,19 @@ function createWallet(xPubKey, account, arrWalletDefinitionTemplate, walletName,
 				if (device_address === device.getMyDeviceAddress())
 					return;
 				console.log("sending offer to "+device_address);
-				sendOfferToCreateNewWallet(device_address, wallet, arrWalletDefinitionTemplate, walletName, arrOtherCosigners);
+				sendOfferToCreateNewWallet(device_address, wallet, arrWalletDefinitionTemplate, walletName, arrOtherCosigners, null, isSingleAddress);
 				sendMyXPubKey(device_address, wallet, xPubKey);
 			});
 		});
 	});
 }
 
-function createMultisigWallet(xPubKey, account, count_required_signatures, arrDeviceAddresses, walletName, handleWallet){
+function createMultisigWallet(xPubKey, account, count_required_signatures, arrDeviceAddresses, walletName, handleWallet, isSingleAddress){
 	if (count_required_signatures > arrDeviceAddresses.length)
 		throw Error("required > length");
 	var set = arrDeviceAddresses.map(function(device_address){ return ["sig", {pubkey: '$pubkey@'+device_address}]; });
 	var arrDefinitionTemplate = ["r of set", {required: count_required_signatures, set: set}];
-	createWallet(xPubKey, account, arrDefinitionTemplate, walletName, handleWallet);
+	createWallet(xPubKey, account, arrDefinitionTemplate, walletName, handleWallet, isSingleAddress);
 }
 
 // walletName will not be used
@@ -272,13 +272,13 @@ function createSinglesigWalletWithExternalPrivateKey(xPubKey, account, device_ad
 }
 
 // called from UI
-function createWalletByDevices(xPubKey, account, count_required_signatures, arrOtherDeviceAddresses, walletName, handleWallet){
+function createWalletByDevices(xPubKey, account, count_required_signatures, arrOtherDeviceAddresses, walletName, handleWallet, isSingleAddress){
 	console.log('createWalletByDevices: xPubKey='+xPubKey+", account="+account);
 	if (arrOtherDeviceAddresses.length === 0)
 		createSinglesigWallet(xPubKey, account, walletName, handleWallet);
 	else
 		createMultisigWallet(xPubKey, account, count_required_signatures, 
-				[device.getMyDeviceAddress()].concat(arrOtherDeviceAddresses), walletName, handleWallet);
+				[device.getMyDeviceAddress()].concat(arrOtherDeviceAddresses), walletName, handleWallet, isSingleAddress);
 }
 
 // called from UI after user confirms creation of wallet initiated by another device
