@@ -212,47 +212,54 @@ function prepareHistory(historyRequest, callbacks){
 		if (rows.length > MAX_HISTORY_ITEMS)
 			return callbacks.ifError("your history is too large, consider switching to a full client");
 
-		witnessProof.prepareWitnessProof(
-			arrWitnesses, 0, 
-			function(err, arrUnstableMcJoints, arrWitnessChangeAndDefinitionJoints, last_ball_unit, last_ball_mci){
-				if (err)
-					return callbacks.ifError(err);
-				objResponse.unstable_mc_joints = arrUnstableMcJoints;
-				if (arrWitnessChangeAndDefinitionJoints.length > 0)
-					objResponse.witness_change_and_definition_joints = arrWitnessChangeAndDefinitionJoints;
-
-				// add my joints and proofchain to those joints
-				objResponse.joints = [];
-				objResponse.proofchain_balls = [];
-				var later_mci = last_ball_mci+1; // +1 so that last ball itself is included in the chain
-				async.eachSeries(
-					rows,
-					function(row, cb2){
-						storage.readJoint(db, row.unit, {
-							ifNotFound: function(){
-								throw Error("prepareJointsWithProofs unit not found "+row.unit);
-							},
-							ifFound: function(objJoint){
-								objResponse.joints.push(objJoint);
-								if (row.main_chain_index > last_ball_mci || row.main_chain_index === null) // unconfirmed, no proofchain
-									return cb2();
-								buildProofChain(later_mci, row.main_chain_index, row.unit, objResponse.proofchain_balls, function(){
-									later_mci = row.main_chain_index;
-									cb2();
-								});
-							}
-						});
-					},
-					function(){
-						//if (objResponse.joints.length > 0 && objResponse.proofchain_balls.length === 0)
-						//    throw "no proofs";
-						if (objResponse.proofchain_balls.length === 0)
-							delete objResponse.proofchain_balls;
-						callbacks.ifOk(objResponse);
+		mutex.lock(['prepareHistory'], function(unlock){
+			var start_ts = Date.now();
+			witnessProof.prepareWitnessProof(
+				arrWitnesses, 0, 
+				function(err, arrUnstableMcJoints, arrWitnessChangeAndDefinitionJoints, last_ball_unit, last_ball_mci){
+					if (err){
+						callbacks.ifError(err);
+						return unlock();
 					}
-				);
-			}
-		);
+					objResponse.unstable_mc_joints = arrUnstableMcJoints;
+					if (arrWitnessChangeAndDefinitionJoints.length > 0)
+						objResponse.witness_change_and_definition_joints = arrWitnessChangeAndDefinitionJoints;
+
+					// add my joints and proofchain to those joints
+					objResponse.joints = [];
+					objResponse.proofchain_balls = [];
+					var later_mci = last_ball_mci+1; // +1 so that last ball itself is included in the chain
+					async.eachSeries(
+						rows,
+						function(row, cb2){
+							storage.readJoint(db, row.unit, {
+								ifNotFound: function(){
+									throw Error("prepareJointsWithProofs unit not found "+row.unit);
+								},
+								ifFound: function(objJoint){
+									objResponse.joints.push(objJoint);
+									if (row.main_chain_index > last_ball_mci || row.main_chain_index === null) // unconfirmed, no proofchain
+										return cb2();
+									buildProofChain(later_mci, row.main_chain_index, row.unit, objResponse.proofchain_balls, function(){
+										later_mci = row.main_chain_index;
+										cb2();
+									});
+								}
+							});
+						},
+						function(){
+							//if (objResponse.joints.length > 0 && objResponse.proofchain_balls.length === 0)
+							//    throw "no proofs";
+							if (objResponse.proofchain_balls.length === 0)
+								delete objResponse.proofchain_balls;
+							callbacks.ifOk(objResponse);
+							console.log("prepareHistory for addresses "+(arrAddresses || []).join(', ')+" and joints "+(arrRequestedJoints || []).join(', ')+" took "+(Date.now()-start_ts)+'ms');
+							unlock();
+						}
+					);
+				}
+			);
+		});
 	});
 }
 
