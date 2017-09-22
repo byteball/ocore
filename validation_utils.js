@@ -2,6 +2,9 @@
 "use strict";
 var chash = require('./chash.js');
 
+/**
+ * True if there is at least one field in obj that is not in arrFields.
+ */
 function hasFieldsExcept(obj, arrFields){
 	for (var field in obj)
 		if (arrFields.indexOf(field) === -1)
@@ -9,14 +12,23 @@ function hasFieldsExcept(obj, arrFields){
 	return false;
 }
 
+/**
+ * True if int is an integer as per ES6 Number.isInteger.
+ */
 function isInteger(int){
 	return (typeof int === 'number' && int.toString().indexOf('.') === -1 && !isNaN(int));
 }
 
+/**
+ * True if int is an integer strictly greater than zero.
+ */
 function isPositiveInteger(int){
 	return (typeof int === 'number' && int > 0 && int.toString().indexOf('.') === -1 && !isNaN(int));
 }
 
+/**
+ * True if int is an integer greater than or equal to zero.
+ */
 function isNonnegativeInteger(int){
 	return (typeof int === 'number' && int >= 0 && int.toString().indexOf('.') === -1 && !isNaN(int));
 }
