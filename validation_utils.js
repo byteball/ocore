@@ -23,14 +23,14 @@ function isInteger(int){
  * True if int is an integer strictly greater than zero.
  */
 function isPositiveInteger(int){
-	return (typeof int === 'number' && int > 0 && int.toString().indexOf('.') === -1 && !isNaN(int));
+	return (isInteger(int) && int > 0);
 }
 
 /**
  * True if int is an integer greater than or equal to zero.
  */
 function isNonnegativeInteger(int){
-	return (typeof int === 'number' && int >= 0 && int.toString().indexOf('.') === -1 && !isNaN(int));
+	return (isInteger(int) && int >= 0);
 }
 
 function isNonemptyString(str){
