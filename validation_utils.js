@@ -17,7 +17,7 @@ function hasFieldsExcept(obj, arrFields){
  *
  * @see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/isInteger
  */
-function isInteger(int){
+function isInteger(value){
 	return typeof value === 'number' && isFinite(value) && Math.floor(value) === value;
 };
 
