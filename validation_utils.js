@@ -13,11 +13,13 @@ function hasFieldsExcept(obj, arrFields){
 }
 
 /**
- * True if int is an integer as per ES6 Number.isInteger.
+ * ES6 Number.isInteger Ponyfill.
+ *
+ * @see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/isInteger
  */
 function isInteger(int){
-	return (typeof int === 'number' && int.toString().indexOf('.') === -1 && !isNaN(int));
-}
+	return typeof value === 'number' && isFinite(value) && Math.floor(value) === value;
+};
 
 /**
  * True if int is an integer strictly greater than zero.
