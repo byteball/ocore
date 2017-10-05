@@ -35,6 +35,9 @@ function isNonnegativeInteger(int){
 	return (isInteger(int) && int >= 0);
 }
 
+/**
+ * True if str is a string and not the empty string.
+ */
 function isNonemptyString(str){
 	return (typeof str === "string" && str.length > 0);
 }

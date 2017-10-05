@@ -111,3 +111,31 @@ test('isNonnegativeInteger false for negInts', t => {
   );
   t.true(result.result, result);
 });
+
+/**
+ * isNonemptyString
+ */
+
+test('isNonemptyString false for empty string', t => {
+  t.false(ValidationUtils.isNonemptyString(''));
+});
+
+test('isNonemptyString false for non strings', t => {
+  const result = check(
+    property(
+      gen.any.suchThat(s => typeof s !== 'string'),
+      e => !ValidationUtils.isNonemptyString(e)
+    )
+  );
+  t.true(result.result, result);
+});
+
+test('isNonemptyString true for strings other than the empty string', t => {
+  const result = check(
+    property(
+      gen.string.suchThat(s => s !== ''),
+      e => ValidationUtils.isNonemptyString(e)
+    )
+  );
+  t.true(result.result, result);
+});
