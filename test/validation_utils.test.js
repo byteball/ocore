@@ -148,7 +148,8 @@ test('isStringOfLength false for non strings', t => {
   const result = check(
     property(
       gen.any.suchThat(s => typeof s !== 'string'),
-      e => !ValidationUtils.isStringOfLength(e)
+      gen.any,
+      (e, a) => !ValidationUtils.isStringOfLength(e, a)
     )
   );
   t.true(result.result, result);
@@ -181,6 +182,16 @@ test('isStringOfLength false for all non-integer len', t => {
       gen.string,
       gen.any.suchThat(a => !Number.isInteger(a)),
       (e, a) => !ValidationUtils.isStringOfLength(e, a)
+    )
+  );
+  t.true(result.result, result);
+});
+
+test('isStringOfLength false when len not provided', t => {
+  const result = check(
+    property(
+      gen.any,
+      e => !ValidationUtils.isStringOfLength(e)
     )
   );
   t.true(result.result, result);
