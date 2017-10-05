@@ -42,6 +42,9 @@ function isNonemptyString(str){
 	return (typeof str === "string" && str.length > 0);
 }
 
+/**
+ * True if str is a string and has length len.
+ */
 function isStringOfLength(str, len){
 	return (typeof str === "string" && str.length === len);
 }
