@@ -1361,7 +1361,7 @@ function comeOnline(){
 	coming_online_time = Date.now();
 	waitTillIdle(function(){
 		requestFreeJointsFromAllOutboundPeers();
-		cleanBadSavedPrivatePayments();
+		setTimeout(cleanBadSavedPrivatePayments, 300*1000);
 	});
 	eventBus.emit('catching_up_done');
 }
