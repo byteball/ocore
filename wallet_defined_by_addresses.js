@@ -409,20 +409,25 @@ function forwardPrivateChainsToOtherMembersOfAddresses(arrChains, arrAddresses, 
 		[arrAddresses, device.getMyDeviceAddress()], 
 		function(rows){
 			console.log("shared address devices: "+rows.length);
-			async.eachSeries(
-				rows,
-				function(row, cb){
-					console.log("forwarding to device "+row.device_address);
-					walletGeneral.sendPrivatePayments(row.device_address, arrChains, true, conn, cb);
-				},
-				function(){
-					if (onSaved)
-						onSaved();
-				}
-			);
+			var arrDeviceAddresses = rows.map(function(row){ return row.device_address; });
+			walletGeneral.forwardPrivateChainsToDevices(arrDeviceAddresses, arrChains, false, conn, onSaved);
 		}
 	);
 }
+
+function readAllControlAddresses(conn, arrAddresses, handleLists){
+	conn = conn || db;
+	conn.query("SELECT DISTINCT address, device_address FROM shared_address_signing_paths WHERE shared_address IN(?)", [arrAddresses], function(rows){
+		if (rows.length === 0)
+			return handleLists([], []);
+		var arrControlAddresses = rows.map(function(row){ return row.address; });
+		var arrControlDeviceAddresses = rows.map(function(row){ return row.device_address; });
+		readAllControlAddresses(conn, arrControlAddresses, function(arrControlAddresses2, arrControlDeviceAddresses2){
+			handleLists(_.union(arrControlAddresses, arrControlAddresses2), _.union(arrControlDeviceAddresses, arrControlDeviceAddresses2));
+		});
+	});
+}
+
 
 /*
 function readRequiredCosigners(shared_address, arrSigningDeviceAddresses, handleCosigners){
@@ -489,3 +494,4 @@ exports.readSharedAddressDefinition = readSharedAddressDefinition;
 exports.determineIfHasMerkle = determineIfHasMerkle;
 exports.createNewSharedAddress = createNewSharedAddress;
 exports.createNewSharedAddressByTemplate = createNewSharedAddressByTemplate;
+exports.readAllControlAddresses = readAllControlAddresses;

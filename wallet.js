@@ -404,8 +404,16 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					if (!assocValidatedByKey[key])
 						return console.log('not all private payments validated yet');
 				assocValidatedByKey = null; // to avoid duplicate calls
-				if (!body.forwarded)
+				if (!body.forwarded){
 					emitNewPrivatePaymentReceived(from_address, arrChains, current_message_counter);
+					// note, this forwarding won't work if the user closes the wallet before validation of the private chains
+					var arrUnits = arrChains.map(function(arrPrivateElements){ return arrPrivateElements[0].unit; });
+					db.query("SELECT address FROM unit_authors WHERE unit IN(?)", [arrUnits], function(rows){
+						var arrAuthorAddresses = rows.map(function(row){ return row.address; });
+						// if the addresses are not shared, it doesn't forward anything
+						forwardPrivateChainsToOtherMembersOfSharedAddresses(arrChains, arrAuthorAddresses, from_address, true);
+					});
+				}
 				profiler.print();
 			};
 			
@@ -1223,7 +1231,7 @@ function sendMultiPayment(opts, handleResult)
 								if (wallet)
 									walletDefinedByKeys.forwardPrivateChainsToOtherMembersOfWallets(arrChainsOfCosignerPrivateElements, [wallet], conn, cb2);
 								else // arrPayingAddresses can be only shared addresses
-									walletDefinedByAddresses.forwardPrivateChainsToOtherMembersOfAddresses(arrChainsOfCosignerPrivateElements, arrPayingAddresses, conn, cb2);
+									forwardPrivateChainsToOtherMembersOfSharedAddresses(arrChainsOfCosignerPrivateElements, arrPayingAddresses, null, false, conn, cb2);
 							};
 							async.series([sendToRecipients, sendToCosigners], cb);
 						};
@@ -1252,6 +1260,21 @@ function sendMultiPayment(opts, handleResult)
 
 		}
 	);
+}
+
+function forwardPrivateChainsToOtherMembersOfSharedAddresses(arrChainsOfCosignerPrivateElements, arrPayingAddresses, excluded_device_address, bForwarded, conn, onDone){
+	walletDefinedByAddresses.readAllControlAddresses(conn, arrPayingAddresses, function(arrControlAddresses, arrControlDeviceAddresses){
+		arrControlDeviceAddresses = arrControlDeviceAddresses.filter(function(device_address) {
+			return (device_address !== device.getMyDeviceAddress() && device_address !== excluded_device_address);
+		});
+		walletDefinedByKeys.readDeviceAddressesControllingPaymentAddresses(conn, arrControlAddresses, function(arrMultisigDeviceAddresses){
+			arrMultisigDeviceAddresses = _.difference(arrMultisigDeviceAddresses, arrControlDeviceAddresses);
+			// counterparties on shared addresses must forward further, that's why bForwarded=false
+			walletGeneral.forwardPrivateChainsToDevices(arrControlDeviceAddresses, arrChainsOfCosignerPrivateElements, bForwarded, conn, function(){
+				walletGeneral.forwardPrivateChainsToDevices(arrMultisigDeviceAddresses, arrChainsOfCosignerPrivateElements, true, conn, onDone);
+			});
+		});
+	});
 }
 
 function readDeviceAddressesUsedInSigningPaths(onDone){

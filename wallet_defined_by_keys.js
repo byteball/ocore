@@ -760,22 +760,33 @@ function forwardPrivateChainsToOtherMembersOfWallets(arrChains, arrWallets, conn
 		"SELECT device_address FROM extended_pubkeys WHERE wallet IN(?) AND device_address!=?", 
 		[arrWallets, device.getMyDeviceAddress()], 
 		function(rows){
-			console.log("devices: "+rows.length);
-			async.eachSeries(
-				rows,
-				function(row, cb){
-					console.log("forwarding to device "+row.device_address);
-					walletGeneral.sendPrivatePayments(row.device_address, arrChains, true, conn, cb);
-				},
-				function(){
-					if (onSaved)
-						onSaved();
-				}
-			);
+			var arrDeviceAddresses = rows.map(function(row){ return row.device_address; });
+			walletGeneral.forwardPrivateChainsToDevices(arrDeviceAddresses, arrChains, true, conn, onSaved);
 		}
 	);
 }
 
+function readDeviceAddressesControllingPaymentAddresses(conn, arrAddresses, handleDeviceAddresses){
+	if (arrAddresses.length === 0)
+		return handleDeviceAddresses([]);
+	conn = conn || db;
+	conn.query(
+		"SELECT DISTINCT device_address FROM my_addresses JOIN extended_pubkeys USING(wallet) WHERE address IN(?) AND device_address!=?", 
+		[arrAddresses, device.getMyDeviceAddress()], 
+		function(rows){
+			var arrDeviceAddresses = rows.map(function(row){ return row.device_address; });
+			handleDeviceAddresses(arrDeviceAddresses);
+		}
+	);
+}
+
+function forwardPrivateChainsToOtherMembersOfAddresses(arrChains, arrAddresses, conn, onSaved){
+	console.log("forwardPrivateChainsToOtherMembersOfAddresses", arrAddresses);
+	conn = conn || db;
+	readDeviceAddressesControllingPaymentAddresses(conn, arrAddresses, function(arrDeviceAddresses){
+		walletGeneral.forwardPrivateChainsToDevices(arrDeviceAddresses, arrChains, true, conn, onSaved);
+	});
+}
 
 
 
@@ -801,6 +812,8 @@ exports.readChangeAddresses = readChangeAddresses;
 exports.readAddressInfo = readAddressInfo;
 
 exports.forwardPrivateChainsToOtherMembersOfWallets = forwardPrivateChainsToOtherMembersOfWallets;
+
+exports.readDeviceAddressesControllingPaymentAddresses = readDeviceAddressesControllingPaymentAddresses;
 
 exports.readCosigners = readCosigners;
 
