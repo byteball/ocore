@@ -419,7 +419,7 @@ function forwardPrivateChainsToOtherMembersOfAddresses(arrChains, arrAddresses, 
 		function(rows){
 			console.log("shared address devices: "+rows.length);
 			var arrDeviceAddresses = rows.map(function(row){ return row.device_address; });
-			walletGeneral.forwardPrivateChainsToDevices(arrDeviceAddresses, arrChains, false, conn, onSaved);
+			walletGeneral.forwardPrivateChainsToDevices(arrDeviceAddresses, arrChains, true, conn, onSaved);
 		}
 	);
 }
