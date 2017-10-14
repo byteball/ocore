@@ -227,7 +227,7 @@ function includesMyDeviceAddress(assocSignersByPath){
 
 // Checks if any of my payment addresses is mentioned.
 // It is possible that my device address is not mentioned in the definition if I'm a member of multisig address, one of my cosigners is mentioned instead
-function determineIfIncludesMe(assocSignersByPath, handleResult){
+function determineIfIncludesMeAndRewriteDeviceAddress(assocSignersByPath, handleResult){
 	var assocMemberAddresses = {};
 	for (var signing_path in assocSignersByPath){
 		var signerInfo = assocSignersByPath[signing_path];
@@ -243,7 +243,16 @@ function determineIfIncludesMe(assocSignersByPath, handleResult){
 		[arrMemberAddresses, arrMemberAddresses],
 		function(rows){
 		//	handleResult(rows.length === arrMyMemberAddresses.length ? null : "Some of my member addresses not found");
-			handleResult(rows.length > 0 ? null : "I am not a member of this shared address");
+			if (rows.length === 0)
+				handleResult("I am not a member of this shared address");
+			var arrMyMemberAddresses = rows.map(function(row){ return row.address; });
+			// rewrite device address for my addresses
+			for (var signing_path in assocSignersByPath){
+				var signerInfo = assocSignersByPath[signing_path];
+				if (signerInfo.address && arrMyMemberAddresses.indexOf(signerInfo.address) >= 0)
+					signerInfo.device_address = device.getMyDeviceAddress();
+			}
+			handleResult();
 		}
 	);
 }
@@ -282,7 +291,7 @@ function handleNewSharedAddress(body, callbacks){
 		if (signerInfo.address && !ValidationUtils.isValidAddress(signerInfo.address))
 			return callbacks.ifError("invalid member address: "+signerInfo.address);
 	}
-	determineIfIncludesMe(body.signers, function(err){
+	determineIfIncludesMeAndRewriteDeviceAddress(body.signers, function(err){
 		if (err)
 			return callbacks.ifError(err);
 		validateAddressDefinition(body.definition, function(err){
@@ -417,15 +426,20 @@ function forwardPrivateChainsToOtherMembersOfAddresses(arrChains, arrAddresses, 
 
 function readAllControlAddresses(conn, arrAddresses, handleLists){
 	conn = conn || db;
-	conn.query("SELECT DISTINCT address, device_address FROM shared_address_signing_paths WHERE shared_address IN(?)", [arrAddresses], function(rows){
-		if (rows.length === 0)
-			return handleLists([], []);
-		var arrControlAddresses = rows.map(function(row){ return row.address; });
-		var arrControlDeviceAddresses = rows.map(function(row){ return row.device_address; });
-		readAllControlAddresses(conn, arrControlAddresses, function(arrControlAddresses2, arrControlDeviceAddresses2){
-			handleLists(_.union(arrControlAddresses, arrControlAddresses2), _.union(arrControlDeviceAddresses, arrControlDeviceAddresses2));
-		});
-	});
+	conn.query(
+		"SELECT DISTINCT address, shared_address_signing_paths.device_address, (correspondent_devices.device_address IS NOT NULL) AS have_correspondent \n\
+		FROM shared_address_signing_paths LEFT JOIN correspondent_devices USING(device_address) WHERE shared_address IN(?)", 
+		[arrAddresses], 
+		function(rows){
+			if (rows.length === 0)
+				return handleLists([], []);
+			var arrControlAddresses = rows.map(function(row){ return row.address; });
+			var arrControlDeviceAddresses = rows.filter(function(row){ return row.have_correspondent; }).map(function(row){ return row.device_address; });
+			readAllControlAddresses(conn, arrControlAddresses, function(arrControlAddresses2, arrControlDeviceAddresses2){
+				handleLists(_.union(arrControlAddresses, arrControlAddresses2), _.union(arrControlDeviceAddresses, arrControlDeviceAddresses2));
+			});
+		}
+	);
 }
 
 
@@ -458,13 +472,15 @@ function readSharedAddressDefinition(shared_address, handleDefinition){
 
 function readSharedAddressCosigners(shared_address, handleCosigners){
 	db.query(
-		"SELECT DISTINCT device_address, name, "+db.getUnixTimestamp("shared_addresses.creation_date")+" AS creation_ts \n\
+		"SELECT DISTINCT shared_address_signing_paths.device_address, name, "+db.getUnixTimestamp("shared_addresses.creation_date")+" AS creation_ts \n\
 		FROM shared_address_signing_paths \n\
-		JOIN correspondent_devices USING(device_address) \n\
 		JOIN shared_addresses USING(shared_address) \n\
+		LEFT JOIN correspondent_devices USING(device_address) \n\
 		WHERE shared_address=? AND device_address!=?",
 		[shared_address, device.getMyDeviceAddress()],
 		function(rows){
+			if (rows.length === 0)
+				throw Error("no cosigners found for shared address "+shared_address);
 			handleCosigners(rows);
 		}
 	);
