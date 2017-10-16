@@ -780,7 +780,7 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 				if (rows.length === 0)
 					return next();
 				if (!bNonserial || objValidationState.arrAddressesWithForkedPath.indexOf(objAuthor.address) === -1)
-					callback("you can't send anything before your last keychange is stable and before last ball");
+					return callback("you can't send anything before your last keychange is stable and before last ball");
 				// from this point, our unit is nonserial
 				async.eachSeries(
 					rows,
@@ -816,7 +816,7 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 				if (rows.length === 0)
 					return next();
 				if (!bNonserial || objValidationState.arrAddressesWithForkedPath.indexOf(objAuthor.address) === -1)
-					callback("you can't send anything before your last definition is stable and before last ball");
+					return callback("you can't send anything before your last definition is stable and before last ball");
 				// from this point, our unit is nonserial
 				async.eachSeries(
 					rows,
@@ -1828,7 +1828,11 @@ function initPrivatePaymentValidationState(conn, unit, message_index, payload, o
 			var objPartialUnit = {unit: unit};
 			storage.readUnitAuthors(conn, unit, function(arrAuthors){
 				objPartialUnit.authors = arrAuthors.map(function(address){ return {address: address}; }); // array of objects {address: address}
-				onDone(bStable, objPartialUnit, objValidationState);
+				// we need parent_units in checkForDoublespends in case it is a doublespend
+				conn.query("SELECT parent_unit FROM parenthoods WHERE child_unit=? ORDER BY parent_unit", [unit], function(prows){
+					objPartialUnit.parent_units = prows.map(function(prow){ return prow.parent_unit; });
+					onDone(bStable, objPartialUnit, objValidationState);
+				});
 			});
 		}
 	);

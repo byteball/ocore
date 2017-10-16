@@ -56,11 +56,11 @@ function prepareRequestForHistory(handleResult){
 				if (!objHistoryRequest.addresses)
 					return handleResult(objHistoryRequest);
 				objHistoryRequest.last_stable_mci = 0;
+				var strAddressList = arrAddresses.map(db.escape).join(', ');
 				db.query(
-					"SELECT unit FROM unit_authors JOIN units USING(unit) WHERE is_stable=1 AND address IN(?) \n\
+					"SELECT unit FROM unit_authors JOIN units USING(unit) WHERE is_stable=1 AND address IN("+strAddressList+") \n\
 					UNION \n\
-					SELECT unit FROM outputs JOIN units USING(unit) WHERE is_stable=1 AND address IN(?)",
-					[arrAddresses, arrAddresses],
+					SELECT unit FROM outputs JOIN units USING(unit) WHERE is_stable=1 AND address IN("+strAddressList+")",
 					function(rows){
 						if (rows.length)
 							objHistoryRequest.known_stable_units = rows.map(function(row){ return row.unit; });
@@ -106,8 +106,11 @@ function refreshLightClientHistory(){
 			if (!objRequest)
 				return finish();
 			network.sendRequest(ws, 'light/get_history', objRequest, false, function(ws, request, response){
-				if (response.error)
+				if (response.error){
+					if (response.error.indexOf('your history is too large') >= 0)
+						throw Error(response.error);
 					return finish(response.error);
+				}
 				ws.bLightVendor = true;
 				var interval = setInterval(function(){ // refresh UI periodically while we are processing history
 					eventBus.emit('maybe_new_transactions');

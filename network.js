@@ -762,6 +762,8 @@ function handleResponseToJointRequest(ws, request, response){
 	if (!response.joint){
 		var unit = request.params;
 		if (response.joint_not_found === unit){
+			if (conf.bLight) // we trust the light vendor that if it doesn't know about the unit after 1 day, it doesn't exist
+				db.query("DELETE FROM unhandled_private_payments WHERE unit=? AND creation_date<"+db.addTime('-1 DAY'), [unit]);
 			if (!bCatchingUp)
 				return console.log("unit "+unit+" does not exist"); // if it is in unhandled_joints, it'll be deleted in 1 hour
 			//	return purgeDependenciesAndNotifyPeers(unit, "unit "+unit+" does not exist");
@@ -1357,7 +1359,10 @@ function findAndHandleJointsThatAreReady(unit){
 function comeOnline(){
 	bCatchingUp = false;
 	coming_online_time = Date.now();
-	waitTillIdle(requestFreeJointsFromAllOutboundPeers);
+	waitTillIdle(function(){
+		requestFreeJointsFromAllOutboundPeers();
+		setTimeout(cleanBadSavedPrivatePayments, 300*1000);
+	});
 	eventBus.emit('catching_up_done');
 }
 
@@ -1664,7 +1669,7 @@ function handleSavedPrivatePayments(unit){
 							},
 							ifError: function(error){
 								console.log("validation of priv: "+error);
-								throw Error(error);
+							//	throw Error(error);
 								if (ws)
 									sendResult(ws, {private_payment_in_unit: row.unit, result: 'error', error: error});
 								deleteHandledPrivateChain(row.unit, row.message_index, row.output_index, cb);
@@ -1700,6 +1705,24 @@ function deleteHandledPrivateChain(unit, message_index, output_index, cb){
 	});
 }
 
+// full only
+function cleanBadSavedPrivatePayments(){
+	if (conf.bLight || bCatchingUp)
+		return;
+	db.query(
+		"SELECT DISTINCT unhandled_private_payments.unit FROM unhandled_private_payments LEFT JOIN units USING(unit) \n\
+		WHERE units.unit IS NULL AND unhandled_private_payments.creation_date<"+db.addTime('-1 DAY'),
+		function(rows){
+			rows.forEach(function(row){
+				breadcrumbs.add('deleting bad saved private payment '+row.unit);
+				db.query("DELETE FROM unhandled_private_payments WHERE unit=?", [row.unit]);
+			});
+		}
+	);
+	
+}
+
+// light only
 function rerequestLostJointsOfPrivatePayments(){
 	if (!conf.bLight || !exports.light_vendor_url)
 		return;
@@ -1742,7 +1765,7 @@ function requestProofsOfJoints(arrUnits, onDone){
 			}
 			light.processHistory(response, {
 				ifError: function(err){
-					network.sendError(ws, err);
+					sendError(ws, err);
 					onDone(err);
 				},
 				ifOk: function(){
@@ -1909,6 +1932,8 @@ function handleJustsaying(ws, subject, body){
 		case 'bugreport':
 			if (!body)
 				return;
+			if (conf.ignoreBugreportRegexp && new RegExp(conf.ignoreBugreportRegexp).test(body.exception.toString()))
+				return console.log('ignoring bugreport');
 			mail.sendBugEmail(body.message, body.exception);
 			break;
 			
@@ -2449,7 +2474,7 @@ function onWebsocketMessage(message) {
 	if (ws.readyState !== ws.OPEN)
 		return;
 	
-	console.log('RECEIVED '+message+' from '+ws.peer);
+	console.log('RECEIVED '+(message.length > 1000 ? message.substr(0,1000)+'... ('+message.length+' chars)' : message)+' from '+ws.peer);
 	ws.last_ts = Date.now();
 	
 	try{
@@ -2613,6 +2638,10 @@ function isConnected(){
 	return (arrOutboundPeers.length + wss.clients.length);
 }
 
+function isCatchingUp(){
+	return bCatchingUp;
+}
+
 start();
 
 exports.start = start;
@@ -2644,3 +2673,4 @@ exports.addLightWatchedAddress = addLightWatchedAddress;
 
 exports.closeAllWsConnections = closeAllWsConnections;
 exports.isConnected = isConnected;
+exports.isCatchingUp = isCatchingUp;

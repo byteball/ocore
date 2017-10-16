@@ -87,10 +87,13 @@ function buildProofChainOnMc(later_mci, earlier_mci, arrBalls, onDone){
 // unit's MC index is mci, find a path from mci unit to this unit
 function buildLastMileOfProofChain(mci, unit, arrBalls, onDone){
 	function addBall(_unit){
-		db.query("SELECT unit, ball FROM units JOIN balls USING(unit) WHERE unit=?", [_unit], function(rows){
+		db.query("SELECT unit, ball, content_hash FROM units JOIN balls USING(unit) WHERE unit=?", [_unit], function(rows){
 			if (rows.length !== 1)
 				throw Error("no unit?");
 			var objBall = rows[0];
+			if (objBall.content_hash)
+				objBall.is_nonserial = true;
+			delete objBall.content_hash;
 			db.query(
 				"SELECT ball FROM parenthoods LEFT JOIN balls ON parent_unit=balls.unit WHERE child_unit=? ORDER BY ball", 
 				[objBall.unit],
@@ -99,10 +102,22 @@ function buildLastMileOfProofChain(mci, unit, arrBalls, onDone){
 						throw Error("some parents have no balls");
 					if (parent_rows.length > 0)
 						objBall.parent_balls = parent_rows.map(function(parent_row){ return parent_row.ball; });
-					arrBalls.push(objBall);
-					if (_unit === unit)
-						return onDone();
-					findParent(_unit);
+					db.query(
+						"SELECT ball \n\
+						FROM skiplist_units JOIN units ON skiplist_unit=units.unit LEFT JOIN balls ON units.unit=balls.unit \n\
+						WHERE skiplist_units.unit=? ORDER BY ball", 
+						[objBall.unit],
+						function(srows){
+							if (srows.some(function(srow){ return !srow.ball; }))
+								throw Error("last mile: some skiplist units have no balls");
+							if (srows.length > 0)
+								objBall.skiplist_balls = srows.map(function(srow){ return srow.ball; });
+							arrBalls.push(objBall);
+							if (_unit === unit)
+								return onDone();
+							findParent(_unit);
+						}
+					);
 				}
 			);
 		});
@@ -175,22 +190,21 @@ function prepareHistory(historyRequest, callbacks){
 
 	// add my joints and proofchain to these joints
 	var arrSelects = [];
-	var arrParams = [];
 	if (arrAddresses){
 		// we don't filter sequence='good' after the unit is stable, so the client will see final doublespends too
+		var strAddressList = arrAddresses.map(db.escape).join(', ');
 		arrSelects = ["SELECT DISTINCT unit, main_chain_index, level FROM outputs JOIN units USING(unit) \n\
-			WHERE address IN(?) AND (+sequence='good' OR is_stable=1) \n\
+			WHERE address IN("+strAddressList+") AND (+sequence='good' OR is_stable=1) \n\
 			UNION \n\
 			SELECT DISTINCT unit, main_chain_index, level FROM unit_authors JOIN units USING(unit) \n\
-			WHERE address IN(?) AND (+sequence='good' OR is_stable=1) \n"];
-		arrParams = [arrAddresses, arrAddresses];
+			WHERE address IN("+strAddressList+") AND (+sequence='good' OR is_stable=1) \n"];
 	}
 	if (arrRequestedJoints){
-		arrSelects.push("SELECT unit, main_chain_index, level FROM units WHERE unit IN(?) AND (+sequence='good' OR is_stable=1) \n");
-		arrParams.push(arrRequestedJoints.slice(0, 400));
+		var strUnitList = arrRequestedJoints.map(db.escape).join(', ');
+		arrSelects.push("SELECT unit, main_chain_index, level FROM units WHERE unit IN("+strUnitList+") AND (+sequence='good' OR is_stable=1) \n");
 	}
 	var sql = arrSelects.join("UNION \n") + "ORDER BY main_chain_index DESC, level DESC";
-	db.query(sql, arrParams, function(rows){
+	db.query(sql, function(rows){
 		// if no matching units, don't build witness proofs
 		rows = rows.filter(function(row){ return !assocKnownStableUnits[row.unit]; });
 		if (rows.length === 0)
@@ -198,47 +212,54 @@ function prepareHistory(historyRequest, callbacks){
 		if (rows.length > MAX_HISTORY_ITEMS)
 			return callbacks.ifError("your history is too large, consider switching to a full client");
 
-		witnessProof.prepareWitnessProof(
-			arrWitnesses, 0, 
-			function(err, arrUnstableMcJoints, arrWitnessChangeAndDefinitionJoints, last_ball_unit, last_ball_mci){
-				if (err)
-					return callbacks.ifError(err);
-				objResponse.unstable_mc_joints = arrUnstableMcJoints;
-				if (arrWitnessChangeAndDefinitionJoints.length > 0)
-					objResponse.witness_change_and_definition_joints = arrWitnessChangeAndDefinitionJoints;
-
-				// add my joints and proofchain to those joints
-				objResponse.joints = [];
-				objResponse.proofchain_balls = [];
-				var later_mci = last_ball_mci+1; // +1 so that last ball itself is included in the chain
-				async.eachSeries(
-					rows,
-					function(row, cb2){
-						storage.readJoint(db, row.unit, {
-							ifNotFound: function(){
-								throw Error("prepareJointsWithProofs unit not found "+row.unit);
-							},
-							ifFound: function(objJoint){
-								objResponse.joints.push(objJoint);
-								if (row.main_chain_index > last_ball_mci || row.main_chain_index === null) // unconfirmed, no proofchain
-									return cb2();
-								buildProofChain(later_mci, row.main_chain_index, row.unit, objResponse.proofchain_balls, function(){
-									later_mci = row.main_chain_index;
-									cb2();
-								});
-							}
-						});
-					},
-					function(){
-						//if (objResponse.joints.length > 0 && objResponse.proofchain_balls.length === 0)
-						//    throw "no proofs";
-						if (objResponse.proofchain_balls.length === 0)
-							delete objResponse.proofchain_balls;
-						callbacks.ifOk(objResponse);
+		mutex.lock(['prepareHistory'], function(unlock){
+			var start_ts = Date.now();
+			witnessProof.prepareWitnessProof(
+				arrWitnesses, 0, 
+				function(err, arrUnstableMcJoints, arrWitnessChangeAndDefinitionJoints, last_ball_unit, last_ball_mci){
+					if (err){
+						callbacks.ifError(err);
+						return unlock();
 					}
-				);
-			}
-		);
+					objResponse.unstable_mc_joints = arrUnstableMcJoints;
+					if (arrWitnessChangeAndDefinitionJoints.length > 0)
+						objResponse.witness_change_and_definition_joints = arrWitnessChangeAndDefinitionJoints;
+
+					// add my joints and proofchain to those joints
+					objResponse.joints = [];
+					objResponse.proofchain_balls = [];
+					var later_mci = last_ball_mci+1; // +1 so that last ball itself is included in the chain
+					async.eachSeries(
+						rows,
+						function(row, cb2){
+							storage.readJoint(db, row.unit, {
+								ifNotFound: function(){
+									throw Error("prepareJointsWithProofs unit not found "+row.unit);
+								},
+								ifFound: function(objJoint){
+									objResponse.joints.push(objJoint);
+									if (row.main_chain_index > last_ball_mci || row.main_chain_index === null) // unconfirmed, no proofchain
+										return cb2();
+									buildProofChain(later_mci, row.main_chain_index, row.unit, objResponse.proofchain_balls, function(){
+										later_mci = row.main_chain_index;
+										cb2();
+									});
+								}
+							});
+						},
+						function(){
+							//if (objResponse.joints.length > 0 && objResponse.proofchain_balls.length === 0)
+							//    throw "no proofs";
+							if (objResponse.proofchain_balls.length === 0)
+								delete objResponse.proofchain_balls;
+							callbacks.ifOk(objResponse);
+							console.log("prepareHistory for addresses "+(arrAddresses || []).join(', ')+" and joints "+(arrRequestedJoints || []).join(', ')+" took "+(Date.now()-start_ts)+'ms');
+							unlock();
+						}
+					);
+				}
+			);
+		});
 	});
 }
 
@@ -275,9 +296,9 @@ function processHistory(objResponse, callbacks){
 			for (var i=0; i<objResponse.proofchain_balls.length; i++){
 				var objBall = objResponse.proofchain_balls[i];
 				if (objBall.ball !== objectHash.getBallHash(objBall.unit, objBall.parent_balls, objBall.skiplist_balls, objBall.is_nonserial))
-					return callbacks.ifError("wrong ball hash");
+					return callbacks.ifError("wrong ball hash: unit "+objBall.unit+", ball "+objBall.ball);
 				if (!assocKnownBalls[objBall.ball])
-					return callbacks.ifError("ball not known");
+					return callbacks.ifError("ball not known: "+objBall.ball);
 				objBall.parent_balls.forEach(function(parent_ball){
 					assocKnownBalls[parent_ball] = true;
 				});
@@ -308,7 +329,7 @@ function processHistory(objResponse, callbacks){
 			mutex.lock(["light_joints"], function(unlock){
 				var arrUnits = objResponse.joints.map(function(objJoint){ return objJoint.unit.unit; });
 				breadcrumbs.add('got light_joints for processHistory '+arrUnits.join(', '));
-				db.query("SELECT unit, is_stable FROM units WHERE unit IN(?)", [arrUnits], function(rows){
+				db.query("SELECT unit, is_stable FROM units WHERE unit IN("+arrUnits.map(db.escape).join(', ')+")", function(rows){
 					var assocExistingUnits = {};
 					rows.forEach(function(row){
 						assocExistingUnits[row.unit] = true;
@@ -468,20 +489,23 @@ function prepareLinkProofs(arrUnits, callbacks){
 		return callbacks.ifError("no units array");
 	if (arrUnits.length === 1)
 		return callbacks.ifError("chain of one element");
-	var arrChain = [];
-	async.forEachOfSeries(
-		arrUnits,
-		function(unit, i, cb){
-			if (i === 0)
-				return cb();
-			createLinkProof(arrUnits[i-1], arrUnits[i], arrChain, cb);
-		},
-		function(err){
-			if (err)
-				return callbacks.ifError(err);
-			callbacks.ifOk(arrChain);
-		}
-	);
+	mutex.lock(['prepareLinkProofs'], function(unlock){
+		var start_ts = Date.now();
+		var arrChain = [];
+		async.forEachOfSeries(
+			arrUnits,
+			function(unit, i, cb){
+				if (i === 0)
+					return cb();
+				createLinkProof(arrUnits[i-1], arrUnits[i], arrChain, cb);
+			},
+			function(err){
+				console.log("prepareLinkProofs for units "+arrUnits.join(', ')+" took "+(Date.now()-start_ts)+'ms, err='+err);
+				err ? callbacks.ifError(err) : callbacks.ifOk(arrChain);
+				unlock();
+			}
+		);
+	});
 }
 
 // adds later unit

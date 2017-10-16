@@ -11,6 +11,9 @@ coverage
 # https://www.npmjs.org/doc/misc/npm-faq.html#should-i-check-my-node_modules-folder-into-git-
 node_modules
 
+# Yarn package manager
+yarn.lock
+
 # OSX
 
 .DS_Store
@@ -37,4 +40,9 @@ Temporary Items
 Session.vim
 .netrwhist
 *~
+
+# IDEA IntelliJ
+
+*.iml
+.idea
 

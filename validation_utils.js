@@ -2,6 +2,9 @@
 "use strict";
 var chash = require('./chash.js');
 
+/**
+ * True if there is at least one field in obj that is not in arrFields.
+ */
 function hasFieldsExcept(obj, arrFields){
 	for (var field in obj)
 		if (arrFields.indexOf(field) === -1)
@@ -9,22 +12,39 @@ function hasFieldsExcept(obj, arrFields){
 	return false;
 }
 
-function isInteger(int){
-	return (typeof int === 'number' && int.toString().indexOf('.') === -1 && !isNaN(int));
-}
+/**
+ * ES6 Number.isInteger Ponyfill.
+ *
+ * @see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/isInteger
+ */
+function isInteger(value){
+	return typeof value === 'number' && isFinite(value) && Math.floor(value) === value;
+};
 
+/**
+ * True if int is an integer strictly greater than zero.
+ */
 function isPositiveInteger(int){
-	return (typeof int === 'number' && int > 0 && int.toString().indexOf('.') === -1 && !isNaN(int));
+	return (isInteger(int) && int > 0);
 }
 
+/**
+ * True if int is an integer greater than or equal to zero.
+ */
 function isNonnegativeInteger(int){
-	return (typeof int === 'number' && int >= 0 && int.toString().indexOf('.') === -1 && !isNaN(int));
+	return (isInteger(int) && int >= 0);
 }
 
+/**
+ * True if str is a string and not the empty string.
+ */
 function isNonemptyString(str){
 	return (typeof str === "string" && str.length > 0);
 }
 
+/**
+ * True if str is a string and has length len. False if len not provided.
+ */
 function isStringOfLength(str, len){
 	return (typeof str === "string" && str.length === len);
 }
@@ -38,7 +58,7 @@ function isValidAddressAnyCase(address){
 }
 
 function isValidAddress(address){
-	return (address === address.toUpperCase() && isValidChash(address, 32));
+	return (typeof address === "string" && address === address.toUpperCase() && isValidChash(address, 32));
 }
 
 function isValidDeviceAddress(address){
@@ -58,7 +78,7 @@ function isNonemptyObject(obj){
 }
 
 function isValidBase64(b64, len){
-	return (b64.length === len && b64 === (new Buffer(b64, "base64")).toString("base64"));
+	return (typeof b64 === "string" && b64.length === len && b64 === (new Buffer(b64, "base64")).toString("base64"));
 }
 
 exports.hasFieldsExcept = hasFieldsExcept;

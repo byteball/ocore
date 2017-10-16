@@ -93,7 +93,8 @@ function readSharedAddressesOnWallet(wallet, handleSharedAddresses){
 }
 
 function readSharedAddressesDependingOnAddresses(arrMemberAddresses, handleSharedAddresses){
-	db.query("SELECT DISTINCT shared_address FROM shared_address_signing_paths WHERE address IN(?)", [arrMemberAddresses], function(rows){
+	var strAddressList = arrMemberAddresses.map(db.escape).join(', ');
+	db.query("SELECT DISTINCT shared_address FROM shared_address_signing_paths WHERE address IN("+strAddressList+")", function(rows){
 		var arrSharedAddresses = rows.map(function(row){ return row.shared_address; });
 		if (arrSharedAddresses.length === 0)
 			return handleSharedAddresses([]);
@@ -111,18 +112,18 @@ function readSharedBalance(wallet, handleBalance){
 	readSharedAddressesOnWallet(wallet, function(arrSharedAddresses){
 		if (arrSharedAddresses.length === 0)
 			return handleBalance(assocBalances);
+		var strAddressList = arrSharedAddresses.map(db.escape).join(', ');
 		db.query(
 			"SELECT asset, address, is_stable, SUM(amount) AS balance \n\
 			FROM outputs CROSS JOIN units USING(unit) \n\
-			WHERE is_spent=0 AND sequence='good' AND address IN(?) \n\
+			WHERE is_spent=0 AND sequence='good' AND address IN("+strAddressList+") \n\
 			GROUP BY asset, address, is_stable \n\
 			UNION ALL \n\
 			SELECT NULL AS asset, address, 1 AS is_stable, SUM(amount) AS balance FROM witnessing_outputs \n\
-			WHERE is_spent=0 AND address IN(?) GROUP BY address \n\
+			WHERE is_spent=0 AND address IN("+strAddressList+") GROUP BY address \n\
 			UNION ALL \n\
 			SELECT NULL AS asset, address, 1 AS is_stable, SUM(amount) AS balance FROM headers_commission_outputs \n\
-			WHERE is_spent=0 AND address IN(?) GROUP BY address",
-			[arrSharedAddresses, arrSharedAddresses, arrSharedAddresses],
+			WHERE is_spent=0 AND address IN("+strAddressList+") GROUP BY address",
 			function(rows){
 				for (var i=0; i<rows.length; i++){
 					var row = rows[i];

@@ -38,8 +38,8 @@ function loadBitcoreFromNearestParent(mod){
 	}
 }
 
-function sendOfferToCreateNewWallet(device_address, wallet, arrWalletDefinitionTemplate, walletName, arrOtherCosigners, callbacks){
-	var body = {wallet: wallet, wallet_definition_template: arrWalletDefinitionTemplate, wallet_name: walletName, other_cosigners: arrOtherCosigners};
+function sendOfferToCreateNewWallet(device_address, wallet, arrWalletDefinitionTemplate, walletName, arrOtherCosigners, isSingleAddress, callbacks){
+	var body = {wallet: wallet, wallet_definition_template: arrWalletDefinitionTemplate, wallet_name: walletName, other_cosigners: arrOtherCosigners, is_single_address: isSingleAddress};
 	device.sendMessageToDevice(device_address, "create_new_wallet", body, callbacks);
 }
 
@@ -103,7 +103,7 @@ function handleOfferToCreateNewWallet(body, from_address, callbacks){
 			if (cosigner.hub.length > 100)
 				return callbacks.ifError("cosigner hub too long");
 		}
-		eventBus.emit("create_new_wallet", body.wallet, body.wallet_definition_template, arrDeviceAddresses, body.wallet_name, body.other_cosigners);
+		eventBus.emit("create_new_wallet", body.wallet, body.wallet_definition_template, arrDeviceAddresses, body.wallet_name, body.other_cosigners, body.is_single_address);
 		callbacks.ifOk();
 	});
 }
@@ -120,8 +120,11 @@ function readNextAccount(handleAccount){
 // check that all members agree that the wallet is fully approved now
 function checkAndFinalizeWallet(wallet, onDone){
 	db.query("SELECT member_ready_date FROM wallets LEFT JOIN extended_pubkeys USING(wallet) WHERE wallets.wallet=?", [wallet], function(rows){
-		if (rows.length === 0) // wallet not created yet
-			throw Error("no wallet in checkAndFinalizeWallet");
+		if (rows.length === 0){ // wallet not created yet or already deleted
+		//	throw Error("no wallet in checkAndFinalizeWallet");
+			console.log("no wallet in checkAndFinalizeWallet");
+			return onDone ? onDone() : null;
+		}
 		if (rows.some(function(row){ return !row.member_ready_date; }))
 			return onDone ? onDone() : null;
 		db.query("UPDATE wallets SET ready_date="+db.getNow()+" WHERE wallet=? AND ready_date IS NULL", [wallet], function(){
@@ -226,7 +229,7 @@ function addWallet(wallet, xPubKey, account, arrWalletDefinitionTemplate, onDone
 }
 
 // initiator of the new wallet creates records about itself and sends requests to other devices
-function createWallet(xPubKey, account, arrWalletDefinitionTemplate, walletName, handleWallet){
+function createWallet(xPubKey, account, arrWalletDefinitionTemplate, walletName, isSingleAddress, handleWallet){
 	var wallet = crypto.createHash("sha256").update(xPubKey, "utf8").digest("base64");
 	console.log('will create wallet '+wallet);
 	var arrDeviceAddresses = getDeviceAddresses(arrWalletDefinitionTemplate);
@@ -245,40 +248,40 @@ function createWallet(xPubKey, account, arrWalletDefinitionTemplate, walletName,
 				if (device_address === device.getMyDeviceAddress())
 					return;
 				console.log("sending offer to "+device_address);
-				sendOfferToCreateNewWallet(device_address, wallet, arrWalletDefinitionTemplate, walletName, arrOtherCosigners);
+				sendOfferToCreateNewWallet(device_address, wallet, arrWalletDefinitionTemplate, walletName, arrOtherCosigners, isSingleAddress, null);
 				sendMyXPubKey(device_address, wallet, xPubKey);
 			});
 		});
 	});
 }
 
-function createMultisigWallet(xPubKey, account, count_required_signatures, arrDeviceAddresses, walletName, handleWallet){
+function createMultisigWallet(xPubKey, account, count_required_signatures, arrDeviceAddresses, walletName, isSingleAddress, handleWallet){
 	if (count_required_signatures > arrDeviceAddresses.length)
 		throw Error("required > length");
 	var set = arrDeviceAddresses.map(function(device_address){ return ["sig", {pubkey: '$pubkey@'+device_address}]; });
 	var arrDefinitionTemplate = ["r of set", {required: count_required_signatures, set: set}];
-	createWallet(xPubKey, account, arrDefinitionTemplate, walletName, handleWallet);
+	createWallet(xPubKey, account, arrDefinitionTemplate, walletName, isSingleAddress, handleWallet);
 }
 
 // walletName will not be used
 function createSinglesigWallet(xPubKey, account, walletName, handleWallet){
 	var arrDefinitionTemplate = ["sig", {pubkey: '$pubkey@'+device.getMyDeviceAddress()}];
-	createWallet(xPubKey, account, arrDefinitionTemplate, walletName, handleWallet);
+	createWallet(xPubKey, account, arrDefinitionTemplate, walletName, null, handleWallet);
 }
 
 function createSinglesigWalletWithExternalPrivateKey(xPubKey, account, device_address, handleWallet){
 	var arrDefinitionTemplate = ["sig", {pubkey: '$pubkey@'+device_address}];
-	createWallet(xPubKey, account, arrDefinitionTemplate, 'unused wallet name', handleWallet);
+	createWallet(xPubKey, account, arrDefinitionTemplate, 'unused wallet name', null, handleWallet);
 }
 
 // called from UI
-function createWalletByDevices(xPubKey, account, count_required_signatures, arrOtherDeviceAddresses, walletName, handleWallet){
+function createWalletByDevices(xPubKey, account, count_required_signatures, arrOtherDeviceAddresses, walletName, isSingleAddress, handleWallet){
 	console.log('createWalletByDevices: xPubKey='+xPubKey+", account="+account);
 	if (arrOtherDeviceAddresses.length === 0)
 		createSinglesigWallet(xPubKey, account, walletName, handleWallet);
 	else
 		createMultisigWallet(xPubKey, account, count_required_signatures, 
-				[device.getMyDeviceAddress()].concat(arrOtherDeviceAddresses), walletName, handleWallet);
+				[device.getMyDeviceAddress()].concat(arrOtherDeviceAddresses), walletName, isSingleAddress, handleWallet);
 }
 
 // called from UI after user confirms creation of wallet initiated by another device
@@ -410,12 +413,16 @@ function readCosigners(wallet, handleCosigners){
 // silently adds new address upon receiving a network message
 function addNewAddress(wallet, is_change, address_index, address, handleError){
 	breadcrumbs.add('addNewAddress is_change='+is_change+', index='+address_index+', address='+address);
-	deriveAddress(wallet, is_change, address_index, function(new_address, arrDefinition){
-		if (new_address !== address)
-			return handleError("I derived address "+new_address+", your address "+address);
-		recordAddress(wallet, is_change, address_index, address, arrDefinition, function(){
-			eventBus.emit("new_wallet_address", address);
-			handleError();
+	db.query("SELECT 1 FROM wallets WHERE wallet=?", [wallet], function(rows){
+		if (rows.length === 0)
+			return handleError("wallet "+wallet+" does not exist");
+		deriveAddress(wallet, is_change, address_index, function(new_address, arrDefinition){
+			if (new_address !== address)
+				return handleError("I derived address "+new_address+", your address "+address);
+			recordAddress(wallet, is_change, address_index, address, arrDefinition, function(){
+				eventBus.emit("new_wallet_address", address);
+				handleError();
+			});
 		});
 	});
 }
@@ -753,22 +760,33 @@ function forwardPrivateChainsToOtherMembersOfWallets(arrChains, arrWallets, conn
 		"SELECT device_address FROM extended_pubkeys WHERE wallet IN(?) AND device_address!=?", 
 		[arrWallets, device.getMyDeviceAddress()], 
 		function(rows){
-			console.log("devices: "+rows.length);
-			async.eachSeries(
-				rows,
-				function(row, cb){
-					console.log("forwarding to device "+row.device_address);
-					walletGeneral.sendPrivatePayments(row.device_address, arrChains, true, conn, cb);
-				},
-				function(){
-					if (onSaved)
-						onSaved();
-				}
-			);
+			var arrDeviceAddresses = rows.map(function(row){ return row.device_address; });
+			walletGeneral.forwardPrivateChainsToDevices(arrDeviceAddresses, arrChains, true, conn, onSaved);
 		}
 	);
 }
 
+function readDeviceAddressesControllingPaymentAddresses(conn, arrAddresses, handleDeviceAddresses){
+	if (arrAddresses.length === 0)
+		return handleDeviceAddresses([]);
+	conn = conn || db;
+	conn.query(
+		"SELECT DISTINCT device_address FROM my_addresses JOIN extended_pubkeys USING(wallet) WHERE address IN(?) AND device_address!=?", 
+		[arrAddresses, device.getMyDeviceAddress()], 
+		function(rows){
+			var arrDeviceAddresses = rows.map(function(row){ return row.device_address; });
+			handleDeviceAddresses(arrDeviceAddresses);
+		}
+	);
+}
+
+function forwardPrivateChainsToOtherMembersOfAddresses(arrChains, arrAddresses, conn, onSaved){
+	console.log("forwardPrivateChainsToOtherMembersOfAddresses", arrAddresses);
+	conn = conn || db;
+	readDeviceAddressesControllingPaymentAddresses(conn, arrAddresses, function(arrDeviceAddresses){
+		walletGeneral.forwardPrivateChainsToDevices(arrDeviceAddresses, arrChains, true, conn, onSaved);
+	});
+}
 
 
 
@@ -794,6 +812,8 @@ exports.readChangeAddresses = readChangeAddresses;
 exports.readAddressInfo = readAddressInfo;
 
 exports.forwardPrivateChainsToOtherMembersOfWallets = forwardPrivateChainsToOtherMembersOfWallets;
+
+exports.readDeviceAddressesControllingPaymentAddresses = readDeviceAddressesControllingPaymentAddresses;
 
 exports.readCosigners = readCosigners;
 
