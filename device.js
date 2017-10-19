@@ -346,7 +346,7 @@ function readMessageInChunksFromOutbox(message_hash, len, handleMessage){
 	function readChunk(){
 		db.query("SELECT SUBSTR(message, ?, ?) AS chunk FROM outbox WHERE message_hash=?", [start, CHUNK_LEN, message_hash], function(rows){
 			if (rows.length !== 1)
-				throw Error(rows.length+' msgs by hash in outbox');
+				throw Error(rows.length+' msgs by hash in outbox, start='+start+', length='+len);
 			message += rows[0].chunk;
 			start += CHUNK_LEN;
 			(start > len) ? handleMessage(message) : readChunk();
