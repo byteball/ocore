@@ -470,6 +470,7 @@ function readSharedAddressDefinition(shared_address, handleDefinition){
 	);
 }
 
+// returns information about cosigner devices
 function readSharedAddressCosigners(shared_address, handleCosigners){
 	db.query(
 		"SELECT DISTINCT shared_address_signing_paths.device_address, name, "+db.getUnixTimestamp("shared_addresses.creation_date")+" AS creation_ts \n\
@@ -484,6 +485,32 @@ function readSharedAddressCosigners(shared_address, handleCosigners){
 			handleCosigners(rows);
 		}
 	);
+}
+
+// returns list of payment addresses of peers
+function readSharedAddressPeerAddresses(shared_address, handlePeerAddresses){
+	db.query(
+		"SELECT DISTINCT address FROM shared_address_signing_paths WHERE shared_address=? AND device_address!=?",
+		[shared_address, device.getMyDeviceAddress()],
+		function(rows){
+			// no problem if no peers found: the peer can be part of our multisig address and his device address will be rewritten to ours
+		//	if (rows.length === 0)
+		//		throw Error("no peers found for shared address "+shared_address);
+			var arrPeerAddresses = rows.map(function(row){ return row.address; });
+			handlePeerAddresses(arrPeerAddresses);
+		}
+	);
+}
+
+function getPeerAddressesFromSigners(assocSignersByPath){
+	var assocPeerAddresses = {};
+	for (var path in assocSignersByPath){
+		var signerInfo = assocSignersByPath[path];
+		if (signerInfo.device_address !== device.getMyDeviceAddress())
+			assocPeerAddresses[signerInfo.address] = true;
+	}
+	var arrPeerAddresses = Object.keys(assocPeerAddresses);
+	return arrPeerAddresses;
 }
 
 function determineIfHasMerkle(shared_address, handleResult){
@@ -506,6 +533,8 @@ exports.validateAddressDefinition = validateAddressDefinition;
 exports.handleNewSharedAddress = handleNewSharedAddress;
 exports.forwardPrivateChainsToOtherMembersOfAddresses = forwardPrivateChainsToOtherMembersOfAddresses;
 exports.readSharedAddressCosigners = readSharedAddressCosigners;
+exports.readSharedAddressPeerAddresses = readSharedAddressPeerAddresses;
+exports.getPeerAddressesFromSigners = getPeerAddressesFromSigners;
 exports.readSharedAddressDefinition = readSharedAddressDefinition;
 exports.determineIfHasMerkle = determineIfHasMerkle;
 exports.createNewSharedAddress = createNewSharedAddress;
