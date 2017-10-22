@@ -2360,7 +2360,7 @@ function handleRequest(ws, tag, command, params){
 			if (!ws.device_address)
 				return sendErrorResponse(ws, tag, "please log in first");
 			var objTempPubkey = params;
-			if (!objTempPubkey.temp_pubkey || !objTempPubkey.pubkey || !objTempPubkey.signature)
+			if (!objTempPubkey || !objTempPubkey.temp_pubkey || !objTempPubkey.pubkey || !objTempPubkey.signature)
 				return sendErrorResponse(ws, tag, "no temp_pubkey params");
 			if (objTempPubkey.temp_pubkey.length !== constants.PUBKEY_LENGTH)
 				return sendErrorResponse(ws, tag, "wrong temp_pubkey length");
@@ -2436,6 +2436,8 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
 			if (ws.bOutbound)
 				return sendErrorResponse(ws, tag, "light clients have to be inbound");
+			if (!params)
+				return sendErrorResponse(ws, tag, "no params in get_parents_and_last_ball_and_witness_list_unit");
 			light.prepareParentsAndLastBallAndWitnessListUnit(params.witnesses, {
 				ifError: function(err){
 					sendErrorResponse(ws, tag, err);

@@ -12,6 +12,8 @@ var witnessProof = require('./witness_proof.js');
 
 
 function prepareCatchupChain(catchupRequest, callbacks){
+	if (!catchupRequest)
+		return callbacks.ifError("no catchup request");
 	var last_stable_mci = catchupRequest.last_stable_mci;
 	var last_known_mci = catchupRequest.last_known_mci;
 	var arrWitnesses = catchupRequest.witnesses;
@@ -200,6 +202,8 @@ function processCatchupChain(catchupChain, peer, callbacks){
 }
 
 function readHashTree(hashTreeRequest, callbacks){
+	if (!hashTreeRequest)
+		return callbacks.ifError("no hash tree request");
 	var from_ball = hashTreeRequest.from_ball;
 	var to_ball = hashTreeRequest.to_ball;
 	if (typeof from_ball !== 'string')

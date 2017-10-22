@@ -162,6 +162,8 @@ function buildLastMileOfProofChain(mci, unit, arrBalls, onDone){
 
 
 function prepareHistory(historyRequest, callbacks){
+	if (!historyRequest)
+		return callbacks.ifError("no history request");
 	var arrKnownStableUnits = historyRequest.known_stable_units;
 	var arrWitnesses = historyRequest.witnesses;
 	var arrAddresses = historyRequest.addresses;
