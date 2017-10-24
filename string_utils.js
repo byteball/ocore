@@ -1,7 +1,7 @@
 /*jslint node: true */
 "use strict";
 
-const STRING_JOIN_CHAR = "\x00";
+var STRING_JOIN_CHAR = "\x00";
 
 /**
  * Converts the argument into a string by mapping data types to a prefixed string and concatenating all fields together.
