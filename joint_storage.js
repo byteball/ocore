@@ -207,11 +207,11 @@ function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 			AND EXISTS ( \n\
 				SELECT DISTINCT address FROM units AS wunits CROSS JOIN unit_authors USING(unit) CROSS JOIN my_witnesses USING(address) \n\
 				WHERE wunits."+order_column+" > units."+order_column+" \n\
-				LIMIT ?,1 \n\
+				LIMIT 0,1 \n\
 			) \n\
 			/* AND NOT EXISTS (SELECT * FROM unhandled_joints) */", 
 		// some unhandled joints may depend on the unit to be archived but it is not in dependencies because it was known when its child was received
-		[constants.MAJORITY_OF_WITNESSES - 1],
+	//	[constants.MAJORITY_OF_WITNESSES - 1],
 		function(rows){
 			async.eachSeries(
 				rows,
