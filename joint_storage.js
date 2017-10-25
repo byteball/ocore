@@ -248,7 +248,7 @@ function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 						return onDone();
 					// else 0 rows and bByExistenceOfChildren
 					db.query(
-						"UPDATE units SET is_free=1 WHERE is_free=0 AND main_chain_index IS NULL \n\
+						"UPDATE units SET is_free=1 WHERE is_free=0 AND is_stable=0 \n\
 						AND (SELECT 1 FROM parenthoods WHERE parent_unit=unit LIMIT 1) IS NULL",
 						function(){
 							onDone();
