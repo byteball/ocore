@@ -204,11 +204,11 @@ function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 		WHERE "+cond+" AND sequence IN('final-bad','temp-bad') AND content_hash IS NULL \n\
 			AND NOT EXISTS (SELECT * FROM dependencies WHERE depends_on_unit=units.unit) \n\
 			AND NOT EXISTS (SELECT * FROM balls WHERE balls.unit=units.unit) \n\
-			AND EXISTS ( \n\
+			AND (units.creation_date < "+db.addTime('-10 SECOND')+" OR EXISTS ( \n\
 				SELECT DISTINCT address FROM units AS wunits CROSS JOIN unit_authors USING(unit) CROSS JOIN my_witnesses USING(address) \n\
 				WHERE wunits."+order_column+" > units."+order_column+" \n\
 				LIMIT 0,1 \n\
-			) \n\
+			)) \n\
 			/* AND NOT EXISTS (SELECT * FROM unhandled_joints) */", 
 		// some unhandled joints may depend on the unit to be archived but it is not in dependencies because it was known when its child was received
 	//	[constants.MAJORITY_OF_WITNESSES - 1],
