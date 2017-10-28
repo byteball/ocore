@@ -2303,7 +2303,10 @@ function handleRequest(ws, tag, command, params){
 			// if i'm always online and i'm my own hub
 			if (bToMe){
 				sendResponse(ws, tag, "accepted");
-				eventBus.emit("message_from_hub", ws, 'hub/message', objDeviceMessage);
+				eventBus.emit("message_from_hub", ws, 'hub/message', {
+					message_hash: objectHash.getBase64Hash(objDeviceMessage),
+					message: objDeviceMessage
+				});
 				return;
 			}
 			
