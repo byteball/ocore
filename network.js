@@ -2244,26 +2244,38 @@ function handleRequest(ws, tag, command, params){
 			
 		case 'catchup':
 			var catchupRequest = params;
-			catchup.prepareCatchupChain(catchupRequest, {
-				ifError: function(error){
-					sendErrorResponse(ws, tag, error);
-				},
-				ifOk: function(objCatchupChain){
-					sendResponse(ws, tag, objCatchupChain);
-				}
+			mutex.lock(['catchup_request'], function(unlock){
+				if (!ws || ws.readyState !== ws.OPEN) // may be already gone when we receive the lock
+					return unlock();
+				catchup.prepareCatchupChain(catchupRequest, {
+					ifError: function(error){
+						sendErrorResponse(ws, tag, error);
+						unlock();
+					},
+					ifOk: function(objCatchupChain){
+						sendResponse(ws, tag, objCatchupChain);
+						unlock();
+					}
+				});
 			});
 			break;
 			
 		case 'get_hash_tree':
 			var hashTreeRequest = params;
-			catchup.readHashTree(hashTreeRequest, {
-				ifError: function(error){
-					sendErrorResponse(ws, tag, error);
-				},
-				ifOk: function(arrBalls){
-					// we have to wrap arrBalls into an object because the peer will check .error property first
-					sendResponse(ws, tag, {balls: arrBalls});
-				}
+			mutex.lock(['get_hash_tree_request'], function(unlock){
+				if (!ws || ws.readyState !== ws.OPEN) // may be already gone when we receive the lock
+					return unlock();
+				catchup.readHashTree(hashTreeRequest, {
+					ifError: function(error){
+						sendErrorResponse(ws, tag, error);
+						unlock();
+					},
+					ifOk: function(arrBalls){
+						// we have to wrap arrBalls into an object because the peer will check .error property first
+						sendResponse(ws, tag, {balls: arrBalls});
+						unlock();
+					}
+				});
 			});
 			break;
 			
