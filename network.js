@@ -2246,7 +2246,7 @@ function handleRequest(ws, tag, command, params){
 			var catchupRequest = params;
 			mutex.lock(['catchup_request'], function(unlock){
 				if (!ws || ws.readyState !== ws.OPEN) // may be already gone when we receive the lock
-					return unlock();
+					return process.nextTick(unlock);
 				catchup.prepareCatchupChain(catchupRequest, {
 					ifError: function(error){
 						sendErrorResponse(ws, tag, error);
@@ -2264,7 +2264,7 @@ function handleRequest(ws, tag, command, params){
 			var hashTreeRequest = params;
 			mutex.lock(['get_hash_tree_request'], function(unlock){
 				if (!ws || ws.readyState !== ws.OPEN) // may be already gone when we receive the lock
-					return unlock();
+					return process.nextTick(unlock);
 				catchup.readHashTree(hashTreeRequest, {
 					ifError: function(error){
 						sendErrorResponse(ws, tag, error);
