@@ -1270,8 +1270,12 @@ function notifyLightClientsAboutStableJoints(from_mci, to_mci){
 
 function notifyLocalWatchedAddressesAboutStableJoints(mci){
 	function handleRows(rows){
-		if (rows.length > 0)
+		if (rows.length > 0){
 			eventBus.emit('my_transactions_became_stable', rows.map(function(row){ return row.unit; }));
+			rows.forEach(function(row){
+				eventBus.emit('my_stable-'+row.unit);
+			});
+		}
 	}
 	if (arrWatchedAddresses.length > 0)
 		db.query(
