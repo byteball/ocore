@@ -1279,20 +1279,20 @@ function notifyLocalWatchedAddressesAboutStableJoints(mci){
 	}
 	if (arrWatchedAddresses.length > 0)
 		db.query(
-			"SELECT unit FROM units JOIN unit_authors USING(unit) WHERE main_chain_index=? AND address IN(?) \n\
+			"SELECT unit FROM units JOIN unit_authors USING(unit) WHERE main_chain_index=? AND address IN(?) AND sequence='good' \n\
 			UNION \n\
-			SELECT unit FROM units JOIN outputs USING(unit) WHERE main_chain_index=? AND address IN(?)",
+			SELECT unit FROM units JOIN outputs USING(unit) WHERE main_chain_index=? AND address IN(?) AND sequence='good'",
 			[mci, arrWatchedAddresses, mci, arrWatchedAddresses],
 			handleRows
 		);
 	db.query(
-		"SELECT unit FROM units JOIN unit_authors USING(unit) JOIN my_addresses USING(address) WHERE main_chain_index=? \n\
+		"SELECT unit FROM units JOIN unit_authors USING(unit) JOIN my_addresses USING(address) WHERE main_chain_index=? AND sequence='good' \n\
 		UNION \n\
-		SELECT unit FROM units JOIN outputs USING(unit) JOIN my_addresses USING(address) WHERE main_chain_index=? \n\
+		SELECT unit FROM units JOIN outputs USING(unit) JOIN my_addresses USING(address) WHERE main_chain_index=? AND sequence='good' \n\
 		UNION \n\
-		SELECT unit FROM units JOIN unit_authors USING(unit) JOIN shared_addresses ON address=shared_address WHERE main_chain_index=? \n\
+		SELECT unit FROM units JOIN unit_authors USING(unit) JOIN shared_addresses ON address=shared_address WHERE main_chain_index=? AND sequence='good' \n\
 		UNION \n\
-		SELECT unit FROM units JOIN outputs USING(unit) JOIN shared_addresses ON address=shared_address WHERE main_chain_index=?",
+		SELECT unit FROM units JOIN outputs USING(unit) JOIN shared_addresses ON address=shared_address WHERE main_chain_index=? AND sequence='good'",
 		[mci, mci, mci, mci],
 		handleRows
 	);
