@@ -13,6 +13,7 @@ var witnessProof = require('./witness_proof.js');
 var ValidationUtils = require("./validation_utils.js");
 var parentComposer = require('./parent_composer.js');
 var breadcrumbs = require('./breadcrumbs.js');
+var eventBus = require('./event_bus.js');
 
 var MAX_HISTORY_ITEMS = 1000;
 
@@ -268,7 +269,7 @@ function prepareHistory(historyRequest, callbacks){
 
 function processHistory(objResponse, callbacks){
 	if (!("joints" in objResponse)) // nothing found
-		return callbacks.ifOk();
+		return callbacks.ifOk(false);
 	if (!ValidationUtils.isNonemptyArray(objResponse.unstable_mc_joints))
 		return callbacks.ifError("no unstable_mc_joints");
 	if (!objResponse.witness_change_and_definition_joints)
@@ -372,11 +373,16 @@ function processHistory(objResponse, callbacks){
 							fixIsSpentFlagAndInputAddress(function(){
 								if (arrProvenUnits.length === 0){
 									unlock();
-									return callbacks.ifOk();
+									return callbacks.ifOk(true);
 								}
 								db.query("UPDATE units SET is_stable=1, is_free=0 WHERE unit IN(?)", [arrProvenUnits], function(){
 									unlock();
-									callbacks.ifOk();
+									arrProvenUnits = arrProvenUnits.filter(function(unit){ return !assocProvenUnitsNonserialness[unit]; });
+									if (arrProvenUnits.length === 0)
+										return callbacks.ifOk(true);
+									emitStability(arrProvenUnits, function(bEmitted){
+										callbacks.ifOk(!bEmitted);
+									});
 								});
 							});
 						}
@@ -452,6 +458,28 @@ function determineIfHaveUnstableJoints(arrAddresses, handleResult){
 		[arrAddresses, arrAddresses],
 		function(rows){
 			handleResult(rows.length > 0);
+		}
+	);
+}
+
+function emitStability(arrProvenUnits, onDone){
+	var strUnitList = arrProvenUnits.map(db.escape).join(', ');
+	db.query(
+		"SELECT unit FROM unit_authors JOIN my_addresses USING(address) WHERE unit IN("+strUnitList+") \n\
+		UNION \n\
+		SELECT unit FROM outputs JOIN my_addresses USING(address) WHERE unit IN("+strUnitList+") \n\
+		UNION \n\
+		SELECT unit FROM unit_authors JOIN shared_addresses ON address=shared_address WHERE unit IN("+strUnitList+") \n\
+		UNION \n\
+		SELECT unit FROM outputs JOIN shared_addresses ON address=shared_address WHERE unit IN("+strUnitList+")",
+		function(rows){
+			onDone(rows.length > 0);
+			if (rows.length > 0){
+				eventBus.emit('my_transactions_became_stable', rows.map(function(row){ return row.unit; }));
+				rows.forEach(function(row){
+					eventBus.emit('my_stable-'+row.unit);
+				});
+			}
 		}
 	);
 }
