@@ -33,10 +33,13 @@ function updateMainChain(conn, last_unit, onDone){
 				ORDER BY witnessed_level DESC, \n\
 					level-witnessed_level ASC, \n\
 					unit ASC \n\
-				LIMIT 1",
+				LIMIT 2",
 				function(rows){
 					if (rows.length === 0)
 						throw Error("no free units?");
+					// override when adding +5ntioHT58jcFb8oVc+Ff4UvO5UvYGRcrGfYIofGUW8= which caused witnessed level to significantly retreat
+					if (rows.length === 2 && rows[1].best_parent_unit === '+5ntioHT58jcFb8oVc+Ff4UvO5UvYGRcrGfYIofGUW8=' && (rows[0].best_parent_unit === '3XJT1iK8FpFeGjwWXd9+Yu7uJp7hM692Sfbb5zdqWCE=' || rows[0].best_parent_unit === 'TyY/CY8xLGvJhK6DaBumj2twaf4y4jPC6umigAsldIA='))
+						return handleLastUnitProps(rows[1]);
 					handleLastUnitProps(rows[0]);
 				}
 			);
