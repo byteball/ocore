@@ -567,6 +567,38 @@ function determineIfWitnessAddressDefinitionsHaveReferences(conn, arrWitnesses, 
 	);
 }
 
+function determineWitnessedLevelAndBestParent(conn, arrParentUnits, arrWitnesses, handleWitnessedLevelAndBestParent){
+	var arrCollectedWitnesses = [];
+	var my_best_parent_unit;
+
+	function addWitnessesAndGoUp(start_unit){
+		readStaticUnitProps(conn, start_unit, function(props){
+			var best_parent_unit = props.best_parent_unit;
+			var level = props.level;
+			if (level === null)
+				throw Error("null level in updateWitnessedLevel");
+			if (level === 0) // genesis
+				return handleWitnessedLevelAndBestParent(0, null);
+			readUnitAuthors(conn, start_unit, function(arrAuthors){
+				for (var i=0; i<arrAuthors.length; i++){
+					var address = arrAuthors[i];
+					if (arrWitnesses.indexOf(address) !== -1 && arrCollectedWitnesses.indexOf(address) === -1)
+						arrCollectedWitnesses.push(address);
+				}
+				(arrCollectedWitnesses.length < constants.MAJORITY_OF_WITNESSES) 
+					? addWitnessesAndGoUp(best_parent_unit) : handleWitnessedLevelAndBestParent(level, my_best_parent_unit);
+			});
+		});
+	}
+
+	determineBestParent(conn, {parent_units: arrParentUnits, witness_list_unit: 'none'}, arrWitnesses, function(best_parent_unit){
+		if (!best_parent_unit)
+			throw Error("no best parent of "+arrParentUnits.join(', '));
+		my_best_parent_unit = best_parent_unit;
+		addWitnessesAndGoUp(best_parent_unit);
+	});
+}
+
 
 /*
 function readWitnessesOnMcUnit(conn, main_chain_index, handleWitnesses){
@@ -655,7 +687,7 @@ function isGenesisBall(ball){
 
 function readUnitProps(conn, unit, handleProps){
 	conn.query(
-		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable FROM units WHERE unit=?", 
+		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level FROM units WHERE unit=?", 
 		[unit], 
 		function(rows){
 			if (rows.length !== 1)
@@ -1371,6 +1403,7 @@ exports.loadAssetWithListOfAttestedAuthors = loadAssetWithListOfAttestedAuthors;
 
 exports.filterNewOrUnstableUnits = filterNewOrUnstableUnits;
 
+exports.determineWitnessedLevelAndBestParent = determineWitnessedLevelAndBestParent;
 exports.determineBestParent = determineBestParent;
 exports.determineIfHasWitnessListMutationsAlongMc = determineIfHasWitnessListMutationsAlongMc;
 
