@@ -2405,33 +2405,39 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
 			if (ws.bOutbound)
 				return sendErrorResponse(ws, tag, "light clients have to be inbound");
-			light.prepareHistory(params, {
-				ifError: function(err){
-					sendErrorResponse(ws, tag, err);
-				},
-				ifOk: function(objResponse){
-					sendResponse(ws, tag, objResponse);
-					if (params.addresses)
-						db.query(
-							"INSERT "+db.getIgnore()+" INTO watched_light_addresses (peer, address) VALUES "+
-							params.addresses.map(function(address){ return "("+db.escape(ws.peer)+", "+db.escape(address)+")"; }).join(", ")
-						);
-					if (params.requested_joints) {
-						storage.sliceAndExecuteQuery("SELECT unit FROM units WHERE main_chain_index >= ? AND unit IN(?)",
-							[storage.getMinRetrievableMci(), params.requested_joints], params.requested_joints, function(rows) {
-							if(rows.length) {
-								db.query(
-									"INSERT " + db.getIgnore() + " INTO watched_light_units (peer, unit) VALUES " +
-									rows.map(function(row) {
-										return "(" + db.escape(ws.peer) + ", " + db.escape(row.unit) + ")";
-									}).join(", ")
-								);
-							}
-						});
+			mutex.lock(['get_history_request'], function(unlock){
+				if (!ws || ws.readyState !== ws.OPEN) // may be already gone when we receive the lock
+					return process.nextTick(unlock);
+				light.prepareHistory(params, {
+					ifError: function(err){
+						sendErrorResponse(ws, tag, err);
+						unlock();
+					},
+					ifOk: function(objResponse){
+						sendResponse(ws, tag, objResponse);
+						if (params.addresses)
+							db.query(
+								"INSERT "+db.getIgnore()+" INTO watched_light_addresses (peer, address) VALUES "+
+								params.addresses.map(function(address){ return "("+db.escape(ws.peer)+", "+db.escape(address)+")"; }).join(", ")
+							);
+						if (params.requested_joints) {
+							storage.sliceAndExecuteQuery("SELECT unit FROM units WHERE main_chain_index >= ? AND unit IN(?)",
+								[storage.getMinRetrievableMci(), params.requested_joints], params.requested_joints, function(rows) {
+								if(rows.length) {
+									db.query(
+										"INSERT " + db.getIgnore() + " INTO watched_light_units (peer, unit) VALUES " +
+										rows.map(function(row) {
+											return "(" + db.escape(ws.peer) + ", " + db.escape(row.unit) + ")";
+										}).join(", ")
+									);
+								}
+							});
+						}
+						//db.query("INSERT "+db.getIgnore()+" INTO light_peer_witnesses (peer, witness_address) VALUES "+
+						//    params.witnesses.map(function(address){ return "("+db.escape(ws.peer)+", "+db.escape(address)+")"; }).join(", "));
+						unlock();
 					}
-					//db.query("INSERT "+db.getIgnore()+" INTO light_peer_witnesses (peer, witness_address) VALUES "+
-					//    params.witnesses.map(function(address){ return "("+db.escape(ws.peer)+", "+db.escape(address)+")"; }).join(", "));
-				}
+				});
 			});
 			break;
 			
@@ -2440,13 +2446,19 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
 			if (ws.bOutbound)
 				return sendErrorResponse(ws, tag, "light clients have to be inbound");
-			light.prepareLinkProofs(params, {
-				ifError: function(err){
-					sendErrorResponse(ws, tag, err);
-				},
-				ifOk: function(objResponse){
-					sendResponse(ws, tag, objResponse);
-				}
+			mutex.lock(['get_link_proofs_request'], function(unlock){
+				if (!ws || ws.readyState !== ws.OPEN) // may be already gone when we receive the lock
+					return process.nextTick(unlock);
+				light.prepareLinkProofs(params, {
+					ifError: function(err){
+						sendErrorResponse(ws, tag, err);
+						unlock();
+					},
+					ifOk: function(objResponse){
+						sendResponse(ws, tag, objResponse);
+						unlock();
+					}
+				});
 			});
 			break;
 			
