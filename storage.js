@@ -788,7 +788,7 @@ function updateMinRetrievableMciAfterStabilizingMci(conn, last_stable_mci, handl
 		// strip content off units older than min_retrievable_mci
 		conn.query(
 			// 'JOIN messages' filters units that are not stripped yet
-			"SELECT DISTINCT unit, content_hash FROM units JOIN messages USING(unit) \n\
+			"SELECT DISTINCT unit, content_hash FROM units "+db.forceIndex('byMcIndex')+" CROSS JOIN messages USING(unit) \n\
 			WHERE main_chain_index<=? AND main_chain_index>=? AND sequence='final-bad'", 
 			[min_retrievable_mci, prev_min_retrievable_mci],
 			function(unit_rows){
