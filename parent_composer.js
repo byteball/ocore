@@ -71,7 +71,7 @@ function checkWitnessedLevelNotRetreatingAndLookDeeper(conn, arrWitnesses, arrPa
 		storage.readStaticUnitProps(conn, best_parent_unit, function(props){
 			if (witnessed_level >= props.witnessed_level)
 				return onDone(null, arrParentUnits);
-			console.log("witness level would retreat if parents = "+arrParentUnits.join(', ')+", will look for older parents");
+			console.log("witness level would retreat from "+props.witnessed_level+" to "+witnessed_level+" if parents = "+arrParentUnits.join(', ')+", will look for older parents");
 			pickDeepParentUnits(conn, arrWitnesses, witnessed_level, onDone);
 		});
 	});
