@@ -534,11 +534,23 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 			[arrWitnesses, objValidationState.last_ball_mci, objValidationState.last_ball_mci, arrWitnesses, objValidationState.last_ball_mci],
 			function(rows){
 				profiler.stop('validation-witnesses-no-refs');
-				(rows.length > 0) ? callback("some witnesses have references in their addresses") : callback();
+				(rows.length > 0) ? callback("some witnesses have references in their addresses") : checkWitnessedLevelDidNotRetreat(arrWitnesses);
 			}
 		);
 	}
 
+	function checkWitnessedLevelDidNotRetreat(arrWitnesses){
+		if (objValidationState.last_ball_mci < 1400000) // not enforced
+			return callback();
+		storage.determineWitnessedLevelAndBestParent(conn, objUnit.parent_units, arrWitnesses, function(witnessed_level, best_parent_unit){
+			storage.readStaticUnitProps(conn, best_parent_unit, function(props){
+				(witnessed_level >= props.witnessed_level) 
+					? callback() 
+					: callback("witnessed level retreats from "+props.witnessed_level+" to "+witnessed_level);
+			});
+		});
+	}
+	
 	profiler.start();
 	var last_ball_unit = objUnit.last_ball_unit;
 	if (typeof objUnit.witness_list_unit === "string"){
