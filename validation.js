@@ -1912,12 +1912,12 @@ function validateAssetDefinition(conn, payload, objUnit, objValidationState, cal
 		function(cb){
 			if (!("issue_condition" in payload))
 				return cb();
-			Definition.validateDefinition(conn, payload.issue_condition, objUnit, objValidationState, true, cb);
+			Definition.validateDefinition(conn, payload.issue_condition, objUnit, objValidationState, null, true, cb);
 		},
 		function(cb){
 			if (!("transfer_condition" in payload))
 				return cb();
-			Definition.validateDefinition(conn, payload.transfer_condition, objUnit, objValidationState, true, cb);
+			Definition.validateDefinition(conn, payload.transfer_condition, objUnit, objValidationState, null, true, cb);
 		}
 	], callback);
 }

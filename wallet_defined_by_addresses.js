@@ -397,7 +397,7 @@ function validateAddressDefinitionTemplate(arrDefinitionTemplate, from_address, 
 	}
 	var objFakeUnit = {authors: [{address: fake_address, definition: ["sig", {pubkey: device.getMyDevicePubKey()}]}]};
 	var objFakeValidationState = {last_ball_mci: MAX_INT32};
-	Definition.validateDefinition(db, arrFakeDefinition, objFakeUnit, objFakeValidationState, false, function(err){
+	Definition.validateDefinition(db, arrFakeDefinition, objFakeUnit, objFakeValidationState, null, false, function(err){
 		if (err)
 			return handleResult(err);
 		handleResult(null, assocMemberDeviceAddressesBySigningPaths);
@@ -409,7 +409,7 @@ function validateAddressDefinitionTemplate(arrDefinitionTemplate, from_address, 
 function validateAddressDefinition(arrDefinition, handleResult){
 	var objFakeUnit = {authors: []};
 	var objFakeValidationState = {last_ball_mci: MAX_INT32, bAllowUnresolvedInnerDefinitions: true};
-	Definition.validateDefinition(db, arrDefinition, objFakeUnit, objFakeValidationState, false, function(err){
+	Definition.validateDefinition(db, arrDefinition, objFakeUnit, objFakeValidationState, null, false, function(err){
 		if (err)
 			return handleResult(err);
 		handleResult();
