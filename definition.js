@@ -231,7 +231,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 					ifDefinitionNotFound: function(definition_chash){
 					//	if (objValidationState.bAllowUnresolvedInnerDefinitions)
 					//		return cb(null, true);
-						var bAllowUnresolvedInnerDefinitions = !(constants.version === '1.0t' && constants.alt === '1');
+						var bAllowUnresolvedInnerDefinitions = true;
 						var arrDefiningAuthors = objUnit.authors.filter(function(author){
 							return (author.address === other_address && objectHash.getChash160(author.definition) === definition_chash);
 						});
