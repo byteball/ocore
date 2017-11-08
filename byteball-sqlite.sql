@@ -84,6 +84,7 @@ CREATE TABLE unit_authors (
 	unit CHAR(44) NOT NULL,
 	address CHAR(32) NOT NULL,
 	definition_chash CHAR(32) NULL, -- only with 1st ball from this address, and with next ball after definition change
+	_mci INT NULL,
 	PRIMARY KEY (unit, address),
 	FOREIGN KEY (unit) REFERENCES units(unit),
 	CONSTRAINT unitAuthorsByAddress FOREIGN KEY (address) REFERENCES addresses(address),
@@ -92,6 +93,7 @@ CREATE TABLE unit_authors (
 CREATE INDEX byDefinitionChash ON unit_authors(definition_chash);
 CREATE INDEX unitAuthorsIndexByAddress ON unit_authors(address);
 CREATE INDEX unitAuthorsIndexByAddressDefinitionChash ON unit_authors(address, definition_chash);
+CREATE INDEX unitAuthorsIndexByAddressMci ON unit_authors(address, _mci);
 
 
 CREATE TABLE authentifiers (

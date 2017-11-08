@@ -130,7 +130,9 @@ function updateMainChain(conn, last_unit, onDone){
 	
 								function updateMc(){
 									conn.query("UPDATE units SET main_chain_index=? WHERE unit IN(?)", [main_chain_index, arrUnits], function(){
-										cb();
+										conn.query("UPDATE unit_authors SET _mci=? WHERE unit IN(?)", [main_chain_index, arrUnits], function(){
+											cb();
+										});
 									});
 								}
 								

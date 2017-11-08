@@ -80,10 +80,12 @@ CREATE TABLE unit_authors (
 	unit CHAR(44) BINARY NOT NULL,
 	address CHAR(32) NOT NULL,
 	definition_chash CHAR(32) NULL, -- only with 1st ball from this address, and with next ball after definition change
+	_mci INT NULL,
 	PRIMARY KEY (unit, address),
 	FOREIGN KEY byUnit(unit) REFERENCES units(unit),
 	CONSTRAINT unitAuthorsByAddress FOREIGN KEY byAddress(address) REFERENCES addresses(address),
 	KEY unitAuthorsIndexByAddressDefinitionChash (address, definition_chash),
+	KEY unitAuthorsIndexByAddressMci (address, _mci),
 	FOREIGN KEY byDefinition(definition_chash) REFERENCES definitions(definition_chash)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
