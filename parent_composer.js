@@ -45,7 +45,7 @@ function pickDeepParentUnits(conn, arrWitnesses, max_wl, onDone){
 	// fixed: an attacker could cover all free compatible units with his own incompatible ones, then those that were not on MC will be never included
 	//var cond = bDeep ? "is_on_main_chain=1" : "is_free=1";
 	
-	var and_wl = (max_wl === null) ? '' : "AND witnessed_level<="+max_wl;
+	var and_wl = (max_wl === null) ? '' : "AND +is_on_main_chain=1 AND witnessed_level<="+max_wl;
 	conn.query(
 		"SELECT unit \n\
 		FROM units \n\
