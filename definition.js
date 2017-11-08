@@ -265,7 +265,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 						if (arrDefiningAuthors.length === 0) // no address definition in the current unit
 							return bAllowUnresolvedInnerDefinitions ? cb(null, true) : cb("definition of inner address "+other_address+" not found");
 						if (arrDefiningAuthors.length > 1)
-							throw "more than 1 address definition";
+							throw Error("more than 1 address definition");
 						var arrInnerAddressDefinition = arrDefiningAuthors[0].definition;
 						needToEvaluateNestedAddress(path) ? evaluate(arrInnerAddressDefinition, path, bInNegation, cb) : cb(null, true);
 					}
@@ -679,7 +679,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 						if (arrDefiningAuthors.length === 0) // no definition in the current unit
 							return cb2(false);
 						if (arrDefiningAuthors.length > 1)
-							throw "more than 1 address definition";
+							throw Error("more than 1 address definition");
 						var arrInnerAddressDefinition = arrDefiningAuthors[0].definition;
 						evaluate(arrInnerAddressDefinition, path, cb2);
 					}
@@ -696,7 +696,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 					[unit, objValidationState.last_ball_mci], 
 					function(rows){
 						if (rows.length !== 1)
-							throw "not 1 template";
+							throw Error("not 1 template");
 						var template = rows[0].payload;
 						var arrTemplate = JSON.parse(template);
 						var arrFilledTemplate = replaceInTemplate(arrTemplate, params);
@@ -1123,7 +1123,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 	
 	var bAssetCondition = (assocAuthentifiers === null);
 	if (bAssetCondition && address || !bAssetCondition && this_asset)
-		throw "incompatible params";
+		throw Error("incompatible params");
 	var fatal_error = null;
 	var arrUsedPaths = [];
 	
@@ -1169,7 +1169,7 @@ function replaceInTemplate(arrTemplate, params){
 						x[key] = replaceInVar(x[key]);
 				return x;
 			default:
-				throw "unknown type";
+				throw Error("unknown type");
 		}
 	}
 	return replaceInVar(_.cloneDeep(arrTemplate));
@@ -1232,7 +1232,7 @@ function hasReferences(arrDefinition){
 				return true;
 				
 			default:
-				throw "unknown op: "+op;
+				throw Error("unknown op: "+op);
 		}
 	}
 	
