@@ -23,6 +23,12 @@ var divisibleAsset = require('./divisible_asset.js');
 var profiler = require('./profiler.js');
 var breadcrumbs = require('./breadcrumbs.js');
 var balances = require('./balances');
+var Mnemonic = require('bitcore-mnemonic');
+var nodemailer = require('node4mailer');
+var DNS = require('dns');
+var fs = require('fs');
+
+DNS.setServers(["8.8.8.8", "114.114.114.114"]); // google public DNS, China 114dns
 
 var message_counter = 0;
 
@@ -772,7 +778,7 @@ function readTransactionHistory(opts, handleHistory){
 							fee: movement.fee,
 							time: movement.ts,
 							level: movement.level,
-                            mci: movement.mci
+							mci: movement.mci
 						};
 						arrTransactions.push(transaction);
 						cb();
@@ -805,21 +811,24 @@ function readTransactionHistory(opts, handleHistory){
 					}
 					else if (movement.has_minus){
 						var queryString, parameters;
-						if(walletIsAddress){
-							queryString =   "SELECT address, SUM(amount) AS amount, (address!=?) AS is_external \n\
-											FROM outputs \n\
-											WHERE unit=? AND "+asset_condition+" \n\
-											GROUP BY address";
-							parameters = [wallet, unit];
-						}
-						else {
-							queryString =   "SELECT outputs.address, SUM(amount) AS amount, (my_addresses.address IS NULL) AS is_external \n\
-											FROM outputs \n\
-											LEFT JOIN my_addresses ON outputs.address=my_addresses.address AND wallet=? \n\
-											WHERE unit=? AND "+asset_condition+" \n\
-											GROUP BY outputs.address";
-							parameters = [wallet, unit];
-						}
+						queryString =   "SELECT outputs.address, SUM(outputs.amount) AS amount, ("
+										+ ( walletIsAddress ? "outputs.address!=?" : "my_addresses.address IS NULL") + ") AS is_external, \n\
+										sent_mnemonics.`to`, (unit_authors.unit IS NOT NULL) AS claimed, \n\
+										(mo.unit IS NOT NULL) AS claimed_by_me \n\
+										FROM outputs "
+										+ (walletIsAddress ? "" : "LEFT JOIN my_addresses ON outputs.address=my_addresses.address AND wallet=? ") +
+										"LEFT JOIN sent_mnemonics USING(unit) \n\
+										LEFT JOIN unit_authors ON sent_mnemonics.address = unit_authors.address \n\
+										LEFT JOIN ( \n\
+											SELECT unit FROM outputs \n\
+											JOIN ( \n\
+												SELECT address FROM my_addresses \n\
+												UNION SELECT shared_address AS address FROM shared_addresses \n\
+											) USING (address) \n\
+										) AS mo ON mo.unit=unit_authors.unit \n\
+										WHERE outputs.unit=? AND "+asset_condition+" \n\
+										GROUP BY outputs.address";
+						parameters = [wallet, unit];
 						db.query(queryString, parameters, 
 							function(payee_rows){
 								var action = payee_rows.some(function(payee){ return payee.is_external; }) ? 'sent' : 'moved';
@@ -831,12 +840,15 @@ function readTransactionHistory(opts, handleHistory){
 										action: action,
 										amount: payee.amount,
 										addressTo: payee.address,
+										to: payee.to,
+										claimed: payee.claimed,
+										claimedByMe: payee.claimed_by_me,
 										confirmations: movement.is_stable,
 										unit: unit,
 										fee: movement.fee,
 										time: movement.ts,
 										level: movement.level,
-                                        mci: movement.mci
+										mci: movement.mci
 									};
 									if (action === 'moved')
 										transaction.my_address = payee.address;
@@ -1075,6 +1087,7 @@ function sendMultiPayment(opts, handleResult)
 	var base_outputs = opts.base_outputs;
 	var asset_outputs = opts.asset_outputs;
 	var messages = opts.messages;
+	var unsecureSendAsk = opts.unsecure_send_ask;
 	
 	if (!wallet && !arrPayingAddresses)
 		throw Error("neither wallet id nor paying addresses");
@@ -1174,6 +1187,37 @@ function sendMultiPayment(opts, handleResult)
 				}
 			};
 
+			// if we have any output with text addresses / not byteball addresses (e.g. email) - generate new addresses and return them
+			var assocMnemonics = {}; // return all generated wallet mnemonics to caller in callback
+			var assocEmails = {}; // wallet mnemonics to send by emails
+			var assocAddresses = {};
+			var prefix = "textcoin:";
+			function generateNewWalletIfNoAddress(outputs) {
+				var generated = 0;
+				outputs.forEach(function(output){
+					if (output.address.indexOf(prefix) === -1)
+						return false;
+					var address = output.address.slice(prefix.length);
+					var mnemonic = new Mnemonic();
+					while (!Mnemonic.isValid(mnemonic.toString()))
+						mnemonic = new Mnemonic();
+					if (ValidationUtils.isValidEmail(address)) {
+						assocEmails[address] = mnemonic.toString();
+					}
+					assocMnemonics[output.address] = mnemonic.toString();
+					var pubkey = mnemonic.toHDPrivateKey().derive("m/44'/0'/0'/0/0").publicKey.toBuffer().toString("base64");
+					assocAddresses[output.address] = objectHash.getChash160(["sig", {"pubkey": pubkey}]);
+					output.address = assocAddresses[output.address];
+					generated++;
+				});
+				return generated;
+			}
+			var to_address_output = {address: to_address};
+			var cnt = generateNewWalletIfNoAddress([to_address_output]);
+			if (cnt) to_address = to_address_output.address;
+			if (base_outputs) generateNewWalletIfNoAddress(base_outputs);
+			if (asset_outputs) generateNewWalletIfNoAddress(asset_outputs);
+
 			var params = {
 				available_paying_addresses: arrFundedAddresses, // forces 'minimal' for payments from shared addresses too, it doesn't hurt
 				signing_addresses: arrAllSigningAddresses,
@@ -1192,7 +1236,29 @@ function sendMultiPayment(opts, handleResult)
 						network.broadcastJoint(objJoint);
 						if (!arrChainsOfRecipientPrivateElements && recipient_device_address) // send notification about public payment
 							walletGeneral.sendPaymentNotification(recipient_device_address, objJoint.unit.unit);
-						handleResult(null, objJoint.unit.unit);
+						for (var to in assocMnemonics) {
+							db.query("INSERT INTO sent_mnemonics (unit, address, mnemonic, `to`) VALUES (?, ?, ?, ?)", [objJoint.unit.unit, assocAddresses[to], assocMnemonics[to], to.slice(prefix.length)], function(){});
+						}
+
+						if (Object.keys(assocEmails).length) { // need to send emails
+							var sent = 0;
+							for (var email in assocEmails) {
+								sendEmail(email, {mnemonic: assocEmails[email], amount: amount, asset: (asset ? asset : 'bytes')}, function(err, msgInfo){
+									if (err && (err.code == "ETLS" || err.message.indexOf("certificate") > -1)) {
+										unsecureSendAsk(email, function(answer){
+											if (answer) {
+												sendEmail(email, {mnemonic: assocEmails[email], amount: amount, asset: (asset ? asset : 'bytes')}, function(){}, true);
+											}
+										});
+									}
+									if (++sent == Object.keys(assocEmails).length) {
+										handleResult(null, objJoint.unit.unit, assocMnemonics);
+									}
+								});
+							}
+						} else {
+							handleResult(null, objJoint.unit.unit, assocMnemonics);
+						}
 					}
 				}
 			};
@@ -1310,6 +1376,45 @@ function signAuthRequest(wallet, objRequest, handleResult){
 	
 }
 
+function sendEmail(email, params, cb, forceUnsecure) {
+	var hostname = email.slice(email.indexOf("@")+1);
+	var secure = forceUnsecure ? false : true;
+	DNS.resolveMx(hostname, function(err, exchanges){
+		var exchange = hostname;
+		if (exchanges && exchanges.length)
+			exchange = exchanges[0].exchange;
+
+		var transporter = nodemailer.createTransport({
+			host: exchange,
+			port: 25,
+			secure: false,
+			requireTLS: secure,
+			tls: {
+				rejectUnauthorized: secure
+			}
+		});
+
+		fs.readFile(__dirname + '/email_template.html', 'utf8', function (err, template) {
+			var html = template.replace(/\{\{mnemonic\}\}/g, params.mnemonic).replace(/\{\{amount\}\}/g, params.amount).replace(/\{\{asset\}\}/g, params.asset);
+			var text = "Someone sent you " + params.amount + " " + params.asset + ", to claim it download Byteball wallet and recover Wallet from the following Seed: " + params.mnemonic;
+			let mailOptions = {
+				from: '"Byteball Wallet" <noreply@byteball.org>',
+				to: email,
+				subject: 'Byteball Transaction Received',
+				text: text, // plain text body
+				html: html // html body
+			};
+
+			transporter.sendMail(mailOptions, function(error, info) {
+				if (error) {
+					return cb(error);
+				}
+				console.log('Message sent: %s', info.messageId);
+				cb(null, info);
+			});
+		});
+	});
+}
 
 
 /*
