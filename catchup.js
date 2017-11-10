@@ -235,7 +235,7 @@ function readHashTree(hashTreeRequest, callbacks){
 			var op = (from_mci === 0) ? ">=" : ">"; // if starting from 0, add genesis itself
 			db.query(
 				"SELECT unit, ball, content_hash FROM units LEFT JOIN balls USING(unit) \n\
-				WHERE main_chain_index "+op+" ? AND main_chain_index<=? ORDER BY `level`", 
+				WHERE main_chain_index "+op+" ? AND main_chain_index<=? ORDER BY main_chain_index, `level`", 
 				[from_mci, to_mci], 
 				function(ball_rows){
 					async.eachSeries(
