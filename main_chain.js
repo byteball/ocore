@@ -143,8 +143,13 @@ function updateMainChain(conn, last_unit, onDone){
 								console.log("goDownAndUpdateMainChainIndex done");
 								if (err)
 									throw Error("goDownAndUpdateMainChainIndex eachSeries failed");
-								profiler.stop('mc-goDown');
-								updateLatestIncludedMcIndex(last_main_chain_index, true);
+								conn.query(
+									"UPDATE unit_authors SET _mci=NULL WHERE unit IN(SELECT unit FROM units WHERE main_chain_index IS NULL)", 
+									function(){
+										profiler.stop('mc-goDown');
+										updateLatestIncludedMcIndex(last_main_chain_index, true);
+									}
+								);
 							}
 						);
 					}

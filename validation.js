@@ -718,13 +718,23 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 	
 	
 	function findConflictingUnits(handleConflictingUnits){
-		var cross = (objValidationState.max_known_mci - objValidationState.max_parent_limci < 1000) ? 'CROSS' : '';
+	//	var cross = (objValidationState.max_known_mci - objValidationState.max_parent_limci < 1000) ? 'CROSS' : '';
 		conn.query( // _left_ join forces use of indexes in units
-			"SELECT unit, is_stable \n\
+		/*	"SELECT unit, is_stable \n\
 			FROM units \n\
 			"+cross+" JOIN unit_authors USING(unit) \n\
 			WHERE address=? AND (main_chain_index>? OR main_chain_index IS NULL) AND unit != ?",
-			[objAuthor.address, objValidationState.max_parent_limci, objUnit.unit],
+			[objAuthor.address, objValidationState.max_parent_limci, objUnit.unit],*/
+			"SELECT unit, is_stable \n\
+			FROM unit_authors \n\
+			CROSS JOIN units USING(unit) \n\
+			WHERE address=? AND _mci>? AND unit != ? \n\
+			UNION \n\
+			SELECT unit, is_stable \n\
+			FROM unit_authors \n\
+			CROSS JOIN units USING(unit) \n\
+			WHERE address=? AND _mci IS NULL AND unit != ?",
+			[objAuthor.address, objValidationState.max_parent_limci, objUnit.unit, objAuthor.address, objUnit.unit],
 			function(rows){
 				var arrConflictingUnitProps = [];
 				async.eachSeries(
@@ -819,11 +829,15 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 		//var next = checkNoPendingOrRetrievableNonserialIncluded;
 		var next = validateDefinition;
 		//var filter = bNonserial ? "AND sequence='good'" : "";
-		var cross = (objValidationState.max_known_mci - objValidationState.last_ball_mci < 1000) ? 'CROSS' : '';
+	//	var cross = (objValidationState.max_known_mci - objValidationState.last_ball_mci < 1000) ? 'CROSS' : '';
 		conn.query( // _left_ join forces use of indexes in units
-			"SELECT unit FROM units "+cross+" JOIN unit_authors USING(unit) \n\
-			WHERE address=? AND definition_chash IS NOT NULL AND ( /* is_stable=0 OR */ main_chain_index>? OR main_chain_index IS NULL)", 
-			[objAuthor.address, objValidationState.last_ball_mci], 
+		//	"SELECT unit FROM units "+cross+" JOIN unit_authors USING(unit) \n\
+		//	WHERE address=? AND definition_chash IS NOT NULL AND ( /* is_stable=0 OR */ main_chain_index>? OR main_chain_index IS NULL)", 
+		//	[objAuthor.address, objValidationState.last_ball_mci], 
+			"SELECT unit FROM unit_authors WHERE address=? AND definition_chash IS NOT NULL AND _mci>?  \n\
+			UNION \n\
+			SELECT unit FROM unit_authors WHERE address=? AND definition_chash IS NOT NULL AND _mci IS NULL", 
+			[objAuthor.address, objValidationState.last_ball_mci, objAuthor.address], 
 			function(rows){
 				if (rows.length === 0)
 					return next();
