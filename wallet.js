@@ -753,17 +753,18 @@ function fetchAssetMetadata(asset, handleMetadata){
 							return;
 						if (!payload.name)
 							return handleMetadata("no name in asset metadata "+metadata_unit);
-						if (payload.decimals !== undefined && !ValidationUtils.isNonnegativeInteger(payload.decimals))
+						var decimals = (payload.decimals !== undefined) ? parseInt(payload.decimals) : undefined;
+						if (decimals !== undefined && !ValidationUtils.isNonnegativeInteger(decimals))
 							return handleMetadata("bad decimals in asset metadata "+metadata_unit);
 						db.query(
 							"INSERT "+db.getIgnore()+" INTO asset_metadata (asset, metadata_unit, registry_address, suffix, name, decimals) \n\
 							VALUES (?,?,?, ?,?,?)",
-							[asset, metadata_unit, registry_address, suffix, payload.name, payload.decimals],
+							[asset, metadata_unit, registry_address, suffix, payload.name, decimals],
 							function(){
 								var objMetadata = {
 									metadata_unit: metadata_unit,
 									suffix: suffix,
-									decimals: payload.decimals,
+									decimals: decimals,
 									name: payload.name
 								};
 								handleMetadata(null, objMetadata);
