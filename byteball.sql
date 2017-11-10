@@ -673,3 +673,16 @@ CREATE TABLE bots (
 	pairing_code VARCHAR(200) NOT NULL,
 	description LONGTEXT NOT NULL
 );
+
+CREATE TABLE asset_metadata (
+	asset CHAR(44) NOT NULL PRIMARY KEY,
+	metadata_unit CHAR(44) NOT NULL,
+	registry_address CHAR(32) NULL, -- filled only on the hub
+	suffix VARCHAR(20) NULL, -- added only if the same name is registered by different registries for different assets, equal to registry name
+	name VARCHAR(20) NULL,
+	decimals TINYINT NULL,
+	UNIQUE byNameRegistry(name, registry_address),
+	FOREIGN KEY byAsset(asset) REFERENCES assets(unit),
+	FOREIGN KEY byMetadataUnit(metadata_unit) REFERENCES units(unit),
+	FOREIGN KEY byRegistryAddress(registry_address) REFERENCES addresses(address)
+);

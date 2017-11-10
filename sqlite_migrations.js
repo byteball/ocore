@@ -2,7 +2,7 @@
 "use strict";
 var eventBus = require('./event_bus.js');
 
-var VERSION = 14;
+var VERSION = 15;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -98,6 +98,20 @@ function migrateDb(connection, onDone){
 		if (version < 14){
 			connection.addQuery(arrQueries, "UPDATE unit_authors SET _mci=(SELECT main_chain_index FROM units WHERE units.unit=unit_authors.unit)");
 			connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS unitAuthorsIndexByAddressMci ON unit_authors(address, _mci)");
+		}
+		if (version < 15){
+			connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS asset_metadata ( \n\
+				asset CHAR(44) NOT NULL PRIMARY KEY, \n\
+				metadata_unit CHAR(44) NOT NULL, \n\
+				registry_address CHAR(32) NULL, \n\
+				suffix VARCHAR(20) NULL, \n\
+				name VARCHAR(20) NULL, \n\
+				decimals TINYINT NULL, \n\
+				UNIQUE (name, registry_address), \n\
+				FOREIGN KEY (asset) REFERENCES assets(unit), \n\
+				FOREIGN KEY (metadata_unit) REFERENCES units(unit), \n\
+				FOREIGN KEY (registry_address) REFERENCES addresses(address) \n\
+			)");
 		}
 		connection.addQuery(arrQueries, "PRAGMA user_version="+VERSION);
 		eventBus.emit('started_db_upgrade');

@@ -695,6 +695,17 @@ function readBalance(wallet, handleBalance){
 				return;
 			network.requestProofsOfJointsIfNewOrUnstable(arrAssets);
 		}
+		for (var asset in assocBalances){
+			var objBalance = assocBalances[asset];
+			if (!objBalance.metadata_unit)
+				fetchAssetMetadata(asset, function(err, objMetadata){
+					if (err)
+						return console.log(err);
+					objBalance.name = objMetadata.suffix ? objMetadata.name+'.'+objMetadata.suffix : objMetadata.name;
+					objBalance.decimals = objMetadata.decimals;
+					objBalance.metadata_unit = objMetadata.metadata_unit;
+				});
+		}
 	});
 }
 
@@ -705,6 +716,63 @@ function readBalancesOnAddresses(walletId, handleBalancesOnAddresses) {
 	GROUP BY outputs.address, outputs.asset \n\
 	ORDER BY my_addresses.address_index ASC", [walletId], function(rows) {
 		handleBalancesOnAddresses(rows);
+	});
+}
+
+function fetchAssetMetadata(asset, handleMetadata){
+	device.requestFromHub('hub/get_asset_metadata', asset, function(err, response){
+		if (err)
+			return handleMetadata("error from get_asset_metadata "+asset+": "+err);
+		var metadata_unit = response.metadata_unit;
+		var registry_address = response.registry_address;
+		var suffix = response.suffix;
+		if (!ValidationUtils.isStringOfLength(metadata_unit, constants.HASH_LENGTH))
+			return handleMetadata("bad metadata_unit: "+metadata_unit);
+		if (!ValidationUtils.isValidAddress(registry_address))
+			return handleMetadata("bad registry_address: "+registry_address);
+		var fetchMetadataUnit = conf.bLight 
+			? function(onDone){
+				network.requestProofsOfJointsIfNewOrUnstable([metadata_unit], onDone);
+			}
+			: function(onDone){
+				onDone();
+			};
+		fetchMetadataUnit(function(err){
+			if (err)
+				return handleMetadata("fetchMetadataUnit failed: "+err);
+			storage.readJoint(db, metadata_unit, {
+				ifNotFound: function(){
+					handleMetadata("metadata unit "+unit+" not found");
+				},
+				ifFound: function(objJoint){
+					objJoint.unit.messages.forEach(function(message){
+						if (message.app !== 'data')
+							return;
+						var payload = message.payload;
+						if (payload.asset !== asset)
+							return;
+						if (!payload.name)
+							return handleMetadata("no name in asset metadata "+metadata_unit);
+						if (payload.decimals !== undefined && !ValidationUtils.isNonnegativeInteger(payload.decimals))
+							return handleMetadata("bad decimals in asset metadata "+metadata_unit);
+						db.query(
+							"INSERT "+db.getIgnore()+" INTO asset_metadata (asset, metadata_unit, registry_address, suffix, name, decimals) \n\
+							VALUES (?,?,?, ?,?,?)",
+							[asset, metadata_unit, registry_address, suffix, payload.name, payload.decimals],
+							function(){
+								var objMetadata = {
+									metadata_unit: metadata_unit,
+									suffix: suffix,
+									decimals: payload.decimals,
+									name: payload.name
+								};
+								handleMetadata(null, objMetadata);
+							}
+						);
+					});
+				}
+			});
+		});
 	});
 }
 

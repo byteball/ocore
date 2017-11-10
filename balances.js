@@ -36,8 +36,11 @@ function readBalance(wallet, handleBalance){
 					}
 					// add 0-balance assets
 					db.query(
-						"SELECT DISTINCT outputs.asset, is_private \n\
-						FROM outputs "+join_my_addresses+" CROSS JOIN units USING(unit) LEFT JOIN assets ON asset=assets.unit \n\
+						"SELECT DISTINCT outputs.asset, is_private, metadata_unit, name, suffix, decimals \n\
+						FROM outputs "+join_my_addresses+" \n\
+						CROSS JOIN units USING(unit) \n\
+						LEFT JOIN assets ON outputs.asset=assets.unit \n\
+						LEFT JOIN asset_metadata ON outputs.asset=asset_metadata.asset \n\
 						WHERE "+where_condition+" AND sequence='good'",
 						[wallet],
 						function(rows){
@@ -47,6 +50,9 @@ function readBalance(wallet, handleBalance){
 								if (!assocBalances[asset])
 									assocBalances[asset] = {stable: 0, pending: 0};
 								assocBalances[asset].is_private = row.is_private;
+								assocBalances[asset].metadata_unit = row.metadata_unit;
+								assocBalances[asset].decimals = row.decimals;
+								assocBalances[asset].name = row.suffix ? row.name+'.'+row.suffix : row.name;
 							}
 							handleBalance(assocBalances);
 						}

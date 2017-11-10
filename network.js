@@ -2492,9 +2492,21 @@ function handleRequest(ws, tag, command, params){
 				eventBus.emit("disableNotification", ws.device_address, params);
 			sendResponse(ws, tag, 'ok');
 			break;
+			
 		case 'hub/get_bots':
 			db.query("SELECT id, name, pairing_code, description FROM bots ORDER BY rank DESC, id", [], function(rows){
 				sendResponse(ws, tag, rows);
+			});
+			break;
+			
+		case 'hub/get_asset_metadata':
+			var asset = params;
+			if (!ValidationUtils.isStringOfLength(asset, constants.HASH_LENGTH))
+				return sendErrorResponse(ws, tag, "bad asset: "+asset);
+			db.query("SELECT metadata_unit, registry_address, suffix FROM asset_metadata WHERE asset=?", [asset], function(rows){
+				if (rows.length === 0)
+					return sendErrorResponse(ws, tag, "no metadata");
+				sendResponse(ws, tag, rows[0]);
 			});
 			break;
 	}
