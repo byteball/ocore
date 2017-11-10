@@ -704,6 +704,7 @@ function readBalance(wallet, handleBalance){
 					objBalance.name = objMetadata.suffix ? objMetadata.name+'.'+objMetadata.suffix : objMetadata.name;
 					objBalance.decimals = objMetadata.decimals;
 					objBalance.metadata_unit = objMetadata.metadata_unit;
+					eventBus.emit('maybe_new_transactions');
 				});
 		}
 	});
