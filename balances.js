@@ -1,6 +1,7 @@
 /*jslint node: true */
 "use strict";
 var _ = require('lodash');
+var constants = require('./constants.js');
 var db = require('./db');
 
 function readBalance(wallet, handleBalance){
@@ -8,6 +9,7 @@ function readBalance(wallet, handleBalance){
 	var join_my_addresses = walletIsAddress ? "" : "JOIN my_addresses USING(address)";
 	var where_condition = walletIsAddress ? "address=?" : "wallet=?";
 	var assocBalances = {base: {stable: 0, pending: 0}};
+	assocBalances[constants.BLACKBYTES_ASSET] = {stable: 0, pending: 0};
 	db.query(
 		"SELECT asset, is_stable, SUM(amount) AS balance \n\
 		FROM outputs "+join_my_addresses+" CROSS JOIN units USING(unit) \n\
