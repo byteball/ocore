@@ -684,8 +684,8 @@ CREATE TABLE asset_metadata (
 	decimals TINYINT NULL,
 	UNIQUE (name, registry_address),
 	FOREIGN KEY (asset) REFERENCES assets(unit),
-	FOREIGN KEY (metadata_unit) REFERENCES units(unit),
-	FOREIGN KEY (registry_address) REFERENCES addresses(address)
+	FOREIGN KEY (metadata_unit) REFERENCES units(unit)
+--	FOREIGN KEY (registry_address) REFERENCES addresses(address) -- addresses is not always filled on light
 );
 
 PRAGMA user_version=15;

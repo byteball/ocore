@@ -683,6 +683,6 @@ CREATE TABLE asset_metadata (
 	decimals TINYINT NULL,
 	UNIQUE byNameRegistry(name, registry_address),
 	FOREIGN KEY byAsset(asset) REFERENCES assets(unit),
-	FOREIGN KEY byMetadataUnit(metadata_unit) REFERENCES units(unit),
-	FOREIGN KEY byRegistryAddress(registry_address) REFERENCES addresses(address)
+	FOREIGN KEY byMetadataUnit(metadata_unit) REFERENCES units(unit)
+--	FOREIGN KEY byRegistryAddress(registry_address) REFERENCES addresses(address) -- addresses is not always filled on light
 );

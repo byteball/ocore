@@ -109,8 +109,7 @@ function migrateDb(connection, onDone){
 				decimals TINYINT NULL, \n\
 				UNIQUE (name, registry_address), \n\
 				FOREIGN KEY (asset) REFERENCES assets(unit), \n\
-				FOREIGN KEY (metadata_unit) REFERENCES units(unit), \n\
-				FOREIGN KEY (registry_address) REFERENCES addresses(address) \n\
+				FOREIGN KEY (metadata_unit) REFERENCES units(unit) \n\
 			)");
 		}
 		connection.addQuery(arrQueries, "PRAGMA user_version="+VERSION);
