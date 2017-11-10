@@ -25,6 +25,8 @@ var breadcrumbs = require('./breadcrumbs.js');
 var balances = require('./balances');
 
 var message_counter = 0;
+var assocLastFailedAssetMetadataTimestamps = {};
+var ASSET_METADATA_RETRY_PERIOD = 3600*1000;
 
 function handleJustsaying(ws, subject, body){
 	switch (subject){
@@ -697,7 +699,7 @@ function readBalance(wallet, handleBalance){
 		}
 		for (var asset in assocBalances){
 			var objBalance = assocBalances[asset];
-			if (!objBalance.metadata_unit && asset !== 'base' && asset !== constants.BLACKBYTES_ASSET)
+			if (!objBalance.metadata_unit && asset !== 'base' && asset !== constants.BLACKBYTES_ASSET && (assocLastFailedAssetMetadataTimestamps[asset] || 0) < Date.now() - ASSET_METADATA_RETRY_PERIOD)
 				fetchAssetMetadata(asset, function(err, objMetadata){
 					if (err)
 						return console.log(err);
@@ -722,8 +724,11 @@ function readBalancesOnAddresses(walletId, handleBalancesOnAddresses) {
 
 function fetchAssetMetadata(asset, handleMetadata){
 	device.requestFromHub('hub/get_asset_metadata', asset, function(err, response){
-		if (err)
+		if (err){
+			if (err === 'no metadata')
+				assocLastFailedAssetMetadataTimestamps[asset] = Date.now();
 			return handleMetadata("error from get_asset_metadata "+asset+": "+err);
+		}
 		var metadata_unit = response.metadata_unit;
 		var registry_address = response.registry_address;
 		var suffix = response.suffix;
