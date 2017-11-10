@@ -697,7 +697,7 @@ function readBalance(wallet, handleBalance){
 		}
 		for (var asset in assocBalances){
 			var objBalance = assocBalances[asset];
-			if (!objBalance.metadata_unit)
+			if (!objBalance.metadata_unit && asset !== 'base' && asset !== constants.BLACKBYTES_ASSET)
 				fetchAssetMetadata(asset, function(err, objMetadata){
 					if (err)
 						return console.log(err);
