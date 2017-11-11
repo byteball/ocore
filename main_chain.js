@@ -16,7 +16,7 @@ var breadcrumbs = require('./breadcrumbs.js');
 
 
 
-function updateMainChain(conn, last_unit, onDone){
+function updateMainChain(conn, from_unit, onDone){
 	
 	
 	// if unit === null, read free balls
@@ -72,7 +72,7 @@ function updateMainChain(conn, last_unit, onDone){
 	}
 	
 	function checkNotRebuildingStableMainChainAndGoDown(last_main_chain_index, last_main_chain_unit){
-		console.log("checkNotRebuildingStableMainChainAndGoDown "+last_unit);
+		console.log("checkNotRebuildingStableMainChainAndGoDown "+from_unit);
 		profiler.start();
 		conn.query(
 			"SELECT unit FROM units WHERE is_on_main_chain=1 AND main_chain_index>? AND is_stable=1 LIMIT 1", 
@@ -411,7 +411,7 @@ function updateMainChain(conn, last_unit, onDone){
 	
 	console.log("\nwill update MC");
 	//finish();
-	goUpFromUnit(last_unit);
+	goUpFromUnit(from_unit);
 	
 }
 
