@@ -410,8 +410,12 @@ function updateMainChain(conn, from_unit, last_added_unit, onDone){
 	
 	
 	console.log("\nwill update MC");
-	//finish();
-	goUpFromUnit(from_unit);
+	
+	// override when adding units which caused witnessed level to significantly retreat
+	if (from_unit === null && (last_added_unit === '+5ntioHT58jcFb8oVc+Ff4UvO5UvYGRcrGfYIofGUW8=' || last_added_unit === 'C/aPdM0sODPLC3NqJPWdZlqmV8B4xxf2N/+HSEi0sKU=' || last_added_unit === 'sSev6hvQU86SZBemy9CW2lJIko2jZDoY55Lm3zf2QU4='))
+		goUpFromUnit(last_added_unit);
+	else
+		goUpFromUnit(from_unit);
 	
 }
 
