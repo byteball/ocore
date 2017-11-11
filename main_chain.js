@@ -75,12 +75,12 @@ function updateMainChain(conn, from_unit, onDone){
 		console.log("checkNotRebuildingStableMainChainAndGoDown "+from_unit);
 		profiler.start();
 		conn.query(
-			"SELECT unit FROM units WHERE is_on_main_chain=1 AND main_chain_index>? AND is_stable=1 LIMIT 1", 
+			"SELECT unit FROM units WHERE is_on_main_chain=1 AND main_chain_index>? AND is_stable=1", 
 			[last_main_chain_index],
 			function(rows){
 				profiler.stop('mc-checkNotRebuilding');
 				if (rows.length > 0)
-					throw Error("removing stable witnessed unit "+rows[0].unit+" from main chain");
+					throw Error("removing stable witnessed units "+rows.map(function(row){return row.unit}).join(', ')+" from main chain");
 				goDownAndUpdateMainChainIndex(last_main_chain_index, last_main_chain_unit);
 			}
 		);
