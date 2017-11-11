@@ -248,7 +248,7 @@ function determineIfIncludesMeAndRewriteDeviceAddress(assocSignersByPath, handle
 		function(rows){
 		//	handleResult(rows.length === arrMyMemberAddresses.length ? null : "Some of my member addresses not found");
 			if (rows.length === 0)
-				handleResult("I am not a member of this shared address");
+				return handleResult("I am not a member of this shared address");
 			var arrMyMemberAddresses = rows.filter(function(row){ return (row.type === 'my'); }).map(function(row){ return row.address; });
 			// rewrite device address for my addresses
 			if (!bHasMyDeviceAddress){
