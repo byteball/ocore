@@ -438,7 +438,7 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 							arrOps.push(updateWitnessedLevel);
 							arrOps.push(function(cb){
 								console.log("updating MC after adding "+objUnit.unit);
-								main_chain.updateMainChain(conn, null, cb);
+								main_chain.updateMainChain(conn, null, objUnit.unit, cb);
 							});
 						}
 						if (preCommitCallback)

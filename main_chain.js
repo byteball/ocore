@@ -16,7 +16,7 @@ var breadcrumbs = require('./breadcrumbs.js');
 
 
 
-function updateMainChain(conn, from_unit, onDone){
+function updateMainChain(conn, from_unit, last_added_unit, onDone){
 	
 	
 	// if unit === null, read free balls
@@ -80,7 +80,7 @@ function updateMainChain(conn, from_unit, onDone){
 			function(rows){
 				profiler.stop('mc-checkNotRebuilding');
 				if (rows.length > 0)
-					throw Error("removing stable witnessed units "+rows.map(function(row){return row.unit}).join(', ')+" from main chain");
+					throw Error("removing stable units "+rows.map(function(row){return row.unit}).join(', ')+" from MC after adding "+last_added_unit);
 				goDownAndUpdateMainChainIndex(last_main_chain_index, last_main_chain_unit);
 			}
 		);
