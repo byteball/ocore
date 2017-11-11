@@ -697,18 +697,6 @@ function readBalance(wallet, handleBalance){
 				return;
 			network.requestProofsOfJointsIfNewOrUnstable(arrAssets);
 		}
-		for (var asset in assocBalances){
-			var objBalance = assocBalances[asset];
-			if (!objBalance.metadata_unit && asset !== 'base' && asset !== constants.BLACKBYTES_ASSET && (assocLastFailedAssetMetadataTimestamps[asset] || 0) < Date.now() - ASSET_METADATA_RETRY_PERIOD)
-				fetchAssetMetadata(asset, function(err, objMetadata){
-					if (err)
-						return console.log(err);
-					objBalance.name = objMetadata.suffix ? objMetadata.name+'.'+objMetadata.suffix : objMetadata.name;
-					objBalance.decimals = objMetadata.decimals;
-					objBalance.metadata_unit = objMetadata.metadata_unit;
-					eventBus.emit('maybe_new_transactions');
-				});
-		}
 	});
 }
 
@@ -719,6 +707,39 @@ function readBalancesOnAddresses(walletId, handleBalancesOnAddresses) {
 	GROUP BY outputs.address, outputs.asset \n\
 	ORDER BY my_addresses.address_index ASC", [walletId], function(rows) {
 		handleBalancesOnAddresses(rows);
+	});
+}
+
+function readAssetMetadata(arrAssets, handleMetadata){
+	db.query("SELECT asset, metadata_unit, name, suffix, decimals FROM asset_metadata WHERE asset IN(?)", [arrAssets], function(rows){
+		var assocAssetMetadata = {};
+		for (var i=0; i<rows.length; i++){
+			var row = rows[i];
+			var asset = row.asset || "base";
+			assocAssetMetadata[asset] = {
+				metadata_unit: row.metadata_unit,
+				decimals: row.decimals,
+				name: row.suffix ? row.name+'.'+row.suffix : row.name
+			};
+		}
+		handleMetadata(assocAssetMetadata);
+		// after calling the callback, try to fetch missing data about assets
+		arrAssets.forEach(function(asset){
+			if (assocAssetMetadata[asset] || asset === 'base' && asset === constants.BLACKBYTES_ASSET)
+				return;
+			if ((assocLastFailedAssetMetadataTimestamps[asset] || 0) > Date.now() - ASSET_METADATA_RETRY_PERIOD)
+				return;
+			fetchAssetMetadata(asset, function(err, objMetadata){
+				if (err)
+					return console.log(err);
+				assocAssetMetadata[asset] = {
+					metadata_unit: objMetadata.metadata_unit,
+					decimals: objMetadata.decimals,
+					name: objMetadata.suffix ? objMetadata.name+'.'+objMetadata.suffix : objMetadata.name
+				};
+				eventBus.emit('maybe_new_transactions');
+			});
+		});
 	});
 }
 
@@ -1399,6 +1420,7 @@ exports.sendSignature = sendSignature;
 exports.readSharedBalance = readSharedBalance;
 exports.readBalance = readBalance;
 exports.readBalancesOnAddresses = readBalancesOnAddresses;
+exports.readAssetMetadata = readAssetMetadata;
 exports.readTransactionHistory = readTransactionHistory;
 exports.sendPaymentFromWallet = sendPaymentFromWallet;
 exports.sendMultiPayment = sendMultiPayment;
