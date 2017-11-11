@@ -107,6 +107,7 @@ function migrateDb(connection, onDone){
 				suffix VARCHAR(20) NULL, \n\
 				name VARCHAR(20) NULL, \n\
 				decimals TINYINT NULL, \n\
+				creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, \n\
 				UNIQUE (name, registry_address), \n\
 				FOREIGN KEY (asset) REFERENCES assets(unit), \n\
 				FOREIGN KEY (metadata_unit) REFERENCES units(unit) \n\

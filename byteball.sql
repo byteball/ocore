@@ -681,6 +681,7 @@ CREATE TABLE asset_metadata (
 	suffix VARCHAR(20) NULL, -- added only if the same name is registered by different registries for different assets, equal to registry name
 	name VARCHAR(20) NULL,
 	decimals TINYINT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	UNIQUE byNameRegistry(name, registry_address),
 	FOREIGN KEY byAsset(asset) REFERENCES assets(unit),
 	FOREIGN KEY byMetadataUnit(metadata_unit) REFERENCES units(unit)
