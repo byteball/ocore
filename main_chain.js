@@ -100,7 +100,7 @@ function updateMainChain(conn, from_unit, last_added_unit, onDone){
 					function(rows){
 						if (rows.length === 0){
 							//if (last_main_chain_index > 0)
-								throw Error("no unindexed MC units?");
+								throw Error("no unindexed MC units after adding "+last_added_unit);
 							//else{
 							//    console.log("last MC=0, no unindexed MC units");
 							//    return updateLatestIncludedMcIndex(last_main_chain_index, true);
@@ -412,8 +412,17 @@ function updateMainChain(conn, from_unit, last_added_unit, onDone){
 	console.log("\nwill update MC");
 	
 	// override when adding units which caused witnessed level to significantly retreat
-	if (from_unit === null && (last_added_unit === '+5ntioHT58jcFb8oVc+Ff4UvO5UvYGRcrGfYIofGUW8=' || last_added_unit === 'C/aPdM0sODPLC3NqJPWdZlqmV8B4xxf2N/+HSEi0sKU=' || last_added_unit === 'sSev6hvQU86SZBemy9CW2lJIko2jZDoY55Lm3zf2QU4='))
-		goUpFromUnit(last_added_unit);
+	var arrRetreatingUnits = [
+		'+5ntioHT58jcFb8oVc+Ff4UvO5UvYGRcrGfYIofGUW8=',
+		'C/aPdM0sODPLC3NqJPWdZlqmV8B4xxf2N/+HSEi0sKU=',
+		'sSev6hvQU86SZBemy9CW2lJIko2jZDoY55Lm3zf2QU4=',
+		'19GglT3uZx1WmfWstLb3yIa85jTic+t01Kpe6s5gTTA='
+	];
+	if (from_unit === null && arrRetreatingUnits.indexOf(last_added_unit) >= 0){
+		conn.query("UPDATE units SET is_on_main_chain=1, main_chain_index=NULL WHERE unit=?", [last_added_unit], function(){
+			goUpFromUnit(last_added_unit);
+		});
+	}
 	else
 		goUpFromUnit(from_unit);
 	
