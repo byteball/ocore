@@ -34,7 +34,29 @@ function pickParentUnits(conn, arrWitnesses, onDone){
 			if (rows.filter(function(row){ return (row.count_matching_witnesses >= count_required_matches); }).length === 0)
 				return pickDeepParentUnits(conn, arrWitnesses, null, onDone);
 			var arrParentUnits = rows.map(function(row){ return row.unit; });
-			checkWitnessedLevelNotRetreatingAndLookDeeper(conn, arrWitnesses, arrParentUnits, onDone);
+			checkWitnessedLevelNotRetreatingAndLookLower(conn, arrWitnesses, arrParentUnits, (arrParentUnits.length === 1), onDone);
+		}
+	);
+}
+
+function pickParentUnitsUnderWitnessedLevel(conn, arrWitnesses, max_wl, onDone){
+	console.log("looking for free parents under wl "+max_wl);
+	conn.query(
+		"SELECT unit \n\
+		FROM units "+(conf.storage === 'sqlite' ? "INDEXED BY byFree" : "")+" \n\
+		WHERE +sequence='good' AND is_free=1 AND witnessed_level<=? \n\
+			AND ( \n\
+				SELECT COUNT(*) \n\
+				FROM unit_witnesses \n\
+				WHERE unit_witnesses.unit IN(units.unit, units.witness_list_unit) AND address IN(?) \n\
+			)>=? \n\
+		ORDER BY witnessed_level DESC, level DESC LIMIT ?", 
+		[max_wl, arrWitnesses, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS, constants.MAX_PARENTS_PER_UNIT], 
+		function(rows){
+			if (rows.length === 0)
+				return pickDeepParentUnits(conn, arrWitnesses, max_wl, onDone);
+			var arrParentUnits = rows.map(function(row){ return row.unit; }).sort();
+			checkWitnessedLevelNotRetreatingAndLookLower(conn, arrWitnesses, arrParentUnits, true, onDone);
 		}
 	);
 }
@@ -45,6 +67,7 @@ function pickDeepParentUnits(conn, arrWitnesses, max_wl, onDone){
 	// fixed: an attacker could cover all free compatible units with his own incompatible ones, then those that were not on MC will be never included
 	//var cond = bDeep ? "is_on_main_chain=1" : "is_free=1";
 	
+	console.log("looking for deep parents, max_wl="+max_wl);
 	var and_wl = (max_wl === null) ? '' : "AND +is_on_main_chain=1 AND witnessed_level<="+max_wl;
 	conn.query(
 		"SELECT unit \n\
@@ -61,18 +84,20 @@ function pickDeepParentUnits(conn, arrWitnesses, max_wl, onDone){
 			if (rows.length === 0)
 				return onDone("failed to find compatible parents: no deep units");
 			var arrParentUnits = rows.map(function(row){ return row.unit; });
-			checkWitnessedLevelNotRetreatingAndLookDeeper(conn, arrWitnesses, arrParentUnits, onDone);
+			checkWitnessedLevelNotRetreatingAndLookLower(conn, arrWitnesses, arrParentUnits, true, onDone);
 		}
 	);
 }
 
-function checkWitnessedLevelNotRetreatingAndLookDeeper(conn, arrWitnesses, arrParentUnits, onDone){
+function checkWitnessedLevelNotRetreatingAndLookLower(conn, arrWitnesses, arrParentUnits, bRetryDeeper, onDone){
 	storage.determineWitnessedLevelAndBestParent(conn, arrParentUnits, arrWitnesses, function(witnessed_level, best_parent_unit){
-		storage.readStaticUnitProps(conn, best_parent_unit, function(props){
-			if (witnessed_level >= props.witnessed_level)
+		storage.readStaticUnitProps(conn, best_parent_unit, function(bestParentProps){
+			if (witnessed_level >= bestParentProps.witnessed_level)
 				return onDone(null, arrParentUnits);
-			console.log("witness level would retreat from "+props.witnessed_level+" to "+witnessed_level+" if parents = "+arrParentUnits.join(', ')+", will look for older parents");
-			pickDeepParentUnits(conn, arrWitnesses, witnessed_level, onDone);
+			console.log("witness level would retreat from "+bestParentProps.witnessed_level+" to "+witnessed_level+" if parents = "+arrParentUnits.join(', ')+", will look for older parents");
+			bRetryDeeper
+				? pickDeepParentUnits(conn, arrWitnesses, witnessed_level, onDone)
+				: pickParentUnitsUnderWitnessedLevel(conn, arrWitnesses, witnessed_level, onDone);
 		});
 	});
 }
