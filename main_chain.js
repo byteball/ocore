@@ -33,13 +33,23 @@ function updateMainChain(conn, from_unit, last_added_unit, onDone){
 				ORDER BY witnessed_level DESC, \n\
 					level-witnessed_level ASC, \n\
 					unit ASC \n\
-				LIMIT 2",
+				LIMIT 5",
 				function(rows){
 					if (rows.length === 0)
 						throw Error("no free units?");
+					if (rows.length > 1){
+						var arrParents = rows.map(function(row){ return row.best_parent_unit; });
+						for (var i=0; i<arrRetreatingUnits.length; i++){
+							var n = arrParents.indexOf(arrRetreatingUnits[i]);
+							if (n >= 0)
+								return handleLastUnitProps(rows[n]);
+						}
+					}
+					/*
 					// override when adding +5ntioHT58jcFb8oVc+Ff4UvO5UvYGRcrGfYIofGUW8= which caused witnessed level to significantly retreat
 					if (rows.length === 2 && (rows[1].best_parent_unit === '+5ntioHT58jcFb8oVc+Ff4UvO5UvYGRcrGfYIofGUW8=' || rows[1].best_parent_unit === 'C/aPdM0sODPLC3NqJPWdZlqmV8B4xxf2N/+HSEi0sKU=' || rows[1].best_parent_unit === 'sSev6hvQU86SZBemy9CW2lJIko2jZDoY55Lm3zf2QU4=') && (rows[0].best_parent_unit === '3XJT1iK8FpFeGjwWXd9+Yu7uJp7hM692Sfbb5zdqWCE=' || rows[0].best_parent_unit === 'TyY/CY8xLGvJhK6DaBumj2twaf4y4jPC6umigAsldIA=' || rows[0].best_parent_unit === 'VKX2Nsx2W1uQYT6YajMGHAntwNuSMpAAlxF7Y98tKj8='))
 						return handleLastUnitProps(rows[1]);
+					*/
 					handleLastUnitProps(rows[0]);
 				}
 			);
@@ -418,12 +428,12 @@ function updateMainChain(conn, from_unit, last_added_unit, onDone){
 		'sSev6hvQU86SZBemy9CW2lJIko2jZDoY55Lm3zf2QU4=',
 		'19GglT3uZx1WmfWstLb3yIa85jTic+t01Kpe6s5gTTA='
 	];
-	if (from_unit === null && arrRetreatingUnits.indexOf(last_added_unit) >= 0){
+	/*if (from_unit === null && arrRetreatingUnits.indexOf(last_added_unit) >= 0){
 		conn.query("UPDATE units SET is_on_main_chain=1, main_chain_index=NULL WHERE unit=?", [last_added_unit], function(){
 			goUpFromUnit(last_added_unit);
 		});
 	}
-	else
+	else*/
 		goUpFromUnit(from_unit);
 	
 }
