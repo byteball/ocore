@@ -18,6 +18,7 @@ var breadcrumbs = require('./breadcrumbs.js');
 
 function updateMainChain(conn, from_unit, last_added_unit, onDone){
 	
+	var arrAllParents = [];
 	
 	// if unit === null, read free balls
 	function findNextUpMainChainUnit(unit, handleUnit){
@@ -39,6 +40,7 @@ function updateMainChain(conn, from_unit, last_added_unit, onDone){
 						throw Error("no free units?");
 					if (rows.length > 1){
 						var arrParents = rows.map(function(row){ return row.best_parent_unit; });
+						arrAllParents = arrParents;
 						for (var i=0; i<arrRetreatingUnits.length; i++){
 							var n = arrParents.indexOf(arrRetreatingUnits[i]);
 							if (n >= 0)
@@ -90,7 +92,7 @@ function updateMainChain(conn, from_unit, last_added_unit, onDone){
 			function(rows){
 				profiler.stop('mc-checkNotRebuilding');
 				if (rows.length > 0)
-					throw Error("removing stable units "+rows.map(function(row){return row.unit}).join(', ')+" from MC after adding "+last_added_unit);
+					throw Error("removing stable units "+rows.map(function(row){return row.unit}).join(', ')+" from MC after adding "+last_added_unit+" with all parents "+arrAllParents.join(', '));
 				goDownAndUpdateMainChainIndex(last_main_chain_index, last_main_chain_unit);
 			}
 		);
