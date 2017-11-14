@@ -14,6 +14,13 @@ var eventBus = require('./event_bus.js');
 var profiler = require('./profiler.js');
 var breadcrumbs = require('./breadcrumbs.js');
 
+// override when adding units which caused witnessed level to significantly retreat
+var arrRetreatingUnits = [
+	'+5ntioHT58jcFb8oVc+Ff4UvO5UvYGRcrGfYIofGUW8=',
+	'C/aPdM0sODPLC3NqJPWdZlqmV8B4xxf2N/+HSEi0sKU=',
+	'sSev6hvQU86SZBemy9CW2lJIko2jZDoY55Lm3zf2QU4=',
+	'19GglT3uZx1WmfWstLb3yIa85jTic+t01Kpe6s5gTTA='
+];
 
 
 function updateMainChain(conn, from_unit, last_added_unit, onDone){
@@ -423,13 +430,6 @@ function updateMainChain(conn, from_unit, last_added_unit, onDone){
 	
 	console.log("\nwill update MC");
 	
-	// override when adding units which caused witnessed level to significantly retreat
-	var arrRetreatingUnits = [
-		'+5ntioHT58jcFb8oVc+Ff4UvO5UvYGRcrGfYIofGUW8=',
-		'C/aPdM0sODPLC3NqJPWdZlqmV8B4xxf2N/+HSEi0sKU=',
-		'sSev6hvQU86SZBemy9CW2lJIko2jZDoY55Lm3zf2QU4=',
-		'19GglT3uZx1WmfWstLb3yIa85jTic+t01Kpe6s5gTTA='
-	];
 	/*if (from_unit === null && arrRetreatingUnits.indexOf(last_added_unit) >= 0){
 		conn.query("UPDATE units SET is_on_main_chain=1, main_chain_index=NULL WHERE unit=?", [last_added_unit], function(){
 			goUpFromUnit(last_added_unit);
