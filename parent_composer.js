@@ -44,7 +44,7 @@ function pickParentUnitsUnderWitnessedLevel(conn, arrWitnesses, max_wl, onDone){
 	conn.query(
 		"SELECT unit \n\
 		FROM units "+(conf.storage === 'sqlite' ? "INDEXED BY byFree" : "")+" \n\
-		WHERE +sequence='good' AND is_free=1 AND witnessed_level<=? \n\
+		WHERE +sequence='good' AND is_free=1 AND witnessed_level<? \n\
 			AND ( \n\
 				SELECT COUNT(*) \n\
 				FROM unit_witnesses \n\
@@ -68,7 +68,7 @@ function pickDeepParentUnits(conn, arrWitnesses, max_wl, onDone){
 	//var cond = bDeep ? "is_on_main_chain=1" : "is_free=1";
 	
 	console.log("looking for deep parents, max_wl="+max_wl);
-	var and_wl = (max_wl === null) ? '' : "AND +is_on_main_chain=1 AND witnessed_level<="+max_wl;
+	var and_wl = (max_wl === null) ? '' : "AND +is_on_main_chain=1 AND witnessed_level<"+max_wl;
 	conn.query(
 		"SELECT unit \n\
 		FROM units \n\
@@ -96,8 +96,8 @@ function checkWitnessedLevelNotRetreatingAndLookLower(conn, arrWitnesses, arrPar
 				return onDone(null, arrParentUnits);
 			console.log("witness level would retreat from "+bestParentProps.witnessed_level+" to "+witnessed_level+" if parents = "+arrParentUnits.join(', ')+", will look for older parents");
 			bRetryDeeper
-				? pickDeepParentUnits(conn, arrWitnesses, witnessed_level, onDone)
-				: pickParentUnitsUnderWitnessedLevel(conn, arrWitnesses, witnessed_level, onDone);
+				? pickDeepParentUnits(conn, arrWitnesses, bestParentProps.witnessed_level, onDone)
+				: pickParentUnitsUnderWitnessedLevel(conn, arrWitnesses, bestParentProps.witnessed_level, onDone);
 		});
 	});
 }
