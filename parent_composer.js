@@ -48,7 +48,7 @@ function adjustParentsToNotRetreatWitnessedLevel(conn, arrWitnesses, arrParentUn
 	var iterations = 0;
 	
 	function replaceExcludedParent(arrCurrentParentUnits, excluded_unit){
-		console.log('replaceExcludedParent '+arrCurrentParentUnits.join(', ')+" excluding "+best_parent_unit);
+		console.log('replaceExcludedParent '+arrCurrentParentUnits.join(', ')+" excluding "+excluded_unit);
 		var arrNewExcludedUnits = [excluded_unit];
 		console.log('excluded parents: '+arrNewExcludedUnits.join(', '));
 		arrExcludedUnits = arrExcludedUnits.concat(arrNewExcludedUnits);
