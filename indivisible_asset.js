@@ -1001,7 +1001,7 @@ function restorePrivateChains(asset, unit, to_address, handleChains){
 // {asset: asset, paying_addresses: arrPayingAddresses, fee_paying_addresses: arrFeePayingAddresses, to_address: to_address, change_address: change_address, amount: amount, tolerance_plus: tolerance_plus, tolerance_minus: tolerance_minus, signer: signer, callbacks: callbacks}
 function composeAndSaveIndivisibleAssetPaymentJoint(params){
 	var params_with_save = _.clone(params);
-	params_with_save.callbacks = getSavingCallbacks(params.to_address, params.callbacks);
+	params_with_save.callbacks = getSavingCallbacks(getToAddress(params), params.callbacks);
 	composeIndivisibleAssetPaymentJoint(params_with_save);
 }
 
@@ -1077,8 +1077,16 @@ function composeMinimalIndivisibleAssetPaymentJoint(params){
 // {asset: asset, available_paying_addresses: arrAvailablePayingAddresses, available_fee_paying_addresses: arrAvailableFeePayingAddresses, to_address: to_address, amount: amount, tolerance_plus: tolerance_plus, tolerance_minus: tolerance_minus, signer: signer, callbacks: callbacks}
 function composeAndSaveMinimalIndivisibleAssetPaymentJoint(params){
 	var params_with_save = _.clone(params);
-	params_with_save.callbacks = getSavingCallbacks(params.to_address, params.callbacks);
+	params_with_save.callbacks = getSavingCallbacks(getToAddress(params), params.callbacks);
 	composeMinimalIndivisibleAssetPaymentJoint(params_with_save);
+}
+
+function getToAddress(params){
+	if (params.to_address)
+		return params.to_address;
+	if (params.asset_outputs)
+		return params.asset_outputs[0].address;
+	throw Error("unable to determine to_address");
 }
 
 

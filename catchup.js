@@ -12,6 +12,8 @@ var witnessProof = require('./witness_proof.js');
 
 
 function prepareCatchupChain(catchupRequest, callbacks){
+	if (!catchupRequest)
+		return callbacks.ifError("no catchup request");
 	var last_stable_mci = catchupRequest.last_stable_mci;
 	var last_known_mci = catchupRequest.last_known_mci;
 	var arrWitnesses = catchupRequest.witnesses;
@@ -200,6 +202,8 @@ function processCatchupChain(catchupChain, peer, callbacks){
 }
 
 function readHashTree(hashTreeRequest, callbacks){
+	if (!hashTreeRequest)
+		return callbacks.ifError("no hash tree request");
 	var from_ball = hashTreeRequest.from_ball;
 	var to_ball = hashTreeRequest.to_ball;
 	if (typeof from_ball !== 'string')
@@ -231,7 +235,7 @@ function readHashTree(hashTreeRequest, callbacks){
 			var op = (from_mci === 0) ? ">=" : ">"; // if starting from 0, add genesis itself
 			db.query(
 				"SELECT unit, ball, content_hash FROM units LEFT JOIN balls USING(unit) \n\
-				WHERE main_chain_index "+op+" ? AND main_chain_index<=? ORDER BY `level`", 
+				WHERE main_chain_index "+op+" ? AND main_chain_index<=? ORDER BY main_chain_index, `level`", 
 				[from_mci, to_mci], 
 				function(ball_rows){
 					async.eachSeries(

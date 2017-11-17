@@ -106,6 +106,7 @@ function calcHeadersCommissions(conn, onDone){
 						var arrWinnerUnits = Object.keys(assocWonAmounts);
 						if (arrWinnerUnits.length === 0)
 							return cb();
+						var strWinnerUnitsList = arrWinnerUnits.map(db.escape).join(', ');
 						conn.query(
 							"SELECT \n\
 								unit_authors.unit, \n\
@@ -113,15 +114,14 @@ function calcHeadersCommissions(conn, onDone){
 								100 AS earned_headers_commission_share \n\
 							FROM unit_authors \n\
 							LEFT JOIN earned_headers_commission_recipients USING(unit) \n\
-							WHERE unit_authors.unit IN(?) AND earned_headers_commission_recipients.unit IS NULL \n\
+							WHERE unit_authors.unit IN("+strWinnerUnitsList+") AND earned_headers_commission_recipients.unit IS NULL \n\
 							UNION ALL \n\
 							SELECT \n\
 								unit, \n\
 								address, \n\
 								earned_headers_commission_share \n\
 							FROM earned_headers_commission_recipients \n\
-							WHERE unit IN(?)",
-							[arrWinnerUnits, arrWinnerUnits],
+							WHERE unit IN("+strWinnerUnitsList+")",
 							function(profit_distribution_rows){
 								var arrValues = [];
 								profit_distribution_rows.forEach(function(row){

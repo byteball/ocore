@@ -345,8 +345,10 @@ function readMessageInChunksFromOutbox(message_hash, len, handleMessage){
 	var message = '';
 	function readChunk(){
 		db.query("SELECT SUBSTR(message, ?, ?) AS chunk FROM outbox WHERE message_hash=?", [start, CHUNK_LEN, message_hash], function(rows){
-			if (rows.length !== 1)
-				throw Error(rows.length+' msgs by hash in outbox');
+			if (rows.length === 0)
+				return handleMessage();
+			if (rows.length > 1)
+				throw Error(rows.length+' msgs by hash in outbox, start='+start+', length='+len);
 			message += rows[0].chunk;
 			start += CHUNK_LEN;
 			(start > len) ? handleMessage(message) : readChunk();
@@ -376,6 +378,8 @@ function resendStalledMessages(){
 						}
 						//	throw Error("no hub in resendStalledMessages: "+JSON.stringify(row));
 						var send = function(message){
+							if (!message) // the message is already gone
+								return cb();
 							var objDeviceMessage = JSON.parse(message);
 							//if (objDeviceMessage.to !== row.to)
 							//    throw "to mismatch";

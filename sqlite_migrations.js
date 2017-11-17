@@ -1,7 +1,8 @@
 /*jslint node: true */
 "use strict";
+var eventBus = require('./event_bus.js');
 
-var VERSION = 12;
+var VERSION = 15;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -90,8 +91,34 @@ function migrateDb(connection, onDone){
 		}
 		if (version < 12)
 			connection.addQuery(arrQueries, "DELETE FROM known_bad_joints");
+		if (version < 13){
+			connection.addQuery(arrQueries, "ALTER TABLE unit_authors ADD COLUMN _mci INT NULL");
+			connection.addQuery(arrQueries, "PRAGMA user_version=13");
+		}
+		if (version < 14){
+			connection.addQuery(arrQueries, "UPDATE unit_authors SET _mci=(SELECT main_chain_index FROM units WHERE units.unit=unit_authors.unit)");
+			connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS unitAuthorsIndexByAddressMci ON unit_authors(address, _mci)");
+		}
+		if (version < 15){
+			connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS asset_metadata ( \n\
+				asset CHAR(44) NOT NULL PRIMARY KEY, \n\
+				metadata_unit CHAR(44) NOT NULL, \n\
+				registry_address CHAR(32) NULL, \n\
+				suffix VARCHAR(20) NULL, \n\
+				name VARCHAR(20) NULL, \n\
+				decimals TINYINT NULL, \n\
+				creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, \n\
+				UNIQUE (name, registry_address), \n\
+				FOREIGN KEY (asset) REFERENCES assets(unit), \n\
+				FOREIGN KEY (metadata_unit) REFERENCES units(unit) \n\
+			)");
+		}
 		connection.addQuery(arrQueries, "PRAGMA user_version="+VERSION);
-		async.series(arrQueries, onDone);
+		eventBus.emit('started_db_upgrade');
+		async.series(arrQueries, function(){
+			eventBus.emit('finished_db_upgrade');
+			onDone();
+		});
 	});
 }
 

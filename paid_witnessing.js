@@ -192,8 +192,7 @@ function buildPaidWitnesses(conn, objUnitProps, arrWitnesses, onDone){
 	graph.readDescendantUnitsByAuthorsBeforeMcIndex(conn, objUnitProps, arrWitnesses, to_main_chain_index, function(arrUnits){
 		rt+=Date.now()-t;
 		t=Date.now();
-		if (arrUnits.length === 0)
-			arrUnits = null;
+		var strUnitsList = (arrUnits.length === 0) ? 'NULL' : arrUnits.map(function(unit){ return conn.escape(unit); }).join(', ');
 			//throw "no witnesses before mc "+to_main_chain_index+" for unit "+objUnitProps.unit;
 		profiler.start();
 		conn.query( // we don't care if the unit is majority witnessed by the unit-designated witnesses
@@ -202,9 +201,9 @@ function buildPaidWitnesses(conn, objUnitProps, arrWitnesses, onDone){
 			"SELECT address, MIN(main_chain_index-?) AS delay \n\
 			FROM units \n\
 			LEFT JOIN unit_authors USING(unit) \n\
-			WHERE unit IN(?) AND address IN(?) AND +sequence='good' \n\
+			WHERE unit IN("+strUnitsList+") AND address IN(?) AND +sequence='good' \n\
 			GROUP BY address",
-			[objUnitProps.main_chain_index, arrUnits, arrWitnesses],
+			[objUnitProps.main_chain_index, arrWitnesses],
 			function(rows){
 				et += Date.now()-t;
 				var count_paid_witnesses = rows.length;
