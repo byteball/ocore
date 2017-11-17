@@ -1066,6 +1066,57 @@ function sendPaymentFromWallet(
 	}, handleResult);
 }
 
+function receiveTextCoin(mnemonic, addressTo, cb) {
+	mnemonic = mnemonic.toLowerCase();
+	if ((mnemonic.split(' ').length % 3 !== 0) || !Mnemonic.isValid(mnemonic)) {
+		return cb("invalid mnemonic");
+	}
+	var mnemonic = new Mnemonic(mnemonic);
+	try {
+		var xPrivKey = mnemonic.toHDPrivateKey().derive("m/44'/0'/0'/0/0");
+		var pubkey = xPrivKey.publicKey.toBuffer().toString("base64");
+	} catch (e) {
+		cb(e.message);
+		return;
+	}
+	var definition = ["sig", {"pubkey": pubkey}];
+	var address = objectHash.getChash160(definition);
+	var signer = {
+		readSigningPaths: function(conn, address, handleLengthsBySigningPaths){ // returns assoc array signing_path => length
+			var assocLengthsBySigningPaths = {};
+			assocLengthsBySigningPaths["r"] = constants.SIG_LENGTH;
+			handleLengthsBySigningPaths(assocLengthsBySigningPaths);
+		},
+		readDefinition: function(conn, address, handleDefinition){
+			handleDefinition(null, definition);
+		},
+		sign: function(objUnsignedUnit, assocPrivatePayloads, address, signing_path, handleSignature){
+			handleSignature(null, ecdsaSig.sign(objectHash.getUnitHashToSign(objUnsignedUnit), xPrivKey.privateKey.bn.toBuffer({size:32})));
+		}
+	};
+	var opts = {};
+	opts.signer = signer;
+	opts.send_all = true;
+	opts.outputs = [{address: addressTo, amount: 0}];
+	opts.available_paying_addresses = [address];
+	opts.signing_addresses = [address];
+	opts.paying_addresses = [address];
+ 	opts.callbacks = composer.getSavingCallbacks({
+		ifNotEnoughFunds: function(err){
+			cb(err);
+		},
+		ifError: function(err){
+			cb(err);
+		},
+		ifOk: function(objJoint, arrChainsOfRecipientPrivateElements, arrChainsOfCosignerPrivateElements){
+			network.broadcastJoint(objJoint);
+			cb(null, objJoint.unit.unit);
+		}
+	});
+
+	composer.composeJoint(opts);
+}
+
 function sendMultiPayment(opts, handleResult)
 {
 	var asset = opts.asset;
@@ -1434,3 +1485,4 @@ exports.sendPaymentFromWallet = sendPaymentFromWallet;
 exports.sendMultiPayment = sendMultiPayment;
 exports.readDeviceAddressesUsedInSigningPaths = readDeviceAddressesUsedInSigningPaths;
 exports.determineIfDeviceCanBeRemoved = determineIfDeviceCanBeRemoved;
+exports.receiveTextCoin = receiveTextCoin;

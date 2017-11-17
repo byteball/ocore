@@ -671,3 +671,13 @@ CREATE TABLE bots (
 	pairing_code VARCHAR(200) NOT NULL,
 	description LONGTEXT NOT NULL
 );
+
+CREATE TABLE sent_mnemonics (
+	unit CHAR(44) NOT NULL,
+	address CHAR(32) NOT NULL,
+	mnemonic VARCHAR(107) NOT NULL,
+	"to" VARCHAR(120) NOT NULL,
+	PRIMARY KEY (unit),
+	FOREIGN KEY (unit) REFERENCES units(unit)
+);
+CREATE INDEX sentByAddress ON sent_mnemonics(address);

@@ -670,6 +670,22 @@ function composeJoint(params){
 				objUnit.payload_commission = objectLength.getTotalPayloadSize(objUnit);
 				return cb();
 			}
+			if (conf.bLight) {
+				arrPayingAddresses.forEach(function(address){
+					conn.query(
+						"SELECT 1 \n\
+						FROM outputs JOIN units USING(unit) WHERE address=? AND is_stable=1 AND sequence='good' LIMIT 1", 
+						[address],
+						function(rows){
+							if (rows.length === 0) // no definition changes at all
+								return cb({ 
+									error_code: "UNKNOWN_ADDRESS", 
+									error: "light wallet doesn't have data for address " + address + " yet, history requested"
+								});
+						}
+					);	
+				});
+			}
 			
 			// all inputs must appear before last_ball
 			var target_amount = params.send_all ? Infinity : (total_amount + objUnit.headers_commission + naked_payload_commission);

@@ -692,4 +692,14 @@ CREATE TABLE bots (
 	description LONGTEXT NOT NULL
 );
 
-PRAGMA user_version=11;
+CREATE TABLE sent_mnemonics (
+	unit CHAR(44) NOT NULL,
+	address CHAR(32) NOT NULL,
+	mnemonic VARCHAR(107) NOT NULL,
+	"to" VARCHAR(120) NOT NULL,
+	PRIMARY KEY (unit),
+	FOREIGN KEY (unit) REFERENCES units(unit)
+);
+CREATE INDEX sentByAddress ON sent_mnemonics(address);
+
+PRAGMA user_version=12;
