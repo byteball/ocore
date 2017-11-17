@@ -98,6 +98,8 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 				conn.addQuery(arrQueries, "INSERT "+conn.getIgnore()+" INTO addresses (address) VALUES(?)", [author.address]);
 			conn.addQuery(arrQueries, "INSERT INTO unit_authors (unit, address, definition_chash) VALUES(?,?,?)", 
 				[objUnit.unit, author.address, definition_chash]);
+			if (storage.isGenesisUnit(objUnit.unit))
+				conn.addQuery(arrQueries, "UPDATE unit_authors SET _mci=0 WHERE unit=?", [objUnit.unit]);
 			if (!objUnit.content_hash){
 				for (var path in author.authentifiers)
 					conn.addQuery(arrQueries, "INSERT INTO authentifiers (unit, address, path, authentifier) VALUES(?,?,?,?)", 
@@ -436,7 +438,7 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 							arrOps.push(updateWitnessedLevel);
 							arrOps.push(function(cb){
 								console.log("updating MC after adding "+objUnit.unit);
-								main_chain.updateMainChain(conn, null, cb);
+								main_chain.updateMainChain(conn, null, objUnit.unit, cb);
 							});
 						}
 						if (preCommitCallback)

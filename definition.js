@@ -23,7 +23,7 @@ var isArrayOfLength = ValidationUtils.isArrayOfLength;
 var isValidAddress = ValidationUtils.isValidAddress;
 
 // validate definition of address or asset spending conditions
-function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bAssetCondition, handleResult){
+function validateDefinition(conn, arrDefinition, objUnit, objValidationState, arrAuthentifierPaths, bAssetCondition, handleResult){
 	
 	function getFilterError(filter){
 		if (!filter)
@@ -74,10 +74,31 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 		});
 	}
 	
-	function evaluate(arr, bInNegation, cb){
+	
+	function pathIncludesOneOfAuthentifiers(path){
+		if (bAssetCondition)
+			throw Error('pathIncludesOneOfAuthentifiers called in asset condition');
+		for (var i=0; i<arrAuthentifierPaths.length; i++){
+			var authentifier_path = arrAuthentifierPaths[i];
+			if (authentifier_path.substr(0, path.length) === path)
+				return true;
+		}
+		return false;
+	}
+	
+	function needToEvaluateNestedAddress(path){
+		if (!arrAuthentifierPaths) // no signatures, just validating a new definition
+			return true;
+		if (objValidationState.last_ball_mci < 1400000) // skipping is enabled after this mci
+			return true;
+		return pathIncludesOneOfAuthentifiers(path);
+	}
+	
+	
+	function evaluate(arr, path, bInNegation, cb){
 		complexity++;
 		if (complexity > constants.MAX_COMPLEXITY)
-			return cb("complexity exceeded");
+			return cb("complexity exceeded at "+path);
 		if (!isArrayOfLength(arr, 2))
 			return cb("expression must be 2-element array");
 		var op = arr[0];
@@ -90,10 +111,12 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 				if (args.length < 2)
 					return cb(op+" must have at least 2 options");
 				var count_options_with_sig = 0;
+				var index = -1;
 				async.eachSeries(
 					args,
 					function(arg, cb2){
-						evaluate(arg, bInNegation, function(err, bHasSig){
+						index++;
+						evaluate(arg, path+'.'+index, bInNegation, function(err, bHasSig){
 							if (err)
 								return cb2(err);
 							if (bHasSig)
@@ -125,10 +148,12 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 				//if (args.required === 1)
 				//    return cb("required must be more than 1, use or instead");
 				var count_options_with_sig = 0;
+				var index = -1;
 				async.eachSeries(
 					args.set,
 					function(arg, cb2){
-						evaluate(arg, bInNegation, function(err, bHasSig){
+						index++;
+						evaluate(arg, path+'.'+index, bInNegation, function(err, bHasSig){
 							if (err)
 								return cb2(err);
 							if (bHasSig)
@@ -156,15 +181,17 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 					return cb("set must have at least 2 options");
 				var weight_of_options_with_sig = 0;
 				var total_weight = 0;
+				var index = -1;
 				async.eachSeries(
 					args.set,
 					function(arg, cb2){
+						index++;
 						if (hasFieldsExcept(arg, ["value", "weight"]))
 							return cb2("unknown fields in weighted set element");
 						if (!isPositiveInteger(arg.weight))
 							return cb2("weight must be positive int");
 						total_weight += arg.weight;
-						evaluate(arg.value, bInNegation, function(err, bHasSig){
+						evaluate(arg.value, path+'.'+index, bInNegation, function(err, bHasSig){
 							if (err)
 								return cb2(err);
 							if (bHasSig)
@@ -226,21 +253,21 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 				storage.readDefinitionByAddress(conn, other_address, objValidationState.last_ball_mci, {
 					ifFound: function(arrInnerAddressDefinition){
 						console.log("inner address:", arrInnerAddressDefinition);
-						evaluate(arrInnerAddressDefinition, bInNegation, cb);
+						needToEvaluateNestedAddress(path) ? evaluate(arrInnerAddressDefinition, path, bInNegation, cb) : cb(null, true);
 					},
 					ifDefinitionNotFound: function(definition_chash){
 					//	if (objValidationState.bAllowUnresolvedInnerDefinitions)
 					//		return cb(null, true);
-						var bAllowUnresolvedInnerDefinitions = !(constants.version === '1.0t' && constants.alt === '1');
+						var bAllowUnresolvedInnerDefinitions = true;
 						var arrDefiningAuthors = objUnit.authors.filter(function(author){
 							return (author.address === other_address && objectHash.getChash160(author.definition) === definition_chash);
 						});
 						if (arrDefiningAuthors.length === 0) // no address definition in the current unit
 							return bAllowUnresolvedInnerDefinitions ? cb(null, true) : cb("definition of inner address "+other_address+" not found");
 						if (arrDefiningAuthors.length > 1)
-							throw "more than 1 address definition";
+							throw Error("more than 1 address definition");
 						var arrInnerAddressDefinition = arrDefiningAuthors[0].definition;
-						evaluate(arrInnerAddressDefinition, bInNegation, cb);
+						needToEvaluateNestedAddress(path) ? evaluate(arrInnerAddressDefinition, path, bInNegation, cb) : cb(null, true);
 					}
 				});
 				break;
@@ -279,7 +306,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 							else
 								throw e;
 						}
-						evaluate(arrFilledTemplate, bInNegation, cb);
+						evaluate(arrFilledTemplate, path, bInNegation, cb);
 					}
 				);
 				break;
@@ -315,7 +342,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 				return cb();
 				
 			case 'not':
-				evaluate(args, true, cb);
+				evaluate(args, path, true, cb);
 				break;
 				
 			case 'in data feed':
@@ -502,7 +529,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, bA
 	}
 	
 	var complexity = 0;
-	evaluate(arrDefinition, false, function(err, bHasSig){
+	evaluate(arrDefinition, 'r', false, function(err, bHasSig){
 		if (err)
 			return handleResult(err);
 		if (!bHasSig && !bAssetCondition)
@@ -652,7 +679,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 						if (arrDefiningAuthors.length === 0) // no definition in the current unit
 							return cb2(false);
 						if (arrDefiningAuthors.length > 1)
-							throw "more than 1 address definition";
+							throw Error("more than 1 address definition");
 						var arrInnerAddressDefinition = arrDefiningAuthors[0].definition;
 						evaluate(arrInnerAddressDefinition, path, cb2);
 					}
@@ -669,7 +696,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 					[unit, objValidationState.last_ball_mci], 
 					function(rows){
 						if (rows.length !== 1)
-							throw "not 1 template";
+							throw Error("not 1 template");
 						var template = rows[0].payload;
 						var arrTemplate = JSON.parse(template);
 						var arrFilledTemplate = replaceInTemplate(arrTemplate, params);
@@ -1094,21 +1121,9 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 		);
 	}
 	
-	function pathIncludesOneOfAuthentifiers(path){
-		if (bAssetCondition)
-			throw Error('pathIncludesOneOfAuthentifiers called in asset condition');
-		var arrAuthentifierPaths = Object.keys(assocAuthentifiers);
-		for (var i=0; i<arrAuthentifierPaths.length; i++){
-			var authentifier_path = arrAuthentifierPaths[i];
-			if (authentifier_path.substr(0, path.length) === path)
-				return true;
-		}
-		return false;
-	}
-	
 	var bAssetCondition = (assocAuthentifiers === null);
 	if (bAssetCondition && address || !bAssetCondition && this_asset)
-		throw "incompatible params";
+		throw Error("incompatible params");
 	var fatal_error = null;
 	var arrUsedPaths = [];
 	
@@ -1117,7 +1132,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 	// 2. redefinition of a referenced address might introduce loops that will drive complexity to infinity
 	// 3. if an inner address was redefined by keychange but the definition for the new keyset not supplied before last ball, the address 
 	// becomes temporarily unusable
-	validateDefinition(conn, arrDefinition, objUnit, objValidationState, bAssetCondition, function(err){
+	validateDefinition(conn, arrDefinition, objUnit, objValidationState, Object.keys(assocAuthentifiers), bAssetCondition, function(err){
 		if (err)
 			return cb(err);
 		//console.log("eval def");
@@ -1154,7 +1169,7 @@ function replaceInTemplate(arrTemplate, params){
 						x[key] = replaceInVar(x[key]);
 				return x;
 			default:
-				throw "unknown type";
+				throw Error("unknown type");
 		}
 	}
 	return replaceInVar(_.cloneDeep(arrTemplate));
@@ -1217,7 +1232,7 @@ function hasReferences(arrDefinition){
 				return true;
 				
 			default:
-				throw "unknown op: "+op;
+				throw Error("unknown op: "+op);
 		}
 	}
 	

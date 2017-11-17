@@ -14,10 +14,19 @@ var eventBus = require('./event_bus.js');
 var profiler = require('./profiler.js');
 var breadcrumbs = require('./breadcrumbs.js');
 
+// override when adding units which caused witnessed level to significantly retreat
+var arrRetreatingUnits = [
+	'+5ntioHT58jcFb8oVc+Ff4UvO5UvYGRcrGfYIofGUW8=',
+	'C/aPdM0sODPLC3NqJPWdZlqmV8B4xxf2N/+HSEi0sKU=',
+	'sSev6hvQU86SZBemy9CW2lJIko2jZDoY55Lm3zf2QU4=',
+	'19GglT3uZx1WmfWstLb3yIa85jTic+t01Kpe6s5gTTA=',
+	'Hyi2XVdZ/5D3H/MhwDL/jRWHp3F/dQTmwemyUHW+Urg='
+];
 
 
-function updateMainChain(conn, last_unit, onDone){
+function updateMainChain(conn, from_unit, last_added_unit, onDone){
 	
+	var arrAllParents = [];
 	
 	// if unit === null, read free balls
 	function findNextUpMainChainUnit(unit, handleUnit){
@@ -33,10 +42,24 @@ function updateMainChain(conn, last_unit, onDone){
 				ORDER BY witnessed_level DESC, \n\
 					level-witnessed_level ASC, \n\
 					unit ASC \n\
-				LIMIT 1",
+				LIMIT 5",
 				function(rows){
 					if (rows.length === 0)
 						throw Error("no free units?");
+					if (rows.length > 1){
+						var arrParents = rows.map(function(row){ return row.best_parent_unit; });
+						arrAllParents = arrParents;
+						for (var i=0; i<arrRetreatingUnits.length; i++){
+							var n = arrParents.indexOf(arrRetreatingUnits[i]);
+							if (n >= 0)
+								return handleLastUnitProps(rows[n]);
+						}
+					}
+					/*
+					// override when adding +5ntioHT58jcFb8oVc+Ff4UvO5UvYGRcrGfYIofGUW8= which caused witnessed level to significantly retreat
+					if (rows.length === 2 && (rows[1].best_parent_unit === '+5ntioHT58jcFb8oVc+Ff4UvO5UvYGRcrGfYIofGUW8=' || rows[1].best_parent_unit === 'C/aPdM0sODPLC3NqJPWdZlqmV8B4xxf2N/+HSEi0sKU=' || rows[1].best_parent_unit === 'sSev6hvQU86SZBemy9CW2lJIko2jZDoY55Lm3zf2QU4=') && (rows[0].best_parent_unit === '3XJT1iK8FpFeGjwWXd9+Yu7uJp7hM692Sfbb5zdqWCE=' || rows[0].best_parent_unit === 'TyY/CY8xLGvJhK6DaBumj2twaf4y4jPC6umigAsldIA=' || rows[0].best_parent_unit === 'VKX2Nsx2W1uQYT6YajMGHAntwNuSMpAAlxF7Y98tKj8='))
+						return handleLastUnitProps(rows[1]);
+					*/
 					handleLastUnitProps(rows[0]);
 				}
 			);
@@ -69,15 +92,15 @@ function updateMainChain(conn, last_unit, onDone){
 	}
 	
 	function checkNotRebuildingStableMainChainAndGoDown(last_main_chain_index, last_main_chain_unit){
-		console.log("checkNotRebuildingStableMainChainAndGoDown "+last_unit);
+		console.log("checkNotRebuildingStableMainChainAndGoDown "+from_unit);
 		profiler.start();
 		conn.query(
-			"SELECT unit FROM units WHERE is_on_main_chain=1 AND main_chain_index>? AND is_stable=1 LIMIT 1", 
+			"SELECT unit FROM units WHERE is_on_main_chain=1 AND main_chain_index>? AND is_stable=1", 
 			[last_main_chain_index],
 			function(rows){
 				profiler.stop('mc-checkNotRebuilding');
 				if (rows.length > 0)
-					throw Error("removing stable witnessed unit "+rows[0].unit+" from main chain");
+					throw Error("removing stable units "+rows.map(function(row){return row.unit}).join(', ')+" from MC after adding "+last_added_unit+" with all parents "+arrAllParents.join(', '));
 				goDownAndUpdateMainChainIndex(last_main_chain_index, last_main_chain_unit);
 			}
 		);
@@ -97,7 +120,7 @@ function updateMainChain(conn, last_unit, onDone){
 					function(rows){
 						if (rows.length === 0){
 							//if (last_main_chain_index > 0)
-								throw Error("no unindexed MC units?");
+								throw Error("no unindexed MC units after adding "+last_added_unit);
 							//else{
 							//    console.log("last MC=0, no unindexed MC units");
 							//    return updateLatestIncludedMcIndex(last_main_chain_index, true);
@@ -127,7 +150,9 @@ function updateMainChain(conn, last_unit, onDone){
 	
 								function updateMc(){
 									conn.query("UPDATE units SET main_chain_index=? WHERE unit IN(?)", [main_chain_index, arrUnits], function(){
-										cb();
+										conn.query("UPDATE unit_authors SET _mci=? WHERE unit IN(?)", [main_chain_index, arrUnits], function(){
+											cb();
+										});
 									});
 								}
 								
@@ -138,8 +163,13 @@ function updateMainChain(conn, last_unit, onDone){
 								console.log("goDownAndUpdateMainChainIndex done");
 								if (err)
 									throw Error("goDownAndUpdateMainChainIndex eachSeries failed");
-								profiler.stop('mc-goDown');
-								updateLatestIncludedMcIndex(last_main_chain_index, true);
+								conn.query(
+									"UPDATE unit_authors SET _mci=NULL WHERE unit IN(SELECT unit FROM units WHERE main_chain_index IS NULL)", 
+									function(){
+										profiler.stop('mc-goDown');
+										updateLatestIncludedMcIndex(last_main_chain_index, true);
+									}
+								);
 							}
 						);
 					}
@@ -400,8 +430,14 @@ function updateMainChain(conn, last_unit, onDone){
 	
 	
 	console.log("\nwill update MC");
-	//finish();
-	goUpFromUnit(last_unit);
+	
+	/*if (from_unit === null && arrRetreatingUnits.indexOf(last_added_unit) >= 0){
+		conn.query("UPDATE units SET is_on_main_chain=1, main_chain_index=NULL WHERE unit=?", [last_added_unit], function(){
+			goUpFromUnit(last_added_unit);
+		});
+	}
+	else*/
+		goUpFromUnit(from_unit);
 	
 }
 

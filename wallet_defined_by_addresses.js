@@ -229,9 +229,11 @@ function includesMyDeviceAddress(assocSignersByPath){
 // It is possible that my device address is not mentioned in the definition if I'm a member of multisig address, one of my cosigners is mentioned instead
 function determineIfIncludesMeAndRewriteDeviceAddress(assocSignersByPath, handleResult){
 	var assocMemberAddresses = {};
+	var bHasMyDeviceAddress = false;
 	for (var signing_path in assocSignersByPath){
 		var signerInfo = assocSignersByPath[signing_path];
-	//	if (signerInfo.device_address === device.getMyDeviceAddress())
+		if (signerInfo.device_address === device.getMyDeviceAddress())
+			bHasMyDeviceAddress = true;
 		if (signerInfo.address)
 			assocMemberAddresses[signerInfo.address] = true;
 	}
@@ -239,18 +241,22 @@ function determineIfIncludesMeAndRewriteDeviceAddress(assocSignersByPath, handle
 	if (arrMemberAddresses.length === 0)
 		return handleResult("no member addresses?");
 	db.query(
-		"SELECT address FROM my_addresses WHERE address IN(?) UNION SELECT shared_address AS address FROM shared_addresses WHERE shared_address IN(?)", 
+		"SELECT address, 'my' AS type FROM my_addresses WHERE address IN(?) \n\
+		UNION \n\
+		SELECT shared_address AS address, 'shared' AS type FROM shared_addresses WHERE shared_address IN(?)", 
 		[arrMemberAddresses, arrMemberAddresses],
 		function(rows){
 		//	handleResult(rows.length === arrMyMemberAddresses.length ? null : "Some of my member addresses not found");
 			if (rows.length === 0)
-				handleResult("I am not a member of this shared address");
-			var arrMyMemberAddresses = rows.map(function(row){ return row.address; });
+				return handleResult("I am not a member of this shared address");
+			var arrMyMemberAddresses = rows.filter(function(row){ return (row.type === 'my'); }).map(function(row){ return row.address; });
 			// rewrite device address for my addresses
-			for (var signing_path in assocSignersByPath){
-				var signerInfo = assocSignersByPath[signing_path];
-				if (signerInfo.address && arrMyMemberAddresses.indexOf(signerInfo.address) >= 0)
-					signerInfo.device_address = device.getMyDeviceAddress();
+			if (!bHasMyDeviceAddress){
+				for (var signing_path in assocSignersByPath){
+					var signerInfo = assocSignersByPath[signing_path];
+					if (signerInfo.address && arrMyMemberAddresses.indexOf(signerInfo.address) >= 0)
+						signerInfo.device_address = device.getMyDeviceAddress();
+				}
 			}
 			handleResult();
 		}
@@ -391,7 +397,7 @@ function validateAddressDefinitionTemplate(arrDefinitionTemplate, from_address, 
 	}
 	var objFakeUnit = {authors: [{address: fake_address, definition: ["sig", {pubkey: device.getMyDevicePubKey()}]}]};
 	var objFakeValidationState = {last_ball_mci: MAX_INT32};
-	Definition.validateDefinition(db, arrFakeDefinition, objFakeUnit, objFakeValidationState, false, function(err){
+	Definition.validateDefinition(db, arrFakeDefinition, objFakeUnit, objFakeValidationState, null, false, function(err){
 		if (err)
 			return handleResult(err);
 		handleResult(null, assocMemberDeviceAddressesBySigningPaths);
@@ -403,7 +409,7 @@ function validateAddressDefinitionTemplate(arrDefinitionTemplate, from_address, 
 function validateAddressDefinition(arrDefinition, handleResult){
 	var objFakeUnit = {authors: []};
 	var objFakeValidationState = {last_ball_mci: MAX_INT32, bAllowUnresolvedInnerDefinitions: true};
-	Definition.validateDefinition(db, arrDefinition, objFakeUnit, objFakeValidationState, false, function(err){
+	Definition.validateDefinition(db, arrDefinition, objFakeUnit, objFakeValidationState, null, false, function(err){
 		if (err)
 			return handleResult(err);
 		handleResult();

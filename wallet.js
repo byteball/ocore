@@ -31,6 +31,8 @@ var fs = require('fs');
 DNS.setServers(["8.8.8.8", "114.114.114.114"]); // google public DNS, China 114dns
 
 var message_counter = 0;
+var assocLastFailedAssetMetadataTimestamps = {};
+var ASSET_METADATA_RETRY_PERIOD = 3600*1000;
 
 function handleJustsaying(ws, subject, body){
 	switch (subject){
@@ -711,6 +713,100 @@ function readBalancesOnAddresses(walletId, handleBalancesOnAddresses) {
 	GROUP BY outputs.address, outputs.asset \n\
 	ORDER BY my_addresses.address_index ASC", [walletId], function(rows) {
 		handleBalancesOnAddresses(rows);
+	});
+}
+
+function readAssetMetadata(arrAssets, handleMetadata){
+	db.query("SELECT asset, metadata_unit, name, suffix, decimals FROM asset_metadata WHERE asset IN(?)", [arrAssets], function(rows){
+		var assocAssetMetadata = {};
+		for (var i=0; i<rows.length; i++){
+			var row = rows[i];
+			var asset = row.asset || "base";
+			assocAssetMetadata[asset] = {
+				metadata_unit: row.metadata_unit,
+				decimals: row.decimals,
+				name: row.suffix ? row.name+'.'+row.suffix : row.name
+			};
+		}
+		handleMetadata(assocAssetMetadata);
+		// after calling the callback, try to fetch missing data about assets
+		arrAssets.forEach(function(asset){
+			if (assocAssetMetadata[asset] || asset === 'base' && asset === constants.BLACKBYTES_ASSET)
+				return;
+			if ((assocLastFailedAssetMetadataTimestamps[asset] || 0) > Date.now() - ASSET_METADATA_RETRY_PERIOD)
+				return;
+			fetchAssetMetadata(asset, function(err, objMetadata){
+				if (err)
+					return console.log(err);
+				assocAssetMetadata[asset] = {
+					metadata_unit: objMetadata.metadata_unit,
+					decimals: objMetadata.decimals,
+					name: objMetadata.suffix ? objMetadata.name+'.'+objMetadata.suffix : objMetadata.name
+				};
+				eventBus.emit('maybe_new_transactions');
+			});
+		});
+	});
+}
+
+function fetchAssetMetadata(asset, handleMetadata){
+	device.requestFromHub('hub/get_asset_metadata', asset, function(err, response){
+		if (err){
+			if (err === 'no metadata')
+				assocLastFailedAssetMetadataTimestamps[asset] = Date.now();
+			return handleMetadata("error from get_asset_metadata "+asset+": "+err);
+		}
+		var metadata_unit = response.metadata_unit;
+		var registry_address = response.registry_address;
+		var suffix = response.suffix;
+		if (!ValidationUtils.isStringOfLength(metadata_unit, constants.HASH_LENGTH))
+			return handleMetadata("bad metadata_unit: "+metadata_unit);
+		if (!ValidationUtils.isValidAddress(registry_address))
+			return handleMetadata("bad registry_address: "+registry_address);
+		var fetchMetadataUnit = conf.bLight 
+			? function(onDone){
+				network.requestProofsOfJointsIfNewOrUnstable([metadata_unit], onDone);
+			}
+			: function(onDone){
+				onDone();
+			};
+		fetchMetadataUnit(function(err){
+			if (err)
+				return handleMetadata("fetchMetadataUnit failed: "+err);
+			storage.readJoint(db, metadata_unit, {
+				ifNotFound: function(){
+					handleMetadata("metadata unit "+unit+" not found");
+				},
+				ifFound: function(objJoint){
+					objJoint.unit.messages.forEach(function(message){
+						if (message.app !== 'data')
+							return;
+						var payload = message.payload;
+						if (payload.asset !== asset)
+							return;
+						if (!payload.name)
+							return handleMetadata("no name in asset metadata "+metadata_unit);
+						var decimals = (payload.decimals !== undefined) ? parseInt(payload.decimals) : undefined;
+						if (decimals !== undefined && !ValidationUtils.isNonnegativeInteger(decimals))
+							return handleMetadata("bad decimals in asset metadata "+metadata_unit);
+						db.query(
+							"INSERT "+db.getIgnore()+" INTO asset_metadata (asset, metadata_unit, registry_address, suffix, name, decimals) \n\
+							VALUES (?,?,?, ?,?,?)",
+							[asset, metadata_unit, registry_address, suffix, payload.name, decimals],
+							function(){
+								var objMetadata = {
+									metadata_unit: metadata_unit,
+									suffix: suffix,
+									decimals: decimals,
+									name: payload.name
+								};
+								handleMetadata(null, objMetadata);
+							}
+						);
+					});
+				}
+			});
+		});
 	});
 }
 
@@ -1480,6 +1576,7 @@ exports.sendSignature = sendSignature;
 exports.readSharedBalance = readSharedBalance;
 exports.readBalance = readBalance;
 exports.readBalancesOnAddresses = readBalancesOnAddresses;
+exports.readAssetMetadata = readAssetMetadata;
 exports.readTransactionHistory = readTransactionHistory;
 exports.sendPaymentFromWallet = sendPaymentFromWallet;
 exports.sendMultiPayment = sendMultiPayment;

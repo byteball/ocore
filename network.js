@@ -1270,25 +1270,29 @@ function notifyLightClientsAboutStableJoints(from_mci, to_mci){
 
 function notifyLocalWatchedAddressesAboutStableJoints(mci){
 	function handleRows(rows){
-		if (rows.length > 0)
+		if (rows.length > 0){
 			eventBus.emit('my_transactions_became_stable', rows.map(function(row){ return row.unit; }));
+			rows.forEach(function(row){
+				eventBus.emit('my_stable-'+row.unit);
+			});
+		}
 	}
 	if (arrWatchedAddresses.length > 0)
 		db.query(
-			"SELECT unit FROM units JOIN unit_authors USING(unit) WHERE main_chain_index=? AND address IN(?) \n\
+			"SELECT unit FROM units JOIN unit_authors USING(unit) WHERE main_chain_index=? AND address IN(?) AND sequence='good' \n\
 			UNION \n\
-			SELECT unit FROM units JOIN outputs USING(unit) WHERE main_chain_index=? AND address IN(?)",
+			SELECT unit FROM units JOIN outputs USING(unit) WHERE main_chain_index=? AND address IN(?) AND sequence='good'",
 			[mci, arrWatchedAddresses, mci, arrWatchedAddresses],
 			handleRows
 		);
 	db.query(
-		"SELECT unit FROM units JOIN unit_authors USING(unit) JOIN my_addresses USING(address) WHERE main_chain_index=? \n\
+		"SELECT unit FROM units JOIN unit_authors USING(unit) JOIN my_addresses USING(address) WHERE main_chain_index=? AND sequence='good' \n\
 		UNION \n\
-		SELECT unit FROM units JOIN outputs USING(unit) JOIN my_addresses USING(address) WHERE main_chain_index=? \n\
+		SELECT unit FROM units JOIN outputs USING(unit) JOIN my_addresses USING(address) WHERE main_chain_index=? AND sequence='good' \n\
 		UNION \n\
-		SELECT unit FROM units JOIN unit_authors USING(unit) JOIN shared_addresses ON address=shared_address WHERE main_chain_index=? \n\
+		SELECT unit FROM units JOIN unit_authors USING(unit) JOIN shared_addresses ON address=shared_address WHERE main_chain_index=? AND sequence='good' \n\
 		UNION \n\
-		SELECT unit FROM units JOIN outputs USING(unit) JOIN shared_addresses ON address=shared_address WHERE main_chain_index=?",
+		SELECT unit FROM units JOIN outputs USING(unit) JOIN shared_addresses ON address=shared_address WHERE main_chain_index=? AND sequence='good'",
 		[mci, mci, mci, mci],
 		handleRows
 	);
@@ -2207,7 +2211,7 @@ function handleRequest(ws, tag, command, params){
 				var arr = version.split('.');
 				return arr[0]*10000 + arr[1]*100 + arr[2]*1;
 			}
-			if (typeof ws.library_version === 'string' && version2int(ws.library_version) < version2int('0.2.61')){
+			if (typeof ws.library_version === 'string' && version2int(ws.library_version) < version2int('0.2.70') && constants.version === '1.0'){
 				sendErrorResponse(ws, tag, "old core");
 				return ws.close(1000, "old core");
 			}
@@ -2244,26 +2248,38 @@ function handleRequest(ws, tag, command, params){
 			
 		case 'catchup':
 			var catchupRequest = params;
-			catchup.prepareCatchupChain(catchupRequest, {
-				ifError: function(error){
-					sendErrorResponse(ws, tag, error);
-				},
-				ifOk: function(objCatchupChain){
-					sendResponse(ws, tag, objCatchupChain);
-				}
+			mutex.lock(['catchup_request'], function(unlock){
+				if (!ws || ws.readyState !== ws.OPEN) // may be already gone when we receive the lock
+					return process.nextTick(unlock);
+				catchup.prepareCatchupChain(catchupRequest, {
+					ifError: function(error){
+						sendErrorResponse(ws, tag, error);
+						unlock();
+					},
+					ifOk: function(objCatchupChain){
+						sendResponse(ws, tag, objCatchupChain);
+						unlock();
+					}
+				});
 			});
 			break;
 			
 		case 'get_hash_tree':
 			var hashTreeRequest = params;
-			catchup.readHashTree(hashTreeRequest, {
-				ifError: function(error){
-					sendErrorResponse(ws, tag, error);
-				},
-				ifOk: function(arrBalls){
-					// we have to wrap arrBalls into an object because the peer will check .error property first
-					sendResponse(ws, tag, {balls: arrBalls});
-				}
+			mutex.lock(['get_hash_tree_request'], function(unlock){
+				if (!ws || ws.readyState !== ws.OPEN) // may be already gone when we receive the lock
+					return process.nextTick(unlock);
+				catchup.readHashTree(hashTreeRequest, {
+					ifError: function(error){
+						sendErrorResponse(ws, tag, error);
+						unlock();
+					},
+					ifOk: function(arrBalls){
+						// we have to wrap arrBalls into an object because the peer will check .error property first
+						sendResponse(ws, tag, {balls: arrBalls});
+						unlock();
+					}
+				});
 			});
 			break;
 			
@@ -2303,7 +2319,10 @@ function handleRequest(ws, tag, command, params){
 			// if i'm always online and i'm my own hub
 			if (bToMe){
 				sendResponse(ws, tag, "accepted");
-				eventBus.emit("message_from_hub", ws, 'hub/message', objDeviceMessage);
+				eventBus.emit("message_from_hub", ws, 'hub/message', {
+					message_hash: objectHash.getBase64Hash(objDeviceMessage),
+					message: objDeviceMessage
+				});
 				return;
 			}
 			
@@ -2386,33 +2405,39 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
 			if (ws.bOutbound)
 				return sendErrorResponse(ws, tag, "light clients have to be inbound");
-			light.prepareHistory(params, {
-				ifError: function(err){
-					sendErrorResponse(ws, tag, err);
-				},
-				ifOk: function(objResponse){
-					sendResponse(ws, tag, objResponse);
-					if (params.addresses)
-						db.query(
-							"INSERT "+db.getIgnore()+" INTO watched_light_addresses (peer, address) VALUES "+
-							params.addresses.map(function(address){ return "("+db.escape(ws.peer)+", "+db.escape(address)+")"; }).join(", ")
-						);
-					if (params.requested_joints) {
-						storage.sliceAndExecuteQuery("SELECT unit FROM units WHERE main_chain_index >= ? AND unit IN(?)",
-							[storage.getMinRetrievableMci(), params.requested_joints], params.requested_joints, function(rows) {
-							if(rows.length) {
-								db.query(
-									"INSERT " + db.getIgnore() + " INTO watched_light_units (peer, unit) VALUES " +
-									rows.map(function(row) {
-										return "(" + db.escape(ws.peer) + ", " + db.escape(row.unit) + ")";
-									}).join(", ")
-								);
-							}
-						});
+			mutex.lock(['get_history_request'], function(unlock){
+				if (!ws || ws.readyState !== ws.OPEN) // may be already gone when we receive the lock
+					return process.nextTick(unlock);
+				light.prepareHistory(params, {
+					ifError: function(err){
+						sendErrorResponse(ws, tag, err);
+						unlock();
+					},
+					ifOk: function(objResponse){
+						sendResponse(ws, tag, objResponse);
+						if (params.addresses)
+							db.query(
+								"INSERT "+db.getIgnore()+" INTO watched_light_addresses (peer, address) VALUES "+
+								params.addresses.map(function(address){ return "("+db.escape(ws.peer)+", "+db.escape(address)+")"; }).join(", ")
+							);
+						if (params.requested_joints) {
+							storage.sliceAndExecuteQuery("SELECT unit FROM units WHERE main_chain_index >= ? AND unit IN(?)",
+								[storage.getMinRetrievableMci(), params.requested_joints], params.requested_joints, function(rows) {
+								if(rows.length) {
+									db.query(
+										"INSERT " + db.getIgnore() + " INTO watched_light_units (peer, unit) VALUES " +
+										rows.map(function(row) {
+											return "(" + db.escape(ws.peer) + ", " + db.escape(row.unit) + ")";
+										}).join(", ")
+									);
+								}
+							});
+						}
+						//db.query("INSERT "+db.getIgnore()+" INTO light_peer_witnesses (peer, witness_address) VALUES "+
+						//    params.witnesses.map(function(address){ return "("+db.escape(ws.peer)+", "+db.escape(address)+")"; }).join(", "));
+						unlock();
 					}
-					//db.query("INSERT "+db.getIgnore()+" INTO light_peer_witnesses (peer, witness_address) VALUES "+
-					//    params.witnesses.map(function(address){ return "("+db.escape(ws.peer)+", "+db.escape(address)+")"; }).join(", "));
-				}
+				});
 			});
 			break;
 			
@@ -2421,13 +2446,19 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
 			if (ws.bOutbound)
 				return sendErrorResponse(ws, tag, "light clients have to be inbound");
-			light.prepareLinkProofs(params, {
-				ifError: function(err){
-					sendErrorResponse(ws, tag, err);
-				},
-				ifOk: function(objResponse){
-					sendResponse(ws, tag, objResponse);
-				}
+			mutex.lock(['get_link_proofs_request'], function(unlock){
+				if (!ws || ws.readyState !== ws.OPEN) // may be already gone when we receive the lock
+					return process.nextTick(unlock);
+				light.prepareLinkProofs(params, {
+					ifError: function(err){
+						sendErrorResponse(ws, tag, err);
+						unlock();
+					},
+					ifOk: function(objResponse){
+						sendResponse(ws, tag, objResponse);
+						unlock();
+					}
+				});
 			});
 			break;
 			
@@ -2461,9 +2492,21 @@ function handleRequest(ws, tag, command, params){
 				eventBus.emit("disableNotification", ws.device_address, params);
 			sendResponse(ws, tag, 'ok');
 			break;
+			
 		case 'hub/get_bots':
 			db.query("SELECT id, name, pairing_code, description FROM bots ORDER BY rank DESC, id", [], function(rows){
 				sendResponse(ws, tag, rows);
+			});
+			break;
+			
+		case 'hub/get_asset_metadata':
+			var asset = params;
+			if (!ValidationUtils.isStringOfLength(asset, constants.HASH_LENGTH))
+				return sendErrorResponse(ws, tag, "bad asset: "+asset);
+			db.query("SELECT metadata_unit, registry_address, suffix FROM asset_metadata WHERE asset=?", [asset], function(rows){
+				if (rows.length === 0)
+					return sendErrorResponse(ws, tag, "no metadata");
+				sendResponse(ws, tag, rows[0]);
 			});
 			break;
 	}

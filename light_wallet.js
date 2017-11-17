@@ -121,10 +121,11 @@ function refreshLightClientHistory(){
 						network.sendError(ws, err);
 						finish();
 					},
-					ifOk: function(){
+					ifOk: function(bRefreshUI){
 						clearInterval(interval);
 						finish();
-						eventBus.emit('maybe_new_transactions');
+						if (bRefreshUI)
+							eventBus.emit('maybe_new_transactions');
 					}
 				});
 			});

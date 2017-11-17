@@ -80,10 +80,12 @@ CREATE TABLE unit_authors (
 	unit CHAR(44) BINARY NOT NULL,
 	address CHAR(32) NOT NULL,
 	definition_chash CHAR(32) NULL, -- only with 1st ball from this address, and with next ball after definition change
+	_mci INT NULL,
 	PRIMARY KEY (unit, address),
 	FOREIGN KEY byUnit(unit) REFERENCES units(unit),
 	CONSTRAINT unitAuthorsByAddress FOREIGN KEY byAddress(address) REFERENCES addresses(address),
 	KEY unitAuthorsIndexByAddressDefinitionChash (address, definition_chash),
+	KEY unitAuthorsIndexByAddressMci (address, _mci),
 	FOREIGN KEY byDefinition(definition_chash) REFERENCES definitions(definition_chash)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
@@ -670,6 +672,20 @@ CREATE TABLE bots (
 	name VARCHAR(100) NOT NULL UNIQUE,
 	pairing_code VARCHAR(200) NOT NULL,
 	description LONGTEXT NOT NULL
+);
+
+CREATE TABLE asset_metadata (
+	asset CHAR(44) NOT NULL PRIMARY KEY,
+	metadata_unit CHAR(44) NOT NULL,
+	registry_address CHAR(32) NULL, -- filled only on the hub
+	suffix VARCHAR(20) NULL, -- added only if the same name is registered by different registries for different assets, equal to registry name
+	name VARCHAR(20) NULL,
+	decimals TINYINT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	UNIQUE byNameRegistry(name, registry_address),
+	FOREIGN KEY byAsset(asset) REFERENCES assets(unit),
+	FOREIGN KEY byMetadataUnit(metadata_unit) REFERENCES units(unit)
+--	FOREIGN KEY byRegistryAddress(registry_address) REFERENCES addresses(address) -- addresses is not always filled on light
 );
 
 CREATE TABLE sent_mnemonics (

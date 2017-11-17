@@ -499,7 +499,7 @@ function validateWalletDefinitionTemplate(arrWalletDefinitionTemplate, from_addr
 	}
 	var objFakeUnit = {authors: []};
 	var objFakeValidationState = {last_ball_mci: MAX_INT32};
-	Definition.validateDefinition(db, arrFakeDefinition, objFakeUnit, objFakeValidationState, false, function(err){
+	Definition.validateDefinition(db, arrFakeDefinition, objFakeUnit, objFakeValidationState, null, false, function(err){
 		if (err)
 			return handleResult(err);
 		handleResult(null, arrDeviceAddresses);

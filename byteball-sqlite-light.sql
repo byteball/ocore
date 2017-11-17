@@ -79,12 +79,14 @@ CREATE TABLE unit_authors (
 	unit CHAR(44) NOT NULL,
 	address CHAR(32) NOT NULL,
 	definition_chash CHAR(32) NULL, -- only with 1st ball from this address, and with next ball after definition change
+	_mci INT NULL,
 	PRIMARY KEY (unit, address),
 	FOREIGN KEY (unit) REFERENCES units(unit),
 	FOREIGN KEY (definition_chash) REFERENCES definitions(definition_chash)
 );
 CREATE INDEX byDefinitionChash ON unit_authors(definition_chash);
 CREATE INDEX unitAuthorsIndexByAddress ON unit_authors(address);
+CREATE INDEX unitAuthorsIndexByAddressMci ON unit_authors(address, _mci);
 
 
 CREATE TABLE authentifiers (
@@ -673,6 +675,20 @@ CREATE TABLE bots (
 	description LONGTEXT NOT NULL
 );
 
+CREATE TABLE asset_metadata (
+	asset CHAR(44) NOT NULL PRIMARY KEY,
+	metadata_unit CHAR(44) NOT NULL,
+	registry_address CHAR(32) NULL, -- filled only on the hub
+	suffix VARCHAR(20) NULL, -- added only if the same name is registered by different registries for different assets, equal to registry name
+	name VARCHAR(20) NULL,
+	decimals TINYINT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	UNIQUE (name, registry_address),
+	FOREIGN KEY (asset) REFERENCES assets(unit),
+	FOREIGN KEY (metadata_unit) REFERENCES units(unit)
+--	FOREIGN KEY (registry_address) REFERENCES addresses(address) -- addresses is not always filled on light
+);
+
 CREATE TABLE sent_mnemonics (
 	unit CHAR(44) NOT NULL,
 	address CHAR(32) NOT NULL,
@@ -683,4 +699,4 @@ CREATE TABLE sent_mnemonics (
 );
 CREATE INDEX sentByAddress ON sent_mnemonics(address);
 
-PRAGMA user_version=12;
+PRAGMA user_version=16;

@@ -192,7 +192,7 @@ function buildPaidWitnesses(conn, objUnitProps, arrWitnesses, onDone){
 	graph.readDescendantUnitsByAuthorsBeforeMcIndex(conn, objUnitProps, arrWitnesses, to_main_chain_index, function(arrUnits){
 		rt+=Date.now()-t;
 		t=Date.now();
-		var strUnitsList = (arrUnits.length === 0) ? 'NULL' : arrUnits.map(conn.escape).join(', ');
+		var strUnitsList = (arrUnits.length === 0) ? 'NULL' : arrUnits.map(function(unit){ return conn.escape(unit); }).join(', ');
 			//throw "no witnesses before mc "+to_main_chain_index+" for unit "+objUnitProps.unit;
 		profiler.start();
 		conn.query( // we don't care if the unit is majority witnessed by the unit-designated witnesses
