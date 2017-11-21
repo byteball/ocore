@@ -1201,7 +1201,7 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 	opts.paying_addresses = [address];
  	opts.callbacks = composer.getSavingCallbacks({
 		ifNotEnoughFunds: function(err){
-			cb(err);
+			cb("This textcoin already was claimed");
 		},
 		ifError: function(err){
 			cb(err);
@@ -1237,7 +1237,7 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 			[address],
 			function(rows){
 				if (rows.length === 0) {
-					cb("there is no stable unit for address " + address + " yet, try again later");
+					cb("This payment is not confirmed yet, try again later");
 				} else {
 					composer.composeJoint(opts);
 				}
