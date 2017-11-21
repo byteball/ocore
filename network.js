@@ -1761,7 +1761,11 @@ function requestHistoryFor(arrUnits, arrAddresses, onDone){
 	if (!onDone)
 		onDone = function(){};
 	myWitnesses.readMyWitnesses(function(arrWitnesses){
-		var objHistoryRequest = {witnesses: arrWitnesses, requested_joints: arrUnits, addresses: arrAddresses};
+		var objHistoryRequest = {witnesses: arrWitnesses};
+		if (arrUnits.length)
+			objHistoryRequest.requested_joints = arrUnits;
+		if (arrAddresses.length)
+			objHistoryRequest.addresses = arrAddresses;
 		requestFromLightVendor('light/get_history', objHistoryRequest, function(ws, request, response){
 			if (response.error){
 				console.log(response.error);

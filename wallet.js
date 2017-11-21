@@ -909,7 +909,7 @@ function readTransactionHistory(opts, handleHistory){
 						var queryString, parameters;
 						queryString =   "SELECT outputs.address, SUM(outputs.amount) AS amount, ("
 										+ ( walletIsAddress ? "outputs.address!=?" : "my_addresses.address IS NULL") + ") AS is_external, \n\
-										sent_mnemonics.`to`, (unit_authors.unit IS NOT NULL) AS claimed, \n\
+										sent_mnemonics.`to`, sent_mnemonics.mnemonic, (unit_authors.unit IS NOT NULL) AS claimed, \n\
 										(mo.unit IS NOT NULL) AS claimed_by_me \n\
 										FROM outputs "
 										+ (walletIsAddress ? "" : "LEFT JOIN my_addresses ON outputs.address=my_addresses.address AND wallet=? ") +
@@ -939,6 +939,7 @@ function readTransactionHistory(opts, handleHistory){
 										to: payee.to,
 										claimed: payee.claimed,
 										claimedByMe: payee.claimed_by_me,
+										mnemonic: payee.mnemonic,
 										confirmations: movement.is_stable,
 										unit: unit,
 										fee: movement.fee,
@@ -1116,6 +1117,7 @@ function readAdditionalSigningAddresses(arrPayingAddresses, arrSigningAddresses,
 }
 
 var TYPICAL_FEE = 1000;
+var TEXTCOIN_CLAIM_FEE = 548;
 
 // fee_paying_wallet is used only if there are no bytes on the asset wallet, it is a sort of fallback wallet for fees
 function readFundedAndSigningAddresses(
@@ -1210,7 +1212,38 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 		}
 	});
 
-	composer.composeJoint(opts);
+
+	if (conf.bLight) {
+		db.query(
+			"SELECT 1 \n\
+			FROM outputs JOIN units USING(unit) WHERE address=? LIMIT 1", 
+			[address],
+			function(rows){
+				if (rows.length === 0) {
+					var network = require('./network.js');
+					network.requestHistoryFor([], [address], function(){
+						checkStability();
+					});
+				} else checkStability();
+			}
+		);
+	} else checkStability();
+
+	// check stability of payingAddresses
+	function checkStability() {
+		db.query(
+			"SELECT 1 \n\
+			FROM outputs JOIN units USING(unit) WHERE address=? AND is_stable=1 and sequence='good' LIMIT 1", 
+			[address],
+			function(rows){
+				if (rows.length === 0) {
+					cb("there is no stable unit for address " + address + " yet, try again later");
+				} else {
+					composer.composeJoint(opts);
+				}
+			}
+		);		
+	}
 }
 
 function sendMultiPayment(opts, handleResult)
@@ -1542,6 +1575,7 @@ function sendEmail(email, params, cb, forceUnsecure) {
 		});
 
 		fs.readFile(__dirname + '/email_template.html', 'utf8', function (err, template) {
+			params.amount -= TEXTCOIN_CLAIM_FEE;
 			var html = template.replace(/\{\{mnemonic\}\}/g, params.mnemonic).replace(/\{\{amount\}\}/g, params.amount).replace(/\{\{asset\}\}/g, params.asset);
 			var text = "Someone sent you " + params.amount + " " + params.asset + ", to claim it download Byteball wallet and recover Wallet from the following Seed: " + params.mnemonic;
 			let mailOptions = {
@@ -1583,3 +1617,4 @@ exports.sendMultiPayment = sendMultiPayment;
 exports.readDeviceAddressesUsedInSigningPaths = readDeviceAddressesUsedInSigningPaths;
 exports.determineIfDeviceCanBeRemoved = determineIfDeviceCanBeRemoved;
 exports.receiveTextCoin = receiveTextCoin;
+exports.TEXTCOIN_CLAIM_FEE = TEXTCOIN_CLAIM_FEE;
