@@ -578,7 +578,7 @@ function determineWitnessedLevelAndBestParent(conn, arrParentUnits, arrWitnesses
 			if (level === null)
 				throw Error("null level in updateWitnessedLevel");
 			if (level === 0) // genesis
-				return handleWitnessedLevelAndBestParent(0, null);
+				return handleWitnessedLevelAndBestParent(0, my_best_parent_unit);
 			readUnitAuthors(conn, start_unit, function(arrAuthors){
 				for (var i=0; i<arrAuthors.length; i++){
 					var address = arrAuthors[i];
