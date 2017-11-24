@@ -1098,8 +1098,8 @@ function checkForDoublespends(conn, type, sql, arrSqlArgs, objUnit, objValidatio
 
 							throw Error("unreachable code, conflicting "+type+" in unit "+objConflictingRecord.unit);
 						}
-						else{
-							if (objValidationState.arrAddressesWithForkedPath.indexOf(objConflictingRecord.address) === -1)
+						else{ // arrAddressesWithForkedPath is not set when validating private payments
+							if (objValidationState.arrAddressesWithForkedPath && objValidationState.arrAddressesWithForkedPath.indexOf(objConflictingRecord.address) === -1)
 								throw Error("double spending "+type+" without double spending address?");
 							cb2();
 						}
