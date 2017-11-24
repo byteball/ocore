@@ -333,8 +333,16 @@ function checkIfHaveEnoughOutboundPeersAndAdd(){
 function connectToPeer(url, onOpen) {
 	addPeer(url);
 	var options = {};
-	if (socks && conf.socksHost && conf.socksPort)
-		options.agent = new socks.Agent({ proxy: { ipaddress: conf.socksHost, port: conf.socksPort, type: 5 } }, /^wss/i.test(url) );
+	if (socks && conf.socksHost && conf.socksPort) {
+		options.agent = new socks.Agent({
+			proxy: {
+				ipaddress: conf.socksHost,
+				port: conf.socksPort,
+				type: 5
+			}
+		}, /^wss/i.test(url));
+		console.log('Using proxy: ' + conf.socksHost + ':' + conf.socksPort);
+	}
 	var ws = options.agent ? new WebSocket(url,options) : new WebSocket(url);
 	assocConnectingOutboundWebsockets[url] = ws;
 	setTimeout(function(){
