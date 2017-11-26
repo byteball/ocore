@@ -643,7 +643,7 @@ CREATE TABLE IF NOT EXISTS push_registrations (
     registrationId VARCHAR(200), 
     device_address CHAR(33) NOT NULL, 
     PRIMARY KEY (device_address)
-);
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 CREATE TABLE chat_messages (
 	id INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,
@@ -663,7 +663,7 @@ CREATE TABLE watched_light_units (
 	unit CHAR(44) NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (peer, unit)
-);
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 CREATE INDEX wlabyUnit ON watched_light_units(unit);
 
 CREATE TABLE bots (
@@ -672,7 +672,7 @@ CREATE TABLE bots (
 	name VARCHAR(100) NOT NULL UNIQUE,
 	pairing_code VARCHAR(200) NOT NULL,
 	description LONGTEXT NOT NULL
-);
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 CREATE TABLE asset_metadata (
 	asset CHAR(44) BINARY NOT NULL PRIMARY KEY,
@@ -686,4 +686,4 @@ CREATE TABLE asset_metadata (
 	FOREIGN KEY byAsset(asset) REFERENCES assets(unit),
 	FOREIGN KEY byMetadataUnit(metadata_unit) REFERENCES units(unit)
 --	FOREIGN KEY byRegistryAddress(registry_address) REFERENCES addresses(address) -- addresses is not always filled on light
-);
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
