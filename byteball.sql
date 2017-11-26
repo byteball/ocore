@@ -675,8 +675,8 @@ CREATE TABLE bots (
 );
 
 CREATE TABLE asset_metadata (
-	asset CHAR(44) NOT NULL PRIMARY KEY,
-	metadata_unit CHAR(44) NOT NULL,
+	asset CHAR(44) BINARY NOT NULL PRIMARY KEY,
+	metadata_unit CHAR(44) BINARY NOT NULL,
 	registry_address CHAR(32) NULL, -- filled only on the hub
 	suffix VARCHAR(20) NULL, -- added only if the same name is registered by different registries for different assets, equal to registry name
 	name VARCHAR(20) NULL,
