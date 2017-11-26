@@ -166,7 +166,7 @@ function sendLoginCommand(ws, challenge){
 	ws.bLoggedIn = true;
 	sendTempPubkey(ws, objMyTempDeviceKey.pub_b64);
 	network.initWitnessesIfNecessary(ws);
-	resendStalledMessages();
+	resendStalledMessages(1);
 }
 
 function sendTempPubkey(ws, temp_pubkey, callbacks){
@@ -357,8 +357,9 @@ function readMessageInChunksFromOutbox(message_hash, len, handleMessage){
 	readChunk();
 }
 
-function resendStalledMessages(){
-	console.log("resending stalled messages");
+function resendStalledMessages(delay){
+	var delay = delay || 0;
+	console.log("resending stalled messages delayed by "+delay+" minute");
 	if (!objMyPermanentDeviceKey)
 		return console.log("objMyPermanentDeviceKey not set yet, can't resend stalled messages");
 	mutex.lockOrSkip(['stalled'], function(unlock){
@@ -366,7 +367,7 @@ function resendStalledMessages(){
 		db.query(
 			"SELECT "+(bCordova ? "LENGTH(message) AS len" : "message")+", message_hash, `to`, pubkey, hub \n\
 			FROM outbox JOIN correspondent_devices ON `to`=device_address \n\
-			WHERE outbox.creation_date<"+db.addTime("-1 MINUTE")+" ORDER BY outbox.creation_date", 
+			WHERE outbox.creation_date<="+db.addTime("-"+delay+" MINUTE")+" ORDER BY outbox.creation_date", 
 			function(rows){
 				console.log(rows.length+" stalled messages");
 				async.eachSeries(
@@ -395,7 +396,7 @@ function resendStalledMessages(){
 	});
 }
 
-setInterval(resendStalledMessages, SEND_RETRY_PERIOD);
+setInterval(function(){ resendStalledMessages(1); }, SEND_RETRY_PERIOD);
 
 // reliable delivery
 // first param is either WebSocket or hostname of the hub
@@ -414,8 +415,14 @@ function reliablySendPreparedMessageToHub(ws, recipient_device_pubkey, json, cal
 		"INSERT INTO outbox (message_hash, `to`, message) VALUES (?,?,?)", 
 		[message_hash, recipient_device_address, JSON.stringify(objDeviceMessage)], 
 		function(){
-			if (callbacks && callbacks.onSaved)
+			if (callbacks && callbacks.onSaved){
 				callbacks.onSaved();
+				// db in resendStalledMessages will block until the transaction commits, assuming only 1 db connection
+				// (fix if more than 1 db connection is allowed: in this case, it will send only after SEND_RETRY_PERIOD delay)
+				process.nextTick(resendStalledMessages);
+				// don't send to the network before the transaction commits
+				return callbacks.ifOk ? callbacks.ifOk() : null;
+			}
 			sendPreparedMessageToHub(ws, recipient_device_pubkey, message_hash, json, callbacks);
 		}
 	);
