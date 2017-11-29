@@ -189,14 +189,14 @@ function adjustLastStableMcBallAndParents(conn, last_stable_mc_ball_unit, arrPar
 			return;
 		}
 		console.log('will adjust last stable ball because '+last_stable_mc_ball_unit+' is not stable in view of parents '+arrParentUnits.join(', '));
-		if (arrParentUnits.length > 1){ // select only one parent
+		/*if (arrParentUnits.length > 1){ // select only one parent
 			pickDeepParentUnits(conn, arrWitnesses, null, function(err, arrAdjustedParentUnits){
 				if (err)
 					throw Error("pickDeepParentUnits in adjust failed: "+err);
 				adjustLastStableMcBallAndParents(conn, last_stable_mc_ball_unit, arrAdjustedParentUnits, arrWitnesses, handleAdjustedLastStableUnit);
 			});
 			return;
-		}
+		}*/
 		storage.readStaticUnitProps(conn, last_stable_mc_ball_unit, function(objUnitProps){
 			if (!objUnitProps.best_parent_unit)
 				throw Error("no best parent of "+last_stable_mc_ball_unit);
