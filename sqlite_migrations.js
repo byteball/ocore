@@ -118,7 +118,7 @@ function migrateDb(connection, onDone){
 				unit CHAR(44) NOT NULL, \n\
 				address CHAR(32) NOT NULL, \n\
 				mnemonic VARCHAR(107) NOT NULL, \n\
-				`to` VARCHAR(120) NOT NULL, \n\
+				textAddress VARCHAR(120) NOT NULL, \n\
 				PRIMARY KEY (unit), \n\
 				FOREIGN KEY (unit) REFERENCES units(unit) \n\
 			)");

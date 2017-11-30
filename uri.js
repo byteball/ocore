@@ -63,7 +63,7 @@ function parseUri(uri, callbacks){
 	var arrMnemonicMatches = value.match(/^textcoin\?(.+)$/);
 	if (arrMnemonicMatches){
 		objRequest.type = "textcoin";
-		var mnemonic = decodeURIComponent(arrMnemonicMatches[1]);
+		var mnemonic = arrMnemonicMatches[1].replace('-', ' ');
 		try {
 			if (Mnemonic.isValid(mnemonic)) {
 				objRequest.mnemonic = mnemonic;

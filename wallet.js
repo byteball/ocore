@@ -909,8 +909,8 @@ function readTransactionHistory(opts, handleHistory){
 						var queryString, parameters;
 						queryString =   "SELECT outputs.address, SUM(outputs.amount) AS amount, ("
 										+ ( walletIsAddress ? "outputs.address!=?" : "my_addresses.address IS NULL") + ") AS is_external, \n\
-										sent_mnemonics.`to`, sent_mnemonics.mnemonic, (unit_authors.unit IS NOT NULL) AS claimed, \n\
-										(mo.unit IS NOT NULL) AS claimed_by_me \n\
+										sent_mnemonics.textAddress, sent_mnemonics.mnemonic, (unit_authors.unit IS NOT NULL) AS claimed, \n\
+										(my_outputs.unit IS NOT NULL) AS claimed_by_me \n\
 										FROM outputs "
 										+ (walletIsAddress ? "" : "LEFT JOIN my_addresses ON outputs.address=my_addresses.address AND wallet=? ") +
 										"LEFT JOIN sent_mnemonics USING(unit) \n\
@@ -921,7 +921,7 @@ function readTransactionHistory(opts, handleHistory){
 												SELECT address FROM my_addresses \n\
 												UNION SELECT shared_address AS address FROM shared_addresses \n\
 											) USING (address) \n\
-										) AS mo ON mo.unit=unit_authors.unit \n\
+										) AS my_outputs ON my_outputs.unit=unit_authors.unit \n\
 										WHERE outputs.unit=? AND "+asset_condition+" \n\
 										GROUP BY outputs.address";
 						parameters = [wallet, unit];
@@ -936,7 +936,7 @@ function readTransactionHistory(opts, handleHistory){
 										action: action,
 										amount: payee.amount,
 										addressTo: payee.address,
-										to: payee.to,
+										textAddress: payee.textAddress,
 										claimed: payee.claimed,
 										claimedByMe: payee.claimed_by_me,
 										mnemonic: payee.mnemonic,
@@ -1267,7 +1267,7 @@ function sendMultiPayment(opts, handleResult)
 	var base_outputs = opts.base_outputs;
 	var asset_outputs = opts.asset_outputs;
 	var messages = opts.messages;
-	var unsecureSendAsk = opts.unsecure_send_ask;
+	var insecureSendAsk = opts.insecure_send_ask;
 	
 	if (!wallet && !arrPayingAddresses)
 		throw Error("neither wallet id nor paying addresses");
@@ -1375,13 +1375,13 @@ function sendMultiPayment(opts, handleResult)
 			function generateNewWalletIfNoAddress(outputs) {
 				var generated = 0;
 				outputs.forEach(function(output){
-					if (output.address.indexOf(prefix) === -1)
+					if (output.address.indexOf(prefix) !== 0)
 						return false;
 					var address = output.address.slice(prefix.length);
 					var mnemonic = new Mnemonic();
 					while (!Mnemonic.isValid(mnemonic.toString()))
 						mnemonic = new Mnemonic();
-					if (ValidationUtils.isValidEmail(address)) {
+					if (!opts.do_not_email && ValidationUtils.isValidEmail(address)) {
 						assocEmails[address] = mnemonic.toString();
 					}
 					assocMnemonics[output.address] = mnemonic.toString();
@@ -1410,22 +1410,30 @@ function sendMultiPayment(opts, handleResult)
 					ifError: function(err){
 						handleResult(err);
 					},
+					preCommitCb: function(conn, objJoint, cb){
+						var i = 0;
+						for (var to in assocMnemonics) {
+							conn.query("INSERT INTO sent_mnemonics (unit, address, mnemonic, textAddress) VALUES (?, ?, ?, ?)", [objJoint.unit.unit, assocAddresses[to], assocMnemonics[to], to.slice(prefix.length)],
+							function(){
+								if (++i == Object.keys(assocMnemonics).length) { // stored all mnemonics
+									cb();
+								}
+							});
+						}
+					},
 					// for asset payments, 2nd argument is array of chains of private elements
 					// for base asset, 2nd argument is assocPrivatePayloads which is null
 					ifOk: function(objJoint, arrChainsOfRecipientPrivateElements, arrChainsOfCosignerPrivateElements){
 						network.broadcastJoint(objJoint);
 						if (!arrChainsOfRecipientPrivateElements && recipient_device_address) // send notification about public payment
 							walletGeneral.sendPaymentNotification(recipient_device_address, objJoint.unit.unit);
-						for (var to in assocMnemonics) {
-							db.query("INSERT INTO sent_mnemonics (unit, address, mnemonic, `to`) VALUES (?, ?, ?, ?)", [objJoint.unit.unit, assocAddresses[to], assocMnemonics[to], to.slice(prefix.length)], function(){});
-						}
 
 						if (Object.keys(assocEmails).length) { // need to send emails
 							var sent = 0;
 							for (var email in assocEmails) {
 								sendEmail(email, {mnemonic: assocEmails[email], amount: amount, asset: (asset ? asset : 'bytes')}, function(err, msgInfo){
 									if (err && (err.code == "ETLS" || err.message.indexOf("certificate") > -1)) {
-										unsecureSendAsk(email, function(answer){
+										insecureSendAsk(email, function(answer){
 											if (answer) {
 												sendEmail(email, {mnemonic: assocEmails[email], amount: amount, asset: (asset ? asset : 'bytes')}, function(){}, true);
 											}
@@ -1556,9 +1564,9 @@ function signAuthRequest(wallet, objRequest, handleResult){
 	
 }
 
-function sendEmail(email, params, cb, forceUnsecure) {
+function sendEmail(email, params, cb, forceInsecure) {
 	var hostname = email.slice(email.indexOf("@")+1);
-	var secure = forceUnsecure ? false : true;
+	var secure = forceInsecure ? false : true;
 	DNS.resolveMx(hostname, function(err, exchanges){
 		var exchange = hostname;
 		if (exchanges && exchanges.length)
