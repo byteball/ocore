@@ -1187,6 +1187,9 @@ function sendMultiPayment(opts, handleResult)
 			throw Error('amount must be positive');
 	}
 	
+	if (recipient_device_address === device.getMyDeviceAddress())
+		recipient_device_address = null;
+	
 	var estimated_amount = amount;
 	if (!estimated_amount && asset_outputs)
 		estimated_amount = asset_outputs.reduce(function(acc, output){ return acc+output.amount; }, 0);
