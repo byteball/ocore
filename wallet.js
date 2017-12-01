@@ -28,7 +28,7 @@ var nodemailer = require('node4mailer');
 var DNS = require('dns');
 var fs = require('fs');
 
-if (window && window.cordova) {
+if (!(window && window.cordova)) {
 	DNS.setServers(["8.8.8.8", "114.114.114.114"]); // google public DNS, China 114dns
 }
 
