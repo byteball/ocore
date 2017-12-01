@@ -54,6 +54,10 @@ if (process.browser){
 }
 exports.database = {};
 
+// allows to set the directory for the database
+// add to conf.js in project root
+// if not set: default behaviour (e.g. ~/.config/byteball on a linux system)
+//exports.DatabaseDir = '/home/john/myDatabaseDir';
 
 /*
 There are 3 ways to customize conf in modules that use byteballcore lib:
