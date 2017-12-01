@@ -493,6 +493,8 @@ function updateSqliteStats(){
 		return;
 	db.query("SELECT MAX(rowid) AS count_units FROM units", function(rows){
 		var count_units = rows[0].count_units;
+		if (count_units > 500000) // the db is too big
+			return;
 		readCountOfAnalyzedUnits(function(count_analyzed_units){
 			console.log('count analyzed units: '+count_analyzed_units);
 			if (count_units < 2*count_analyzed_units)

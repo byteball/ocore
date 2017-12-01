@@ -4,6 +4,7 @@ var db = require('./db.js');
 var conf = require('./conf.js');
 var myWitnesses = require('./my_witnesses.js');
 var network = require('./network.js');
+var storage = require('./storage.js');
 var walletGeneral = require('./wallet_general.js');
 var light = require('./light.js');
 var eventBus = require('./event_bus.js');
@@ -133,6 +134,27 @@ function refreshLightClientHistory(){
 	});
 }
 
+function archiveDoublespendUnits(){
+	db.query("SELECT unit FROM units WHERE is_stable=0 AND is_free=1 AND creation_date<"+db.addTime('-1 DAY'), function(rows){
+		var arrUnits = rows.map(function(row){ return row.unit; });
+		console.log("units still unstable after 1 day: "+arrUnits.join(', '));
+		arrUnits.forEach(function(unit){
+			network.requestFromLightVendor('get_joint', unit, function(ws, request, response){
+				if (response.error)
+					return console.log("get_joint "+unit+": "+response.error);
+				if (response.joint_not_found === unit){
+					console.log("light vendor doesn't know about unit "+unit+" any more, will archive");
+					storage.archiveJointAndDescendantsIfExists(unit);
+				}
+			});
+		});
+	});
+}
+
+if (conf.bLight){
+	setTimeout(archiveDoublespendUnits, 15*1000);
+	setInterval(archiveDoublespendUnits, 24*3600*1000);
+}
 
 exports.setLightVendorHost = setLightVendorHost;
 exports.refreshLightClientHistory = refreshLightClientHistory;

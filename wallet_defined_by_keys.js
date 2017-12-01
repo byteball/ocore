@@ -4,6 +4,7 @@ var async = require('async');
 var crypto = require('crypto');
 var db = require('./db.js');
 var constants = require('./constants.js');
+var mutex = require('./mutex.js');
 var conf = require('./conf.js');
 var composer = require('./composer.js');
 var objectHash = require('./object_hash.js');
@@ -628,8 +629,13 @@ function selectRandomAddress(wallet, is_change, from_index, handleAddress){
 }
 
 function issueNextAddress(wallet, is_change, handleAddress){
-	readNextAddressIndex(wallet, is_change, function(next_index){
-		issueAddress(wallet, is_change, next_index, handleAddress);
+	mutex.lock(['issueNextAddress'], function(unlock){
+		readNextAddressIndex(wallet, is_change, function(next_index){
+			issueAddress(wallet, is_change, next_index, function(addressInfo){
+				handleAddress(addressInfo);
+				unlock();
+			});
+		});
 	});
 }
 

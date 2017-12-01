@@ -1284,6 +1284,9 @@ function sendMultiPayment(opts, handleResult)
 			throw Error('amount must be positive');
 	}
 	
+	if (recipient_device_address === device.getMyDeviceAddress())
+		recipient_device_address = null;
+	
 	var estimated_amount = amount;
 	if (!estimated_amount && asset_outputs)
 		estimated_amount = asset_outputs.reduce(function(acc, output){ return acc+output.amount; }, 0);
@@ -1384,7 +1387,7 @@ function sendMultiPayment(opts, handleResult)
 					if (!opts.do_not_email && ValidationUtils.isValidEmail(address)) {
 						assocEmails[address] = mnemonic.toString();
 					}
-					assocMnemonics[output.address] = mnemonic.toString();
+					assocMnemonics[output.address] = mnemonic.toString().replace(/ /g, "-");
 					var pubkey = mnemonic.toHDPrivateKey().derive("m/44'/0'/0'/0/0").publicKey.toBuffer().toString("base64");
 					assocAddresses[output.address] = objectHash.getChash160(["sig", {"pubkey": pubkey}]);
 					output.address = assocAddresses[output.address];

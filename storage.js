@@ -578,7 +578,7 @@ function determineWitnessedLevelAndBestParent(conn, arrParentUnits, arrWitnesses
 			if (level === null)
 				throw Error("null level in updateWitnessedLevel");
 			if (level === 0) // genesis
-				return handleWitnessedLevelAndBestParent(0, null);
+				return handleWitnessedLevelAndBestParent(0, my_best_parent_unit);
 			readUnitAuthors(conn, start_unit, function(arrAuthors){
 				for (var i=0; i<arrAuthors.length; i++){
 					var address = arrAuthors[i];
@@ -850,6 +850,7 @@ function generateQueriesToArchiveJoint(conn, objJoint, reason, arrQueries, cb){
 
 function generateQueriesToRemoveJoint(conn, unit, arrQueries, cb){
 	generateQueriesToUnspendOutputsSpentInArchivedUnit(conn, unit, arrQueries, function(){
+		conn.addQuery(arrQueries, "DELETE FROM sent_mnemonics WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM witness_list_hashes WHERE witness_list_unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM earned_headers_commission_recipients WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM unit_witnesses WHERE unit=?", [unit]);
@@ -1397,6 +1398,7 @@ exports.getMinRetrievableMci = getMinRetrievableMci;
 exports.updateMinRetrievableMciAfterStabilizingMci = updateMinRetrievableMciAfterStabilizingMci;
 
 exports.generateQueriesToArchiveJoint = generateQueriesToArchiveJoint;
+exports.archiveJointAndDescendantsIfExists = archiveJointAndDescendantsIfExists;
 
 exports.readAsset = readAsset;
 exports.loadAssetWithListOfAttestedAuthors = loadAssetWithListOfAttestedAuthors;
