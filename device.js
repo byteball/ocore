@@ -38,12 +38,13 @@ function getMyDevicePubKey(){
 function getMyDeviceAddress(){
 	if (!my_device_address)
 		throw Error('my_device_address not defined');
+	if (typeof window !== 'undefined' && window && window.cordova)
+		checkDeviceAddress();
 	return my_device_address;
 }
 
 
 function setDevicePrivateKey(priv_key){
-	console.log("setDevicePrivateKey");
 	breadcrumbs.add("setDevicePrivateKey");
 	var bChanged = (!objMyPermanentDeviceKey || priv_key !== objMyPermanentDeviceKey.priv);
 	objMyPermanentDeviceKey = {
@@ -51,14 +52,27 @@ function setDevicePrivateKey(priv_key){
 		pub_b64: ecdsa.publicKeyCreate(priv_key, true).toString('base64')
 	};
 	var new_my_device_address = objectHash.getDeviceAddress(objMyPermanentDeviceKey.pub_b64);
-	if (my_device_address && my_device_address !== new_my_device_address)
+	if (my_device_address && my_device_address !== new_my_device_address){
+		breadcrumbs.add('different device address: old '+my_device_address+', new '+new_my_device_address);
 		throw Error('different device address: old '+my_device_address+', new '+new_my_device_address);
+	}
+	breadcrumbs.add("same device addresses: "+new_my_device_address);
 	my_device_address = new_my_device_address;
 	// this temp pubkey package signs my permanent key and is actually used only if I'm my own hub. 
 	// In this case, there are no intermediaries and TLS already provides perfect forward security
 	network.setMyDeviceProps(my_device_address, createTempPubkeyPackage(objMyPermanentDeviceKey.pub_b64));
 	if (bChanged)
 		loginToHub();
+}
+
+function checkDeviceAddress(){
+	if (!objMyPermanentDeviceKey)
+		return;
+	var derived_my_device_address = objectHash.getDeviceAddress(objMyPermanentDeviceKey.pub_b64);
+	if (my_device_address !== derived_my_device_address){
+		breadcrumbs.add('different device address: old '+my_device_address+', derived '+derived_my_device_address);
+		throw Error('different device address: old '+my_device_address+', derived '+derived_my_device_address);
+	}
 }
 
 function setTempKeys(temp_priv_key, prev_temp_priv_key, fnSaveTempKeys){
@@ -78,7 +92,6 @@ function setTempKeys(temp_priv_key, prev_temp_priv_key, fnSaveTempKeys){
 }
 
 function setDeviceAddress(device_address){
-	console.log("setDeviceAddress", device_address);
 	breadcrumbs.add("setDeviceAddress: " + device_address);
 	if (my_device_address && my_device_address !== device_address)
 		throw Error('different device address');
@@ -86,7 +99,6 @@ function setDeviceAddress(device_address){
 }
 
 function setNewDeviceAddress(device_address){
-	console.log("setNewDeviceAddress", device_address);
 	breadcrumbs.add("setNewDeviceAddress: " + device_address);
 	my_device_address = device_address;
 }
@@ -106,6 +118,9 @@ function setDeviceHub(device_hub){
 	}
 }
 
+function isValidPubKey(b64_pubkey){
+	return ecdsa.publicKeyVerify(new Buffer(b64_pubkey, 'base64'));
+}
 
 // -------------------------
 // logging in to hub
@@ -151,7 +166,7 @@ function sendLoginCommand(ws, challenge){
 	ws.bLoggedIn = true;
 	sendTempPubkey(ws, objMyTempDeviceKey.pub_b64);
 	network.initWitnessesIfNecessary(ws);
-	resendStalledMessages();
+	resendStalledMessages(1);
 }
 
 function sendTempPubkey(ws, temp_pubkey, callbacks){
@@ -282,7 +297,10 @@ function decryptPackage(objEncryptedPackage){
 	}
 	else{
 		console.log("message encrypted to unknown key");
-		eventBus.emit('nonfatal_error', "message encrypted to unknown key, device "+my_device_address+", len="+objEncryptedPackage.encrypted_message.length, new Error('unknown key'));
+		setTimeout(function(){
+			throw Error("message encrypted to unknown key, device "+my_device_address+", len="+objEncryptedPackage.encrypted_message.length+". The error might be caused by restoring from an old backup or using the same keys on another device.");
+		}, 100);
+	//	eventBus.emit('nonfatal_error', "message encrypted to unknown key, device "+my_device_address+", len="+objEncryptedPackage.encrypted_message.length, new Error('unknown key'));
 		return null;
 	}
 	
@@ -307,7 +325,6 @@ function decryptPackage(objEncryptedPackage){
 	var decrypted1 = Buffer.concat(arrChunks);
 	arrChunks = null;
 	var decrypted2 = decipher.final();
-	console.log("decrypted lengths: "+decrypted1.length+" + "+decrypted2.length);
 	breadcrumbs.add("decrypted lengths: "+decrypted1.length+" + "+decrypted2.length);
 	var decrypted_message_buf = Buffer.concat([decrypted1, decrypted2]);
 	var decrypted_message = decrypted_message_buf.toString("utf8");
@@ -328,8 +345,10 @@ function readMessageInChunksFromOutbox(message_hash, len, handleMessage){
 	var message = '';
 	function readChunk(){
 		db.query("SELECT SUBSTR(message, ?, ?) AS chunk FROM outbox WHERE message_hash=?", [start, CHUNK_LEN, message_hash], function(rows){
-			if (rows.length !== 1)
-				throw Error('not 1 msg in outbox');
+			if (rows.length === 0)
+				return handleMessage();
+			if (rows.length > 1)
+				throw Error(rows.length+' msgs by hash in outbox, start='+start+', length='+len);
 			message += rows[0].chunk;
 			start += CHUNK_LEN;
 			(start > len) ? handleMessage(message) : readChunk();
@@ -338,16 +357,17 @@ function readMessageInChunksFromOutbox(message_hash, len, handleMessage){
 	readChunk();
 }
 
-function resendStalledMessages(){
-	console.log("resending stalled messages");
+function resendStalledMessages(delay){
+	var delay = delay || 0;
+	console.log("resending stalled messages delayed by "+delay+" minute");
 	if (!objMyPermanentDeviceKey)
 		return console.log("objMyPermanentDeviceKey not set yet, can't resend stalled messages");
-	mutex.lock(['stalled'], function(unlock){
+	mutex.lockOrSkip(['stalled'], function(unlock){
 		var bCordova = (typeof window !== 'undefined' && window && window.cordova);
 		db.query(
 			"SELECT "+(bCordova ? "LENGTH(message) AS len" : "message")+", message_hash, `to`, pubkey, hub \n\
 			FROM outbox JOIN correspondent_devices ON `to`=device_address \n\
-			WHERE outbox.creation_date<"+db.addTime("-1 MINUTE")+" ORDER BY outbox.creation_date", 
+			WHERE outbox.creation_date<="+db.addTime("-"+delay+" MINUTE")+" ORDER BY outbox.creation_date", 
 			function(rows){
 				console.log(rows.length+" stalled messages");
 				async.eachSeries(
@@ -359,6 +379,8 @@ function resendStalledMessages(){
 						}
 						//	throw Error("no hub in resendStalledMessages: "+JSON.stringify(row));
 						var send = function(message){
+							if (!message) // the message is already gone
+								return cb();
 							var objDeviceMessage = JSON.parse(message);
 							//if (objDeviceMessage.to !== row.to)
 							//    throw "to mismatch";
@@ -374,12 +396,13 @@ function resendStalledMessages(){
 	});
 }
 
-setInterval(resendStalledMessages, SEND_RETRY_PERIOD);
+setInterval(function(){ resendStalledMessages(1); }, SEND_RETRY_PERIOD);
 
 // reliable delivery
 // first param is either WebSocket or hostname of the hub
 function reliablySendPreparedMessageToHub(ws, recipient_device_pubkey, json, callbacks, conn){
 	var recipient_device_address = objectHash.getDeviceAddress(recipient_device_pubkey);
+	console.log('will encrypt and send to '+recipient_device_address+': '+JSON.stringify(json));
 	// encrypt to recipient's permanent pubkey before storing the message into outbox
 	var objEncryptedPackage = createEncryptedPackage(json, recipient_device_pubkey);
 	// if the first attempt fails, this will be the inner message
@@ -392,8 +415,14 @@ function reliablySendPreparedMessageToHub(ws, recipient_device_pubkey, json, cal
 		"INSERT INTO outbox (message_hash, `to`, message) VALUES (?,?,?)", 
 		[message_hash, recipient_device_address, JSON.stringify(objDeviceMessage)], 
 		function(){
-			if (callbacks && callbacks.onSaved)
+			if (callbacks && callbacks.onSaved){
 				callbacks.onSaved();
+				// db in resendStalledMessages will block until the transaction commits, assuming only 1 db connection
+				// (fix if more than 1 db connection is allowed: in this case, it will send only after SEND_RETRY_PERIOD delay)
+				process.nextTick(resendStalledMessages);
+				// don't send to the network before the transaction commits
+				return callbacks.ifOk ? callbacks.ifOk() : null;
+			}
 			sendPreparedMessageToHub(ws, recipient_device_pubkey, message_hash, json, callbacks);
 		}
 	);
@@ -418,15 +447,19 @@ function sendPreparedMessageToHub(ws, recipient_device_pubkey, message_hash, jso
 // first param is WebSocket only
 function sendPreparedMessageToConnectedHub(ws, recipient_device_pubkey, message_hash, json, callbacks){
 	network.sendRequest(ws, 'hub/get_temp_pubkey', recipient_device_pubkey, false, function(ws, request, response){
+		function handleError(error){
+			callbacks.ifError(error);
+			db.query("UPDATE outbox SET last_error=? WHERE message_hash=?", [error, message_hash], function(){});
+		}
 		if (response.error)
-			return callbacks.ifError(response.error);
+			return handleError(response.error);
 		var objTempPubkey = response;
 		if (!objTempPubkey.temp_pubkey || !objTempPubkey.pubkey || !objTempPubkey.signature)
-			return callbacks.ifError("missing fields in hub response");
+			return handleError("missing fields in hub response");
 		if (objTempPubkey.pubkey !== recipient_device_pubkey)
-			return callbacks.ifError("temp pubkey signed by wrong permanent pubkey");
+			return handleError("temp pubkey signed by wrong permanent pubkey");
 		if (!ecdsaSig.verify(objectHash.getDeviceMessageHashToSign(objTempPubkey), objTempPubkey.signature, objTempPubkey.pubkey))
-			return callbacks.ifError("wrong sig under temp pubkey");
+			return handleError("wrong sig under temp pubkey");
 		var objEncryptedPackage = createEncryptedPackage(json, objTempPubkey.temp_pubkey);
 		var recipient_device_address = objectHash.getDeviceAddress(recipient_device_pubkey);
 		var objDeviceMessage = {
@@ -441,18 +474,15 @@ function sendPreparedMessageToConnectedHub(ws, recipient_device_pubkey, message_
 					callbacks.ifOk();
 				});
 			}
-			else{
-				var error = response.error || ("unrecognized response: "+JSON.stringify(response));
-				callbacks.ifError(error);
-				db.query("UPDATE outbox SET last_error=? WHERE message_hash=?", [error, message_hash], function(){});
-			}
+			else
+				handleError( response.error || ("unrecognized response: "+JSON.stringify(response)) );
 		});
 	});
 }
 
 function createEncryptedPackage(json, recipient_device_pubkey){
 	var text = JSON.stringify(json);
-	console.log("will encrypt and send: "+text);
+//	console.log("will encrypt and send: "+text);
 	var ecdh = crypto.createECDH('secp256k1');
 	var sender_ephemeral_pubkey = ecdh.generateKeys("base64", "compressed");
 	var shared_secret = deriveSharedSecret(ecdh, recipient_device_pubkey); // Buffer
@@ -591,7 +621,6 @@ function handlePairingMessage(json, device_pubkey, callbacks){
 // -------------------------------
 // correspondents
 
-
 function addUnconfirmedCorrespondent(device_pubkey, device_hub, device_name, onDone){
 	console.log("addUnconfirmedCorrespondent");
 	var device_address = objectHash.getDeviceAddress(device_pubkey);
@@ -606,20 +635,20 @@ function addUnconfirmedCorrespondent(device_pubkey, device_hub, device_name, onD
 }
 
 function readCorrespondents(handleCorrespondents){
-	db.query("SELECT device_address, hub, name FROM correspondent_devices ORDER BY name", function(rows){
+	db.query("SELECT device_address, hub, name, my_record_pref, peer_record_pref FROM correspondent_devices ORDER BY name", function(rows){
 		handleCorrespondents(rows);
 	});
 }
 
 function readCorrespondent(device_address, handleCorrespondent){
-	db.query("SELECT device_address, hub, name FROM correspondent_devices WHERE device_address=?", [device_address], function(rows){
-		handleCorrespondent(rows[0]);
+	db.query("SELECT device_address, hub, name, my_record_pref, peer_record_pref FROM correspondent_devices WHERE device_address=?", [device_address], function(rows){
+		handleCorrespondent(rows.length ? rows[0] : null);
 	});
 }
 
 function readCorrespondentsByDeviceAddresses(arrDeviceAddresses, handleCorrespondents){
 	db.query(
-		"SELECT device_address, hub, name, pubkey FROM correspondent_devices WHERE device_address IN(?) ORDER BY name", 
+		"SELECT device_address, hub, name, pubkey, my_record_pref, peer_record_pref FROM correspondent_devices WHERE device_address IN(?) ORDER BY name", 
 		[arrDeviceAddresses], 
 		function(rows){
 			handleCorrespondents(rows);
@@ -629,10 +658,10 @@ function readCorrespondentsByDeviceAddresses(arrDeviceAddresses, handleCorrespon
 
 function updateCorrespondentProps(correspondent, onDone){
 	db.query(
-		"UPDATE correspondent_devices SET hub=?, name=? WHERE device_address=?", 
-		[correspondent.hub, correspondent.name, correspondent.device_address], 
+		"UPDATE correspondent_devices SET hub=?, name=?, my_record_pref=?, peer_record_pref=? WHERE device_address=?", 
+		[correspondent.hub, correspondent.name, correspondent.my_record_pref, correspondent.peer_record_pref, correspondent.device_address], 
 		function(){
-			onDone();
+			if (onDone) onDone();
 		}
 	);
 }
@@ -651,29 +680,12 @@ function addIndirectCorrespondents(arrOtherCosigners, onDone){
 	}, onDone);
 }
 
-function removeCorrespondentDevice(addr, onDone){
-	db.query(
-		"DELETE FROM correspondent_devices WHERE device_address=?", 
-		[addr], 
-		function(){
-			db.query(
-				"DELETE FROM device_messages WHERE device_address=?", 
-				[addr], 
-				function(){
-					onDone();
-				}
-			);
-		}
-	);
-}
-
-function readDeviceAddressesUsedInMultisigWallets(onDone){
-	db.query(
-		"SELECT distinct device_address FROM wallet_signing_paths", 
-		function(rows){
-			onDone(rows);
-		}
-	);
+function removeCorrespondentDevice(device_address, onDone){
+	breadcrumbs.add('correspondent removed: '+device_address);
+	var arrQueries = [];
+	db.addQuery(arrQueries, "DELETE FROM outbox WHERE `to`=?", [device_address]);
+	db.addQuery(arrQueries, "DELETE FROM correspondent_devices WHERE device_address=?", [device_address]);
+	async.series(arrQueries, onDone);
 }
 
 // -------------------------------
@@ -681,8 +693,13 @@ function readDeviceAddressesUsedInMultisigWallets(onDone){
 
 
 function getWitnessesFromHub(cb){
-	if (!my_device_hub)
-		return setTimeout(function(){ getWitnessesFromHub(cb); }, 2000);
+	console.log('getWitnessesFromHub');
+	if (!my_device_hub){
+		console.log('getWitnessesFromHub: no hub yet');
+		return setTimeout(function(){
+			getWitnessesFromHub(cb);
+		}, 2000);
+	}
 	network.findOutboundPeerOrConnect(conf.WS_PROTOCOL+my_device_hub, function(err, ws){
 		if (err)
 			return cb(err);
@@ -695,11 +712,25 @@ function getWitnessesFromHub(cb){
 	});
 }
 
-
+// responseHandler(error, response) callback
+function requestFromHub(command, params, responseHandler){
+	if (!my_device_hub)
+		return setTimeout(function(){ requestFromHub(command, params, responseHandler); }, 2000);
+	network.findOutboundPeerOrConnect(conf.WS_PROTOCOL+my_device_hub, function(err, ws){
+		if (err)
+			return responseHandler(err);
+		network.sendRequest(ws, command, params, false, function(ws, request, response){
+			if (response.error)
+				return responseHandler(response.error);
+			responseHandler(null, response);
+		});
+	});
+}
 
 
 exports.getMyDevicePubKey = getMyDevicePubKey;
 exports.getMyDeviceAddress = getMyDeviceAddress;
+exports.isValidPubKey = isValidPubKey;
 
 exports.genPrivKey = genPrivKey;
 
@@ -730,6 +761,6 @@ exports.readCorrespondent = readCorrespondent;
 exports.readCorrespondentsByDeviceAddresses = readCorrespondentsByDeviceAddresses;
 exports.updateCorrespondentProps = updateCorrespondentProps;
 exports.removeCorrespondentDevice = removeCorrespondentDevice;
-exports.readDeviceAddressesUsedInMultisigWallets = readDeviceAddressesUsedInMultisigWallets;
 exports.addIndirectCorrespondents = addIndirectCorrespondents;
 exports.getWitnessesFromHub = getWitnessesFromHub;
+exports.requestFromHub = requestFromHub;

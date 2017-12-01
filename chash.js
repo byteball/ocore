@@ -10,7 +10,7 @@ var arrRelativeOffsets = PI.split("");
 
 function checkLength(chash_length){
 	if (chash_length !== 160 && chash_length !== 288)
-		throw "unsupported c-hash length: "+chash_length;
+		throw Error("unsupported c-hash length: "+chash_length);
 }
 
 function calcOffsets(chash_length){
@@ -34,7 +34,7 @@ function calcOffsets(chash_length){
 	}
 
 	if (index != 32)
-		throw "wrong number of checksum bits";
+		throw Error("wrong number of checksum bits");
 	
 	return arrOffsets;
 }
@@ -50,7 +50,7 @@ function separateIntoCleanDataAndChecksum(bin){
 	else if (len === 288)
 		arrOffsets = arrOffsets288;
 	else
-		throw "bad length";
+		throw Error("bad length="+len+", bin = "+bin);
 	var arrFrags = [];
 	var arrChecksumBits = [];
 	var start = 0;
@@ -69,7 +69,7 @@ function separateIntoCleanDataAndChecksum(bin){
 
 function mixChecksumIntoCleanData(binCleanData, binChecksum){
 	if (binChecksum.length !== 32)
-		throw "bad checksum length";
+		throw Error("bad checksum length");
 	var len = binCleanData.length + binChecksum.length;
 	var arrOffsets;
 	if (len === 160)
@@ -77,7 +77,7 @@ function mixChecksumIntoCleanData(binCleanData, binChecksum){
 	else if (len === 288)
 		arrOffsets = arrOffsets288;
 	else
-		throw "bad length";
+		throw Error("bad length="+len+", clean data = "+binCleanData+", checksum = "+binChecksum);
 	var arrFrags = [];
 	var arrChecksumBits = binChecksum.split("");
 	var start = 0;
@@ -152,8 +152,14 @@ function getChash288(data){
 function isChashValid(encoded){
 	var encoded_len = encoded.length;
 	if (encoded_len !== 32 && encoded_len !== 48) // 160/5 = 32, 288/6 = 48
-		throw "wrong encoded length: "+encoded_len;
-	var chash = (encoded_len === 32) ? base32.decode(encoded) : new Buffer(encoded, 'base64');
+		throw Error("wrong encoded length: "+encoded_len);
+	try{
+		var chash = (encoded_len === 32) ? base32.decode(encoded) : new Buffer(encoded, 'base64');
+	}
+	catch(e){
+		console.log(e);
+		return false;
+	}
 	var binChash = buffer2bin(chash);
 	var separated = separateIntoCleanDataAndChecksum(binChash);
 	var clean_data = bin2buffer(separated.clean_data);

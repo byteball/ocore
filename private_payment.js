@@ -8,11 +8,11 @@ var ValidationUtils = require("./validation_utils.js");
 var indivisibleAsset = require('./indivisible_asset.js');
 var divisibleAsset = require('./divisible_asset.js');
 
-function findUnfinishedPastUnitsOfPrivateChains(arrChains, handleUnits){
+function findUnfinishedPastUnitsOfPrivateChains(arrChains, includeLatestElement, handleUnits){
 	var assocUnits = {};
 	arrChains.forEach(function(arrPrivateElements){
 		assocUnits[arrPrivateElements[0].payload.asset] = true; // require asset definition
-		for (var i=1; i<arrPrivateElements.length; i++) // skip latest element
+		for (var i = includeLatestElement ? 0 : 1; i<arrPrivateElements.length; i++) // skip latest element
 			assocUnits[arrPrivateElements[i].unit] = true;
 	});
 	var arrUnits = Object.keys(assocUnits);
@@ -83,7 +83,7 @@ function validateAndSavePrivatePaymentChain(arrPrivateElements, callbacks){
 	};
 	
 	if (conf.bLight)
-		findUnfinishedPastUnitsOfPrivateChains([arrPrivateElements], function(arrUnfinishedUnits){
+		findUnfinishedPastUnitsOfPrivateChains([arrPrivateElements], false, function(arrUnfinishedUnits){
 			(arrUnfinishedUnits.length > 0) ? callbacks.ifWaitingForChain() : validateAndSave();
 		});
 	else

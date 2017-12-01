@@ -1,5 +1,6 @@
 /*jslint node: true */
 "use strict";
+var async = require('async');
 var db = require('./db.js');
 var device = require('./device.js');
 
@@ -24,6 +25,18 @@ function sendPrivatePayments(device_address, arrChains, bForwarded, conn, onSave
 	}, conn);
 }
 
+function forwardPrivateChainsToDevices(arrDeviceAddresses, arrChains, bForwarded, conn, onSaved){
+	console.log("devices: "+arrDeviceAddresses);
+	async.eachSeries(
+		arrDeviceAddresses,
+		function(device_address, cb){
+			console.log("forwarding to device "+device_address);
+			sendPrivatePayments(device_address, arrChains, bForwarded, conn, cb);
+		},
+		onSaved
+	);
+}
+
 // notification about public payment
 function sendPaymentNotification(device_address, unit){
 	device.sendMessageToDevice(device_address, "payment_notification", unit);
@@ -39,5 +52,6 @@ function readMyAddresses(handleAddresses){
 
 exports.sendOfferToSign = sendOfferToSign;
 exports.sendPrivatePayments = sendPrivatePayments;
+exports.forwardPrivateChainsToDevices = forwardPrivateChainsToDevices;
 exports.sendPaymentNotification = sendPaymentNotification;
 exports.readMyAddresses = readMyAddresses;

@@ -46,6 +46,9 @@ exports.MIN_COUNT_GOOD_PEERS = 10; // if we have less than this number of good p
 
 exports.bWantNewPeers = true;
 
+// true, when removed_paired_device commands received from peers are to be ignored. Default is false.
+exports.bIgnoreUnpairRequests = false;
+
 // storage engine: mysql or sqlite
 exports.storage = 'sqlite';
 if (process.browser){

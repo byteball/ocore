@@ -166,32 +166,35 @@ function validateDivisiblePrivatePayment(conn, objPrivateElement, callbacks){
 	);
 }
 
-// {asset: asset, paying_addresses: arrFromAddresses, change_address: change_address, to_address: to_address, amount: amount, signer: signer, callbacks: callbacks}
+// {asset: asset, paying_addresses: arrPayingAddresses, fee_paying_addresses: arrFeePayingAddresses, change_address: change_address, to_address: to_address, amount: amount, signer: signer, callbacks: callbacks}
 function composeDivisibleAssetPaymentJoint(params){
 	console.log("asset payment from "+params.paying_addresses);
 	if ((params.to_address || params.amount) && params.asset_outputs)
 		throw Error("to_address and asset_outputs at the same time");
+	if (!ValidationUtils.isNonemptyArray(params.fee_paying_addresses))
+		throw Error('no fee_paying_addresses');
 	var private_payload;
-	var arrBaseOutputs = [{address: params.change_address, amount: 0}]; // public outputs: the change only
+	var arrBaseOutputs = [{address: params.fee_paying_addresses[0], amount: 0}]; // public outputs: the change only
 	if (params.base_outputs)
 		arrBaseOutputs = arrBaseOutputs.concat(params.base_outputs);
 	composer.composeJoint({
-		paying_addresses: params.paying_addresses, // addresses that pay for commissions
+		paying_addresses: _.union(params.paying_addresses, params.fee_paying_addresses), // addresses that pay for the transfer and commissions
 		signing_addresses: params.signing_addresses,
 		minimal: params.minimal,
 		outputs: arrBaseOutputs,
 		
 		// function that creates additional messages to be added to the joint
 		retrieveMessages: function(conn, last_ball_mci, bMultiAuthored, arrPayingAddresses, onDone){
-			storage.loadAssetWithListOfAttestedAuthors(conn, params.asset, last_ball_mci, arrPayingAddresses, function(err, objAsset){
+			var arrAssetPayingAddresses = _.intersection(arrPayingAddresses, params.paying_addresses);
+			storage.loadAssetWithListOfAttestedAuthors(conn, params.asset, last_ball_mci, arrAssetPayingAddresses, function(err, objAsset){
 				if (err)
 					return onDone(err);
 				if (objAsset.fixed_denominations)
 					return onDone("fixed denominations asset type");
 				// fix: also check change address when not transferrable
-				if (!objAsset.is_transferrable && params.to_address !== objAsset.definer_address && arrPayingAddresses.indexOf(objAsset.definer_address) === -1)
+				if (!objAsset.is_transferrable && params.to_address !== objAsset.definer_address && arrAssetPayingAddresses.indexOf(objAsset.definer_address) === -1)
 					return onDone("the asset is not transferrable and definer not found on either side of the deal");
-				if (objAsset.cosigned_by_definer && arrPayingAddresses.indexOf(objAsset.definer_address) === -1)
+				if (objAsset.cosigned_by_definer && arrPayingAddresses.concat(params.signing_addresses || []).indexOf(objAsset.definer_address) === -1)
 					return onDone("the asset must be cosigned by definer");
 				if (objAsset.spender_attested && objAsset.arrAttestedAddresses.length === 0)
 					return onDone("none of the authors is attested");
@@ -200,7 +203,7 @@ function composeDivisibleAssetPaymentJoint(params){
 					? params.amount 
 					: params.asset_outputs.reduce(function(accumulator, output){ return accumulator + output.amount; }, 0);
 				composer.pickDivisibleCoinsForAmount(
-					conn, objAsset, arrPayingAddresses, last_ball_mci, target_amount, bMultiAuthored, 
+					conn, objAsset, arrAssetPayingAddresses, last_ball_mci, target_amount, bMultiAuthored, 
 					function(arrInputsWithProofs, total_input){
 						console.log("pick coins callback "+arrInputsWithProofs);
 						if (!arrInputsWithProofs)
@@ -261,7 +264,9 @@ function getSavingCallbacks(callbacks){
 			var unit = objUnit.unit;
 			validation.validate(objJoint, {
 				ifUnitError: function(err){
-					throw Error("unexpected validation error: "+err);
+					composer_unlock();
+					callbacks.ifError("Validation error: "+err);
+				//	throw Error("unexpected validation error: "+err);
 				},
 				ifJointError: function(err){
 					throw Error("unexpected validation joint error: "+err);
@@ -277,6 +282,11 @@ function getSavingCallbacks(callbacks){
 				},
 				ifOk: function(objValidationState, validation_unlock){
 					console.log("divisible asset OK "+objValidationState.sequence);
+					if (objValidationState.sequence !== 'good'){
+						validation_unlock();
+						composer_unlock();
+						return callbacks.ifError("Divisible asset bad sequence "+objValidationState.sequence);
+					}
 					var bPrivate = !!private_payload;
 					var objPrivateElement;
 					var preCommitCallback = null;
@@ -313,7 +323,7 @@ function getSavingCallbacks(callbacks){
 							writer.saveJoint(
 								objJoint, objValidationState, 
 								preCommitCallback,
-								function onDone(){
+								function onDone(err){
 									console.log("saved unit "+unit, objPrivateElement);
 									validation_unlock();
 									composer_unlock();
@@ -329,29 +339,40 @@ function getSavingCallbacks(callbacks){
 	};
 }
 
-// {asset: asset, paying_addresses: arrFromAddresses, change_address: change_address, to_address: to_address, amount: amount, signer: signer, callbacks: callbacks}
+// {asset: asset, paying_addresses: arrPayingAddresses, fee_paying_addresses: arrFeePayingAddresses, change_address: change_address, to_address: to_address, amount: amount, signer: signer, callbacks: callbacks}
 function composeAndSaveDivisibleAssetPaymentJoint(params){
 	var params_with_save = _.clone(params);
 	params_with_save.callbacks = getSavingCallbacks(params.callbacks);
 	composeDivisibleAssetPaymentJoint(params_with_save);
 }
 
-// {asset: asset, available_paying_addresses: arrAvailableFromAddresses, change_address: change_address, to_address: to_address, amount: amount, signer: signer, callbacks: callbacks}
+var TYPICAL_FEE = 1000;
+
+// {asset: asset, available_paying_addresses: arrAvailablePayingAddresses, available_fee_paying_addresses: arrAvailableFeePayingAddresses, change_address: change_address, to_address: to_address, amount: amount, signer: signer, callbacks: callbacks}
 function composeMinimalDivisibleAssetPaymentJoint(params){
 		
-	// best funded addresses come first
-	composer.readSortedFundedAddresses(params.asset, params.available_paying_addresses, function(arrFundedPayingAddresses){
+	if (!ValidationUtils.isNonemptyArray(params.available_paying_addresses))
+		throw Error('no available_paying_addresses');
+	if (!ValidationUtils.isNonemptyArray(params.available_fee_paying_addresses))
+		throw Error('no available_fee_paying_addresses');
+	composer.readSortedFundedAddresses(params.asset, params.available_paying_addresses, params.amount, function(arrFundedPayingAddresses){
 		if (arrFundedPayingAddresses.length === 0)
-			return params.callbacks.ifNotEnoughFunds("all paying addresses are unfunded in asset");
-		var minimal_params = _.clone(params);
-		delete minimal_params.available_paying_addresses;
-		minimal_params.minimal = true;
-		minimal_params.paying_addresses = arrFundedPayingAddresses;
-		composeDivisibleAssetPaymentJoint(minimal_params);
+			return params.callbacks.ifNotEnoughFunds("all paying addresses are unfunded in asset, make sure all your funds are confirmed");
+		composer.readSortedFundedAddresses(null, params.available_fee_paying_addresses, TYPICAL_FEE, function(arrFundedFeePayingAddresses){
+			if (arrFundedPayingAddresses.length === 0)
+				return params.callbacks.ifNotEnoughFunds("all paying addresses are unfunded in asset, make sure all your funds are confirmed");
+			var minimal_params = _.clone(params);
+			delete minimal_params.available_paying_addresses;
+			delete minimal_params.available_fee_paying_addresses;
+			minimal_params.minimal = true;
+			minimal_params.paying_addresses = arrFundedPayingAddresses;
+			minimal_params.fee_paying_addresses = arrFundedFeePayingAddresses;
+			composeDivisibleAssetPaymentJoint(minimal_params);
+		});
 	});
 }
 
-// {asset: asset, available_paying_addresses: arrAvailableFromAddresses, change_address: change_address, to_address: to_address, amount: amount, signer: signer, callbacks: callbacks}
+// {asset: asset, available_paying_addresses: arrAvailablePayingAddresses, available_fee_paying_addresses: arrAvailableFeePayingAddresses, change_address: change_address, to_address: to_address, amount: amount, signer: signer, callbacks: callbacks}
 function composeAndSaveMinimalDivisibleAssetPaymentJoint(params){
 	var params_with_save = _.clone(params);
 	params_with_save.callbacks = getSavingCallbacks(params.callbacks);

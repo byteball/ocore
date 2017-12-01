@@ -79,12 +79,14 @@ CREATE TABLE unit_authors (
 	unit CHAR(44) NOT NULL,
 	address CHAR(32) NOT NULL,
 	definition_chash CHAR(32) NULL, -- only with 1st ball from this address, and with next ball after definition change
+	_mci INT NULL,
 	PRIMARY KEY (unit, address),
 	FOREIGN KEY (unit) REFERENCES units(unit),
 	FOREIGN KEY (definition_chash) REFERENCES definitions(definition_chash)
 );
 CREATE INDEX byDefinitionChash ON unit_authors(definition_chash);
 CREATE INDEX unitAuthorsIndexByAddress ON unit_authors(address);
+CREATE INDEX unitAuthorsIndexByAddressMci ON unit_authors(address, _mci);
 
 
 CREATE TABLE authentifiers (
@@ -284,6 +286,7 @@ CREATE TABLE inputs (
 	FOREIGN KEY (unit) REFERENCES units(unit)
 );
 CREATE INDEX inputsIndexByAddress ON inputs(address);
+CREATE INDEX inputsIndexByAddressTypeToMci ON inputs(address, type, to_main_chain_index);
 CREATE INDEX inputsIndexByAssetType ON inputs(asset, type);
 
 
@@ -329,7 +332,9 @@ CREATE TABLE headers_commission_outputs (
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (main_chain_index, address)
 );
-CREATE INDEX hcobyAddressSpent ON headers_commission_outputs(address, is_spent);
+-- CREATE INDEX hcobyAddressSpent ON headers_commission_outputs(address, is_spent);
+CREATE UNIQUE INDEX hcobyAddressMci ON headers_commission_outputs(address, main_chain_index);
+CREATE UNIQUE INDEX hcobyAddressSpentMci ON headers_commission_outputs(address, is_spent, main_chain_index);
 
 CREATE TABLE paid_witness_events (
 	unit CHAR(44) NOT NULL,
@@ -352,7 +357,9 @@ CREATE TABLE witnessing_outputs (
 	PRIMARY KEY (main_chain_index, address),
 	FOREIGN KEY (address) REFERENCES addresses(address)
 );
-CREATE INDEX byWitnessAddressSpent ON witnessing_outputs(address, is_spent);
+-- CREATE INDEX byWitnessAddressSpent ON witnessing_outputs(address, is_spent);
+CREATE UNIQUE INDEX byWitnessAddressMci ON witnessing_outputs(address, main_chain_index);
+CREATE UNIQUE INDEX byWitnessAddressSpentMci ON witnessing_outputs(address, is_spent, main_chain_index);
 
 
 -- ---------------------------------------
@@ -632,3 +639,54 @@ CREATE INDEX wlabyAddress ON watched_light_addresses(address);
 CREATE INDEX "bySequence" ON "units" ("sequence");
 
 DROP TABLE IF EXISTS paid_witness_events;
+
+CREATE TABLE IF NOT EXISTS push_registrations (
+    registrationId TEXT, 
+    device_address TEXT NOT NULL, 
+    PRIMARY KEY (device_address)
+);
+
+CREATE TABLE chat_messages (
+	id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+	correspondent_address CHAR(33) NOT NULL,
+	message LONGTEXT NOT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	is_incoming INTEGER(1) NOT NULL,
+	type CHAR(15) NOT NULL DEFAULT 'text',
+	FOREIGN KEY (correspondent_address) REFERENCES correspondent_devices(device_address) ON DELETE CASCADE
+);
+CREATE INDEX chatMessagesIndexByDeviceAddress ON chat_messages(correspondent_address, id);
+ALTER TABLE correspondent_devices ADD COLUMN my_record_pref INTEGER DEFAULT 1;
+ALTER TABLE correspondent_devices ADD COLUMN peer_record_pref INTEGER DEFAULT 1;
+
+CREATE TABLE watched_light_units (
+	peer VARCHAR(100) NOT NULL,
+	unit CHAR(44) NOT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	PRIMARY KEY (peer, unit)
+);
+CREATE INDEX wlabyUnit ON watched_light_units(unit);
+
+CREATE TABLE bots (
+	id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+	rank INTEGER NOT NULL DEFAULT 0,
+	name VARCHAR(100) NOT NULL UNIQUE,
+	pairing_code VARCHAR(200) NOT NULL,
+	description LONGTEXT NOT NULL
+);
+
+CREATE TABLE asset_metadata (
+	asset CHAR(44) NOT NULL PRIMARY KEY,
+	metadata_unit CHAR(44) NOT NULL,
+	registry_address CHAR(32) NULL, -- filled only on the hub
+	suffix VARCHAR(20) NULL, -- added only if the same name is registered by different registries for different assets, equal to registry name
+	name VARCHAR(20) NULL,
+	decimals TINYINT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	UNIQUE (name, registry_address),
+	FOREIGN KEY (asset) REFERENCES assets(unit),
+	FOREIGN KEY (metadata_unit) REFERENCES units(unit)
+--	FOREIGN KEY (registry_address) REFERENCES addresses(address) -- addresses is not always filled on light
+);
+
+PRAGMA user_version=15;

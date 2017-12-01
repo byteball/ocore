@@ -22,8 +22,11 @@ var indivisibleAsset = require('./indivisible_asset.js');
 var divisibleAsset = require('./divisible_asset.js');
 var profiler = require('./profiler.js');
 var breadcrumbs = require('./breadcrumbs.js');
+var balances = require('./balances');
 
-
+var message_counter = 0;
+var assocLastFailedAssetMetadataTimestamps = {};
+var ASSET_METADATA_RETRY_PERIOD = 3600*1000;
 
 function handleJustsaying(ws, subject, body){
 	switch (subject){
@@ -126,10 +129,11 @@ function sendSignature(device_address, signed_text, signature, signing_path, add
 	device.sendMessageToDevice(device_address, "signature", {signed_text: signed_text, signature: signature, signing_path: signing_path, address: address});
 }
 
+// one of callbacks MUST be called, otherwise the mutex will stay locked
 function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, callbacks){
 	var subject = json.subject;
 	var body = json.body;
-	if (!subject || !body)
+	if (!subject || typeof body == "undefined")
 		return callbacks.ifError("no subject or body");
 	//if (bIndirectCorrespondent && ["cancel_new_wallet", "my_xpubkey", "new_wallet_address"].indexOf(subject) === -1)
 	//    return callbacks.ifError("you're indirect correspondent, cannot trust "+subject+" from you");
@@ -141,10 +145,33 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			break;
 		
 		case "text":
+			message_counter++;
 			if (!ValidationUtils.isNonemptyString(body))
 				return callbacks.ifError("text body must be string");
 			// the wallet should have an event handler that displays the text to the user
-			eventBus.emit("text", from_address, body);
+			eventBus.emit("text", from_address, body, message_counter);
+			callbacks.ifOk();
+			break;
+
+		case "removed_paired_device":
+			if(conf.bIgnoreUnpairRequests) {
+				// unpairing is ignored
+				callbacks.ifError("removed_paired_device ignored: "+from_address);
+			} else {
+				determineIfDeviceCanBeRemoved(from_address, function(bRemovable){
+					if (!bRemovable)
+						return callbacks.ifError("device "+from_address+" is not removable");
+					device.removeCorrespondentDevice(from_address, function(){
+						eventBus.emit("removed_paired_device", from_address);
+						callbacks.ifOk();
+					});
+				});
+			}
+			break;
+
+		case "chat_recording_pref":
+			message_counter++;
+			eventBus.emit("chat_recording_pref", from_address, body, message_counter);
 			callbacks.ifOk();
 			break;
 		
@@ -241,7 +268,13 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			
 		case "new_shared_address":
 			// {address: "BASE32", definition: [...], signers: {...}}
-			walletDefinedByAddresses.handleNewSharedAddress(body, callbacks);
+			walletDefinedByAddresses.handleNewSharedAddress(body, {
+				ifError: callbacks.ifError,
+				ifOk: function(){
+					callbacks.ifOk();
+					eventBus.emit('maybe_new_transactions');
+				}
+			});
 			break;
 			
 		// request to sign a unit created on another device
@@ -257,6 +290,13 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			var objUnit = body.unsigned_unit;
 			if (typeof objUnit !== "object")
 				return callbacks.ifError("no unsigned unit");
+			// replace all existing signatures with placeholders so that signing requests sent to us on different stages of signing become identical,
+			// hence the hashes of such unsigned units are also identical
+			objUnit.authors.forEach(function(author){
+				var authentifiers = author.authentifiers;
+				for (var path in authentifiers)
+					authentifiers[path] = authentifiers[path].replace(/./, '-'); 
+			});
 			var assocPrivatePayloads = body.private_payloads;
 			if ("private_payloads" in body){
 				if (typeof assocPrivatePayloads !== "object" || !assocPrivatePayloads)
@@ -298,7 +338,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 							// If we merge coins from several addresses of the same wallet, we'll fire this event multiple times for the same unit.
 							// The event handler must lock the unit before displaying a confirmation dialog, then remember user's choice and apply it to all
 							// subsequent requests related to the same unit
-							eventBus.emit("signing_request", objAddress, objUnit, assocPrivatePayloads, from_address, body.signing_path);
+							eventBus.emit("signing_request", objAddress, body.address, objUnit, assocPrivatePayloads, from_address, body.signing_path);
 						});
 						// if validation is already under way, handleOnlineJoint will quickly exit because of assocUnitsInWork.
 						// as soon as the previously started validation finishes, it will trigger our event handler (as well as its own)
@@ -306,6 +346,10 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					//});
 				},
 				ifRemote: function(device_address){
+					if (device_address === from_address){
+						callbacks.ifError("looping signing request for address "+body.address+", path "+body.signing_path);
+						throw Error("looping signing request for address "+body.address+", path "+body.signing_path);
+					}
 					var text_to_sign = objectHash.getUnitHashToSign(body.unsigned_unit).toString("base64");
 					// I'm a proxy, wait for response from the actual signer and forward to the requestor
 					eventBus.once("signature-"+device_address+"-"+body.address+"-"+body.signing_path+"-"+text_to_sign, function(sig){
@@ -314,6 +358,9 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					// forward the offer to the actual signer
 					device.sendMessageToDevice(device_address, subject, body);
 					callbacks.ifOk();
+				},
+				ifMerkle: function(bLocal){
+					callbacks.ifError("there is merkle proof at signing path "+body.signing_path);
 				},
 				ifUnknownAddress: function(){
 					callbacks.ifError("not aware of address "+body.address+" but will see if I learn about it later");
@@ -354,6 +401,9 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				for (var key in assocValidatedByKey)
 					eventBus.removeAllListeners(key);
 			};
+
+			var current_message_counter = ++message_counter;
+
 			var checkIfAllValidated = function(){
 				if (!assocValidatedByKey) // duplicate call - ignore
 					return console.log('duplicate call of checkIfAllValidated');
@@ -361,8 +411,16 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					if (!assocValidatedByKey[key])
 						return console.log('not all private payments validated yet');
 				assocValidatedByKey = null; // to avoid duplicate calls
-				if (!body.forwarded)
-					emitNewPrivatePaymentReceived(from_address, arrChains);
+				if (!body.forwarded){
+					emitNewPrivatePaymentReceived(from_address, arrChains, current_message_counter);
+					// note, this forwarding won't work if the user closes the wallet before validation of the private chains
+					var arrUnits = arrChains.map(function(arrPrivateElements){ return arrPrivateElements[0].unit; });
+					db.query("SELECT address FROM unit_authors WHERE unit IN(?)", [arrUnits], function(rows){
+						var arrAuthorAddresses = rows.map(function(row){ return row.address; });
+						// if the addresses are not shared, it doesn't forward anything
+						forwardPrivateChainsToOtherMembersOfSharedAddresses(arrChains, arrAuthorAddresses, from_address, true);
+					});
+				}
 				profiler.print();
 			};
 			
@@ -424,7 +482,8 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 		case 'payment_notification':
 			// note that since the payments are public, an evil user might notify us about a payment sent by someone else 
 			// (we'll be fooled to believe it was sent by the evil user).  It is only possible if he learns our address, e.g. if we make it public.
-			// Normally, we generate a one-time address and share it in chat session with the future payer only. 
+			// Normally, we generate a one-time address and share it in chat session with the future payer only.
+			var current_message_counter = ++message_counter;
 			var unit = body;
 			if (!ValidationUtils.isStringOfLength(unit, constants.HASH_LENGTH))
 				return callbacks.ifError("invalid unit in payment notification");
@@ -433,7 +492,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				if (bEmitted)
 					return;
 				bEmitted = true;
-				emitNewPublicPaymentReceived(from_address, objJoint.unit);
+				emitNewPublicPaymentReceived(from_address, objJoint.unit, current_message_counter);
 			};
 			eventBus.once('saved_unit-'+unit, emitPn);
 			storage.readJoint(db, unit, {
@@ -448,11 +507,14 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				}
 			});
 			break;
+			
+		default:
+			callbacks.ifError("unknnown subject: "+subject);
 	}
 }
 
 
-function forwardPrivateChainsToOtherMembersOfOutputAddresses(arrChains){
+function forwardPrivateChainsToOtherMembersOfOutputAddresses(arrChains, conn, onSaved){
 	console.log("forwardPrivateChainsToOtherMembersOfOutputAddresses", arrChains);
 	var assocOutputAddresses = {};
 	arrChains.forEach(function(arrPrivateElements){
@@ -467,16 +529,38 @@ function forwardPrivateChainsToOtherMembersOfOutputAddresses(arrChains){
 	});
 	var arrOutputAddresses = Object.keys(assocOutputAddresses);
 	console.log("output addresses", arrOutputAddresses);
-	db.query("SELECT DISTINCT wallet FROM my_addresses WHERE address IN(?)", [arrOutputAddresses], function(rows){
-		if (rows.length === 0){
-			breadcrumbs.add("forwardPrivateChainsToOtherMembersOfOutputAddresses: " + JSON.stringify(arrChains)); // remove in livenet
+	conn = conn || db;
+	if (!onSaved)
+		onSaved = function(){};
+	readWalletsByAddresses(conn, arrOutputAddresses, function(arrWallets){
+		if (arrWallets.length === 0){
+		//	breadcrumbs.add("forwardPrivateChainsToOtherMembersOfOutputAddresses: " + JSON.stringify(arrChains)); // remove in livenet
 			eventBus.emit('nonfatal_error', "not my wallet? output addresses: "+arrOutputAddresses.join(', '), new Error());
 		//	throw Error("not my wallet? output addresses: "+arrOutputAddresses.join(', '));
 		}
-		var arrWallets = rows.map(function(row){ return row.wallet; });
+		var arrFuncs = [];
 		if (arrWallets.length > 0)
-			walletDefinedByKeys.forwardPrivateChainsToOtherMembersOfWallets(arrChains, arrWallets);
-		walletDefinedByAddresses.forwardPrivateChainsToOtherMembersOfAddresses(arrChains, arrOutputAddresses);
+			arrFuncs.push(function(cb){
+				walletDefinedByKeys.forwardPrivateChainsToOtherMembersOfWallets(arrChains, arrWallets, conn, cb);
+			});
+		arrFuncs.push(function(cb){
+			walletDefinedByAddresses.forwardPrivateChainsToOtherMembersOfAddresses(arrChains, arrOutputAddresses, conn, cb);
+		});
+		async.series(arrFuncs, onSaved);
+	});
+}
+
+function readWalletsByAddresses(conn, arrAddresses, handleWallets){
+	conn.query("SELECT DISTINCT wallet FROM my_addresses WHERE address IN(?)", [arrAddresses], function(rows){
+		var arrWallets = rows.map(function(row){ return row.wallet; });
+		conn.query("SELECT DISTINCT address FROM shared_address_signing_paths WHERE shared_address IN(?)", [arrAddresses], function(rows){
+			if (rows.length === 0)
+				return handleWallets(arrWallets);
+			var arrNewAddresses = rows.map(function(row){ return row.address; });
+			readWalletsByAddresses(conn, arrNewAddresses, function(arrNewWallets){
+				handleWallets(_.union(arrWallets, arrNewWallets));
+			});
+		});
 	});
 }
 
@@ -486,10 +570,11 @@ function forwardPrivateChainsToOtherMembersOfOutputAddresses(arrChains){
 eventBus.on("new_direct_private_chains", forwardPrivateChainsToOtherMembersOfOutputAddresses);
 
 
-function emitNewPrivatePaymentReceived(payer_device_address, arrChains){
+function emitNewPrivatePaymentReceived(payer_device_address, arrChains, message_counter){
 	console.log('emitNewPrivatePaymentReceived');
 	walletGeneral.readMyAddresses(function(arrAddresses){
 		var assocAmountsByAsset = {};
+		var assocMyReceivingAddresses = {};
 		arrChains.forEach(function(arrPrivateElements){
 			var objHeadPrivateElement = arrPrivateElements[0];
 			var payload = objHeadPrivateElement.payload;
@@ -497,24 +582,35 @@ function emitNewPrivatePaymentReceived(payer_device_address, arrChains){
 			if (!assocAmountsByAsset[asset])
 				assocAmountsByAsset[asset] = 0;
 			payload.outputs.forEach(function(output){
-				if (output.address && arrAddresses.indexOf(output.address) >= 0)
+				if (output.address && arrAddresses.indexOf(output.address) >= 0){
 					assocAmountsByAsset[asset] += output.amount;
+					assocMyReceivingAddresses[output.address] = true;
+				}
 			});
 			// indivisible
 			var output = objHeadPrivateElement.output;
-			if (output && output.address && arrAddresses.indexOf(output.address) >= 0)
+			if (output && output.address && arrAddresses.indexOf(output.address) >= 0){
 				assocAmountsByAsset[asset] += payload.outputs[objHeadPrivateElement.output_index].amount;
+				assocMyReceivingAddresses[output.address] = true;
+			}
 		});
 		console.log('assocAmountsByAsset', assocAmountsByAsset);
-		for (var asset in assocAmountsByAsset)
-			if (assocAmountsByAsset[asset])
-				eventBus.emit('received_payment', payer_device_address, assocAmountsByAsset[asset], asset);
+		var arrMyReceivingAddresses = Object.keys(assocMyReceivingAddresses);
+		if (arrMyReceivingAddresses.length === 0)
+			return;
+		db.query("SELECT 1 FROM shared_addresses WHERE shared_address IN(?)", [arrMyReceivingAddresses], function(rows){
+			var bToSharedAddress = (rows.length > 0);
+			for (var asset in assocAmountsByAsset)
+				if (assocAmountsByAsset[asset])
+					eventBus.emit('received_payment', payer_device_address, assocAmountsByAsset[asset], asset, message_counter, bToSharedAddress);
+		});
 	});
 }
 
-function emitNewPublicPaymentReceived(payer_device_address, objUnit){
+function emitNewPublicPaymentReceived(payer_device_address, objUnit, message_counter){
 	walletGeneral.readMyAddresses(function(arrAddresses){
 		var assocAmountsByAsset = {};
+		var assocMyReceivingAddresses = {};
 		objUnit.messages.forEach(function(message){
 			if (message.app !== 'payment' || !message.payload)
 				return;
@@ -523,18 +619,26 @@ function emitNewPublicPaymentReceived(payer_device_address, objUnit){
 			if (!assocAmountsByAsset[asset])
 				assocAmountsByAsset[asset] = 0;
 			payload.outputs.forEach(function(output){
-				if (output.address && arrAddresses.indexOf(output.address) >= 0)
+				if (output.address && arrAddresses.indexOf(output.address) >= 0){
 					assocAmountsByAsset[asset] += output.amount;
+					assocMyReceivingAddresses[output.address] = true;
+				}
 			});
 		});
-		for (var asset in assocAmountsByAsset)
-			if (assocAmountsByAsset[asset])
-				eventBus.emit('received_payment', payer_device_address, assocAmountsByAsset[asset], asset);
+		var arrMyReceivingAddresses = Object.keys(assocMyReceivingAddresses);
+		if (arrMyReceivingAddresses.length === 0)
+			return;
+		db.query("SELECT 1 FROM shared_addresses WHERE shared_address IN(?)", [arrMyReceivingAddresses], function(rows){
+			var bToSharedAddress = (rows.length > 0);
+			for (var asset in assocAmountsByAsset)
+				if (assocAmountsByAsset[asset])
+					eventBus.emit('received_payment', payer_device_address, assocAmountsByAsset[asset], asset, message_counter, bToSharedAddress);
+		});
 	});
 }
 
 
-function findAddress(address, signing_path, callbacks){
+function findAddress(address, signing_path, callbacks, fallback_remote_device_address){
 	db.query(
 		"SELECT wallet, account, is_change, address_index, full_approval_date, device_address \n\
 		FROM my_addresses JOIN wallets USING(wallet) JOIN wallet_signing_paths USING(wallet) \n\
@@ -560,124 +664,150 @@ function findAddress(address, signing_path, callbacks){
 				return;
 			}
 			db.query(
-				"SELECT address, device_address, member_signing_path FROM shared_address_signing_paths WHERE shared_address=? AND signing_path=?", 
+			//	"SELECT address, device_address, member_signing_path FROM shared_address_signing_paths WHERE shared_address=? AND signing_path=?", 
+				// look for a prefix of the requested signing_path
+				"SELECT address, device_address, signing_path FROM shared_address_signing_paths \n\
+				WHERE shared_address=? AND signing_path=SUBSTR(?, 1, LENGTH(signing_path))", 
 				[address, signing_path],
 				function(sa_rows){
-					if (sa_rows.length !== 1)
+					if (rows.length > 1)
+						throw Error("more than 1 member address found for shared address "+address+" and signing path "+signing_path);
+					if (sa_rows.length === 0){
+						if (fallback_remote_device_address)
+							return callbacks.ifRemote(fallback_remote_device_address);
 						return callbacks.ifUnknownAddress();
+					}
 					var objSharedAddress = sa_rows[0];
-					(objSharedAddress.device_address === device.getMyDeviceAddress()) // local keys
-						? findAddress(objSharedAddress.address, objSharedAddress.member_signing_path, callbacks)
-						: callbacks.ifRemote(objSharedAddress.device_address);
+					var relative_signing_path = 'r' + signing_path.substr(objSharedAddress.signing_path.length);
+					var bLocal = (objSharedAddress.device_address === device.getMyDeviceAddress()); // local keys
+					if (objSharedAddress.address === '')
+						return callbacks.ifMerkle(bLocal);
+					findAddress(objSharedAddress.address, relative_signing_path, callbacks, bLocal ? null : objSharedAddress.device_address);
 				}
 			);
 		}
 	);
-}
-
-
-
-
-function readSharedAddressesOnWallet(wallet, handleSharedAddresses){
-	db.query("SELECT DISTINCT shared_address FROM my_addresses JOIN shared_address_signing_paths USING(address) WHERE wallet=?", [wallet], function(rows){
-		handleSharedAddresses(rows.map(function(row){ return row.shared_address; }));
-	});
 }
 
 function readSharedBalance(wallet, handleBalance){
-	var assocBalances = {};
-	readSharedAddressesOnWallet(wallet, function(arrSharedAddresses){
-		if (arrSharedAddresses.length === 0)
-			return handleBalance(assocBalances);
-		db.query(
-			"SELECT asset, address, is_stable, SUM(amount) AS balance \n\
-			FROM outputs JOIN units USING(unit) \n\
-			WHERE is_spent=0 AND sequence='good' AND address IN(?) \n\
-			GROUP BY asset, address, is_stable \n\
-			UNION ALL \n\
-			SELECT NULL AS asset, address, 1 AS is_stable, SUM(amount) AS balance FROM witnessing_outputs \n\
-			WHERE is_spent=0 AND address IN(?) GROUP BY address \n\
-			UNION ALL \n\
-			SELECT NULL AS asset, address, 1 AS is_stable, SUM(amount) AS balance FROM headers_commission_outputs \n\
-			WHERE is_spent=0 AND address IN(?) GROUP BY address", 
-			[arrSharedAddresses, arrSharedAddresses, arrSharedAddresses], 
-			function(rows){
-				for (var i=0; i<rows.length; i++){
-					var row = rows[i];
-					var asset = row.asset || "base";
-					if (!assocBalances[asset])
-						assocBalances[asset] = {};
-					if (!assocBalances[asset][row.address])
-						assocBalances[asset][row.address] = {stable: 0, pending: 0};
-					assocBalances[asset][row.address][row.is_stable ? 'stable' : 'pending'] += row.balance;
-				}
-				handleBalance(assocBalances);
-			}
-		);
+	balances.readSharedBalance(wallet, handleBalance);
+}
+
+function readBalance(wallet, handleBalance){
+	balances.readBalance(wallet, function(assocBalances) {
+		handleBalance(assocBalances);
+		if (conf.bLight){ // make sure we have all asset definitions available
+			var arrAssets = Object.keys(assocBalances).filter(function(asset){ return (asset !== 'base'); });
+			if (arrAssets.length === 0)
+				return;
+			network.requestProofsOfJointsIfNewOrUnstable(arrAssets);
+		}
 	});
 }
 
-
-function readBalance(wallet, handleBalance){
-	var walletIsAddress = ValidationUtils.isValidAddress(wallet);
-	var join_my_addresses = walletIsAddress ? "" : "JOIN my_addresses USING(address)";
-	var where_condition = walletIsAddress ? "address=?" : "wallet=?";
-	var assocBalances = {base: {stable: 0, pending: 0}};
-	db.query(
-		"SELECT asset, is_stable, SUM(amount) AS balance \n\
-		FROM outputs "+join_my_addresses+" JOIN units USING(unit) \n\
-		WHERE is_spent=0 AND "+where_condition+" AND sequence='good' \n\
-		GROUP BY asset, is_stable", 
-		[wallet], 
-		function(rows){
-			for (var i=0; i<rows.length; i++){
-				var row = rows[i];
-				var asset = row.asset || "base";
-				if (!assocBalances[asset])
-					assocBalances[asset] = {stable: 0, pending: 0};
-				assocBalances[asset][row.is_stable ? 'stable' : 'pending'] = row.balance;
-			}
-			var my_addresses_join = walletIsAddress ? "" : "my_addresses CROSS JOIN";
-			var using = walletIsAddress ? "" : "USING(address)";
-			db.query(
-				"SELECT SUM(total) AS total FROM ( \n\
-				SELECT SUM(amount) AS total FROM "+my_addresses_join+" witnessing_outputs "+using+" WHERE is_spent=0 AND "+where_condition+" \n\
-				UNION ALL \n\
-				SELECT SUM(amount) AS total FROM "+my_addresses_join+" headers_commission_outputs "+using+" WHERE is_spent=0 AND "+where_condition+" )",
-				[wallet,wallet],
-				function(rows) {
-					if(rows.length){
-						assocBalances["base"]["stable"] += rows[0].total;
-					}
-					// add 0-balance assets
-					db.query(
-						"SELECT DISTINCT outputs.asset, is_private \n\
-						FROM outputs "+join_my_addresses+" JOIN units USING(unit) LEFT JOIN assets ON asset=assets.unit \n\
-						WHERE "+where_condition+" AND sequence='good'", 
-						[wallet], 
-						function(rows){
-							for (var i=0; i<rows.length; i++){
-								var row = rows[i];
-								var asset = row.asset || "base";
-								if (!assocBalances[asset])
-									assocBalances[asset] = {stable: 0, pending: 0};
-								assocBalances[asset].is_private = row.is_private;
-							}
-							handleBalance(assocBalances);
-							if (conf.bLight){ // make sure we have all asset definitions available
-								var arrAssets = Object.keys(assocBalances).filter(function(asset){ return (asset !== 'base'); });
-								if (arrAssets.length === 0)
-									return;
-								network.requestProofsOfJointsIfNewOrUnstable(arrAssets);
-							}
-						}
-					);
-				}
-			);
-		}
-	);
+function readBalancesOnAddresses(walletId, handleBalancesOnAddresses) {
+	db.query("SELECT outputs.address, COALESCE(outputs.asset, 'base') as asset, sum(outputs.amount) as amount \n\
+	FROM outputs, my_addresses \n\
+	WHERE outputs.address = my_addresses.address AND my_addresses.wallet = ? AND outputs.is_spent=0 \n\
+	GROUP BY outputs.address, outputs.asset \n\
+	ORDER BY my_addresses.address_index ASC", [walletId], function(rows) {
+		handleBalancesOnAddresses(rows);
+	});
 }
 
+function readAssetMetadata(arrAssets, handleMetadata){
+	db.query("SELECT asset, metadata_unit, name, suffix, decimals FROM asset_metadata WHERE asset IN(?)", [arrAssets], function(rows){
+		var assocAssetMetadata = {};
+		for (var i=0; i<rows.length; i++){
+			var row = rows[i];
+			var asset = row.asset || "base";
+			assocAssetMetadata[asset] = {
+				metadata_unit: row.metadata_unit,
+				decimals: row.decimals,
+				name: row.suffix ? row.name+'.'+row.suffix : row.name
+			};
+		}
+		handleMetadata(assocAssetMetadata);
+		// after calling the callback, try to fetch missing data about assets
+		arrAssets.forEach(function(asset){
+			if (assocAssetMetadata[asset] || asset === 'base' && asset === constants.BLACKBYTES_ASSET)
+				return;
+			if ((assocLastFailedAssetMetadataTimestamps[asset] || 0) > Date.now() - ASSET_METADATA_RETRY_PERIOD)
+				return;
+			fetchAssetMetadata(asset, function(err, objMetadata){
+				if (err)
+					return console.log(err);
+				assocAssetMetadata[asset] = {
+					metadata_unit: objMetadata.metadata_unit,
+					decimals: objMetadata.decimals,
+					name: objMetadata.suffix ? objMetadata.name+'.'+objMetadata.suffix : objMetadata.name
+				};
+				eventBus.emit('maybe_new_transactions');
+			});
+		});
+	});
+}
+
+function fetchAssetMetadata(asset, handleMetadata){
+	device.requestFromHub('hub/get_asset_metadata', asset, function(err, response){
+		if (err){
+			if (err === 'no metadata')
+				assocLastFailedAssetMetadataTimestamps[asset] = Date.now();
+			return handleMetadata("error from get_asset_metadata "+asset+": "+err);
+		}
+		var metadata_unit = response.metadata_unit;
+		var registry_address = response.registry_address;
+		var suffix = response.suffix;
+		if (!ValidationUtils.isStringOfLength(metadata_unit, constants.HASH_LENGTH))
+			return handleMetadata("bad metadata_unit: "+metadata_unit);
+		if (!ValidationUtils.isValidAddress(registry_address))
+			return handleMetadata("bad registry_address: "+registry_address);
+		var fetchMetadataUnit = conf.bLight 
+			? function(onDone){
+				network.requestProofsOfJointsIfNewOrUnstable([metadata_unit], onDone);
+			}
+			: function(onDone){
+				onDone();
+			};
+		fetchMetadataUnit(function(err){
+			if (err)
+				return handleMetadata("fetchMetadataUnit failed: "+err);
+			storage.readJoint(db, metadata_unit, {
+				ifNotFound: function(){
+					handleMetadata("metadata unit "+unit+" not found");
+				},
+				ifFound: function(objJoint){
+					objJoint.unit.messages.forEach(function(message){
+						if (message.app !== 'data')
+							return;
+						var payload = message.payload;
+						if (payload.asset !== asset)
+							return;
+						if (!payload.name)
+							return handleMetadata("no name in asset metadata "+metadata_unit);
+						var decimals = (payload.decimals !== undefined) ? parseInt(payload.decimals) : undefined;
+						if (decimals !== undefined && !ValidationUtils.isNonnegativeInteger(decimals))
+							return handleMetadata("bad decimals in asset metadata "+metadata_unit);
+						db.query(
+							"INSERT "+db.getIgnore()+" INTO asset_metadata (asset, metadata_unit, registry_address, suffix, name, decimals) \n\
+							VALUES (?,?,?, ?,?,?)",
+							[asset, metadata_unit, registry_address, suffix, payload.name, decimals],
+							function(){
+								var objMetadata = {
+									metadata_unit: metadata_unit,
+									suffix: suffix,
+									decimals: decimals,
+									name: payload.name
+								};
+								handleMetadata(null, objMetadata);
+							}
+						);
+					});
+				}
+			});
+		});
+	});
+}
 
 function readTransactionHistory(opts, handleHistory){
 	var asset = opts.asset;
@@ -688,20 +818,27 @@ function readTransactionHistory(opts, handleHistory){
 	var join_my_addresses = walletIsAddress ? "" : "JOIN my_addresses USING(address)";
 	var where_condition = walletIsAddress ? "address=?" : "wallet=?";
 	var asset_condition = (asset && asset !== "base") ? "asset="+db.escape(asset) : "asset IS NULL";
+	var cross = "";
+	if (opts.unit)
+		where_condition += " AND unit="+db.escape(opts.unit);
+	else if (opts.since_mci && ValidationUtils.isNonnegativeInteger(opts.since_mci)){
+		where_condition += " AND main_chain_index>="+opts.since_mci;
+		cross = "CROSS";
+	}
 	db.query(
 		"SELECT unit, level, is_stable, sequence, address, \n\
 			"+db.getUnixTimestamp("units.creation_date")+" AS ts, headers_commission+payload_commission AS fee, \n\
-			SUM(amount) AS amount, address AS to_address, NULL AS from_address \n\
-		FROM outputs "+join_my_addresses+" JOIN units USING(unit) \n\
+			SUM(amount) AS amount, address AS to_address, NULL AS from_address, main_chain_index AS mci \n\
+		FROM units "+cross+" JOIN outputs USING(unit) "+join_my_addresses+" \n\
 		WHERE "+where_condition+" AND "+asset_condition+" \n\
 		GROUP BY unit, address \n\
 		UNION \n\
 		SELECT unit, level, is_stable, sequence, address, \n\
 			"+db.getUnixTimestamp("units.creation_date")+" AS ts, headers_commission+payload_commission AS fee, \n\
-			NULL AS amount, NULL AS to_address, address AS from_address \n\
-		FROM inputs "+join_my_addresses+" JOIN units USING(unit) \n\
+			NULL AS amount, NULL AS to_address, address AS from_address, main_chain_index AS mci \n\
+		FROM units "+cross+" JOIN inputs USING(unit) "+join_my_addresses+" \n\
 		WHERE "+where_condition+" AND "+asset_condition+" \n\
-		"+(opts.limit ? "ORDER BY ts DESC LIMIT ?" : ""),
+		ORDER BY ts DESC"+(opts.limit ? " LIMIT ?" : ""),
 		opts.limit ? [wallet, wallet, opts.limit] : [wallet, wallet],
 		function(rows){
 			var assocMovements = {};
@@ -711,16 +848,19 @@ function readTransactionHistory(opts, handleHistory){
 				//    row.fee = null;
 				if (!assocMovements[row.unit])
 					assocMovements[row.unit] = {
-						plus:0, has_minus:false, ts: row.ts, level: row.level, is_stable: row.is_stable, sequence: row.sequence, fee: row.fee
+						plus:0, has_minus:false, ts: row.ts, level: row.level, is_stable: row.is_stable, sequence: row.sequence, fee: row.fee, mci: row.mci
 					};
 				if (row.to_address){
 					assocMovements[row.unit].plus += row.amount;
-					assocMovements[row.unit].my_address = row.to_address;
+				//	assocMovements[row.unit].my_address = row.to_address;
+					if (!assocMovements[row.unit].arrMyRecipients)
+						assocMovements[row.unit].arrMyRecipients = [];
+					assocMovements[row.unit].arrMyRecipients.push({my_address: row.to_address, amount: row.amount})
 				}
 				if (row.from_address)
 					assocMovements[row.unit].has_minus = true;
 			}
-			console.log(require('util').inspect(assocMovements));
+		//	console.log(require('util').inspect(assocMovements));
 			var arrTransactions = [];
 			async.forEachOfSeries(
 				assocMovements,
@@ -732,7 +872,8 @@ function readTransactionHistory(opts, handleHistory){
 							unit: unit,
 							fee: movement.fee,
 							time: movement.ts,
-							level: movement.level
+							level: movement.level,
+                            mci: movement.mci
 						};
 						arrTransactions.push(transaction);
 						cb();
@@ -744,18 +885,21 @@ function readTransactionHistory(opts, handleHistory){
 							[unit], 
 							function(address_rows){
 								var arrPayerAddresses = address_rows.map(function(address_row){ return address_row.address; });
-								var transaction = {
-									action: 'received',
-									amount: movement.plus,
-									my_address: movement.my_address,
-									arrPayerAddresses: arrPayerAddresses,
-									confirmations: movement.is_stable,
-									unit: unit,
-									fee: movement.fee,
-									time: movement.ts,
-									level: movement.level
-								};
-								arrTransactions.push(transaction);
+								movement.arrMyRecipients.forEach(function(objRecipient){
+									var transaction = {
+										action: 'received',
+										amount: objRecipient.amount,
+										my_address: objRecipient.my_address,
+										arrPayerAddresses: arrPayerAddresses,
+										confirmations: movement.is_stable,
+										unit: unit,
+										fee: movement.fee,
+										time: movement.ts,
+										level: movement.level,
+										mci: movement.mci
+									};
+									arrTransactions.push(transaction);
+								});
 								cb();
 							}
 						);
@@ -788,13 +932,15 @@ function readTransactionHistory(opts, handleHistory){
 										action: action,
 										amount: payee.amount,
 										addressTo: payee.address,
-										my_address: payee.address,
 										confirmations: movement.is_stable,
 										unit: unit,
 										fee: movement.fee,
 										time: movement.ts,
-										level: movement.level
+										level: movement.level,
+                                        mci: movement.mci
 									};
+									if (action === 'moved')
+										transaction.my_address = payee.address;
 									arrTransactions.push(transaction);
 								}
 								cb();
@@ -822,49 +968,128 @@ function readTransactionHistory(opts, handleHistory){
 	);
 }
 
+// returns assoc array signing_path => (key|merkle)
+function readFullSigningPaths(conn, address, arrSigningDeviceAddresses, handleSigningPaths){
+	
+	var assocSigningPaths = {};
+	
+	function goDeeper(member_address, path_prefix, onDone){
+		// first, look for wallet addresses
+		var sql = "SELECT signing_path FROM my_addresses JOIN wallet_signing_paths USING(wallet) WHERE address=?";
+		var arrParams = [member_address];
+		if (arrSigningDeviceAddresses && arrSigningDeviceAddresses.length > 0){
+			sql += " AND device_address IN(?)";
+			arrParams.push(arrSigningDeviceAddresses);
+		}
+		conn.query(sql, arrParams, function(rows){
+			rows.forEach(function(row){
+				assocSigningPaths[path_prefix + row.signing_path.substr(1)] = 'key';
+			});
+			if (rows.length > 0)
+				return onDone();
+			// next, look for shared addresses, and search from there recursively
+			sql = "SELECT signing_path, address FROM shared_address_signing_paths WHERE shared_address=?";
+			arrParams = [member_address];
+			if (arrSigningDeviceAddresses && arrSigningDeviceAddresses.length > 0){
+				sql += " AND device_address IN(?)";
+				arrParams.push(arrSigningDeviceAddresses);
+			}
+			conn.query(sql, arrParams, function(rows){
+				if(rows.length > 0) {
+					async.eachSeries(
+						rows,
+						function (row, cb) {
+							if (row.address === '') { // merkle
+								assocSigningPaths[path_prefix + row.signing_path.substr(1)] = 'merkle';
+								return cb();
+							}
 
+							goDeeper(row.address, path_prefix + row.signing_path.substr(1), cb);
+						},
+						onDone
+					);
+				} else {
+					assocSigningPaths[path_prefix] = 'key';
+					onDone();
+				}
+			});
+		});
+	}
+	
+	goDeeper(address, 'r', function(){
+		handleSigningPaths(assocSigningPaths); // order of signing paths is not significant
+	});
+}
 
-function readFundedAddresses(asset, wallet, handleFundedAddresses){
+function determineIfFixedDenominations(asset, handleResult){
+	if (!asset)
+		return handleResult(false);
+	storage.readAsset(db, asset, null, function(err, objAsset){
+		if (err)
+			throw Error(err);
+		handleResult(objAsset.fixed_denominations);
+	});
+}
+
+function readFundedAddresses(asset, wallet, estimated_amount, handleFundedAddresses){
 	var walletIsAddresses = ValidationUtils.isNonemptyArray(wallet);
 	if (walletIsAddresses)
-		return composer.readSortedFundedAddresses(asset, wallet, handleFundedAddresses);
+		return composer.readSortedFundedAddresses(asset, wallet, estimated_amount, handleFundedAddresses);
+	if (estimated_amount && typeof estimated_amount !== 'number')
+		throw Error('invalid estimated amount: '+estimated_amount);
+	// addresses closest to estimated amount come first
+	var order_by = estimated_amount ? "(SUM(amount)>"+estimated_amount+") DESC, ABS(SUM(amount)-"+estimated_amount+") ASC" : "SUM(amount) DESC";
 	db.query(
-		"SELECT DISTINCT address \n\
+		"SELECT address, SUM(amount) AS total \n\
 		FROM outputs JOIN my_addresses USING(address) \n\
-		JOIN units USING(unit) \n\
+		CROSS JOIN units USING(unit) \n\
 		WHERE wallet=? AND is_stable=1 AND sequence='good' AND is_spent=0 AND "+(asset ? "asset=?" : "asset IS NULL")+" \n\
 			AND NOT EXISTS ( \n\
 				SELECT * FROM unit_authors JOIN units USING(unit) \n\
 				WHERE is_stable=0 AND unit_authors.address=outputs.address AND definition_chash IS NOT NULL \n\
-			)",
+			) \n\
+		GROUP BY address ORDER BY "+order_by,
 		asset ? [wallet, asset] : [wallet],
 		function(rows){
-			var arrFundedAddresses = rows.map(function(row){ return row.address; });
-			if (arrFundedAddresses.length === 0)
+			determineIfFixedDenominations(asset, function(bFixedDenominations){
+				if (bFixedDenominations)
+					estimated_amount = 0; // don't shorten the list of addresses, indivisible_asset.js will do it later according to denominations
+				handleFundedAddresses(composer.filterMostFundedAddresses(rows, estimated_amount));
+			});
+			/*if (arrFundedAddresses.length === 0)
 				return handleFundedAddresses([]);
 			if (!asset)
 				return handleFundedAddresses(arrFundedAddresses);
 			readFundedAddresses(null, wallet, function(arrBytesFundedAddresses){
 				handleFundedAddresses(_.union(arrFundedAddresses, arrBytesFundedAddresses));
-			});
+			});*/
 		}
 	);
 }
 
-// todo: deeper recursion
-function readAdditionalSigningAddresses(arrFromAddresses, arrSigningAddresses, arrSigningDeviceAddresses, handleAdditionalSigningAddresses){
+function readAdditionalSigningAddresses(arrPayingAddresses, arrSigningAddresses, arrSigningDeviceAddresses, handleAdditionalSigningAddresses){
+	var arrFromAddresses = arrPayingAddresses.concat(arrSigningAddresses);
 	var sql = "SELECT DISTINCT address FROM shared_address_signing_paths \n\
 		WHERE shared_address IN(?) \n\
+			AND ( \n\
+				EXISTS (SELECT 1 FROM my_addresses WHERE my_addresses.address=shared_address_signing_paths.address) \n\
+				OR \n\
+				EXISTS (SELECT 1 FROM shared_addresses WHERE shared_addresses.shared_address=shared_address_signing_paths.address) \n\
+			) \n\
 			AND ( \n\
 				NOT EXISTS (SELECT 1 FROM addresses WHERE addresses.address=shared_address_signing_paths.address) \n\
 				OR ( \n\
 					SELECT definition \n\
-					FROM address_definition_changes JOIN units USING(unit) LEFT JOIN definitions USING(definition_chash) \n\
+					FROM address_definition_changes CROSS JOIN units USING(unit) LEFT JOIN definitions USING(definition_chash) \n\
 					WHERE address_definition_changes.address=shared_address_signing_paths.address AND is_stable=1 AND sequence='good' \n\
 					ORDER BY level DESC LIMIT 1 \n\
 				) IS NULL \n\
 			)";
 	var arrParams = [arrFromAddresses];
+	if (arrSigningAddresses.length > 0){
+		sql += " AND address NOT IN(?)";
+		arrParams.push(arrSigningAddresses);
+	}
 	if (arrSigningDeviceAddresses && arrSigningDeviceAddresses.length > 0){
 		sql += " AND device_address IN(?)";
 		arrParams.push(arrSigningDeviceAddresses);
@@ -873,23 +1098,44 @@ function readAdditionalSigningAddresses(arrFromAddresses, arrSigningAddresses, a
 		sql, 
 		arrParams,
 		function(rows){
-			var arrAdditionalAddresses = [];
-			rows.forEach(function(row){
-				var address = row.address;
-				if (arrFromAddresses.indexOf(address) === -1 && arrSigningAddresses.indexOf(address) === -1)
-					arrAdditionalAddresses.push(address);
+			var arrAdditionalAddresses = rows.map(function(row){ return row.address; });
+			if (arrAdditionalAddresses.length === 0)
+				return handleAdditionalSigningAddresses([]);
+			readAdditionalSigningAddresses([], arrSigningAddresses.concat(arrAdditionalAddresses), arrSigningDeviceAddresses, function(arrMoreAddresses){
+				handleAdditionalSigningAddresses(arrAdditionalAddresses.concat(arrMoreAddresses));
 			});
-			handleAdditionalSigningAddresses(arrAdditionalAddresses);
 		}
 	);
 }
 
-function readFundedAndSigningAddresses(asset, wallet, arrSigningAddresses, arrSigningDeviceAddresses, handleFundedAndSigningAddresses){
-	readFundedAddresses(asset, wallet, function(arrFromAddresses){
-		if (arrFromAddresses.length === 0)
-			return handleFundedAndSigningAddresses([], []);
-		readAdditionalSigningAddresses(arrFromAddresses, arrSigningAddresses, arrSigningDeviceAddresses, function(arrAdditionalAddresses){
-			handleFundedAndSigningAddresses(arrFromAddresses, arrSigningAddresses.concat(arrAdditionalAddresses));
+var TYPICAL_FEE = 1000;
+
+// fee_paying_wallet is used only if there are no bytes on the asset wallet, it is a sort of fallback wallet for fees
+function readFundedAndSigningAddresses(
+		asset, wallet, estimated_amount, fee_paying_wallet, arrSigningAddresses, arrSigningDeviceAddresses, handleFundedAndSigningAddresses)
+{
+	readFundedAddresses(asset, wallet, estimated_amount, function(arrFundedAddresses){
+		if (arrFundedAddresses.length === 0)
+			return handleFundedAndSigningAddresses([], [], []);
+		var arrBaseFundedAddresses = [];
+		var addSigningAddressesAndReturn = function(){
+			var arrPayingAddresses = _.union(arrFundedAddresses, arrBaseFundedAddresses);
+			readAdditionalSigningAddresses(arrPayingAddresses, arrSigningAddresses, arrSigningDeviceAddresses, function(arrAdditionalAddresses){
+				handleFundedAndSigningAddresses(arrFundedAddresses, arrBaseFundedAddresses, arrSigningAddresses.concat(arrAdditionalAddresses));
+			});
+		};
+		if (!asset)
+			return addSigningAddressesAndReturn();
+		readFundedAddresses(null, wallet, TYPICAL_FEE, function(_arrBaseFundedAddresses){
+			// fees will be paid from the same addresses as the asset
+			if (_arrBaseFundedAddresses.length > 0 || !fee_paying_wallet || fee_paying_wallet === wallet){
+				arrBaseFundedAddresses = _arrBaseFundedAddresses;
+				return addSigningAddressesAndReturn();
+			}
+			readFundedAddresses(null, fee_paying_wallet, TYPICAL_FEE, function(_arrBaseFundedAddresses){
+				arrBaseFundedAddresses = _arrBaseFundedAddresses;
+				addSigningAddressesAndReturn();
+			});
 		});
 	});
 }
@@ -916,6 +1162,7 @@ function sendMultiPayment(opts, handleResult)
 		asset = null;
 	var wallet = opts.wallet;
 	var arrPayingAddresses = opts.paying_addresses;
+	var fee_paying_wallet = opts.fee_paying_wallet;
 	var arrSigningAddresses = opts.signing_addresses || [];
 	var to_address = opts.to_address;
 	var amount = opts.amount;
@@ -924,9 +1171,11 @@ function sendMultiPayment(opts, handleResult)
 	var arrSigningDeviceAddresses = opts.arrSigningDeviceAddresses;
 	var recipient_device_address = opts.recipient_device_address;
 	var signWithLocalPrivateKey = opts.signWithLocalPrivateKey;
+	var merkle_proof = opts.merkle_proof;
 	
 	var base_outputs = opts.base_outputs;
 	var asset_outputs = opts.asset_outputs;
+	var messages = opts.messages;
 	
 	if (!wallet && !arrPayingAddresses)
 		throw Error("neither wallet id nor paying addresses");
@@ -936,160 +1185,228 @@ function sendMultiPayment(opts, handleResult)
 		throw Error('to_address and outputs at the same time');
 	if (!asset && asset_outputs)
 		throw Error('base asset and asset outputs');
+	if (amount){
+		if (typeof amount !== 'number')
+			throw Error('amount must be a number');
+		if (amount < 0)
+			throw Error('amount must be positive');
+	}
+	
+	if (recipient_device_address === device.getMyDeviceAddress())
+		recipient_device_address = null;
+	
+	var estimated_amount = amount;
+	if (!estimated_amount && asset_outputs)
+		estimated_amount = asset_outputs.reduce(function(acc, output){ return acc+output.amount; }, 0);
+	if (estimated_amount && !asset)
+		estimated_amount += TYPICAL_FEE;
 	
 	readFundedAndSigningAddresses(
-			asset, wallet || arrPayingAddresses, arrSigningAddresses, arrSigningDeviceAddresses, function(arrFromAddresses, arrAllSigningAddresses){
+		asset, wallet || arrPayingAddresses, estimated_amount, fee_paying_wallet, arrSigningAddresses, arrSigningDeviceAddresses, 
+		function(arrFundedAddresses, arrBaseFundedAddresses, arrAllSigningAddresses){
 		
-		if (arrFromAddresses.length === 0)
-			return handleResult("There are no funded addresses");
-		
-		var bRequestedConfirmation = false;
-		var signer = {
-			getSignatureLength: function(address, path){
-				return constants.SIG_LENGTH;
-			},
-			readSigningPaths: function(conn, address, handleSigningPaths){
-				var sql = "SELECT signing_path FROM my_addresses JOIN wallet_signing_paths USING(wallet) WHERE address=?";
-				var arrParams = [address];
-				if (arrSigningDeviceAddresses && arrSigningDeviceAddresses.length > 0){
-					sql += " AND device_address IN(?)";
-					arrParams.push(arrSigningDeviceAddresses);
-				}
-				sql += " UNION SELECT signing_path FROM shared_address_signing_paths WHERE shared_address=?";
-				arrParams.push(address);
-				if (arrSigningDeviceAddresses && arrSigningDeviceAddresses.length > 0){
-					sql += " AND device_address IN(?)";
-					arrParams.push(arrSigningDeviceAddresses);
-				}
-				sql += " ORDER BY signing_path";   
-				conn.query(
-					sql, 
-					arrParams,
-					function(rows){
-						var arrSigningPaths = rows.map(function(row){ return row.signing_path; });
-						handleSigningPaths(arrSigningPaths);
-					}
-				);
-			},
-			readDefinition: function(conn, address, handleDefinition){
-				conn.query(
-					"SELECT definition FROM my_addresses WHERE address=? UNION SELECT definition FROM shared_addresses WHERE shared_address=?", 
-					[address, address], 
-					function(rows){
-						if (rows.length !== 1)
-							throw Error("definition not found");
-						handleDefinition(null, JSON.parse(rows[0].definition));
-					}
-				);
-			},
-			sign: function(objUnsignedUnit, assocPrivatePayloads, address, signing_path, handleSignature){
-				var buf_to_sign = objectHash.getUnitHashToSign(objUnsignedUnit);
-				findAddress(address, signing_path, {
-					ifError: function(err){
-						throw Error(err);
-					},
-					ifUnknownAddress: function(err){
-						throw Error("unknown address");
-					},
-					ifLocal: function(objAddress){
-						signWithLocalPrivateKey(objAddress.wallet, objAddress.account, objAddress.is_change, objAddress.address_index, buf_to_sign, function(sig){
-							handleSignature(null, sig);
-						});
-					},
-					ifRemote: function(device_address){
-						// we'll receive this event after the peer signs
-						eventBus.once("signature-"+device_address+"-"+address+"-"+signing_path+"-"+buf_to_sign.toString("base64"), function(sig){
-							handleSignature(null, sig);
-							if (sig === '[refused]')
-								eventBus.emit('refused_to_sign', device_address);
-						});
-						walletGeneral.sendOfferToSign(device_address, address, signing_path, objUnsignedUnit, assocPrivatePayloads);
-						if (!bRequestedConfirmation){
-							eventBus.emit("confirm_on_other_devices");
-							bRequestedConfirmation = true;
+			if (arrFundedAddresses.length === 0)
+				return handleResult("There are no funded addresses");
+			if (asset && arrBaseFundedAddresses.length === 0)
+				return handleResult("No bytes to pay fees");
+
+			var bRequestedConfirmation = false;
+			var signer = {
+				readSigningPaths: function(conn, address, handleLengthsBySigningPaths){ // returns assoc array signing_path => length
+					readFullSigningPaths(conn, address, arrSigningDeviceAddresses, function(assocTypesBySigningPaths){
+						var assocLengthsBySigningPaths = {};
+						for (var signing_path in assocTypesBySigningPaths){
+							var type = assocTypesBySigningPaths[signing_path];
+							if (type === 'key')
+								assocLengthsBySigningPaths[signing_path] = constants.SIG_LENGTH;
+							else if (type === 'merkle'){
+								if (merkle_proof)
+									assocLengthsBySigningPaths[signing_path] = merkle_proof.length;
+							}
+							else
+								throw Error("unknown type "+type+" at "+signing_path);
 						}
+						handleLengthsBySigningPaths(assocLengthsBySigningPaths);
+					});
+				},
+				readDefinition: function(conn, address, handleDefinition){
+					conn.query(
+						"SELECT definition FROM my_addresses WHERE address=? UNION SELECT definition FROM shared_addresses WHERE shared_address=?", 
+						[address, address], 
+						function(rows){
+							if (rows.length !== 1)
+								throw Error("definition not found");
+							handleDefinition(null, JSON.parse(rows[0].definition));
+						}
+					);
+				},
+				sign: function(objUnsignedUnit, assocPrivatePayloads, address, signing_path, handleSignature){
+					var buf_to_sign = objectHash.getUnitHashToSign(objUnsignedUnit);
+					findAddress(address, signing_path, {
+						ifError: function(err){
+							throw Error(err);
+						},
+						ifUnknownAddress: function(err){
+							throw Error("unknown address "+address+" at "+signing_path);
+						},
+						ifLocal: function(objAddress){
+							signWithLocalPrivateKey(objAddress.wallet, objAddress.account, objAddress.is_change, objAddress.address_index, buf_to_sign, function(sig){
+								handleSignature(null, sig);
+							});
+						},
+						ifRemote: function(device_address){
+							// we'll receive this event after the peer signs
+							eventBus.once("signature-"+device_address+"-"+address+"-"+signing_path+"-"+buf_to_sign.toString("base64"), function(sig){
+								handleSignature(null, sig);
+								if (sig === '[refused]')
+									eventBus.emit('refused_to_sign', device_address);
+							});
+							walletGeneral.sendOfferToSign(device_address, address, signing_path, objUnsignedUnit, assocPrivatePayloads);
+							if (!bRequestedConfirmation){
+								eventBus.emit("confirm_on_other_devices");
+								bRequestedConfirmation = true;
+							}
+						},
+						ifMerkle: function(bLocal){
+							if (!bLocal)
+								throw Error("merkle proof at path "+signing_path+" should be provided by another device");
+							if (!merkle_proof)
+								throw Error("merkle proof at path "+signing_path+" not provided");
+							handleSignature(null, merkle_proof);
+						}
+					});
+				}
+			};
+
+			var params = {
+				available_paying_addresses: arrFundedAddresses, // forces 'minimal' for payments from shared addresses too, it doesn't hurt
+				signing_addresses: arrAllSigningAddresses,
+				messages: messages, 
+				signer: signer, 
+				callbacks: {
+					ifNotEnoughFunds: function(err){
+						handleResult(err);
+					},
+					ifError: function(err){
+						handleResult(err);
+					},
+					// for asset payments, 2nd argument is array of chains of private elements
+					// for base asset, 2nd argument is assocPrivatePayloads which is null
+					ifOk: function(objJoint, arrChainsOfRecipientPrivateElements, arrChainsOfCosignerPrivateElements){
+						network.broadcastJoint(objJoint);
+						if (!arrChainsOfRecipientPrivateElements && recipient_device_address) // send notification about public payment
+							walletGeneral.sendPaymentNotification(recipient_device_address, objJoint.unit.unit);
+						handleResult(null, objJoint.unit.unit);
+					}
+				}
+			};
+
+			if (asset){
+				if (bSendAll)
+					throw Error('send_all with asset');
+				params.asset = asset;
+				params.available_fee_paying_addresses = arrBaseFundedAddresses;
+				if (to_address){
+					params.to_address = to_address;
+					params.amount = amount; // in asset units
+				}
+				else{
+					params.asset_outputs = asset_outputs;
+					params.base_outputs = base_outputs; // only destinations, without the change
+				}
+				params.change_address = change_address;
+				storage.readAsset(db, asset, null, function(err, objAsset){
+					if (err)
+						throw Error(err);
+				//	if (objAsset.is_private && !recipient_device_address)
+				//		return handleResult("for private asset, need recipient's device address to send private payload to");
+					if (objAsset.is_private){
+						// save messages in outbox before committing
+						params.callbacks.preCommitCb = function(conn, arrChainsOfRecipientPrivateElements, arrChainsOfCosignerPrivateElements, cb){
+							if (!arrChainsOfRecipientPrivateElements || !arrChainsOfCosignerPrivateElements)
+								throw Error('no private elements');
+							var sendToRecipients = function(cb2){
+								if (recipient_device_address)
+									walletGeneral.sendPrivatePayments(recipient_device_address, arrChainsOfRecipientPrivateElements, false, conn, cb2);
+								else // paying to another wallet on the same device
+									forwardPrivateChainsToOtherMembersOfOutputAddresses(arrChainsOfRecipientPrivateElements, conn, cb2);
+							};
+							var sendToCosigners = function(cb2){
+								if (wallet)
+									walletDefinedByKeys.forwardPrivateChainsToOtherMembersOfWallets(arrChainsOfCosignerPrivateElements, [wallet], conn, cb2);
+								else // arrPayingAddresses can be only shared addresses
+									forwardPrivateChainsToOtherMembersOfSharedAddresses(arrChainsOfCosignerPrivateElements, arrPayingAddresses, null, false, conn, cb2);
+							};
+							async.series([sendToRecipients, sendToCosigners], cb);
+						};
+					}
+					if (objAsset.fixed_denominations){ // indivisible
+						params.tolerance_plus = 0;
+						params.tolerance_minus = 0;
+						indivisibleAsset.composeAndSaveMinimalIndivisibleAssetPaymentJoint(params);
+					}
+					else{ // divisible
+						divisibleAsset.composeAndSaveMinimalDivisibleAssetPaymentJoint(params);
 					}
 				});
 			}
-		};
-		
-		var params = {
-			available_paying_addresses: arrFromAddresses, // forces 'minimal' for payments from shared addresses too, it doesn't hurt
-			signing_addresses: arrAllSigningAddresses,
-			signer: signer, 
-			callbacks: {
-				ifNotEnoughFunds: function(err){
-					handleResult(err);
-				},
-				ifError: function(err){
-					handleResult(err);
-				},
-				// for asset payments, 2nd argument is array of chains of private elements
-				// for base asset, 2nd argument is assocPrivatePayloads which is null
-				ifOk: function(objJoint, arrChainsOfRecipientPrivateElements, arrChainsOfCosignerPrivateElements){
-					network.broadcastJoint(objJoint);
-					if (!arrChainsOfRecipientPrivateElements && recipient_device_address) // send notification about public payment
-						walletGeneral.sendPaymentNotification(recipient_device_address, objJoint.unit.unit);
-					handleResult(null, objJoint.unit.unit);
+			else{ // base asset
+				if (bSendAll){
+					params.send_all = bSendAll;
+					params.outputs = [{address: to_address, amount: 0}];
 				}
+				else{
+					params.outputs = to_address ? [{address: to_address, amount: amount}] : (base_outputs || []);
+					params.outputs.push({address: change_address, amount: 0});
+				}
+				composer.composeAndSaveMinimalJoint(params);
 			}
-		};
-		
-		if (asset){
-			if (bSendAll)
-				throw Error('send_all with asset');
-			params.asset = asset;
-			if (to_address){
-				params.to_address = to_address;
-				params.amount = amount; // in asset units
-			}
-			else{
-				params.asset_outputs = asset_outputs;
-				params.base_outputs = base_outputs; // only destinations, without the change
-			}
-			params.change_address = change_address;
-			storage.readAsset(db, asset, null, function(err, objAsset){
-				if (err)
-					throw Error(err);
-				if (objAsset.is_private && !recipient_device_address)
-					return handleResult("for private asset, need recipient's device address to send private payload to");
-				if (objAsset.is_private){
-					// save messages in outbox before committing
-					params.callbacks.preCommitCb = function(conn, arrChainsOfRecipientPrivateElements, arrChainsOfCosignerPrivateElements, cb){
-						if (!arrChainsOfRecipientPrivateElements || !arrChainsOfCosignerPrivateElements)
-							throw Error('no private elements');
-						walletGeneral.sendPrivatePayments(recipient_device_address, arrChainsOfRecipientPrivateElements, false, conn, function(){
-							if (wallet)
-								walletDefinedByKeys.forwardPrivateChainsToOtherMembersOfWallets(arrChainsOfCosignerPrivateElements, [wallet], conn, cb);
-							else // arrPayingAddresses can be only shared addresses
-								walletDefinedByAddresses.forwardPrivateChainsToOtherMembersOfAddresses(arrChainsOfCosignerPrivateElements, arrPayingAddresses, conn, cb);
-						});
-					};
-				}
-				if (objAsset.fixed_denominations){ // indivisible
-					params.tolerance_plus = 0;
-					params.tolerance_minus = 0;
-					indivisibleAsset.composeAndSaveMinimalIndivisibleAssetPaymentJoint(params);
-				}
-				else{ // divisible
-					divisibleAsset.composeAndSaveMinimalDivisibleAssetPaymentJoint(params);
-				}
+
+		}
+	);
+}
+
+function forwardPrivateChainsToOtherMembersOfSharedAddresses(arrChainsOfCosignerPrivateElements, arrPayingAddresses, excluded_device_address, bForwarded, conn, onDone){
+	walletDefinedByAddresses.readAllControlAddresses(conn, arrPayingAddresses, function(arrControlAddresses, arrControlDeviceAddresses){
+		arrControlDeviceAddresses = arrControlDeviceAddresses.filter(function(device_address) {
+			return (device_address !== device.getMyDeviceAddress() && device_address !== excluded_device_address);
+		});
+		walletDefinedByKeys.readDeviceAddressesControllingPaymentAddresses(conn, arrControlAddresses, function(arrMultisigDeviceAddresses){
+			arrMultisigDeviceAddresses = _.difference(arrMultisigDeviceAddresses, arrControlDeviceAddresses);
+			// counterparties on shared addresses must forward further, that's why bForwarded=false
+			walletGeneral.forwardPrivateChainsToDevices(arrControlDeviceAddresses, arrChainsOfCosignerPrivateElements, bForwarded, conn, function(){
+				walletGeneral.forwardPrivateChainsToDevices(arrMultisigDeviceAddresses, arrChainsOfCosignerPrivateElements, true, conn, onDone);
 			});
-		}
-		else{ // base asset
-			if (bSendAll){
-				params.send_all = bSendAll;
-				params.outputs = [{address: to_address, amount: 0}];
-			}
-			else{
-				params.outputs = to_address ? [{address: to_address, amount: amount}] : (base_outputs || []);
-				params.outputs.push({address: change_address, amount: 0});
-			}
-			composer.composeAndSaveMinimalJoint(params);
-		}
-	
+		});
 	});
 }
+
+function readDeviceAddressesUsedInSigningPaths(onDone){
+
+	var sql = "SELECT DISTINCT device_address FROM shared_address_signing_paths ";
+	sql += "UNION SELECT DISTINCT device_address FROM wallet_signing_paths ";
+	sql += "UNION SELECT DISTINCT device_address FROM pending_shared_address_signing_paths";
+	
+	db.query(
+		sql, 
+		function(rows){
+			
+			var arrDeviceAddress = rows.map(function(r) { return r.device_address; });
+
+			onDone(arrDeviceAddress);
+		}
+	);
+}
+
+function determineIfDeviceCanBeRemoved(device_address, handleResult) {
+	device.readCorrespondent(device_address, function(correspondent){
+		if (!correspondent)
+			return handleResult(false);
+		readDeviceAddressesUsedInSigningPaths(function(arrDeviceAddresses){
+			handleResult(arrDeviceAddresses.indexOf(device_address) === -1);
+		});
+	});
+};
 
 
 // todo, almost same as payment
@@ -1110,7 +1427,10 @@ walletGeneral.readMyAddresses(function(arrAddresses){
 exports.sendSignature = sendSignature;
 exports.readSharedBalance = readSharedBalance;
 exports.readBalance = readBalance;
+exports.readBalancesOnAddresses = readBalancesOnAddresses;
+exports.readAssetMetadata = readAssetMetadata;
 exports.readTransactionHistory = readTransactionHistory;
 exports.sendPaymentFromWallet = sendPaymentFromWallet;
 exports.sendMultiPayment = sendMultiPayment;
-
+exports.readDeviceAddressesUsedInSigningPaths = readDeviceAddressesUsedInSigningPaths;
+exports.determineIfDeviceCanBeRemoved = determineIfDeviceCanBeRemoved;

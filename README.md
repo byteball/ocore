@@ -1,9 +1,15 @@
+# Byteball core
+
 This is a library used in [Byteball](https://byteball.org) clients.  Never used directly.  Some of the clients that require the library:
 
 * [Byteball](../../../byteball) - GUI wallet for Mac, Windows, Linux, iOS, and Android.
 * [Headless Byteball](../../../headless-byteball) - headless wallet, primarily for server side use.
 * [Byteball Relay](../../../byteball-relay) - relay node for Byteball network.  It doesn't hold any private keys.
 * [Byteball Hub](../../../byteball-hub) - hub for Byteball network.  Includes the relay, plus can store and forward end-to-end encrypted messages among devices on the Byteball network.
+
+## Developer guides
+
+See the [wiki](https://github.com/byteball/byteballcore/wiki/Byteball-Developer-Guides).  Many of the features are not documented yet, see other [byteball repositories](https://github.com/byteball) as samples, for APIs see the `exports` of node.js modules.
 
 ## Configuring
 

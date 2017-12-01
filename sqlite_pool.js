@@ -1,6 +1,8 @@
 /*jslint node: true */
 "use strict";
 var _ = require('lodash');
+var async = require('async');
+var sqlite_migrations = require('./sqlite_migrations');
 var EventEmitter = require('events').EventEmitter;
 
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -46,7 +48,7 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 					connection.query("PRAGMA journal_mode=WAL", function(){
 						connection.query("PRAGMA synchronous=NORMAL", function(){
 							connection.query("PRAGMA temp_store=MEMORY", function(){
-								migrateDb(function(){
+								sqlite_migrations.migrateDb(connection, function(){
 									handleConnection(connection);
 								});
 							});
@@ -55,12 +57,6 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 				});
 			});
 		});
-		
-		function migrateDb(onDone){
-			connection.query("CREATE INDEX IF NOT EXISTS unitAuthorsIndexByAddressDefinitionChash ON unit_authors(address, definition_chash)", function(){
-				onDone();
-			});
-		}
 		
 		var connection = {
 			db: db,
@@ -85,7 +81,7 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 					last_arg = function(){};
 
 				var sql = arguments[0];
-				//console.log("query: "+sql);
+				//console.log("======= query: "+sql);
 				var bSelect = !!sql.match(/^SELECT/i);
 				var count_arguments_without_callback = bHasCallback ? (arguments.length-1) : arguments.length;
 				var new_args = [];
@@ -102,7 +98,7 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 					//console.log("query done: "+sql);
 					if (err){
 						console.error("\nfailed query:", new_args);
-						throw Error(err+"\n"+sql+"\n"+new_args[1].join(', '));
+						throw Error(err+"\n"+sql+"\n"+new_args[1].map(function(param){ if (param === null) return 'null'; if (param === undefined) return 'undefined'; return param;}).join(', '));
 					}
 					// note that sqlite3 sets nonzero this.changes even when rows were matched but nothing actually changed (new values are same as old)
 					// this.changes appears to be correct for INSERTs despite the documentation states the opposite
@@ -228,10 +224,13 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 	}
 	
 	function close(cb){
+		if (!cb)
+			cb = function(){};
 		bReady = false;
 		if (arrConnections.length === 0)
 			return cb();
 		arrConnections[0].db.close(cb);
+		arrConnections.shift();
 	}
 
 	// interval is string such as -8 SECOND
@@ -277,6 +276,7 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 		else
 			throw Error("escape: unknown type "+(typeof str));
 	}
+	
 	
 	createDatabaseIfNecessary(db_name, onDbReady);
 

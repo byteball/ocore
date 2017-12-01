@@ -80,10 +80,12 @@ CREATE TABLE unit_authors (
 	unit CHAR(44) BINARY NOT NULL,
 	address CHAR(32) NOT NULL,
 	definition_chash CHAR(32) NULL, -- only with 1st ball from this address, and with next ball after definition change
+	_mci INT NULL,
 	PRIMARY KEY (unit, address),
 	FOREIGN KEY byUnit(unit) REFERENCES units(unit),
 	CONSTRAINT unitAuthorsByAddress FOREIGN KEY byAddress(address) REFERENCES addresses(address),
 	KEY unitAuthorsIndexByAddressDefinitionChash (address, definition_chash),
+	KEY unitAuthorsIndexByAddressMci (address, _mci),
 	FOREIGN KEY byDefinition(definition_chash) REFERENCES definitions(definition_chash)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
@@ -174,9 +176,9 @@ CREATE TABLE address_definition_changes (
 CREATE TABLE data_feeds (
 	unit CHAR(44) BINARY NOT NULL,
 	message_index TINYINT NOT NULL,
-	feed_name VARCHAR(64) NOT NULL,
+	feed_name VARCHAR(64) BINARY NOT NULL,
 --    type ENUM('string', 'number') NOT NULL,
-	`value` VARCHAR(64) NULL,
+	`value` VARCHAR(64) BINARY NULL,
 	`int_value` BIGINT NULL,
 	PRIMARY KEY (unit, feed_name),
 	KEY byNameStringValue(feed_name, `value`),
@@ -194,7 +196,7 @@ CREATE TABLE polls (
 CREATE TABLE poll_choices (
 	unit CHAR(44) BINARY NOT NULL,
 	choice_index TINYINT NOT NULL,
-	choice VARCHAR(32) NOT NULL,
+	choice VARCHAR(32) BINARY NOT NULL,
 	PRIMARY KEY (unit, choice_index),
 	UNIQUE KEY (unit, choice),
 	FOREIGN KEY byPoll(unit) REFERENCES polls(unit)
@@ -204,7 +206,7 @@ CREATE TABLE votes (
 	unit CHAR(44) BINARY NOT NULL,
 	message_index TINYINT NOT NULL,
 	poll_unit CHAR(44) BINARY NOT NULL,
-	choice VARCHAR(32) NOT NULL,
+	choice VARCHAR(32) BINARY NOT NULL,
 	PRIMARY KEY (unit, message_index),
 	UNIQUE KEY (unit, choice),
 	CONSTRAINT votesByChoice FOREIGN KEY byChoice(poll_unit, choice) REFERENCES poll_choices(unit, choice),
@@ -285,6 +287,7 @@ CREATE TABLE inputs (
 	UNIQUE KEY byIndexAddress(type, from_main_chain_index, address, is_unique), -- UNIQUE guarantees there'll be no double spend for type=hc/witnessing
 	UNIQUE KEY byAssetDenominationSerialAddress(asset, denomination, serial_number, address, is_unique), -- UNIQUE guarantees there'll be no double issue
 	KEY byAssetType(asset, type),
+	KEY byAddressTypeToMci(address, type, to_main_chain_index),
 	FOREIGN KEY byUnit(unit) REFERENCES units(unit),
 	CONSTRAINT inputsBySrcUnit FOREIGN KEY bySrcUnit(src_unit) REFERENCES units(unit),
 	CONSTRAINT inputsByAddress FOREIGN KEY byAddress(address) REFERENCES addresses(address),
@@ -306,6 +309,7 @@ CREATE TABLE outputs (
 	is_spent TINYINT NOT NULL DEFAULT 0,
 	UNIQUE KEY (unit, message_index, output_index),
 	KEY byAddressSpent(address, is_spent),
+	KEY bySerial(is_serial),
 	FOREIGN KEY byUnit(unit) REFERENCES units(unit),
 	CONSTRAINT outputsByAsset FOREIGN KEY byAsset(asset) REFERENCES assets(unit)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
@@ -331,7 +335,9 @@ CREATE TABLE headers_commission_outputs (
 	is_spent TINYINT NOT NULL DEFAULT 0,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (main_chain_index, address),
-	KEY byAddressSpent(address, is_spent)
+	UNIQUE (address, main_chain_index),
+	UNIQUE (address, is_spent, main_chain_index)
+--	KEY byAddressSpent(address, is_spent)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 CREATE TABLE paid_witness_events (
@@ -351,7 +357,9 @@ CREATE TABLE witnessing_outputs (
 	is_spent TINYINT NOT NULL DEFAULT 0,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (main_chain_index, address),
-	KEY byWitnessAddressSpent(address, is_spent),
+	UNIQUE (address, main_chain_index),
+	UNIQUE (address, is_spent, main_chain_index),
+--	KEY byWitnessAddressSpent(address, is_spent),
 	FOREIGN KEY byWitnessAddress(address) REFERENCES addresses(address)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
@@ -539,7 +547,7 @@ CREATE TABLE pairing_secrets (
 	pairing_secret VARCHAR(40) NOT NULL PRIMARY KEY,
 	is_permanent TINYINT NOT NULL DEFAULT 0,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	expiry_date TIMESTAMP NOT NULL
+	expiry_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP  -- DEFAULT for newer mysql versions (never used)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 CREATE TABLE extended_pubkeys (
@@ -559,7 +567,7 @@ CREATE TABLE wallet_signing_paths (
 	signing_path VARCHAR(255) NULL, -- NULL if xpubkey arrived earlier than the wallet was approved by the user
 	device_address CHAR(33) NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	PRIMARY KEY (wallet, signing_path),
+	UNIQUE KEY byWalletSigningPath(wallet, signing_path),
 	FOREIGN KEY byWallet(wallet) REFERENCES wallets(wallet)
 	-- own address is not present in correspondents
 --    FOREIGN KEY byDeviceAddress(device_address) REFERENCES correspondent_devices(device_address)
@@ -600,7 +608,7 @@ CREATE TABLE shared_address_signing_paths (
 	member_signing_path VARCHAR(255) NULL, -- path to signing key from root of the member address
 	device_address CHAR(33) NOT NULL, -- where this signing key lives or is reachable through
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	PRIMARY KEY (shared_address, signing_path),
+	UNIQUE KEY bySharedAddressSigningPath(shared_address, signing_path),
 	FOREIGN KEY bySharedAddress(shared_address) REFERENCES shared_addresses(shared_address)
 	-- own address is not present in correspondents
 --    FOREIGN KEY byDeviceAddress(device_address) REFERENCES correspondent_devices(device_address)
@@ -630,3 +638,52 @@ CREATE TABLE watched_light_addresses (
 ALTER TABLE `units` ADD INDEX `bySequence` (`sequence`);
 
 DROP TABLE IF EXISTS paid_witness_events;
+
+CREATE TABLE IF NOT EXISTS push_registrations (
+    registrationId VARCHAR(200), 
+    device_address CHAR(33) NOT NULL, 
+    PRIMARY KEY (device_address)
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+
+CREATE TABLE chat_messages (
+	id INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,
+	correspondent_address CHAR(33) NOT NULL, -- the device this message is came from
+	message LONGTEXT NOT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	is_incoming TINYINT NOT NULL,
+	type CHAR(15) NOT NULL DEFAULT 'text',
+	FOREIGN KEY byAddress(correspondent_address) REFERENCES correspondent_devices(device_address) ON DELETE CASCADE
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+CREATE INDEX chatMessagesIndexByDeviceAddress ON chat_messages(correspondent_address, id);
+ALTER TABLE correspondent_devices ADD COLUMN my_record_pref INTEGER DEFAULT 1;
+ALTER TABLE correspondent_devices ADD COLUMN peer_record_pref INTEGER DEFAULT 1;
+
+CREATE TABLE watched_light_units (
+	peer VARCHAR(100) NOT NULL,
+	unit CHAR(44) NOT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	PRIMARY KEY (peer, unit)
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+CREATE INDEX wlabyUnit ON watched_light_units(unit);
+
+CREATE TABLE bots (
+	id INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,
+	rank INTEGER NOT NULL DEFAULT 0,
+	name VARCHAR(100) NOT NULL UNIQUE,
+	pairing_code VARCHAR(200) NOT NULL,
+	description LONGTEXT NOT NULL
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+
+CREATE TABLE asset_metadata (
+	asset CHAR(44) BINARY NOT NULL PRIMARY KEY,
+	metadata_unit CHAR(44) BINARY NOT NULL,
+	registry_address CHAR(32) NULL, -- filled only on the hub
+	suffix VARCHAR(20) NULL, -- added only if the same name is registered by different registries for different assets, equal to registry name
+	name VARCHAR(20) NULL,
+	decimals TINYINT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	UNIQUE byNameRegistry(name, registry_address),
+	FOREIGN KEY byAsset(asset) REFERENCES assets(unit),
+	FOREIGN KEY byMetadataUnit(metadata_unit) REFERENCES units(unit)
+--	FOREIGN KEY byRegistryAddress(registry_address) REFERENCES addresses(address) -- addresses is not always filled on light
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;

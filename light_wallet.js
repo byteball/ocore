@@ -4,6 +4,7 @@ var db = require('./db.js');
 var conf = require('./conf.js');
 var myWitnesses = require('./my_witnesses.js');
 var network = require('./network.js');
+var storage = require('./storage.js');
 var walletGeneral = require('./wallet_general.js');
 var light = require('./light.js');
 var eventBus = require('./event_bus.js');
@@ -55,14 +56,26 @@ function prepareRequestForHistory(handleResult){
 					return handleResult(null);
 				if (!objHistoryRequest.addresses)
 					return handleResult(objHistoryRequest);
+				objHistoryRequest.last_stable_mci = 0;
+				var strAddressList = arrAddresses.map(db.escape).join(', ');
 				db.query(
+					"SELECT unit FROM unit_authors JOIN units USING(unit) WHERE is_stable=1 AND address IN("+strAddressList+") \n\
+					UNION \n\
+					SELECT unit FROM outputs JOIN units USING(unit) WHERE is_stable=1 AND address IN("+strAddressList+")",
+					function(rows){
+						if (rows.length)
+							objHistoryRequest.known_stable_units = rows.map(function(row){ return row.unit; });
+						handleResult(objHistoryRequest);
+					}
+				);
+				/*db.query(
 					"SELECT MAX(main_chain_index) AS last_stable_mci FROM units JOIN unit_authors USING(unit) WHERE is_stable=1 AND address IN(?)",
 					[arrAddresses],
 					function(rows){
 						objHistoryRequest.last_stable_mci = rows[0].last_stable_mci || 0;
 						handleResult(objHistoryRequest);
 					}
-				);
+				);*/
 			});
 		});
 	}, 'wait');
@@ -94,8 +107,11 @@ function refreshLightClientHistory(){
 			if (!objRequest)
 				return finish();
 			network.sendRequest(ws, 'light/get_history', objRequest, false, function(ws, request, response){
-				if (response.error)
+				if (response.error){
+					if (response.error.indexOf('your history is too large') >= 0)
+						throw Error(response.error);
 					return finish(response.error);
+				}
 				ws.bLightVendor = true;
 				var interval = setInterval(function(){ // refresh UI periodically while we are processing history
 					eventBus.emit('maybe_new_transactions');
@@ -106,10 +122,11 @@ function refreshLightClientHistory(){
 						network.sendError(ws, err);
 						finish();
 					},
-					ifOk: function(){
+					ifOk: function(bRefreshUI){
 						clearInterval(interval);
 						finish();
-						eventBus.emit('maybe_new_transactions');
+						if (bRefreshUI)
+							eventBus.emit('maybe_new_transactions');
 					}
 				});
 			});
@@ -117,6 +134,27 @@ function refreshLightClientHistory(){
 	});
 }
 
+function archiveDoublespendUnits(){
+	db.query("SELECT unit FROM units WHERE is_stable=0 AND is_free=1 AND creation_date<"+db.addTime('-1 DAY'), function(rows){
+		var arrUnits = rows.map(function(row){ return row.unit; });
+		console.log("units still unstable after 1 day: "+arrUnits.join(', '));
+		arrUnits.forEach(function(unit){
+			network.requestFromLightVendor('get_joint', unit, function(ws, request, response){
+				if (response.error)
+					return console.log("get_joint "+unit+": "+response.error);
+				if (response.joint_not_found === unit){
+					console.log("light vendor doesn't know about unit "+unit+" any more, will archive");
+					storage.archiveJointAndDescendantsIfExists(unit);
+				}
+			});
+		});
+	});
+}
+
+if (conf.bLight){
+	setTimeout(archiveDoublespendUnits, 15*1000);
+	setInterval(archiveDoublespendUnits, 24*3600*1000);
+}
 
 exports.setLightVendorHost = setLightVendorHost;
 exports.refreshLightClientHistory = refreshLightClientHistory;

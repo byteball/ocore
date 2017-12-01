@@ -20,8 +20,11 @@ function getLength(value) {
 					len += getLength(element);
 				});
 			else    
-				for (var key in value)
+				for (var key in value){
+					if (typeof value[key] === "undefined")
+						throw Error("undefined at "+key+" of "+JSON.stringify(value));
 					len += getLength(value[key]);
+				}
 			return len;
 		case "boolean": 
 			return 1;

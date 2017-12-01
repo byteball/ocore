@@ -94,8 +94,12 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 				if (definition_chash === author.address)
 					conn.addQuery(arrQueries, "INSERT "+conn.getIgnore()+" INTO addresses (address) VALUES(?)", [author.address]);
 			}
+			else if (objUnit.content_hash)
+				conn.addQuery(arrQueries, "INSERT "+conn.getIgnore()+" INTO addresses (address) VALUES(?)", [author.address]);
 			conn.addQuery(arrQueries, "INSERT INTO unit_authors (unit, address, definition_chash) VALUES(?,?,?)", 
 				[objUnit.unit, author.address, definition_chash]);
+			if (storage.isGenesisUnit(objUnit.unit))
+				conn.addQuery(arrQueries, "UPDATE unit_authors SET _mci=0 WHERE unit=?", [objUnit.unit]);
 			if (!objUnit.content_hash){
 				for (var path in author.authentifiers)
 					conn.addQuery(arrQueries, "INSERT INTO authentifiers (unit, address, path, authentifier) VALUES(?,?,?,?)", 
@@ -434,7 +438,7 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 							arrOps.push(updateWitnessedLevel);
 							arrOps.push(function(cb){
 								console.log("updating MC after adding "+objUnit.unit);
-								main_chain.updateMainChain(conn, null, cb);
+								main_chain.updateMainChain(conn, null, objUnit.unit, cb);
 							});
 						}
 						if (preCommitCallback)
@@ -451,9 +455,10 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 							profiler.stop('write-commit');
 							profiler.increment();
 							unlock();
-							eventBus.emit('saved_unit-'+objUnit.unit, objJoint);
+							if (!err)
+								eventBus.emit('saved_unit-'+objUnit.unit, objJoint);
 							if (onDone)
-								onDone();
+								onDone(err);
 							count_writes++;
 							if (conf.storage === 'sqlite')
 								updateSqliteStats();
@@ -488,6 +493,8 @@ function updateSqliteStats(){
 		return;
 	db.query("SELECT MAX(rowid) AS count_units FROM units", function(rows){
 		var count_units = rows[0].count_units;
+		if (count_units > 500000) // the db is too big
+			return;
 		readCountOfAnalyzedUnits(function(count_analyzed_units){
 			console.log('count analyzed units: '+count_analyzed_units);
 			if (count_units < 2*count_analyzed_units)

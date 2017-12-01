@@ -98,7 +98,7 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 		conn.query(
 			"SELECT unit, message_index, output_index, amount, blinding, address \n\
 			FROM outputs \n\
-			JOIN units USING(unit) \n\
+			CROSS JOIN units USING(unit) \n\
 			WHERE address IN(?) AND asset"+(asset ? "="+conn.escape(asset) : " IS NULL")+" AND is_spent=0 AND amount "+more+" ? \n\
 				AND is_stable=1 AND sequence='good' AND main_chain_index<=?  \n\
 			ORDER BY amount LIMIT 1", 
@@ -121,11 +121,11 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 		conn.query(
 			"SELECT unit, message_index, output_index, amount, address, blinding \n\
 			FROM outputs \n\
-			JOIN units USING(unit) \n\
+			CROSS JOIN units USING(unit) \n\
 			WHERE address IN(?) AND asset"+(asset ? "="+conn.escape(asset) : " IS NULL")+" AND is_spent=0 \n\
 				AND is_stable=1 AND sequence='good' AND main_chain_index<=?  \n\
-			ORDER BY amount DESC",
-			[arrSpendableAddresses, last_ball_mci],
+			ORDER BY amount DESC LIMIT ?",
+			[arrSpendableAddresses, last_ball_mci, constants.MAX_INPUTS_PER_PAYMENT_MESSAGE-2],
 			function(rows){
 				async.eachSeries(
 					rows,
@@ -388,6 +388,8 @@ function composeJoint(params){
 			function(ws, request, response){
 				if (response.error)
 					return params.callbacks.ifError(response.error);
+				if (!response.parent_units || !response.last_stable_mc_ball || !response.last_stable_mc_ball_unit || typeof response.last_stable_mc_ball_mci !== 'number')
+					return params.callbacks.ifError("invalid parents from light vendor");
 				params.lightProps = response;
 				composeJoint(params);
 			}
@@ -424,7 +426,7 @@ function composeJoint(params){
 	var arrSigningAddresses = params.signing_addresses || [];
 	var arrPayingAddresses = params.paying_addresses || [];
 	var arrOutputs = params.outputs || [];
-	var arrMessages = params.messages || [];
+	var arrMessages = _.clone(params.messages || []);
 	var assocPrivatePayloads = params.private_payloads || {}; // those that correspond to a subset of params.messages
 	var fnRetrieveMessages = params.retrieveMessages;
 	var lightProps = params.lightProps;
@@ -545,7 +547,9 @@ function composeJoint(params){
 			parentComposer.pickParentUnitsAndLastBall(
 				conn, 
 				arrWitnesses, 
-				function(arrParentUnits, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
+				function(err, arrParentUnits, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
+					if (err)
+						return cb("unable to find parents: "+err);
 					objUnit.parent_units = arrParentUnits;
 					objUnit.last_ball = last_stable_mc_ball;
 					objUnit.last_ball_unit = last_stable_mc_ball_unit;
@@ -570,29 +574,36 @@ function composeJoint(params){
 					address: from_address,
 					authentifiers: {}
 				};
-				signer.readSigningPaths(conn, from_address, function(arrSigningPaths){
+				signer.readSigningPaths(conn, from_address, function(assocLengthsBySigningPaths){
+					var arrSigningPaths = Object.keys(assocLengthsBySigningPaths);
 					assocSigningPaths[from_address] = arrSigningPaths;
 					for (var j=0; j<arrSigningPaths.length; j++)
-						objAuthor.authentifiers[arrSigningPaths[j]] = repeatString("-", signer.getSignatureLength(from_address, arrSigningPaths[j]));
+						objAuthor.authentifiers[arrSigningPaths[j]] = repeatString("-", assocLengthsBySigningPaths[arrSigningPaths[j]]);
 					objUnit.authors.push(objAuthor);
-					conn.query("SELECT 1 FROM addresses WHERE address=?", [from_address], function(rows){
-						if (rows.length === 0) // first message from this address
-							return setDefinition();
-						// try to find last stable change of definition, then check if the definition was already disclosed
-						conn.query(
-							"SELECT definition \n\
-							FROM address_definition_changes JOIN units USING(unit) LEFT JOIN definitions USING(definition_chash) \n\
-							WHERE address=? AND is_stable=1 AND sequence='good' AND main_chain_index<=? \n\
-							ORDER BY level DESC LIMIT 1", 
-							[from_address, last_ball_mci],
-							function(rows){
-								if (rows.length === 0) // no definition changes at all
-									return cb2();
-								var row = rows[0];
-								row.definition ? cb2() : setDefinition(); // if definition not found in the db, add it into the json
-							}
-						);
-					});
+					conn.query(
+						"SELECT 1 FROM unit_authors CROSS JOIN units USING(unit) \n\
+						WHERE address=? AND is_stable=1 AND sequence='good' AND main_chain_index<=? \n\
+						LIMIT 1", 
+						[from_address, last_ball_mci], 
+						function(rows){
+							if (rows.length === 0) // first message from this address
+								return setDefinition();
+							// try to find last stable change of definition, then check if the definition was already disclosed
+							conn.query(
+								"SELECT definition \n\
+								FROM address_definition_changes CROSS JOIN units USING(unit) LEFT JOIN definitions USING(definition_chash) \n\
+								WHERE address=? AND is_stable=1 AND sequence='good' AND main_chain_index<=? \n\
+								ORDER BY level DESC LIMIT 1", 
+								[from_address, last_ball_mci],
+								function(rows){
+									if (rows.length === 0) // no definition changes at all
+										return cb2();
+									var row = rows[0];
+									row.definition ? cb2() : setDefinition(); // if definition not found in the db, add it into the json
+								}
+							);
+						}
+					);
 				});
 			}, cb);
 		},
@@ -642,7 +653,11 @@ function composeJoint(params){
 			var naked_payload_commission = objectLength.getTotalPayloadSize(objUnit); // without input coins
 
 			if (bGenesis){
-				objPaymentMessage.payload.inputs = [{type: "issue", serial_number: 1, amount: constants.TOTAL_WHITEBYTES, address: arrWitnesses[0]}];
+				var issueInput = {type: "issue", serial_number: 1, amount: constants.TOTAL_WHITEBYTES};
+				if (objUnit.authors.length > 1) {
+					issueInput.address = arrWitnesses[0];
+				}
+				objPaymentMessage.payload.inputs = [issueInput];
 				objUnit.payload_commission = objectLength.getTotalPayloadSize(objUnit);
 				total_input = constants.TOTAL_WHITEBYTES;
 				return cb();
@@ -746,35 +761,56 @@ function composeJoint(params){
 	});
 }
 
-function readSortedFundedAddresses(asset, arrAvailableAddresses, handleFundedAddresses){
+var TYPICAL_FEE = 1000;
+var MAX_FEE = 20000;
+
+function filterMostFundedAddresses(rows, estimated_amount){
+	if (!estimated_amount)
+		return rows.map(function(row){ return row.address; });
+	var arrFundedAddresses = [];
+	var accumulated_amount = 0;
+	for (var i=0; i<rows.length; i++){
+		arrFundedAddresses.push(rows[i].address);
+		accumulated_amount += rows[i].total;
+		if (accumulated_amount > estimated_amount + MAX_FEE)
+			break;
+	}
+	return arrFundedAddresses;
+}
+
+function readSortedFundedAddresses(asset, arrAvailableAddresses, estimated_amount, handleFundedAddresses){
 	if (arrAvailableAddresses.length === 0)
 		return handleFundedAddresses([]);
-	// best funded addresses come first
+	if (estimated_amount && typeof estimated_amount !== 'number')
+		throw Error('invalid estimated amount: '+estimated_amount);
+	// addresses closest to estimated amount come first
+	var order_by = estimated_amount ? "(SUM(amount)>"+estimated_amount+") DESC, ABS(SUM(amount)-"+estimated_amount+") ASC" : "SUM(amount) DESC";
 	db.query(
 		"SELECT address, SUM(amount) AS total \n\
 		FROM outputs \n\
-		JOIN units USING(unit) \n\
+		CROSS JOIN units USING(unit) \n\
 		WHERE address IN(?) AND is_stable=1 AND sequence='good' AND is_spent=0 AND asset"+(asset ? "=?" : " IS NULL")+" \n\
 			AND NOT EXISTS ( \n\
 				SELECT * FROM unit_authors JOIN units USING(unit) \n\
 				WHERE is_stable=0 AND unit_authors.address=outputs.address AND definition_chash IS NOT NULL \n\
 			) \n\
-		GROUP BY address ORDER BY total DESC",
+		GROUP BY address ORDER BY "+order_by,
 		asset ? [arrAvailableAddresses, asset] : [arrAvailableAddresses],
 		function(rows){
-			var arrFundedAddresses = rows.map(function(row){ return row.address; });
-			if (arrFundedAddresses.length === 0)
+			var arrFundedAddresses = filterMostFundedAddresses(rows, estimated_amount);
+			handleFundedAddresses(arrFundedAddresses);
+		/*	if (arrFundedAddresses.length === 0)
 				return handleFundedAddresses([]);
 			if (!asset || arrFundedAddresses.length === arrAvailableAddresses.length) // base asset or all available addresses already used
 				return handleFundedAddresses(arrFundedAddresses);
 			
 			// add other addresses to pay for commissions (in case arrFundedAddresses don't have enough bytes to pay commissions)
 			var arrOtherAddresses = _.difference(arrAvailableAddresses, arrFundedAddresses);
-			readSortedFundedAddresses(null, arrOtherAddresses, function(arrFundedOtherAddresses){
+			readSortedFundedAddresses(null, arrOtherAddresses, TYPICAL_FEE, function(arrFundedOtherAddresses){
 				if (arrFundedOtherAddresses.length === 0)
 					return handleFundedAddresses(arrFundedAddresses);
 				handleFundedAddresses(arrFundedAddresses.concat(arrFundedOtherAddresses));
-			});
+			});*/
 		}
 	);
 }
@@ -782,7 +818,8 @@ function readSortedFundedAddresses(asset, arrAvailableAddresses, handleFundedAdd
 // tries to use as few of the params.available_paying_addresses as possible.
 // note: it doesn't select addresses that have _only_ witnessing or headers commissions outputs
 function composeMinimalJoint(params){
-	readSortedFundedAddresses(null, params.available_paying_addresses, function(arrFundedPayingAddresses){
+	var estimated_amount = (params.send_all || params.retrieveMessages) ? 0 : params.outputs.reduce(function(acc, output){ return acc+output.amount; }, 0) + TYPICAL_FEE;
+	readSortedFundedAddresses(null, params.available_paying_addresses, estimated_amount, function(arrFundedPayingAddresses){
 		if (arrFundedPayingAddresses.length === 0)
 			return params.callbacks.ifNotEnoughFunds("all paying addresses are unfunded");
 		var minimal_params = _.clone(params);
@@ -808,7 +845,9 @@ function getSavingCallbacks(callbacks){
 			var unit = objUnit.unit;
 			validation.validate(objJoint, {
 				ifUnitError: function(err){
-					throw Error("unexpected validation error: "+err);
+					composer_unlock();
+					callbacks.ifError("Validation error: "+err);
+				//	throw Error("unexpected validation error: "+err);
 				},
 				ifJointError: function(err){
 					throw Error("unexpected validation joint error: "+err);
@@ -824,6 +863,11 @@ function getSavingCallbacks(callbacks){
 				},
 				ifOk: function(objValidationState, validation_unlock){
 					console.log("base asset OK "+objValidationState.sequence);
+					if (objValidationState.sequence !== 'good'){
+						validation_unlock();
+						composer_unlock();
+						return callbacks.ifError("Bad sequence "+objValidationState.sequence);
+					}
 					postJointToLightVendorIfNecessaryAndSave(
 						objJoint, 
 						function onLightError(err){ // light only
@@ -901,6 +945,7 @@ exports.composeAssetAttestorsJoint = composeAssetAttestorsJoint;
 
 exports.composeJoint = composeJoint;
 
+exports.filterMostFundedAddresses = filterMostFundedAddresses;
 exports.readSortedFundedAddresses = readSortedFundedAddresses;
 exports.composeAndSaveMinimalJoint = composeAndSaveMinimalJoint;
 

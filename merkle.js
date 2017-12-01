@@ -81,9 +81,9 @@ function deserializeMerkleProof(serialized_proof){
 	return proof;
 }
 
-function verifyMerkleProof(element_hash, proof){
+function verifyMerkleProof(element, proof){
 	var index = proof.index;
-	var the_other_sibling = element_hash;
+	var the_other_sibling = hash(element);
 	for (var i=0; i<proof.siblings.length; i++){
 		// this also works for duplicated trailing nodes
 		if (index % 2 === 0)

@@ -10,22 +10,28 @@ var conf = require('./conf.js');
 // In all functions below, type=(headers_commission|witnessing)
 
 
-function readNextSpendableMcIndex(conn, type, address, handleNextSpendableMcIndex){
+function readNextSpendableMcIndex(conn, type, address, arrConflictingUnits, handleNextSpendableMcIndex){
 	conn.query(
-		"SELECT to_main_chain_index FROM inputs WHERE type=? AND address=? \n\
-		ORDER BY to_main_chain_index DESC LIMIT 1", [type, address],
+		"SELECT to_main_chain_index FROM inputs CROSS JOIN units USING(unit) \n\
+		WHERE type=? AND address=? AND sequence='good' "+(
+			(arrConflictingUnits && arrConflictingUnits.length > 0) 
+			? " AND unit NOT IN("+arrConflictingUnits.map(function(unit){ return db.escape(unit); }).join(", ")+") " 
+			: ""
+		)+" \n\
+		ORDER BY to_main_chain_index DESC LIMIT 1", 
+		[type, address],
 		function(rows){
 			var mci = (rows.length > 0) ? (rows[0].to_main_chain_index+1) : 0;
-			readNextUnspentMcIndex(conn, type, address, function(next_unspent_mci){
-				if (next_unspent_mci !== mci)
-					throw Error("next unspent mci !== next spendable mci: "+next_unspent_mci+" !== "+mci+", address "+address);
+		//	readNextUnspentMcIndex(conn, type, address, function(next_unspent_mci){
+		//		if (next_unspent_mci !== mci)
+		//			throw Error("next unspent mci !== next spendable mci: "+next_unspent_mci+" !== "+mci+", address "+address);
 				handleNextSpendableMcIndex(mci);
-			});
+		//	});
 		}
 	);
 }
 
-
+/*
 function readNextUnspentMcIndex(conn, type, address, handleNextUnspentMcIndex){
 	var table = type + '_outputs';
 	conn.query(
@@ -36,7 +42,7 @@ function readNextUnspentMcIndex(conn, type, address, handleNextUnspentMcIndex){
 		}
 	);
 }
-
+*/
 
 function readMaxSpendableMcIndex(conn, type, handleMaxSpendableMcIndex){
 	var table = type + '_outputs';
@@ -50,7 +56,7 @@ function readMaxSpendableMcIndex(conn, type, handleMaxSpendableMcIndex){
 
 function findMcIndexIntervalToTargetAmount(conn, type, address, max_mci, target_amount, callbacks){
 	var table = type + '_outputs';
-	readNextSpendableMcIndex(conn, type, address, function(from_mci){
+	readNextSpendableMcIndex(conn, type, address, null, function(from_mci){
 		if (from_mci > max_mci)
 			return callbacks.ifNothing();
 		readMaxSpendableMcIndex(conn, type, function(max_spendable_mci){
@@ -58,9 +64,9 @@ function findMcIndexIntervalToTargetAmount(conn, type, address, max_mci, target_
 				return callbacks.ifNothing();
 			if (max_spendable_mci > max_mci)
 				max_spendable_mci = max_mci;
+			if (target_amount === Infinity)
+				target_amount = 1e15;
 			if (conf.storage === 'mysql'){
-				if (target_amount === Infinity)
-					target_amount = 1e15;
 				conn.query(
 					"SELECT main_chain_index, accumulated, has_sufficient \n\
 					FROM ( \n\
@@ -83,12 +89,14 @@ function findMcIndexIntervalToTargetAmount(conn, type, address, max_mci, target_
 				);
 			}
 			else{
+				var MIN_MC_OUTPUT = (type === 'witnessing') ? 11 : 344;
+				var max_count_outputs = Math.ceil(target_amount/MIN_MC_OUTPUT);
 				conn.query(
 					"SELECT main_chain_index, amount \n\
 					FROM "+table+" \n\
-					WHERE is_spent=0 AND address=? AND +main_chain_index>=? AND +main_chain_index<=? \n\
-					ORDER BY main_chain_index",
-					[address, from_mci, max_spendable_mci],
+					WHERE is_spent=0 AND address=? AND main_chain_index>=? AND main_chain_index<=? \n\
+					ORDER BY main_chain_index LIMIT ?",
+					[address, from_mci, max_spendable_mci, max_count_outputs],
 					function(rows){
 						if (rows.length === 0)
 							return callbacks.ifNothing();

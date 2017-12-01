@@ -14,6 +14,7 @@ var writer = require('./writer.js');
 var graph = require('./graph.js');
 var profiler = require('./profiler.js');
 
+var NOT_ENOUGH_FUNDS_ERROR_MESSAGE = "not enough indivisible asset coins that fit the desired amount within the specified tolerances, make sure all your funds are confirmed";
 
 function validatePrivatePayment(conn, objPrivateElement, objPrevPrivateElement, callbacks){
 		
@@ -63,6 +64,10 @@ function validatePrivatePayment(conn, objPrivateElement, objPrevPrivateElement, 
 	var our_hidden_output = payload.outputs[objPrivateElement.output_index];
 	if (!ValidationUtils.isNonemptyObject(payload.outputs[objPrivateElement.output_index]))
 		return callbacks.ifError("no output at output_index");
+	if (!ValidationUtils.isValidAddress(objPrivateElement.output.address))
+		return callbacks.ifError("bad address in output");
+	if (!ValidationUtils.isNonemptyString(objPrivateElement.output.blinding))
+		return callbacks.ifError("bad blinding in output");
 	if (objectHash.getBase64Hash(objPrivateElement.output) !== our_hidden_output.output_hash)
 		return callbacks.ifError("output hash doesn't match, output="+JSON.stringify(objPrivateElement.output)+", hash="+our_hidden_output.output_hash);
 	if (!ValidationUtils.isArrayOfLength(payload.inputs, 1))
@@ -298,7 +303,8 @@ function updateIndivisibleOutputsThatWereReceivedUnstable(conn, onDone){
 	
 	console.log("updatePrivateIndivisibleOutputsThatWereReceivedUnstable starting");
 	conn.query(
-		"SELECT unit, message_index, sequence FROM outputs JOIN units USING(unit) \n\
+		"SELECT unit, message_index, sequence FROM outputs "+(conf.storage === 'sqlite' ? "INDEXED BY outputsIsSerial" : "")+" \n\
+		JOIN units USING(unit) \n\
 		WHERE outputs.is_serial IS NULL AND units.is_stable=1 AND is_spent=0", // is_spent=0 selects the final output in the chain
 		function(rows){
 			if (rows.length === 0)
@@ -368,6 +374,8 @@ function updateIndivisibleOutputsThatWereReceivedUnstable(conn, onDone){
 function pickIndivisibleCoinsForAmount(
 	conn, objAsset, arrAddresses, last_ball_mci, to_address, change_address, amount, tolerance_plus, tolerance_minus, bMultiAuthored, onDone)
 {
+	if (!ValidationUtils.isPositiveInteger(amount))
+		throw Error("bad amount: "+amount);
 	updateIndivisibleOutputsThatWereReceivedUnstable(conn, function(){
 		console.log("updatePrivateIndivisibleOutputsThatWereReceivedUnstable done");
 		var arrPayloadsWithProofs = [];
@@ -402,8 +410,8 @@ function pickIndivisibleCoinsForAmount(
 				throw Error("remaining amount is "+remaining_amount);
 			conn.query(
 				"SELECT output_id, unit, message_index, output_index, amount, denomination, address, blinding, is_stable \n\
-				FROM outputs JOIN units USING(unit) \n\
-				WHERE asset=? AND address IN(?) AND is_serial=1 AND is_spent=0 AND sequence='good' \n\
+				FROM outputs CROSS JOIN units USING(unit) \n\
+				WHERE asset=? AND address IN(?) AND +is_serial=1 AND is_spent=0 AND sequence='good' \n\
 					AND main_chain_index<=? AND denomination<=? AND output_id NOT IN(?) \n\
 				ORDER BY denomination DESC, (amount>=?) DESC, ABS(amount-?) LIMIT 1",
 				[asset, arrAddresses, 
@@ -457,7 +465,9 @@ function pickIndivisibleCoinsForAmount(
 					arrOutputIds.push(row.output_id);
 					accumulated_amount += amount_to_use;
 					if (accumulated_amount >= amount - tolerance_minus && accumulated_amount <= amount + tolerance_plus)
-						return onDone(arrPayloadsWithProofs);
+						return onDone(null, arrPayloadsWithProofs);
+					if (arrPayloadsWithProofs.length >= constants.MAX_MESSAGES_PER_UNIT - 1) // reserve 1 for fees
+						return onDone("Too many messages, try sending a smaller amount");
 					pickNextCoin(amount - accumulated_amount);
 				}
 			);
@@ -466,7 +476,7 @@ function pickIndivisibleCoinsForAmount(
 		function issueNextCoinIfAllowed(remaining_amount){
 			return (!objAsset.issued_by_definer_only || arrAddresses.indexOf(objAsset.definer_address) >= 0) 
 				? issueNextCoin(remaining_amount) 
-				: onDone(null);
+				: onDone(NOT_ENOUGH_FUNDS_ERROR_MESSAGE);
 		}
 		
 		function issueNextCoin(remaining_amount){
@@ -482,7 +492,7 @@ function pickIndivisibleCoinsForAmount(
 				[asset, remaining_amount+tolerance_plus], 
 				function(rows){
 					if (rows.length === 0)
-						return onDone(null);
+						return onDone(NOT_ENOUGH_FUNDS_ERROR_MESSAGE);
 					var row = rows[0];
 					if (!!row.count_coins !== !!objAsset.cap)
 						throw Error("invalid asset cap and count_coins");
@@ -535,7 +545,7 @@ function pickIndivisibleCoinsForAmount(
 							accumulated_amount += amount_to_use;
 							console.log("payloads with proofs: "+JSON.stringify(arrPayloadsWithProofs));
 							if (accumulated_amount >= amount - tolerance_minus && accumulated_amount <= amount + tolerance_plus)
-								return onDone(arrPayloadsWithProofs);
+								return onDone(null, arrPayloadsWithProofs);
 							pickNextCoin(amount - accumulated_amount);
 						}
 					);
@@ -677,37 +687,48 @@ function buildPrivateElementsChain(conn, unit, message_index, output_index, payl
 }
 
 function composeIndivisibleAssetPaymentJoint(params){
-	console.log("indivisible payment from "+params.paying_addresses);
+	console.log("indivisible payment from "+params.paying_addresses, params);
+	if ((params.to_address || params.amount) && params.asset_outputs)
+		throw Error("to_address and asset_outputs at the same time");
+	if (params.asset_outputs){
+		if (params.asset_outputs.length !== 1)
+			throw Error("multiple indivisible asset outputs not supported");
+		params.amount = params.asset_outputs[0].amount;
+		params.to_address = params.asset_outputs[0].address;
+	}
+	if (!ValidationUtils.isNonemptyArray(params.fee_paying_addresses))
+		throw Error('no fee_paying_addresses');
 	composer.composeJoint({
-		paying_addresses: params.paying_addresses, // addresses that pay for the transfer and commissions
+		paying_addresses: _.union(params.paying_addresses, params.fee_paying_addresses), // addresses that pay for the transfer and commissions
 		signing_addresses: params.signing_addresses,
 		minimal: params.minimal,
-		outputs: [{address: params.paying_addresses[0], amount: 0}], // public outputs in bytes: the change only
+		outputs: [{address: params.fee_paying_addresses[0], amount: 0}], // public outputs in bytes: the change only
 		
 		// function that creates additional messages to be added to the joint
 		retrieveMessages: function createAdditionalMessages(conn, last_ball_mci, bMultiAuthored, arrPayingAddresses, onDone){
-			storage.loadAssetWithListOfAttestedAuthors(conn, params.asset, last_ball_mci, arrPayingAddresses, function(err, objAsset){
+			var arrAssetPayingAddresses = _.intersection(arrPayingAddresses, params.paying_addresses);
+			storage.loadAssetWithListOfAttestedAuthors(conn, params.asset, last_ball_mci, arrAssetPayingAddresses, function(err, objAsset){
 				if (err)
 					return onDone(err);
 				if (!objAsset.fixed_denominations)
 					return onDone("divisible asset type");
-				if (!objAsset.is_transferrable && params.to_address !== objAsset.definer_address && arrPayingAddresses.indexOf(objAsset.definer_address) === -1)
+				if (!objAsset.is_transferrable && params.to_address !== objAsset.definer_address && arrAssetPayingAddresses.indexOf(objAsset.definer_address) === -1)
 					return onDone("the asset is not transferrable and definer not found on either side of the deal");
-				if (objAsset.cosigned_by_definer && arrPayingAddresses.indexOf(objAsset.definer_address) === -1)
+				if (objAsset.cosigned_by_definer && arrPayingAddresses.concat(params.signing_addresses || []).indexOf(objAsset.definer_address) === -1)
 					return onDone("the asset must be cosigned by definer");
 				if (objAsset.spender_attested && objAsset.arrAttestedAddresses.length === 0)
 					return onDone("none of the authors is attested");
 				
 				pickIndivisibleCoinsForAmount(
-					conn, objAsset, arrPayingAddresses, last_ball_mci, 
+					conn, objAsset, arrAssetPayingAddresses, last_ball_mci, 
 					params.to_address, params.change_address,
 					params.amount, params.tolerance_plus || 0, params.tolerance_minus || 0, 
 					bMultiAuthored, 
-					function(arrPayloadsWithProofs){
+					function(err, arrPayloadsWithProofs){
 						if (!arrPayloadsWithProofs)
 							return onDone({
 								error_code: "NOT_ENOUGH_FUNDS", 
-								error: "not enough indivisible asset coins that fit the desired amount within the specified tolerances"
+								error: err
 							});
 						var arrMessages = [];
 						var assocPrivatePayloads = {};
@@ -771,7 +792,9 @@ function getSavingCallbacks(to_address, callbacks){
 			var unit = objUnit.unit;
 			validation.validate(objJoint, {
 				ifUnitError: function(err){
-					throw Error("unexpected validation error: "+err);
+					composer_unlock();
+					callbacks.ifError("Validation error: "+err);
+				//	throw Error("unexpected validation error: "+err);
 				},
 				ifJointError: function(err){
 					throw Error("unexpected validation joint error: "+err);
@@ -787,6 +810,11 @@ function getSavingCallbacks(to_address, callbacks){
 				},
 				ifOk: function(objValidationState, validation_unlock){
 					console.log("Private OK "+objValidationState.sequence);
+					if (objValidationState.sequence !== 'good'){
+						validation_unlock();
+						composer_unlock();
+						return callbacks.ifError("Indivisible asset bad sequence "+objValidationState.sequence);
+					}
 					var bPrivate = !!assocPrivatePayloads;
 					var arrRecipientChains = bPrivate ? [] : null; // chains for to_address
 					var arrCosignerChains = bPrivate ? [] : null; // chains for all output addresses, including change, to be shared with cosigners (if any)
@@ -828,17 +856,52 @@ function getSavingCallbacks(to_address, callbacks){
 								},
 								function(err){
 									if (err){
+										console.log("===== error in precommit callback: "+err);
 										bPreCommitCallbackFailed = true;
 										return cb(err);
 									}
+									var onSuccessfulPrecommit = !conf.bLight ? cb : function(){
+										composer.postJointToLightVendorIfNecessaryAndSave(
+											objJoint, 
+											function onLightError(err){ // light only
+												console.log("failed to post indivisible payment "+unit);
+												bPreCommitCallbackFailed = true;
+												cb(err); // will rollback
+											},
+											function save(){ // not actually saving yet but greenlighting the commit
+												cb();
+											}
+										);
+									};
 									if (!callbacks.preCommitCb)
-										return cb();
-									callbacks.preCommitCb(conn, arrRecipientChains, arrCosignerChains, cb);
+										return onSuccessfulPrecommit();
+									callbacks.preCommitCb(conn, arrRecipientChains, arrCosignerChains, onSuccessfulPrecommit);
 								}
 							);
 						};
 					}
 					
+					var saveAndUnlock = function(){
+						writer.saveJoint(
+							objJoint, objValidationState, 
+							preCommitCallback,
+							function onDone(err){
+								console.log("saved unit "+unit);
+								validation_unlock();
+								composer_unlock();
+								if (bPreCommitCallbackFailed)
+									callbacks.ifError("precommit callback failed: "+err);
+								else
+									callbacks.ifOk(objJoint, arrRecipientChains, arrCosignerChains);
+							}
+						);
+					};
+					
+					// if light and private, we'll post the joint later, in precommit 
+					// (saving private payloads can take quite some time and the app can be killed before saving them to its local database, 
+					// we should not broadcast the joint earlier)
+					if (bPrivate || !conf.bLight)
+						return saveAndUnlock();
 					composer.postJointToLightVendorIfNecessaryAndSave(
 						objJoint, 
 						function onLightError(err){ // light only
@@ -847,21 +910,7 @@ function getSavingCallbacks(to_address, callbacks){
 							composer_unlock();
 							callbacks.ifError(err);
 						},
-						function save(){
-							writer.saveJoint(
-								objJoint, objValidationState, 
-								preCommitCallback,
-								function onDone(){
-									console.log("saved unit "+unit);
-									validation_unlock();
-									composer_unlock();
-									if (bPreCommitCallbackFailed)
-										callbacks.ifError("precommit callback failed");
-									else
-										callbacks.ifOk(objJoint, arrRecipientChains, arrCosignerChains);
-								}
-							);
-						}
+						saveAndUnlock
 					);
 				} // ifOk validation
 			}); // validate
@@ -907,6 +956,8 @@ function restorePrivateChains(asset, unit, to_address, handleChains){
 								function(outputs){
 									if (outputs.length === 0)
 										throw Error("outputs not found for mi "+message_index);
+									if (!outputs.some(function(output){ return (output.address && output.blinding); }))
+										throw Error("all outputs are hidden");
 									payload.outputs = outputs;
 									var hidden_payload = _.cloneDeep(payload);
 									hidden_payload.outputs.forEach(function(o){
@@ -919,6 +970,8 @@ function restorePrivateChains(asset, unit, to_address, handleChains){
 									async.forEachOfSeries(
 										payload.outputs,
 										function(output, output_index, cb3){
+											if (!output.address || !output.blinding) // skip
+												return cb3();
 											// we have only heads of the chains so far. Now add the tails.
 											buildPrivateElementsChain(
 												db, unit, message_index, output_index, payload, 
@@ -945,10 +998,10 @@ function restorePrivateChains(asset, unit, to_address, handleChains){
 	);
 }
 
-// {asset: asset, paying_addresses: arrFromAddresses, to_address: to_address, change_address: change_address, amount: amount, tolerance_plus: tolerance_plus, tolerance_minus: tolerance_minus, signer: signer, callbacks: callbacks}
+// {asset: asset, paying_addresses: arrPayingAddresses, fee_paying_addresses: arrFeePayingAddresses, to_address: to_address, change_address: change_address, amount: amount, tolerance_plus: tolerance_plus, tolerance_minus: tolerance_minus, signer: signer, callbacks: callbacks}
 function composeAndSaveIndivisibleAssetPaymentJoint(params){
 	var params_with_save = _.clone(params);
-	params_with_save.callbacks = getSavingCallbacks(params.to_address, params.callbacks);
+	params_with_save.callbacks = getSavingCallbacks(getToAddress(params), params.callbacks);
 	composeIndivisibleAssetPaymentJoint(params_with_save);
 }
 
@@ -956,7 +1009,7 @@ function readAddressesFundedInAsset(asset, amount, arrAvailablePayingAddresses, 
 	var remaining_amount = amount;
 	var assocAddresses = {};
 	db.query(
-		"SELECT amount, denomination, address FROM outputs JOIN units USING(unit) \n\
+		"SELECT amount, denomination, address FROM outputs CROSS JOIN units USING(unit) \n\
 		WHERE is_spent=0 AND address IN(?) AND is_stable=1 AND sequence='good' AND asset=? \n\
 			AND NOT EXISTS ( \n\
 				SELECT * FROM unit_authors JOIN units USING(unit) \n\
@@ -981,39 +1034,59 @@ function readAddressesFundedInAsset(asset, amount, arrAvailablePayingAddresses, 
 	);
 }
 
+var TYPICAL_FEE = 3000;
+
 // reads addresses funded in asset plus addresses for paying commissions
-function readFundedAddresses(asset, amount, arrAvailablePayingAddresses, handleFundedAddresses){
+function readFundedAddresses(asset, amount, arrAvailablePayingAddresses, arrAvailableFeePayingAddresses, handleFundedAddresses){
 	readAddressesFundedInAsset(asset, amount, arrAvailablePayingAddresses, function(arrAddressesFundedInAsset){
 		// add other addresses to pay for commissions (in case arrAddressesFundedInAsset don't have enough bytes to pay commissions)
-		var arrOtherAddresses = _.difference(arrAvailablePayingAddresses, arrAddressesFundedInAsset);
-		if (arrOtherAddresses.length === 0)
-			return handleFundedAddresses(arrAddressesFundedInAsset);
-		composer.readSortedFundedAddresses(null, arrOtherAddresses, function(arrFundedOtherAddresses){
-			if (arrFundedOtherAddresses.length === 0)
-				return handleFundedAddresses(arrAddressesFundedInAsset);
-			handleFundedAddresses(arrAddressesFundedInAsset.concat(arrFundedOtherAddresses));
+	//	var arrOtherAddresses = _.difference(arrAvailablePayingAddresses, arrAddressesFundedInAsset);
+	//	if (arrOtherAddresses.length === 0)
+	//		return handleFundedAddresses(arrAddressesFundedInAsset);
+		composer.readSortedFundedAddresses(null, arrAvailableFeePayingAddresses, TYPICAL_FEE, function(arrFundedFeePayingAddresses){
+		//	if (arrFundedOtherAddresses.length === 0)
+		//		return handleFundedAddresses(arrAddressesFundedInAsset);
+		//	handleFundedAddresses(arrAddressesFundedInAsset.concat(arrFundedOtherAddresses));
+			handleFundedAddresses(arrAddressesFundedInAsset, arrFundedFeePayingAddresses);
 		});
 	});
 }
 
-// {asset: asset, available_paying_addresses: arrAvailableFromAddresses, to_address: to_address, change_address: change_address, amount: amount, tolerance_plus: tolerance_plus, tolerance_minus: tolerance_minus, signer: signer, callbacks: callbacks}
+// {asset: asset, available_paying_addresses: arrAvailablePayingAddresses, available_fee_paying_addresses: arrAvailableFeePayingAddresses, to_address: to_address, change_address: change_address, amount: amount, tolerance_plus: tolerance_plus, tolerance_minus: tolerance_minus, signer: signer, callbacks: callbacks}
 function composeMinimalIndivisibleAssetPaymentJoint(params){
-	readFundedAddresses(params.asset, params.amount, params.available_paying_addresses, function(arrFundedPayingAddresses){
-		if (arrFundedPayingAddresses.length === 0)
-			return params.callbacks.ifNotEnoughFunds("all paying addresses are unfunded in asset");
-		var minimal_params = _.clone(params);
-		delete minimal_params.available_paying_addresses;
-		minimal_params.minimal = true;
-		minimal_params.paying_addresses = arrFundedPayingAddresses;
-		composeIndivisibleAssetPaymentJoint(minimal_params);
-	});
+	if (!ValidationUtils.isNonemptyArray(params.available_paying_addresses))
+		throw Error('no available_paying_addresses');
+	if (!ValidationUtils.isNonemptyArray(params.available_fee_paying_addresses))
+		throw Error('no available_fee_paying_addresses');
+	readFundedAddresses(
+		params.asset, params.amount, params.available_paying_addresses, params.available_fee_paying_addresses, 
+		function(arrFundedPayingAddresses, arrFundedFeePayingAddresses){
+			if (arrFundedPayingAddresses.length === 0)
+				return params.callbacks.ifNotEnoughFunds("all paying addresses are unfunded in asset, make sure all your funds are confirmed");
+			var minimal_params = _.clone(params);
+			delete minimal_params.available_paying_addresses;
+			delete minimal_params.available_fee_paying_addresses;
+			minimal_params.minimal = true;
+			minimal_params.paying_addresses = arrFundedPayingAddresses;
+			minimal_params.fee_paying_addresses = arrFundedFeePayingAddresses;
+			composeIndivisibleAssetPaymentJoint(minimal_params);
+		}
+	);
 }
 
-// {asset: asset, available_paying_addresses: arrAvailableFromAddresses, to_address: to_address, amount: amount, tolerance_plus: tolerance_plus, tolerance_minus: tolerance_minus, signer: signer, callbacks: callbacks}
+// {asset: asset, available_paying_addresses: arrAvailablePayingAddresses, available_fee_paying_addresses: arrAvailableFeePayingAddresses, to_address: to_address, amount: amount, tolerance_plus: tolerance_plus, tolerance_minus: tolerance_minus, signer: signer, callbacks: callbacks}
 function composeAndSaveMinimalIndivisibleAssetPaymentJoint(params){
 	var params_with_save = _.clone(params);
-	params_with_save.callbacks = getSavingCallbacks(params.to_address, params.callbacks);
+	params_with_save.callbacks = getSavingCallbacks(getToAddress(params), params.callbacks);
 	composeMinimalIndivisibleAssetPaymentJoint(params_with_save);
+}
+
+function getToAddress(params){
+	if (params.to_address)
+		return params.to_address;
+	if (params.asset_outputs)
+		return params.asset_outputs[0].address;
+	throw Error("unable to determine to_address");
 }
 
 
