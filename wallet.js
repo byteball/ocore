@@ -1417,14 +1417,17 @@ function sendMultiPayment(opts, handleResult)
 					},
 					preCommitCb: function(conn, objJoint, cb){
 						var i = 0;
-						for (var to in assocMnemonics) {
-							conn.query("INSERT INTO sent_mnemonics (unit, address, mnemonic, textAddress) VALUES (?, ?, ?, ?)", [objJoint.unit.unit, assocAddresses[to], assocMnemonics[to], to.slice(prefix.length)],
-							function(){
-								if (++i == Object.keys(assocMnemonics).length) { // stored all mnemonics
-									cb();
-								}
-							});
-						}
+						if (Object.keys(assocMnemonics).length) {
+							for (var to in assocMnemonics) {
+								conn.query("INSERT INTO sent_mnemonics (unit, address, mnemonic, textAddress) VALUES (?, ?, ?, ?)", [objJoint.unit.unit, assocAddresses[to], assocMnemonics[to], to.slice(prefix.length)],
+								function(){
+									if (++i == Object.keys(assocMnemonics).length) { // stored all mnemonics
+										cb();
+									}
+								});
+							}
+						} else 
+							cb();
 					},
 					// for asset payments, 2nd argument is array of chains of private elements
 					// for base asset, 2nd argument is assocPrivatePayloads which is null
