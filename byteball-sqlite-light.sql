@@ -694,9 +694,9 @@ CREATE TABLE sent_mnemonics (
 	address CHAR(32) NOT NULL,
 	mnemonic VARCHAR(107) NOT NULL,
 	textAddress VARCHAR(120) NOT NULL,
-	PRIMARY KEY (unit),
 	FOREIGN KEY (unit) REFERENCES units(unit)
 );
 CREATE INDEX sentByAddress ON sent_mnemonics(address);
+CREATE INDEX sentByUnit ON sent_mnemonics(unit);
 
 PRAGMA user_version=16;
