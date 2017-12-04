@@ -121,8 +121,8 @@ function migrateDb(connection, onDone){
 				textAddress VARCHAR(120) NOT NULL, \n\
 				FOREIGN KEY (unit) REFERENCES units(unit) \n\
 			)");
-			connection.addQuery(arrQueries, "CREATE INDEX sentByAddress ON sent_mnemonics(address)");
-			connection.addQuery(arrQueries, "CREATE INDEX sentByUnit ON sent_mnemonics(unit)");
+			connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS sentByAddress ON sent_mnemonics(address)");
+			connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS sentByUnit ON sent_mnemonics(unit)");
 		}
 		connection.addQuery(arrQueries, "PRAGMA user_version="+VERSION);
 		eventBus.emit('started_db_upgrade');
