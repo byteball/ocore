@@ -123,6 +123,7 @@ function migrateDb(connection, onDone){
 			)");
 			connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS sentByAddress ON sent_mnemonics(address)");
 			connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS sentByUnit ON sent_mnemonics(unit)");
+			connection.addQuery(arrQueries, "DELETE FROM known_bad_joints");
 		}
 		connection.addQuery(arrQueries, "PRAGMA user_version="+VERSION);
 		eventBus.emit('started_db_upgrade');
