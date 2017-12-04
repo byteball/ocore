@@ -1173,89 +1173,6 @@ function sendPaymentFromWallet(
 	}, handleResult);
 }
 
-function receiveTextCoin(mnemonic, addressTo, cb) {
-	mnemonic = mnemonic.toLowerCase().split('-').join(' ');
-	if ((mnemonic.split(' ').length % 3 !== 0) || !Mnemonic.isValid(mnemonic)) {
-		return cb("invalid mnemonic");
-	}
-	var mnemonic = new Mnemonic(mnemonic);
-	try {
-		var xPrivKey = mnemonic.toHDPrivateKey().derive("m/44'/0'/0'/0/0");
-		var pubkey = xPrivKey.publicKey.toBuffer().toString("base64");
-	} catch (e) {
-		cb(e.message);
-		return;
-	}
-	var definition = ["sig", {"pubkey": pubkey}];
-	var address = objectHash.getChash160(definition);
-	var signer = {
-		readSigningPaths: function(conn, address, handleLengthsBySigningPaths){ // returns assoc array signing_path => length
-			var assocLengthsBySigningPaths = {};
-			assocLengthsBySigningPaths["r"] = constants.SIG_LENGTH;
-			handleLengthsBySigningPaths(assocLengthsBySigningPaths);
-		},
-		readDefinition: function(conn, address, handleDefinition){
-			handleDefinition(null, definition);
-		},
-		sign: function(objUnsignedUnit, assocPrivatePayloads, address, signing_path, handleSignature){
-			handleSignature(null, ecdsaSig.sign(objectHash.getUnitHashToSign(objUnsignedUnit), xPrivKey.privateKey.bn.toBuffer({size:32})));
-		}
-	};
-	var opts = {};
-	opts.signer = signer;
-	opts.send_all = true;
-	opts.outputs = [{address: addressTo, amount: 0}];
-	opts.paying_addresses = [address];
- 	opts.callbacks = composer.getSavingCallbacks({
-		ifNotEnoughFunds: function(err){
-			cb("This textcoin was already claimed");
-		},
-		ifError: function(err){
-			cb(err);
-		},
-		ifOk: function(objJoint, arrChainsOfRecipientPrivateElements, arrChainsOfCosignerPrivateElements){
-			network.broadcastJoint(objJoint);
-			cb(null, objJoint.unit.unit);
-		}
-	});
-
-
-	if (conf.bLight) {
-		db.query(
-			"SELECT 1 \n\
-			FROM outputs JOIN units USING(unit) WHERE address=? LIMIT 1", 
-			[address],
-			function(rows){
-				if (rows.length === 0) {
-					network.requestHistoryFor([], [address], function(){
-						checkStability();
-					});
-				}
-				else
-					checkStability();
-			}
-		);
-	}
-	else
-		checkStability();
-
-	// check stability of payingAddresses
-	function checkStability() {
-		db.query(
-			"SELECT 1 \n\
-			FROM outputs JOIN units USING(unit) WHERE address=? AND is_stable=1 and sequence='good' LIMIT 1", 
-			[address],
-			function(rows){
-				if (rows.length === 0) {
-					cb("This payment is not confirmed yet, try again later");
-				} else {
-					composer.composeJoint(opts);
-				}
-			}
-		);		
-	}
-}
-
 function sendMultiPayment(opts, handleResult)
 {
 	var asset = opts.asset;
@@ -1547,6 +1464,89 @@ function forwardPrivateChainsToOtherMembersOfSharedAddresses(arrChainsOfCosigner
 			});
 		});
 	});
+}
+
+function receiveTextCoin(mnemonic, addressTo, cb) {
+	mnemonic = mnemonic.toLowerCase().split('-').join(' ');
+	if ((mnemonic.split(' ').length % 3 !== 0) || !Mnemonic.isValid(mnemonic)) {
+		return cb("invalid mnemonic");
+	}
+	var mnemonic = new Mnemonic(mnemonic);
+	try {
+		var xPrivKey = mnemonic.toHDPrivateKey().derive("m/44'/0'/0'/0/0");
+		var pubkey = xPrivKey.publicKey.toBuffer().toString("base64");
+	} catch (e) {
+		cb(e.message);
+		return;
+	}
+	var definition = ["sig", {"pubkey": pubkey}];
+	var address = objectHash.getChash160(definition);
+	var signer = {
+		readSigningPaths: function(conn, address, handleLengthsBySigningPaths){ // returns assoc array signing_path => length
+			var assocLengthsBySigningPaths = {};
+			assocLengthsBySigningPaths["r"] = constants.SIG_LENGTH;
+			handleLengthsBySigningPaths(assocLengthsBySigningPaths);
+		},
+		readDefinition: function(conn, address, handleDefinition){
+			handleDefinition(null, definition);
+		},
+		sign: function(objUnsignedUnit, assocPrivatePayloads, address, signing_path, handleSignature){
+			handleSignature(null, ecdsaSig.sign(objectHash.getUnitHashToSign(objUnsignedUnit), xPrivKey.privateKey.bn.toBuffer({size:32})));
+		}
+	};
+	var opts = {};
+	opts.signer = signer;
+	opts.send_all = true;
+	opts.outputs = [{address: addressTo, amount: 0}];
+	opts.paying_addresses = [address];
+ 	opts.callbacks = composer.getSavingCallbacks({
+		ifNotEnoughFunds: function(err){
+			cb("This textcoin was already claimed");
+		},
+		ifError: function(err){
+			cb(err);
+		},
+		ifOk: function(objJoint, arrChainsOfRecipientPrivateElements, arrChainsOfCosignerPrivateElements){
+			network.broadcastJoint(objJoint);
+			cb(null, objJoint.unit.unit);
+		}
+	});
+
+
+	if (conf.bLight) {
+		db.query(
+			"SELECT 1 \n\
+			FROM outputs JOIN units USING(unit) WHERE address=? LIMIT 1", 
+			[address],
+			function(rows){
+				if (rows.length === 0) {
+					network.requestHistoryFor([], [address], function(){
+						checkStability();
+					});
+				}
+				else
+					checkStability();
+			}
+		);
+	}
+	else
+		checkStability();
+
+	// check stability of payingAddresses
+	function checkStability() {
+		db.query(
+			"SELECT 1 \n\
+			FROM outputs JOIN units USING(unit) WHERE address=? AND is_stable=1 and sequence='good' LIMIT 1", 
+			[address],
+			function(rows){
+				if (rows.length === 0) {
+					cb("This payment is not confirmed yet, try again later");
+				} else {
+					composer.composeJoint(opts);
+				}
+			}
+		);		
+	}
 }
 
 function readDeviceAddressesUsedInSigningPaths(onDone){
