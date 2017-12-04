@@ -114,15 +114,15 @@ function migrateDb(connection, onDone){
 			)");
 		}
 		if (version < 16){
-			connection.addQuery(arrQueries, "CREATE TABLE sent_mnemonics ( \n\
+			connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS sent_mnemonics ( \n\
 				unit CHAR(44) NOT NULL, \n\
 				address CHAR(32) NOT NULL, \n\
 				mnemonic VARCHAR(107) NOT NULL, \n\
 				textAddress VARCHAR(120) NOT NULL, \n\
-				PRIMARY KEY (unit), \n\
 				FOREIGN KEY (unit) REFERENCES units(unit) \n\
 			)");
 			connection.addQuery(arrQueries, "CREATE INDEX sentByAddress ON sent_mnemonics(address)");
+			connection.addQuery(arrQueries, "CREATE INDEX sentByUnit ON sent_mnemonics(unit)");
 		}
 		connection.addQuery(arrQueries, "PRAGMA user_version="+VERSION);
 		eventBus.emit('started_db_upgrade');

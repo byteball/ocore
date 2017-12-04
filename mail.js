@@ -1,6 +1,7 @@
 'use strict';
 var child_process = require('child_process');
 var conf = require('./conf.js');
+var constants = require('./constants.js');
 var DNS = require('dns');
 var nodemailer = require('node4mailer');
 var fs = require('fs');
@@ -26,7 +27,7 @@ function sendBugEmail(error_message, exception){
 	});
 }
 
-function sendEmail(email, params, cb, forceInsecure) {
+function sendSMTPEmail(email, params, cb, forceInsecure) {
 	var hostname = email.slice(email.indexOf("@")+1);
 	var secure = forceInsecure ? false : true;
 	DNS.resolveMx(hostname, function(err, exchanges){
@@ -45,7 +46,7 @@ function sendEmail(email, params, cb, forceInsecure) {
 		});
 
 		fs.readFile(__dirname + '/email_template.html', 'utf8', function (err, template) {
-			params.amount -= TEXTCOIN_CLAIM_FEE;
+			params.amount -= constants.TEXTCOIN_CLAIM_FEE;
 			var html = template.replace(/\{\{mnemonic\}\}/g, params.mnemonic).replace(/\{\{amount\}\}/g, params.amount).replace(/\{\{asset\}\}/g, params.asset);
 			var text = "Someone sent you " + params.amount + " " + params.asset + ", to claim it download Byteball wallet and recover Wallet from the following Seed: " + params.mnemonic;
 			let mailOptions = {
@@ -67,6 +68,6 @@ function sendEmail(email, params, cb, forceInsecure) {
 	});
 }
 
-exports.sendEmail = sendEmail;
+exports.sendSMTPEmail = sendSMTPEmail;
 exports.sendmail = sendmail;
 exports.sendBugEmail = sendBugEmail;

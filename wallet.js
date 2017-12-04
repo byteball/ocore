@@ -916,7 +916,10 @@ function readTransactionHistory(opts, handleHistory){
 						db.query(queryString, parameters, 
 							function(payee_rows){
 								var action = payee_rows.some(function(payee){ return payee.is_external; }) ? 'sent' : 'moved';
-								if (payee_rows.length == 0) cb();
+								if (payee_rows.length == 0) {
+									cb();
+									return;
+								}
 								var done = 0;
 								for (var i=0; i<payee_rows.length; i++){
 									var payee = payee_rows[i];
@@ -1132,7 +1135,6 @@ function readAdditionalSigningAddresses(arrPayingAddresses, arrSigningAddresses,
 }
 
 var TYPICAL_FEE = 1000;
-var TEXTCOIN_CLAIM_FEE = 548;
 
 // fee_paying_wallet is used only if there are no bytes on the asset wallet, it is a sort of fallback wallet for fees
 function readFundedAndSigningAddresses(
@@ -1450,13 +1452,13 @@ function sendMultiPayment(opts, handleResult)
 						if (Object.keys(assocEmails).length) { // need to send emails
 							var sent = 0;
 							for (var email in assocEmails) {
-								mail.sendEmail(email, {mnemonic: assocEmails[email], amount: amount, asset: (asset ? asset : 'bytes')}, function(err, msgInfo){
+								mail.sendSMTPEmail(email, {mnemonic: assocEmails[email], amount: amount, asset: (asset ? asset : 'bytes')}, function(err, msgInfo){
 									if (err && (err.code == "ETLS" || err.message.indexOf("certificate") > -1)) {
 										if (typeof insecureSendAsk !== "function")
 											insecureSendAsk = function(email, answer){answer(true)};
 										insecureSendAsk(email, function(answer){
 											if (answer) {
-												mail.sendEmail(email, {mnemonic: assocEmails[email], amount: amount, asset: (asset ? asset : 'bytes')}, function(){}, true);
+												mail.sendSMTPEmail(email, {mnemonic: assocEmails[email], amount: amount, asset: (asset ? asset : 'bytes')}, function(){}, true);
 											}
 										});
 									}
@@ -1605,4 +1607,3 @@ exports.sendMultiPayment = sendMultiPayment;
 exports.readDeviceAddressesUsedInSigningPaths = readDeviceAddressesUsedInSigningPaths;
 exports.determineIfDeviceCanBeRemoved = determineIfDeviceCanBeRemoved;
 exports.receiveTextCoin = receiveTextCoin;
-exports.TEXTCOIN_CLAIM_FEE = TEXTCOIN_CLAIM_FEE;
