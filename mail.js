@@ -52,7 +52,7 @@ function sendSMTPEmail(email, params, cb, forceInsecure) {
 			let mailOptions = {
 				from: '"Byteball Wallet" <noreply@byteball.org>',
 				to: email,
-				subject: 'Byteball Transaction Received',
+				subject: 'Byteball user beamed you money',
 				text: text, // plain text body
 				html: html // html body
 			};
