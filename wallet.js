@@ -905,11 +905,12 @@ function readTransactionHistory(opts, handleHistory){
 						var queryString, parameters;
 						queryString =   "SELECT outputs.address, SUM(outputs.amount) AS amount, ("
 										+ ( walletIsAddress ? "outputs.address!=?" : "my_addresses.address IS NULL") + ") AS is_external, \n\
-										sent_mnemonics.textAddress, sent_mnemonics.mnemonic, (unit_authors.unit IS NOT NULL) AS claimed \n\
+										sent_mnemonics.textAddress, sent_mnemonics.mnemonic, \n\
+										(SELECT unit_authors.unit IS NOT NULL FROM unit_authors WHERE unit_authors.address = sent_mnemonics.address LIMIT 1) AS claimed \n\
+										\n\
 										FROM outputs "
 										+ (walletIsAddress ? "" : "LEFT JOIN my_addresses ON outputs.address=my_addresses.address AND wallet=? ") +
 										"LEFT JOIN sent_mnemonics USING(unit) \n\
-										LEFT JOIN unit_authors ON sent_mnemonics.address = unit_authors.address \n\
 										WHERE outputs.unit=? AND "+asset_condition+" \n\
 										GROUP BY outputs.address";
 						parameters = [wallet, unit];
@@ -921,20 +922,12 @@ function readTransactionHistory(opts, handleHistory){
 									return;
 								}
 								var done = 0;
-								for (var i=0; i<payee_rows.length; i++){
-									var payee = payee_rows[i];
+								payee_rows.forEach(function(payee) {
 									if (action === 'sent' && !payee.is_external) {
 										if (++done == payee_rows.length) cb();
-										continue;
+										return;
 									}
-									/*
-									
-									my_outputs.unit IS NOT NULL) AS claimed_by_me
 
-									LEFT JOIN ( \n\
-											 \n\
-										) AS my_outputs ON my_outputs.unit=unit_authors.unit \n\
-									 */
 									var transaction = {
 										action: action,
 										amount: payee.amount,
@@ -969,7 +962,7 @@ function readTransactionHistory(opts, handleHistory){
 										arrTransactions.push(transaction);
 										if (++done == payee_rows.length) cb();
 									}
-								}
+								});
 							}
 						);
 					}
@@ -1390,7 +1383,7 @@ function sendMultiPayment(opts, handleResult)
 			var assocEmails = {}; // wallet mnemonics to send by emails
 			var assocAddresses = {};
 			var prefix = "textcoin:";
-			function generateNewWalletIfNoAddress(outputs) {
+			function generateNewMnemonicIfNoAddress(outputs) {
 				var generated = 0;
 				outputs.forEach(function(output){
 					if (output.address.indexOf(prefix) !== 0)
@@ -1411,10 +1404,10 @@ function sendMultiPayment(opts, handleResult)
 				return generated;
 			}
 			var to_address_output = {address: to_address};
-			var cnt = generateNewWalletIfNoAddress([to_address_output]);
+			var cnt = generateNewMnemonicIfNoAddress([to_address_output]);
 			if (cnt) to_address = to_address_output.address;
-			if (base_outputs) generateNewWalletIfNoAddress(base_outputs);
-			if (asset_outputs) generateNewWalletIfNoAddress(asset_outputs);
+			if (base_outputs) generateNewMnemonicIfNoAddress(base_outputs);
+			if (asset_outputs) generateNewMnemonicIfNoAddress(asset_outputs);
 
 			var params = {
 				available_paying_addresses: arrFundedAddresses, // forces 'minimal' for payments from shared addresses too, it doesn't hurt
