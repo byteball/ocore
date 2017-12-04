@@ -1227,14 +1227,17 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 			[address],
 			function(rows){
 				if (rows.length === 0) {
-					var network = require('./network.js');
 					network.requestHistoryFor([], [address], function(){
 						checkStability();
 					});
-				} else checkStability();
+				}
+				else
+					checkStability();
 			}
 		);
-	} else checkStability();
+	}
+	else
+		checkStability();
 
 	// check stability of payingAddresses
 	function checkStability() {
