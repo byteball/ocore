@@ -1208,7 +1208,7 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 	opts.paying_addresses = [address];
  	opts.callbacks = composer.getSavingCallbacks({
 		ifNotEnoughFunds: function(err){
-			cb("This textcoin already was claimed");
+			cb("This textcoin was already claimed");
 		},
 		ifError: function(err){
 			cb(err);
