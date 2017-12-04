@@ -1761,15 +1761,19 @@ function requestUnfinishedPastUnitsOfPrivateChains(arrChains, onDone){
 		if (arrUnits.length === 0)
 			return onDone();
 		breadcrumbs.add(arrUnits.length+" unfinished past units of private chains");
-		requestProofsOfJoints(arrUnits, onDone);
+		requestHistoryFor(arrUnits, [], onDone);
 	});
 }
 
-function requestProofsOfJoints(arrUnits, onDone){
+function requestHistoryFor(arrUnits, arrAddresses, onDone){
 	if (!onDone)
 		onDone = function(){};
 	myWitnesses.readMyWitnesses(function(arrWitnesses){
-		var objHistoryRequest = {witnesses: arrWitnesses, requested_joints: arrUnits};
+		var objHistoryRequest = {witnesses: arrWitnesses};
+		if (arrUnits.length)
+			objHistoryRequest.requested_joints = arrUnits;
+		if (arrAddresses.length)
+			objHistoryRequest.addresses = arrAddresses;
 		requestFromLightVendor('light/get_history', objHistoryRequest, function(ws, request, response){
 			if (response.error){
 				console.log(response.error);
@@ -1794,7 +1798,7 @@ function requestProofsOfJointsIfNewOrUnstable(arrUnits, onDone){
 	storage.filterNewOrUnstableUnits(arrUnits, function(arrNewOrUnstableUnits){
 		if (arrNewOrUnstableUnits.length === 0)
 			return onDone();
-		requestProofsOfJoints(arrUnits, onDone);
+		requestHistoryFor(arrUnits, [], onDone);
 	});
 }
 
@@ -2727,3 +2731,4 @@ exports.addLightWatchedAddress = addLightWatchedAddress;
 exports.closeAllWsConnections = closeAllWsConnections;
 exports.isConnected = isConnected;
 exports.isCatchingUp = isCatchingUp;
+exports.requestHistoryFor = requestHistoryFor;

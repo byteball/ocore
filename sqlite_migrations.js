@@ -2,7 +2,7 @@
 "use strict";
 var eventBus = require('./event_bus.js');
 
-var VERSION = 15;
+var VERSION = 16;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -112,6 +112,17 @@ function migrateDb(connection, onDone){
 				FOREIGN KEY (asset) REFERENCES assets(unit), \n\
 				FOREIGN KEY (metadata_unit) REFERENCES units(unit) \n\
 			)");
+		}
+		if (version < 16){
+			connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS sent_mnemonics ( \n\
+				unit CHAR(44) NOT NULL, \n\
+				address CHAR(32) NOT NULL, \n\
+				mnemonic VARCHAR(107) NOT NULL, \n\
+				textAddress VARCHAR(120) NOT NULL, \n\
+				FOREIGN KEY (unit) REFERENCES units(unit) \n\
+			)");
+			connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS sentByAddress ON sent_mnemonics(address)");
+			connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS sentByUnit ON sent_mnemonics(unit)");
 		}
 		connection.addQuery(arrQueries, "PRAGMA user_version="+VERSION);
 		eventBus.emit('started_db_upgrade');

@@ -708,5 +708,14 @@ CREATE TABLE asset_metadata (
 --	FOREIGN KEY (registry_address) REFERENCES addresses(address) -- addresses is not always filled on light
 );
 
+CREATE TABLE sent_mnemonics (
+	unit CHAR(44) NOT NULL,
+	address CHAR(32) NOT NULL,
+	mnemonic VARCHAR(107) NOT NULL,
+	textAddress VARCHAR(120) NOT NULL,
+	FOREIGN KEY (unit) REFERENCES units(unit)
+);
+CREATE INDEX sentByAddress ON sent_mnemonics(address);
+CREATE INDEX sentByUnit ON sent_mnemonics(unit);
 
-PRAGMA user_version=15;
+PRAGMA user_version=16;

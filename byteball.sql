@@ -687,3 +687,12 @@ CREATE TABLE asset_metadata (
 	FOREIGN KEY byMetadataUnit(metadata_unit) REFERENCES units(unit)
 --	FOREIGN KEY byRegistryAddress(registry_address) REFERENCES addresses(address) -- addresses is not always filled on light
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+
+CREATE TABLE sent_mnemonics (
+	unit CHAR(44) NOT NULL,
+	address CHAR(32) NOT NULL,
+	mnemonic VARCHAR(107) NOT NULL,
+	textAddress VARCHAR(120) NOT NULL,
+	FOREIGN KEY (unit) REFERENCES units(unit)
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+CREATE INDEX sentByAddress ON sent_mnemonics(address);

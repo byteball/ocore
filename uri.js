@@ -3,6 +3,7 @@
 var ValidationUtils = require("./validation_utils.js");
 var constants = require("./constants.js");
 var conf = require('./conf.js');
+var Mnemonic = require('bitcore-mnemonic');
 
 
 function parseUri(uri, callbacks){
@@ -56,6 +57,23 @@ function parseUri(uri, callbacks){
 			return callbacks.ifError("neither url nor device in auth params");
 		objRequest.params = assocParams;
 		return callbacks.ifOk(objRequest);
+	}
+
+	// claim textcoin using mnemonic
+	var arrMnemonicMatches = value.match(/^textcoin\?(.+)$/);
+	if (arrMnemonicMatches){
+		objRequest.type = "textcoin";
+		var mnemonic = arrMnemonicMatches[1].split('-').join(' ');
+		try {
+			if (Mnemonic.isValid(mnemonic)) {
+				objRequest.mnemonic = mnemonic;
+				return callbacks.ifOk(objRequest);
+			} else {
+				return callbacks.ifError("invalid mnemonic");
+			}
+		} catch(e) {
+			return callbacks.ifError("invalid mnemonic");
+		}
 	}
 	
 	// pay to address
