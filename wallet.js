@@ -906,8 +906,7 @@ function readTransactionHistory(opts, handleHistory){
 						queryString =   "SELECT outputs.address, SUM(outputs.amount) AS amount, ("
 										+ ( walletIsAddress ? "outputs.address!=?" : "my_addresses.address IS NULL") + ") AS is_external, \n\
 										sent_mnemonics.textAddress, sent_mnemonics.mnemonic, \n\
-										(SELECT unit_authors.unit IS NOT NULL FROM unit_authors WHERE unit_authors.address = sent_mnemonics.address LIMIT 1) AS claimed \n\
-										\n\
+										(SELECT unit_authors.unit FROM unit_authors WHERE unit_authors.address = sent_mnemonics.address LIMIT 1) AS claiming_unit \n\
 										FROM outputs "
 										+ (walletIsAddress ? "" : "LEFT JOIN my_addresses ON outputs.address=my_addresses.address AND wallet=? ") +
 										"LEFT JOIN sent_mnemonics USING(unit) \n\
@@ -933,7 +932,7 @@ function readTransactionHistory(opts, handleHistory){
 										amount: payee.amount,
 										addressTo: payee.address,
 										textAddress: payee.textAddress,
-										claimed: payee.claimed,
+										claimed: !!payee.claiming_unit,
 										mnemonic: payee.mnemonic,
 										confirmations: movement.is_stable,
 										unit: unit,
@@ -944,14 +943,14 @@ function readTransactionHistory(opts, handleHistory){
 									};
 									if (action === 'moved')
 										transaction.my_address = payee.address;
-									if (payee.claimed) {
+									if (transaction.claimed) {
 										db.query(
 											"SELECT (unit IS NOT NULL) AS claimed_by_me FROM outputs \n\
 											JOIN ( \n\
 												SELECT address FROM my_addresses \n\
 												UNION SELECT shared_address AS address FROM shared_addresses \n\
 											) USING (address) \n\
-											WHERE outputs.unit=?", [unit],
+											WHERE outputs.unit=?", [payee.claiming_unit],
 											function(rows) {
 												transaction.claimedByMe = (rows.length > 0);
 												arrTransactions.push(transaction);
