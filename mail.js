@@ -3,7 +3,6 @@ var child_process = require('child_process');
 var conf = require('./conf.js');
 var constants = require('./constants.js');
 var DNS = require('dns');
-var nodemailer = require('node4mailer');
 var fs = require('fs');
 
 if (!(window && window.cordova)) {
@@ -28,6 +27,7 @@ function sendBugEmail(error_message, exception){
 }
 
 function sendSMTPEmail(email, params, cb, forceInsecure) {
+	var nodemailer = require('node4mailer');
 	var hostname = email.slice(email.indexOf("@")+1);
 	var secure = forceInsecure ? false : true;
 	DNS.resolveMx(hostname, function(err, exchanges){
