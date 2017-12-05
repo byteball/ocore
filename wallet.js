@@ -1385,7 +1385,7 @@ function sendMultiPayment(opts, handleResult)
 			function generateNewMnemonicIfNoAddress(outputs) {
 				var generated = 0;
 				outputs.forEach(function(output){
-					if (output.address.indexOf(prefix) !== 0)
+					if (!output.address || output.address.indexOf(prefix) !== 0)
 						return false;
 					var address = output.address.slice(prefix.length);
 					var mnemonic = new Mnemonic();
