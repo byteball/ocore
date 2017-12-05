@@ -1362,7 +1362,7 @@ function sendMultiPayment(opts, handleResult)
 
 						if (Object.keys(assocEmails).length) { // need to send emails
 							var sent = 0;
-							var mail = require('./mail');
+							var mail = require('./mail'+'');
 							for (var email in assocEmails) {
 								mail.sendSMTPEmail(email, {mnemonic: assocEmails[email], amount: amount, asset: (asset ? asset : 'bytes')}, function(err, msgInfo){
 									if (err && (err.code == "ETLS" || err.message.indexOf("certificate") > -1)) {
