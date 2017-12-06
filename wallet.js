@@ -1304,7 +1304,7 @@ function sendMultiPayment(opts, handleResult)
 			function generateNewMnemonicIfNoAddress(outputs) {
 				var generated = 0;
 				outputs.forEach(function(output){
-					if (output.address.indexOf(prefix) !== 0)
+					if (!output.address || output.address.indexOf(prefix) !== 0)
 						return false;
 					var address = output.address.slice(prefix.length);
 					var mnemonic = new Mnemonic();
@@ -1504,6 +1504,8 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 			cb("This textcoin was already claimed");
 		},
 		ifError: function(err){
+			if (err.indexOf("some definition changes") == 0)
+				return cb("This textcoin was already claimed but not confirmed yet");
 			cb(err);
 		},
 		ifOk: function(objJoint, arrChainsOfRecipientPrivateElements, arrChainsOfCosignerPrivateElements){
