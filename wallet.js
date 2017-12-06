@@ -1211,6 +1211,8 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 			cb("This textcoin was already claimed");
 		},
 		ifError: function(err){
+			if (err.indexOf("some definition changes") == 0)
+				return cb("This textcoin was already claimed but not confirmed yet");
 			cb(err);
 		},
 		ifOk: function(objJoint, arrChainsOfRecipientPrivateElements, arrChainsOfCosignerPrivateElements){
