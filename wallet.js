@@ -1304,7 +1304,7 @@ function sendMultiPayment(opts, handleResult)
 			function generateNewMnemonicIfNoAddress(outputs) {
 				var generated = 0;
 				outputs.forEach(function(output){
-					if (!output.address || output.address.indexOf(prefix) !== 0)
+					if (output.address.indexOf(prefix) !== 0)
 						return false;
 					var address = output.address.slice(prefix.length);
 					var mnemonic = new Mnemonic();
@@ -1321,9 +1321,11 @@ function sendMultiPayment(opts, handleResult)
 				});
 				return generated;
 			}
-			var to_address_output = {address: to_address};
-			var cnt = generateNewMnemonicIfNoAddress([to_address_output]);
-			if (cnt) to_address = to_address_output.address;
+			if (to_address) {
+				var to_address_output = {address: to_address};
+				var cnt = generateNewMnemonicIfNoAddress([to_address_output]);
+				if (cnt) to_address = to_address_output.address;
+			}
 			if (base_outputs) generateNewMnemonicIfNoAddress(base_outputs);
 			if (asset_outputs) generateNewMnemonicIfNoAddress(asset_outputs);
 
