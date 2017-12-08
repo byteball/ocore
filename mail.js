@@ -5,7 +5,7 @@ var constants = require('./constants.js');
 var DNS = require('dns');
 var fs = require('fs');
 
-if (!(window && window.cordova)) {
+if (!(typeof window !== 'undefined' && window && window.cordova)) {
 	DNS.setServers(["8.8.8.8", "114.114.114.114"]); // google public DNS, China 114dns
 }
 
