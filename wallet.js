@@ -1321,9 +1321,11 @@ function sendMultiPayment(opts, handleResult)
 				});
 				return generated;
 			}
-			var to_address_output = {address: to_address};
-			var cnt = generateNewMnemonicIfNoAddress([to_address_output]);
-			if (cnt) to_address = to_address_output.address;
+			if (to_address) {
+				var to_address_output = {address: to_address};
+				var cnt = generateNewMnemonicIfNoAddress([to_address_output]);
+				if (cnt) to_address = to_address_output.address;
+			}
 			if (base_outputs) generateNewMnemonicIfNoAddress(base_outputs);
 			if (asset_outputs) generateNewMnemonicIfNoAddress(asset_outputs);
 
@@ -1504,6 +1506,8 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 			cb("This textcoin was already claimed");
 		},
 		ifError: function(err){
+			if (err.indexOf("some definition changes") == 0)
+				return cb("This textcoin was already claimed but not confirmed yet");
 			cb(err);
 		},
 		ifOk: function(objJoint, arrChainsOfRecipientPrivateElements, arrChainsOfCosignerPrivateElements){
