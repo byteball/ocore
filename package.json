@@ -2,7 +2,7 @@
   "name": "byteballcore",
   "description": "Byteball Core",
   "author": "Byteball",
-  "version": "0.2.81",
+  "version": "0.2.82",
   "keywords": [
     "byteball",
     "multisignature"
@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "async": "^1.5.2",
-    "bitcore-mnemonic": "^1.2.5",
+    "bitcore-mnemonic": "~1.0.0",
     "lodash": "^4.6.1",
     "longjohn": "^0.2.11",
     "mysql": "^2.10.2",
