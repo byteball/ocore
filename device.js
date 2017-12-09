@@ -435,8 +435,10 @@ function sendPreparedMessageToHub(ws, recipient_device_pubkey, message_hash, jso
 	if (typeof ws === "string"){
 		var hub_host = ws;
 		network.findOutboundPeerOrConnect(conf.WS_PROTOCOL+hub_host, function onLocatedHubForSend(err, ws){
-			if (err)
+			if (err){
+				db.query("UPDATE outbox SET last_error=? WHERE message_hash=?", [err, message_hash], function(){});
 				return callbacks.ifError(err);
+			}
 			sendPreparedMessageToConnectedHub(ws, recipient_device_pubkey, message_hash, json, callbacks);
 		});
 	}
