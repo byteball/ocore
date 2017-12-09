@@ -693,6 +693,7 @@ CREATE TABLE sent_mnemonics (
 	address CHAR(32) NOT NULL,
 	mnemonic VARCHAR(107) NOT NULL,
 	textAddress VARCHAR(120) NOT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	FOREIGN KEY (unit) REFERENCES units(unit)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 CREATE INDEX sentByAddress ON sent_mnemonics(address);

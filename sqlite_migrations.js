@@ -119,6 +119,7 @@ function migrateDb(connection, onDone){
 				address CHAR(32) NOT NULL, \n\
 				mnemonic VARCHAR(107) NOT NULL, \n\
 				textAddress VARCHAR(120) NOT NULL, \n\
+				creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, \n\
 				FOREIGN KEY (unit) REFERENCES units(unit) \n\
 			)");
 			connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS sentByAddress ON sent_mnemonics(address)");
