@@ -930,7 +930,7 @@ function readTransactionHistory(opts, handleHistory){
 										action: action,
 										amount: payee.amount,
 										addressTo: payee.address,
-										textAddress: payee.textAddress,
+										textAddress: ValidationUtils.isValidEmail(payee.textAddress) ? payee.textAddress : "",
 										claimed: !!payee.claiming_unit,
 										mnemonic: payee.mnemonic,
 										confirmations: movement.is_stable,
@@ -938,7 +938,8 @@ function readTransactionHistory(opts, handleHistory){
 										fee: movement.fee,
 										time: movement.ts,
 										level: movement.level,
-										mci: movement.mci
+										mci: movement.mci,
+										textcoin: payee.textAddress ? true : false
 									};
 									if (action === 'moved')
 										transaction.my_address = payee.address;
@@ -1553,6 +1554,15 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 	}
 }
 
+function eraseTextcoin(unit, address) {
+	db.query(
+		"UPDATE sent_mnemonics \n\
+		SET mnemonic='' WHERE unit=? AND address=?", 
+		[unit, address],
+		function(){}
+	);
+}
+
 function readDeviceAddressesUsedInSigningPaths(onDone){
 
 	var sql = "SELECT DISTINCT device_address FROM shared_address_signing_paths ";
@@ -1606,3 +1616,4 @@ exports.sendMultiPayment = sendMultiPayment;
 exports.readDeviceAddressesUsedInSigningPaths = readDeviceAddressesUsedInSigningPaths;
 exports.determineIfDeviceCanBeRemoved = determineIfDeviceCanBeRemoved;
 exports.receiveTextCoin = receiveTextCoin;
+exports.eraseTextcoin = eraseTextcoin;
