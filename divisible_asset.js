@@ -182,7 +182,7 @@ function composeDivisibleAssetPaymentJoint(params){
 		signing_addresses: params.signing_addresses,
 		minimal: params.minimal,
 		outputs: arrBaseOutputs,
-		
+		messages:params.messages,
 		// function that creates additional messages to be added to the joint
 		retrieveMessages: function(conn, last_ball_mci, bMultiAuthored, arrPayingAddresses, onDone){
 			var arrAssetPayingAddresses = _.intersection(arrPayingAddresses, params.paying_addresses);

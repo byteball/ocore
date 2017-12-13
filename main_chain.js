@@ -20,7 +20,8 @@ var arrRetreatingUnits = [
 	'C/aPdM0sODPLC3NqJPWdZlqmV8B4xxf2N/+HSEi0sKU=',
 	'sSev6hvQU86SZBemy9CW2lJIko2jZDoY55Lm3zf2QU4=',
 	'19GglT3uZx1WmfWstLb3yIa85jTic+t01Kpe6s5gTTA=',
-	'Hyi2XVdZ/5D3H/MhwDL/jRWHp3F/dQTmwemyUHW+Urg='
+	'Hyi2XVdZ/5D3H/MhwDL/jRWHp3F/dQTmwemyUHW+Urg=',
+	'xm0kFeKh6uqSXx6UUmc2ucgsNCU5h/e6wxSMWirhOTo='
 ];
 
 
