@@ -1193,7 +1193,6 @@ function sendMultiPayment(opts, handleResult)
 	var base_outputs = opts.base_outputs;
 	var asset_outputs = opts.asset_outputs;
 	var messages = opts.messages;
-	var insecureSendAsk = opts.insecure_send_ask;
 	
 	if (!wallet && !arrPayingAddresses)
 		throw Error("neither wallet id nor paying addresses");
@@ -1298,10 +1297,10 @@ function sendMultiPayment(opts, handleResult)
 
 			// if we have any output with text addresses / not byteball addresses (e.g. email) - generate new addresses and return them
 			var assocMnemonics = {}; // return all generated wallet mnemonics to caller in callback
-			var assocEmails = {}; // wallet mnemonics to send by emails
+			var assocPaymentsByEmail = {}; // wallet mnemonics to send by emails
 			var assocAddresses = {};
 			var prefix = "textcoin:";
-			function generateNewMnemonicIfNoAddress(outputs) {
+			function generateNewMnemonicIfNoAddress(output_asset, outputs) {
 				var generated = 0;
 				outputs.forEach(function(output){
 					if (output.address.indexOf(prefix) !== 0)
@@ -1310,10 +1309,11 @@ function sendMultiPayment(opts, handleResult)
 					var mnemonic = new Mnemonic();
 					while (!Mnemonic.isValid(mnemonic.toString()))
 						mnemonic = new Mnemonic();
+					var strMnemonic = mnemonic.toString().replace(/ /g, "-");
 					if (!opts.do_not_email && ValidationUtils.isValidEmail(address)) {
-						assocEmails[address] = mnemonic.toString();
+						assocPaymentsByEmail[address] = {mnemonic: strMnemonic, amount: output.amount, asset: output_asset};
 					}
-					assocMnemonics[output.address] = mnemonic.toString().replace(/ /g, "-");
+					assocMnemonics[output.address] = strMnemonic;
 					var pubkey = mnemonic.toHDPrivateKey().derive("m/44'/0'/0'/0/0").publicKey.toBuffer().toString("base64");
 					assocAddresses[output.address] = objectHash.getChash160(["sig", {"pubkey": pubkey}]);
 					output.address = assocAddresses[output.address];
@@ -1322,12 +1322,12 @@ function sendMultiPayment(opts, handleResult)
 				return generated;
 			}
 			if (to_address) {
-				var to_address_output = {address: to_address};
-				var cnt = generateNewMnemonicIfNoAddress([to_address_output]);
+				var to_address_output = {address: to_address, amount: amount};
+				var cnt = generateNewMnemonicIfNoAddress(asset, [to_address_output]);
 				if (cnt) to_address = to_address_output.address;
 			}
-			if (base_outputs) generateNewMnemonicIfNoAddress(base_outputs);
-			if (asset_outputs) generateNewMnemonicIfNoAddress(asset_outputs);
+			if (base_outputs) generateNewMnemonicIfNoAddress(null, base_outputs);
+			if (asset_outputs) generateNewMnemonicIfNoAddress(asset, asset_outputs);
 
 			var params = {
 				available_paying_addresses: arrFundedAddresses, // forces 'minimal' for payments from shared addresses too, it doesn't hurt
@@ -1362,24 +1362,13 @@ function sendMultiPayment(opts, handleResult)
 						if (!arrChainsOfRecipientPrivateElements && recipient_device_address) // send notification about public payment
 							walletGeneral.sendPaymentNotification(recipient_device_address, objJoint.unit.unit);
 
-						if (Object.keys(assocEmails).length) { // need to send emails
+						if (Object.keys(assocPaymentsByEmail).length) { // need to send emails
 							var sent = 0;
-							var mail = require('./mail'+'');
-							for (var email in assocEmails) {
-								mail.sendSMTPEmail(email, {mnemonic: assocEmails[email], amount: amount, asset: (asset ? asset : 'bytes')}, function(err, msgInfo){
-									if (err && (err.code == "ETLS" || err.message.indexOf("certificate") > -1)) {
-										if (typeof insecureSendAsk !== "function")
-											insecureSendAsk = function(email, answer){answer(true)};
-										insecureSendAsk(email, function(answer){
-											if (answer) {
-												mail.sendSMTPEmail(email, {mnemonic: assocEmails[email], amount: amount, asset: (asset ? asset : 'bytes')}, function(){}, true);
-											}
-										});
-									}
-									if (++sent == Object.keys(assocEmails).length) {
-										handleResult(null, objJoint.unit.unit, assocMnemonics);
-									}
-								});
+							for (var email in assocPaymentsByEmail) {
+								var objPayment = assocPaymentsByEmail[email];
+								sendTextcoinEmail(email, opts.email_subject, objPayment.amount, objPayment.asset, objPayment.mnemonic);
+								if (++sent == Object.keys(assocPaymentsByEmail).length)
+									handleResult(null, objJoint.unit.unit, assocMnemonics);
 							}
 						} else {
 							handleResult(null, objJoint.unit.unit, assocMnemonics);
@@ -1465,6 +1454,35 @@ function forwardPrivateChainsToOtherMembersOfSharedAddresses(arrChainsOfCosigner
 				walletGeneral.forwardPrivateChainsToDevices(arrMultisigDeviceAddresses, arrChainsOfCosignerPrivateElements, true, conn, onDone);
 			});
 		});
+	});
+}
+
+function sendTextcoinEmail(email, subject, amount, asset, mnemonic){
+	var mail = require('./mail.js'+'');
+	if (!asset){
+		amount -= constants.TEXTCOIN_CLAIM_FEE;
+		amount = (amount/1e9).toLocaleString([], {maximumFractionDigits: 9});
+		asset = 'GB';
+	}
+	replaceInTextcoinTemplate({amount: amount, asset: asset, mnemonic: mnemonic}, function(html, text){
+		mail.sendmail({
+			to: email,
+			from: conf.from_email || "noreply@byteball.org",
+			subject: subject || "Byteball user beamed you money",
+			body: text,
+			htmlBody: html
+		});
+	});
+}
+
+function replaceInTextcoinTemplate(params, handleText){
+	var fs = require('fs'+'');
+	fs.readFile(__dirname + '/email_template.html', 'utf8', function(err, template) {
+		if (err)
+			throw Error("failed to read template: "+err);
+		var html = template.replace(/\{\{mnemonic\}\}/g, params.mnemonic).replace(/\{\{amount\}\}/g, params.amount).replace(/\{\{asset\}\}/g, params.asset);
+		var text = "You've got " + params.amount + " " + params.asset + ", to claim it download Byteball wallet and click this link: https://byteball.org/openapp.html#textcoin?" + params.mnemonic;
+		handleText(html, text);
 	});
 }
 

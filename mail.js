@@ -1,20 +1,110 @@
 'use strict';
 var child_process = require('child_process');
 var conf = require('./conf.js');
-var constants = require('./constants.js');
-var DNS = require('dns');
-var fs = require('fs');
+var DNS;
 
-if (!(typeof window !== 'undefined' && window && window.cordova)) {
+if (conf.smtpTransport === 'direct' && !(typeof window !== 'undefined' && window && window.cordova)) {
+	DNS = require('dns');
 	DNS.setServers(["8.8.8.8", "114.114.114.114"]); // google public DNS, China 114dns
 }
 
-function sendmail(params){
+if (conf.smtpTransport === 'relay' && !conf.smtpRelay)
+	throw Error("please set smtpRelay in conf");
+	
+
+function sendmail(params, cb){
+	if (!cb)
+		cb = function(){};
+	switch (conf.smtpTransport){
+		case 'relay':
+			return sendMailThroughRelay(params, cb);
+		case 'direct':
+			return sendMailDirectly(params, cb);
+		case 'local':
+		default:
+			sendMailThroughUnixSendmail(params, cb);
+	}
+}
+
+function sendMailThroughUnixSendmail(params, cb){
 	var child = child_process.spawn('/usr/sbin/sendmail', ['-t', params.to]);
 	child.stdout.pipe(process.stdout);
 	child.stderr.pipe(process.stderr);
 	child.stdin.write("Return-Path: <"+params.from+">\r\nTo: "+params.to+"\r\nFrom: "+params.from+"\r\nSubject: "+params.subject+"\r\n\r\n"+params.body);
 	child.stdin.end();
+	cb();
+}
+
+function sendMailDirectly(params, cb) {
+	var nodemailer = require('node4mailer'+'');
+	var hostname = params.to.slice(params.to.indexOf("@")+1);
+	DNS.resolveMx(hostname, function(err, exchanges){
+		var exchange = hostname;
+		if (exchanges && exchanges.length)
+			exchange = exchanges[0].exchange;
+
+		var transporter = nodemailer.createTransport({
+			host: exchange,
+		//	port: 25,
+			secure: false,
+			requireTLS: false,
+			tls: {
+				rejectUnauthorized: true
+			}
+		});
+
+		var mailOptions = {
+			from: params.from,
+			to: params.to,
+			subject: params.subject,
+			text: params.body, // plain text body
+			html: params.htmlBody // html body
+		};
+
+		transporter.sendMail(mailOptions, function(error, info) {
+			if (error) {
+				console.error("failed to send mail to "+params.to+": "+error);
+				return cb(error);
+			}
+			console.log('Message sent: %s', info.messageId);
+			cb(null, info);
+		});
+	});
+}
+
+function sendMailThroughRelay(params, cb){
+	var nodemailer = require('node4mailer'+'');
+	var transportOpts = {
+		host: conf.smtpRelay,
+	//	port: 25,
+		secure: false,
+		requireTLS: false,
+		tls: {
+			rejectUnauthorized: true
+		}
+	};
+	if (conf.smtpUser && conf.smtpPassword)
+		transportOpts.auth = {
+			user: conf.smtpUser,
+			pass: conf.smtpPassword
+		}
+	var transporter = nodemailer.createTransport(transportOpts);
+	var mailOptions = {
+		from: params.from,
+		to: params.to,
+		subject: params.subject,
+		text: params.body, // plain text body
+		html: params.htmlBody // html body
+	};
+
+	transporter.sendMail(mailOptions, function(error, info) {
+		if (error) {
+			console.error("failed to send mail to "+params.to+": "+error+"\n", error);
+			return cb(error);
+		}
+		console.log('Message sent: %s', info.messageId);
+		cb(null, info);
+	});
 }
 
 function sendBugEmail(error_message, exception){
@@ -26,48 +116,5 @@ function sendBugEmail(error_message, exception){
 	});
 }
 
-function sendSMTPEmail(email, params, cb, forceInsecure) {
-	var nodemailer = require('node4mailer'+'');
-	var hostname = email.slice(email.indexOf("@")+1);
-	var secure = forceInsecure ? false : true;
-	DNS.resolveMx(hostname, function(err, exchanges){
-		var exchange = hostname;
-		if (exchanges && exchanges.length)
-			exchange = exchanges[0].exchange;
-
-		var transporter = nodemailer.createTransport({
-			host: exchange,
-			port: 25,
-			secure: false,
-			requireTLS: secure,
-			tls: {
-				rejectUnauthorized: secure
-			}
-		});
-
-		fs.readFile(__dirname + '/email_template.html', 'utf8', function (err, template) {
-			params.amount -= constants.TEXTCOIN_CLAIM_FEE;
-			var html = template.replace(/\{\{mnemonic\}\}/g, params.mnemonic).replace(/\{\{amount\}\}/g, params.amount).replace(/\{\{asset\}\}/g, params.asset);
-			var text = "Someone sent you " + params.amount + " " + params.asset + ", to claim it download Byteball wallet and recover Wallet from the following Seed: " + params.mnemonic;
-			let mailOptions = {
-				from: '"Byteball Wallet" <noreply@byteball.org>',
-				to: email,
-				subject: 'Byteball user beamed you money',
-				text: text, // plain text body
-				html: html // html body
-			};
-
-			transporter.sendMail(mailOptions, function(error, info) {
-				if (error) {
-					return cb(error);
-				}
-				console.log('Message sent: %s', info.messageId);
-				cb(null, info);
-			});
-		});
-	});
-}
-
-exports.sendSMTPEmail = sendSMTPEmail;
 exports.sendmail = sendmail;
 exports.sendBugEmail = sendBugEmail;
