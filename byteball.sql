@@ -689,7 +689,7 @@ CREATE TABLE asset_metadata (
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 CREATE TABLE sent_mnemonics (
-	unit CHAR(44) NOT NULL,
+	unit CHAR(44) BINARY NOT NULL,
 	address CHAR(32) NOT NULL,
 	mnemonic VARCHAR(107) NOT NULL,
 	textAddress VARCHAR(120) NOT NULL,
