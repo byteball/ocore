@@ -939,7 +939,7 @@ function readTransactionHistory(opts, handleHistory){
 										time: movement.ts,
 										level: movement.level,
 										mci: movement.mci,
-										textcoin: payee.textAddress ? true : false
+										isTextcoin: payee.textAddress ? true : false
 									};
 									if (action === 'moved')
 										transaction.my_address = payee.address;
@@ -1540,14 +1540,18 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 	// check stability of payingAddresses
 	function checkStability() {
 		db.query(
-			"SELECT 1 \n\
-			FROM outputs JOIN units USING(unit) WHERE address=? AND is_stable=1 and sequence='good' LIMIT 1", 
+			"SELECT is_stable \n\
+			FROM outputs JOIN units USING(unit) WHERE address=? AND sequence='good' LIMIT 1", 
 			[address],
 			function(rows){
 				if (rows.length === 0) {
-					cb("This payment is not confirmed yet, try again later");
+					cb("This payment doesn't exist in the network");
 				} else {
-					composer.composeJoint(opts);
+					if (!rows[0].is_stable) {
+						cb("This payment is not confirmed yet, try again later");
+					} else {
+						composer.composeJoint(opts);
+					}
 				}
 			}
 		);		
