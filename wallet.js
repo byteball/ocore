@@ -930,7 +930,7 @@ function readTransactionHistory(opts, handleHistory){
 										action: action,
 										amount: payee.amount,
 										addressTo: payee.address,
-										textAddress: payee.textAddress,
+										textAddress: ValidationUtils.isValidEmail(payee.textAddress) ? payee.textAddress : "",
 										claimed: !!payee.claiming_unit,
 										mnemonic: payee.mnemonic,
 										confirmations: movement.is_stable,
@@ -938,7 +938,8 @@ function readTransactionHistory(opts, handleHistory){
 										fee: movement.fee,
 										time: movement.ts,
 										level: movement.level,
-										mci: movement.mci
+										mci: movement.mci,
+										isTextcoin: payee.textAddress ? true : false
 									};
 									if (action === 'moved')
 										transaction.my_address = payee.address;
@@ -1557,18 +1558,31 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 	// check stability of payingAddresses
 	function checkStability() {
 		db.query(
-			"SELECT 1 \n\
-			FROM outputs JOIN units USING(unit) WHERE address=? AND is_stable=1 and sequence='good' LIMIT 1", 
+			"SELECT is_stable \n\
+			FROM outputs JOIN units USING(unit) WHERE address=? AND sequence='good' LIMIT 1", 
 			[address],
 			function(rows){
 				if (rows.length === 0) {
-					cb("This payment is not confirmed yet, try again later");
+					cb("This payment doesn't exist in the network");
 				} else {
-					composer.composeJoint(opts);
+					if (!rows[0].is_stable) {
+						cb("This payment is not confirmed yet, try again later");
+					} else {
+						composer.composeJoint(opts);
+					}
 				}
 			}
 		);		
 	}
+}
+
+function eraseTextcoin(unit, address) {
+	db.query(
+		"UPDATE sent_mnemonics \n\
+		SET mnemonic='' WHERE unit=? AND address=?", 
+		[unit, address],
+		function(){}
+	);
 }
 
 function readDeviceAddressesUsedInSigningPaths(onDone){
@@ -1624,3 +1638,4 @@ exports.sendMultiPayment = sendMultiPayment;
 exports.readDeviceAddressesUsedInSigningPaths = readDeviceAddressesUsedInSigningPaths;
 exports.determineIfDeviceCanBeRemoved = determineIfDeviceCanBeRemoved;
 exports.receiveTextCoin = receiveTextCoin;
+exports.eraseTextcoin = eraseTextcoin;
