@@ -1482,7 +1482,7 @@ function replaceInTextcoinTemplate(params, handleText){
 		if (err)
 			throw Error("failed to read template: "+err);
 		var html = template.replace(/\{\{mnemonic\}\}/g, params.mnemonic).replace(/\{\{amount\}\}/g, params.amount).replace(/\{\{asset\}\}/g, params.asset);
-		var text = "You've got " + params.amount + " " + params.asset + ", to claim it download Byteball wallet and click this link: https://byteball.org/openapp.html#textcoin?" + params.mnemonic;
+		var text = "Here is your link to receive " + params.amount + " " + params.asset + ": https://byteball.org/openapp.html#textcoin?" + params.mnemonic;
 		handleText(html, text);
 	});
 }
