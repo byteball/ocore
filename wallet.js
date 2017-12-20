@@ -1307,10 +1307,13 @@ function sendMultiPayment(opts, handleResult)
 					if (output.address.indexOf(prefix) !== 0)
 						return false;
 					var address = output.address.slice(prefix.length);
-					var mnemonic = new Mnemonic();
-					while (!Mnemonic.isValid(mnemonic.toString()))
-						mnemonic = new Mnemonic();
-					var strMnemonic = mnemonic.toString().replace(/ /g, "-");
+					var strMnemonic = assocMnemonics[output.address] || "";
+					var mnemonic = new Mnemonic(strMnemonic.replace(/-/g, " "));
+					if (!strMnemonic) {
+						while (!Mnemonic.isValid(mnemonic.toString()))
+							mnemonic = new Mnemonic();
+						strMnemonic = mnemonic.toString().replace(/ /g, "-");
+					}
 					if (!opts.do_not_email && ValidationUtils.isValidEmail(address)) {
 						assocPaymentsByEmail[address] = {mnemonic: strMnemonic, amount: output.amount, asset: output_asset};
 					}
@@ -1517,10 +1520,11 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 	};
 	var opts = {};
 	opts.signer = signer;
-	opts.send_all = true;
-	opts.outputs = [{address: addressTo, amount: 0}];
+	opts.to_address = addressTo;
 	opts.paying_addresses = [address];
- 	opts.callbacks = composer.getSavingCallbacks({
+	//opts.outputs = [{address: addressTo, amount: 0}];
+
+	opts.callbacks = {
 		ifNotEnoughFunds: function(err){
 			cb("This textcoin was already claimed");
 		},
@@ -1533,8 +1537,7 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 			network.broadcastJoint(objJoint);
 			cb(null, objJoint.unit.unit);
 		}
-	});
-
+	};
 
 	if (conf.bLight) {
 		db.query(
@@ -1543,9 +1546,7 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 			[address],
 			function(rows){
 				if (rows.length === 0) {
-					network.requestHistoryFor([], [address], function(){
-						checkStability();
-					});
+					network.requestHistoryFor([], [address], checkStability);
 				}
 				else
 					checkStability();
@@ -1558,17 +1559,40 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 	// check stability of payingAddresses
 	function checkStability() {
 		db.query(
-			"SELECT is_stable \n\
-			FROM outputs JOIN units USING(unit) WHERE address=? AND sequence='good' LIMIT 1", 
+			"SELECT is_stable, asset, is_spent, amount \n\
+			FROM outputs JOIN units USING(unit) WHERE address=? AND sequence='good' ORDER BY asset DESC, is_spent ASC LIMIT 1", 
 			[address],
 			function(rows){
 				if (rows.length === 0) {
 					cb("This payment doesn't exist in the network");
 				} else {
-					if (!rows[0].is_stable) {
+					var row = rows[0];
+					if (!row.is_stable) {
 						cb("This payment is not confirmed yet, try again later");
 					} else {
-						composer.composeJoint(opts);
+						if (row.asset) { // claiming asset
+							// TODO: request asset data for light clients
+							opts.asset = row.asset;
+							opts.amount = row.amount;
+							opts.fee_paying_addresses = [address];
+							storage.readAsset(db, row.asset, null, function(err, objAsset){
+								if (err && err.indexOf("not found" !== -1)) {
+									return network.requestHistoryFor([opts.asset], [], checkStability);
+								}
+								if (objAsset.fixed_denominations){ // indivisible
+									opts.tolerance_plus = 0;
+									opts.tolerance_minus = 0;
+									indivisibleAsset.composeAndSaveIndivisibleAssetPaymentJoint(opts);
+								}
+								else{ // divisible
+									divisibleAsset.composeAndSaveDivisibleAssetPaymentJoint(opts);
+								}
+							});
+						} else {// claiming bytes
+							opts.send_all = true;
+							opts.callbacks = composer.getSavingCallbacks(opts.callbacks);
+							composer.composeJoint(opts);
+						}
 					}
 				}
 			}
