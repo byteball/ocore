@@ -807,13 +807,14 @@ function fetchAssetMetadata(asset, handleMetadata){
 
 function readTransactionHistory(opts, handleHistory){
 	var asset = opts.asset;
+	var is_base = !asset || asset === "base";
 	if (opts.wallet && opts.address || !opts.wallet && !opts.address)
 		throw Error('invalid wallet and address params');
 	var wallet = opts.wallet || opts.address;
 	var walletIsAddress = ValidationUtils.isValidAddress(wallet);
 	var join_my_addresses = walletIsAddress ? "" : "JOIN my_addresses USING(address)";
 	var where_condition = walletIsAddress ? "address=?" : "wallet=?";
-	var asset_condition = (asset && asset !== "base") ? "asset="+db.escape(asset) : "asset IS NULL";
+	var asset_condition = !is_base ? "asset="+db.escape(asset) : "asset IS NULL";
 	var cross = "";
 	if (opts.unit)
 		where_condition += " AND unit="+db.escape(opts.unit);
@@ -902,15 +903,15 @@ function readTransactionHistory(opts, handleHistory){
 					}
 					else if (movement.has_minus){
 						var queryString, parameters;
-						queryString =   "SELECT outputs.address, SUM(outputs.amount) AS amount, ("
+						queryString =   "SELECT outputs.address, SUM(outputs.amount) AS amount, outputs.asset, ("
 										+ ( walletIsAddress ? "outputs.address!=?" : "my_addresses.address IS NULL") + ") AS is_external, \n\
 										sent_mnemonics.textAddress, sent_mnemonics.mnemonic, \n\
 										(SELECT unit_authors.unit FROM unit_authors WHERE unit_authors.address = sent_mnemonics.address LIMIT 1) AS claiming_unit \n\
 										FROM outputs "
 										+ (walletIsAddress ? "" : "LEFT JOIN my_addresses ON outputs.address=my_addresses.address AND wallet=? ") +
 										"LEFT JOIN sent_mnemonics USING(unit) \n\
-										WHERE outputs.unit=? AND "+asset_condition+" \n\
-										GROUP BY outputs.address";
+										WHERE outputs.unit=? \n\
+										GROUP BY outputs.address, asset";
 						parameters = [wallet, unit];
 						db.query(queryString, parameters, 
 							function(payee_rows){
@@ -920,8 +921,13 @@ function readTransactionHistory(opts, handleHistory){
 									return;
 								}
 								var done = 0;
+								var has_asset = payee_rows.some(function(payee){ return payee.asset; });
+								if (has_asset && is_base) {
+									cb();
+									return;
+								}
 								payee_rows.forEach(function(payee) {
-									if (action === 'sent' && !payee.is_external) {
+									if ((action === 'sent' && !payee.is_external) || (!is_base && asset != payee.asset)) {
 										if (++done == payee_rows.length) cb();
 										return;
 									}
@@ -929,6 +935,7 @@ function readTransactionHistory(opts, handleHistory){
 									var transaction = {
 										action: action,
 										amount: payee.amount,
+										asset: payee.asset,
 										addressTo: payee.address,
 										textAddress: ValidationUtils.isValidEmail(payee.textAddress) ? payee.textAddress : "",
 										claimed: !!payee.claiming_unit,
