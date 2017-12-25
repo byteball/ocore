@@ -697,3 +697,26 @@ CREATE TABLE sent_mnemonics (
 	FOREIGN KEY (unit) REFERENCES units(unit)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 CREATE INDEX sentByAddress ON sent_mnemonics(address);
+
+CREATE TABLE private_profiles (
+	private_profile_id INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,
+	unit CHAR(44) NOT NULL,
+	payload_hash CHAR(44) NOT NULL,
+	attestor_address CHAR(32) NOT NULL,
+	address CHAR(32) NOT NULL,
+	src_profile TEXT NOT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	FOREIGN KEY (unit) REFERENCES units(unit)
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+
+CREATE TABLE private_profile_fields (
+	private_profile_id INTEGER NOT NULL ,
+	`field` VARCHAR(50) NOT NULL,
+	`value` VARCHAR(50) NOT NULL,
+	blinding CHAR(16) NOT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	UNIQUE byProfileIdField(private_profile_id, `field`),
+	FOREIGN KEY (private_profile_id) REFERENCES private_profiles(private_profile_id)
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+CREATE INDEX ppfByField ON private_profile_fields(`field`);
+
