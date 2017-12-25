@@ -1526,6 +1526,7 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 		}
 	};
 	var opts = {};
+	var asset = null;
 	opts.signer = signer;
 	opts.to_address = addressTo;
 	opts.paying_addresses = [address];
@@ -1542,7 +1543,7 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 		},
 		ifOk: function(objJoint, arrChainsOfRecipientPrivateElements, arrChainsOfCosignerPrivateElements){
 			network.broadcastJoint(objJoint);
-			cb(null, objJoint.unit.unit);
+			cb(null, objJoint.unit.unit, asset);
 		}
 	};
 
@@ -1586,6 +1587,7 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 								if (err && err.indexOf("not found" !== -1)) {
 									return network.requestHistoryFor([opts.asset], [], checkStability);
 								}
+								asset = opts.asset;
 								if (objAsset.fixed_denominations){ // indivisible
 									opts.tolerance_plus = 0;
 									opts.tolerance_minus = 0;
