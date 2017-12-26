@@ -902,7 +902,7 @@ function readTransactionHistory(opts, handleHistory){
 					}
 					else if (movement.has_minus){
 						var queryString, parameters;
-						queryString =   "SELECT outputs.address, SUM(outputs.amount) AS amount, ("
+						queryString =   "SELECT outputs.address, SUM(outputs.amount) AS amount, outputs.asset, ("
 										+ ( walletIsAddress ? "outputs.address!=?" : "my_addresses.address IS NULL") + ") AS is_external, \n\
 										sent_mnemonics.textAddress, sent_mnemonics.mnemonic, \n\
 										(SELECT unit_authors.unit FROM unit_authors WHERE unit_authors.address = sent_mnemonics.address LIMIT 1) AS claiming_unit \n\
@@ -983,7 +983,7 @@ function readTransactionHistory(opts, handleHistory){
 							return -1;
 						return 0;
 					});
-					arrTransactions.forEach(function(transaction){ transaction.asset = asset; });
+					arrTransactions.forEach(function(transaction){ transaction.asset = opts.asset; });
 					handleHistory(arrTransactions);
 				}
 			);
