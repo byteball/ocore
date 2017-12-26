@@ -919,16 +919,14 @@ function readTransactionHistory(opts, handleHistory){
 									cb();
 									return;
 								}
-								var done = 0;
 								var has_asset = payee_rows.some(function(payee){ return payee.asset; });
 								if (has_asset && !asset) { // filter out "fees" txs from history
 									cb();
 									return;
 								}
-								payee_rows.forEach(function(payee) {
+								async.eachSeries(payee_rows, function(payee, cb2){
 									if ((action === 'sent' && !payee.is_external) || (asset != payee.asset)) {
-										if (++done == payee_rows.length) cb();
-										return;
+										return cb2();
 									}
 
 									var transaction = {
@@ -959,13 +957,15 @@ function readTransactionHistory(opts, handleHistory){
 											function(rows) {
 												transaction.claimedByMe = (rows.length > 0);
 												arrTransactions.push(transaction);
-												if (++done == payee_rows.length) cb();
+												cb2();
 											}
 										);
 									} else {
 										arrTransactions.push(transaction);
-										if (++done == payee_rows.length) cb();
+										cb2();
 									}
+								}, function() {
+									cb();
 								});
 							}
 						);
