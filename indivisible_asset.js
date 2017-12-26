@@ -879,6 +879,12 @@ function getSavingCallbacks(to_address, callbacks){
 								}
 							);
 						};
+					} else {
+						if (typeof callbacks.preCommitCb === "function") {
+							preCommitCallback = function(conn, cb){
+								callbacks.preCommitCb(conn, objJoint, cb);
+							}
+						}
 					}
 					
 					var saveAndUnlock = function(){

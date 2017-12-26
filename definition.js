@@ -260,7 +260,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 					//		return cb(null, true);
 						var bAllowUnresolvedInnerDefinitions = true;
 						var arrDefiningAuthors = objUnit.authors.filter(function(author){
-							return (author.address === other_address && objectHash.getChash160(author.definition) === definition_chash);
+							return (author.address === other_address && author.definition && objectHash.getChash160(author.definition) === definition_chash);
 						});
 						if (arrDefiningAuthors.length === 0) // no address definition in the current unit
 							return bAllowUnresolvedInnerDefinitions ? cb(null, true) : cb("definition of inner address "+other_address+" not found");

@@ -2,7 +2,7 @@
 "use strict";
 var eventBus = require('./event_bus.js');
 
-var VERSION = 16;
+var VERSION = 17;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -125,6 +125,28 @@ function migrateDb(connection, onDone){
 			connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS sentByAddress ON sent_mnemonics(address)");
 			connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS sentByUnit ON sent_mnemonics(unit)");
 			connection.addQuery(arrQueries, "DELETE FROM known_bad_joints");
+		}
+		if (version < 17){
+			connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS private_profiles ( \n\
+				private_profile_id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \n\
+				unit CHAR(44) NOT NULL, \n\
+				payload_hash CHAR(44) NOT NULL, \n\
+				attestor_address CHAR(32) NOT NULL, \n\
+				address CHAR(32) NOT NULL, \n\
+				src_profile TEXT NOT NULL, \n\
+				creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, \n\
+				FOREIGN KEY (unit) REFERENCES units(unit) \n\
+			)");
+			connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS private_profile_fields ( \n\
+				private_profile_id INTEGER NOT NULL , \n\
+				`field` VARCHAR(50) NOT NULL, \n\
+				`value` VARCHAR(50) NOT NULL, \n\
+				blinding CHAR(16) NOT NULL, \n\
+				creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, \n\
+				UNIQUE (private_profile_id, `field`), \n\
+				FOREIGN KEY (private_profile_id) REFERENCES private_profiles(private_profile_id) \n\
+			)");
+			connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS ppfByField ON private_profile_fields(`field`)");
 		}
 		connection.addQuery(arrQueries, "PRAGMA user_version="+VERSION);
 		eventBus.emit('started_db_upgrade');
