@@ -1528,9 +1528,7 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 	var opts = {};
 	var asset = null;
 	opts.signer = signer;
-	opts.to_address = addressTo;
 	opts.paying_addresses = [address];
-	//opts.outputs = [{address: addressTo, amount: 0}];
 
 	opts.callbacks = {
 		ifNotEnoughFunds: function(err){
@@ -1588,6 +1586,7 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 									return network.requestHistoryFor([opts.asset], [], checkStability);
 								}
 								asset = opts.asset;
+								opts.to_address = addressTo;
 								if (objAsset.fixed_denominations){ // indivisible
 									opts.tolerance_plus = 0;
 									opts.tolerance_minus = 0;
@@ -1599,6 +1598,7 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 							});
 						} else {// claiming bytes
 							opts.send_all = true;
+							opts.outputs = [{address: addressTo, amount: 0}];
 							opts.callbacks = composer.getSavingCallbacks(opts.callbacks);
 							composer.composeJoint(opts);
 						}
