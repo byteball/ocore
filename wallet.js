@@ -806,14 +806,14 @@ function fetchAssetMetadata(asset, handleMetadata){
 }
 
 function readTransactionHistory(opts, handleHistory){
-	var asset = opts.asset;
+	var asset = opts.asset && (opts.asset !== "base") ? opts.asset : null;
 	if (opts.wallet && opts.address || !opts.wallet && !opts.address)
 		throw Error('invalid wallet and address params');
 	var wallet = opts.wallet || opts.address;
 	var walletIsAddress = ValidationUtils.isValidAddress(wallet);
 	var join_my_addresses = walletIsAddress ? "" : "JOIN my_addresses USING(address)";
 	var where_condition = walletIsAddress ? "address=?" : "wallet=?";
-	var asset_condition = (asset && asset !== "base") ? "asset="+db.escape(asset) : "asset IS NULL";
+	var asset_condition = asset ? "asset="+db.escape(asset) : "asset IS NULL";
 	var cross = "";
 	if (opts.unit)
 		where_condition += " AND unit="+db.escape(opts.unit);
@@ -902,15 +902,15 @@ function readTransactionHistory(opts, handleHistory){
 					}
 					else if (movement.has_minus){
 						var queryString, parameters;
-						queryString =   "SELECT outputs.address, SUM(outputs.amount) AS amount, ("
+						queryString =   "SELECT outputs.address, SUM(outputs.amount) AS amount, outputs.asset, ("
 										+ ( walletIsAddress ? "outputs.address!=?" : "my_addresses.address IS NULL") + ") AS is_external, \n\
 										sent_mnemonics.textAddress, sent_mnemonics.mnemonic, \n\
 										(SELECT unit_authors.unit FROM unit_authors WHERE unit_authors.address = sent_mnemonics.address LIMIT 1) AS claiming_unit \n\
 										FROM outputs "
 										+ (walletIsAddress ? "" : "LEFT JOIN my_addresses ON outputs.address=my_addresses.address AND wallet=? ") +
 										"LEFT JOIN sent_mnemonics USING(unit) \n\
-										WHERE outputs.unit=? AND "+asset_condition+" \n\
-										GROUP BY outputs.address";
+										WHERE outputs.unit=? \n\
+										GROUP BY outputs.address, asset";
 						parameters = [wallet, unit];
 						db.query(queryString, parameters, 
 							function(payee_rows){
@@ -920,8 +920,13 @@ function readTransactionHistory(opts, handleHistory){
 									return;
 								}
 								var done = 0;
+								var has_asset = payee_rows.some(function(payee){ return payee.asset; });
+								if (has_asset && !asset) { // filter out "fees" txs from history
+									cb();
+									return;
+								}
 								payee_rows.forEach(function(payee) {
-									if (action === 'sent' && !payee.is_external) {
+									if ((action === 'sent' && !payee.is_external) || (asset != payee.asset)) {
 										if (++done == payee_rows.length) cb();
 										return;
 									}
@@ -978,7 +983,7 @@ function readTransactionHistory(opts, handleHistory){
 							return -1;
 						return 0;
 					});
-					arrTransactions.forEach(function(transaction){ transaction.asset = asset; });
+					arrTransactions.forEach(function(transaction){ transaction.asset = opts.asset; });
 					handleHistory(arrTransactions);
 				}
 			);
@@ -1307,10 +1312,13 @@ function sendMultiPayment(opts, handleResult)
 					if (output.address.indexOf(prefix) !== 0)
 						return false;
 					var address = output.address.slice(prefix.length);
-					var mnemonic = new Mnemonic();
-					while (!Mnemonic.isValid(mnemonic.toString()))
-						mnemonic = new Mnemonic();
-					var strMnemonic = mnemonic.toString().replace(/ /g, "-");
+					var strMnemonic = assocMnemonics[output.address] || "";
+					var mnemonic = new Mnemonic(strMnemonic.replace(/-/g, " "));
+					if (!strMnemonic) {
+						while (!Mnemonic.isValid(mnemonic.toString()))
+							mnemonic = new Mnemonic();
+						strMnemonic = mnemonic.toString().replace(/ /g, "-");
+					}
 					if (!opts.do_not_email && ValidationUtils.isValidEmail(address)) {
 						assocPaymentsByEmail[address] = {mnemonic: strMnemonic, amount: output.amount, asset: output_asset};
 					}
@@ -1516,11 +1524,11 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 		}
 	};
 	var opts = {};
+	var asset = null;
 	opts.signer = signer;
-	opts.send_all = true;
-	opts.outputs = [{address: addressTo, amount: 0}];
 	opts.paying_addresses = [address];
- 	opts.callbacks = composer.getSavingCallbacks({
+
+	opts.callbacks = {
 		ifNotEnoughFunds: function(err){
 			cb("This textcoin was already claimed");
 		},
@@ -1531,10 +1539,9 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 		},
 		ifOk: function(objJoint, arrChainsOfRecipientPrivateElements, arrChainsOfCosignerPrivateElements){
 			network.broadcastJoint(objJoint);
-			cb(null, objJoint.unit.unit);
+			cb(null, objJoint.unit.unit, asset);
 		}
-	});
-
+	};
 
 	if (conf.bLight) {
 		db.query(
@@ -1543,9 +1550,7 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 			[address],
 			function(rows){
 				if (rows.length === 0) {
-					network.requestHistoryFor([], [address], function(){
-						checkStability();
-					});
+					network.requestHistoryFor([], [address], checkStability);
 				}
 				else
 					checkStability();
@@ -1558,17 +1563,43 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 	// check stability of payingAddresses
 	function checkStability() {
 		db.query(
-			"SELECT is_stable \n\
-			FROM outputs JOIN units USING(unit) WHERE address=? AND sequence='good' LIMIT 1", 
+			"SELECT is_stable, asset, is_spent, amount \n\
+			FROM outputs JOIN units USING(unit) WHERE address=? AND sequence='good' ORDER BY asset DESC, is_spent ASC LIMIT 1", 
 			[address],
 			function(rows){
 				if (rows.length === 0) {
 					cb("This payment doesn't exist in the network");
 				} else {
-					if (!rows[0].is_stable) {
+					var row = rows[0];
+					if (!row.is_stable) {
 						cb("This payment is not confirmed yet, try again later");
 					} else {
-						composer.composeJoint(opts);
+						if (row.asset) { // claiming asset
+							// TODO: request asset data for light clients
+							opts.asset = row.asset;
+							opts.amount = row.amount;
+							opts.fee_paying_addresses = [address];
+							storage.readAsset(db, row.asset, null, function(err, objAsset){
+								if (err && err.indexOf("not found" !== -1)) {
+									return network.requestHistoryFor([opts.asset], [], checkStability);
+								}
+								asset = opts.asset;
+								opts.to_address = addressTo;
+								if (objAsset.fixed_denominations){ // indivisible
+									opts.tolerance_plus = 0;
+									opts.tolerance_minus = 0;
+									indivisibleAsset.composeAndSaveIndivisibleAssetPaymentJoint(opts);
+								}
+								else{ // divisible
+									divisibleAsset.composeAndSaveDivisibleAssetPaymentJoint(opts);
+								}
+							});
+						} else {// claiming bytes
+							opts.send_all = true;
+							opts.outputs = [{address: addressTo, amount: 0}];
+							opts.callbacks = composer.getSavingCallbacks(opts.callbacks);
+							composer.composeJoint(opts);
+						}
 					}
 				}
 			}

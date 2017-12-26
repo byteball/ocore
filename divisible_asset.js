@@ -309,6 +309,12 @@ function getSavingCallbacks(callbacks){
 								}
 							});
 						};
+					} else {
+						if (typeof callbacks.preCommitCb === "function") {
+							preCommitCallback = function(conn, cb){
+								callbacks.preCommitCb(conn, objJoint, cb);
+							}
+						}
 					}
 					
 					composer.postJointToLightVendorIfNecessaryAndSave(
