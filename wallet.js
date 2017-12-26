@@ -806,15 +806,14 @@ function fetchAssetMetadata(asset, handleMetadata){
 }
 
 function readTransactionHistory(opts, handleHistory){
-	var asset = opts.asset;
-	var is_base = !asset || asset === "base";
+	var asset = opts.asset && (opts.asset !== "base") ? opts.asset : null;
 	if (opts.wallet && opts.address || !opts.wallet && !opts.address)
 		throw Error('invalid wallet and address params');
 	var wallet = opts.wallet || opts.address;
 	var walletIsAddress = ValidationUtils.isValidAddress(wallet);
 	var join_my_addresses = walletIsAddress ? "" : "JOIN my_addresses USING(address)";
 	var where_condition = walletIsAddress ? "address=?" : "wallet=?";
-	var asset_condition = !is_base ? "asset="+db.escape(asset) : "asset IS NULL";
+	var asset_condition = asset ? "asset="+db.escape(asset) : "asset IS NULL";
 	var cross = "";
 	if (opts.unit)
 		where_condition += " AND unit="+db.escape(opts.unit);
@@ -922,12 +921,12 @@ function readTransactionHistory(opts, handleHistory){
 								}
 								var done = 0;
 								var has_asset = payee_rows.some(function(payee){ return payee.asset; });
-								if (has_asset && is_base) {
+								if (has_asset && !asset) { // filter out "fees" txs from history
 									cb();
 									return;
 								}
 								payee_rows.forEach(function(payee) {
-									if ((action === 'sent' && !payee.is_external) || (!is_base && asset != payee.asset)) {
+									if ((action === 'sent' && !payee.is_external) || (asset != payee.asset)) {
 										if (++done == payee_rows.length) cb();
 										return;
 									}
