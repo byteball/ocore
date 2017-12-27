@@ -973,6 +973,12 @@ function readTransactionHistory(opts, handleHistory){
 				},
 				function(){
 					arrTransactions.sort(function(a, b){
+						if (a.mci && b.mci){
+							if (a.mci < b.mci)
+								return 1;
+							if (a.mci > b.mci)
+								return -1;
+						}
 						if (a.level < b.level)
 							return 1;
 						if (a.level > b.level)
