@@ -1900,6 +1900,11 @@ function sendStoredDeviceMessages(ws, device_address){
 	});
 }
 
+function version2int(version){
+	var arr = version.split('.');
+	return arr[0]*10000 + arr[1]*100 + arr[2]*1;
+}
+
 
 // switch/case different message types
 
@@ -1928,6 +1933,8 @@ function handleJustsaying(ws, subject, body){
 				return;
 			}
 			ws.library_version = body.library_version;
+			if (typeof ws.library_version === 'string' && version2int(ws.library_version) < version2int('0.2.70') && constants.version === '1.0')
+				ws.old_core = true;
 			eventBus.emit('peer_version', ws, body); // handled elsewhere
 			break;
 
@@ -2219,11 +2226,7 @@ function handleRequest(ws, tag, command, params){
 				//    sendFreeJoints(ws);
 				return sendErrorResponse(ws, tag, "I'm light, cannot subscribe you to updates");
 			}
-			function version2int(version){
-				var arr = version.split('.');
-				return arr[0]*10000 + arr[1]*100 + arr[2]*1;
-			}
-			if (typeof ws.library_version === 'string' && version2int(ws.library_version) < version2int('0.2.70') && constants.version === '1.0'){
+			if (ws.old_core){
 				sendErrorResponse(ws, tag, "old core");
 				return ws.close(1000, "old core");
 			}
@@ -2240,6 +2243,8 @@ function handleRequest(ws, tag, command, params){
 		case 'get_joint': // peer needs a specific joint
 			//if (bCatchingUp)
 			//    return;
+			if (ws.old_core)
+				return sendErrorResponse(ws, tag, "old core, will not serve get_joint");
 			var unit = params;
 			storage.readJoint(db, unit, {
 				ifFound: function(objJoint){
@@ -2259,6 +2264,8 @@ function handleRequest(ws, tag, command, params){
 			break;
 			
 		case 'catchup':
+			if (!ws.bSubscribed)
+				return sendErrorResponse(ws, tag, "not subscribed, will not serve catchup");
 			var catchupRequest = params;
 			mutex.lock(['catchup_request'], function(unlock){
 				if (!ws || ws.readyState !== ws.OPEN) // may be already gone when we receive the lock
@@ -2277,6 +2284,8 @@ function handleRequest(ws, tag, command, params){
 			break;
 			
 		case 'get_hash_tree':
+			if (!ws.bSubscribed)
+				return sendErrorResponse(ws, tag, "not subscribed, will not serve get_hash_tree");
 			var hashTreeRequest = params;
 			mutex.lock(['get_hash_tree_request'], function(unlock){
 				if (!ws || ws.readyState !== ws.OPEN) // may be already gone when we receive the lock
