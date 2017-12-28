@@ -100,6 +100,12 @@ function sendJustsaying(ws, subject, body){
 	sendMessage(ws, 'justsaying', {subject: subject, body: body});
 }
 
+function sendAllJustsaying(subject, body){
+	wss.clients.forEach(function(ws){
+		sendMessage(ws, 'justsaying', {subject: subject, body: body});
+	});
+}
+
 function sendError(ws, error) {
 	sendJustsaying(ws, 'error', error);
 }
@@ -2716,6 +2722,7 @@ exports.broadcastJoint = broadcastJoint;
 exports.sendPrivatePayment = sendPrivatePayment;
 
 exports.sendJustsaying = sendJustsaying;
+exports.sendAllJustsaying = sendAllJustsaying;
 exports.sendError = sendError;
 exports.sendRequest = sendRequest;
 exports.findOutboundPeerOrConnect = findOutboundPeerOrConnect;
