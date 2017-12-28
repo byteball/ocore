@@ -82,6 +82,7 @@ function prepareRequestForHistory(handleResult){
 	}, 'wait');
 }
 
+var bFirstRefreshStarted = false;
 
 function refreshLightClientHistory(){
 	if (!conf.bLight)
@@ -89,6 +90,10 @@ function refreshLightClientHistory(){
 	if (!network.light_vendor_url)
 		return console.log('refreshLightClientHistory called too early: light_vendor_url not set yet');
 	eventBus.emit('refresh_light_started');
+	if (!bFirstRefreshStarted){
+		archiveDoublespendUnits();
+		bFirstRefreshStarted = true;
+	}
 	network.findOutboundPeerOrConnect(network.light_vendor_url, function onLocatedLightVendor(err, ws){
 		var finish = function(msg){
 			if (msg)
@@ -153,7 +158,7 @@ function archiveDoublespendUnits(){
 }
 
 if (conf.bLight){
-	setTimeout(archiveDoublespendUnits, 5*1000);
+//	setTimeout(archiveDoublespendUnits, 5*1000);
 	setInterval(archiveDoublespendUnits, 24*3600*1000);
 }
 

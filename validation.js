@@ -1334,8 +1334,8 @@ function validatePayment(conn, payload, message_index, objUnit, objValidationSta
 			return callback("must be cosigned by definer");
 		
 		if (objAsset.spender_attested){
-			if (conf.bLight && objAsset.is_private) // if the asset is public, we trust witnesses to have checked attestations
-				return callback("being light, I can't check attestations for private assets");
+			if (conf.bLight && objAsset.is_private) // in light clients, we don't have the attestation data but if the asset is public, we trust witnesses to have checked attestations
+				return callback("being light, I can't check attestations for private assets"); // TODO: request history
 			if (objAsset.arrAttestedAddresses.length === 0)
 				return callback("none of the authors is attested");
 			if (bIssue && objAsset.arrAttestedAddresses.indexOf(issuer_address) === -1)
@@ -1796,30 +1796,46 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 					else
 						return callback("the asset is not transferrable");
 				}
-				var arrCondition = bIssue ? objAsset.issue_condition : objAsset.transfer_condition;
-				if (arrCondition){
-					Definition.evaluateAssetCondition(
-						conn, payload.asset, arrCondition, objUnit, objValidationState, 
-						function(cond_err, bSatisfiesCondition){
-							if (cond_err)
-								return callback(cond_err);
-							if (!bSatisfiesCondition)
-								return callback("transfer or issue condition not satisfied");
-							console.log("validatePaymentInputsAndOutputs with transfer/issue conditions done");
-							callback();
-						}
-					);
-					return;
-				}
+				async.series([
+					function(cb){
+						if (!objAsset.spender_attested)
+							return cb();
+						storage.filterAttestedAddresses(
+							conn, objAsset, lobjValidationState.last_ball_mci, arrOutputAddresses, 
+							function(arrAttestedOutputAddresses){
+								if (arrAttestedOutputAddresses.length !== arrOutputAddresses.length)
+									return cb("some output addresses are not attested");
+								cb();
+							}
+						);
+					},
+					function(cb){
+						var arrCondition = bIssue ? objAsset.issue_condition : objAsset.transfer_condition;
+						if (!arrCondition)
+							return cb();
+						Definition.evaluateAssetCondition(
+							conn, payload.asset, arrCondition, objUnit, objValidationState, 
+							function(cond_err, bSatisfiesCondition){
+								if (cond_err)
+									return cb(cond_err);
+								if (!bSatisfiesCondition)
+									return cb("transfer or issue condition not satisfied");
+								console.log("validatePaymentInputsAndOutputs with transfer/issue conditions done");
+								cb();
+							}
+						);
+					}
+				], callback);
 			}
 			else{ // base asset
 				if (total_input !== total_output + objUnit.headers_commission + objUnit.payload_commission)
 					return callback("inputs and outputs do not balance: "+total_input+" !== "+total_output+" + "+objUnit.headers_commission+" + "+objUnit.payload_commission);
+				callback();
 			}
-			console.log("validatePaymentInputsAndOutputs done");
+		//	console.log("validatePaymentInputsAndOutputs done");
 		//	if (objAsset)
 		//		profiler2.stop('validate IO');
-			callback();
+		//	callback();
 		}
 	);
 }

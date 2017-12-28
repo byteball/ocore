@@ -1133,8 +1133,8 @@ function readAsset(conn, asset, last_ball_mci, handleAsset){
 	});
 }
 
-// filter only those authors that are attested (doesn't work for light clients)
-function filterAttestedAddresses(conn, objAsset, last_ball_mci, arrAuthorAddresses, handleAttestedAddresses){
+// filter only those addresses that are attested (doesn't work for light clients)
+function filterAttestedAddresses(conn, objAsset, last_ball_mci, arrAddresses, handleAttestedAddresses){
 	conn.query(
 		"SELECT DISTINCT address FROM attestations CROSS JOIN units USING(unit) \n\
 		WHERE attestor_address IN(?) AND address IN(?) AND main_chain_index<=? AND is_stable=1 AND sequence='good' \n\
@@ -1142,7 +1142,7 @@ function filterAttestedAddresses(conn, objAsset, last_ball_mci, arrAuthorAddress
 				(SELECT main_chain_index FROM address_definition_changes JOIN units USING(unit) \n\
 				WHERE address_definition_changes.address=attestations.address ORDER BY main_chain_index DESC LIMIT 1), \n\
 			0)",
-		[objAsset.arrAttestorAddresses, arrAuthorAddresses, last_ball_mci],
+		[objAsset.arrAttestorAddresses, arrAddresses, last_ball_mci],
 		function(addr_rows){
 			var arrAttestedAddresses = addr_rows.map(function(addr_row){ return addr_row.address; });
 			handleAttestedAddresses(arrAttestedAddresses);
@@ -1401,6 +1401,7 @@ exports.generateQueriesToArchiveJoint = generateQueriesToArchiveJoint;
 exports.archiveJointAndDescendantsIfExists = archiveJointAndDescendantsIfExists;
 
 exports.readAsset = readAsset;
+exports.filterAttestedAddresses = filterAttestedAddresses;
 exports.loadAssetWithListOfAttestedAuthors = loadAssetWithListOfAttestedAuthors;
 
 exports.filterNewOrUnstableUnits = filterNewOrUnstableUnits;
