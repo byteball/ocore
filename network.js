@@ -100,7 +100,7 @@ function sendJustsaying(ws, subject, body){
 	sendMessage(ws, 'justsaying', {subject: subject, body: body});
 }
 
-function sendAllJustsaying(subject, body){
+function sendAllInboundJustsaying(subject, body){
 	wss.clients.forEach(function(ws){
 		sendMessage(ws, 'justsaying', {subject: subject, body: body});
 	});
@@ -2195,6 +2195,9 @@ function handleJustsaying(ws, subject, body){
 				);
 			});            
 			break;
+		case 'exchange_rates':
+			eventBus.emit('exchange_rates', body);
+			break;
 	}
 }
 
@@ -2722,7 +2725,7 @@ exports.broadcastJoint = broadcastJoint;
 exports.sendPrivatePayment = sendPrivatePayment;
 
 exports.sendJustsaying = sendJustsaying;
-exports.sendAllJustsaying = sendAllJustsaying;
+exports.sendAllInboundJustsaying = sendAllInboundJustsaying;
 exports.sendError = sendError;
 exports.sendRequest = sendRequest;
 exports.findOutboundPeerOrConnect = findOutboundPeerOrConnect;
