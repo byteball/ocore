@@ -46,6 +46,7 @@ var arrWatchedAddresses = []; // does not include my addresses, therefore always
 var last_hearbeat_wake_ts = Date.now();
 var peer_events_buffer = [];
 var assocKnownPeers = {};
+var exchangeRates = {};
 
 if (process.browser){ // browser
 	console.log("defining .on() on ws");
@@ -98,6 +99,12 @@ function sendMessage(ws, type, content) {
 
 function sendJustsaying(ws, subject, body){
 	sendMessage(ws, 'justsaying', {subject: subject, body: body});
+}
+
+function sendAllInboundJustsaying(subject, body){
+	wss.clients.forEach(function(ws){
+		sendMessage(ws, 'justsaying', {subject: subject, body: body});
+	});
 }
 
 function sendError(ws, error) {
@@ -2189,6 +2196,9 @@ function handleJustsaying(ws, subject, body){
 				);
 			});            
 			break;
+		case 'exchange_rates':
+			exchangeRates = body;
+			break;
 	}
 }
 
@@ -2716,6 +2726,7 @@ exports.broadcastJoint = broadcastJoint;
 exports.sendPrivatePayment = sendPrivatePayment;
 
 exports.sendJustsaying = sendJustsaying;
+exports.sendAllInboundJustsaying = sendAllInboundJustsaying;
 exports.sendError = sendError;
 exports.sendRequest = sendRequest;
 exports.findOutboundPeerOrConnect = findOutboundPeerOrConnect;
@@ -2741,3 +2752,4 @@ exports.closeAllWsConnections = closeAllWsConnections;
 exports.isConnected = isConnected;
 exports.isCatchingUp = isCatchingUp;
 exports.requestHistoryFor = requestHistoryFor;
+exports.exchangeRates = exchangeRates;
