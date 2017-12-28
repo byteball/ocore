@@ -46,6 +46,7 @@ var arrWatchedAddresses = []; // does not include my addresses, therefore always
 var last_hearbeat_wake_ts = Date.now();
 var peer_events_buffer = [];
 var assocKnownPeers = {};
+var exchangeRates = {};
 
 if (process.browser){ // browser
 	console.log("defining .on() on ws");
@@ -2196,7 +2197,7 @@ function handleJustsaying(ws, subject, body){
 			});            
 			break;
 		case 'exchange_rates':
-			eventBus.emit('exchange_rates', body);
+			exchangeRates = body;
 			break;
 	}
 }
@@ -2751,3 +2752,4 @@ exports.closeAllWsConnections = closeAllWsConnections;
 exports.isConnected = isConnected;
 exports.isCatchingUp = isCatchingUp;
 exports.requestHistoryFor = requestHistoryFor;
+exports.exchangeRates = exchangeRates;
