@@ -2197,7 +2197,7 @@ function handleJustsaying(ws, subject, body){
 			});            
 			break;
 		case 'exchange_rates':
-			exchangeRates = body;
+			_.assign(exchangeRates, body);
 			break;
 	}
 }
