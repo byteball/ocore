@@ -3,6 +3,7 @@
 var _ = require('lodash');
 var async = require('async');
 var storage = require('./storage.js');
+var archiving = require('./archiving.js');
 var db = require('./db.js');
 var constants = require("./constants.js");
 var objectHash = require("./object_hash.js");
@@ -226,7 +227,7 @@ function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 								mutex.lock(["write"], function(unlock){
 									var arrQueries = [];
 									conn.addQuery(arrQueries, "BEGIN");
-									storage.generateQueriesToArchiveJoint(conn, objJoint, 'uncovered', arrQueries, function(){
+									archiving.generateQueriesToArchiveJoint(conn, objJoint, 'uncovered', arrQueries, function(){
 										conn.addQuery(arrQueries, "COMMIT");
 										async.series(arrQueries, function(){
 											unlock();
