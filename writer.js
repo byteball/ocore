@@ -352,6 +352,8 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 					if (rows.length !== 1)
 						throw Error("zero or more than one best parent unit?");
 					my_best_parent_unit = rows[0].unit;
+					if (my_best_parent_unit !== objValidationState.best_parent_unit)
+						throw Error("different best parents, validation: "+objValidationState.best_parent_unit+", writer: "+my_best_parent_unit);
 					conn.query("UPDATE units SET best_parent_unit=? WHERE unit=?", [my_best_parent_unit, objUnit.unit], function(){ cb(); });
 				}
 			);
@@ -384,6 +386,8 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 			
 			function setWitnessedLevel(witnessed_level){
 				profiler.start();
+				if (witnessed_level !== objValidationState.witnessed_level)
+					throw Error("different witnessed levels, validation: "+objValidationState.witnessed_level+", writer: "+witnessed_level);
 				conn.query("UPDATE units SET witnessed_level=? WHERE unit=?", [witnessed_level, objUnit.unit], function(){
 					profiler.stop('write-wl-update');
 					cb();
