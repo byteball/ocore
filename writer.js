@@ -359,12 +359,33 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 			);
 		}
 		
+		function determineMaxLevel(handleMaxLevel){
+			var max_level = 0;
+			async.each(
+				objUnit.parent_units, 
+				function(parent_unit, cb){
+					storage.readStaticUnitProps(conn, parent_unit, function(props){
+						if (props.level > max_level)
+							max_level = props.level;
+						cb();
+					});
+				},
+				function(){
+					handleMaxLevel(max_level);
+				}
+			);
+		}
+		
 		function updateLevel(cb){
 			conn.query("SELECT MAX(level) AS max_level FROM units WHERE unit IN(?)", [objUnit.parent_units], function(rows){
 				if (rows.length !== 1)
 					throw Error("not a single max level?");
-				conn.query("UPDATE units SET level=? WHERE unit=?", [rows[0].max_level + 1, objUnit.unit], function(){
-					cb();
+				determineMaxLevel(function(max_level){
+					if (max_level !== rows[0].max_level)
+						throw Error("different max level, sql: "+rows[0].max_level+", props: "+max_level);
+					conn.query("UPDATE units SET level=? WHERE unit=?", [rows[0].max_level + 1, objUnit.unit], function(){
+						cb();
+					});
 				});
 			});
 		}
