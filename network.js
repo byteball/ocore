@@ -2198,6 +2198,7 @@ function handleJustsaying(ws, subject, body){
 			break;
 		case 'exchange_rates':
 			_.assign(exchangeRates, body);
+			eventBus.emit('rates_updated');
 			break;
 	}
 }
