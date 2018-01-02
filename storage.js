@@ -21,6 +21,9 @@ var assocCachedUnitAuthors = {};
 var assocCachedUnitWitnesses = {};
 var assocCachedAssetInfos = {};
 
+var assocUnstableUnits = {};
+var assocStableUnits = {};
+
 var min_retrievable_mci = null;
 initializeMinRetrievableMci();
 
@@ -524,17 +527,18 @@ function readJointWithBall(conn, unit, handleJoint) {
 
 
 
-function readWitnessList(conn, unit, handleWitnessList){
+function readWitnessList(conn, unit, handleWitnessList, bAllowEmptyList){
 	var arrWitnesses = assocCachedUnitWitnesses[unit];
 	if (arrWitnesses)
 		return handleWitnessList(arrWitnesses);
 	conn.query("SELECT address FROM unit_witnesses WHERE unit=? ORDER BY address", [unit], function(rows){
-		if (rows.length === 0)
+		if (!bAllowEmptyList && rows.length === 0)
 			throw Error("witness list of unit "+unit+" not found");
-		if (rows.length !== constants.COUNT_WITNESSES)
+		if (rows.length > 0 && rows.length !== constants.COUNT_WITNESSES)
 			throw Error("wrong number of witnesses in unit "+unit);
 		arrWitnesses = rows.map(function(row){ return row.address; });
-		assocCachedUnitWitnesses[unit] = arrWitnesses;
+		if (rows.length > 0)
+			assocCachedUnitWitnesses[unit] = arrWitnesses;
 		handleWitnessList(arrWitnesses);
 	});
 }
@@ -687,13 +691,26 @@ function isGenesisBall(ball){
 
 
 function readUnitProps(conn, unit, handleProps){
+	if (assocStableUnits[unit])
+		return handleProps(assocStableUnits[unit]);
 	conn.query(
 		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level FROM units WHERE unit=?", 
 		[unit], 
 		function(rows){
 			if (rows.length !== 1)
 				throw Error("not 1 row");
-			handleProps(rows[0]);
+			var props = rows[0];
+			if (props.is_stable)
+				assocStableUnits[unit] = props;
+			else{
+				var props2 = _.cloneDeep(assocUnstableUnits[unit]);
+				if (!props2)
+					throw Error("no unstable props of "+unit);
+				delete props2.parent_units;
+				if (!_.isEqual(props, props2))
+					throw Error("different props of "+unit+", mem: "+JSON.stringify(props2)+", db: "+JSON.stringify(props));
+			}
+			handleProps(props);
 		}
 	);
 }
@@ -1182,7 +1199,7 @@ function shrinkCache(){
 	var arrWitnessesUnits = Object.keys(assocCachedUnitWitnesses);
 	if (arrPropsUnits.length < MAX_ITEMS_IN_CACHE && arrAuthorsUnits.length < MAX_ITEMS_IN_CACHE && arrWitnessesUnits.length < MAX_ITEMS_IN_CACHE && arrKnownUnits.length < MAX_ITEMS_IN_CACHE)
 		return console.log('cache is small, will not shrink');
-	var arrUnits = _.union(arrPropsUnits, arrAuthorsUnits, arrWitnessesUnits, arrKnownUnits);
+	var arrUnits = _.union(arrPropsUnits, arrAuthorsUnits, arrWitnessesUnits, arrKnownUnits, assocStableUnits);
 	console.log('will shrink cache, total units: '+arrUnits.length);
 	readLastStableMcIndex(db, function(last_stable_mci){
 		var CHUNK_SIZE = 500; // there is a limit on the number of query params
@@ -1196,6 +1213,7 @@ function shrinkCache(){
 					rows.forEach(function(row){
 						delete assocKnownUnits[row.unit];
 						delete assocCachedUnits[row.unit];
+						delete assocStableUnits[row.unit];
 						delete assocCachedUnitAuthors[row.unit];
 						delete assocCachedUnitWitnesses[row.unit];
 					});
@@ -1205,6 +1223,43 @@ function shrinkCache(){
 	});
 }
 setInterval(shrinkCache, 300*1000);
+
+
+
+function initUnstableUnits(onDone){
+	db.query(
+		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level \n\
+		FROM units WHERE is_stable=0 ORDER BY +level",
+		function(rows){
+		//	assocUnstableUnits = {};
+			rows.forEach(function(row){
+				row.parent_units = [];
+				assocUnstableUnits[row.unit] = row;
+			});
+			console.log('initUnstableUnits 1 done');
+			db.query(
+				"SELECT parent_unit, child_unit FROM parenthoods WHERE child_unit IN("+Object.keys(assocUnstableUnits).map(db.escape)+")", 
+				function(prows){
+					prows.forEach(function(prow){
+						assocUnstableUnits[prow.child_unit].parent_units.push(prow.parent_unit);
+					});
+					console.log('initUnstableUnits done');
+					if (onDone)
+						onDone();
+				}
+			);
+		}
+	);
+}
+
+function resetUnstableUnits(onDone){
+	Object.keys(assocUnstableUnits).forEach(function(unit){
+		delete assocUnstableUnits[unit];
+	});
+	initUnstableUnits(onDone);
+}
+
+mutex.lock(['write'], initUnstableUnits);
 
 if (!conf.bLight)
 	archiveJointAndDescendantsIfExists('N6QadI9yg3zLxPMphfNGJcPfddW4yHPkoGMbbGZsWa0=');
@@ -1258,3 +1313,7 @@ exports.setUnitIsKnown = setUnitIsKnown;
 exports.forgetUnit = forgetUnit;
 
 exports.sliceAndExecuteQuery = sliceAndExecuteQuery;
+
+exports.assocUnstableUnits = assocUnstableUnits;
+exports.assocStableUnits = assocStableUnits;
+exports.resetUnstableUnits = resetUnstableUnits;

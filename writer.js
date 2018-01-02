@@ -56,7 +56,8 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 				conn.addQuery(arrQueries, "INSERT INTO parenthoods (child_unit, parent_unit) VALUES(?,?)", [objUnit.unit, objUnit.parent_units[i]]);
 		}
 		
-		if (storage.isGenesisUnit(objUnit.unit))
+		var bGenesis = storage.isGenesisUnit(objUnit.unit);
+		if (bGenesis)
 			conn.addQuery(arrQueries, 
 				"UPDATE units SET is_on_main_chain=1, main_chain_index=0, is_stable=1, level=0, witnessed_level=0 \n\
 				WHERE unit=?", [objUnit.unit]);
@@ -65,6 +66,10 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 				// in sqlite3, result.affectedRows actually returns the number of _matched_ rows
 				var count_consumed_free_units = result.affectedRows;
 				console.log(count_consumed_free_units+" free units consumed");
+				objUnit.parent_units.forEach(function(parent_unit){
+					if (storage.assocUnstableUnits[parent_unit])
+						storage.assocUnstableUnits[parent_unit].is_free = 0;
+				})
 			});
 		}
 		
@@ -98,7 +103,7 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 				conn.addQuery(arrQueries, "INSERT "+conn.getIgnore()+" INTO addresses (address) VALUES(?)", [author.address]);
 			conn.addQuery(arrQueries, "INSERT INTO unit_authors (unit, address, definition_chash) VALUES(?,?,?)", 
 				[objUnit.unit, author.address, definition_chash]);
-			if (storage.isGenesisUnit(objUnit.unit))
+			if (bGenesis)
 				conn.addQuery(arrQueries, "UPDATE unit_authors SET _mci=0 WHERE unit=?", [objUnit.unit]);
 			if (!objUnit.content_hash){
 				for (var path in author.authentifiers)
@@ -353,7 +358,7 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 						throw Error("zero or more than one best parent unit?");
 					my_best_parent_unit = rows[0].unit;
 					if (my_best_parent_unit !== objValidationState.best_parent_unit)
-						throw Error("different best parents, validation: "+objValidationState.best_parent_unit+", writer: "+my_best_parent_unit);
+						throwError("different best parents, validation: "+objValidationState.best_parent_unit+", writer: "+my_best_parent_unit);
 					conn.query("UPDATE units SET best_parent_unit=? WHERE unit=?", [my_best_parent_unit, objUnit.unit], function(){ cb(); });
 				}
 			);
@@ -382,7 +387,8 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 					throw Error("not a single max level?");
 				determineMaxLevel(function(max_level){
 					if (max_level !== rows[0].max_level)
-						throw Error("different max level, sql: "+rows[0].max_level+", props: "+max_level);
+						throwError("different max level, sql: "+rows[0].max_level+", props: "+max_level);
+					objNewUnitProps.level = max_level + 1;
 					conn.query("UPDATE units SET level=? WHERE unit=?", [rows[0].max_level + 1, objUnit.unit], function(){
 						cb();
 					});
@@ -408,7 +414,8 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 			function setWitnessedLevel(witnessed_level){
 				profiler.start();
 				if (witnessed_level !== objValidationState.witnessed_level)
-					throw Error("different witnessed levels, validation: "+objValidationState.witnessed_level+", writer: "+witnessed_level);
+					throwError("different witnessed levels, validation: "+objValidationState.witnessed_level+", writer: "+witnessed_level);
+				objNewUnitProps.witnessed_level = witnessed_level;
 				conn.query("UPDATE units SET witnessed_level=? WHERE unit=?", [witnessed_level, objUnit.unit], function(){
 					profiler.stop('write-wl-update');
 					cb();
@@ -446,11 +453,22 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 		}
 		
 		
-		
+		var objNewUnitProps = {
+			unit: objUnit.unit,
+			level: bGenesis ? 0 : null,
+			latest_included_mc_index: null,
+			main_chain_index: bGenesis ? 0 : null,
+			is_on_main_chain: bGenesis ? 1 : 0,
+			is_free: 1,
+			is_stable: bGenesis ? 1 : 0,
+			witnessed_level: bGenesis ? 0 : null,
+			parent_units: objUnit.parent_units
+		};
 		
 		// without this locking, we get frequent deadlocks from mysql
 		mutex.lock(["write"], function(unlock){
 			console.log("got lock to write "+objUnit.unit);
+			storage.assocUnstableUnits[objUnit.unit] = objNewUnitProps;
 			addInlinePaymentQueries(function(){
 				async.series(arrQueries, function(){
 					profiler.stop('write-raw');
@@ -479,7 +497,10 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 							console.log((err ? (err+", therefore rolled back unit ") : "committed unit ")+objUnit.unit);
 							profiler.stop('write-commit');
 							profiler.increment();
-							unlock();
+							if (err)
+								storage.resetUnstableUnits(unlock);
+							else
+								unlock();
 							if (!err)
 								eventBus.emit('saved_unit-'+objUnit.unit, objJoint);
 							if (onDone)
@@ -512,10 +533,24 @@ function readCountOfAnalyzedUnits(handleCount){
 	});
 }
 
+var start_time = 0;
+var prev_time = 0;
 // update stats for query planner
 function updateSqliteStats(){
+	if (count_writes === 1){
+		start_time = Date.now();
+		prev_time = Date.now();
+	}
 	if (count_writes % 100 !== 0)
 		return;
+	if (count_writes % 1000 === 0){
+		var total_time = (Date.now() - start_time)/1000;
+		var recent_time = (Date.now() - prev_time)/1000;
+		var recent_tps = 1000/recent_time;
+		var avg_tps = count_writes/total_time;
+		prev_time = Date.now();
+	//	console.error(count_writes+" units done in "+total_time+" s, recent "+recent_tps+" tps, avg "+avg_tps+" tps");
+	}
 	db.query("SELECT MAX(rowid) AS count_units FROM units", function(rows){
 		var count_units = rows[0].count_units;
 		if (count_units > 500000) // the db is too big
@@ -533,6 +568,13 @@ function updateSqliteStats(){
 			});
 		});
 	});
+}
+
+function throwError(msg){
+	if (typeof window === 'undefined')
+		throw Error(msg);
+	else
+		eventBus.emit('nonfatal_error', msg, new Error());
 }
 
 exports.saveJoint = saveJoint;
