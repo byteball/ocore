@@ -1188,6 +1188,8 @@ function forgetUnit(unit){
 	delete assocCachedUnits[unit];
 	delete assocCachedUnitAuthors[unit];
 	delete assocCachedUnitWitnesses[unit];
+	delete assocUnstableUnits[unit];
+	delete assocStableUnits[unit];
 }
 
 function shrinkCache(){
