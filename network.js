@@ -2110,6 +2110,7 @@ function handleJustsaying(ws, subject, body){
 				sendJustsaying(ws, 'hub/push_project_number', {projectNumber: conf.pushApiProjectNumber});
 			else
 				sendJustsaying(ws, 'hub/push_project_number', {projectNumber: 0});
+			eventBus.emit('client_logged_in', ws);
 			break;
 			
 		// I'm a hub, the peer wants to download new messages
@@ -2193,6 +2194,8 @@ function handleJustsaying(ws, subject, body){
 			});            
 			break;
 		case 'exchange_rates':
+			if (!ws.bLoggingIn && !ws.bLoggedIn) // accept from hub only
+				return;
 			_.assign(exchangeRates, body);
 			eventBus.emit('rates_updated');
 			break;
