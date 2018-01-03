@@ -1513,7 +1513,7 @@ function replaceInTextcoinTemplate(params, handleText){
 function receiveTextCoin(mnemonic, addressTo, cb) {
 	mnemonic = mnemonic.toLowerCase().split('-').join(' ');
 	if ((mnemonic.split(' ').length % 3 !== 0) || !Mnemonic.isValid(mnemonic)) {
-		return cb("invalid mnemonic");
+		return cb("invalid mnemonic: "+mnemonic);
 	}
 	var mnemonic = new Mnemonic(mnemonic);
 	try {
