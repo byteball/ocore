@@ -1197,11 +1197,12 @@ function shrinkCache(){
 		assocCachedAssetInfos = {};
 	var arrKnownUnits = Object.keys(assocKnownUnits);
 	var arrPropsUnits = Object.keys(assocCachedUnits);
+	var arrStableUnits = Object.keys(assocStableUnits);
 	var arrAuthorsUnits = Object.keys(assocCachedUnitAuthors);
 	var arrWitnessesUnits = Object.keys(assocCachedUnitWitnesses);
-	if (arrPropsUnits.length < MAX_ITEMS_IN_CACHE && arrAuthorsUnits.length < MAX_ITEMS_IN_CACHE && arrWitnessesUnits.length < MAX_ITEMS_IN_CACHE && arrKnownUnits.length < MAX_ITEMS_IN_CACHE)
+	if (arrPropsUnits.length < MAX_ITEMS_IN_CACHE && arrAuthorsUnits.length < MAX_ITEMS_IN_CACHE && arrWitnessesUnits.length < MAX_ITEMS_IN_CACHE && arrKnownUnits.length < MAX_ITEMS_IN_CACHE && arrStableUnits.length < MAX_ITEMS_IN_CACHE)
 		return console.log('cache is small, will not shrink');
-	var arrUnits = _.union(arrPropsUnits, arrAuthorsUnits, arrWitnessesUnits, arrKnownUnits, assocStableUnits);
+	var arrUnits = _.union(arrPropsUnits, arrAuthorsUnits, arrWitnessesUnits, arrKnownUnits, arrStableUnits);
 	console.log('will shrink cache, total units: '+arrUnits.length);
 	readLastStableMcIndex(db, function(last_stable_mci){
 		var CHUNK_SIZE = 500; // there is a limit on the number of query params
