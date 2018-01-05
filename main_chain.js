@@ -851,6 +851,7 @@ function markMcIndexStable(conn, mci, onDone){
 		if (o.main_chain_index === mci && o.is_stable === 0){
 			o.is_stable = 1;
 			storage.assocStableUnits[unit] = o;
+			arrStabilizedUnits.push(unit);
 		}
 	}
 	arrStabilizedUnits.forEach(function(unit){
