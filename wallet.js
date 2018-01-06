@@ -712,7 +712,10 @@ function readBalancesOnAddresses(walletId, handleBalancesOnAddresses) {
 }
 
 function readAssetMetadata(arrAssets, handleMetadata){
-	db.query("SELECT asset, metadata_unit, name, suffix, decimals FROM asset_metadata WHERE asset IN(?)", [arrAssets], function(rows){
+	var sql = "SELECT asset, metadata_unit, name, suffix, decimals FROM asset_metadata";
+	if (arrAssets && arrAssets.length)
+		sql += " WHERE asset IN ("+arrAssets.map(db.escape).join(', ')+")";
+	db.query(sql, function(rows){
 		var assocAssetMetadata = {};
 		for (var i=0; i<rows.length; i++){
 			var row = rows[i];
@@ -725,6 +728,8 @@ function readAssetMetadata(arrAssets, handleMetadata){
 		}
 		handleMetadata(assocAssetMetadata);
 		// after calling the callback, try to fetch missing data about assets
+		if (!arrAssets)
+			return;
 		arrAssets.forEach(function(asset){
 			if (assocAssetMetadata[asset] || asset === 'base' && asset === constants.BLACKBYTES_ASSET)
 				return;
