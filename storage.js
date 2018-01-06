@@ -71,6 +71,9 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 			var bVoided = (objUnit.content_hash && main_chain_index < min_retrievable_mci);
 			var bRetrievable = (main_chain_index >= min_retrievable_mci || main_chain_index === null);
 			
+			if (!conf.bLight && !objUnit.last_ball)
+				throw Error("no last ball in unit "+JSON.stringify(objUnit));
+			
 			// unit hash verification below will fail if:
 			// 1. the unit was received already voided, i.e. its messages are stripped and content_hash is set
 			// 2. the unit is still retrievable (e.g. we are syncing)
@@ -1195,6 +1198,7 @@ function forgetUnit(unit){
 function shrinkCache(){
 	if (Object.keys(assocCachedAssetInfos).length > MAX_ITEMS_IN_CACHE)
 		assocCachedAssetInfos = {};
+	console.log(Object.keys(assocUnstableUnits).length+" unstable units");
 	var arrKnownUnits = Object.keys(assocKnownUnits);
 	var arrPropsUnits = Object.keys(assocCachedUnits);
 	var arrStableUnits = Object.keys(assocStableUnits);
