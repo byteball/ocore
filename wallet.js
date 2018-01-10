@@ -775,7 +775,7 @@ function fetchAssetMetadata(asset, handleMetadata){
 				return handleMetadata("fetchMetadataUnit failed: "+err);
 			storage.readJoint(db, metadata_unit, {
 				ifNotFound: function(){
-					handleMetadata("metadata unit "+unit+" not found");
+					handleMetadata("metadata unit "+metadata_unit+" not found");
 				},
 				ifFound: function(objJoint){
 					objJoint.unit.messages.forEach(function(message){
