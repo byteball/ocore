@@ -602,7 +602,7 @@ function handlePairingMessage(json, device_pubkey, callbacks){
 						"UPDATE correspondent_devices SET is_confirmed=1, name=? WHERE device_address=? AND is_confirmed=0", 
 						[body.device_name, from_address],
 						function(){
-							eventBus.emit("paired", from_address);
+							eventBus.emit("paired", from_address, body.pairing_secret);
 							if (pairing_rows[0].is_permanent === 0){ // multiple peers can pair through permanent secret
 								db.query("DELETE FROM pairing_secrets WHERE pairing_secret=?", [body.pairing_secret], function(){});
 								eventBus.emit('paired_by_secret-'+body.pairing_secret, from_address);
