@@ -1,26 +1,25 @@
 /*jslint node: true */
-"use strict";
-var eventBus = require('./event_bus.js');
+const eventBus = require('./event_bus.js');
 
-var VERSION = 17;
+const VERSION = 17;
 
-var async = require('async');
-var bCordova = (typeof window === 'object' && window.cordova);
+const async = require('async');
+const bCordova = (typeof window === 'object' && window.cordova);
 
 function migrateDb(connection, onDone){
-	connection.db[bCordova ? 'query' : 'all']("PRAGMA user_version", function(err, result){
+	connection.db[bCordova ? 'query' : 'all']("PRAGMA user_version", (err, result) => {
 		if (err)
-			throw Error("PRAGMA user_version failed: "+err);
-		var rows = bCordova ? result.rows : result;
+			throw Error(`PRAGMA user_version failed: ${err}`);
+		const rows = bCordova ? result.rows : result;
 		if (rows.length !== 1)
-			throw Error("PRAGMA user_version returned "+rows.length+" rows");
-		var version = rows[0].user_version;
-		console.log("db version "+version+", software version "+VERSION);
+			throw Error(`PRAGMA user_version returned ${rows.length} rows`);
+		const version = rows[0].user_version;
+		console.log(`db version ${version}, software version ${VERSION}`);
 		if (version > VERSION)
-			throw Error("user version "+version+" > "+VERSION+": looks like you are using a new database with an old client");
+			throw Error(`user version ${version} > ${VERSION}: looks like you are using a new database with an old client`);
 		if (version === VERSION)
 			return onDone();
-		var arrQueries = [];
+		const arrQueries = [];
 		if (version < 1){
 			connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS unitAuthorsIndexByAddressDefinitionChash ON unit_authors(address, definition_chash)");
 			connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS outputsIsSerial ON outputs(is_serial)");
@@ -148,11 +147,11 @@ function migrateDb(connection, onDone){
 			)");
 			connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS ppfByField ON private_profile_fields(`field`)");
 		}
-		connection.addQuery(arrQueries, "PRAGMA user_version="+VERSION);
+		connection.addQuery(arrQueries, `PRAGMA user_version=${VERSION}`);
 		eventBus.emit('started_db_upgrade');
 		if (typeof window === 'undefined')
 			console.error("=== will upgrade the database, it can take some time");
-		async.series(arrQueries, function(){
+		async.series(arrQueries, () => {
 			eventBus.emit('finished_db_upgrade');
 			if (typeof window === 'undefined')
 				console.error("=== db upgrade finished");

@@ -1,7 +1,5 @@
 /*jslint node: true */
-"use strict";
-
-var STRING_JOIN_CHAR = "\x00";
+const STRING_JOIN_CHAR = "\x00";
 
 /**
  * Converts the argument into a string by mapping data types to a prefixed string and concatenating all fields together.
@@ -9,10 +7,10 @@ var STRING_JOIN_CHAR = "\x00";
  * @returns {string} the string version of the value
  */
 function getSourceString(obj) {
-    var arrComponents = [];
+    const arrComponents = [];
     function extractComponents(variable){
         if (variable === null)
-            throw Error("null value in "+JSON.stringify(obj));
+            throw Error(`null value in ${JSON.stringify(obj)}`);
         switch (typeof variable){
             case "string":
                 arrComponents.push("s", variable);
@@ -26,26 +24,26 @@ function getSourceString(obj) {
             case "object":
                 if (Array.isArray(variable)){
                     if (variable.length === 0)
-                        throw Error("empty array in "+JSON.stringify(obj));
+                        throw Error(`empty array in ${JSON.stringify(obj)}`);
                     arrComponents.push('[');
-                    for (var i=0; i<variable.length; i++)
+                    for (let i=0; i<variable.length; i++)
                         extractComponents(variable[i]);
                     arrComponents.push(']');
                 }
                 else{
-                    var keys = Object.keys(variable).sort();
+                    const keys = Object.keys(variable).sort();
                     if (keys.length === 0)
-                        throw Error("empty object in "+JSON.stringify(obj));
-                    keys.forEach(function(key){
+                        throw Error(`empty object in ${JSON.stringify(obj)}`);
+                    keys.forEach(key => {
                         if (typeof variable[key] === "undefined")
-                            throw Error("undefined at "+key+" of "+JSON.stringify(obj));
+                            throw Error(`undefined at ${key} of ${JSON.stringify(obj)}`);
                         arrComponents.push(key);
                         extractComponents(variable[key]);
                     });
                 }
                 break;
             default:
-                throw Error("hash: unknown type="+(typeof variable)+" of "+variable+", object: "+JSON.stringify(obj));
+                throw Error(`hash: unknown type=${typeof variable} of ${variable}, object: ${JSON.stringify(obj)}`);
         }
     }
 

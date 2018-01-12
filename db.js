@@ -1,11 +1,10 @@
 /*jslint node: true */
-"use strict";
-var conf = require('./conf.js');
+const conf = require('./conf.js');
 
 if (conf.storage === 'mysql'){
-	var mysql = require('mysql');
-	var mysql_pool_constructor = require('./mysql_pool.js');
-	var pool  = mysql.createPool({
+	const mysql = require('mysql');
+	const mysql_pool_constructor = require('./mysql_pool.js');
+	const pool  = mysql.createPool({
 	//var pool  = mysql.createConnection({
 		connectionLimit : conf.database.max_connections,
 		host     : conf.database.host,
@@ -18,15 +17,15 @@ if (conf.storage === 'mysql'){
 	module.exports = mysql_pool_constructor(pool);
 }
 else if (conf.storage === 'sqlite'){
-	var sqlitePool = require('./sqlite_pool.js');
+	const sqlitePool = require('./sqlite_pool.js');
 	module.exports = sqlitePool(conf.database.filename, conf.database.max_connections, conf.database.bReadOnly);
 }
 
 function executeInTransaction(doWork, onDone){
-	module.exports.takeConnectionFromPool(function(conn){
-		conn.query("BEGIN", function(){
-			doWork(conn, function(err){
-				conn.query(err ? "ROLLBACK" : "COMMIT", function(){
+	module.exports.takeConnectionFromPool(conn => {
+		conn.query("BEGIN", () => {
+			doWork(conn, err => {
+				conn.query(err ? "ROLLBACK" : "COMMIT", () => {
 					conn.release();
 					onDone(err);
 				});

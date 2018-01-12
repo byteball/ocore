@@ -1,6 +1,4 @@
 /*jslint node: true */
-"use strict";
-
 exports.COUNT_WITNESSES = 12;
 exports.MAX_WITNESS_LIST_MUTATIONS = 1;
 exports.TOTAL_WHITEBYTES = 1e15;

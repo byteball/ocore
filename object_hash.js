@@ -1,9 +1,8 @@
 /*jslint node: true */
-"use strict";
-var crypto = require('crypto');
-var _ = require('lodash');
-var chash = require('./chash.js');
-var getSourceString = require('./string_utils').getSourceString;
+const crypto = require('crypto');
+const _ = require('lodash');
+const chash = require('./chash.js');
+const getSourceString = require('./string_utils').getSourceString;
 
 function getChash160(obj) {
 	return chash.getChash160(getSourceString(obj));
@@ -23,7 +22,7 @@ function getBase64Hash(obj) {
 
 
 function getNakedUnit(objUnit){
-	var objNakedUnit = _.cloneDeep(objUnit);
+	const objNakedUnit = _.cloneDeep(objUnit);
 	delete objNakedUnit.unit;
 	delete objNakedUnit.headers_commission;
 	delete objNakedUnit.payload_commission;
@@ -31,7 +30,7 @@ function getNakedUnit(objUnit){
 	delete objNakedUnit.timestamp;
 	//delete objNakedUnit.last_ball_unit;
 	if (objNakedUnit.messages){
-		for (var i=0; i<objNakedUnit.messages.length; i++){
+		for (let i=0; i<objNakedUnit.messages.length; i++){
 			delete objNakedUnit.messages[i].payload;
 			delete objNakedUnit.messages[i].payload_uri;
 		}
@@ -48,11 +47,13 @@ function getUnitContentHash(objUnit){
 function getUnitHash(objUnit) {
 	if (objUnit.content_hash) // already stripped
 		return getBase64Hash(getNakedUnit(objUnit));
-	var objStrippedUnit = {
+	const objStrippedUnit = {
 		content_hash: getUnitContentHash(objUnit),
 		version: objUnit.version,
 		alt: objUnit.alt,
-		authors: objUnit.authors.map(function(author){ return {address: author.address}; }) // already sorted
+		authors: objUnit.authors.map(({address}) => ({
+            address: address
+        })) // already sorted
 	};
 	if (objUnit.witness_list_unit)
 		objStrippedUnit.witness_list_unit = objUnit.witness_list_unit;
@@ -67,15 +68,15 @@ function getUnitHash(objUnit) {
 }
 
 function getUnitHashToSign(objUnit) {
-	var objNakedUnit = getNakedUnit(objUnit);
-	for (var i=0; i<objNakedUnit.authors.length; i++)
+	const objNakedUnit = getNakedUnit(objUnit);
+	for (let i=0; i<objNakedUnit.authors.length; i++)
 		delete objNakedUnit.authors[i].authentifiers;
 	return crypto.createHash("sha256").update(getSourceString(objNakedUnit), "utf8").digest();
 }
 
 function getBallHash(unit, arrParentBalls, arrSkiplistBalls, bNonserial) {
-	var objBall = {
-		unit: unit
+	const objBall = {
+		unit
 	};
 	if (arrParentBalls && arrParentBalls.length > 0)
 		objBall.parent_balls = arrParentBalls;
@@ -92,7 +93,7 @@ function getJointHash(objJoint) {
 }
 
 function cleanNulls(obj){
-	Object.keys(obj).forEach(function(key){
+	Object.keys(obj).forEach(key => {
 		if (obj[key] === null)
 			delete obj[key];
 	});
@@ -105,11 +106,11 @@ function cleanNulls(obj){
 // but still selectable by double-click.  Stripping the leading 0 will not produce a payment address that the device owner knows a private key for,
 // because payment address is derived by c-hashing the definition object, while device address is produced from raw public key.
 function getDeviceAddress(b64_pubkey){
-	return ('0' + getChash160(b64_pubkey));
+	return `0${getChash160(b64_pubkey)}`;
 }
 
 function getDeviceMessageHashToSign(objDeviceMessage) {
-	var objNakedDeviceMessage = _.clone(objDeviceMessage);
+	const objNakedDeviceMessage = _.clone(objDeviceMessage);
 	delete objNakedDeviceMessage.signature;
 	return crypto.createHash("sha256").update(getSourceString(objNakedDeviceMessage), "utf8").digest();
 }

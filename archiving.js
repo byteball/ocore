@@ -1,19 +1,18 @@
 /*jslint node: true */
-"use strict";
-var db = require('./db.js');
+const db = require('./db.js');
 
 
 function generateQueriesToArchiveJoint(conn, objJoint, reason, arrQueries, cb){
-	var func = (reason === 'uncovered') ? generateQueriesToRemoveJoint : generateQueriesToVoidJoint;
-	func(conn, objJoint.unit.unit, arrQueries, function(){
-		conn.addQuery(arrQueries, "INSERT "+conn.getIgnore()+" INTO archived_joints (unit, reason, json) VALUES (?,?,?)", 
+	const func = (reason === 'uncovered') ? generateQueriesToRemoveJoint : generateQueriesToVoidJoint;
+	func(conn, objJoint.unit.unit, arrQueries, () => {
+		conn.addQuery(arrQueries, `INSERT ${conn.getIgnore()} INTO archived_joints (unit, reason, json) VALUES (?,?,?)`, 
 			[objJoint.unit.unit, reason, JSON.stringify(objJoint)]);
 		cb();
 	});
 }
 
 function generateQueriesToRemoveJoint(conn, unit, arrQueries, cb){
-	generateQueriesToUnspendOutputsSpentInArchivedUnit(conn, unit, arrQueries, function(){
+	generateQueriesToUnspendOutputsSpentInArchivedUnit(conn, unit, arrQueries, () => {
 		conn.addQuery(arrQueries, "DELETE FROM sent_mnemonics WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM witness_list_hashes WHERE witness_list_unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM earned_headers_commission_recipients WHERE unit=?", [unit]);
@@ -41,7 +40,7 @@ function generateQueriesToRemoveJoint(conn, unit, arrQueries, cb){
 }
 
 function generateQueriesToVoidJoint(conn, unit, arrQueries, cb){
-	generateQueriesToUnspendOutputsSpentInArchivedUnit(conn, unit, arrQueries, function(){
+	generateQueriesToUnspendOutputsSpentInArchivedUnit(conn, unit, arrQueries, () => {
 		// we keep witnesses, author addresses, and the unit itself
 		conn.addQuery(arrQueries, "DELETE FROM witness_list_hashes WHERE witness_list_unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM earned_headers_commission_recipients WHERE unit=?", [unit]);
@@ -65,8 +64,8 @@ function generateQueriesToVoidJoint(conn, unit, arrQueries, cb){
 }
 
 function generateQueriesToUnspendOutputsSpentInArchivedUnit(conn, unit, arrQueries, cb){
-	generateQueriesToUnspendTransferOutputsSpentInArchivedUnit(conn, unit, arrQueries, function(){
-		generateQueriesToUnspendHeadersCommissionOutputsSpentInArchivedUnit(conn, unit, arrQueries, function(){
+	generateQueriesToUnspendTransferOutputsSpentInArchivedUnit(conn, unit, arrQueries, () => {
+		generateQueriesToUnspendHeadersCommissionOutputsSpentInArchivedUnit(conn, unit, arrQueries, () => {
 			generateQueriesToUnspendWitnessingOutputsSpentInArchivedUnit(conn, unit, arrQueries, cb);
 		});
 	});
@@ -87,12 +86,12 @@ function generateQueriesToUnspendTransferOutputsSpentInArchivedUnit(conn, unit, 
 					AND inputs.unit!=alt_inputs.unit \n\
 			)",
 		[unit],
-		function(rows){
-			rows.forEach(function(row){
+		rows => {
+			rows.forEach(({src_unit, src_message_index, src_output_index}) => {
 				conn.addQuery(
 					arrQueries, 
 					"UPDATE outputs SET is_spent=0 WHERE unit=? AND message_index=? AND output_index=?", 
-					[row.src_unit, row.src_message_index, row.src_output_index]
+					[src_unit, src_message_index, src_output_index]
 				);
 			});
 			cb();
@@ -119,12 +118,12 @@ function generateQueriesToUnspendHeadersCommissionOutputsSpentInArchivedUnit(con
 					AND inputs.unit!=alt_inputs.unit \n\
 			)",
 		[unit],
-		function(rows){
-			rows.forEach(function(row){
+		rows => {
+			rows.forEach(({address, main_chain_index}) => {
 				conn.addQuery(
 					arrQueries, 
 					"UPDATE headers_commission_outputs SET is_spent=0 WHERE address=? AND main_chain_index=?", 
-					[row.address, row.main_chain_index]
+					[address, main_chain_index]
 				);
 			});
 			cb();
@@ -151,12 +150,12 @@ function generateQueriesToUnspendWitnessingOutputsSpentInArchivedUnit(conn, unit
 					AND inputs.unit!=alt_inputs.unit \n\
 			)",
 		[unit],
-		function(rows){
-			rows.forEach(function(row){
+		rows => {
+			rows.forEach(({address, main_chain_index}) => {
 				conn.addQuery(
 					arrQueries, 
 					"UPDATE witnessing_outputs SET is_spent=0 WHERE address=? AND main_chain_index=?", 
-					[row.address, row.main_chain_index]
+					[address, main_chain_index]
 				);
 			});
 			cb();
