@@ -1,21 +1,20 @@
 /*jslint node: true */
-"use strict";
-var _ = require('lodash');
-var storage = require('./storage.js');
-var db = require('./db.js');
-var conf = require('./conf.js');
-var ValidationUtils = require("./validation_utils.js");
-var indivisibleAsset = require('./indivisible_asset.js');
-var divisibleAsset = require('./divisible_asset.js');
+const _ = require('lodash');
+const storage = require('./storage.js');
+const db = require('./db.js');
+const conf = require('./conf.js');
+const ValidationUtils = require("./validation_utils.js");
+const indivisibleAsset = require('./indivisible_asset.js');
+const divisibleAsset = require('./divisible_asset.js');
 
 function findUnfinishedPastUnitsOfPrivateChains(arrChains, includeLatestElement, handleUnits){
-	var assocUnits = {};
-	arrChains.forEach(function(arrPrivateElements){
+	const assocUnits = {};
+	arrChains.forEach(arrPrivateElements => {
 		assocUnits[arrPrivateElements[0].payload.asset] = true; // require asset definition
-		for (var i = includeLatestElement ? 0 : 1; i<arrPrivateElements.length; i++) // skip latest element
+		for (let i = includeLatestElement ? 0 : 1; i<arrPrivateElements.length; i++) // skip latest element
 			assocUnits[arrPrivateElements[i].unit] = true;
 	});
-	var arrUnits = Object.keys(assocUnits);
+	const arrUnits = Object.keys(assocUnits);
 	storage.filterNewOrUnstableUnits(arrUnits, handleUnits);
 }
 
@@ -23,41 +22,41 @@ function findUnfinishedPastUnitsOfPrivateChains(arrChains, includeLatestElement,
 function validateAndSavePrivatePaymentChain(arrPrivateElements, callbacks){
 	if (!ValidationUtils.isNonemptyArray(arrPrivateElements))
 		return callbacks.ifError("no priv elements array");
-	var headElement = arrPrivateElements[0];
+	const headElement = arrPrivateElements[0];
 	if (!headElement.payload)
 		return callbacks.ifError("no payload in head element");
-	var asset = headElement.payload.asset;
+	const asset = headElement.payload.asset;
 	if (!asset)
 		return callbacks.ifError("no asset in head element");
 	if (!ValidationUtils.isNonnegativeInteger(headElement.message_index))
 		return callbacks.ifError("no message index in head private element");
 	
-	var validateAndSave = function(){
-		storage.readAsset(db, asset, null, function(err, objAsset){
+	const validateAndSave = () => {
+		storage.readAsset(db, asset, null, (err, {fixed_denominations}) => {
 			if (err)
 				return callbacks.ifError(err);
-			if (!!objAsset.fixed_denominations !== !!headElement.payload.denomination)
+			if (!!fixed_denominations !== !!headElement.payload.denomination)
 				return callbacks.ifError("presence of denomination field doesn't match the asset type");
-			db.takeConnectionFromPool(function(conn){
-				conn.query("BEGIN", function(){
-					var transaction_callbacks = {
-						ifError: function(err){
-							conn.query("ROLLBACK", function(){
+			db.takeConnectionFromPool(conn => {
+				conn.query("BEGIN", () => {
+					const transaction_callbacks = {
+						ifError(err) {
+							conn.query("ROLLBACK", () => {
 								conn.release();
 								callbacks.ifError(err);
 							});
 						},
-						ifOk: function(){
-							conn.query("COMMIT", function(){
+						ifOk() {
+							conn.query("COMMIT", () => {
 								conn.release();
 								callbacks.ifOk();
 							});
 						}
 					};
 					// check if duplicate
-					var sql = "SELECT address FROM outputs WHERE unit=? AND message_index=?";
-					var params = [headElement.unit, headElement.message_index];
-					if (objAsset.fixed_denominations){
+					let sql = "SELECT address FROM outputs WHERE unit=? AND message_index=?";
+					const params = [headElement.unit, headElement.message_index];
+					if (fixed_denominations){
 						if (!ValidationUtils.isNonnegativeInteger(headElement.output_index))
 							return transaction_callbacks.ifError("no output index in head private element");
 						sql += " AND output_index=?";
@@ -66,14 +65,14 @@ function validateAndSavePrivatePaymentChain(arrPrivateElements, callbacks){
 					conn.query(
 						sql, 
 						params, 
-						function(rows){
+						rows => {
 							if (rows.length > 1)
-								throw Error("more than one output "+sql+' '+params.join(', '));
+								throw Error(`more than one output ${sql} ${params.join(', ')}`);
 							if (rows.length > 0 && rows[0].address){ // we could have this output already but the address is still hidden
-								console.log("duplicate private payment "+params.join(', '));
+								console.log(`duplicate private payment ${params.join(', ')}`);
 								return transaction_callbacks.ifOk();
 							}
-							var assetModule = objAsset.fixed_denominations ? indivisibleAsset : divisibleAsset;
+							const assetModule = fixed_denominations ? indivisibleAsset : divisibleAsset;
 							assetModule.validateAndSavePrivatePaymentChain(conn, arrPrivateElements, transaction_callbacks);
 						}
 					);
@@ -83,8 +82,8 @@ function validateAndSavePrivatePaymentChain(arrPrivateElements, callbacks){
 	};
 	
 	if (conf.bLight)
-		findUnfinishedPastUnitsOfPrivateChains([arrPrivateElements], false, function(arrUnfinishedUnits){
-			(arrUnfinishedUnits.length > 0) ? callbacks.ifWaitingForChain() : validateAndSave();
+		findUnfinishedPastUnitsOfPrivateChains([arrPrivateElements], false, ({length}) => {
+			(length > 0) ? callbacks.ifWaitingForChain() : validateAndSave();
 		});
 	else
 		validateAndSave();

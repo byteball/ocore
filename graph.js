@@ -1,10 +1,9 @@
 /*jslint node: true */
-"use strict";
-var _ = require('lodash');
-var async = require('async');
-var storage = require('./storage.js');
-var db = require('./db.js');
-var profiler = require('./profiler.js');
+const _ = require('lodash');
+const async = require('async');
+const storage = require('./storage.js');
+const db = require('./db.js');
+const profiler = require('./profiler.js');
 
 
 
@@ -14,11 +13,11 @@ function compareUnits(conn, unit1, unit2, handleResult){
 	conn.query(
 		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free FROM units WHERE unit IN(?)", 
 		[[unit1, unit2]], 
-		function(rows){
+		rows => {
 			if (rows.length !== 2)
 				throw Error("not 2 rows");
-			var objUnitProps1 = (rows[0].unit === unit1) ? rows[0] : rows[1];
-			var objUnitProps2 = (rows[0].unit === unit2) ? rows[0] : rows[1];
+			const objUnitProps1 = (rows[0].unit === unit1) ? rows[0] : rows[1];
+			const objUnitProps2 = (rows[0].unit === unit2) ? rows[0] : rows[1];
 			compareUnitsByProps(conn, objUnitProps1, objUnitProps2, handleResult);
 		}
 	);
@@ -60,13 +59,13 @@ function compareUnitsByProps(conn, objUnitProps1, objUnitProps2, handleResult){
 	else
 		return handleResult(null);
 	
-	var objEarlierUnit = (objUnitProps1.level < objUnitProps2.level) ? objUnitProps1 : objUnitProps2;
-	var objLaterUnit = (objUnitProps1.level < objUnitProps2.level) ? objUnitProps2 : objUnitProps1;
-	var resultIfFound = (objUnitProps1.level < objUnitProps2.level) ? -1 : 1;
+	const objEarlierUnit = (objUnitProps1.level < objUnitProps2.level) ? objUnitProps1 : objUnitProps2;
+	const objLaterUnit = (objUnitProps1.level < objUnitProps2.level) ? objUnitProps2 : objUnitProps1;
+	const resultIfFound = (objUnitProps1.level < objUnitProps2.level) ? -1 : 1;
 	
 	// can be negative if main_chain_index === null but that doesn't matter
-	var earlier_unit_delta = objEarlierUnit.main_chain_index - objEarlierUnit.latest_included_mc_index;
-	var later_unit_delta = objLaterUnit.main_chain_index - objLaterUnit.latest_included_mc_index;
+	const earlier_unit_delta = objEarlierUnit.main_chain_index - objEarlierUnit.latest_included_mc_index;
+	const later_unit_delta = objLaterUnit.main_chain_index - objLaterUnit.latest_included_mc_index;
 	
 	function goUp(arrStartUnits){
 		//console.log('compare', arrStartUnits);
@@ -75,10 +74,10 @@ function compareUnitsByProps(conn, objUnitProps1, objUnitProps2, handleResult){
 			FROM parenthoods JOIN units ON parent_unit=unit \n\
 			WHERE child_unit IN(?)",
 			[arrStartUnits],
-			function(rows){
-				var arrNewStartUnits = [];
-				for (var i=0; i<rows.length; i++){
-					var objUnitProps = rows[i];
+			rows => {
+				const arrNewStartUnits = [];
+				for (let i=0; i<rows.length; i++){
+					const objUnitProps = rows[i];
 					if (objUnitProps.unit === objEarlierUnit.unit)
 						return handleResult(resultIfFound);
 					if (objUnitProps.is_on_main_chain === 0 && objUnitProps.level > objEarlierUnit.level)
@@ -95,10 +94,10 @@ function compareUnitsByProps(conn, objUnitProps1, objUnitProps2, handleResult){
 			FROM parenthoods JOIN units ON child_unit=unit \n\
 			WHERE parent_unit IN(?)",
 			[arrStartUnits],
-			function(rows){
-				var arrNewStartUnits = [];
-				for (var i=0; i<rows.length; i++){
-					var objUnitProps = rows[i];
+			rows => {
+				const arrNewStartUnits = [];
+				for (let i=0; i<rows.length; i++){
+					const objUnitProps = rows[i];
 					if (objUnitProps.unit === objLaterUnit.unit)
 						return handleResult(resultIfFound);
 					if (objUnitProps.is_on_main_chain === 0 && objUnitProps.level < objLaterUnit.level)
@@ -119,19 +118,19 @@ function determineIfIncluded(conn, earlier_unit, arrLaterUnits, handleResult){
 		throw Error("no earlier_unit");
 	if (storage.isGenesisUnit(earlier_unit))
 		return handleResult(true);
-	storage.readPropsOfUnits(conn, earlier_unit, arrLaterUnits, function(objEarlierUnitProps, arrLaterUnitProps){
-		if (objEarlierUnitProps.is_free === 1)
+	storage.readPropsOfUnits(conn, earlier_unit, arrLaterUnits, ({is_free, main_chain_index, level}, arrLaterUnitProps) => {
+		if (is_free === 1)
 			return handleResult(false);
 		
-		var max_later_limci = Math.max.apply(
-			null, arrLaterUnitProps.map(function(objLaterUnitProps){ return objLaterUnitProps.latest_included_mc_index; }));
+		const max_later_limci = Math.max.apply(
+			null, arrLaterUnitProps.map(({latest_included_mc_index}) => latest_included_mc_index));
 		//console.log("max limci "+max_later_limci+", earlier mci "+objEarlierUnitProps.main_chain_index);
-		if (objEarlierUnitProps.main_chain_index !== null && max_later_limci >= objEarlierUnitProps.main_chain_index)
+		if (main_chain_index !== null && max_later_limci >= main_chain_index)
 			return handleResult(true);
 		
-		var max_later_level = Math.max.apply(
-			null, arrLaterUnitProps.map(function(objLaterUnitProps){ return objLaterUnitProps.level; }));
-		if (max_later_level < objEarlierUnitProps.level)
+		const max_later_level = Math.max.apply(
+			null, arrLaterUnitProps.map(({level}) => level));
+		if (max_later_level < level)
 			return handleResult(false);
 		
 		function goUp(arrStartUnits){
@@ -141,13 +140,13 @@ function determineIfIncluded(conn, earlier_unit, arrLaterUnits, handleResult){
 				FROM parenthoods JOIN units ON parent_unit=unit \n\
 				WHERE child_unit IN(?)",
 				[arrStartUnits],
-				function(rows){
-					var arrNewStartUnits = [];
-					for (var i=0; i<rows.length; i++){
-						var objUnitProps = rows[i];
+				rows => {
+					const arrNewStartUnits = [];
+					for (let i=0; i<rows.length; i++){
+						const objUnitProps = rows[i];
 						if (objUnitProps.unit === earlier_unit)
 							return handleResult(true);
-						if (objUnitProps.is_on_main_chain === 0 && objUnitProps.level > objEarlierUnitProps.level)
+						if (objUnitProps.is_on_main_chain === 0 && objUnitProps.level > level)
 							arrNewStartUnits.push(objUnitProps.unit);
 					}
 					(arrNewStartUnits.length > 0) ? goUp(_.uniq(arrNewStartUnits)) : handleResult(false);
@@ -168,9 +167,15 @@ function determineIfIncludedOrEqual(conn, earlier_unit, arrLaterUnits, handleRes
 
 
 // excludes earlier unit
-function readDescendantUnitsByAuthorsBeforeMcIndex(conn, objEarlierUnitProps, arrAuthorAddresses, to_main_chain_index, handleUnits){
+function readDescendantUnitsByAuthorsBeforeMcIndex(
+    conn,
+    {main_chain_index, unit},
+    arrAuthorAddresses,
+    to_main_chain_index,
+    handleUnits
+) {
 	
-	var arrUnits = [];
+	let arrUnits = [];
 	
 	function goDown(arrStartUnits){
 		profiler.start();
@@ -180,11 +185,11 @@ function readDescendantUnitsByAuthorsBeforeMcIndex(conn, objEarlierUnitProps, ar
 			JOIN units ON child_unit=units.unit \n\
 			LEFT JOIN unit_authors ON unit_authors.unit=units.unit AND address IN(?) \n\
 			WHERE parent_unit IN(?) AND latest_included_mc_index<? AND main_chain_index<=?",
-			[arrAuthorAddresses, arrStartUnits, objEarlierUnitProps.main_chain_index, to_main_chain_index],
-			function(rows){
-				var arrNewStartUnits = [];
-				for (var i=0; i<rows.length; i++){
-					var objUnitProps = rows[i];
+			[arrAuthorAddresses, arrStartUnits, main_chain_index, to_main_chain_index],
+			rows => {
+				const arrNewStartUnits = [];
+				for (let i=0; i<rows.length; i++){
+					const objUnitProps = rows[i];
 					arrNewStartUnits.push(objUnitProps.unit);
 					if (objUnitProps.author_in_list)
 						arrUnits.push(objUnitProps.unit);
@@ -198,15 +203,13 @@ function readDescendantUnitsByAuthorsBeforeMcIndex(conn, objEarlierUnitProps, ar
 	profiler.start();
 
 	conn.query( // _left_ join forces use of indexes in units
-		"SELECT unit FROM units "+db.forceIndex("byMcIndex")+" LEFT JOIN unit_authors USING(unit) \n\
-		WHERE latest_included_mc_index>=? AND main_chain_index>? AND main_chain_index<=? AND latest_included_mc_index<? AND address IN(?)", 
-		[objEarlierUnitProps.main_chain_index, objEarlierUnitProps.main_chain_index, to_main_chain_index, to_main_chain_index, arrAuthorAddresses],
-//        "SELECT unit FROM units WHERE latest_included_mc_index>=? AND main_chain_index<=?", 
-//        [objEarlierUnitProps.main_chain_index, to_main_chain_index],
-		function(rows){
-			arrUnits = rows.map(function(row) { return row.unit; });
+		`SELECT unit FROM units ${db.forceIndex("byMcIndex")} LEFT JOIN unit_authors USING(unit) \n\
+        WHERE latest_included_mc_index>=? AND main_chain_index>? AND main_chain_index<=? AND latest_included_mc_index<? AND address IN(?)`, 
+		[main_chain_index, main_chain_index, to_main_chain_index, to_main_chain_index, arrAuthorAddresses],
+rows => {
+			arrUnits = rows.map(({unit}) => unit);
 			profiler.stop('mc-wc-descendants-initial');
-			goDown([objEarlierUnitProps.unit]);
+			goDown([unit]);
 		}
 	);
 }
@@ -214,23 +217,23 @@ function readDescendantUnitsByAuthorsBeforeMcIndex(conn, objEarlierUnitProps, ar
 
 
 // excludes earlier unit
-function readDescendantUnitsBeforeLandingOnMc(conn, objEarlierUnitProps, arrLaterUnitProps, handleUnits){
+function readDescendantUnitsBeforeLandingOnMc(conn, {main_chain_index, unit}, arrLaterUnitProps, handleUnits) {
 	
-	var max_later_limci = Math.max.apply(null, arrLaterUnitProps.map(function(objLaterUnitProps){ return objLaterUnitProps.latest_included_mc_index; }));
-	var max_later_level = Math.max.apply(null, arrLaterUnitProps.map(function(objLaterUnitProps){ return objLaterUnitProps.level; }));
-	var arrLandedUnits = []; // units that landed on MC before max_later_limci, they are already included in at least one of later units
-	var arrUnlandedUnits = []; // direct shoots to later units, without touching the MC
+	const max_later_limci = Math.max.apply(null, arrLaterUnitProps.map(({latest_included_mc_index}) => latest_included_mc_index));
+	const max_later_level = Math.max.apply(null, arrLaterUnitProps.map(({level}) => level));
+	const arrLandedUnits = []; // units that landed on MC before max_later_limci, they are already included in at least one of later units
+	const arrUnlandedUnits = []; // direct shoots to later units, without touching the MC
 	
 	function goDown(arrStartUnits){
 		conn.query(
 			"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain \n\
 			FROM parenthoods JOIN units ON child_unit=unit \n\
 			WHERE parent_unit IN(?) AND latest_included_mc_index<? AND level<=?",
-			[arrStartUnits, objEarlierUnitProps.main_chain_index, max_later_level],
-			function(rows){
-				var arrNewStartUnits = [];
-				for (var i=0; i<rows.length; i++){
-					var objUnitProps = rows[i];
+			[arrStartUnits, main_chain_index, max_later_level],
+			rows => {
+				const arrNewStartUnits = [];
+				for (let i=0; i<rows.length; i++){
+					const objUnitProps = rows[i];
 					//if (objUnitProps.latest_included_mc_index >= objEarlierUnitProps.main_chain_index)
 					//    continue;
 					//if (objUnitProps.level > max_later_level)
@@ -246,21 +249,21 @@ function readDescendantUnitsBeforeLandingOnMc(conn, objEarlierUnitProps, arrLate
 		);
 	}
 	
-	goDown([objEarlierUnitProps.unit]);
+	goDown([unit]);
 }
 
 // includes later units
-function readAscendantUnitsAfterTakingOffMc(conn, objEarlierUnitProps, arrLaterUnitProps, handleUnits){
-	var arrLaterUnits = arrLaterUnitProps.map(function(objLaterUnitProps){ return objLaterUnitProps.unit; });
-	var max_later_limci = Math.max.apply(null, arrLaterUnitProps.map(function(objLaterUnitProps){ return objLaterUnitProps.latest_included_mc_index; }));
-	var arrLandedUnits = []; // units that took off MC after earlier unit's MCI, they already include the earlier unit
-	var arrUnlandedUnits = []; // direct shoots from earlier units, without touching the MC
+function readAscendantUnitsAfterTakingOffMc(conn, {main_chain_index, level}, arrLaterUnitProps, handleUnits) {
+	const arrLaterUnits = arrLaterUnitProps.map(({unit}) => unit);
+	const max_later_limci = Math.max.apply(null, arrLaterUnitProps.map(({latest_included_mc_index}) => latest_included_mc_index));
+	const arrLandedUnits = []; // units that took off MC after earlier unit's MCI, they already include the earlier unit
+	const arrUnlandedUnits = []; // direct shoots from earlier units, without touching the MC
 	
-	arrLaterUnitProps.forEach(function(objUnitProps){
-		if (objUnitProps.latest_included_mc_index >= objEarlierUnitProps.main_chain_index)
-			arrLandedUnits.push(objUnitProps.unit);
+	arrLaterUnitProps.forEach(({latest_included_mc_index, unit}) => {
+		if (latest_included_mc_index >= main_chain_index)
+			arrLandedUnits.push(unit);
 		else
-			arrUnlandedUnits.push(objUnitProps.unit);
+			arrUnlandedUnits.push(unit);
 	});
 	
 	function goUp(arrStartUnits){
@@ -268,17 +271,17 @@ function readAscendantUnitsAfterTakingOffMc(conn, objEarlierUnitProps, arrLaterU
 			"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain \n\
 			FROM parenthoods JOIN units ON parent_unit=unit \n\
 			WHERE child_unit IN(?) AND (main_chain_index>? OR main_chain_index IS NULL) AND level>=?",
-			[arrStartUnits, max_later_limci, objEarlierUnitProps.level],
-			function(rows){
-				var arrNewStartUnits = [];
-				for (var i=0; i<rows.length; i++){
-					var objUnitProps = rows[i];
+			[arrStartUnits, max_later_limci, level],
+			rows => {
+				const arrNewStartUnits = [];
+				for (let i=0; i<rows.length; i++){
+					const objUnitProps = rows[i];
 					//if (objUnitProps.main_chain_index <= max_later_limci)
 					//    continue;
 					//if (objUnitProps.level < objEarlierUnitProps.level)
 					//    continue;
 					arrNewStartUnits.push(objUnitProps.unit);
-					if (objUnitProps.latest_included_mc_index >= objEarlierUnitProps.main_chain_index)
+					if (objUnitProps.latest_included_mc_index >= main_chain_index)
 						arrLandedUnits.push(objUnitProps.unit);
 					else
 						arrUnlandedUnits.push(objUnitProps.unit);

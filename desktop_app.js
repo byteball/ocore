@@ -1,24 +1,23 @@
 /*jslint node: true */
-"use strict";
-var fs = require('fs'+'');
-var path = require('path'+''); // make browserify skip it
+const fs = require('fs'+'');
+const path = require('path'+''); // make browserify skip it
 
 function getAppsDataDir(){
 	switch(process.platform){
 		case 'win32': return process.env.LOCALAPPDATA;
-		case 'linux': return process.env.HOME + '/.config';
-		case 'darwin': return process.env.HOME + '/Library/Application Support';
-		default: throw Error("unknown platform "+process.platform);
+		case 'linux': return `${process.env.HOME}/.config`;
+		case 'darwin': return `${process.env.HOME}/Library/Application Support`;
+		default: throw Error(`unknown platform ${process.platform}`);
 	}
 }
 
 function getPackageJsonDir(start_dir){
 	try{
-		fs.accessSync(start_dir + '/package.json');
+		fs.accessSync(`${start_dir}/package.json`);
 		return start_dir;
 	}
 	catch(e){
-		var parent_dir = path.dirname(start_dir);
+		const parent_dir = path.dirname(start_dir);
 		if (parent_dir === '/' || process.platform === 'win32' && parent_dir.match(/^\w:[\/\\]/))
 			throw Error('no package.json found');
 		return getPackageJsonDir(parent_dir);
@@ -30,7 +29,7 @@ function getAppRootDir(){
 	//console.log("parent:", module.parent);
 	//console.log("process.mainModule:", process.mainModule);
 	//console.log("require.main:", require.main);
-	var mainModuleDir = path.dirname(process.mainModule.paths[0]);
+	const mainModuleDir = path.dirname(process.mainModule.paths[0]);
 	return getPackageJsonDir(mainModuleDir);
 	/*
 	var arrParts = __dirname.split(path.sep + 'node_modules' + path.sep);
@@ -43,14 +42,14 @@ function getAppRootDir(){
 
 // read app name from the topmost package.json
 function getAppName(){
-	var appDir = getAppRootDir();
-	console.log("app dir "+appDir);
-	return require(appDir + '/package.json').name;
+	const appDir = getAppRootDir();
+	console.log(`app dir ${appDir}`);
+	return require(`${appDir}/package.json`).name;
 }
 
 // app data dir inside user's home directory
 function getAppDataDir(){
-	return (getAppsDataDir() + '/' + getAppName());
+	return `${getAppsDataDir()}/${getAppName()}`;
 }
 
 

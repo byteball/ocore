@@ -1,16 +1,15 @@
 /*jslint node: true */
-"use strict";
-var db = require('./db.js');
-var conf = require('./conf.js');
-var myWitnesses = require('./my_witnesses.js');
-var network = require('./network.js');
-var storage = require('./storage.js');
-var walletGeneral = require('./wallet_general.js');
-var light = require('./light.js');
-var eventBus = require('./event_bus.js');
-var breadcrumbs = require('./breadcrumbs.js');
+const db = require('./db.js');
+const conf = require('./conf.js');
+const myWitnesses = require('./my_witnesses.js');
+const network = require('./network.js');
+const storage = require('./storage.js');
+const walletGeneral = require('./wallet_general.js');
+const light = require('./light.js');
+const eventBus = require('./event_bus.js');
+const breadcrumbs = require('./breadcrumbs.js');
 
-var RECONNECT_TO_LIGHT_VENDOR_PERIOD = 60*1000;
+const RECONNECT_TO_LIGHT_VENDOR_PERIOD = 60*1000;
 
 
 function setLightVendorHost(light_vendor_host){
@@ -23,34 +22,34 @@ function setLightVendorHost(light_vendor_host){
 }
 
 function reconnectToLightVendor(){
-	network.findOutboundPeerOrConnect(network.light_vendor_url, function(err, ws){
+	network.findOutboundPeerOrConnect(network.light_vendor_url, (err, {bLightVendor, bRefreshingHistory}) => {
 		if (err)
-			return console.log("reconnectToLightVendor: "+err);
-		if (ws.bLightVendor)
+			return console.log(`reconnectToLightVendor: ${err}`);
+		if (bLightVendor)
 			return console.log("already connected to light vendor");
-		if (ws.bRefreshingHistory)
+		if (bRefreshingHistory)
 			return console.log("already refreshing history");
 		refreshLightClientHistory();
 	});
 }
 
 function readListOfUnstableUnits(handleUnits){
-	db.query("SELECT unit FROM units WHERE is_stable=0", function(rows){
-		var arrUnits = rows.map(function(row){ return row.unit; });
+	db.query("SELECT unit FROM units WHERE is_stable=0", rows => {
+		const arrUnits = rows.map(({unit}) => unit);
 		handleUnits(arrUnits);
 	});
 }
 
 
 function prepareRequestForHistory(handleResult){
-	myWitnesses.readMyWitnesses(function(arrWitnesses){
+	myWitnesses.readMyWitnesses(arrWitnesses => {
 		if (arrWitnesses.length === 0) // first start, witnesses not set yet
 			return handleResult(null);
-		var objHistoryRequest = {witnesses: arrWitnesses};
-		walletGeneral.readMyAddresses(function(arrAddresses){
+		const objHistoryRequest = {witnesses: arrWitnesses};
+		walletGeneral.readMyAddresses(arrAddresses => {
 			if (arrAddresses.length > 0)
 				objHistoryRequest.addresses = arrAddresses;
-			readListOfUnstableUnits(function(arrUnits){
+			readListOfUnstableUnits(arrUnits => {
 				if (arrUnits.length > 0)
 					objHistoryRequest.requested_joints = arrUnits;
 				if (!objHistoryRequest.addresses && !objHistoryRequest.requested_joints)
@@ -58,14 +57,14 @@ function prepareRequestForHistory(handleResult){
 				if (!objHistoryRequest.addresses)
 					return handleResult(objHistoryRequest);
 				objHistoryRequest.last_stable_mci = 0;
-				var strAddressList = arrAddresses.map(db.escape).join(', ');
+				const strAddressList = arrAddresses.map(db.escape).join(', ');
 				db.query(
-					"SELECT unit FROM unit_authors JOIN units USING(unit) WHERE is_stable=1 AND address IN("+strAddressList+") \n\
-					UNION \n\
-					SELECT unit FROM outputs JOIN units USING(unit) WHERE is_stable=1 AND address IN("+strAddressList+")",
-					function(rows){
+					`SELECT unit FROM unit_authors JOIN units USING(unit) WHERE is_stable=1 AND address IN(${strAddressList}) \n\
+                    UNION \n\
+                    SELECT unit FROM outputs JOIN units USING(unit) WHERE is_stable=1 AND address IN(${strAddressList})`,
+					rows => {
 						if (rows.length)
-							objHistoryRequest.known_stable_units = rows.map(function(row){ return row.unit; });
+							objHistoryRequest.known_stable_units = rows.map(({unit}) => unit);
 						handleResult(objHistoryRequest);
 					}
 				);
@@ -82,7 +81,7 @@ function prepareRequestForHistory(handleResult){
 	}, 'wait');
 }
 
-var bFirstRefreshStarted = false;
+let bFirstRefreshStarted = false;
 
 function refreshLightClientHistory(){
 	if (!conf.bLight)
@@ -95,7 +94,7 @@ function refreshLightClientHistory(){
 		bFirstRefreshStarted = true;
 	}
 	network.findOutboundPeerOrConnect(network.light_vendor_url, function onLocatedLightVendor(err, ws){
-		var finish = function(msg){
+		const finish = msg => {
 			if (msg)
 				console.log(msg);
 			if (ws)
@@ -103,32 +102,32 @@ function refreshLightClientHistory(){
 			eventBus.emit('refresh_light_done');
 		};
 		if (err)
-			return finish("refreshLightClientHistory: "+err);
+			return finish(`refreshLightClientHistory: ${err}`);
 		console.log('refreshLightClientHistory connected');
 		// handling the response may take some time, don't send new requests
 		if (ws.bRefreshingHistory)
 			return console.log("previous refresh not finished yet");
 		ws.bRefreshingHistory = true;
-		prepareRequestForHistory(function(objRequest){
+		prepareRequestForHistory(objRequest => {
 			if (!objRequest)
 				return finish();
-			network.sendRequest(ws, 'light/get_history', objRequest, false, function(ws, request, response){
+			network.sendRequest(ws, 'light/get_history', objRequest, false, (ws, request, response) => {
 				if (response.error){
 					if (response.error.indexOf('your history is too large') >= 0)
 						throw Error(response.error);
 					return finish(response.error);
 				}
 				ws.bLightVendor = true;
-				var interval = setInterval(function(){ // refresh UI periodically while we are processing history
+				const interval = setInterval(() => { // refresh UI periodically while we are processing history
 					eventBus.emit('maybe_new_transactions');
 				}, 500);
 				light.processHistory(response, {
-					ifError: function(err){
+					ifError(err) {
 						clearInterval(interval);
 						network.sendError(ws, err);
 						finish();
 					},
-					ifOk: function(bRefreshUI){
+					ifOk(bRefreshUI) {
 						clearInterval(interval);
 						finish();
 						if (bRefreshUI)
@@ -141,15 +140,15 @@ function refreshLightClientHistory(){
 }
 
 function archiveDoublespendUnits(){
-	db.query("SELECT unit FROM units WHERE is_stable=0 AND is_free=1 AND creation_date<"+db.addTime('-1 DAY'), function(rows){
-		var arrUnits = rows.map(function(row){ return row.unit; });
-		breadcrumbs.add("units still unstable after 1 day: "+arrUnits.join(', '));
-		arrUnits.forEach(function(unit){
-			network.requestFromLightVendor('get_joint', unit, function(ws, request, response){
-				if (response.error)
-					return breadcrumbs.add("get_joint "+unit+": "+response.error);
-				if (response.joint_not_found === unit){
-					breadcrumbs.add("light vendor doesn't know about unit "+unit+" any more, will archive");
+	db.query(`SELECT unit FROM units WHERE is_stable=0 AND is_free=1 AND creation_date<${db.addTime('-1 DAY')}`, rows => {
+		const arrUnits = rows.map(({unit}) => unit);
+		breadcrumbs.add(`units still unstable after 1 day: ${arrUnits.join(', ')}`);
+		arrUnits.forEach(unit => {
+			network.requestFromLightVendor('get_joint', unit, (ws, request, {error, joint_not_found}) => {
+				if (error)
+					return breadcrumbs.add(`get_joint ${unit}: ${error}`);
+				if (joint_not_found === unit){
+					breadcrumbs.add(`light vendor doesn't know about unit ${unit} any more, will archive`);
 					storage.archiveJointAndDescendantsIfExists(unit);
 				}
 			});

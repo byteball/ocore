@@ -1,12 +1,11 @@
 /*jslint node: true */
-"use strict";
-var chash = require('./chash.js');
+const chash = require('./chash.js');
 
 /**
  * True if there is at least one field in obj that is not in arrFields.
  */
 function hasFieldsExcept(obj, arrFields){
-	for (var field in obj)
+	for (const field in obj)
 		if (arrFields.indexOf(field) === -1)
 			return true;
 	return false;
@@ -19,7 +18,7 @@ function hasFieldsExcept(obj, arrFields){
  */
 function isInteger(value){
 	return typeof value === 'number' && isFinite(value) && Math.floor(value) === value;
-};
+}
 
 /**
  * True if int is an integer strictly greater than zero.

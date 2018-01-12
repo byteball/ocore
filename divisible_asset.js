@@ -1,15 +1,14 @@
 /*jslint node: true */
-"use strict";
-var async = require('async');
-var _ = require('lodash');
-var constants = require('./constants.js');
-var storage = require('./storage.js');
-var objectHash = require("./object_hash.js");
-var db = require('./db.js');
-var composer = require("./composer.js");
-var ValidationUtils = require('./validation_utils.js');
-var validation = require('./validation.js');
-var writer = require('./writer.js');
+const async = require('async');
+const _ = require('lodash');
+const constants = require('./constants.js');
+const storage = require('./storage.js');
+const objectHash = require("./object_hash.js");
+const db = require('./db.js');
+const composer = require("./composer.js");
+const ValidationUtils = require('./validation_utils.js');
+const validation = require('./validation.js');
+const writer = require('./writer.js');
 
 
 function validateAndSavePrivatePaymentChain(conn, arrPrivateElements, callbacks){
@@ -18,56 +17,57 @@ function validateAndSavePrivatePaymentChain(conn, arrPrivateElements, callbacks)
 }
 
 
-function validateAndSaveDivisiblePrivatePayment(conn, objPrivateElement, callbacks){
+function validateAndSaveDivisiblePrivatePayment(conn, objPrivateElement, {ifError, ifOk}) {
 	validateDivisiblePrivatePayment(conn, objPrivateElement, {
-		ifError: callbacks.ifError,
-		ifOk: function(bStable, arrAuthorAddresses){
-			console.log("private validation OK "+bStable);
-			var unit = objPrivateElement.unit;
-			var message_index = objPrivateElement.message_index;
-			var payload = objPrivateElement.payload;
-			var arrQueries = [];
+		ifError: ifError,
+		ifOk(bStable, arrAuthorAddresses) {
+			console.log(`private validation OK ${bStable}`);
+			const unit = objPrivateElement.unit;
+			const message_index = objPrivateElement.message_index;
+			const payload = objPrivateElement.payload;
+			const arrQueries = [];
 			for (var j=0; j<payload.outputs.length; j++){
-				var output = payload.outputs[j];
+				const output = payload.outputs[j];
 				conn.addQuery(arrQueries, 
 					"INSERT INTO outputs (unit, message_index, output_index, address, amount, blinding, asset) VALUES (?,?,?,?,?,?,?)",
 					[unit, message_index, j, output.address, parseInt(output.amount), output.blinding, payload.asset]
 				);
 			}
 			for (var j=0; j<payload.inputs.length; j++){
-				var input = payload.inputs[j];
-				var type = input.type || "transfer";
-				var src_unit = input.unit;
-				var src_message_index = input.message_index;
-				var src_output_index = input.output_index;
-				var address = null, address_sql = null;
-				if (type === "issue")
+                const input = payload.inputs[j];
+                const type = input.type || "transfer";
+                const src_unit = input.unit;
+                const src_message_index = input.message_index;
+                const src_output_index = input.output_index;
+                let address = null;
+                let address_sql = null;
+                if (type === "issue")
 					address = input.address || arrAuthorAddresses[0];
 				else{ // transfer
 					if (arrAuthorAddresses.length === 1)
 						address = arrAuthorAddresses[0];
 					else
-						address_sql = "(SELECT address FROM outputs \
-							WHERE unit="+conn.escape(src_unit)+" AND message_index="+src_message_index+" \
-								AND output_index="+src_output_index+" AND address IN("+conn.escape(arrAuthorAddresses)+"))";
+						address_sql = `(SELECT address FROM outputs \
+                            WHERE unit=${conn.escape(src_unit)} AND message_index=${src_message_index} \
+                                AND output_index=${src_output_index} AND address IN(${conn.escape(arrAuthorAddresses)}))`;
 				}
-				var is_unique = bStable ? 1 : null; // unstable still have chances to become nonserial therefore nonunique
-				conn.addQuery(arrQueries, "INSERT INTO inputs \n\
-						(unit, message_index, input_index, type, \n\
-						src_unit, src_message_index, src_output_index, \
-						serial_number, amount, \n\
-						asset, is_unique, address) VALUES(?,?,?,?,?,?,?,?,?,?,?,"+(address_sql || conn.escape(address))+")",
+                const is_unique = bStable ? 1 : null; // unstable still have chances to become nonserial therefore nonunique
+                conn.addQuery(arrQueries, `INSERT INTO inputs \n\
+                        (unit, message_index, input_index, type, \n\
+                        src_unit, src_message_index, src_output_index, \
+                        serial_number, amount, \n\
+                        asset, is_unique, address) VALUES(?,?,?,?,?,?,?,?,?,?,?,${address_sql || conn.escape(address)})`,
 					[unit, message_index, j, type, 
 					 src_unit, src_message_index, src_output_index, 
 					 input.serial_number, input.amount, 
 					 payload.asset, is_unique]);
-				if (type === "transfer"){
+                if (type === "transfer"){
 					conn.addQuery(arrQueries, 
 						"UPDATE outputs SET is_spent=1 WHERE unit=? AND message_index=? AND output_index=?",
 						[src_unit, src_message_index, src_output_index]);
 				}
-			}
-			async.series(arrQueries, callbacks.ifOk);
+            }
+			async.series(arrQueries, ifOk);
 		}
 	});
 }
@@ -75,9 +75,9 @@ function validateAndSaveDivisiblePrivatePayment(conn, objPrivateElement, callbac
 
 function validateDivisiblePrivatePayment(conn, objPrivateElement, callbacks){
 	
-	var unit = objPrivateElement.unit;
-	var message_index = objPrivateElement.message_index;
-	var payload = objPrivateElement.payload;
+	const unit = objPrivateElement.unit;
+	const message_index = objPrivateElement.message_index;
+	const payload = objPrivateElement.payload;
 
 	if (!ValidationUtils.isStringOfLength(payload.asset, constants.HASH_LENGTH))
 		return callbacks.ifError("invalid asset in private divisible payment");
@@ -86,36 +86,36 @@ function validateDivisiblePrivatePayment(conn, objPrivateElement, callbacks){
 	
 	validation.initPrivatePaymentValidationState(
 		conn, unit, message_index, payload, callbacks.ifError, 
-		function(bStable, objPartialUnit, objValidationState){
+		(bStable, objPartialUnit, objValidationState) => {
 		
-			var arrAuthorAddresses = objPartialUnit.authors.map(function(author) { return author.address; } );
+			const arrAuthorAddresses = objPartialUnit.authors.map(({address}) => address );
 
 			function validateSpendProofs(sp_cb){
 
-				var arrSpendProofs = [];
+				const arrSpendProofs = [];
 				async.eachSeries(
 					payload.inputs,
-					function(input, cb){
+					(input, cb) => {
 						if (input.type === "issue"){
-							var address = input.address || arrAuthorAddresses[0];
-							var spend_proof = objectHash.getBase64Hash({
+							const address = input.address || arrAuthorAddresses[0];
+							const spend_proof = objectHash.getBase64Hash({
 								asset: payload.asset,
 								amount: input.amount,
-								address: address,
+								address,
 								serial_number: input.serial_number
 							});
-							arrSpendProofs.push({address: address, spend_proof: spend_proof});
+							arrSpendProofs.push({address, spend_proof});
 							cb();
 						}
 						else if (!input.type){
 							conn.query(
 								"SELECT address, amount, blinding FROM outputs WHERE unit=? AND message_index=? AND output_index=? AND asset=?",
 								[input.unit, input.message_index, input.output_index, payload.asset],
-								function(rows){
+								rows => {
 									if (rows.length !== 1)
 										return cb("not 1 row when selecting src output");
-									var src_output = rows[0];
-									var spend_proof = objectHash.getBase64Hash({
+									const src_output = rows[0];
+									const spend_proof = objectHash.getBase64Hash({
 										asset: payload.asset,
 										unit: input.unit,
 										message_index: input.message_index,
@@ -124,25 +124,25 @@ function validateDivisiblePrivatePayment(conn, objPrivateElement, callbacks){
 										amount: src_output.amount,
 										blinding: src_output.blinding
 									});
-									arrSpendProofs.push({address: src_output.address, spend_proof: spend_proof});
+									arrSpendProofs.push({address: src_output.address, spend_proof});
 									cb();
 								}
 							);
 						}
 						else
-							cb("unknown input type: "+input.type);
+							cb(`unknown input type: ${input.type}`);
 					},
-					function(err){
+					err => {
 						if (err)
 							return sp_cb(err);
 						//arrSpendProofs.sort(function(a,b){ return a.spend_proof.localeCompare(b.spend_proof); });
 						conn.query(
 							"SELECT address, spend_proof FROM spend_proofs WHERE unit=? AND message_index=? ORDER BY spend_proof", 
 							[unit, message_index],
-							function(rows){
+							rows => {
 								if (rows.length !== arrSpendProofs.length)
 									return sp_cb("incorrect number of spend proofs");
-								for (var i=0; i<rows.length; i++){
+								for (let i=0; i<rows.length; i++){
 									if (rows[i].address !== arrSpendProofs[i].address || rows[i].spend_proof !== arrSpendProofs[i].spend_proof)
 										return sp_cb("incorrect spend proof");
 								}
@@ -153,13 +153,13 @@ function validateDivisiblePrivatePayment(conn, objPrivateElement, callbacks){
 				);
 			}
 
-			var arrFuncs = [];
+			const arrFuncs = [];
 			arrFuncs.push(validateSpendProofs);
-			arrFuncs.push(function(cb){
+			arrFuncs.push(cb => {
 				validation.validatePayment(conn, payload, message_index, objPartialUnit, objValidationState, cb);
 			});
-			async.series(arrFuncs, function(err){
-				console.log("162: "+err);
+			async.series(arrFuncs, err => {
+				console.log(`162: ${err}`);
 				err ? callbacks.ifError(err) : callbacks.ifOk(bStable, arrAuthorAddresses);
 			});
 		}
@@ -168,13 +168,13 @@ function validateDivisiblePrivatePayment(conn, objPrivateElement, callbacks){
 
 // {asset: asset, paying_addresses: arrPayingAddresses, fee_paying_addresses: arrFeePayingAddresses, change_address: change_address, to_address: to_address, amount: amount, signer: signer, callbacks: callbacks}
 function composeDivisibleAssetPaymentJoint(params){
-	console.log("asset payment from "+params.paying_addresses);
+	console.log(`asset payment from ${params.paying_addresses}`);
 	if ((params.to_address || params.amount) && params.asset_outputs)
 		throw Error("to_address and asset_outputs at the same time");
 	if (!ValidationUtils.isNonemptyArray(params.fee_paying_addresses))
 		throw Error('no fee_paying_addresses');
-	var private_payload;
-	var arrBaseOutputs = [{address: params.fee_paying_addresses[0], amount: 0}]; // public outputs: the change only
+	let private_payload;
+	let arrBaseOutputs = [{address: params.fee_paying_addresses[0], amount: 0}]; // public outputs: the change only
 	if (params.base_outputs)
 		arrBaseOutputs = arrBaseOutputs.concat(params.base_outputs);
 	composer.composeJoint({
@@ -184,9 +184,9 @@ function composeDivisibleAssetPaymentJoint(params){
 		outputs: arrBaseOutputs,
 		messages:params.messages,
 		// function that creates additional messages to be added to the joint
-		retrieveMessages: function(conn, last_ball_mci, bMultiAuthored, arrPayingAddresses, onDone){
-			var arrAssetPayingAddresses = _.intersection(arrPayingAddresses, params.paying_addresses);
-			storage.loadAssetWithListOfAttestedAuthors(conn, params.asset, last_ball_mci, arrAssetPayingAddresses, function(err, objAsset){
+		retrieveMessages(conn, last_ball_mci, bMultiAuthored, arrPayingAddresses, onDone) {
+			const arrAssetPayingAddresses = _.intersection(arrPayingAddresses, params.paying_addresses);
+			storage.loadAssetWithListOfAttestedAuthors(conn, params.asset, last_ball_mci, arrAssetPayingAddresses, (err, objAsset) => {
 				if (err)
 					return onDone(err);
 				if (objAsset.fixed_denominations)
@@ -199,37 +199,37 @@ function composeDivisibleAssetPaymentJoint(params){
 				if (objAsset.spender_attested && objAsset.arrAttestedAddresses.length === 0)
 					return onDone("none of the authors is attested");
 				
-				var target_amount = params.to_address 
+				const target_amount = params.to_address 
 					? params.amount 
-					: params.asset_outputs.reduce(function(accumulator, output){ return accumulator + output.amount; }, 0);
+					: params.asset_outputs.reduce((accumulator, {amount}) => accumulator + amount, 0);
 				composer.pickDivisibleCoinsForAmount(
 					conn, objAsset, arrAssetPayingAddresses, last_ball_mci, target_amount, bMultiAuthored, 
-					function(arrInputsWithProofs, total_input){
-						console.log("pick coins callback "+arrInputsWithProofs);
+					(arrInputsWithProofs, total_input) => {
+						console.log(`pick coins callback ${arrInputsWithProofs}`);
 						if (!arrInputsWithProofs)
 							return onDone({error_code: "NOT_ENOUGH_FUNDS", error: "not enough asset coins"});
-						var arrOutputs = params.to_address ? [{address: params.to_address, amount: params.amount}] : params.asset_outputs;
-						var change = total_input - target_amount;
+						const arrOutputs = params.to_address ? [{address: params.to_address, amount: params.amount}] : params.asset_outputs;
+						const change = total_input - target_amount;
 						if (change > 0){
-							var objChangeOutput = {address: params.change_address, amount: change};
+							const objChangeOutput = {address: params.change_address, amount: change};
 							arrOutputs.push(objChangeOutput);
 						}
 						if (objAsset.is_private)
-							arrOutputs.forEach(function(output){ output.blinding = composer.generateBlinding(); });
+							arrOutputs.forEach(output => { output.blinding = composer.generateBlinding(); });
 						arrOutputs.sort(composer.sortOutputs);
-						var payload = {
+						const payload = {
 							asset: params.asset,
-							inputs: arrInputsWithProofs.map(function(objInputWithProof){ return objInputWithProof.input; }),
+							inputs: arrInputsWithProofs.map(({input}) => input),
 							outputs: arrOutputs
 						};
-						var objMessage = {
+						const objMessage = {
 							app: "payment",
 							payload_location: objAsset.is_private ? "none" : "inline",
 							payload_hash: objectHash.getBase64Hash(payload)
 						};
-						var assocPrivatePayloads;
+						let assocPrivatePayloads;
 						if (objAsset.is_private){
-							objMessage.spend_proofs = arrInputsWithProofs.map(function(objInputWithProof){ return objInputWithProof.spend_proof; });
+							objMessage.spend_proofs = arrInputsWithProofs.map(({spend_proof}) => spend_proof);
 							private_payload = payload;
 							assocPrivatePayloads[objMessage.payload_hash] = private_payload;
 						}
@@ -246,7 +246,7 @@ function composeDivisibleAssetPaymentJoint(params){
 		callbacks: {
 			ifError: params.callbacks.ifError,
 			ifNotEnoughFunds: params.callbacks.ifNotEnoughFunds,
-			ifOk: function(objJoint, assocPrivatePayloads, composer_unlock_callback){
+			ifOk(objJoint, assocPrivatePayloads, composer_unlock_callback) {
 				// adding private_payload
 				params.callbacks.ifOk(objJoint, private_payload, composer_unlock_callback);
 			}
@@ -259,59 +259,59 @@ function getSavingCallbacks(callbacks){
 	return {
 		ifError: callbacks.ifError,
 		ifNotEnoughFunds: callbacks.ifNotEnoughFunds,
-		ifOk: function(objJoint, private_payload, composer_unlock){
-			var objUnit = objJoint.unit;
-			var unit = objUnit.unit;
+		ifOk(objJoint, private_payload, composer_unlock) {
+			const objUnit = objJoint.unit;
+			const unit = objUnit.unit;
 			validation.validate(objJoint, {
-				ifUnitError: function(err){
+				ifUnitError(err) {
 					composer_unlock();
-					callbacks.ifError("Validation error: "+err);
+					callbacks.ifError(`Validation error: ${err}`);
 				//	throw Error("unexpected validation error: "+err);
 				},
-				ifJointError: function(err){
-					throw Error("unexpected validation joint error: "+err);
+				ifJointError(err) {
+					throw Error(`unexpected validation joint error: ${err}`);
 				},
-				ifTransientError: function(err){
-					throw Error("unexpected validation transient error: "+err);
+				ifTransientError(err) {
+					throw Error(`unexpected validation transient error: ${err}`);
 				},
-				ifNeedHashTree: function(){
+				ifNeedHashTree() {
 					throw Error("unexpected need hash tree");
 				},
-				ifNeedParentUnits: function(arrMissingUnits){
-					throw Error("unexpected dependencies: "+arrMissingUnits.join(", "));
+				ifNeedParentUnits(arrMissingUnits) {
+					throw Error(`unexpected dependencies: ${arrMissingUnits.join(", ")}`);
 				},
-				ifOk: function(objValidationState, validation_unlock){
-					console.log("divisible asset OK "+objValidationState.sequence);
+				ifOk(objValidationState, validation_unlock) {
+					console.log(`divisible asset OK ${objValidationState.sequence}`);
 					if (objValidationState.sequence !== 'good'){
 						validation_unlock();
 						composer_unlock();
-						return callbacks.ifError("Divisible asset bad sequence "+objValidationState.sequence);
+						return callbacks.ifError(`Divisible asset bad sequence ${objValidationState.sequence}`);
 					}
-					var bPrivate = !!private_payload;
-					var objPrivateElement;
-					var preCommitCallback = null;
+					const bPrivate = !!private_payload;
+					let objPrivateElement;
+					let preCommitCallback = null;
 					
 					if (bPrivate){
-						preCommitCallback = function(conn, cb){
-							var payload_hash = objectHash.getBase64Hash(private_payload);
-							var message_index = composer.getMessageIndexByPayloadHash(objUnit, payload_hash);
+						preCommitCallback = (conn, cb) => {
+							const payload_hash = objectHash.getBase64Hash(private_payload);
+							const message_index = composer.getMessageIndexByPayloadHash(objUnit, payload_hash);
 							objPrivateElement = {
-								unit: unit,
-								message_index: message_index,
+								unit,
+								message_index,
 								payload: private_payload
 							};
 							validateAndSaveDivisiblePrivatePayment(conn, objPrivateElement, {
-								ifError: function(err){
+								ifError(err) {
 									cb(err);
 								},
-								ifOk: function(){
+								ifOk() {
 									cb();
 								}
 							});
 						};
 					} else {
 						if (typeof callbacks.preCommitCb === "function") {
-							preCommitCallback = function(conn, cb){
+							preCommitCallback = (conn, cb) => {
 								callbacks.preCommitCb(conn, objJoint, cb);
 							}
 						}
@@ -320,7 +320,7 @@ function getSavingCallbacks(callbacks){
 					composer.postJointToLightVendorIfNecessaryAndSave(
 						objJoint, 
 						function onLightError(err){ // light only
-							console.log("failed to post divisible payment "+unit);
+							console.log(`failed to post divisible payment ${unit}`);
 							validation_unlock();
 							composer_unlock();
 							callbacks.ifError(err);
@@ -330,10 +330,10 @@ function getSavingCallbacks(callbacks){
 								objJoint, objValidationState, 
 								preCommitCallback,
 								function onDone(err){
-									console.log("saved unit "+unit, objPrivateElement);
+									console.log(`saved unit ${unit}`, objPrivateElement);
 									validation_unlock();
 									composer_unlock();
-									var arrChains = objPrivateElement ? [[objPrivateElement]] : null; // only one chain that consists of one element
+									const arrChains = objPrivateElement ? [[objPrivateElement]] : null; // only one chain that consists of one element
 									callbacks.ifOk(objJoint, arrChains, arrChains);
 								}
 							);
@@ -347,12 +347,12 @@ function getSavingCallbacks(callbacks){
 
 // {asset: asset, paying_addresses: arrPayingAddresses, fee_paying_addresses: arrFeePayingAddresses, change_address: change_address, to_address: to_address, amount: amount, signer: signer, callbacks: callbacks}
 function composeAndSaveDivisibleAssetPaymentJoint(params){
-	var params_with_save = _.clone(params);
+	const params_with_save = _.clone(params);
 	params_with_save.callbacks = getSavingCallbacks(params.callbacks);
 	composeDivisibleAssetPaymentJoint(params_with_save);
 }
 
-var TYPICAL_FEE = 1000;
+const TYPICAL_FEE = 1000;
 
 // {asset: asset, available_paying_addresses: arrAvailablePayingAddresses, available_fee_paying_addresses: arrAvailableFeePayingAddresses, change_address: change_address, to_address: to_address, amount: amount, signer: signer, callbacks: callbacks}
 function composeMinimalDivisibleAssetPaymentJoint(params){
@@ -361,13 +361,13 @@ function composeMinimalDivisibleAssetPaymentJoint(params){
 		throw Error('no available_paying_addresses');
 	if (!ValidationUtils.isNonemptyArray(params.available_fee_paying_addresses))
 		throw Error('no available_fee_paying_addresses');
-	composer.readSortedFundedAddresses(params.asset, params.available_paying_addresses, params.amount, function(arrFundedPayingAddresses){
+	composer.readSortedFundedAddresses(params.asset, params.available_paying_addresses, params.amount, arrFundedPayingAddresses => {
 		if (arrFundedPayingAddresses.length === 0)
 			return params.callbacks.ifNotEnoughFunds("all paying addresses are unfunded in asset, make sure all your funds are confirmed");
-		composer.readSortedFundedAddresses(null, params.available_fee_paying_addresses, TYPICAL_FEE, function(arrFundedFeePayingAddresses){
+		composer.readSortedFundedAddresses(null, params.available_fee_paying_addresses, TYPICAL_FEE, arrFundedFeePayingAddresses => {
 			if (arrFundedPayingAddresses.length === 0)
 				return params.callbacks.ifNotEnoughFunds("all paying addresses are unfunded in asset, make sure all your funds are confirmed");
-			var minimal_params = _.clone(params);
+			const minimal_params = _.clone(params);
 			delete minimal_params.available_paying_addresses;
 			delete minimal_params.available_fee_paying_addresses;
 			minimal_params.minimal = true;
@@ -380,7 +380,7 @@ function composeMinimalDivisibleAssetPaymentJoint(params){
 
 // {asset: asset, available_paying_addresses: arrAvailablePayingAddresses, available_fee_paying_addresses: arrAvailableFeePayingAddresses, change_address: change_address, to_address: to_address, amount: amount, signer: signer, callbacks: callbacks}
 function composeAndSaveMinimalDivisibleAssetPaymentJoint(params){
-	var params_with_save = _.clone(params);
+	const params_with_save = _.clone(params);
 	params_with_save.callbacks = getSavingCallbacks(params.callbacks);
 	composeMinimalDivisibleAssetPaymentJoint(params_with_save);
 }

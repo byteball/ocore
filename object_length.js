@@ -1,8 +1,7 @@
 /*jslint node: true */
-"use strict";
-var _ = require('lodash');
+const _ = require('lodash');
 
-var PARENT_UNITS_SIZE = 2*44;
+const PARENT_UNITS_SIZE = 2*44;
 
 function getLength(value) {
 	if (value === null)
@@ -14,29 +13,29 @@ function getLength(value) {
 			return 8;
 			//return value.toString().length;
 		case "object":
-			var len = 0;
+			let len = 0;
 			if (Array.isArray(value))
-				value.forEach(function(element){
+				value.forEach(element => {
 					len += getLength(element);
 				});
 			else    
-				for (var key in value){
+				for (const key in value){
 					if (typeof value[key] === "undefined")
-						throw Error("undefined at "+key+" of "+JSON.stringify(value));
+						throw Error(`undefined at ${key} of ${JSON.stringify(value)}`);
 					len += getLength(value[key]);
 				}
 			return len;
 		case "boolean": 
 			return 1;
 		default:
-			throw Error("unknown type="+(typeof value)+" of "+value);
+			throw Error(`unknown type=${typeof value} of ${value}`);
 	}
 }
 
 function getHeadersSize(objUnit) {
 	if (objUnit.content_hash)
 		throw Error("trying to get headers size of stripped unit");
-	var objHeader = _.cloneDeep(objUnit);
+	const objHeader = _.cloneDeep(objUnit);
 	delete objHeader.unit;
 	delete objHeader.headers_commission;
 	delete objHeader.payload_commission;
@@ -47,10 +46,10 @@ function getHeadersSize(objUnit) {
 	return getLength(objHeader) + PARENT_UNITS_SIZE;
 }
 
-function getTotalPayloadSize(objUnit) {
-	if (objUnit.content_hash)
+function getTotalPayloadSize({content_hash, messages}) {
+	if (content_hash)
 		throw Error("trying to get payload size of stripped unit");
-	return getLength(objUnit.messages);
+	return getLength(messages);
 }
 
 exports.getHeadersSize = getHeadersSize;

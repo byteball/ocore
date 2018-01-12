@@ -1,17 +1,16 @@
 /*jslint node: true */
-"use strict";
-var crypto = require('crypto');
+const crypto = require('crypto');
 
 function hash(str){
 	return crypto.createHash("sha256").update(str, "utf8").digest("base64");
 }
 
 function getMerkleRoot(arrElements){
-	var arrHashes = arrElements.map(hash);
+	let arrHashes = arrElements.map(hash);
 	while (arrHashes.length > 1){
-		var arrOverHashes = []; // hashes over hashes
-		for (var i=0; i<arrHashes.length; i+=2){
-			var hash2_index = (i+1 < arrHashes.length) ? (i+1) : i; // for odd number of hashes
+		const arrOverHashes = []; // hashes over hashes
+		for (let i=0; i<arrHashes.length; i+=2){
+			const hash2_index = (i+1 < arrHashes.length) ? (i+1) : i; // for odd number of hashes
 			arrOverHashes.push(hash(arrHashes[i] + arrHashes[hash2_index]));
 		}
 		arrHashes = arrOverHashes;
@@ -22,14 +21,14 @@ function getMerkleRoot(arrElements){
 function getMerkleProof(arrElements, element_index){
 	if (index < 0 || index >= arrElements.length)
 		throw Error("invalid index");
-	var arrHashes = arrElements.map(hash);
+	let arrHashes = arrElements.map(hash);
 	var index = element_index;
-	var arrSiblings = [];
+	const arrSiblings = [];
 	while (arrHashes.length > 1){
-		var arrOverHashes = []; // hashes over hashes
-		var overIndex = null;
-		for (var i=0; i<arrHashes.length; i+=2){
-			var hash2_index = (i+1 < arrHashes.length) ? (i+1) : i; // for odd number of hashes
+		const arrOverHashes = []; // hashes over hashes
+		let overIndex = null;
+		for (let i=0; i<arrHashes.length; i+=2){
+			const hash2_index = (i+1 < arrHashes.length) ? (i+1) : i; // for odd number of hashes
 			if (i === index){
 				arrSiblings.push(arrHashes[hash2_index]);
 				overIndex = i/2;
@@ -64,17 +63,17 @@ function getMerkleProof(arrElements, element_index){
 }*/
 
 // returns a string element_index-siblings_joined_by_dash-root
-function serializeMerkleProof(proof){
-	var serialized_proof = proof.index;
-	if (proof.siblings.length > 0)
-		serialized_proof += "-"+proof.siblings.join("-");
-	serialized_proof += "-"+proof.root;
+function serializeMerkleProof({index, siblings, root}) {
+	let serialized_proof = index;
+	if (siblings.length > 0)
+		serialized_proof += `-${siblings.join("-")}`;
+	serialized_proof += `-${root}`;
 	return serialized_proof;
 }
 
 function deserializeMerkleProof(serialized_proof){
-	var arr = serialized_proof.split("-");
-	var proof = {};
+	const arr = serialized_proof.split("-");
+	const proof = {};
 	proof.root = arr.pop();
 	proof.index = arr.shift();
 	proof.siblings = arr;
@@ -82,9 +81,9 @@ function deserializeMerkleProof(serialized_proof){
 }
 
 function verifyMerkleProof(element, proof){
-	var index = proof.index;
-	var the_other_sibling = hash(element);
-	for (var i=0; i<proof.siblings.length; i++){
+	let index = proof.index;
+	let the_other_sibling = hash(element);
+	for (let i=0; i<proof.siblings.length; i++){
 		// this also works for duplicated trailing nodes
 		if (index % 2 === 0)
 			the_other_sibling = hash(the_other_sibling + proof.siblings[i]);

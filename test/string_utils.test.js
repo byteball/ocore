@@ -34,9 +34,7 @@ test('Test a boolean', t => {
 });
 
 const arrayInput = ['a', 81, 'b', 'c', 3.6903690369, true];
-const arrayInputResultPairs = ['s', 'n', 's', 's', 'n', 'b'].map(function(typ, idx) {
-    return [typ, arrayInput[idx]].join(STRING_JOIN_CHAR);
-}).join(STRING_JOIN_CHAR);
+const arrayInputResultPairs = ['s', 'n', 's', 's', 'n', 'b'].map((typ, idx) => [typ, arrayInput[idx]].join(STRING_JOIN_CHAR)).join(STRING_JOIN_CHAR);
 const arrayInputResult = ['[', arrayInputResultPairs, ']'].join(STRING_JOIN_CHAR);
 test('Test an array', t => {
     t.true(getSourceString(arrayInput) === arrayInputResult);

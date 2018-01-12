@@ -1,37 +1,36 @@
 /*jslint node: true */
-"use strict";
-var async = require('async');
-var _ = require('lodash');
-var db = require('./db.js');
-var conf = require('./conf.js');
-var objectHash = require("./object_hash.js");
-var constants = require("./constants.js");
-var mutex = require('./mutex.js');
-var archiving = require('./archiving.js');
-var profiler = require('./profiler.js');
+const async = require('async');
+const _ = require('lodash');
+const db = require('./db.js');
+const conf = require('./conf.js');
+const objectHash = require("./object_hash.js");
+const constants = require("./constants.js");
+const mutex = require('./mutex.js');
+const archiving = require('./archiving.js');
+const profiler = require('./profiler.js');
 
-var MAX_INT32 = Math.pow(2, 31) - 1;
+const MAX_INT32 = Math.pow(2, 31) - 1;
 
-var genesis_ball = objectHash.getBallHash(constants.GENESIS_UNIT);
+const genesis_ball = objectHash.getBallHash(constants.GENESIS_UNIT);
 
-var MAX_ITEMS_IN_CACHE = 300;
-var assocKnownUnits = {};
-var assocCachedUnits = {};
-var assocCachedUnitAuthors = {};
-var assocCachedUnitWitnesses = {};
-var assocCachedAssetInfos = {};
+const MAX_ITEMS_IN_CACHE = 300;
+const assocKnownUnits = {};
+const assocCachedUnits = {};
+const assocCachedUnitAuthors = {};
+const assocCachedUnitWitnesses = {};
+let assocCachedAssetInfos = {};
 
-var assocUnstableUnits = {};
-var assocStableUnits = {};
+const assocUnstableUnits = {};
+const assocStableUnits = {};
 
-var min_retrievable_mci = null;
+let min_retrievable_mci = null;
 initializeMinRetrievableMci();
 
 
 function readJoint(conn, unit, callbacks) {
 	if (!conf.bSaveJointJson)
 		return readJointDirectly(conn, unit, callbacks);
-	conn.query("SELECT json FROM joints WHERE unit=?", [unit], function(rows){
+	conn.query("SELECT json FROM joints WHERE unit=?", [unit], rows => {
 		if (rows.length === 0)
 			return readJointDirectly(conn, unit, callbacks);
 		callbacks.ifFound(JSON.parse(rows[0].json));
@@ -39,40 +38,40 @@ function readJoint(conn, unit, callbacks) {
 }
 
 function readJointDirectly(conn, unit, callbacks, bRetrying) {
-	console.log("\nreading unit "+unit);
+	console.log(`\nreading unit ${unit}`);
 	if (min_retrievable_mci === null){
 		console.log("min_retrievable_mci not known yet");
-		setTimeout(function(){
+		setTimeout(() => {
 			readJointDirectly(conn, unit, callbacks);
 		}, 1000);
 		return;
 	}
 	//profiler.start();
 	conn.query(
-		"SELECT units.unit, version, alt, witness_list_unit, last_ball_unit, balls.ball AS last_ball, is_stable, \n\
-			content_hash, headers_commission, payload_commission, main_chain_index, "+conn.getUnixTimestamp("units.creation_date")+" AS timestamp \n\
-		FROM units LEFT JOIN balls ON last_ball_unit=balls.unit WHERE units.unit=?", 
+		`SELECT units.unit, version, alt, witness_list_unit, last_ball_unit, balls.ball AS last_ball, is_stable, \n\
+            content_hash, headers_commission, payload_commission, main_chain_index, ${conn.getUnixTimestamp("units.creation_date")} AS timestamp \n\
+        FROM units LEFT JOIN balls ON last_ball_unit=balls.unit WHERE units.unit=?`, 
 		[unit], 
-		function(unit_rows){
+		unit_rows => {
 			if (unit_rows.length === 0){
 				//profiler.stop('read');
 				return callbacks.ifNotFound();
 			}
-			var objUnit = unit_rows[0];
-			var objJoint = {unit: objUnit};
-			var main_chain_index = objUnit.main_chain_index;
+			const objUnit = unit_rows[0];
+			const objJoint = {unit: objUnit};
+			const main_chain_index = objUnit.main_chain_index;
 			//delete objUnit.main_chain_index;
 			objUnit.timestamp = parseInt(objUnit.timestamp);
-			var bFinalBad = !!objUnit.content_hash;
-			var bStable = objUnit.is_stable;
+			const bFinalBad = !!objUnit.content_hash;
+			const bStable = objUnit.is_stable;
 			delete objUnit.is_stable;
 
 			objectHash.cleanNulls(objUnit);
-			var bVoided = (objUnit.content_hash && main_chain_index < min_retrievable_mci);
-			var bRetrievable = (main_chain_index >= min_retrievable_mci || main_chain_index === null);
+			const bVoided = (objUnit.content_hash && main_chain_index < min_retrievable_mci);
+			const bRetrievable = (main_chain_index >= min_retrievable_mci || main_chain_index === null);
 			
 			if (!conf.bLight && !objUnit.last_ball)
-				throw Error("no last ball in unit "+JSON.stringify(objUnit));
+				throw Error(`no last ball in unit ${JSON.stringify(objUnit)}`);
 			
 			// unit hash verification below will fail if:
 			// 1. the unit was received already voided, i.e. its messages are stripped and content_hash is set
@@ -88,70 +87,70 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 				delete objUnit.content_hash;
 
 			async.series([
-				function(callback){ // parents
+				callback => { // parents
 					conn.query(
 						"SELECT parent_unit \n\
 						FROM parenthoods \n\
 						WHERE child_unit=? \n\
 						ORDER BY parent_unit", 
 						[unit], 
-						function(rows){
+						rows => {
 							if (rows.length === 0)
 								return callback();
-							objUnit.parent_units = rows.map(function(row){ return row.parent_unit; });
+							objUnit.parent_units = rows.map(({parent_unit}) => parent_unit);
 							callback();
 						}
 					);
 				},
-				function(callback){ // ball
+				callback => { // ball
 					if (bRetrievable && !isGenesisUnit(unit))
 						return callback();
 					// include the .ball field even if it is not stable yet, because its parents might have been changed 
 					// and the receiver should not attempt to verify them
-					conn.query("SELECT ball FROM balls WHERE unit=?", [unit], function(rows){
+					conn.query("SELECT ball FROM balls WHERE unit=?", [unit], rows => {
 						if (rows.length === 0)
 							return callback();
 						objJoint.ball = rows[0].ball;
 						callback();
 					});
 				},
-				function(callback){ // skiplist
+				callback => { // skiplist
 					if (bRetrievable)
 						return callback();
-					conn.query("SELECT skiplist_unit FROM skiplist_units WHERE unit=? ORDER BY skiplist_unit", [unit], function(rows){
+					conn.query("SELECT skiplist_unit FROM skiplist_units WHERE unit=? ORDER BY skiplist_unit", [unit], rows => {
 						if (rows.length === 0)
 							return callback();
-						objJoint.skiplist_units = rows.map(function(row){ return row.skiplist_unit; });
+						objJoint.skiplist_units = rows.map(({skiplist_unit}) => skiplist_unit);
 						callback();
 					});
 				},
-				function(callback){ // witnesses
-					conn.query("SELECT address FROM unit_witnesses WHERE unit=? ORDER BY address", [unit], function(rows){
+				callback => { // witnesses
+					conn.query("SELECT address FROM unit_witnesses WHERE unit=? ORDER BY address", [unit], rows => {
 						if (rows.length > 0)
-							objUnit.witnesses = rows.map(function(row){ return row.address; });
+							objUnit.witnesses = rows.map(({address}) => address);
 						callback();
 					});
 				},
-				function(callback){ // earned_headers_commission_recipients
+				callback => { // earned_headers_commission_recipients
 					if (bVoided)
 						return callback();
 					conn.query("SELECT address, earned_headers_commission_share FROM earned_headers_commission_recipients \
 						WHERE unit=? ORDER BY address", 
 						[unit], 
-						function(rows){
+						rows => {
 							if (rows.length > 0)
 								objUnit.earned_headers_commission_recipients = rows;
 							callback();
 						}
 					);
 				},
-				function(callback){ // authors
-					conn.query("SELECT address, definition_chash FROM unit_authors WHERE unit=? ORDER BY address", [unit], function(rows){
+				callback => { // authors
+					conn.query("SELECT address, definition_chash FROM unit_authors WHERE unit=? ORDER BY address", [unit], rows => {
 						objUnit.authors = [];
 						async.eachSeries(
 							rows, 
-							function(row, cb){
-								var author = {address: row.address};
+							({address, definition_chash}, cb) => {
+								const author = {address: address};
 
 								function onAuthorDone(){
 									objUnit.authors.push(author);
@@ -164,19 +163,19 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 								conn.query(
 									"SELECT path, authentifier FROM authentifiers WHERE unit=? AND address=?", 
 									[unit, author.address], 
-									function(sig_rows){
-										for (var i=0; i<sig_rows.length; i++)
+									sig_rows => {
+										for (let i=0; i<sig_rows.length; i++)
 											author.authentifiers[sig_rows[i].path] = sig_rows[i].authentifier;
 
 										// if definition_chash is defined:
-										if (row.definition_chash){
-											readDefinition(conn, row.definition_chash, {
-												ifFound: function(arrDefinition){
+										if (definition_chash){
+											readDefinition(conn, definition_chash, {
+												ifFound(arrDefinition) {
 													author.definition = arrDefinition;
 													onAuthorDone();
 												},
-												ifDefinitionNotFound: function(definition_chash){
-													throw Error("definition "+definition_chash+" not defined");
+												ifDefinitionNotFound(definition_chash) {
+													throw Error(`definition ${definition_chash} not defined`);
 												}
 											});
 										}
@@ -185,30 +184,30 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 									}
 								);
 							}, 
-							function(){
+							() => {
 								callback();
 							}
 						);
 					});
 				},
-				function(callback){ // messages
+				callback => { // messages
 					if (bVoided)
 						return callback();
 					conn.query(
 						"SELECT app, payload_hash, payload_location, payload, payload_uri, payload_uri_hash, message_index \n\
 						FROM messages WHERE unit=? ORDER BY message_index", [unit], 
-						function(rows){
+						rows => {
 							if (rows.length === 0){
 								if (conf.bLight)
-									throw new Error("no messages in unit "+unit);
+									throw new Error(`no messages in unit ${unit}`);
 								return callback(); // any errors will be caught by verifying unit hash
 							}
 							objUnit.messages = [];
 							async.eachSeries(
 								rows,
-								function(row, cb){
-									var objMessage = row;
-									var message_index = row.message_index;
+								(row, cb) => {
+									const objMessage = row;
+									const message_index = row.message_index;
 									delete objMessage.message_index;
 									objectHash.cleanNulls(objMessage);
 									objUnit.messages.push(objMessage);
@@ -217,12 +216,12 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 										conn.query(
 											"SELECT spend_proof, address FROM spend_proofs WHERE unit=? AND message_index=? ORDER BY spend_proof_index",
 											[unit, message_index],
-											function(proof_rows){
+											proof_rows => {
 												if (proof_rows.length === 0)
 													return cb();
 												objMessage.spend_proofs = [];
-												for (var i=0; i<proof_rows.length; i++){
-													var objSpendProof = proof_rows[i];
+												for (let i=0; i<proof_rows.length; i++){
+													const objSpendProof = proof_rows[i];
 													if (objUnit.authors.length === 1) // single-authored
 														delete objSpendProof.address;
 													objMessage.spend_proofs.push(objSpendProof);
@@ -239,7 +238,7 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 											conn.query(
 												"SELECT definition_chash, address FROM address_definition_changes WHERE unit=? AND message_index=?", 
 												[unit, message_index], 
-												function(dch_rows){
+												dch_rows => {
 													if (dch_rows.length === 0)
 														throw Error("no definition change?");
 													objMessage.payload = dch_rows[0];
@@ -253,14 +252,14 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 										case "poll":
 											conn.query(
 												"SELECT question FROM polls WHERE unit=? AND message_index=?", [unit, message_index], 
-												function(poll_rows){
+												poll_rows => {
 													if (poll_rows.length !== 1)
 														throw Error("no poll question or too many?");
 													objMessage.payload = {question: poll_rows[0].question};
-													conn.query("SELECT choice FROM poll_choices WHERE unit=? ORDER BY choice_index", [unit], function(ch_rows){
+													conn.query("SELECT choice FROM poll_choices WHERE unit=? ORDER BY choice_index", [unit], ch_rows => {
 														if (ch_rows.length === 0)
 															throw Error("no choices?");
-														objMessage.payload.choices = ch_rows.map(function(choice_row){ return choice_row.choice; });
+														objMessage.payload.choices = ch_rows.map(({choice}) => choice);
 														addSpendProofs();
 													});
 												}
@@ -270,7 +269,7 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 										 case "vote":
 											conn.query(
 												"SELECT poll_unit, choice FROM votes WHERE unit=? AND message_index=?", [unit, message_index], 
-												function(vote_rows){
+												vote_rows => {
 													if (vote_rows.length !== 1)
 														throw Error("no vote choice or too many?");
 													objMessage.payload = {unit: vote_rows[0].poll_unit, choice: vote_rows[0].choice};
@@ -286,7 +285,7 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 													issue_condition, transfer_condition \n\
 												FROM assets WHERE unit=? AND message_index=?", 
 												[unit, message_index], 
-												function(asset_rows){
+												asset_rows => {
 													if (asset_rows.length !== 1)
 														throw Error("no asset or too many?");
 													objMessage.payload = asset_rows[0];
@@ -303,38 +302,36 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 													if (objMessage.payload.transfer_condition)
 														objMessage.payload.transfer_condition = JSON.parse(objMessage.payload.transfer_condition);
 												
-													var addAttestors = function(next){
+													const addAttestors = next => {
 														if (!objMessage.payload.spender_attested)
 															return next();
 														conn.query(
 															"SELECT attestor_address FROM asset_attestors \n\
 															WHERE unit=? AND message_index=? ORDER BY attestor_address",
 															[unit, message_index],
-															function(att_rows){
+															att_rows => {
 																if (att_rows.length === 0)
 																	throw Error("no attestors?");
-																objMessage.payload.attestors = att_rows.map(function(att_row){
-																	return att_row.attestor_address;
-																});
+																objMessage.payload.attestors = att_rows.map(({attestor_address}) => attestor_address);
 																next();
 															}
 														);
 													};
 												
-													var addDenominations = function(next){
+													const addDenominations = next => {
 														if (!objMessage.payload.fixed_denominations)
 															return next();
 														conn.query(
 															"SELECT denomination, count_coins FROM asset_denominations \n\
 															WHERE asset=? ORDER BY denomination",
 															[unit],
-															function(denom_rows){
+															denom_rows => {
 																if (denom_rows.length === 0)
 																	throw Error("no denominations?");
-																objMessage.payload.denominations = denom_rows.map(function(denom_row){
-																	var denom = {denomination: denom_row.denomination};
-																	if (denom_row.count_coins)
-																		denom.count_coins = denom_row.count_coins;
+																objMessage.payload.denominations = denom_rows.map(({denomination, count_coins}) => {
+																	const denom = {denomination: denomination};
+																	if (count_coins)
+																		denom.count_coins = count_coins;
 																	return denom;
 																});
 																next();
@@ -352,14 +349,14 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 												"SELECT attestor_address, asset FROM asset_attestors \n\
 												WHERE unit=? AND message_index=? ORDER BY attestor_address",
 												[unit, message_index],
-												function(att_rows){
+												att_rows => {
 													if (att_rows.length === 0)
 														throw Error("no attestors?");
 													objMessage.payload = {asset: att_rows[0].asset};
 													if (att_rows.length > 1 
-															&& att_rows.some(function(att_row){ return (att_row.asset !== objMessage.payload.asset) }))
+															&& att_rows.some(({asset}) => asset !== objMessage.payload.asset))
 														throw Error("different assets in attestor list");
-													objMessage.payload.attestors = att_rows.map(function(att_row){ return att_row.attestor_address;});
+													objMessage.payload.attestors = att_rows.map(({attestor_address}) => attestor_address);
 													addSpendProofs();
 												}
 											);
@@ -368,13 +365,13 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 										case "data_feed":
 											conn.query(
 												"SELECT feed_name, `value`, int_value FROM data_feeds WHERE unit=? AND message_index=?", [unit, message_index], 
-												function(df_rows){
+												df_rows => {
 													if (df_rows.length === 0)
 														throw Error("no data feed?");
 													objMessage.payload = {};
-													df_rows.forEach(function(df_row){
-														objMessage.payload[df_row.feed_name] = 
-															(typeof df_row.value === 'string') ? df_row.value : Number(df_row.int_value);
+													df_rows.forEach(({feed_name, value, int_value}) => {
+														objMessage.payload[feed_name] = 
+															(typeof value === 'string') ? value : Number(int_value);
 													});
 													addSpendProofs();
 												}
@@ -391,10 +388,10 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 
 										case "payment":
 											objMessage.payload = {};
-											var prev_asset;
-											var prev_denomination;
+											let prev_asset;
+											let prev_denomination;
 											
-											var readInputs = function(cb2){
+											const readInputs = cb2 => {
 												conn.query(
 													"SELECT type, denomination, assets.fixed_denominations, \n\
 														src_unit AS unit, src_message_index AS message_index, src_output_index AS output_index, \n\
@@ -404,14 +401,14 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 													WHERE inputs.unit=? AND inputs.message_index=? \n\
 													ORDER BY input_index", 
 													[unit, message_index],
-													function(input_rows){
+													input_rows => {
 														objMessage.payload.inputs = [];
-														for (var i=0; i<input_rows.length; i++){
-															var input = input_rows[i];
+														for (let i=0; i<input_rows.length; i++){
+															const input = input_rows[i];
 															if (!input.address && !conf.bLight) // may be NULL for light (light clients are reading units e.g. after receiving payment notification)
 																throw Error("readJoint: input address is NULL");
-															var asset = input.asset;
-															var denomination = input.denomination;
+															const asset = input.asset;
+															const denomination = input.denomination;
 															if (i>0){
 																if (asset !== prev_asset)
 																	throw Error("different assets in inputs?");
@@ -441,15 +438,15 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 													}
 												);
 											};
-											var readOutputs = function(cb2){
+											const readOutputs = cb2 => {
 												objMessage.payload.outputs = [];
 												conn.query( // we don't select blinding because it's absent on public payments
 													"SELECT address, amount, asset, denomination \n\
 													FROM outputs WHERE unit=? AND message_index=? ORDER BY output_index", 
 													[unit, message_index],
-													function(output_rows){
-														for (var i=0; i<output_rows.length; i++){
-															var output = output_rows[i];
+													output_rows => {
+														for (let i=0; i<output_rows.length; i++){
+															const output = output_rows[i];
 															if (output.asset !== prev_asset)
 																throw Error("different assets in outputs?");
 															if (output.denomination !== prev_denomination)
@@ -474,24 +471,24 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 								},
 								callback
 							);
-						} // message rows
+						}
 					);
 				}
-			], function(){
+			], () => {
 				//profiler.stop('read');
 				// verify unit hash. Might fail if the unit was archived while reading, in this case retry
 				// light wallets don't have last_ball, don't verify their hashes
 				if (!conf.bLight && !isCorrectHash(objUnit, unit)){
 					if (bRetrying)
-						throw Error("unit hash verification failed, unit: "+unit+", objUnit: "+JSON.stringify(objUnit));
+						throw Error(`unit hash verification failed, unit: ${unit}, objUnit: ${JSON.stringify(objUnit)}`);
 					console.log("unit hash verification failed, will retry");
-					return setTimeout(function(){
+					return setTimeout(() => {
 						readJointDirectly(conn, unit, callbacks, true);
 					}, 60*1000);
 				}
 				if (!conf.bSaveJointJson || !bStable || (bFinalBad && bRetrievable) || bRetrievable)
 					return callbacks.ifFound(objJoint);
-				conn.query("INSERT "+db.getIgnore()+" INTO joints (unit, json) VALUES (?,?)", [unit, JSON.stringify(objJoint)], function(){
+				conn.query(`INSERT ${db.getIgnore()} INTO joints (unit, json) VALUES (?,?)`, [unit, JSON.stringify(objJoint)], () => {
 					callbacks.ifFound(objJoint);
 				});
 			});
@@ -513,13 +510,13 @@ function isCorrectHash(objUnit, unit){
 // add .ball even if it is not retrievable
 function readJointWithBall(conn, unit, handleJoint) {
 	readJoint(conn, unit, {
-		ifNotFound: function(){
-			throw Error("joint not found, unit "+unit);
+		ifNotFound() {
+			throw Error(`joint not found, unit ${unit}`);
 		},
-		ifFound: function(objJoint){
+		ifFound(objJoint) {
 			if (objJoint.ball)
 				return handleJoint(objJoint);
-			conn.query("SELECT ball FROM balls WHERE unit=?", [unit], function(rows){
+			conn.query("SELECT ball FROM balls WHERE unit=?", [unit], rows => {
 				if (rows.length === 1)
 					objJoint.ball = rows[0].ball;
 				handleJoint(objJoint);
@@ -531,15 +528,15 @@ function readJointWithBall(conn, unit, handleJoint) {
 
 
 function readWitnessList(conn, unit, handleWitnessList, bAllowEmptyList){
-	var arrWitnesses = assocCachedUnitWitnesses[unit];
+	let arrWitnesses = assocCachedUnitWitnesses[unit];
 	if (arrWitnesses)
 		return handleWitnessList(arrWitnesses);
-	conn.query("SELECT address FROM unit_witnesses WHERE unit=? ORDER BY address", [unit], function(rows){
+	conn.query("SELECT address FROM unit_witnesses WHERE unit=? ORDER BY address", [unit], rows => {
 		if (!bAllowEmptyList && rows.length === 0)
-			throw Error("witness list of unit "+unit+" not found");
+			throw Error(`witness list of unit ${unit} not found`);
 		if (rows.length > 0 && rows.length !== constants.COUNT_WITNESSES)
-			throw Error("wrong number of witnesses in unit "+unit);
-		arrWitnesses = rows.map(function(row){ return row.address; });
+			throw Error(`wrong number of witnesses in unit ${unit}`);
+		arrWitnesses = rows.map(({address}) => address);
 		if (rows.length > 0)
 			assocCachedUnitWitnesses[unit] = arrWitnesses;
 		handleWitnessList(arrWitnesses);
@@ -547,14 +544,14 @@ function readWitnessList(conn, unit, handleWitnessList, bAllowEmptyList){
 }
 
 function readWitnesses(conn, unit, handleWitnessList){
-	var arrWitnesses = assocCachedUnitWitnesses[unit];
+	const arrWitnesses = assocCachedUnitWitnesses[unit];
 	if (arrWitnesses)
 		return handleWitnessList(arrWitnesses);
-	conn.query("SELECT witness_list_unit FROM units WHERE unit=?", [unit], function(rows){
+	conn.query("SELECT witness_list_unit FROM units WHERE unit=?", [unit], rows => {
 		if (rows.length === 0)
-			throw Error("unit "+unit+" not found");
-		var witness_list_unit = rows[0].witness_list_unit;
-		readWitnessList(conn, witness_list_unit ? witness_list_unit : unit, function(arrWitnesses){
+			throw Error(`unit ${unit} not found`);
+		const witness_list_unit = rows[0].witness_list_unit;
+		readWitnessList(conn, witness_list_unit ? witness_list_unit : unit, arrWitnesses => {
 			assocCachedUnitWitnesses[unit] = arrWitnesses;
 			handleWitnessList(arrWitnesses);
 		});
@@ -569,27 +566,27 @@ function determineIfWitnessAddressDefinitionsHaveReferences(conn, arrWitnesses, 
 		SELECT 1 FROM definitions WHERE definition_chash IN(?) AND has_references=1 \n\
 		LIMIT 1",
 		[arrWitnesses, arrWitnesses],
-		function(rows){
-			handleResult(rows.length > 0);
+		({length}) => {
+			handleResult(length > 0);
 		}
 	);
 }
 
 function determineWitnessedLevelAndBestParent(conn, arrParentUnits, arrWitnesses, handleWitnessedLevelAndBestParent){
-	var arrCollectedWitnesses = [];
-	var my_best_parent_unit;
+	const arrCollectedWitnesses = [];
+	let my_best_parent_unit;
 
 	function addWitnessesAndGoUp(start_unit){
-		readStaticUnitProps(conn, start_unit, function(props){
-			var best_parent_unit = props.best_parent_unit;
-			var level = props.level;
+		readStaticUnitProps(conn, start_unit, props => {
+			const best_parent_unit = props.best_parent_unit;
+			const level = props.level;
 			if (level === null)
 				throw Error("null level in updateWitnessedLevel");
 			if (level === 0) // genesis
 				return handleWitnessedLevelAndBestParent(0, my_best_parent_unit);
-			readUnitAuthors(conn, start_unit, function(arrAuthors){
-				for (var i=0; i<arrAuthors.length; i++){
-					var address = arrAuthors[i];
+			readUnitAuthors(conn, start_unit, arrAuthors => {
+				for (let i=0; i<arrAuthors.length; i++){
+					const address = arrAuthors[i];
 					if (arrWitnesses.indexOf(address) !== -1 && arrCollectedWitnesses.indexOf(address) === -1)
 						arrCollectedWitnesses.push(address);
 				}
@@ -599,9 +596,9 @@ function determineWitnessedLevelAndBestParent(conn, arrParentUnits, arrWitnesses
 		});
 	}
 
-	determineBestParent(conn, {parent_units: arrParentUnits, witness_list_unit: 'none'}, arrWitnesses, function(best_parent_unit){
+	determineBestParent(conn, {parent_units: arrParentUnits, witness_list_unit: 'none'}, arrWitnesses, best_parent_unit => {
 		if (!best_parent_unit)
-			throw Error("no best parent of "+arrParentUnits.join(', '));
+			throw Error(`no best parent of ${arrParentUnits.join(', ')}`);
 		my_best_parent_unit = best_parent_unit;
 		addWitnessesAndGoUp(best_parent_unit);
 	});
@@ -637,8 +634,8 @@ function readDefinitionByAddress(conn, address, max_mci, callbacks){
 		"SELECT definition_chash FROM address_definition_changes CROSS JOIN units USING(unit) \n\
 		WHERE address=? AND is_stable=1 AND sequence='good' AND main_chain_index<=? ORDER BY level DESC LIMIT 1", 
 		[address, max_mci], 
-		function(rows){
-			var definition_chash = (rows.length > 0) ? rows[0].definition_chash : address;
+		rows => {
+			const definition_chash = (rows.length > 0) ? rows[0].definition_chash : address;
 			readDefinitionAtMci(conn, definition_chash, max_mci, callbacks);
 		}
 	);
@@ -646,10 +643,10 @@ function readDefinitionByAddress(conn, address, max_mci, callbacks){
 
 // max_mci must be stable
 function readDefinitionAtMci(conn, definition_chash, max_mci, callbacks){
-	var sql = "SELECT definition FROM definitions CROSS JOIN unit_authors USING(definition_chash) CROSS JOIN units USING(unit) \n\
+	const sql = "SELECT definition FROM definitions CROSS JOIN unit_authors USING(definition_chash) CROSS JOIN units USING(unit) \n\
 		WHERE definition_chash=? AND is_stable=1 AND sequence='good' AND main_chain_index<=?";
-	var params = [definition_chash, max_mci];
-	conn.query(sql, params, function(rows){
+	const params = [definition_chash, max_mci];
+	conn.query(sql, params, rows => {
 		if (rows.length === 0)
 			return callbacks.ifDefinitionNotFound(definition_chash);
 		callbacks.ifFound(JSON.parse(rows[0].definition));
@@ -657,7 +654,7 @@ function readDefinitionAtMci(conn, definition_chash, max_mci, callbacks){
 }
 
 function readDefinition(conn, definition_chash, callbacks){
-	conn.query("SELECT definition FROM definitions WHERE definition_chash=?", [definition_chash], function(rows){
+	conn.query("SELECT definition FROM definitions WHERE definition_chash=?", [definition_chash], rows => {
 		if (rows.length === 0)
 			return callbacks.ifDefinitionNotFound(definition_chash);
 		callbacks.ifFound(JSON.parse(rows[0].definition));
@@ -665,13 +662,13 @@ function readDefinition(conn, definition_chash, callbacks){
 }
 
 function readFreeJoints(ifFoundFreeBall, onDone){
-	db.query("SELECT units.unit FROM units LEFT JOIN archived_joints USING(unit) WHERE is_free=1 AND archived_joints.unit IS NULL", function(rows){
-		async.each(rows, function(row, cb){
-			readJoint(db, row.unit, {
-				ifNotFound: function(){
+	db.query("SELECT units.unit FROM units LEFT JOIN archived_joints USING(unit) WHERE is_free=1 AND archived_joints.unit IS NULL", rows => {
+		async.each(rows, ({unit}, cb) => {
+			readJoint(db, unit, {
+				ifNotFound() {
 					throw Error("free ball lost");
 				},
-				ifFound: function(objJoint){
+				ifFound(objJoint) {
 					ifFoundFreeBall(objJoint);
 					cb();
 				}
@@ -699,19 +696,19 @@ function readUnitProps(conn, unit, handleProps){
 	conn.query(
 		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level FROM units WHERE unit=?", 
 		[unit], 
-		function(rows){
+		rows => {
 			if (rows.length !== 1)
 				throw Error("not 1 row");
-			var props = rows[0];
+			const props = rows[0];
 			if (props.is_stable)
 				assocStableUnits[unit] = props;
 			else{
-				var props2 = _.cloneDeep(assocUnstableUnits[unit]);
+				const props2 = _.cloneDeep(assocUnstableUnits[unit]);
 				if (!props2)
-					throw Error("no unstable props of "+unit);
+					throw Error(`no unstable props of ${unit}`);
 				delete props2.parent_units;
 				if (!_.isEqual(props, props2))
-					throw Error("different props of "+unit+", mem: "+JSON.stringify(props2)+", db: "+JSON.stringify(props));
+					throw Error(`different props of ${unit}, mem: ${JSON.stringify(props2)}, db: ${JSON.stringify(props)}`);
 			}
 			handleProps(props);
 		}
@@ -719,24 +716,25 @@ function readUnitProps(conn, unit, handleProps){
 }
 
 function readPropsOfUnits(conn, earlier_unit, arrLaterUnits, handleProps){
-	var bEarlierInLaterUnits = (arrLaterUnits.indexOf(earlier_unit) !== -1);
+	const bEarlierInLaterUnits = (arrLaterUnits.indexOf(earlier_unit) !== -1);
 	conn.query(
 		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free FROM units WHERE unit IN(?, ?)", 
 		[earlier_unit, arrLaterUnits], 
-		function(rows){
-			if (rows.length !== arrLaterUnits.length + (bEarlierInLaterUnits ? 0 : 1))
-				throw Error("wrong number of rows for earlier "+earlier_unit+", later "+arrLaterUnits);
-			var objEarlierUnitProps, arrLaterUnitProps = [];
-			for (var i=0; i<rows.length; i++){
+		rows => {
+            if (rows.length !== arrLaterUnits.length + (bEarlierInLaterUnits ? 0 : 1))
+				throw Error(`wrong number of rows for earlier ${earlier_unit}, later ${arrLaterUnits}`);
+            let objEarlierUnitProps;
+            const arrLaterUnitProps = [];
+            for (let i=0; i<rows.length; i++){
 				if (rows[i].unit === earlier_unit)
 					objEarlierUnitProps = rows[i];
 				else
 					arrLaterUnitProps.push(rows[i]);
 			}
-			if (bEarlierInLaterUnits)
+            if (bEarlierInLaterUnits)
 				arrLaterUnitProps.push(objEarlierUnitProps);
-			handleProps(objEarlierUnitProps, arrLaterUnitProps);
-		}
+            handleProps(objEarlierUnitProps, arrLaterUnitProps);
+        }
 	);
 }
 
@@ -748,7 +746,7 @@ function readPropsOfUnits(conn, earlier_unit, arrLaterUnits, handleProps){
 function readLastStableMcUnitProps(conn, handleLastStableMcUnitProps){
 	conn.query(
 		"SELECT units.*, ball FROM units LEFT JOIN balls USING(unit) WHERE is_on_main_chain=1 AND is_stable=1 ORDER BY main_chain_index DESC LIMIT 1", 
-		function(rows){
+		rows => {
 			if (rows.length === 0)
 				return handleLastStableMcUnitProps(null); // empty database
 				//throw "readLastStableMcUnitProps: no units on stable MC?";
@@ -760,15 +758,15 @@ function readLastStableMcUnitProps(conn, handleLastStableMcUnitProps){
 }
 
 function readLastStableMcIndex(conn, handleLastStableMcIndex){
-	readLastStableMcUnitProps(conn, function(objLastStableMcUnitProps){
+	readLastStableMcUnitProps(conn, objLastStableMcUnitProps => {
 		handleLastStableMcIndex(objLastStableMcUnitProps ? objLastStableMcUnitProps.main_chain_index : 0);
 	});
 }
 
 
 function readLastMainChainIndex(handleLastMcIndex){
-	db.query("SELECT MAX(main_chain_index) AS last_mc_index FROM units", function(rows){
-		var last_mc_index = rows[0].last_mc_index;
+	db.query("SELECT MAX(main_chain_index) AS last_mc_index FROM units", rows => {
+		let last_mc_index = rows[0].last_mc_index;
 		if (last_mc_index === null) // empty database
 			last_mc_index = 0;
 		handleLastMcIndex(last_mc_index);
@@ -784,9 +782,9 @@ function findLastBallMciOfMci(conn, mci, handleLastBallMci){
 		FROM units JOIN units AS lb_units ON units.last_ball_unit=lb_units.unit \n\
 		WHERE units.is_on_main_chain=1 AND units.main_chain_index=?", 
 		[mci],
-		function(rows){
+		rows => {
 			if (rows.length !== 1)
-				throw Error("last ball's mci count "+rows.length+" !== 1, mci = "+mci);
+				throw Error(`last ball's mci count ${rows.length} !== 1, mci = ${mci}`);
 			if (rows[0].is_on_main_chain !== 1)
 				throw Error("lb is not on mc?");
 			handleLastBallMci(rows[0].main_chain_index);
@@ -799,42 +797,42 @@ function getMinRetrievableMci(){
 }
 
 function updateMinRetrievableMciAfterStabilizingMci(conn, last_stable_mci, handleMinRetrievableMci){
-	console.log("updateMinRetrievableMciAfterStabilizingMci "+last_stable_mci);
-	findLastBallMciOfMci(conn, last_stable_mci, function(last_ball_mci){
+	console.log(`updateMinRetrievableMciAfterStabilizingMci ${last_stable_mci}`);
+	findLastBallMciOfMci(conn, last_stable_mci, last_ball_mci => {
 		if (last_ball_mci <= min_retrievable_mci) // nothing new
 			return handleMinRetrievableMci(min_retrievable_mci);
-		var prev_min_retrievable_mci = min_retrievable_mci;
+		const prev_min_retrievable_mci = min_retrievable_mci;
 		min_retrievable_mci = last_ball_mci;
 
 		// strip content off units older than min_retrievable_mci
 		conn.query(
 			// 'JOIN messages' filters units that are not stripped yet
-			"SELECT DISTINCT unit, content_hash FROM units "+db.forceIndex('byMcIndex')+" CROSS JOIN messages USING(unit) \n\
-			WHERE main_chain_index<=? AND main_chain_index>=? AND sequence='final-bad'", 
+			`SELECT DISTINCT unit, content_hash FROM units ${db.forceIndex('byMcIndex')} CROSS JOIN messages USING(unit) \n\
+            WHERE main_chain_index<=? AND main_chain_index>=? AND sequence='final-bad'`, 
 			[min_retrievable_mci, prev_min_retrievable_mci],
-			function(unit_rows){
-				var arrQueries = [];
+			unit_rows => {
+				const arrQueries = [];
 				async.eachSeries(
 					unit_rows,
-					function(unit_row, cb){
-						var unit = unit_row.unit;
+					(unit_row, cb) => {
+						const unit = unit_row.unit;
 						if (!unit_row.content_hash)
-							throw Error("no content hash in bad unit "+unit);
+							throw Error(`no content hash in bad unit ${unit}`);
 						readJoint(conn, unit, {
-							ifNotFound: function(){
-								throw Error("bad unit not found: "+unit);
+							ifNotFound() {
+								throw Error(`bad unit not found: ${unit}`);
 							},
-							ifFound: function(objJoint){
+							ifFound(objJoint) {
 								archiving.generateQueriesToArchiveJoint(conn, objJoint, 'voided', arrQueries, cb);
 							}
 						});
 					},
-					function(){
+					() => {
 						if (arrQueries.length === 0)
 							return handleMinRetrievableMci(min_retrievable_mci);
-						async.series(arrQueries, function(){
-							unit_rows.forEach(function(unit_row){
-								forgetUnit(unit_row.unit);
+						async.series(arrQueries, () => {
+							unit_rows.forEach(({unit}) => {
+								forgetUnit(unit);
 							});
 							handleMinRetrievableMci(min_retrievable_mci);
 						});
@@ -850,7 +848,7 @@ function initializeMinRetrievableMci(){
 		"SELECT MAX(lb_units.main_chain_index) AS min_retrievable_mci \n\
 		FROM units JOIN units AS lb_units ON units.last_ball_unit=lb_units.unit \n\
 		WHERE units.is_on_main_chain=1 AND units.is_stable=1", 
-		function(rows){
+		rows => {
 			if (rows.length !== 1)
 				throw Error("MAX() no rows?");
 			min_retrievable_mci = rows[0].min_retrievable_mci;
@@ -862,9 +860,9 @@ function initializeMinRetrievableMci(){
 
 
 function archiveJointAndDescendantsIfExists(from_unit){
-	console.log('will archive if exists from unit '+from_unit);
-	db.query("SELECT 1 FROM units WHERE unit=?", [from_unit], function(rows){
-		if (rows.length > 0)
+	console.log(`will archive if exists from unit ${from_unit}`);
+	db.query("SELECT 1 FROM units WHERE unit=?", [from_unit], ({length}) => {
+		if (length > 0)
 			archiveJointAndDescendants(from_unit);
 	});
 }
@@ -873,10 +871,10 @@ function archiveJointAndDescendants(from_unit){
 	db.executeInTransaction(function doWork(conn, cb){
 		
 		function addChildren(arrParentUnits){
-			conn.query("SELECT DISTINCT child_unit FROM parenthoods WHERE parent_unit IN(?)", [arrParentUnits], function(rows){
+			conn.query("SELECT DISTINCT child_unit FROM parenthoods WHERE parent_unit IN(?)", [arrParentUnits], rows => {
 				if (rows.length === 0)
 					return archive();
-				var arrChildUnits = rows.map(function(row){ return row.child_unit; });
+				const arrChildUnits = rows.map(({child_unit}) => child_unit);
 				arrUnits = arrUnits.concat(arrChildUnits);
 				addChildren(arrChildUnits);
 			});
@@ -886,23 +884,23 @@ function archiveJointAndDescendants(from_unit){
 			arrUnits = _.uniq(arrUnits); // does not affect the order
 			arrUnits.reverse();
 			console.log('will archive', arrUnits);
-			var arrQueries = [];
+			const arrQueries = [];
 			async.eachSeries(
 				arrUnits,
-				function(unit, cb2){
+				(unit, cb2) => {
 					readJoint(conn, unit, {
-						ifNotFound: function(){
-							throw Error("unit to be archived not found: "+unit);
+						ifNotFound() {
+							throw Error(`unit to be archived not found: ${unit}`);
 						},
-						ifFound: function(objJoint){
+						ifFound(objJoint) {
 							archiving.generateQueriesToArchiveJoint(conn, objJoint, 'uncovered', arrQueries, cb2);
 						}
 					});
 				},
-				function(){
+				() => {
 					conn.addQuery(arrQueries, "DELETE FROM known_bad_joints");
-					console.log('will execute '+arrQueries.length+' queries to archive');
-					async.series(arrQueries, function(){
+					console.log(`will execute ${arrQueries.length} queries to archive`);
+					async.series(arrQueries, () => {
 						arrUnits.forEach(forgetUnit);
 						cb();
 					});
@@ -910,12 +908,12 @@ function archiveJointAndDescendants(from_unit){
 			);
 		}
 		
-		console.log('will archive from unit '+from_unit);
+		console.log(`will archive from unit ${from_unit}`);
 		var arrUnits = [from_unit];
 		addChildren([from_unit]);
 	},
 	function onDone(){
-		console.log('done archiving from unit '+from_unit);
+		console.log(`done archiving from unit ${from_unit}`);
 	});
 }
 
@@ -924,19 +922,19 @@ function archiveJointAndDescendants(from_unit){
 // Assets
 
 function readAssetInfo(conn, asset, handleAssetInfo){
-	var objAsset = assocCachedAssetInfos[asset];
+	const objAsset = assocCachedAssetInfos[asset];
 	if (objAsset)
 		return handleAssetInfo(objAsset);
 	conn.query(
 		"SELECT assets.*, main_chain_index, sequence, is_stable, address AS definer_address, unit AS asset \n\
 		FROM assets JOIN units USING(unit) JOIN unit_authors USING(unit) WHERE unit=?", 
 		[asset], 
-		function(rows){
+		rows => {
 			if (rows.length > 1)
 				throw Error("more than one asset?");
 			if (rows.length === 0)
 				return handleAssetInfo(null);
-			var objAsset = rows[0];
+			const objAsset = rows[0];
 			if (objAsset.issue_condition)
 				objAsset.issue_condition = JSON.parse(objAsset.issue_condition);
 			if (objAsset.transfer_condition)
@@ -953,13 +951,13 @@ function readAsset(conn, asset, last_ball_mci, handleAsset){
 		if (conf.bLight)
 			last_ball_mci = MAX_INT32;
 		else
-			return readLastStableMcIndex(conn, function(last_stable_mci){
+			return readLastStableMcIndex(conn, last_stable_mci => {
 				readAsset(conn, asset, last_stable_mci, handleAsset);
 			});
 	}
-	readAssetInfo(conn, asset, function(objAsset){
+	readAssetInfo(conn, asset, objAsset => {
 		if (!objAsset)
-			return handleAsset("asset "+asset+" not found");
+			return handleAsset(`asset ${asset} not found`);
 		if (objAsset.main_chain_index > last_ball_mci)
 			return handleAsset("asset definition must be before last ball");
 		if (objAsset.sequence !== "good")
@@ -972,8 +970,8 @@ function readAsset(conn, asset, last_ball_mci, handleAsset){
 			"SELECT MAX(level) AS max_level FROM asset_attestors CROSS JOIN units USING(unit) \n\
 			WHERE asset=? AND main_chain_index<=? AND is_stable=1 AND sequence='good'", 
 			[asset, last_ball_mci],
-			function(latest_rows){
-				var max_level = latest_rows[0].max_level;
+			latest_rows => {
+				const max_level = latest_rows[0].max_level;
 				if (!max_level)
 					throw Error("no max level of asset attestors");
 
@@ -982,10 +980,10 @@ function readAsset(conn, asset, last_ball_mci, handleAsset){
 					"SELECT attestor_address FROM asset_attestors CROSS JOIN units USING(unit) \n\
 					WHERE asset=? AND level=? AND main_chain_index<=? AND is_stable=1 AND sequence='good'",
 					[asset, max_level, last_ball_mci],
-					function(att_rows){
+					att_rows => {
 						if (att_rows.length === 0)
 							throw Error("no attestors?");
-						objAsset.arrAttestorAddresses = att_rows.map(function(att_row){ return att_row.attestor_address; });
+						objAsset.arrAttestorAddresses = att_rows.map(({attestor_address}) => attestor_address);
 						handleAsset(null, objAsset);
 					}
 				);
@@ -995,7 +993,13 @@ function readAsset(conn, asset, last_ball_mci, handleAsset){
 }
 
 // filter only those addresses that are attested (doesn't work for light clients)
-function filterAttestedAddresses(conn, objAsset, last_ball_mci, arrAddresses, handleAttestedAddresses){
+function filterAttestedAddresses(
+    conn,
+    {arrAttestorAddresses},
+    last_ball_mci,
+    arrAddresses,
+    handleAttestedAddresses
+) {
 	conn.query(
 		"SELECT DISTINCT address FROM attestations CROSS JOIN units USING(unit) \n\
 		WHERE attestor_address IN(?) AND address IN(?) AND main_chain_index<=? AND is_stable=1 AND sequence='good' \n\
@@ -1003,9 +1007,9 @@ function filterAttestedAddresses(conn, objAsset, last_ball_mci, arrAddresses, ha
 				(SELECT main_chain_index FROM address_definition_changes JOIN units USING(unit) \n\
 				WHERE address_definition_changes.address=attestations.address ORDER BY main_chain_index DESC LIMIT 1), \n\
 			0)",
-		[objAsset.arrAttestorAddresses, arrAddresses, last_ball_mci],
-		function(addr_rows){
-			var arrAttestedAddresses = addr_rows.map(function(addr_row){ return addr_row.address; });
+		[arrAttestorAddresses, arrAddresses, last_ball_mci],
+		addr_rows => {
+			const arrAttestedAddresses = addr_rows.map(({address}) => address);
 			handleAttestedAddresses(arrAttestedAddresses);
 		}
 	);
@@ -1013,12 +1017,12 @@ function filterAttestedAddresses(conn, objAsset, last_ball_mci, arrAddresses, ha
 
 // note that light clients cannot check attestations
 function loadAssetWithListOfAttestedAuthors(conn, asset, last_ball_mci, arrAuthorAddresses, handleAsset){
-	readAsset(conn, asset, last_ball_mci, function(err, objAsset){
+	readAsset(conn, asset, last_ball_mci, (err, objAsset) => {
 		if (err)
 			return handleAsset(err);
 		if (!objAsset.spender_attested)
 			return handleAsset(null, objAsset);
-		filterAttestedAddresses(conn, objAsset, last_ball_mci, arrAuthorAddresses, function(arrAttestedAddresses){
+		filterAttestedAddresses(conn, objAsset, last_ball_mci, arrAuthorAddresses, arrAttestedAddresses => {
 			objAsset.arrAttestedAddresses = arrAttestedAddresses;
 			handleAsset(null, objAsset);
 		});
@@ -1031,7 +1035,7 @@ function findWitnessListUnit(conn, arrWitnesses, last_ball_mci, handleWitnessLis
 		FROM witness_list_hashes CROSS JOIN units ON witness_list_hashes.witness_list_unit=unit \n\
 		WHERE witness_list_hash=? AND sequence='good' AND is_stable=1 AND main_chain_index<=?", 
 		[objectHash.getBase64Hash(arrWitnesses), last_ball_mci], 
-		function(rows){
+		rows => {
 			handleWitnessListUnit((rows.length === 0) ? null : rows[0].witness_list_unit);
 		}
 	);
@@ -1039,39 +1043,39 @@ function findWitnessListUnit(conn, arrWitnesses, last_ball_mci, handleWitnessLis
 
 function sliceAndExecuteQuery(query, params, largeParam, callback) {
 	if (typeof largeParam !== 'object' || largeParam.length === 0) return callback([]);
-	var CHUNK_SIZE = 200;
-	var length = largeParam.length;
-	var arrParams = [];
-	var newParams;
-	var largeParamPosition = params.indexOf(largeParam);
+	const CHUNK_SIZE = 200;
+	const length = largeParam.length;
+	const arrParams = [];
+	let newParams;
+	const largeParamPosition = params.indexOf(largeParam);
 
-	for (var offset = 0; offset < length; offset += CHUNK_SIZE) {
+	for (let offset = 0; offset < length; offset += CHUNK_SIZE) {
 		newParams = params.slice(0);
 		newParams[largeParamPosition] = largeParam.slice(offset, offset + CHUNK_SIZE);
 		arrParams.push(newParams);
 	}
 
-	var result = [];
-	async.eachSeries(arrParams, function(params, cb) {
-		db.query(query, params, function(rows) {
+	let result = [];
+	async.eachSeries(arrParams, (params, cb) => {
+		db.query(query, params, rows => {
 			result = result.concat(rows);
 			cb();
 		});
-	}, function() {
+	}, () => {
 		callback(result);
 	});
 }
 
 function filterNewOrUnstableUnits(arrUnits, handleFilteredUnits){
-	sliceAndExecuteQuery("SELECT unit FROM units WHERE unit IN(?) AND is_stable=1", [arrUnits], arrUnits, function(rows) {
-		var arrKnownStableUnits = rows.map(function(row){ return row.unit; });
-		var arrNewOrUnstableUnits = _.difference(arrUnits, arrKnownStableUnits);
+	sliceAndExecuteQuery("SELECT unit FROM units WHERE unit IN(?) AND is_stable=1", [arrUnits], arrUnits, rows => {
+		const arrKnownStableUnits = rows.map(({unit}) => unit);
+		const arrNewOrUnstableUnits = _.difference(arrUnits, arrKnownStableUnits);
 		handleFilteredUnits(arrNewOrUnstableUnits);
 	});
 }
 
 // for unit that is not saved to the db yet
-function determineBestParent(conn, objUnit, arrWitnesses, handleBestParent){
+function determineBestParent(conn, {parent_units, witness_list_unit}, arrWitnesses, handleBestParent) {
 	// choose best parent among compatible parents only
 	conn.query(
 		"SELECT unit \n\
@@ -1086,12 +1090,12 @@ function determineBestParent(conn, objUnit, arrWitnesses, handleBestParent){
 			level-witnessed_level ASC, \n\
 			unit ASC \n\
 		LIMIT 1", 
-		[objUnit.parent_units, objUnit.witness_list_unit, 
+		[parent_units, witness_list_unit, 
 		arrWitnesses, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS], 
-		function(rows){
+		rows => {
 			if (rows.length !== 1)
 				return handleBestParent(null);
-			var best_parent_unit = rows[0].unit;
+			const best_parent_unit = rows[0].unit;
 			handleBestParent(best_parent_unit);
 		}
 	);
@@ -1100,7 +1104,7 @@ function determineBestParent(conn, objUnit, arrWitnesses, handleBestParent){
 function determineIfHasWitnessListMutationsAlongMc(conn, objUnit, last_ball_unit, arrWitnesses, handleResult){
 	if (!objUnit.parent_units) // genesis
 		return handleResult();
-	buildListOfMcUnitsWithPotentiallyDifferentWitnesslists(conn, objUnit, last_ball_unit, arrWitnesses, function(bHasBestParent, arrMcUnits){
+	buildListOfMcUnitsWithPotentiallyDifferentWitnesslists(conn, objUnit, last_ball_unit, arrWitnesses, (bHasBestParent, arrMcUnits) => {
 		if (!bHasBestParent)
 			return handleResult("no compatible best parent");
 		console.log("###### MC units ", arrMcUnits);
@@ -1113,10 +1117,10 @@ function determineIfHasWitnessListMutationsAlongMc(conn, objUnit, last_ball_unit
 			GROUP BY units.unit \n\
 			HAVING count_matching_witnesses<?",
 			[arrWitnesses, arrMcUnits, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS],
-			function(rows){
+			rows => {
 				console.log(rows);
 				if (rows.length > 0)
-					return handleResult("too many ("+(constants.COUNT_WITNESSES - rows[0].count_matching_witnesses)+") witness list mutations relative to MC unit "+rows[0].unit);
+					return handleResult(`too many (${constants.COUNT_WITNESSES - rows[0].count_matching_witnesses}) witness list mutations relative to MC unit ${rows[0].unit}`);
 				handleResult();
 			}
 		);
@@ -1127,22 +1131,22 @@ function determineIfHasWitnessListMutationsAlongMc(conn, objUnit, last_ball_unit
 function buildListOfMcUnitsWithPotentiallyDifferentWitnesslists(conn, objUnit, last_ball_unit, arrWitnesses, handleList){
 
 	function addAndGoUp(unit){
-		readStaticUnitProps(conn, unit, function(props){
+		readStaticUnitProps(conn, unit, ({witness_list_unit, best_parent_unit}) => {
 			// the parent has the same witness list and the parent has already passed the MC compatibility test
-			if (objUnit.witness_list_unit && objUnit.witness_list_unit === props.witness_list_unit)
+			if (objUnit.witness_list_unit && objUnit.witness_list_unit === witness_list_unit)
 				return handleList(true, arrMcUnits);
 			else
 				arrMcUnits.push(unit);
 			if (unit === last_ball_unit)
 				return handleList(true, arrMcUnits);
-			if (!props.best_parent_unit)
-				throw Error("no best parent of unit "+unit+"?");
-			addAndGoUp(props.best_parent_unit);
+			if (!best_parent_unit)
+				throw Error(`no best parent of unit ${unit}?`);
+			addAndGoUp(best_parent_unit);
 		});
 	}
 
 	var arrMcUnits = [];
-	determineBestParent(conn, objUnit, arrWitnesses, function(best_parent_unit){
+	determineBestParent(conn, objUnit, arrWitnesses, best_parent_unit => {
 		if (!best_parent_unit)
 			return handleList(false);
 		addAndGoUp(best_parent_unit);
@@ -1151,10 +1155,10 @@ function buildListOfMcUnitsWithPotentiallyDifferentWitnesslists(conn, objUnit, l
 
 
 function readStaticUnitProps(conn, unit, handleProps){
-	var props = assocCachedUnits[unit];
+	let props = assocCachedUnits[unit];
 	if (props)
 		return handleProps(props);
-	conn.query("SELECT level, witnessed_level, best_parent_unit, witness_list_unit FROM units WHERE unit=?", [unit], function(rows){
+	conn.query("SELECT level, witnessed_level, best_parent_unit, witness_list_unit FROM units WHERE unit=?", [unit], rows => {
 		if (rows.length !== 1)
 			throw Error("not 1 unit");
 		props = rows[0];
@@ -1164,13 +1168,13 @@ function readStaticUnitProps(conn, unit, handleProps){
 }
 
 function readUnitAuthors(conn, unit, handleAuthors){
-	var arrAuthors = assocCachedUnitAuthors[unit];
+	const arrAuthors = assocCachedUnitAuthors[unit];
 	if (arrAuthors)
 		return handleAuthors(arrAuthors);
-	conn.query("SELECT address FROM unit_authors WHERE unit=?", [unit], function(rows){
+	conn.query("SELECT address FROM unit_authors WHERE unit=?", [unit], rows => {
 		if (rows.length === 0)
 			throw Error("no authors");
-		var arrAuthors2 = rows.map(function(row){ return row.address; }).sort();
+		const arrAuthors2 = rows.map(({address}) => address).sort();
 	//	if (arrAuthors && arrAuthors.join('-') !== arrAuthors2.join('-'))
 	//		throw Error('cache is corrupt');
 		assocCachedUnitAuthors[unit] = arrAuthors2;
@@ -1198,31 +1202,31 @@ function forgetUnit(unit){
 function shrinkCache(){
 	if (Object.keys(assocCachedAssetInfos).length > MAX_ITEMS_IN_CACHE)
 		assocCachedAssetInfos = {};
-	console.log(Object.keys(assocUnstableUnits).length+" unstable units");
-	var arrKnownUnits = Object.keys(assocKnownUnits);
-	var arrPropsUnits = Object.keys(assocCachedUnits);
-	var arrStableUnits = Object.keys(assocStableUnits);
-	var arrAuthorsUnits = Object.keys(assocCachedUnitAuthors);
-	var arrWitnessesUnits = Object.keys(assocCachedUnitWitnesses);
+	console.log(`${Object.keys(assocUnstableUnits).length} unstable units`);
+	const arrKnownUnits = Object.keys(assocKnownUnits);
+	const arrPropsUnits = Object.keys(assocCachedUnits);
+	const arrStableUnits = Object.keys(assocStableUnits);
+	const arrAuthorsUnits = Object.keys(assocCachedUnitAuthors);
+	const arrWitnessesUnits = Object.keys(assocCachedUnitWitnesses);
 	if (arrPropsUnits.length < MAX_ITEMS_IN_CACHE && arrAuthorsUnits.length < MAX_ITEMS_IN_CACHE && arrWitnessesUnits.length < MAX_ITEMS_IN_CACHE && arrKnownUnits.length < MAX_ITEMS_IN_CACHE && arrStableUnits.length < MAX_ITEMS_IN_CACHE)
 		return console.log('cache is small, will not shrink');
-	var arrUnits = _.union(arrPropsUnits, arrAuthorsUnits, arrWitnessesUnits, arrKnownUnits, arrStableUnits);
-	console.log('will shrink cache, total units: '+arrUnits.length);
-	readLastStableMcIndex(db, function(last_stable_mci){
-		var CHUNK_SIZE = 500; // there is a limit on the number of query params
-		for (var offset=0; offset<arrUnits.length; offset+=CHUNK_SIZE){
+	const arrUnits = _.union(arrPropsUnits, arrAuthorsUnits, arrWitnessesUnits, arrKnownUnits, arrStableUnits);
+	console.log(`will shrink cache, total units: ${arrUnits.length}`);
+	readLastStableMcIndex(db, last_stable_mci => {
+		const CHUNK_SIZE = 500; // there is a limit on the number of query params
+		for (let offset=0; offset<arrUnits.length; offset+=CHUNK_SIZE){
 			// filter units that became stable more than 100 MC indexes ago
 			db.query(
 				"SELECT unit FROM units WHERE unit IN(?) AND main_chain_index<? AND main_chain_index!=0", 
 				[arrUnits.slice(offset, offset+CHUNK_SIZE), last_stable_mci-100], 
-				function(rows){
-					console.log('will remove '+rows.length+' units from cache');
-					rows.forEach(function(row){
-						delete assocKnownUnits[row.unit];
-						delete assocCachedUnits[row.unit];
-						delete assocStableUnits[row.unit];
-						delete assocCachedUnitAuthors[row.unit];
-						delete assocCachedUnitWitnesses[row.unit];
+				rows => {
+					console.log(`will remove ${rows.length} units from cache`);
+					rows.forEach(({unit}) => {
+						delete assocKnownUnits[unit];
+						delete assocCachedUnits[unit];
+						delete assocStableUnits[unit];
+						delete assocCachedUnitAuthors[unit];
+						delete assocCachedUnitWitnesses[unit];
 					});
 				}
 			);
@@ -1237,18 +1241,18 @@ function initUnstableUnits(onDone){
 	db.query(
 		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level \n\
 		FROM units WHERE is_stable=0 ORDER BY +level",
-		function(rows){
+		rows => {
 		//	assocUnstableUnits = {};
-			rows.forEach(function(row){
+			rows.forEach(row => {
 				row.parent_units = [];
 				assocUnstableUnits[row.unit] = row;
 			});
 			console.log('initUnstableUnits 1 done');
 			db.query(
-				"SELECT parent_unit, child_unit FROM parenthoods WHERE child_unit IN("+Object.keys(assocUnstableUnits).map(db.escape)+")", 
-				function(prows){
-					prows.forEach(function(prow){
-						assocUnstableUnits[prow.child_unit].parent_units.push(prow.parent_unit);
+				`SELECT parent_unit, child_unit FROM parenthoods WHERE child_unit IN(${Object.keys(assocUnstableUnits).map(db.escape)})`, 
+				prows => {
+					prows.forEach(({child_unit, parent_unit}) => {
+						assocUnstableUnits[child_unit].parent_units.push(parent_unit);
 					});
 					console.log('initUnstableUnits done');
 					if (onDone)
@@ -1260,7 +1264,7 @@ function initUnstableUnits(onDone){
 }
 
 function resetUnstableUnits(onDone){
-	Object.keys(assocUnstableUnits).forEach(function(unit){
+	Object.keys(assocUnstableUnits).forEach(unit => {
 		delete assocUnstableUnits[unit];
 	});
 	initUnstableUnits(onDone);
