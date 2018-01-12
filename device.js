@@ -587,14 +587,13 @@ function handlePairingMessage(json, device_pubkey, callbacks){
 		return callbacks.ifError("no device_name when pairing");
 	if ("reverse_pairing_secret" in body && !ValidationUtils.isNonemptyString(body.reverse_pairing_secret))
 		return callbacks.ifError("bad reverse pairing secret");
+	eventBus.emit("pairing_attempt", from_address, body.pairing_secret);
 	db.query(
 		"SELECT is_permanent FROM pairing_secrets WHERE pairing_secret=? AND expiry_date > "+db.getNow(), 
 		[body.pairing_secret], 
 		function(pairing_rows){
-			if (pairing_rows.length === 0) {
-				eventBus.emit("pairing", from_address, body.pairing_secret, false);
+			if (pairing_rows.length === 0)
 				return callbacks.ifError("pairing secret not found or expired");
-			}
 			// add new correspondent and delete pending pairing
 			db.query(
 				"INSERT "+db.getIgnore()+" INTO correspondent_devices (device_address, pubkey, hub, name, is_confirmed) VALUES (?,?,?,?,1)", 
@@ -604,7 +603,6 @@ function handlePairingMessage(json, device_pubkey, callbacks){
 						"UPDATE correspondent_devices SET is_confirmed=1, name=? WHERE device_address=? AND is_confirmed=0", 
 						[body.device_name, from_address],
 						function(){
-							eventBus.emit("pairing", from_address, body.pairing_secret, true);
 							eventBus.emit("paired", from_address, body.pairing_secret);
 							if (pairing_rows[0].is_permanent === 0){ // multiple peers can pair through permanent secret
 								db.query("DELETE FROM pairing_secrets WHERE pairing_secret=?", [body.pairing_secret], function(){});
