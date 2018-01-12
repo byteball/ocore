@@ -592,7 +592,7 @@ function handlePairingMessage(json, device_pubkey, callbacks){
 		[body.pairing_secret], 
 		function(pairing_rows){
 			if (pairing_rows.length === 0) {
-				eventBus.emit("pairing_failed", from_address, body.pairing_secret);
+				eventBus.emit("pairing", from_address, body.pairing_secret, false);
 				return callbacks.ifError("pairing secret not found or expired");
 			}
 			// add new correspondent and delete pending pairing
@@ -604,6 +604,7 @@ function handlePairingMessage(json, device_pubkey, callbacks){
 						"UPDATE correspondent_devices SET is_confirmed=1, name=? WHERE device_address=? AND is_confirmed=0", 
 						[body.device_name, from_address],
 						function(){
+							eventBus.emit("pairing", from_address, body.pairing_secret, true);
 							eventBus.emit("paired", from_address, body.pairing_secret);
 							if (pairing_rows[0].is_permanent === 0){ // multiple peers can pair through permanent secret
 								db.query("DELETE FROM pairing_secrets WHERE pairing_secret=?", [body.pairing_secret], function(){});
