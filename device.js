@@ -591,8 +591,10 @@ function handlePairingMessage(json, device_pubkey, callbacks){
 		"SELECT is_permanent FROM pairing_secrets WHERE pairing_secret=? AND expiry_date > "+db.getNow(), 
 		[body.pairing_secret], 
 		function(pairing_rows){
-			if (pairing_rows.length === 0)
+			if (pairing_rows.length === 0) {
+				eventBus.emit("pairing_failed", from_address, body.pairing_secret);
 				return callbacks.ifError("pairing secret not found or expired");
+			}
 			// add new correspondent and delete pending pairing
 			db.query(
 				"INSERT "+db.getIgnore()+" INTO correspondent_devices (device_address, pubkey, hub, name, is_confirmed) VALUES (?,?,?,?,1)", 
