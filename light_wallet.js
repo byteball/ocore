@@ -4,9 +4,11 @@ var db = require('./db.js');
 var conf = require('./conf.js');
 var myWitnesses = require('./my_witnesses.js');
 var network = require('./network.js');
+var storage = require('./storage.js');
 var walletGeneral = require('./wallet_general.js');
 var light = require('./light.js');
 var eventBus = require('./event_bus.js');
+var breadcrumbs = require('./breadcrumbs.js');
 
 var RECONNECT_TO_LIGHT_VENDOR_PERIOD = 60*1000;
 
@@ -80,6 +82,7 @@ function prepareRequestForHistory(handleResult){
 	}, 'wait');
 }
 
+var bFirstRefreshStarted = false;
 
 function refreshLightClientHistory(){
 	if (!conf.bLight)
@@ -87,6 +90,10 @@ function refreshLightClientHistory(){
 	if (!network.light_vendor_url)
 		return console.log('refreshLightClientHistory called too early: light_vendor_url not set yet');
 	eventBus.emit('refresh_light_started');
+	if (!bFirstRefreshStarted){
+		archiveDoublespendUnits();
+		bFirstRefreshStarted = true;
+	}
 	network.findOutboundPeerOrConnect(network.light_vendor_url, function onLocatedLightVendor(err, ws){
 		var finish = function(msg){
 			if (msg)
@@ -133,6 +140,27 @@ function refreshLightClientHistory(){
 	});
 }
 
+function archiveDoublespendUnits(){
+	db.query("SELECT unit FROM units WHERE is_stable=0 AND is_free=1 AND creation_date<"+db.addTime('-1 DAY'), function(rows){
+		var arrUnits = rows.map(function(row){ return row.unit; });
+		breadcrumbs.add("units still unstable after 1 day: "+arrUnits.join(', '));
+		arrUnits.forEach(function(unit){
+			network.requestFromLightVendor('get_joint', unit, function(ws, request, response){
+				if (response.error)
+					return breadcrumbs.add("get_joint "+unit+": "+response.error);
+				if (response.joint_not_found === unit){
+					breadcrumbs.add("light vendor doesn't know about unit "+unit+" any more, will archive");
+					storage.archiveJointAndDescendantsIfExists(unit);
+				}
+			});
+		});
+	});
+}
+
+if (conf.bLight){
+//	setTimeout(archiveDoublespendUnits, 5*1000);
+	setInterval(archiveDoublespendUnits, 24*3600*1000);
+}
 
 exports.setLightVendorHost = setLightVendorHost;
 exports.refreshLightClientHistory = refreshLightClientHistory;

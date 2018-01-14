@@ -46,6 +46,7 @@ var arrWatchedAddresses = []; // does not include my addresses, therefore always
 var last_hearbeat_wake_ts = Date.now();
 var peer_events_buffer = [];
 var assocKnownPeers = {};
+var exchangeRates = {};
 
 if (process.browser){ // browser
 	console.log("defining .on() on ws");
@@ -98,6 +99,12 @@ function sendMessage(ws, type, content) {
 
 function sendJustsaying(ws, subject, body){
 	sendMessage(ws, 'justsaying', {subject: subject, body: body});
+}
+
+function sendAllInboundJustsaying(subject, body){
+	wss.clients.forEach(function(ws){
+		sendMessage(ws, 'justsaying', {subject: subject, body: body});
+	});
 }
 
 function sendError(ws, error) {
@@ -333,8 +340,16 @@ function checkIfHaveEnoughOutboundPeersAndAdd(){
 function connectToPeer(url, onOpen) {
 	addPeer(url);
 	var options = {};
-	if (socks && conf.socksHost && conf.socksPort)
-		options.agent = new socks.Agent({ proxy: { ipaddress: conf.socksHost, port: conf.socksPort, type: 5 } }, /^wss/i.test(url) );
+	if (socks && conf.socksHost && conf.socksPort) {
+		options.agent = new socks.Agent({
+			proxy: {
+				ipaddress: conf.socksHost,
+				port: conf.socksPort,
+				type: 5
+			}
+		}, /^wss/i.test(url));
+		console.log('Using proxy: ' + conf.socksHost + ':' + conf.socksPort);
+	}
 	var ws = options.agent ? new WebSocket(url,options) : new WebSocket(url);
 	assocConnectingOutboundWebsockets[url] = ws;
 	setTimeout(function(){
@@ -1491,11 +1506,7 @@ function handleCatchupChain(ws, request, response){
 // hash tree
 
 function requestNextHashTree(ws){
-	db.query("SELECT COUNT(1) AS count_left FROM catchup_chain_balls", function(rows){
-		if (rows.length > 0) {
-			eventBus.emit('catchup_balls_left', rows[0].count_left);
-		}
-	});
+	eventBus.emit('catchup_next_hash_tree');
 	db.query("SELECT ball FROM catchup_chain_balls ORDER BY member_index LIMIT 2", function(rows){
 		if (rows.length === 0)
 			return comeOnline();
@@ -1753,15 +1764,19 @@ function requestUnfinishedPastUnitsOfPrivateChains(arrChains, onDone){
 		if (arrUnits.length === 0)
 			return onDone();
 		breadcrumbs.add(arrUnits.length+" unfinished past units of private chains");
-		requestProofsOfJoints(arrUnits, onDone);
+		requestHistoryFor(arrUnits, [], onDone);
 	});
 }
 
-function requestProofsOfJoints(arrUnits, onDone){
+function requestHistoryFor(arrUnits, arrAddresses, onDone){
 	if (!onDone)
 		onDone = function(){};
 	myWitnesses.readMyWitnesses(function(arrWitnesses){
-		var objHistoryRequest = {witnesses: arrWitnesses, requested_joints: arrUnits};
+		var objHistoryRequest = {witnesses: arrWitnesses};
+		if (arrUnits.length)
+			objHistoryRequest.requested_joints = arrUnits;
+		if (arrAddresses.length)
+			objHistoryRequest.addresses = arrAddresses;
 		requestFromLightVendor('light/get_history', objHistoryRequest, function(ws, request, response){
 			if (response.error){
 				console.log(response.error);
@@ -1786,7 +1801,7 @@ function requestProofsOfJointsIfNewOrUnstable(arrUnits, onDone){
 	storage.filterNewOrUnstableUnits(arrUnits, function(arrNewOrUnstableUnits){
 		if (arrNewOrUnstableUnits.length === 0)
 			return onDone();
-		requestProofsOfJoints(arrUnits, onDone);
+		requestHistoryFor(arrUnits, [], onDone);
 	});
 }
 
@@ -1888,6 +1903,11 @@ function sendStoredDeviceMessages(ws, device_address){
 	});
 }
 
+function version2int(version){
+	var arr = version.split('.');
+	return arr[0]*10000 + arr[1]*100 + arr[2]*1;
+}
+
 
 // switch/case different message types
 
@@ -1916,6 +1936,8 @@ function handleJustsaying(ws, subject, body){
 				return;
 			}
 			ws.library_version = body.library_version;
+			if (typeof ws.library_version === 'string' && version2int(ws.library_version) < version2int('0.2.70') && constants.version === '1.0')
+				ws.old_core = true;
 			eventBus.emit('peer_version', ws, body); // handled elsewhere
 			break;
 
@@ -1936,7 +1958,7 @@ function handleJustsaying(ws, subject, body){
 		case 'bugreport':
 			if (!body)
 				return;
-			if (conf.ignoreBugreportRegexp && new RegExp(conf.ignoreBugreportRegexp).test(body.exception.toString()))
+			if (conf.ignoreBugreportRegexp && new RegExp(conf.ignoreBugreportRegexp).test(body.message+' '+body.exception.toString()))
 				return console.log('ignoring bugreport');
 			mail.sendBugEmail(body.message, body.exception);
 			break;
@@ -2088,6 +2110,7 @@ function handleJustsaying(ws, subject, body){
 				sendJustsaying(ws, 'hub/push_project_number', {projectNumber: conf.pushApiProjectNumber});
 			else
 				sendJustsaying(ws, 'hub/push_project_number', {projectNumber: 0});
+			eventBus.emit('client_logged_in', ws);
 			break;
 			
 		// I'm a hub, the peer wants to download new messages
@@ -2170,6 +2193,12 @@ function handleJustsaying(ws, subject, body){
 				);
 			});            
 			break;
+		case 'exchange_rates':
+			if (!ws.bLoggingIn && !ws.bLoggedIn) // accept from hub only
+				return;
+			_.assign(exchangeRates, body);
+			eventBus.emit('rates_updated');
+			break;
 	}
 }
 
@@ -2207,11 +2236,7 @@ function handleRequest(ws, tag, command, params){
 				//    sendFreeJoints(ws);
 				return sendErrorResponse(ws, tag, "I'm light, cannot subscribe you to updates");
 			}
-			function version2int(version){
-				var arr = version.split('.');
-				return arr[0]*10000 + arr[1]*100 + arr[2]*1;
-			}
-			if (typeof ws.library_version === 'string' && version2int(ws.library_version) < version2int('0.2.70') && constants.version === '1.0'){
+			if (ws.old_core){
 				sendErrorResponse(ws, tag, "old core");
 				return ws.close(1000, "old core");
 			}
@@ -2228,6 +2253,8 @@ function handleRequest(ws, tag, command, params){
 		case 'get_joint': // peer needs a specific joint
 			//if (bCatchingUp)
 			//    return;
+			if (ws.old_core)
+				return sendErrorResponse(ws, tag, "old core, will not serve get_joint");
 			var unit = params;
 			storage.readJoint(db, unit, {
 				ifFound: function(objJoint){
@@ -2247,6 +2274,8 @@ function handleRequest(ws, tag, command, params){
 			break;
 			
 		case 'catchup':
+			if (!ws.bSubscribed)
+				return sendErrorResponse(ws, tag, "not subscribed, will not serve catchup");
 			var catchupRequest = params;
 			mutex.lock(['catchup_request'], function(unlock){
 				if (!ws || ws.readyState !== ws.OPEN) // may be already gone when we receive the lock
@@ -2265,6 +2294,8 @@ function handleRequest(ws, tag, command, params){
 			break;
 			
 		case 'get_hash_tree':
+			if (!ws.bSubscribed)
+				return sendErrorResponse(ws, tag, "not subscribed, will not serve get_hash_tree");
 			var hashTreeRequest = params;
 			mutex.lock(['get_hash_tree_request'], function(unlock){
 				if (!ws || ws.readyState !== ws.OPEN) // may be already gone when we receive the lock
@@ -2695,6 +2726,7 @@ exports.broadcastJoint = broadcastJoint;
 exports.sendPrivatePayment = sendPrivatePayment;
 
 exports.sendJustsaying = sendJustsaying;
+exports.sendAllInboundJustsaying = sendAllInboundJustsaying;
 exports.sendError = sendError;
 exports.sendRequest = sendRequest;
 exports.findOutboundPeerOrConnect = findOutboundPeerOrConnect;
@@ -2719,3 +2751,5 @@ exports.addLightWatchedAddress = addLightWatchedAddress;
 exports.closeAllWsConnections = closeAllWsConnections;
 exports.isConnected = isConnected;
 exports.isCatchingUp = isCatchingUp;
+exports.requestHistoryFor = requestHistoryFor;
+exports.exchangeRates = exchangeRates;

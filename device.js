@@ -166,7 +166,7 @@ function sendLoginCommand(ws, challenge){
 	ws.bLoggedIn = true;
 	sendTempPubkey(ws, objMyTempDeviceKey.pub_b64);
 	network.initWitnessesIfNecessary(ws);
-	resendStalledMessages();
+	resendStalledMessages(1);
 }
 
 function sendTempPubkey(ws, temp_pubkey, callbacks){
@@ -357,8 +357,9 @@ function readMessageInChunksFromOutbox(message_hash, len, handleMessage){
 	readChunk();
 }
 
-function resendStalledMessages(){
-	console.log("resending stalled messages");
+function resendStalledMessages(delay){
+	var delay = delay || 0;
+	console.log("resending stalled messages delayed by "+delay+" minute");
 	if (!objMyPermanentDeviceKey)
 		return console.log("objMyPermanentDeviceKey not set yet, can't resend stalled messages");
 	mutex.lockOrSkip(['stalled'], function(unlock){
@@ -366,7 +367,7 @@ function resendStalledMessages(){
 		db.query(
 			"SELECT "+(bCordova ? "LENGTH(message) AS len" : "message")+", message_hash, `to`, pubkey, hub \n\
 			FROM outbox JOIN correspondent_devices ON `to`=device_address \n\
-			WHERE outbox.creation_date<"+db.addTime("-1 MINUTE")+" ORDER BY outbox.creation_date", 
+			WHERE outbox.creation_date<="+db.addTime("-"+delay+" MINUTE")+" ORDER BY outbox.creation_date", 
 			function(rows){
 				console.log(rows.length+" stalled messages");
 				async.eachSeries(
@@ -395,7 +396,7 @@ function resendStalledMessages(){
 	});
 }
 
-setInterval(resendStalledMessages, SEND_RETRY_PERIOD);
+setInterval(function(){ resendStalledMessages(1); }, SEND_RETRY_PERIOD);
 
 // reliable delivery
 // first param is either WebSocket or hostname of the hub
@@ -414,8 +415,14 @@ function reliablySendPreparedMessageToHub(ws, recipient_device_pubkey, json, cal
 		"INSERT INTO outbox (message_hash, `to`, message) VALUES (?,?,?)", 
 		[message_hash, recipient_device_address, JSON.stringify(objDeviceMessage)], 
 		function(){
-			if (callbacks && callbacks.onSaved)
+			if (callbacks && callbacks.onSaved){
 				callbacks.onSaved();
+				// db in resendStalledMessages will block until the transaction commits, assuming only 1 db connection
+				// (fix if more than 1 db connection is allowed: in this case, it will send only after SEND_RETRY_PERIOD delay)
+				process.nextTick(resendStalledMessages);
+				// don't send to the network before the transaction commits
+				return callbacks.ifOk ? callbacks.ifOk() : null;
+			}
 			sendPreparedMessageToHub(ws, recipient_device_pubkey, message_hash, json, callbacks);
 		}
 	);
@@ -428,8 +435,10 @@ function sendPreparedMessageToHub(ws, recipient_device_pubkey, message_hash, jso
 	if (typeof ws === "string"){
 		var hub_host = ws;
 		network.findOutboundPeerOrConnect(conf.WS_PROTOCOL+hub_host, function onLocatedHubForSend(err, ws){
-			if (err)
+			if (err){
+				db.query("UPDATE outbox SET last_error=? WHERE message_hash=?", [err, message_hash], function(){});
 				return callbacks.ifError(err);
+			}
 			sendPreparedMessageToConnectedHub(ws, recipient_device_pubkey, message_hash, json, callbacks);
 		});
 	}
@@ -578,6 +587,7 @@ function handlePairingMessage(json, device_pubkey, callbacks){
 		return callbacks.ifError("no device_name when pairing");
 	if ("reverse_pairing_secret" in body && !ValidationUtils.isNonemptyString(body.reverse_pairing_secret))
 		return callbacks.ifError("bad reverse pairing secret");
+	eventBus.emit("pairing_attempt", from_address, body.pairing_secret);
 	db.query(
 		"SELECT is_permanent FROM pairing_secrets WHERE pairing_secret=? AND expiry_date > "+db.getNow(), 
 		[body.pairing_secret], 
@@ -593,7 +603,7 @@ function handlePairingMessage(json, device_pubkey, callbacks){
 						"UPDATE correspondent_devices SET is_confirmed=1, name=? WHERE device_address=? AND is_confirmed=0", 
 						[body.device_name, from_address],
 						function(){
-							eventBus.emit("paired", from_address);
+							eventBus.emit("paired", from_address, body.pairing_secret);
 							if (pairing_rows[0].is_permanent === 0){ // multiple peers can pair through permanent secret
 								db.query("DELETE FROM pairing_secrets WHERE pairing_secret=?", [body.pairing_secret], function(){});
 								eventBus.emit('paired_by_secret-'+body.pairing_secret, from_address);

@@ -540,9 +540,11 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 	}
 
 	function checkWitnessedLevelDidNotRetreat(arrWitnesses){
-		if (objValidationState.last_ball_mci < 1400000) // not enforced
-			return callback();
 		storage.determineWitnessedLevelAndBestParent(conn, objUnit.parent_units, arrWitnesses, function(witnessed_level, best_parent_unit){
+			objValidationState.witnessed_level = witnessed_level;
+			objValidationState.best_parent_unit = best_parent_unit;
+			if (objValidationState.last_ball_mci < 1400000) // not enforced
+				return callback();
 			storage.readStaticUnitProps(conn, best_parent_unit, function(props){
 				(witnessed_level >= props.witnessed_level) 
 					? callback() 
@@ -564,19 +566,12 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 				return callback("witness list unit "+objUnit.witness_list_unit+" is not stable");
 			if (objWitnessListUnitProps.main_chain_index > objValidationState.last_ball_mci)
 				return callback("witness list unit "+objUnit.witness_list_unit+" must come before last ball");
-			conn.query(
-				"SELECT address FROM unit_witnesses WHERE unit=? ORDER BY address", 
-				[objUnit.witness_list_unit], 
-				function(rows){
-					if (rows.length === 0)
-						return callback("referenced witness list unit "+objUnit.witness_list_unit+" has no witnesses");
-					var arrWitnesses = rows.map(function(row){ return row.address; });
-					if (arrWitnesses.length !== constants.COUNT_WITNESSES)
-						throw Error("wrong number of witnesses: "+arrWitnesses.length);
-					profiler.stop('validation-witnesses-read-list');
-					validateWitnessListMutations(arrWitnesses);
-				}
-			);
+			storage.readWitnessList(conn, objUnit.witness_list_unit, function(arrWitnesses){
+				if (arrWitnesses.length === 0)
+					return callback("referenced witness list unit "+objUnit.witness_list_unit+" has no witnesses");
+				profiler.stop('validation-witnesses-read-list');
+				validateWitnessListMutations(arrWitnesses);
+			}, true);
 		});
 	}
 	else if (Array.isArray(objUnit.witnesses) && objUnit.witnesses.length === constants.COUNT_WITNESSES){
@@ -1098,8 +1093,8 @@ function checkForDoublespends(conn, type, sql, arrSqlArgs, objUnit, objValidatio
 
 							throw Error("unreachable code, conflicting "+type+" in unit "+objConflictingRecord.unit);
 						}
-						else{
-							if (objValidationState.arrAddressesWithForkedPath.indexOf(objConflictingRecord.address) === -1)
+						else{ // arrAddressesWithForkedPath is not set when validating private payments
+							if (objValidationState.arrAddressesWithForkedPath && objValidationState.arrAddressesWithForkedPath.indexOf(objConflictingRecord.address) === -1)
 								throw Error("double spending "+type+" without double spending address?");
 							cb2();
 						}
@@ -1334,8 +1329,8 @@ function validatePayment(conn, payload, message_index, objUnit, objValidationSta
 			return callback("must be cosigned by definer");
 		
 		if (objAsset.spender_attested){
-			if (conf.bLight && objAsset.is_private) // if the asset is public, we trust witnesses to have checked attestations
-				return callback("being light, I can't check attestations for private assets");
+			if (conf.bLight && objAsset.is_private) // in light clients, we don't have the attestation data but if the asset is public, we trust witnesses to have checked attestations
+				return callback("being light, I can't check attestations for private assets"); // TODO: request history
 			if (objAsset.arrAttestedAddresses.length === 0)
 				return callback("none of the authors is attested");
 			if (bIssue && objAsset.arrAttestedAddresses.indexOf(issuer_address) === -1)
@@ -1796,30 +1791,46 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 					else
 						return callback("the asset is not transferrable");
 				}
-				var arrCondition = bIssue ? objAsset.issue_condition : objAsset.transfer_condition;
-				if (arrCondition){
-					Definition.evaluateAssetCondition(
-						conn, payload.asset, arrCondition, objUnit, objValidationState, 
-						function(cond_err, bSatisfiesCondition){
-							if (cond_err)
-								return callback(cond_err);
-							if (!bSatisfiesCondition)
-								return callback("transfer or issue condition not satisfied");
-							console.log("validatePaymentInputsAndOutputs with transfer/issue conditions done");
-							callback();
-						}
-					);
-					return;
-				}
+				async.series([
+					function(cb){
+						if (!objAsset.spender_attested)
+							return cb();
+						storage.filterAttestedAddresses(
+							conn, objAsset, lobjValidationState.last_ball_mci, arrOutputAddresses, 
+							function(arrAttestedOutputAddresses){
+								if (arrAttestedOutputAddresses.length !== arrOutputAddresses.length)
+									return cb("some output addresses are not attested");
+								cb();
+							}
+						);
+					},
+					function(cb){
+						var arrCondition = bIssue ? objAsset.issue_condition : objAsset.transfer_condition;
+						if (!arrCondition)
+							return cb();
+						Definition.evaluateAssetCondition(
+							conn, payload.asset, arrCondition, objUnit, objValidationState, 
+							function(cond_err, bSatisfiesCondition){
+								if (cond_err)
+									return cb(cond_err);
+								if (!bSatisfiesCondition)
+									return cb("transfer or issue condition not satisfied");
+								console.log("validatePaymentInputsAndOutputs with transfer/issue conditions done");
+								cb();
+							}
+						);
+					}
+				], callback);
 			}
 			else{ // base asset
 				if (total_input !== total_output + objUnit.headers_commission + objUnit.payload_commission)
 					return callback("inputs and outputs do not balance: "+total_input+" !== "+total_output+" + "+objUnit.headers_commission+" + "+objUnit.payload_commission);
+				callback();
 			}
-			console.log("validatePaymentInputsAndOutputs done");
+		//	console.log("validatePaymentInputsAndOutputs done");
 		//	if (objAsset)
 		//		profiler2.stop('validate IO');
-			callback();
+		//	callback();
 		}
 	);
 }

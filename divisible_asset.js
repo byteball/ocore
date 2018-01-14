@@ -182,7 +182,7 @@ function composeDivisibleAssetPaymentJoint(params){
 		signing_addresses: params.signing_addresses,
 		minimal: params.minimal,
 		outputs: arrBaseOutputs,
-		
+		messages:params.messages,
 		// function that creates additional messages to be added to the joint
 		retrieveMessages: function(conn, last_ball_mci, bMultiAuthored, arrPayingAddresses, onDone){
 			var arrAssetPayingAddresses = _.intersection(arrPayingAddresses, params.paying_addresses);
@@ -309,6 +309,12 @@ function getSavingCallbacks(callbacks){
 								}
 							});
 						};
+					} else {
+						if (typeof callbacks.preCommitCb === "function") {
+							preCommitCallback = function(conn, cb){
+								callbacks.preCommitCb(conn, objJoint, cb);
+							}
+						}
 					}
 					
 					composer.postJointToLightVendorIfNecessaryAndSave(

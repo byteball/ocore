@@ -689,4 +689,37 @@ CREATE TABLE asset_metadata (
 --	FOREIGN KEY (registry_address) REFERENCES addresses(address) -- addresses is not always filled on light
 );
 
-PRAGMA user_version=15;
+CREATE TABLE sent_mnemonics (
+	unit CHAR(44) NOT NULL,
+	address CHAR(32) NOT NULL,
+	mnemonic VARCHAR(107) NOT NULL,
+	textAddress VARCHAR(120) NOT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	FOREIGN KEY (unit) REFERENCES units(unit)
+);
+CREATE INDEX sentByAddress ON sent_mnemonics(address);
+CREATE INDEX sentByUnit ON sent_mnemonics(unit);
+
+CREATE TABLE private_profiles (
+	private_profile_id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+	unit CHAR(44) NOT NULL,
+	payload_hash CHAR(44) NOT NULL,
+	attestor_address CHAR(32) NOT NULL,
+	address CHAR(32) NOT NULL,
+	src_profile TEXT NOT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	FOREIGN KEY (unit) REFERENCES units(unit)
+);
+
+CREATE TABLE private_profile_fields (
+	private_profile_id INTEGER NOT NULL ,
+	`field` VARCHAR(50) NOT NULL,
+	`value` VARCHAR(50) NOT NULL,
+	blinding CHAR(16) NOT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	UNIQUE (private_profile_id, `field`),
+	FOREIGN KEY (private_profile_id) REFERENCES private_profiles(private_profile_id)
+);
+CREATE INDEX ppfByField ON private_profile_fields(`field`);
+
+PRAGMA user_version=17;
