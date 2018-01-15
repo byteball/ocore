@@ -587,7 +587,12 @@ function handlePairingMessage(json, device_pubkey, callbacks){
 		return callbacks.ifError("no device_name when pairing");
 	if ("reverse_pairing_secret" in body && !ValidationUtils.isNonemptyString(body.reverse_pairing_secret))
 		return callbacks.ifError("bad reverse pairing secret");
+
 	eventBus.emit("pairing_attempt", device_pubkey, json);
+	// Caution: the subscribers of the above event may change the content of the provided
+	// json variable. For example, the value of json.body.pairing_secret may be overwritten
+	// by some of the subscribers.
+
 	db.query(
 		"SELECT is_permanent FROM pairing_secrets WHERE pairing_secret=? AND expiry_date > "+db.getNow(), 
 		[body.pairing_secret], 
