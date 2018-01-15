@@ -753,7 +753,7 @@ function readLastStableMcUnitProps(conn, handleLastStableMcUnitProps){
 				return handleLastStableMcUnitProps(null); // empty database
 				//throw "readLastStableMcUnitProps: no units on stable MC?";
 			if (!rows[0].ball)
-				throw Error("no ball for last stable unit");
+				throw Error("no ball for last stable unit "+rows[0].unit);
 			handleLastStableMcUnitProps(rows[0]);
 		}
 	);
