@@ -150,10 +150,12 @@ function migrateDb(connection, onDone){
 		}
 		connection.addQuery(arrQueries, "PRAGMA user_version="+VERSION);
 		eventBus.emit('started_db_upgrade');
-		console.error("=== will upgrade the database, it can take some time");
+		if (typeof window === 'undefined')
+			console.error("=== will upgrade the database, it can take some time");
 		async.series(arrQueries, function(){
 			eventBus.emit('finished_db_upgrade');
-			console.error("=== db upgrade finished");
+			if (typeof window === 'undefined')
+				console.error("=== db upgrade finished");
 			onDone();
 		});
 	});
