@@ -1322,6 +1322,7 @@ function sendMultiPayment(opts, handleResult)
 				outputs.forEach(function(output){
 					if (output.address.indexOf(prefix) !== 0)
 						return false;
+
 					var address = output.address.slice(prefix.length);
 					var strMnemonic = assocMnemonics[output.address] || "";
 					var mnemonic = new Mnemonic(strMnemonic.replace(/-/g, " "));
@@ -1348,6 +1349,31 @@ function sendMultiPayment(opts, handleResult)
 			}
 			if (base_outputs) generateNewMnemonicIfNoAddress(null, base_outputs);
 			if (asset_outputs) generateNewMnemonicIfNoAddress(asset, asset_outputs);
+
+			// textcoin claim fees are paid by the sender
+			for (var orig_address in assocAddresses) {
+				var new_address = assocAddresses[orig_address];
+				if (new_address == to_address) {
+					if (asset) {
+						to_address = null;
+						asset_outputs = [{address: new_address, amount: amount}];
+						base_outputs = [{address: new_address, amount: constants.TEXTCOIN_ASSET_CLAIM_FEE}];
+					} else {
+						amount += constants.TEXTCOIN_CLAIM_FEE;
+					}
+					continue;
+				}
+				var output = _.find(base_outputs, function(output) {output.address == new_address});
+				if (output) {
+					output.amount += constants.TEXTCOIN_CLAIM_FEE;
+					continue;
+				}
+				output = _.find(asset_outputs, function(output) {output.address == new_address});
+				if (output) {
+					if (!base_outputs) base_outputs = [];
+					base_outputs.push({address: new_address, amount: constants.TEXTCOIN_ASSET_CLAIM_FEE});
+				}
+			}
 
 			var params = {
 				available_paying_addresses: arrFundedAddresses, // forces 'minimal' for payments from shared addresses too, it doesn't hurt
