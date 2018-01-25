@@ -236,6 +236,8 @@ function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 											var parent_units = storage.assocUnstableUnits[row.unit].parent_units;
 											storage.forgetUnit(row.unit);
 											parent_units.forEach(function(parent_unit){
+												if (!storage.assocUnstableUnits[parent_unit]) // the parent is already stable
+													return;
 												var bHasChildren = false;
 												for (var unit in storage.assocUnstableUnits){
 													var o = storage.assocUnstableUnits[unit];

@@ -1463,6 +1463,7 @@ function requestCatchup(ws){
 					// (will also reset the flag only after the response is fully processed)
 					bWaitingForCatchupChain = true;
 					
+					console.log('will read last stable mci for catchup');
 					storage.readLastStableMcIndex(db, function(last_stable_mci){
 						storage.readLastMainChainIndex(function(last_known_mci){
 							myWitnesses.readMyWitnesses(function(arrWitnesses){

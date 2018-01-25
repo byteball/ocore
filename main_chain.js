@@ -970,6 +970,8 @@ function markMcIndexStable(conn, mci, onDone){
 			"SELECT units.*, ball FROM units LEFT JOIN balls USING(unit) \n\
 			WHERE main_chain_index=? ORDER BY level", [mci], 
 			function(unit_rows){
+				if (unit_rows.length === 0)
+					throw Error("no units on mci "+mci);
 				async.eachSeries(
 					unit_rows,
 					function(objUnitProps, cb){
@@ -1007,6 +1009,7 @@ function markMcIndexStable(conn, mci, onDone){
 								
 								function addBall(){
 									var ball = objectHash.getBallHash(unit, arrParentBalls, arrSkiplistBalls.sort(), objUnitProps.sequence === 'final-bad');
+									console.log("ball="+ball);
 									if (objUnitProps.ball){ // already inserted
 										if (objUnitProps.ball !== ball)
 											throw Error("stored and calculated ball hashes do not match, ball="+ball+", objUnitProps="+JSON.stringify(objUnitProps));
