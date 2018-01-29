@@ -1447,12 +1447,22 @@ function sendMultiPayment(opts, handleResult)
 							}
 							params.tolerance_plus = 0;
 							params.tolerance_minus = 0;
-							var old_ifOk = params.callbacks.ifOk;
-							params.callbacks.ifOk = function(objJoint, assocPrivatePayloads, unlock) {
-								textcoin_fees = constants.TEXTCOIN_ASSET_CLAIM_HEADER_FEE + (objJoint.unit.messages.length-1) * constants.TEXTCOIN_ASSET_CLAIM_MESSAGE_FEE + constants.TEXTCOIN_ASSET_CLAIM_BASE_MSG_FEE;
-								params.callbacks.ifOk = old_ifOk;
-								unlock();
-								cb();
+							var old_callbacks = params.callbacks;
+							params.callbacks = {
+								ifOk: function(objJoint, assocPrivatePayloads, unlock) {
+									textcoin_fees = constants.TEXTCOIN_ASSET_CLAIM_HEADER_FEE + (objJoint.unit.messages.length-1) * constants.TEXTCOIN_ASSET_CLAIM_MESSAGE_FEE + constants.TEXTCOIN_ASSET_CLAIM_BASE_MSG_FEE;
+									params.callbacks = old_callbacks;
+									unlock();
+									cb();
+								},
+								ifError: function(err) {
+									old_callbacks.ifError(err);
+									cb(err);
+								},
+								ifNotEnoughFunds: function(err) {
+									old_callbacks.ifNotEnoughFunds(err);
+									cb(err);
+								}
 							}
 							indivisibleAsset.composeMinimalIndivisibleAssetPaymentJoint(params);
 						},
@@ -1466,15 +1476,14 @@ function sendMultiPayment(opts, handleResult)
 									params.base_outputs = [{address: new_address, amount: textcoin_fees}];
 									continue;
 								}
-								var output = _.find(params.base_outputs, function(output) {output.address == new_address});
-								if (output) {
-									output.amount += constants.TEXTCOIN_CLAIM_FEE;
-									continue;
-								}
 								output = _.find(params.asset_outputs, function(output) {output.address == new_address});
 								if (output) {
 									if (!params.base_outputs) params.base_outputs = [];
-									params.base_outputs.push({address: new_address, amount: textcoin_fees});
+									var base_output = _.find(params.base_outputs, function(output) {output.address == new_address});
+									if (base_output)
+										base_output.amount += constants.textcoin_fees;
+									else
+										params.base_outputs.push({address: new_address, amount: textcoin_fees});
 								}
 							}
 							cb();
