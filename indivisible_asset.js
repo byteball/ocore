@@ -690,19 +690,18 @@ function composeIndivisibleAssetPaymentJoint(params){
 	console.log("indivisible payment from "+params.paying_addresses, params);
 	if ((params.to_address || params.amount) && params.asset_outputs)
 		throw Error("to_address and asset_outputs at the same time");
-	if (params.asset_outputs){
-		if (params.asset_outputs.length !== 1)
-			throw Error("multiple indivisible asset outputs not supported");
-		params.amount = params.asset_outputs[0].amount;
-		params.to_address = params.asset_outputs[0].address;
-	}
+	if (params.asset_outputs && params.asset_outputs.length !== 1)
+		throw Error("multiple indivisible asset outputs not supported");
 	if (!ValidationUtils.isNonemptyArray(params.fee_paying_addresses))
 		throw Error('no fee_paying_addresses');
+	var arrBaseOutputs = [{address: params.fee_paying_addresses[0], amount: 0}]; // public outputs: the change only
+	if (params.base_outputs)
+		arrBaseOutputs = arrBaseOutputs.concat(params.base_outputs);
 	composer.composeJoint({
 		paying_addresses: _.union(params.paying_addresses, params.fee_paying_addresses), // addresses that pay for the transfer and commissions
 		signing_addresses: params.signing_addresses,
 		minimal: params.minimal,
-		outputs: [{address: params.fee_paying_addresses[0], amount: 0}], // public outputs in bytes: the change only
+		outputs: arrBaseOutputs,
 		
 		// function that creates additional messages to be added to the joint
 		retrieveMessages: function createAdditionalMessages(conn, last_ball_mci, bMultiAuthored, arrPayingAddresses, onDone){
@@ -718,11 +717,13 @@ function composeIndivisibleAssetPaymentJoint(params){
 					return onDone("the asset must be cosigned by definer");
 				if (objAsset.spender_attested && objAsset.arrAttestedAddresses.length === 0)
 					return onDone("none of the authors is attested");
-				
+
+				var target_amount = params.to_address ? params.amount : params.asset_outputs[0].amount;
+				var to_address = params.to_address ? params.to_address : params.asset_outputs[0].address;
 				pickIndivisibleCoinsForAmount(
 					conn, objAsset, arrAssetPayingAddresses, last_ball_mci, 
-					params.to_address, params.change_address,
-					params.amount, params.tolerance_plus || 0, params.tolerance_minus || 0, 
+					to_address, params.change_address,
+					target_amount, params.tolerance_plus || 0, params.tolerance_minus || 0, 
 					bMultiAuthored, 
 					function(err, arrPayloadsWithProofs){
 						if (!arrPayloadsWithProofs)
@@ -1099,7 +1100,7 @@ function getToAddress(params){
 exports.getSavingCallbacks = getSavingCallbacks;
 exports.validateAndSavePrivatePaymentChain = validateAndSavePrivatePaymentChain;
 exports.restorePrivateChains = restorePrivateChains;
+exports.composeMinimalIndivisibleAssetPaymentJoint = composeMinimalIndivisibleAssetPaymentJoint;
 exports.composeAndSaveIndivisibleAssetPaymentJoint = composeAndSaveIndivisibleAssetPaymentJoint;
 exports.composeAndSaveMinimalIndivisibleAssetPaymentJoint = composeAndSaveMinimalIndivisibleAssetPaymentJoint;
 exports.updateIndivisibleOutputsThatWereReceivedUnstable = updateIndivisibleOutputsThatWereReceivedUnstable;
-

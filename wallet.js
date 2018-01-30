@@ -1322,6 +1322,7 @@ function sendMultiPayment(opts, handleResult)
 				outputs.forEach(function(output){
 					if (output.address.indexOf(prefix) !== 0)
 						return false;
+
 					var address = output.address.slice(prefix.length);
 					var strMnemonic = assocMnemonics[output.address] || "";
 					var mnemonic = new Mnemonic(strMnemonic.replace(/-/g, " "));
@@ -1414,8 +1415,7 @@ function sendMultiPayment(opts, handleResult)
 				storage.readAsset(db, asset, null, function(err, objAsset){
 					if (err)
 						throw Error(err);
-				//	if (objAsset.is_private && !recipient_device_address)
-				//		return handleResult("for private asset, need recipient's device address to send private payload to");
+
 					if (objAsset.is_private){
 						// save messages in outbox before committing
 						params.callbacks.preCommitCb = function(conn, arrChainsOfRecipientPrivateElements, arrChainsOfCosignerPrivateElements, cb){
@@ -1436,14 +1436,77 @@ function sendMultiPayment(opts, handleResult)
 							async.series([sendToRecipients, sendToCosigners], cb);
 						};
 					}
-					if (objAsset.fixed_denominations){ // indivisible
-						params.tolerance_plus = 0;
-						params.tolerance_minus = 0;
-						indivisibleAsset.composeAndSaveMinimalIndivisibleAssetPaymentJoint(params);
-					}
-					else{ // divisible
-						divisibleAsset.composeAndSaveMinimalDivisibleAssetPaymentJoint(params);
-					}
+
+					// textcoin claim fees are paid by the sender
+					var textcoin_fees = constants.TEXTCOIN_ASSET_CLAIM_FEE;
+					var feesByAddress = [];
+					async.series([
+						function(cb) { // calculate fees for indivisible asset
+							if (!Object.keys(assocAddresses).length || !objAsset.fixed_denominations) { // skip this step if no textcoins and for divisible assets
+								cb();
+								return;
+							}
+							params.tolerance_plus = 0;
+							params.tolerance_minus = 0;
+							var old_callbacks = params.callbacks;
+							params.callbacks = {
+								ifOk: function(objJoint, assocPrivatePayloads, unlock) {
+									for (var orig_address in assocAddresses) {
+										var new_address = assocAddresses[orig_address];
+										var asset_messages_to_address = _.filter(objJoint.unit.messages, function(m){
+											return m.app === "payment" && _.get(m, 'payload.asset') === asset && _.get(m, 'payload.outputs[0].address') === new_address;
+										});
+										feesByAddress[new_address] = constants.TEXTCOIN_ASSET_CLAIM_HEADER_FEE + asset_messages_to_address.length * constants.TEXTCOIN_ASSET_CLAIM_MESSAGE_FEE + constants.TEXTCOIN_ASSET_CLAIM_BASE_MSG_FEE;
+									}
+									params.callbacks = old_callbacks;
+									unlock();
+									cb();
+								},
+								ifError: function(err) {
+									old_callbacks.ifError(err);
+									cb(err);
+								},
+								ifNotEnoughFunds: function(err) {
+									old_callbacks.ifNotEnoughFunds(err);
+									cb(err);
+								}
+							}
+							indivisibleAsset.composeMinimalIndivisibleAssetPaymentJoint(params);
+						},
+						function(cb) { // add fees
+							for (var orig_address in assocAddresses) {
+								var new_address = assocAddresses[orig_address];
+								if (new_address == params.to_address) {
+									delete params.to_address;
+									delete params.amount;
+									params.asset_outputs = [{address: new_address, amount: amount}];
+									params.base_outputs = [{address: new_address, amount: feesByAddress[new_address]}];
+									continue;
+								}
+								output = _.find(params.asset_outputs, function(output) {output.address == new_address});
+								if (output) {
+									if (!params.base_outputs) params.base_outputs = [];
+									var base_output = _.find(params.base_outputs, function(output) {output.address == new_address});
+									if (base_output)
+										base_output.amount += feesByAddress[new_address];
+									else
+										params.base_outputs.push({address: new_address, amount: feesByAddress[new_address]});
+								}
+							}
+							cb();
+						},
+						function(cb) { // send payment
+							if (objAsset.fixed_denominations){ // indivisible
+								params.tolerance_plus = 0;
+								params.tolerance_minus = 0;
+								indivisibleAsset.composeAndSaveMinimalIndivisibleAssetPaymentJoint(params);
+							}
+							else{ // divisible
+								divisibleAsset.composeAndSaveMinimalDivisibleAssetPaymentJoint(params);
+							}
+							cb();
+						}
+					]);
 				});
 			}
 			else{ // base asset
@@ -1454,6 +1517,12 @@ function sendMultiPayment(opts, handleResult)
 				else{
 					params.outputs = to_address ? [{address: to_address, amount: amount}] : (base_outputs || []);
 					params.outputs.push({address: change_address, amount: 0});
+					// add claim fees, if textcoin
+					for (var orig_address in assocAddresses) { // look for textcoin addresses
+						var new_address = assocAddresses[orig_address];
+						var output = _.find(params.outputs, function(output) {output.address == new_address});
+						if (output) output.amount += constants.TEXTCOIN_CLAIM_FEE;
+					}
 				}
 				composer.composeAndSaveMinimalJoint(params);
 			}
@@ -1510,7 +1579,7 @@ function replaceInTextcoinTemplate(params, handleText){
 		});
 		template = template.replace(/\{\{\w*\}\}/g, '');
 
-		var text = "Here is your link to receive " + params.amount + " " + params.asset + params.usd_amount_str + ": https://byteball.org/openapp.html#textcoin?" + params.mnemonic;
+		var text = "Here is your link to receive " + params.amount + " " + params.asset + params.usd_amount_str + ": https://byteball.org/#textcoin?" + params.mnemonic;
 		handleText(template, text);
 	});
 }
@@ -1583,8 +1652,8 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 	// check stability of payingAddresses
 	function checkStability() {
 		db.query(
-			"SELECT is_stable, asset, is_spent, amount \n\
-			FROM outputs JOIN units USING(unit) WHERE address=? AND sequence='good' ORDER BY asset DESC, is_spent ASC LIMIT 1", 
+			"SELECT is_stable, asset, is_spent, SUM(amount) as `amount` \n\
+			FROM outputs JOIN units USING(unit) WHERE address=? AND sequence='good' GROUP BY asset ORDER BY asset DESC, is_spent ASC LIMIT 1", 
 			[address],
 			function(rows){
 				if (rows.length === 0) {
@@ -1595,7 +1664,6 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 						cb("This payment is not confirmed yet, try again later");
 					} else {
 						if (row.asset) { // claiming asset
-							// TODO: request asset data for light clients
 							opts.asset = row.asset;
 							opts.amount = row.amount;
 							opts.fee_paying_addresses = [address];
