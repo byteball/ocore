@@ -545,6 +545,8 @@ function deriveAddress(wallet, is_change, address_index, handleNewAddress){
 			"SELECT device_address, extended_pubkey FROM extended_pubkeys WHERE wallet=?", 
 			[wallet], 
 			function(rows){
+				if (rows.length === 0)
+					throw Error("no extended pubkeys in wallet "+wallet);
 				var path = "m/"+is_change+"/"+address_index;
 				var params = {};
 				rows.forEach(function(row){
