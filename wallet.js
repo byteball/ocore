@@ -1454,7 +1454,7 @@ function sendMultiPayment(opts, handleResult)
 									for (var orig_address in assocAddresses) {
 										var new_address = assocAddresses[orig_address];
 										var asset_messages_to_address = _.filter(objJoint.unit.messages, function(m){
-											return _.get(m, 'payload.asset') === asset && _.get(m, 'payload.outputs[0].address') === new_address;
+											return m.app === "payment" && _.get(m, 'payload.asset') === asset && _.get(m, 'payload.outputs[0].address') === new_address;
 										});
 										feesByAddress[new_address] = constants.TEXTCOIN_ASSET_CLAIM_HEADER_FEE + asset_messages_to_address.length * constants.TEXTCOIN_ASSET_CLAIM_MESSAGE_FEE + constants.TEXTCOIN_ASSET_CLAIM_BASE_MSG_FEE;
 									}
