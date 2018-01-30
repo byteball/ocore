@@ -1158,7 +1158,7 @@ function replaceInTemplate(arrTemplate, params){
 					return x;
 				var name = x.substring(1);
 				if (!(name in params))
-					throw NoVarException("variable "+name+" not specified");
+					throw new NoVarException("variable "+name+" not specified, template "+JSON.stringify(arrTemplate)+", params "+JSON.stringify(params));
 				return params[name]; // may change type if params[name] is not a string
 			case 'object':
 				if (Array.isArray(x))
