@@ -1439,6 +1439,7 @@ function sendMultiPayment(opts, handleResult)
 
 					// textcoin claim fees are paid by the sender
 					var textcoin_fees = constants.TEXTCOIN_ASSET_CLAIM_FEE;
+					var feesByAddress = [];
 					async.series([
 						function(cb) { // calculate fees for indivisible asset
 							if (!Object.keys(assocAddresses).length || !objAsset.fixed_denominations) { // skip this step if no textcoins and for divisible assets
@@ -1450,7 +1451,13 @@ function sendMultiPayment(opts, handleResult)
 							var old_callbacks = params.callbacks;
 							params.callbacks = {
 								ifOk: function(objJoint, assocPrivatePayloads, unlock) {
-									textcoin_fees = constants.TEXTCOIN_ASSET_CLAIM_HEADER_FEE + (objJoint.unit.messages.length-1) * constants.TEXTCOIN_ASSET_CLAIM_MESSAGE_FEE + constants.TEXTCOIN_ASSET_CLAIM_BASE_MSG_FEE;
+									for (var orig_address in assocAddresses) {
+										var new_address = assocAddresses[orig_address];
+										var asset_messages_to_address = _.filter(objJoint.unit.messages, function(m){
+											return _.get(m, 'payload.asset') === asset && _.get(m, 'payload.outputs[0].address') === new_address;
+										});
+										feesByAddress[new_address] = constants.TEXTCOIN_ASSET_CLAIM_HEADER_FEE + asset_messages_to_address.length * constants.TEXTCOIN_ASSET_CLAIM_MESSAGE_FEE + constants.TEXTCOIN_ASSET_CLAIM_BASE_MSG_FEE;
+									}
 									params.callbacks = old_callbacks;
 									unlock();
 									cb();
@@ -1473,7 +1480,7 @@ function sendMultiPayment(opts, handleResult)
 									delete params.to_address;
 									delete params.amount;
 									params.asset_outputs = [{address: new_address, amount: amount}];
-									params.base_outputs = [{address: new_address, amount: textcoin_fees}];
+									params.base_outputs = [{address: new_address, amount: feesByAddress[new_address]}];
 									continue;
 								}
 								output = _.find(params.asset_outputs, function(output) {output.address == new_address});
@@ -1481,9 +1488,9 @@ function sendMultiPayment(opts, handleResult)
 									if (!params.base_outputs) params.base_outputs = [];
 									var base_output = _.find(params.base_outputs, function(output) {output.address == new_address});
 									if (base_output)
-										base_output.amount += constants.textcoin_fees;
+										base_output.amount += feesByAddress[new_address];
 									else
-										params.base_outputs.push({address: new_address, amount: textcoin_fees});
+										params.base_outputs.push({address: new_address, amount: feesByAddress[new_address]});
 								}
 							}
 							cb();
