@@ -24,9 +24,9 @@ function pickParentUnits(conn, arrWitnesses, onDone){
 			) AS count_matching_witnesses \n\
 		FROM units "+(conf.storage === 'sqlite' ? "INDEXED BY byFree" : "")+" \n\
 		LEFT JOIN archived_joints USING(unit) \n\
-		WHERE +sequence='good' AND is_free=1 AND archived_joints.unit IS NULL ORDER BY unit LIMIT ?", 
+		WHERE +sequence='good' AND is_free=1 AND archived_joints.unit IS NULL ORDER BY unit", 
 		// exclude potential parents that were archived and then received again
-		[arrWitnesses, constants.MAX_PARENTS_PER_UNIT], 
+		[arrWitnesses], 
 		function(rows){
 			if (rows.some(function(row){ return (row.version !== constants.version || row.alt !== constants.alt); }))
 				throw Error('wrong network');
@@ -36,7 +36,7 @@ function pickParentUnits(conn, arrWitnesses, onDone){
 				return pickDeepParentUnits(conn, arrWitnesses, null, onDone);
 			var arrParentUnits = rows.map(function(row){ return row.unit; });
 			adjustParentsToNotRetreatWitnessedLevel(conn, arrWitnesses, arrParentUnits, function(arrAdjustedParents){
-				onDone(null, arrAdjustedParents);
+				onDone(null, arrAdjustedParents.slice(0, constants.MAX_PARENTS_PER_UNIT));
 			});
 		//	checkWitnessedLevelNotRetreatingAndLookLower(conn, arrWitnesses, arrParentUnits, (arrParentUnits.length === 1), onDone);
 		}
