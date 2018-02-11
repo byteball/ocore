@@ -7,7 +7,10 @@ function hash(str){
 }
 
 function getMerkleRoot(arrElements){
-	var arrHashes = arrElements.map(hash);
+	var arrHashes = [];
+	arrElements.forEach(function(element){
+		arrHashes.push(hash(element));
+	});
 	while (arrHashes.length > 1){
 		var arrOverHashes = []; // hashes over hashes
 		for (var i=0; i<arrHashes.length; i+=2){
