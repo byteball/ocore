@@ -1404,8 +1404,8 @@ function sendMultiPayment(opts, handleResult)
 				// iterate over all generated textcoin addresses
 				for (var orig_address in assocAddresses) {
 					var new_address = assocAddresses[orig_address];
-					var asset_fees = objAsset && objAsset.fixed_denominations ? indivisibleAssetFeesByAddress[new_address] : constants.TEXTCOIN_ASSET_CLAIM_FEE;
 					var _addAssetFees = function() {
+						var asset_fees = objAsset && objAsset.fixed_denominations ? indivisibleAssetFeesByAddress[new_address] : constants.TEXTCOIN_ASSET_CLAIM_FEE;
 						if (!params.base_outputs) params.base_outputs = [];
 						var base_output = _.find(params.base_outputs, function(output) {return output.address == new_address});
 						if (base_output)
