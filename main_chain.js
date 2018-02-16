@@ -78,8 +78,12 @@ function updateMainChain(conn, from_unit, last_added_unit, onDone){
 		findNextUpMainChainUnit(unit, function(best_parent_unit){
 			storage.readUnitProps(conn, best_parent_unit, function(objBestParentUnitProps){
 				var objBestParentUnitProps2 = storage.assocUnstableUnits[best_parent_unit];
-				if (!objBestParentUnitProps2)
-					throw Error("unstable unit not found: "+best_parent_unit);
+				if (!objBestParentUnitProps2){
+					if (storage.isGenesisUnit(best_parent_unit))
+						objBestParentUnitProps2 = storage.assocStableUnits[best_parent_unit];
+					else
+						throw Error("unstable unit not found: "+best_parent_unit);
+				}
 				var objBestParentUnitPropsForCheck = _.cloneDeep(objBestParentUnitProps2);
 				delete objBestParentUnitPropsForCheck.parent_units;
 				if (!_.isEqual(objBestParentUnitPropsForCheck, objBestParentUnitProps))

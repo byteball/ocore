@@ -686,17 +686,27 @@ function findAddress(address, signing_path, callbacks, fallback_remote_device_ad
 }
 
 function readSharedBalance(wallet, handleBalance){
-	balances.readSharedBalance(wallet, handleBalance);
+	balances.readSharedBalance(wallet, function(assocBalances) {
+		if (conf.bLight){ // make sure we have all asset definitions available
+			var arrAssets = Object.keys(assocBalances).filter(function(asset){ return (asset !== 'base'); });
+			if (arrAssets.length === 0)
+				return handleBalance(assocBalances);
+			network.requestProofsOfJointsIfNewOrUnstable(arrAssets, function(){handleBalance(assocBalances)});
+		} else {
+			handleBalance(assocBalances);
+		}
+	});
 }
 
 function readBalance(wallet, handleBalance){
 	balances.readBalance(wallet, function(assocBalances) {
-		handleBalance(assocBalances);
 		if (conf.bLight){ // make sure we have all asset definitions available
 			var arrAssets = Object.keys(assocBalances).filter(function(asset){ return (asset !== 'base'); });
 			if (arrAssets.length === 0)
-				return;
-			network.requestProofsOfJointsIfNewOrUnstable(arrAssets);
+				return handleBalance(assocBalances);
+			network.requestProofsOfJointsIfNewOrUnstable(arrAssets, function(){handleBalance(assocBalances)});
+		} else {
+			handleBalance(assocBalances);
 		}
 	});
 }
@@ -730,20 +740,22 @@ function readAssetMetadata(arrAssets, handleMetadata){
 		// after calling the callback, try to fetch missing data about assets
 		if (!arrAssets)
 			return;
-		arrAssets.forEach(function(asset){
-			if (assocAssetMetadata[asset] || asset === 'base' && asset === constants.BLACKBYTES_ASSET)
-				return;
-			if ((assocLastFailedAssetMetadataTimestamps[asset] || 0) > Date.now() - ASSET_METADATA_RETRY_PERIOD)
-				return;
-			fetchAssetMetadata(asset, function(err, objMetadata){
-				if (err)
-					return console.log(err);
-				assocAssetMetadata[asset] = {
-					metadata_unit: objMetadata.metadata_unit,
-					decimals: objMetadata.decimals,
-					name: objMetadata.suffix ? objMetadata.name+'.'+objMetadata.suffix : objMetadata.name
-				};
-				eventBus.emit('maybe_new_transactions');
+		network.requestProofsOfJointsIfNewOrUnstable(arrAssets, function(){ // make sure we have assets itself
+			arrAssets.forEach(function(asset){
+				if (assocAssetMetadata[asset] || asset === 'base' && asset === constants.BLACKBYTES_ASSET)
+					return;
+				if ((assocLastFailedAssetMetadataTimestamps[asset] || 0) > Date.now() - ASSET_METADATA_RETRY_PERIOD)
+					return;
+				fetchAssetMetadata(asset, function(err, objMetadata){
+					if (err)
+						return console.log(err);
+					assocAssetMetadata[asset] = {
+						metadata_unit: objMetadata.metadata_unit,
+						decimals: objMetadata.decimals,
+						name: objMetadata.suffix ? objMetadata.name+'.'+objMetadata.suffix : objMetadata.name
+					};
+					eventBus.emit('maybe_new_transactions');
+				});
 			});
 		});
 	});
