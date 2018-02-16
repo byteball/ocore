@@ -24,9 +24,9 @@ function pickParentUnits(conn, arrWitnesses, onDone){
 			) AS count_matching_witnesses \n\
 		FROM units "+(conf.storage === 'sqlite' ? "INDEXED BY byFree" : "")+" \n\
 		LEFT JOIN archived_joints USING(unit) \n\
-		WHERE +sequence='good' AND is_free=1 AND archived_joints.unit IS NULL ORDER BY unit LIMIT ?", 
+		WHERE +sequence='good' AND is_free=1 AND archived_joints.unit IS NULL ORDER BY unit", 
 		// exclude potential parents that were archived and then received again
-		[arrWitnesses, constants.MAX_PARENTS_PER_UNIT], 
+		[arrWitnesses], 
 		function(rows){
 			if (rows.some(function(row){ return (row.version !== constants.version || row.alt !== constants.alt); }))
 				throw Error('wrong network');
@@ -36,7 +36,7 @@ function pickParentUnits(conn, arrWitnesses, onDone){
 				return pickDeepParentUnits(conn, arrWitnesses, null, onDone);
 			var arrParentUnits = rows.map(function(row){ return row.unit; });
 			adjustParentsToNotRetreatWitnessedLevel(conn, arrWitnesses, arrParentUnits, function(arrAdjustedParents){
-				onDone(null, arrAdjustedParents);
+				onDone(null, arrAdjustedParents.slice(0, constants.MAX_PARENTS_PER_UNIT));
 			});
 		//	checkWitnessedLevelNotRetreatingAndLookLower(conn, arrWitnesses, arrParentUnits, (arrParentUnits.length === 1), onDone);
 		}
@@ -189,14 +189,14 @@ function adjustLastStableMcBallAndParents(conn, last_stable_mc_ball_unit, arrPar
 			return;
 		}
 		console.log('will adjust last stable ball because '+last_stable_mc_ball_unit+' is not stable in view of parents '+arrParentUnits.join(', '));
-		/*if (arrParentUnits.length > 1){ // select only one parent
+		if (arrParentUnits.length > 1){ // select only one parent
 			pickDeepParentUnits(conn, arrWitnesses, null, function(err, arrAdjustedParentUnits){
 				if (err)
 					throw Error("pickDeepParentUnits in adjust failed: "+err);
 				adjustLastStableMcBallAndParents(conn, last_stable_mc_ball_unit, arrAdjustedParentUnits, arrWitnesses, handleAdjustedLastStableUnit);
 			});
 			return;
-		}*/
+		}
 		storage.readStaticUnitProps(conn, last_stable_mc_ball_unit, function(objUnitProps){
 			if (!objUnitProps.best_parent_unit)
 				throw Error("no best parent of "+last_stable_mc_ball_unit);
