@@ -876,7 +876,7 @@ function getSavingCallbacks(to_address, callbacks){
 									};
 									if (!callbacks.preCommitCb)
 										return onSuccessfulPrecommit();
-									callbacks.preCommitCb(conn, arrRecipientChains, arrCosignerChains, onSuccessfulPrecommit);
+									callbacks.preCommitCb(conn, objJoint, arrRecipientChains, arrCosignerChains, onSuccessfulPrecommit);
 								}
 							);
 						};

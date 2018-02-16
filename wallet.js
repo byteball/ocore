@@ -1465,15 +1465,33 @@ function sendMultiPayment(opts, handleResult)
 						throw Error(err);
 
 					if (objAsset.is_private){
+						var saveMnemonicsPreCommit = params.callbacks.preCommitCb;
 						// save messages in outbox before committing
-						params.callbacks.preCommitCb = function(conn, arrChainsOfRecipientPrivateElements, arrChainsOfCosignerPrivateElements, cb){
+						params.callbacks.preCommitCb = function(conn, objJoint, arrChainsOfRecipientPrivateElements, arrChainsOfCosignerPrivateElements, cb){
 							if (!arrChainsOfRecipientPrivateElements || !arrChainsOfCosignerPrivateElements)
 								throw Error('no private elements');
 							var sendToRecipients = function(cb2){
-								if (recipient_device_address)
+								if (recipient_device_address) {
 									walletGeneral.sendPrivatePayments(recipient_device_address, arrChainsOfRecipientPrivateElements, false, conn, cb2);
-								else // paying to another wallet on the same device
+								} 
+								else if (Object.keys(assocAddresses).length > 0) {
+									var mnemonic = assocMnemonics[Object.keys(assocMnemonics)[0]]; // TODO: assuming only one textcoin here
+									opts.getPrivateAssetPayloadSavePath(function(path){
+										var storedObj = {
+											mnemonic: mnemonic,
+											payload: arrChainsOfRecipientPrivateElements
+										};
+										var fs = require('fs'+'');
+										fs.writeFile(path, JSON.stringify(storedObj), function(err) {
+											if (err)
+												throw Error(err);
+											saveMnemonicsPreCommit(conn, objJoint, cb2);
+										}); 
+									});
+								}
+								else { // paying to another wallet on the same device
 									forwardPrivateChainsToOtherMembersOfOutputAddresses(arrChainsOfRecipientPrivateElements, conn, cb2);
+								}
 							};
 							var sendToCosigners = function(cb2){
 								if (wallet)
