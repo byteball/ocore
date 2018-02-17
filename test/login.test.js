@@ -6,7 +6,7 @@ import { deepEqual } from 'assert'
 const Device = require('../device.js');
 var objectHash = require('../object_hash.js');
 var ecdsa = require('secp256k1');
-const secp256k1 = require('secp256k1');
+var ecdsaSig = require('../signature.js');
 
 // don't change this!
 // other implementations can cross reference these tests as long as the key
@@ -21,7 +21,7 @@ test('private key is valid', t => {
 
 test('public key is valid', t => {
   t.true(Device.isValidPubKey(pubkey));
-  t.is(pubkey, secp256k1.publicKeyCreate(priv).toString('base64'));
+  t.is(pubkey, ecdsa.publicKeyCreate(priv).toString('base64'));
 });
 
 test('message hash is correct', t => {
@@ -33,6 +33,20 @@ test('message hash is correct', t => {
 
 test('challenge can be converted to loginMessage', t => {
   console.log(Device.loginMessage(challenge, priv, pubkey));
+  console.log(
+    ecdsaSig.sign(
+      objectHash.getDeviceMessageHashToSign({challenge: challenge, pubkey: pubkey})
+      , priv
+    )
+  );
+  console.log(
+    ecdsaSig.verify(
+      objectHash.getDeviceMessageHashToSign({challenge: challenge, pubkey: pubkey}),
+      // "MEQCIHAE/3Oc5+J2/uVJ0+QfvvXj72HRBNuKpjxU128WHdiBAiA+4gQQNiHogRbyQRlXOLNto09JmRK0jHOyGeIttELkNA==",
+      "cAT/c5zn4nb+5UnT5B++9ePvYdEE24qmPFTXbxYd2IE+4gQQNiHogRbyQRlXOLNto09JmRK0jHOyGeIttELkNA==",
+      pubkey
+    )
+  );
   var expected = {challenge: "bUSwwUmABqPGAyRteUPKdaaq/wDM5Rqr+UL3sO/a",
                   pubkey: "AqUMbbXfZg6uw506M9lbiJU/f74X5BhKdovkMPkspfNo",
                   signature: "cAT/c5zn4nb+5UnT5B++9ePvYdEE24qmPFTXbxYd2IE+4gQQNiHogRbyQRlXOLNto09JmRK0jHOyGeIttELkNA=="};
