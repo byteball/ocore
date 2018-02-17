@@ -166,8 +166,6 @@ function loginMessage(challenge, priv, pubkey){
 }
 
 function sendLoginCommand(ws, challenge){
-	// var objLogin = {challenge: challenge, pubkey: objMyPermanentDeviceKey.pub_b64};
-	// objLogin.signature = ecdsaSig.sign(objectHash.getDeviceMessageHashToSign(objLogin), objMyPermanentDeviceKey.priv);
 	network.sendJustsaying(ws, 'hub/login', loginMessage(challenge, objMyPermanentDeviceKey.priv, objMyPermanentDeviceKey.pub_b64));
 	ws.bLoggedIn = true;
 	sendTempPubkey(ws, objMyTempDeviceKey.pub_b64);

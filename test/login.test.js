@@ -4,6 +4,7 @@ const test = require('ava');
 import { deepEqual } from 'assert'
 
 const Device = require('../device.js');
+var objectHash = require('../object_hash.js');
 var ecdsa = require('secp256k1');
 
 // don't change this!
@@ -21,6 +22,13 @@ test('public key is valid', t => {
   t.true(Device.isValidPubKey(pubkey));
 });
 
+test('message hash is correct', t => {
+  t.is(
+    objectHash.getDeviceMessageHashToSign({challenge: challenge, pubkey: pubkey}).toString('hex'),
+    '1ac78e688e34a4e70a2e9ccde66ed015fb7d16203691834f702b1f76e53baaa8'
+  );
+});
+
 test('challenge can be converted to loginMessage', t => {
   console.log(Device.loginMessage(challenge, priv, pubkey));
   var expected = {challenge: "bUSwwUmABqPGAyRteUPKdaaq/wDM5Rqr+UL3sO/a",
@@ -31,5 +39,4 @@ test('challenge can be converted to loginMessage', t => {
   t.is(result.pubkey, expected.pubkey);
   t.is(result.signature, expected.signature);
   t.deepEqual(result, expected);
-
 });
