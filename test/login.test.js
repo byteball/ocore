@@ -34,10 +34,10 @@ test('message hash is correct', t => {
 test('challenge can be converted to loginMessage', t => {
   console.log(Device.loginMessage(challenge, priv, pubkey));
   console.log(
-    ecdsaSig.sign(
+    ecdsa.sign(
       objectHash.getDeviceMessageHashToSign({challenge: challenge, pubkey: pubkey})
       , priv
-    )
+    ).signature.toString('hex')
   );
   console.log(
     ecdsaSig.verify(
@@ -55,4 +55,18 @@ test('challenge can be converted to loginMessage', t => {
   t.is(result.pubkey, expected.pubkey);
   t.is(result.signature, expected.signature);
   t.deepEqual(result, expected);
+});
+
+test('signature can be validated', t => {
+  let hash = objectHash.getDeviceMessageHashToSign({challenge: challenge, pubkey: pubkey});
+  t.true(
+    ecdsaSig.verify(
+      hash,
+      ecdsaSig.sign(
+        hash,
+        priv
+      ),
+      pubkey
+    )
+  );
 });
