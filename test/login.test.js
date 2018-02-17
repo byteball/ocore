@@ -6,6 +6,7 @@ import { deepEqual } from 'assert'
 const Device = require('../device.js');
 var objectHash = require('../object_hash.js');
 var ecdsa = require('secp256k1');
+const secp256k1 = require('secp256k1');
 
 // don't change this!
 // other implementations can cross reference these tests as long as the key
@@ -20,6 +21,7 @@ test('private key is valid', t => {
 
 test('public key is valid', t => {
   t.true(Device.isValidPubKey(pubkey));
+  t.is(pubkey, secp256k1.publicKeyCreate(priv).toString('base64'));
 });
 
 test('message hash is correct', t => {
