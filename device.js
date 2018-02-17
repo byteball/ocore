@@ -754,6 +754,7 @@ exports.scheduleTempDeviceKeyRotation = scheduleTempDeviceKeyRotation;
 
 exports.decryptPackage = decryptPackage;
 
+exports.loginMessage = loginMessage;
 exports.handleChallenge = handleChallenge;
 exports.loginToHub = loginToHub;
 

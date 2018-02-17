@@ -1,6 +1,7 @@
 "use strict";
 
 const test = require('ava');
+import { deepEqual } from 'assert'
 
 const Device = require('../device.js');
 var ecdsa = require('secp256k1');
@@ -18,4 +19,17 @@ test('private key is valid', t => {
 
 test('public key is valid', t => {
   t.true(Device.isValidPubKey(pubkey));
+});
+
+test('challenge can be converted to loginMessage', t => {
+  console.log(Device.loginMessage(challenge, priv, pubkey));
+  var expected = {challenge: "bUSwwUmABqPGAyRteUPKdaaq/wDM5Rqr+UL3sO/a",
+                  pubkey: "AqUMbbXfZg6uw506M9lbiJU/f74X5BhKdovkMPkspfNo",
+                  signature: "cAT/c5zn4nb+5UnT5B++9ePvYdEE24qmPFTXbxYd2IE+4gQQNiHogRbyQRlXOLNto09JmRK0jHOyGeIttELkNA=="};
+  var result = Device.loginMessage(challenge, priv, pubkey);
+  t.is(result.challenge, expected.challenge);
+  t.is(result.pubkey, expected.pubkey);
+  t.is(result.signature, expected.signature);
+  t.deepEqual(result, expected);
+
 });
