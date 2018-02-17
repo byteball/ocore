@@ -60,5 +60,5 @@ const objectPairs = ['bunch', getSourceString(9), 'unit', getSourceString('clust
 const objectResult = objectPairs.join(STRING_JOIN_CHAR);
 test('Test an object', t => {
     t.true(getSourceString(object) === objectResult);
-    t.true(54 === getSourceString(objectResult).length);
+    t.true(54 === getSourceString(object).length);
 });
