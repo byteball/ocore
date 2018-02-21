@@ -14,6 +14,9 @@ node_modules
 # Yarn package manager
 yarn.lock
 
+# npm
+package-lock.json
+
 # OSX
 
 .DS_Store
@@ -45,4 +48,3 @@ Session.vim
 
 *.iml
 .idea
-
