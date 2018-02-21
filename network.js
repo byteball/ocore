@@ -2083,7 +2083,7 @@ function handleJustsaying(ws, subject, body){
 				return sendError(ws, "no login params");
 			if (objLogin.pubkey.length !== constants.PUBKEY_LENGTH)
 				return sendError(ws, "wrong pubkey length");
-			if (objLogin.signature.length !== constants.SIG_LENGTH && objLogin.signature.length !== constants.SIG_LENGTH_DER)
+			if (objLogin.signature.length !== constants.SIG_LENGTH)
 				return sendError(ws, "wrong signature length");
 			if (!ecdsaSig.verify(objectHash.getDeviceMessageHashToSign(objLogin), objLogin.signature, objLogin.pubkey))
 				return sendError(ws, "wrong signature");
