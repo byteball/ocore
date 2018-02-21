@@ -3,6 +3,7 @@
 var ecdsa = require('secp256k1');
 
 exports.sign = function(hash, priv_key){
+	console.log(hash, priv_key, "*");
 	var res = ecdsa.sign(hash, priv_key);
 	return res.signature.toString("base64");
 };
@@ -17,4 +18,3 @@ exports.verify = function(hash, b64_sig, b64_pub_key){
 		return false;
 	}
 };
-

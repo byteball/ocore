@@ -32,21 +32,6 @@ test('message hash is correct', t => {
 });
 
 test('challenge can be converted to loginMessage', t => {
-  console.log(Device.loginMessage(challenge, priv, pubkey));
-  console.log(
-    ecdsa.sign(
-      objectHash.getDeviceMessageHashToSign({challenge: challenge, pubkey: pubkey})
-      , priv
-    ).signature.toString('hex')
-  );
-  console.log(
-    ecdsaSig.verify(
-      objectHash.getDeviceMessageHashToSign({challenge: challenge, pubkey: pubkey}),
-      // "MEQCIHAE/3Oc5+J2/uVJ0+QfvvXj72HRBNuKpjxU128WHdiBAiA+4gQQNiHogRbyQRlXOLNto09JmRK0jHOyGeIttELkNA==",
-      "cAT/c5zn4nb+5UnT5B++9ePvYdEE24qmPFTXbxYd2IE+4gQQNiHogRbyQRlXOLNto09JmRK0jHOyGeIttELkNA==",
-      pubkey
-    )
-  );
   var expected = {challenge: "bUSwwUmABqPGAyRteUPKdaaq/wDM5Rqr+UL3sO/a",
                   pubkey: "AqUMbbXfZg6uw506M9lbiJU/f74X5BhKdovkMPkspfNo",
                   signature: "cAT/c5zn4nb+5UnT5B++9ePvYdEE24qmPFTXbxYd2IE+4gQQNiHogRbyQRlXOLNto09JmRK0jHOyGeIttELkNA=="};
