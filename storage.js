@@ -1244,6 +1244,8 @@ function initUnstableUnits(onDone){
 				assocUnstableUnits[row.unit] = row;
 			});
 			console.log('initUnstableUnits 1 done');
+			if (Object.keys(assocUnstableUnits).length === 0)
+				return onDone ? onDone() : null;
 			db.query(
 				"SELECT parent_unit, child_unit FROM parenthoods WHERE child_unit IN("+Object.keys(assocUnstableUnits).map(db.escape)+")", 
 				function(prows){
