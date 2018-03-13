@@ -1488,17 +1488,44 @@ function sendMultiPayment(opts, handleResult)
 								} 
 								else if (Object.keys(assocAddresses).length > 0) {
 									var mnemonic = assocMnemonics[Object.keys(assocMnemonics)[0]]; // TODO: assuming only one textcoin here
-									opts.getPrivateAssetPayloadSavePath(function(path){
+									opts.getPrivateAssetPayloadSavePath(function(fullPath, root, path, fileName){
 										var storedObj = {
 											mnemonic: mnemonic,
 											payload: arrChainsOfRecipientPrivateElements
 										};
-										var fs = require('fs'+'');
-										fs.writeFile(path, JSON.stringify(storedObj), function(err) {
+										var cb = function(err) {
 											if (err)
 												throw Error(err);
 											saveMnemonicsPreCommit(conn, objJoint, cb2);
-										}); 
+										};
+										var bCordova = (typeof window === 'object' && window.cordova);
+										var JSZip = require("jszip");
+										var zip = new JSZip();
+										zip.file('payload', JSON.stringify(storedObj));
+										var zipParams = {type: "nodebuffer", compression: 'DEFLATE', compressionOptions: {level: 9}};
+										zip.generateAsync(zipParams).then(function(zipFile) {
+											if (!bCordova) {
+												var fs = require('fs'+'');
+												fs.writeFile(fullPath, zipFile, cb);
+											} else {
+												window.requestFileSystem(LocalFileSystem.PERSISTENT, 0, function(fs) {
+													window.resolveLocalFileSystemURL(root, function(dirEntry) {
+														dirEntry.getDirectory(path, {create: true, exclusive: false}, function(dirEntry1) {
+															dirEntry1.getFile(fileName, {create: true, exclusive: false}, function(file) {
+																file.createWriter(function(writer) {
+																	writer.onwriteend = function() {
+																		cb(null); 
+																	};
+																	writer.write(zipFile.buffer);
+																}, cb);
+															}, cb);
+														}, cb);
+													}, cb);
+												}, cb);
+											}
+										}, function(err) {
+											throw Error(err);
+										});
 									});
 								}
 								else { // paying to another wallet on the same device

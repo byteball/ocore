@@ -1069,7 +1069,7 @@ function composeMinimalIndivisibleAssetPaymentJoint(params){
 		params.asset, params.amount, params.available_paying_addresses, params.available_fee_paying_addresses, 
 		function(arrFundedPayingAddresses, arrFundedFeePayingAddresses){
 			if (arrFundedPayingAddresses.length === 0)
-				return params.callbacks.ifNotEnoughFunds("all paying addresses are unfunded in asset, make sure all your funds are confirmed");
+				return params.callbacks.ifNotEnoughFunds("either the amount you entered can't be composed using available denominations or all paying addresses are unfunded in asset, make sure all your funds are confirmed");
 			var minimal_params = _.clone(params);
 			delete minimal_params.available_paying_addresses;
 			delete minimal_params.available_fee_paying_addresses;
