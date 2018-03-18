@@ -920,14 +920,16 @@ function readTransactionHistory(opts, handleHistory){
 					else if (movement.has_minus){
 						var queryString, parameters;
 						queryString =   "SELECT outputs.address, SUM(outputs.amount) AS amount, outputs.asset, ("
-										+ ( walletIsAddress ? "outputs.address!=?" : "my_addresses.address IS NULL") + ") AS is_external, \n\
-										sent_mnemonics.textAddress, sent_mnemonics.mnemonic, \n\
-										(SELECT unit_authors.unit FROM unit_authors WHERE unit_authors.address = sent_mnemonics.address LIMIT 1) AS claiming_unit \n\
-										FROM outputs "
-										+ (walletIsAddress ? "" : "LEFT JOIN my_addresses ON outputs.address=my_addresses.address AND wallet=? ") +
-										"LEFT JOIN sent_mnemonics USING(unit) \n\
-										WHERE outputs.unit=? \n\
-										GROUP BY outputs.address, asset";
+							+ ( walletIsAddress ? "outputs.address!=?" : "my_addresses.address IS NULL") + ") AS is_external, \n\
+							sent_mnemonics.textAddress, sent_mnemonics.mnemonic, \n\
+							(SELECT unit_authors.unit FROM unit_authors WHERE unit_authors.address = sent_mnemonics.address LIMIT 1) AS claiming_unit, \n\
+							original_address \n\
+							FROM outputs "
+							+ (walletIsAddress ? "" : "LEFT JOIN my_addresses ON outputs.address=my_addresses.address AND wallet=? ") +
+							"LEFT JOIN sent_mnemonics USING(unit) \n\
+							LEFT JOIN original_addresses ON outputs.unit=original_addresses.unit AND outputs.address=original_addresses.address \n\
+							WHERE outputs.unit=? \n\
+							GROUP BY outputs.address, asset";
 						parameters = [wallet, unit];
 						db.query(queryString, parameters, 
 							function(payee_rows){
@@ -950,6 +952,7 @@ function readTransactionHistory(opts, handleHistory){
 										action: action,
 										amount: payee.amount,
 										addressTo: payee.address,
+										original_address: payee.original_address,
 										textAddress: ValidationUtils.isValidEmail(payee.textAddress) ? payee.textAddress : "",
 										claimed: !!payee.claiming_unit,
 										mnemonic: payee.mnemonic,

@@ -720,3 +720,27 @@ CREATE TABLE private_profile_fields (
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 CREATE INDEX ppfByField ON private_profile_fields(`field`);
 
+
+CREATE TABLE attested_fields (
+	unit CHAR(44) NOT NULL,
+	message_index TINYINT NOT NULL,
+	attestor_address CHAR(32) NOT NULL,
+	address CHAR(32) NOT NULL,
+	`field` VARCHAR(50) NOT NULL,
+	`value` VARCHAR(100) NOT NULL,
+	PRIMARY KEY (unit, message_index, `field`),
+	CONSTRAINT attestationsByAttestorAddress FOREIGN KEY (attestor_address) REFERENCES addresses(address),
+	FOREIGN KEY (unit) REFERENCES units(unit)
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+CREATE INDEX attestedFieldsByAttestorFieldValue ON attested_fields(attestor_address, `field`, `value`);
+CREATE INDEX attestedFieldsByAddressField ON attested_fields(address, `field`);
+
+
+-- user enters an email address (it is original address) and it is translated to BB address
+CREATE TABLE original_addresses (
+	unit CHAR(44) NOT NULL,
+	address CHAR(32) NOT NULL,
+	original_address VARCHAR(100) NOT NULL, -- email
+	PRIMARY KEY (unit, address),
+	FOREIGN KEY (unit) REFERENCES units(unit)
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
