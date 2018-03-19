@@ -2,6 +2,7 @@
 "use strict";
 var eventBus = require('./event_bus.js');
 var constants = require("./constants.js");
+var conf = require("./conf.js");
 
 var VERSION = 18;
 
@@ -163,7 +164,7 @@ function migrateDb(connection, onDone){
 						`field` VARCHAR(50) NOT NULL, \n\
 						`value` VARCHAR(100) NOT NULL, \n\
 						PRIMARY KEY (unit, message_index, `field`), \n\
-						CONSTRAINT attestationsByAttestorAddress FOREIGN KEY (attestor_address) REFERENCES addresses(address), \n\
+						"+(conf.bLight ? '' : "CONSTRAINT attestationsByAttestorAddress FOREIGN KEY (attestor_address) REFERENCES addresses(address),")+" \n\
 						FOREIGN KEY (unit) REFERENCES units(unit) \n\
 					)");
 					connection.addQuery(arrQueries, 
