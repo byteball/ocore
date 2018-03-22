@@ -676,8 +676,11 @@ function findAddress(address, signing_path, callbacks, fallback_remote_device_ad
 					var objSharedAddress = sa_rows[0];
 					var relative_signing_path = 'r' + signing_path.substr(objSharedAddress.signing_path.length);
 					var bLocal = (objSharedAddress.device_address === device.getMyDeviceAddress()); // local keys
-					if (objSharedAddress.address === '')
+					if (objSharedAddress.address === '') {
 						return callbacks.ifMerkle(bLocal);
+					} else if(objSharedAddress.address === 'secret') {
+						return callbacks.ifSecret();
+					}
 					findAddress(objSharedAddress.address, relative_signing_path, callbacks, bLocal ? null : objSharedAddress.device_address);
 				}
 			);
@@ -1051,6 +1054,9 @@ function readFullSigningPaths(conn, address, arrSigningDeviceAddresses, handleSi
 							if (row.address === '') { // merkle
 								assocSigningPaths[path_prefix + row.signing_path.substr(1)] = 'merkle';
 								return cb();
+							} else if (row.address === 'secret') {
+								assocSigningPaths[path_prefix + row.signing_path.substr(1)] = 'secret';
+								return cb();
 							}
 
 							goDeeper(row.address, path_prefix + row.signing_path.substr(1), cb);
@@ -1272,6 +1278,10 @@ function sendMultiPayment(opts, handleResult)
 								if (merkle_proof)
 									assocLengthsBySigningPaths[signing_path] = merkle_proof.length;
 							}
+							else if (type === 'secret') {
+								if (opts.secrets && opts.secrets[signing_path])
+									assocLengthsBySigningPaths[signing_path] = opts.secrets[signing_path].length;
+							}
 							else
 								throw Error("unknown type "+type+" at "+signing_path);
 						}
@@ -1322,6 +1332,11 @@ function sendMultiPayment(opts, handleResult)
 							if (!merkle_proof)
 								throw Error("merkle proof at path "+signing_path+" not provided");
 							handleSignature(null, merkle_proof);
+						},
+						ifSecret: function () {
+							if (!opts.secrets || !opts.secrets[signing_path])
+								throw Error("secret " + signing_path + " not found");
+							handleSignature(null, opts.secrets[signing_path])
 						}
 					});
 				}
