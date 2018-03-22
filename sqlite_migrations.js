@@ -4,7 +4,7 @@ var eventBus = require('./event_bus.js');
 var constants = require("./constants.js");
 var conf = require("./conf.js");
 
-var VERSION = 18;
+var VERSION = 19;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -200,6 +200,11 @@ function migrateDb(connection, onDone){
 				}
 				else
 					cb();
+			},
+			function(cb){
+				if (version < 19)
+					connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS outputsIsSerial ON outputs(is_serial)");
+				cb();
 			}
 		], function(){
 			connection.addQuery(arrQueries, "PRAGMA user_version="+VERSION);
