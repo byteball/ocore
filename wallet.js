@@ -740,7 +740,8 @@ function readAssetMetadata(arrAssets, handleMetadata){
 		// after calling the callback, try to fetch missing data about assets
 		if (!arrAssets)
 			return;
-		network.requestProofsOfJointsIfNewOrUnstable(arrAssets, function(){ // make sure we have assets itself
+		var updateAssets = conf.bLight ? network.requestProofsOfJointsIfNewOrUnstable : function(arrAssets, onDone){ onDone(); };
+		updateAssets(arrAssets, function(){ // make sure we have assets itself
 			arrAssets.forEach(function(asset){
 				if (assocAssetMetadata[asset] || asset === 'base' && asset === constants.BLACKBYTES_ASSET)
 					return;
