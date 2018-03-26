@@ -601,7 +601,7 @@ function determineWitnessedLevelAndBestParent(conn, arrParentUnits, arrWitnesses
 
 	determineBestParent(conn, {parent_units: arrParentUnits, witness_list_unit: 'none'}, arrWitnesses, function(best_parent_unit){
 		if (!best_parent_unit)
-			throw Error("no best parent of "+arrParentUnits.join(', '));
+			throw Error("no best parent of "+arrParentUnits.join(', ')+", witnesses "+arrWitnesses.join(', '));
 		my_best_parent_unit = best_parent_unit;
 		addWitnessesAndGoUp(best_parent_unit);
 	});
@@ -1244,6 +1244,8 @@ function initUnstableUnits(onDone){
 				assocUnstableUnits[row.unit] = row;
 			});
 			console.log('initUnstableUnits 1 done');
+			if (Object.keys(assocUnstableUnits).length === 0)
+				return onDone ? onDone() : null;
 			db.query(
 				"SELECT parent_unit, child_unit FROM parenthoods WHERE child_unit IN("+Object.keys(assocUnstableUnits).map(db.escape)+")", 
 				function(prows){

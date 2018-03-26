@@ -223,7 +223,7 @@ function updateMainChain(conn, from_unit, last_added_unit, onDone){
 		function checkAllLatestIncludedMcIndexesAreSet(){
 			profiler.start();
 			if (!_.isEqual(assocDbLimcisByUnit, assocLimcisByUnit))
-				throwError("different LIMCIs, mem: "+JSON.stringify(assocLimcisByUnit)+", db: "+JSON.stringify(assocDbLimcisByUnit));
+				throwError("different  LIMCIs, mem: "+JSON.stringify(assocLimcisByUnit)+", db: "+JSON.stringify(assocDbLimcisByUnit));
 			conn.query("SELECT unit FROM units WHERE latest_included_mc_index IS NULL AND level!=0", function(rows){
 				if (rows.length > 0)
 					throw Error(rows.length+" units have latest_included_mc_index=NULL, e.g. unit "+rows[0].unit);
