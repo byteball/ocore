@@ -1526,7 +1526,7 @@ function sendMultiPayment(opts, handleResult)
 										var asset_messages_to_address = _.filter(objJoint.unit.messages, function(m){
 											return m.app === "payment" && _.get(m, 'payload.asset') === asset && (_.get(m, 'payload.outputs[0].address') === new_address || _.get(m, 'payload.outputs[1].address') === new_address);
 										});
-										indivisibleAssetFeesByAddress[new_address] = constants.TEXTCOIN_ASSET_CLAIM_HEADER_FEE + asset_messages_to_address.length * constants.TEXTCOIN_ASSET_CLAIM_MESSAGE_FEE + constants.TEXTCOIN_ASSET_CLAIM_BASE_MSG_FEE;
+										indivisibleAssetFeesByAddress[new_address] = constants.TEXTCOIN_ASSET_CLAIM_HEADER_FEE + asset_messages_to_address.length * constants.TEXTCOIN_ASSET_CLAIM_MESSAGE_FEE + Object.keys(assocPrivatePayloads).length * constants.TEXTCOIN_PRIVATE_ASSET_CLAIM_MESSAGE_FEE + constants.TEXTCOIN_ASSET_CLAIM_BASE_MSG_FEE;
 									}
 									params.callbacks = old_callbacks;
 									unlock();
@@ -1806,6 +1806,41 @@ function storePrivateAssetPayload(fullPath, root, path, fileName, mnemonic, payl
 	}, cb);
 }
 
+function handlePrivatePaymentFile(fullPath) {
+	var bCordova = (typeof window === 'object' && window.cordova);
+	var JSZip = require("jszip");
+	var zip = new JSZip();
+	
+	var unzip = function(err, data) {
+		zip.loadAsync(data).then(function(zip) {
+			zip.file("payload").async("string").then(function(data) {
+				alert(JSON.parse(data).mnemonic);
+			});
+		});
+	}
+
+	if (!bCordova) {
+		var fs = require('fs'+'');
+		fs.readFile(fullPath, unzip);
+	} else {
+		window.requestFileSystem(LocalFileSystem.PERSISTENT, 0, function(fs) {
+			if (fullPath.indexOf('://') == -1) fullPath = 'file://' + fullPath;
+			window.resolveLocalFileSystemURL(fullPath, function(fileEntry) {
+				fileEntry.file(function(file) {
+					var reader = new FileReader();
+					reader.onloadend = function() {
+						var fileBuffer = Buffer.from(new Uint8Array(this.result));
+						unzip(null, fileBuffer);
+					};
+					reader.readAsArrayBuffer(file);
+				});
+			}, function(err) {
+				throw err;
+			});
+		});
+	}
+}
+
 function readDeviceAddressesUsedInSigningPaths(onDone){
 
 	var sql = "SELECT DISTINCT device_address FROM shared_address_signing_paths ";
@@ -1862,3 +1897,4 @@ exports.receiveTextCoin = receiveTextCoin;
 exports.claimBackOldTextcoins = claimBackOldTextcoins;
 exports.eraseTextcoin = eraseTextcoin;
 exports.storePrivateAssetPayload = storePrivateAssetPayload;
+exports.handlePrivatePaymentFile = handlePrivatePaymentFile;
