@@ -1356,6 +1356,8 @@ function flushEvents(forceFlushing) {
 }
 
 function writeEvent(event, host){
+	if (conf.bLight)
+		return;
 	if (event === 'invalid' || event === 'nonserial'){
 		var column = "count_"+event+"_joints";
 		db.query("UPDATE peer_hosts SET "+column+"="+column+"+1 WHERE peer_host=?", [host]);
@@ -1367,7 +1369,8 @@ function writeEvent(event, host){
 	flushEvents();
 }
 
-setInterval(function(){flushEvents(true)}, 1000 * 60);
+if (!conf.bLight)
+	setInterval(function(){flushEvents(true)}, 1000 * 60);
 
 
 function findAndHandleJointsThatAreReady(unit){
