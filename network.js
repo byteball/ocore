@@ -1356,6 +1356,8 @@ function flushEvents(forceFlushing) {
 }
 
 function writeEvent(event, host){
+	if (conf.bLight)
+		return;
 	if (event === 'invalid' || event === 'nonserial'){
 		var column = "count_"+event+"_joints";
 		db.query("UPDATE peer_hosts SET "+column+"="+column+"+1 WHERE peer_host=?", [host]);
@@ -1367,7 +1369,8 @@ function writeEvent(event, host){
 	flushEvents();
 }
 
-setInterval(function(){flushEvents(true)}, 1000 * 60);
+if (!conf.bLight)
+	setInterval(function(){flushEvents(true)}, 1000 * 60);
 
 
 function findAndHandleJointsThatAreReady(unit){
@@ -2509,6 +2512,27 @@ function handleRequest(ws, tag, command, params){
 					sendResponse(ws, tag, objResponse);
 				}
 			});
+			break;
+
+	   case 'light/get_attestation':
+			if (conf.bLight)
+				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
+			if (ws.bOutbound)
+				return sendErrorResponse(ws, tag, "light clients have to be inbound");
+			if (!params)
+				return sendErrorResponse(ws, tag, "no params in light/get_attestation");
+			if (!params.attestor_address || !params.field || !params.value)
+				return sendErrorResponse(ws, tag, "missing params in light/get_attestation");
+			var order = (conf.storage === 'sqlite') ? 'rowid' : 'creation_date';
+			var join = (conf.storage === 'sqlite') ? '' : 'JOIN units USING(unit)';
+			db.query(
+				"SELECT unit FROM attested_fields "+join+" WHERE attestor_address=? AND field=? AND value=? ORDER BY "+order+" DESC LIMIT 1", 
+				[params.attestor_address, params.field, params.value],
+				function(rows){
+					var attestation_unit = (rows.length > 0) ? rows[0].unit : "";
+					sendResponse(ws, tag, attestation_unit);
+				}
+			);
 			break;
 
 		// I'm a hub, the peer wants to enable push notifications
