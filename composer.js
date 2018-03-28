@@ -380,7 +380,7 @@ function composeJoint(params){
 		return;
 	}
 	
-	if (conf.bLight && !params.lightProps){
+	/*if (conf.bLight && !params.lightProps){
 		var network = require('./network.js');
 		network.requestFromLightVendor(
 			'light/get_parents_and_last_ball_and_witness_list_unit', 
@@ -395,7 +395,7 @@ function composeJoint(params){
 			}
 		);
 		return;
-	}
+	}*/
 	
 	// try to use as few paying_addresses as possible. Assuming paying_addresses are sorted such that the most well-funded addresses come first
 	if (params.minimal && !params.send_all){
@@ -429,12 +429,12 @@ function composeJoint(params){
 	var arrMessages = _.clone(params.messages || []);
 	var assocPrivatePayloads = params.private_payloads || {}; // those that correspond to a subset of params.messages
 	var fnRetrieveMessages = params.retrieveMessages;
-	var lightProps = params.lightProps;
+//	var lightProps = params.lightProps;
 	var signer = params.signer;
 	var callbacks = params.callbacks;
 	
-	if (conf.bLight && !lightProps)
-		throw Error("no parent props for light");
+//	if (conf.bLight && !lightProps)
+//		throw Error("no parent props for light");
 	
 	
 	//profiler.start();
@@ -488,6 +488,7 @@ function composeJoint(params){
 	var assocSigningPaths = {};
 	var unlock_callback;
 	var conn;
+	var lightProps;
 	
 	var handleError = function(err){
 		//profiler.stop('compose');
@@ -506,6 +507,23 @@ function composeJoint(params){
 				unlock_callback = unlock;
 				cb();
 			});
+		},
+		function(cb){ // lightProps
+			if (!conf.bLight)
+				return cb();
+			var network = require('./network.js');
+			network.requestFromLightVendor(
+				'light/get_parents_and_last_ball_and_witness_list_unit', 
+				{witnesses: arrWitnesses}, 
+				function(ws, request, response){
+					if (response.error)
+						return handleError(response.error); // cb is not called
+					if (!response.parent_units || !response.last_stable_mc_ball || !response.last_stable_mc_ball_unit || typeof response.last_stable_mc_ball_mci !== 'number')
+						return handleError("invalid parents from light vendor"); // cb is not called
+					lightProps = response;
+					cb();
+				}
+			);
 		},
 		function(cb){ // start transaction
 			db.takeConnectionFromPool(function(new_conn){
