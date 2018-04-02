@@ -71,7 +71,7 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 			var bVoided = (objUnit.content_hash && main_chain_index < min_retrievable_mci);
 			var bRetrievable = (main_chain_index >= min_retrievable_mci || main_chain_index === null);
 			
-			if (!conf.bLight && !objUnit.last_ball)
+			if (!conf.bLight && !objUnit.last_ball && !isGenesisUnit(unit))
 				throw Error("no last ball in unit "+JSON.stringify(objUnit));
 			
 			// unit hash verification below will fail if:
