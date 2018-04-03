@@ -1210,7 +1210,7 @@ function sendPaymentFromWallet(
 	}, handleResult);
 }
 
-var getSigner = function(opts, arrSigningDeviceAddresses, merkle_proof, signWithLocalPrivateKey, bRequestedConfirmation) {
+var getSigner = function(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey, bRequestedConfirmation) {
 	return {
 		readSigningPaths: function (conn, address, handleLengthsBySigningPaths) { // returns assoc array signing_path => length
 			readFullSigningPaths(conn, address, arrSigningDeviceAddresses, function (assocTypesBySigningPaths) {
@@ -1220,8 +1220,8 @@ var getSigner = function(opts, arrSigningDeviceAddresses, merkle_proof, signWith
 					if (type === 'key')
 						assocLengthsBySigningPaths[signing_path] = constants.SIG_LENGTH;
 					else if (type === 'merkle') {
-						if (merkle_proof)
-							assocLengthsBySigningPaths[signing_path] = merkle_proof.length;
+						if (opts.merkle_proof)
+							assocLengthsBySigningPaths[signing_path] = opts.merkle_proof.length;
 					}
 					else if (type === 'secret') {
 						if (opts.secrets && opts.secrets[signing_path])
@@ -1274,9 +1274,9 @@ var getSigner = function(opts, arrSigningDeviceAddresses, merkle_proof, signWith
 				ifMerkle: function (bLocal) {
 					if (!bLocal)
 						throw Error("merkle proof at path " + signing_path + " should be provided by another device");
-					if (!merkle_proof)
+					if (!opts.merkle_proof)
 						throw Error("merkle proof at path " + signing_path + " not provided");
-					handleSignature(null, merkle_proof);
+					handleSignature(null, opts.merkle_proof);
 				},
 				ifSecret: function () {
 					if (!opts.secrets || !opts.secrets[signing_path])
@@ -1304,8 +1304,7 @@ function sendMultiPayment(opts, handleResult)
 	var arrSigningDeviceAddresses = opts.arrSigningDeviceAddresses;
 	var recipient_device_address = opts.recipient_device_address;
 	var signWithLocalPrivateKey = opts.signWithLocalPrivateKey;
-	var merkle_proof = opts.merkle_proof;
-	
+
 	var base_outputs = opts.base_outputs;
 	var asset_outputs = opts.asset_outputs;
 	var messages = opts.messages;
@@ -1343,7 +1342,7 @@ function sendMultiPayment(opts, handleResult)
 			if (asset && arrBaseFundedAddresses.length === 0)
 				return handleResult("No bytes to pay fees");
 
-			var signer = getSigner(opts, arrSigningDeviceAddresses, merkle_proof, signWithLocalPrivateKey, false);
+			var signer = getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey, false);
 
 			// if we have any output with text addresses / not byteball addresses (e.g. email) - generate new addresses and return them
 			var assocMnemonics = {}; // return all generated wallet mnemonics to caller in callback
