@@ -1810,7 +1810,7 @@ function storePrivateAssetPayload(fullPath, root, path, fileName, mnemonic, payl
 	}, cb);
 }
 
-function handlePrivatePaymentFile(fullPath) {
+function handlePrivatePaymentFile(fullPath, content) {
 	var bCordova = (typeof window === 'object' && window.cordova);
 	var JSZip = require("jszip");
 	var zip = new JSZip();
@@ -1822,24 +1822,36 @@ function handlePrivatePaymentFile(fullPath) {
 			});
 		});
 	}
+	
+	if (content) {
+		unzip(null, content);
+		return;
+	}
 
 	if (!bCordova) {
 		var fs = require('fs'+'');
 		fs.readFile(fullPath, unzip);
 	} else {
-		window.requestFileSystem(LocalFileSystem.PERSISTENT, 0, function(fs) {
+		window.requestFileSystem(LocalFileSystem.TEMPORARY, 0, function(fs) {
 			if (fullPath.indexOf('://') == -1) fullPath = 'file://' + fullPath;
 			window.resolveLocalFileSystemURL(fullPath, function(fileEntry) {
 				fileEntry.file(function(file) {
 					var reader = new FileReader();
 					reader.onloadend = function() {
+						if (this.result == null) {
+							var permissions = cordova.plugins.permissions;
+							permissions.requestPermission(permissions.READ_EXTERNAL_STORAGE, function(status){
+								if (status.hasPermission) {
+									handlePrivatePaymentFile(fullPath);
+								}
+							}, function(){});
+							return;
+						}
 						var fileBuffer = Buffer.from(new Uint8Array(this.result));
 						unzip(null, fileBuffer);
 					};
 					reader.readAsArrayBuffer(file);
 				});
-			}, function(err) {
-				throw err;
 			});
 		});
 	}
