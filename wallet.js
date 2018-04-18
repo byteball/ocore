@@ -1814,7 +1814,7 @@ function handlePrivatePaymentFile(fullPath, content) {
 	var bCordova = (typeof window === 'object' && window.cordova);
 	var JSZip = require("jszip");
 	var zip = new JSZip();
-	
+
 	var unzip = function(err, data) {
 		zip.loadAsync(data).then(function(zip) {
 			zip.file("payload").async("string").then(function(data) {
@@ -1830,7 +1830,7 @@ function handlePrivatePaymentFile(fullPath, content) {
 
 	if (!bCordova) {
 		var fs = require('fs'+'');
-		fs.readFile(fullPath, unzip);
+		fs.readFile(fullPath.replace('file://', ''), unzip);
 	} else {
 		window.requestFileSystem(LocalFileSystem.TEMPORARY, 0, function(fs) {
 			if (fullPath.indexOf('://') == -1) fullPath = 'file://' + fullPath;
