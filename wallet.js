@@ -1098,7 +1098,7 @@ function readFundedAddresses(asset, wallet, estimated_amount, handleFundedAddres
 				SELECT * FROM unit_authors JOIN units USING(unit) \n\
 				WHERE is_stable=0 AND unit_authors.address=outputs.address AND definition_chash IS NOT NULL \n\
 			) \n\
-		GROUP BY address ORDER BY "+order_by,
+		GROUP BY address ORDER BY "+order_by+" LIMIT "+constants.MAX_AUTHORS_PER_UNIT,
 		asset ? [wallet, asset] : [wallet],
 		function(rows){
 			determineIfFixedDenominations(asset, function(bFixedDenominations){
