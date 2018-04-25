@@ -383,96 +383,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			break;
 			
 		case 'private_payments':
-			var arrChains = body.chains;
-			if (!ValidationUtils.isNonemptyArray(arrChains))
-				return callbacks.ifError("no chains found");
-			profiler.increment();
-			
-			if (conf.bLight)
-				network.requestUnfinishedPastUnitsOfPrivateChains(arrChains); // it'll work in the background
-			
-			var assocValidatedByKey = {};
-			var bParsingComplete = false;
-			var cancelAllKeys = function(){
-				for (var key in assocValidatedByKey)
-					eventBus.removeAllListeners(key);
-			};
-
-			var current_message_counter = ++message_counter;
-
-			var checkIfAllValidated = function(){
-				if (!assocValidatedByKey) // duplicate call - ignore
-					return console.log('duplicate call of checkIfAllValidated');
-				for (var key in assocValidatedByKey)
-					if (!assocValidatedByKey[key])
-						return console.log('not all private payments validated yet');
-				assocValidatedByKey = null; // to avoid duplicate calls
-				if (!body.forwarded){
-					emitNewPrivatePaymentReceived(from_address, arrChains, current_message_counter);
-					// note, this forwarding won't work if the user closes the wallet before validation of the private chains
-					var arrUnits = arrChains.map(function(arrPrivateElements){ return arrPrivateElements[0].unit; });
-					db.query("SELECT address FROM unit_authors WHERE unit IN(?)", [arrUnits], function(rows){
-						var arrAuthorAddresses = rows.map(function(row){ return row.address; });
-						// if the addresses are not shared, it doesn't forward anything
-						forwardPrivateChainsToOtherMembersOfSharedAddresses(arrChains, arrAuthorAddresses, from_address, true);
-					});
-				}
-				profiler.print();
-			};
-			
-			async.eachSeries(
-				arrChains,
-				function(arrPrivateElements, cb){ // validate each chain individually
-					var objHeadPrivateElement = arrPrivateElements[0];
-					if (!!objHeadPrivateElement.payload.denomination !== ValidationUtils.isNonnegativeInteger(objHeadPrivateElement.output_index))
-						return cb("divisibility doesn't match presence of output_index");
-					var output_index = objHeadPrivateElement.payload.denomination ? objHeadPrivateElement.output_index : -1;
-					var payload_hash = objectHash.getBase64Hash(objHeadPrivateElement.payload);
-					var key = 'private_payment_validated-'+objHeadPrivateElement.unit+'-'+payload_hash+'-'+output_index;
-					assocValidatedByKey[key] = false;
-					network.handleOnlinePrivatePayment(ws, arrPrivateElements, true, {
-						ifError: function(error){
-							console.log("handleOnlinePrivatePayment error: "+error);
-							cb("an error"); // do not leak error message to the hub
-						},
-						ifValidationError: function(unit, error){
-							console.log("handleOnlinePrivatePayment validation error: "+error);
-							cb("an error"); // do not leak error message to the hub
-						},
-						ifAccepted: function(unit){
-							console.log("handleOnlinePrivatePayment accepted");
-							assocValidatedByKey[key] = true;
-							cb(); // do not leak unit info to the hub
-						},
-						// this is the most likely outcome for light clients
-						ifQueued: function(){
-							console.log("handleOnlinePrivatePayment queued, will wait for "+key);
-							eventBus.once(key, function(bValid){
-								if (!bValid)
-									return cancelAllKeys();
-								assocValidatedByKey[key] = true;
-								if (bParsingComplete)
-									checkIfAllValidated();
-								else
-									console.log('parsing incomplete yet');
-							});
-							cb();
-						}
-					});
-				},
-				function(err){
-					bParsingComplete = true;
-					if (err){
-						cancelAllKeys();
-						return callbacks.ifError(err);
-					}
-					checkIfAllValidated();
-					callbacks.ifOk();
-					// forward the chains to other members of output addresses
-					if (!body.forwarded)
-						forwardPrivateChainsToOtherMembersOfOutputAddresses(arrChains);
-				}
-			);
+			handlePrivatePaymentChains(ws, body, from_address, callbacks);
 			break;
 			
 		case 'payment_notification':
@@ -488,7 +399,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				if (bEmitted)
 					return;
 				bEmitted = true;
-				emitNewPublicPaymentReceived(from_address, objJoint.unit, current_message_counter);
+				emitNewPublicPaymentReceived(from_address || '', objJoint.unit, current_message_counter);
 			};
 			eventBus.once('saved_unit-'+unit, emitPn);
 			storage.readJoint(db, unit, {
@@ -507,6 +418,100 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 		default:
 			callbacks.ifError("unknnown subject: "+subject);
 	}
+}
+
+function handlePrivatePaymentChains(ws, body, from_address, callbacks){
+	var arrChains = body.chains;
+	if (!ValidationUtils.isNonemptyArray(arrChains))
+		return callbacks.ifError("no chains found");
+	profiler.increment();
+	
+	if (conf.bLight)
+		network.requestUnfinishedPastUnitsOfPrivateChains(arrChains); // it'll work in the background
+	
+	var assocValidatedByKey = {};
+	var bParsingComplete = false;
+	var cancelAllKeys = function(){
+		for (var key in assocValidatedByKey)
+			eventBus.removeAllListeners(key);
+	};
+
+	var current_message_counter = ++message_counter;
+
+	var checkIfAllValidated = function(){
+		if (!assocValidatedByKey) // duplicate call - ignore
+			return console.log('duplicate call of checkIfAllValidated');
+		for (var key in assocValidatedByKey)
+			if (!assocValidatedByKey[key])
+				return console.log('not all private payments validated yet');
+		eventBus.emit('all_private_payments_handled', from_address);
+		assocValidatedByKey = null; // to avoid duplicate calls
+		if (!body.forwarded){
+			if (from_address) emitNewPrivatePaymentReceived(from_address, arrChains, current_message_counter);
+			// note, this forwarding won't work if the user closes the wallet before validation of the private chains
+			var arrUnits = arrChains.map(function(arrPrivateElements){ return arrPrivateElements[0].unit; });
+			db.query("SELECT address FROM unit_authors WHERE unit IN(?)", [arrUnits], function(rows){
+				var arrAuthorAddresses = rows.map(function(row){ return row.address; });
+				// if the addresses are not shared, it doesn't forward anything
+				forwardPrivateChainsToOtherMembersOfSharedAddresses(arrChains, arrAuthorAddresses, from_address, true);
+			});
+		}
+		profiler.print();
+	};
+	
+	async.eachSeries(
+		arrChains,
+		function(arrPrivateElements, cb){ // validate each chain individually
+			var objHeadPrivateElement = arrPrivateElements[0];
+			if (!!objHeadPrivateElement.payload.denomination !== ValidationUtils.isNonnegativeInteger(objHeadPrivateElement.output_index))
+				return cb("divisibility doesn't match presence of output_index");
+			var output_index = objHeadPrivateElement.payload.denomination ? objHeadPrivateElement.output_index : -1;
+			var payload_hash = objectHash.getBase64Hash(objHeadPrivateElement.payload);
+			var key = 'private_payment_validated-'+objHeadPrivateElement.unit+'-'+payload_hash+'-'+output_index;
+			assocValidatedByKey[key] = false;
+			network.handleOnlinePrivatePayment(ws, arrPrivateElements, true, {
+				ifError: function(error){
+					console.log("handleOnlinePrivatePayment error: "+error);
+					cb("an error"); // do not leak error message to the hub
+				},
+				ifValidationError: function(unit, error){
+					console.log("handleOnlinePrivatePayment validation error: "+error);
+					cb("an error"); // do not leak error message to the hub
+				},
+				ifAccepted: function(unit){
+					console.log("handleOnlinePrivatePayment accepted");
+					assocValidatedByKey[key] = true;
+					cb(); // do not leak unit info to the hub
+				},
+				// this is the most likely outcome for light clients
+				ifQueued: function(){
+					console.log("handleOnlinePrivatePayment queued, will wait for "+key);
+					eventBus.once(key, function(bValid){
+						if (!bValid)
+							return cancelAllKeys();
+						assocValidatedByKey[key] = true;
+						if (bParsingComplete)
+							checkIfAllValidated();
+						else
+							console.log('parsing incomplete yet');
+					});
+					cb();
+				}
+			});
+		},
+		function(err){
+			bParsingComplete = true;
+			if (err){
+				cancelAllKeys();
+				return callbacks.ifError(err);
+			}
+			checkIfAllValidated();
+			callbacks.ifOk();
+			// forward the chains to other members of output addresses
+			if (!body.forwarded)
+				forwardPrivateChainsToOtherMembersOfOutputAddresses(arrChains);
+		}
+	);
 }
 
 
@@ -1777,15 +1782,15 @@ function eraseTextcoin(unit, address) {
 	);
 }
 
-function storePrivateAssetPayload(fullPath, root, path, fileName, mnemonic, payload, cb) {
+function storePrivateAssetPayload(fullPath, root, path, fileName, mnemonic, chains, cb) {
 	var storedObj = {
 		mnemonic: mnemonic,
-		payload: payload
+		chains: chains
 	};
 	var bCordova = (typeof window === 'object' && window.cordova);
 	var JSZip = require("jszip");
 	var zip = new JSZip();
-	zip.file('payload', JSON.stringify(storedObj));
+	zip.file('private_textcoin', JSON.stringify(storedObj));
 	var zipParams = {type: "nodebuffer", compression: 'DEFLATE', compressionOptions: {level: 9}};
 	zip.generateAsync(zipParams).then(function(zipFile) {
 		if (!bCordova) {
@@ -1810,15 +1815,32 @@ function storePrivateAssetPayload(fullPath, root, path, fileName, mnemonic, payl
 	}, cb);
 }
 
-function handlePrivatePaymentFile(fullPath, content) {
+function handlePrivatePaymentFile(fullPath, content, cb) {
 	var bCordova = (typeof window === 'object' && window.cordova);
 	var JSZip = require("jszip");
 	var zip = new JSZip();
 
 	var unzip = function(err, data) {
 		zip.loadAsync(data).then(function(zip) {
-			zip.file("payload").async("string").then(function(data) {
-				alert(JSON.parse(data).mnemonic);
+			zip.file("private_textcoin").async("string").then(function(data) {
+				var data = JSON.parse(data);
+				device.getHubWS(function(err, ws){
+					if (err)
+						throw err;
+					var bRaised = false;
+					eventBus.once('all_private_payments_handled', function(){
+						if (!bRaised) {
+							cb(data);
+							bRaised = true;
+						}
+					});
+					handlePrivatePaymentChains(ws, data, null, {
+						ifError: function(err){
+							throw err;
+						},
+						ifOk: function(){} // we subscribe to event, not waiting for callback
+					});
+				});
 			});
 		});
 	}
