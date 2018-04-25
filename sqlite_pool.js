@@ -43,10 +43,12 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 			if (err)
 				throw Error(err);
 			console.log("opened db");
+		//	if (!bCordova)
+		//		db.serialize();
 			connection.query("PRAGMA foreign_keys = 1", function(){
 				connection.query("PRAGMA busy_timeout=30000", function(){
 					connection.query("PRAGMA journal_mode=WAL", function(){
-						connection.query("PRAGMA synchronous=NORMAL", function(){
+						connection.query("PRAGMA synchronous=FULL", function(){
 							connection.query("PRAGMA temp_store=MEMORY", function(){
 								sqlite_migrations.migrateDb(connection, function(){
 									handleConnection(connection);
