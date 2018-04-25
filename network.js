@@ -1442,6 +1442,8 @@ function checkCatchupLeftovers(){
 function requestCatchup(ws){
 	console.log("will request catchup from "+ws.peer);
 	eventBus.emit('catching_up_started');
+	if (conf.storage === 'sqlite')
+		db.query("PRAGMA cache_size=-200000", function(){});
 	catchup.purgeHandledBallsFromHashTree(db, function(){
 		db.query(
 			"SELECT hash_tree_balls.unit FROM hash_tree_balls LEFT JOIN units USING(unit) WHERE units.unit IS NULL ORDER BY ball_index", 
