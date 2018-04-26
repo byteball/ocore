@@ -1229,6 +1229,7 @@ function sendMultiPayment(opts, handleResult)
 	var change_address = opts.change_address;
 	var arrSigningDeviceAddresses = opts.arrSigningDeviceAddresses;
 	var recipient_device_address = opts.recipient_device_address;
+	var recipient_device_addresses = opts.recipient_device_addresses;
 	var signWithLocalPrivateKey = opts.signWithLocalPrivateKey;
 	var merkle_proof = opts.merkle_proof;
 	
@@ -1405,8 +1406,14 @@ function sendMultiPayment(opts, handleResult)
 					// for base asset, 2nd argument is assocPrivatePayloads which is null
 					ifOk: function(objJoint, arrChainsOfRecipientPrivateElements, arrChainsOfCosignerPrivateElements){
 						network.broadcastJoint(objJoint);
-						if (!arrChainsOfRecipientPrivateElements && recipient_device_address) // send notification about public payment
-							walletGeneral.sendPaymentNotification(recipient_device_address, objJoint.unit.unit);
+						if (!arrChainsOfRecipientPrivateElements){ // send notification about public payment
+							if (recipient_device_address)
+								walletGeneral.sendPaymentNotification(recipient_device_address, objJoint.unit.unit);
+							if (recipient_device_addresses)
+								recipient_device_addresses.forEach(function(r_device_address){
+									walletGeneral.sendPaymentNotification(r_device_address, objJoint.unit.unit);
+								});
+						}
 
 						if (Object.keys(assocPaymentsByEmail).length) { // need to send emails
 							var sent = 0;
