@@ -362,8 +362,13 @@ function composeMinimalDivisibleAssetPaymentJoint(params){
 	if (!ValidationUtils.isNonemptyArray(params.available_fee_paying_addresses))
 		throw Error('no available_fee_paying_addresses');
 	composer.readSortedFundedAddresses(params.asset, params.available_paying_addresses, params.amount, function(arrFundedPayingAddresses){
-		if (arrFundedPayingAddresses.length === 0)
-			return params.callbacks.ifNotEnoughFunds("all paying addresses are unfunded in asset, make sure all your funds are confirmed");
+		if (arrFundedPayingAddresses.length === 0){
+			 // special case for issuing uncapped asset.  If it is not issuing, not-enough-funds will pop anyway
+			if (params.available_paying_addresses.length === 1)
+				arrFundedPayingAddresses = params.available_paying_addresses.concat();
+			else
+				return params.callbacks.ifNotEnoughFunds("all paying addresses are unfunded in asset, make sure all your funds are confirmed");
+		}
 		composer.readSortedFundedAddresses(null, params.available_fee_paying_addresses, TYPICAL_FEE, function(arrFundedFeePayingAddresses){
 			if (arrFundedFeePayingAddresses.length === 0)
 				return params.callbacks.ifNotEnoughFunds("all paying addresses are unfunded in bytes necessary for fees, make sure all your funds are confirmed");
