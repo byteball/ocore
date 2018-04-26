@@ -1,5 +1,6 @@
 /*jslint node: true */
 "use strict";
+var _ = require('lodash');
 var async = require('async');
 var storage = require('./storage.js');
 var graph = require('./graph.js');
@@ -2031,10 +2032,63 @@ function createJointError(err){
 }
 
 
+function validateSignedMessage(objSignedMessage, handleResult){
+	if (typeof objSignedMessage !== 'object')
+		return handleResult("not an object");
+	if (ValidationUtils.hasFieldsExcept(objSignedMessage, ["signed_message", "authors"]))
+		return handleResult("unknown fields");
+	if (typeof objSignedMessage.signed_message !== 'string')
+		return handleResult("signed message not a string");
+	if (!Array.isArray(objSignedMessage.authors))
+		return handleResult("authors not an array");
+	if (!ValidationUtils.isArrayOfLength(objSignedMessage.authors, 1))
+		return handleResult("authors not an array of len 1");
+	var objAuthor = objSignedMessage.authors[0];
+	if (!objAuthor)
+		return handleResult("no authors[0]");
+	if (!ValidationUtils.isValidAddress(objAuthor.address))
+		return handleResult("not valid address");
+	if (typeof objAuthor.authentifiers !== 'object')
+		return handleResult("not valid authentifiers");
+	var arrAddressDefinition = objAuthor.definition;
+	if (objectHash.getChash160(arrAddressDefinition) !== objAuthor.address)
+		return handleResult("wrong definition: "+objectHash.getChash160(arrAddressDefinition) +"!=="+ objAuthor.address);
+	var objUnit = _.clone(objSignedMessage);
+	objUnit.messages = []; // some ops need it
+	var objValidationState = {
+		unit_hash_to_sign: objectHash.getUnitHashToSign(objSignedMessage),
+		last_ball_mci: -1,
+		bNoReferences: true
+	};
+	// passing db as null
+	Definition.validateAuthentifiers(
+		null, objAuthor.address, null, arrAddressDefinition, objUnit, objValidationState, objAuthor.authentifiers, 
+		function(err, res){
+			if (err) // error in address definition
+				return handleResult(err);
+			if (!res) // wrong signature or the like
+				return handleResult("authentifier verification failed");
+			handleResult();
+		}
+	);
+}
+
+function validateSignedMessageSync(objSignedMessage){
+	var err;
+	var bCalledBack = false;
+	validateSignedMessage(objSignedMessage, function(_err){
+		err = _err;
+		bCalledBack = true;
+	});
+	if (!bCalledBack)
+		throw Error("validateSignedMessage is not sync");
+	return err;
+}
+
 exports.validate = validate;
 exports.hasValidHashes = hasValidHashes;
 exports.validateAuthorSignaturesWithoutReferences = validateAuthorSignaturesWithoutReferences;
 exports.validatePayment = validatePayment;
 exports.initPrivatePaymentValidationState = initPrivatePaymentValidationState;
-
+exports.validateSignedMessageSync = validateSignedMessageSync;
 

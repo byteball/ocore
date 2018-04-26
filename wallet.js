@@ -324,6 +324,8 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					//        return callbacks.ifError("sender is not cosigner of this address");
 						callbacks.ifOk();
 						objUnit.unit = objectHash.getUnitHash(objUnit);
+						if (objUnit.signed_message && !ValidationUtils.hasFieldsExcept(objUnit, ["unit", "signed_message", "authors"]))
+							return eventBus.emit("signing_request", objAddress, body.address, objUnit, assocPrivatePayloads, from_address, body.signing_path);
 						var objJoint = {unit: objUnit, unsigned: true};
 						eventBus.once("validated-"+objUnit.unit, function(bValid){
 							if (!bValid){
