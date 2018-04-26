@@ -1073,13 +1073,13 @@ function readFullSigningPaths(conn, address, arrSigningDeviceAddresses, handleSi
 	});
 }
 
-function determineIfFixedDenominations(asset, handleResult){
+function readAssetProps(asset, handleResult){
 	if (!asset)
-		return handleResult(false);
+		return handleResult({fixed_denominations: false, cap: constants.TOTAL_WHITEBYTES, issued_by_definer_only: true});
 	storage.readAsset(db, asset, null, function(err, objAsset){
 		if (err)
 			throw Error(err);
-		handleResult(objAsset.fixed_denominations);
+		handleResult(objAsset);
 	});
 }
 
@@ -1103,9 +1103,16 @@ function readFundedAddresses(asset, wallet, estimated_amount, handleFundedAddres
 		GROUP BY address ORDER BY "+order_by+" LIMIT "+constants.MAX_AUTHORS_PER_UNIT,
 		asset ? [wallet, asset] : [wallet],
 		function(rows){
-			determineIfFixedDenominations(asset, function(bFixedDenominations){
-				if (bFixedDenominations)
+			readAssetProps(asset, function(objAsset){
+				if (objAsset.fixed_denominations)
 					estimated_amount = 0; // don't shorten the list of addresses, indivisible_asset.js will do it later according to denominations
+				if (!objAsset.cap){ // uncapped asset: can be issued from definer_address or from any address
+					var and_address = objAsset.issued_by_definer_only ? " AND address="+db.escape(objAsset.definer_address) : '';
+					db.query("SELECT address FROM my_addresses WHERE wallet=? "+and_address+" LIMIT 1", [wallet], function(rows){
+						handleFundedAddresses(rows.map(function(row){ return row.address; }));
+					});
+					return;
+				}
 				handleFundedAddresses(composer.filterMostFundedAddresses(rows, estimated_amount));
 			});
 			/*if (arrFundedAddresses.length === 0)
