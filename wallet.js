@@ -1498,6 +1498,8 @@ function sendMultiPayment(opts, handleResult)
 								else if (Object.keys(assocAddresses).length > 0) {
 									var mnemonic = assocMnemonics[Object.keys(assocMnemonics)[0]]; // TODO: assuming only one textcoin here
 									opts.getPrivateAssetPayloadSavePath(function(fullPath, root, path, fileName){
+										if (!fullPath && !fileName)
+											return;
 										storePrivateAssetPayload(fullPath, root, path, fileName, mnemonic, arrChainsOfRecipientPrivateElements, function(err) {
 											if (err)
 												throw Error(err);
