@@ -1220,7 +1220,15 @@ function sendPaymentFromWallet(
 	}, handleResult);
 }
 
-var getSigner = function(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey, bRequestedConfirmation) {
+
+/*
+opts = {
+	merkle_proof: string, optional
+	secrets: array of strings, optional
+}
+*/
+function getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey) {
+	var bRequestedConfirmation = false;
 	return {
 		readSigningPaths: function (conn, address, handleLengthsBySigningPaths) { // returns assoc array signing_path => length
 			readFullSigningPaths(conn, address, arrSigningDeviceAddresses, function (assocTypesBySigningPaths) {
@@ -1296,7 +1304,7 @@ var getSigner = function(opts, arrSigningDeviceAddresses, signWithLocalPrivateKe
 			});
 		}
 	}
-};
+}
 
 function sendMultiPayment(opts, handleResult)
 {
@@ -1353,7 +1361,7 @@ function sendMultiPayment(opts, handleResult)
 			if (asset && arrBaseFundedAddresses.length === 0)
 				return handleResult("No bytes to pay fees");
 
-			var signer = getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey, false);
+			var signer = getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey);
 
 			// if we have any output with text addresses / not byteball addresses (e.g. email) - generate new addresses and return them
 			var assocMnemonics = {}; // return all generated wallet mnemonics to caller in callback
