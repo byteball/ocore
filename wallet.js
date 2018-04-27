@@ -678,8 +678,11 @@ function findAddress(address, signing_path, callbacks, fallback_remote_device_ad
 					var objSharedAddress = sa_rows[0];
 					var relative_signing_path = 'r' + signing_path.substr(objSharedAddress.signing_path.length);
 					var bLocal = (objSharedAddress.device_address === device.getMyDeviceAddress()); // local keys
-					if (objSharedAddress.address === '')
+					if (objSharedAddress.address === '') {
 						return callbacks.ifMerkle(bLocal);
+					} else if(objSharedAddress.address === 'secret') {
+						return callbacks.ifSecret();
+					}
 					findAddress(objSharedAddress.address, relative_signing_path, callbacks, bLocal ? null : objSharedAddress.device_address);
 				}
 			);
@@ -1054,6 +1057,9 @@ function readFullSigningPaths(conn, address, arrSigningDeviceAddresses, handleSi
 							if (row.address === '') { // merkle
 								assocSigningPaths[path_prefix + row.signing_path.substr(1)] = 'merkle';
 								return cb();
+							} else if (row.address === 'secret') {
+								assocSigningPaths[path_prefix + row.signing_path.substr(1)] = 'secret';
+								return cb();
 							}
 
 							goDeeper(row.address, path_prefix + row.signing_path.substr(1), cb);
@@ -1214,6 +1220,84 @@ function sendPaymentFromWallet(
 	}, handleResult);
 }
 
+var getSigner = function(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey, bRequestedConfirmation) {
+	return {
+		readSigningPaths: function (conn, address, handleLengthsBySigningPaths) { // returns assoc array signing_path => length
+			readFullSigningPaths(conn, address, arrSigningDeviceAddresses, function (assocTypesBySigningPaths) {
+				var assocLengthsBySigningPaths = {};
+				for (var signing_path in assocTypesBySigningPaths) {
+					var type = assocTypesBySigningPaths[signing_path];
+					if (type === 'key')
+						assocLengthsBySigningPaths[signing_path] = constants.SIG_LENGTH;
+					else if (type === 'merkle') {
+						if (opts.merkle_proof)
+							assocLengthsBySigningPaths[signing_path] = opts.merkle_proof.length;
+					}
+					else if (type === 'secret') {
+						if (opts.secrets && opts.secrets[signing_path])
+							assocLengthsBySigningPaths[signing_path] = opts.secrets[signing_path].length;
+					}
+					else
+						throw Error("unknown type " + type + " at " + signing_path);
+				}
+				handleLengthsBySigningPaths(assocLengthsBySigningPaths);
+			});
+		},
+		readDefinition: function (conn, address, handleDefinition) {
+			conn.query(
+				"SELECT definition FROM my_addresses WHERE address=? UNION SELECT definition FROM shared_addresses WHERE shared_address=?",
+				[address, address],
+				function (rows) {
+					if (rows.length !== 1)
+						throw Error("definition not found");
+					handleDefinition(null, JSON.parse(rows[0].definition));
+				}
+			);
+		},
+		sign: function (objUnsignedUnit, assocPrivatePayloads, address, signing_path, handleSignature) {
+			var buf_to_sign = objectHash.getUnitHashToSign(objUnsignedUnit);
+			findAddress(address, signing_path, {
+				ifError: function (err) {
+					throw Error(err);
+				},
+				ifUnknownAddress: function (err) {
+					throw Error("unknown address " + address + " at " + signing_path);
+				},
+				ifLocal: function (objAddress) {
+					signWithLocalPrivateKey(objAddress.wallet, objAddress.account, objAddress.is_change, objAddress.address_index, buf_to_sign, function (sig) {
+						handleSignature(null, sig);
+					});
+				},
+				ifRemote: function (device_address) {
+					// we'll receive this event after the peer signs
+					eventBus.once("signature-" + device_address + "-" + address + "-" + signing_path + "-" + buf_to_sign.toString("base64"), function (sig) {
+						handleSignature(null, sig);
+						if (sig === '[refused]')
+							eventBus.emit('refused_to_sign', device_address);
+					});
+					walletGeneral.sendOfferToSign(device_address, address, signing_path, objUnsignedUnit, assocPrivatePayloads);
+					if (!bRequestedConfirmation) {
+						eventBus.emit("confirm_on_other_devices");
+						bRequestedConfirmation = true;
+					}
+				},
+				ifMerkle: function (bLocal) {
+					if (!bLocal)
+						throw Error("merkle proof at path " + signing_path + " should be provided by another device");
+					if (!opts.merkle_proof)
+						throw Error("merkle proof at path " + signing_path + " not provided");
+					handleSignature(null, opts.merkle_proof);
+				},
+				ifSecret: function () {
+					if (!opts.secrets || !opts.secrets[signing_path])
+						throw Error("secret " + signing_path + " not found");
+					handleSignature(null, opts.secrets[signing_path])
+				}
+			});
+		}
+	}
+};
+
 function sendMultiPayment(opts, handleResult)
 {
 	var asset = opts.asset;
@@ -1231,8 +1315,7 @@ function sendMultiPayment(opts, handleResult)
 	var recipient_device_address = opts.recipient_device_address;
 	var recipient_device_addresses = opts.recipient_device_addresses;
 	var signWithLocalPrivateKey = opts.signWithLocalPrivateKey;
-	var merkle_proof = opts.merkle_proof;
-	
+
 	var base_outputs = opts.base_outputs;
 	var asset_outputs = opts.asset_outputs;
 	var messages = opts.messages;
@@ -1270,73 +1353,7 @@ function sendMultiPayment(opts, handleResult)
 			if (asset && arrBaseFundedAddresses.length === 0)
 				return handleResult("No bytes to pay fees");
 
-			var bRequestedConfirmation = false;
-			var signer = {
-				readSigningPaths: function(conn, address, handleLengthsBySigningPaths){ // returns assoc array signing_path => length
-					readFullSigningPaths(conn, address, arrSigningDeviceAddresses, function(assocTypesBySigningPaths){
-						var assocLengthsBySigningPaths = {};
-						for (var signing_path in assocTypesBySigningPaths){
-							var type = assocTypesBySigningPaths[signing_path];
-							if (type === 'key')
-								assocLengthsBySigningPaths[signing_path] = constants.SIG_LENGTH;
-							else if (type === 'merkle'){
-								if (merkle_proof)
-									assocLengthsBySigningPaths[signing_path] = merkle_proof.length;
-							}
-							else
-								throw Error("unknown type "+type+" at "+signing_path);
-						}
-						handleLengthsBySigningPaths(assocLengthsBySigningPaths);
-					});
-				},
-				readDefinition: function(conn, address, handleDefinition){
-					conn.query(
-						"SELECT definition FROM my_addresses WHERE address=? UNION SELECT definition FROM shared_addresses WHERE shared_address=?", 
-						[address, address], 
-						function(rows){
-							if (rows.length !== 1)
-								throw Error("definition not found");
-							handleDefinition(null, JSON.parse(rows[0].definition));
-						}
-					);
-				},
-				sign: function(objUnsignedUnit, assocPrivatePayloads, address, signing_path, handleSignature){
-					var buf_to_sign = objectHash.getUnitHashToSign(objUnsignedUnit);
-					findAddress(address, signing_path, {
-						ifError: function(err){
-							throw Error(err);
-						},
-						ifUnknownAddress: function(err){
-							throw Error("unknown address "+address+" at "+signing_path);
-						},
-						ifLocal: function(objAddress){
-							signWithLocalPrivateKey(objAddress.wallet, objAddress.account, objAddress.is_change, objAddress.address_index, buf_to_sign, function(sig){
-								handleSignature(null, sig);
-							});
-						},
-						ifRemote: function(device_address){
-							// we'll receive this event after the peer signs
-							eventBus.once("signature-"+device_address+"-"+address+"-"+signing_path+"-"+buf_to_sign.toString("base64"), function(sig){
-								handleSignature(null, sig);
-								if (sig === '[refused]')
-									eventBus.emit('refused_to_sign', device_address);
-							});
-							walletGeneral.sendOfferToSign(device_address, address, signing_path, objUnsignedUnit, assocPrivatePayloads);
-							if (!bRequestedConfirmation){
-								eventBus.emit("confirm_on_other_devices");
-								bRequestedConfirmation = true;
-							}
-						},
-						ifMerkle: function(bLocal){
-							if (!bLocal)
-								throw Error("merkle proof at path "+signing_path+" should be provided by another device");
-							if (!merkle_proof)
-								throw Error("merkle proof at path "+signing_path+" not provided");
-							handleSignature(null, merkle_proof);
-						}
-					});
-				}
-			};
+			var signer = getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey, false);
 
 			// if we have any output with text addresses / not byteball addresses (e.g. email) - generate new addresses and return them
 			var assocMnemonics = {}; // return all generated wallet mnemonics to caller in callback
@@ -1835,3 +1852,4 @@ exports.determineIfDeviceCanBeRemoved = determineIfDeviceCanBeRemoved;
 exports.receiveTextCoin = receiveTextCoin;
 exports.claimBackOldTextcoins = claimBackOldTextcoins;
 exports.eraseTextcoin = eraseTextcoin;
+exports.getSigner = getSigner
