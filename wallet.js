@@ -323,9 +323,11 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					//    if (sender_rows.length !== 1)
 					//        return callbacks.ifError("sender is not cosigner of this address");
 						callbacks.ifOk();
-						objUnit.unit = objectHash.getUnitHash(objUnit);
-						if (objUnit.signed_message && !ValidationUtils.hasFieldsExcept(objUnit, ["unit", "signed_message", "authors"]))
+						if (objUnit.signed_message && !ValidationUtils.hasFieldsExcept(objUnit, ["signed_message", "authors"])){
+							objUnit.unit = objectHash.getBase64Hash(objUnit);
 							return eventBus.emit("signing_request", objAddress, body.address, objUnit, assocPrivatePayloads, from_address, body.signing_path);
+						}
+						objUnit.unit = objectHash.getUnitHash(objUnit);
 						var objJoint = {unit: objUnit, unsigned: true};
 						eventBus.once("validated-"+objUnit.unit, function(bValid){
 							if (!bValid){
@@ -1833,6 +1835,11 @@ function determineIfDeviceCanBeRemoved(device_address, handleResult) {
 };
 
 
+function signMessage(from_address, message, arrSigningDeviceAddresses, signWithLocalPrivateKey, handleResult){
+	var signer = getSigner({}, arrSigningDeviceAddresses, signWithLocalPrivateKey);
+	composer.signMessage(from_address, message, signer, handleResult);
+}
+
 // todo, almost same as payment
 function signAuthRequest(wallet, objRequest, handleResult){
 	
@@ -1860,4 +1867,5 @@ exports.determineIfDeviceCanBeRemoved = determineIfDeviceCanBeRemoved;
 exports.receiveTextCoin = receiveTextCoin;
 exports.claimBackOldTextcoins = claimBackOldTextcoins;
 exports.eraseTextcoin = eraseTextcoin;
-exports.getSigner = getSigner
+exports.getSigner = getSigner;
+exports.signMessage = signMessage;

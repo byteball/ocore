@@ -2073,6 +2073,7 @@ function validateSignedMessage(objSignedMessage, handleResult){
 	);
 }
 
+// inconsistent for multisig addresses
 function validateSignedMessageSync(objSignedMessage){
 	var err;
 	var bCalledBack = false;
@@ -2090,5 +2091,6 @@ exports.hasValidHashes = hasValidHashes;
 exports.validateAuthorSignaturesWithoutReferences = validateAuthorSignaturesWithoutReferences;
 exports.validatePayment = validatePayment;
 exports.initPrivatePaymentValidationState = initPrivatePaymentValidationState;
+exports.validateSignedMessage = validateSignedMessage;
 exports.validateSignedMessageSync = validateSignedMessageSync;
 

@@ -789,6 +789,7 @@ function signMessage(from_address, message, signer, handleResult){
 		signed_message: message,
 		authors: [objAuthor]
 	};
+	var assocSigningPaths = {};
 	signer.readSigningPaths(db, from_address, function(assocLengthsBySigningPaths){
 		var arrSigningPaths = Object.keys(assocLengthsBySigningPaths);
 		assocSigningPaths[from_address] = arrSigningPaths;
@@ -1032,6 +1033,8 @@ exports.composeAssetDefinitionJoint = composeAssetDefinitionJoint;
 exports.composeAssetAttestorsJoint = composeAssetAttestorsJoint;
 
 exports.composeJoint = composeJoint;
+
+exports.signMessage = signMessage;
 
 exports.filterMostFundedAddresses = filterMostFundedAddresses;
 exports.readSortedFundedAddresses = readSortedFundedAddresses;
