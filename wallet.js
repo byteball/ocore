@@ -399,7 +399,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				if (bEmitted)
 					return;
 				bEmitted = true;
-				emitNewPublicPaymentReceived(from_address || '', objJoint.unit, current_message_counter);
+				emitNewPublicPaymentReceived(from_address, objJoint.unit, current_message_counter);
 			};
 			eventBus.once('saved_unit-'+unit, emitPn);
 			storage.readJoint(db, unit, {
