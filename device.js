@@ -156,6 +156,8 @@ function loginToHub(){
 }
 
 function getHubWS(cb) {
+	if (!my_device_hub)
+		return setTimeout(function(){ getHubWS(cb); }, 2000);
 	network.findOutboundPeerOrConnect(conf.WS_PROTOCOL+my_device_hub, cb);
 }
 
