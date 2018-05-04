@@ -430,7 +430,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 					return cb("invalid relation: "+relation);
 				if (!isNonnegativeInteger(value))
 					return cb(op+" must be a non-neg number");
-				break;
+				return cb();
 				
 			case 'has':
 			case 'has one':

@@ -662,7 +662,9 @@ function issueOrSelectNextChangeAddress(wallet, handleAddress){
 			if (first_unused_index > next_index)
 				throw Error("unued > next")
 			if (first_unused_index < next_index)
-				readAddressByIndex(wallet, 1, first_unused_index, handleAddress);
+				readAddressByIndex(wallet, 1, first_unused_index, function(addressInfo){
+					addressInfo ? handleAddress(addressInfo) : issueAddress(wallet, 1, first_unused_index, handleAddress);
+				});
 			else
 				issueAddress(wallet, 1, next_index, handleAddress);
 		});

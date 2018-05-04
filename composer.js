@@ -779,6 +779,70 @@ function composeJoint(params){
 	});
 }
 
+
+function signMessage(from_address, message, signer, handleResult){
+	var objAuthor = {
+		address: from_address,
+		authentifiers: {}
+	};
+	var objUnit = {
+		signed_message: message,
+		authors: [objAuthor]
+	};
+	var assocSigningPaths = {};
+	signer.readSigningPaths(db, from_address, function(assocLengthsBySigningPaths){
+		var arrSigningPaths = Object.keys(assocLengthsBySigningPaths);
+		assocSigningPaths[from_address] = arrSigningPaths;
+		for (var j=0; j<arrSigningPaths.length; j++)
+			objAuthor.authentifiers[arrSigningPaths[j]] = repeatString("-", assocLengthsBySigningPaths[arrSigningPaths[j]]);
+		signer.readDefinition(db, from_address, function(err, arrDefinition){
+			if (err)
+				throw Error("signMessage: can't read definition: "+err);
+			objAuthor.definition = arrDefinition;
+			var text_to_sign = objectHash.getUnitHashToSign(objUnit);
+			async.each(
+				objUnit.authors,
+				function(author, cb2){
+					var address = author.address;
+					async.each( // different keys sign in parallel (if multisig)
+						assocSigningPaths[address],
+						function(path, cb3){
+							if (signer.sign){
+								signer.sign(objUnit, {}, address, path, function(err, signature){
+									if (err)
+										return cb3(err);
+									// it can't be accidentally confused with real signature as there are no [ and ] in base64 alphabet
+									if (signature === '[refused]')
+										return cb3('one of the cosigners refused to sign');
+									author.authentifiers[path] = signature;
+									cb3();
+								});
+							}
+							else{
+								signer.readPrivateKey(address, path, function(err, privKey){
+									if (err)
+										return cb3(err);
+									author.authentifiers[path] = ecdsaSig.sign(text_to_sign, privKey);
+									cb3();
+								});
+							}
+						},
+						function(err){
+							cb2(err);
+						}
+					);
+				},
+				function(err){
+					if (err)
+						return handleResult(err);
+					console.log(require('util').inspect(objUnit, {depth:null}));
+					handleResult(null, objUnit);
+				}
+			);
+		});
+	});
+}
+
 var TYPICAL_FEE = 1000;
 var MAX_FEE = 20000;
 
@@ -969,6 +1033,8 @@ exports.composeAssetDefinitionJoint = composeAssetDefinitionJoint;
 exports.composeAssetAttestorsJoint = composeAssetAttestorsJoint;
 
 exports.composeJoint = composeJoint;
+
+exports.signMessage = signMessage;
 
 exports.filterMostFundedAddresses = filterMostFundedAddresses;
 exports.readSortedFundedAddresses = readSortedFundedAddresses;

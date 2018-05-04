@@ -104,8 +104,9 @@ function savePrivateProfile(objPrivateProfile, address, attestor_address, onDone
 			var arrQueries = [];
 			for (var field in objPrivateProfile.src_profile){
 				var arrValueAndBlinding = objPrivateProfile.src_profile[field];
-				db.addQuery(arrQueries, "INSERT INTO private_profile_fields (private_profile_id, field, value, blinding) VALUES(?,?,?,?)", 
-					[private_profile_id, field, arrValueAndBlinding[0], arrValueAndBlinding[1] ]);
+				if (ValidationUtils.isArrayOfLength(arrValueAndBlinding, 2))
+					db.addQuery(arrQueries, "INSERT INTO private_profile_fields (private_profile_id, field, value, blinding) VALUES(?,?,?,?)", 
+						[private_profile_id, field, arrValueAndBlinding[0], arrValueAndBlinding[1] ]);
 			}
 			async.series(arrQueries, onDone);
 		}
