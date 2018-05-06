@@ -892,6 +892,8 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 						var inputs = message.payload.inputs;
 						for (var j=0; j<inputs.length; j++){
 							var input = inputs[j];
+							if (input.type !== 'transfer') // assume age is satisfied for issue, headers commission, and witnessing commission
+								continue;
 							if (!input.address) // augment should add it
 								throw Error('no input address');
 							if (input.address === address && arrSrcUnits.indexOf(input.unit) === -1)
