@@ -4,8 +4,12 @@ var crypto = require('crypto');
 var async = require('async');
 var db = require('./db.js');
 var conf = require('./conf.js');
+var _ = require('lodash');
+var storage = require('./storage.js');
+var eventBus = require('./event_bus.js');
 
 var max_spendable_mci = null;
+var assocUnitHC;
 
 function calcHeadersCommissions(conn, onDone){
 	// we don't require neither source nor recipient to be majority witnessed -- we don't want to return many times to the same MC index.
@@ -15,8 +19,15 @@ function calcHeadersCommissions(conn, onDone){
 	
 	// max_spendable_mci is old, it was last updated after previous calc
 	var since_mc_index = max_spendable_mci;
+	var last_stable_mci = since_mc_index;
 		
 	async.series([
+		function(cb){
+			storage.readLastStableMcIndex(conn, function(mci){
+				last_stable_mci = mci;
+				cb();
+			});
+		},
 		function(cb){
 			if (conf.storage === 'mysql'){
 				var best_child_sql = "SELECT unit \n\
@@ -81,7 +92,18 @@ function calcHeadersCommissions(conn, onDone){
 						AND next_mc_units.is_stable=1", 
 					[since_mc_index],
 					function(rows){
+						// in-memory
+						var assocChildrenInfosRAM = {};
+						var unhandledUnits = _.pickBy(storage.assocStableUnits, function(v, k){return v.main_chain_index > since_mc_index && v.main_chain_index < last_stable_mci && v.sequence == 'good'});
+						_.forOwn(unhandledUnits, function(props, unit){
+							if (!assocChildrenInfosRAM[unit]) {
+								var next_mc_unit = Object.keys(_.pickBy(storage.assocStableUnits, function(v, k){return v.main_chain_index == props.main_chain_index+1 && v.is_on_main_chain}))[0];
+								var children = _.map(_.pickBy(storage.assocStableUnits, function(v, k){return v.parent_units.indexOf(unit) > -1}), function(props, unit){return {child_unit: unit, next_mc_unit: next_mc_unit}});
+								assocChildrenInfosRAM[unit] = {headers_commission: props.headers_commission, children: children};
+							}
+						});
 						var assocChildrenInfos = {};
+						// sql result
 						rows.forEach(function(row){
 							var payer_unit = row.payer_unit;
 							var child_unit = row.child_unit;
@@ -93,6 +115,19 @@ function calcHeadersCommissions(conn, onDone){
 							delete row.payer_unit;
 							assocChildrenInfos[payer_unit].children.push(row);
 						});
+						if (!_.isEqual(assocChildrenInfos, assocChildrenInfosRAM)) {
+							// try sort children
+							var assocChildrenInfos2 = _.cloneDeep(assocChildrenInfos);
+							_.forOwn(assocChildrenInfos2, function(props, unit){
+								props.children = _.sortBy(props.children, ['child_unit']);
+							});
+							_.forOwn(assocChildrenInfosRAM, function(props, unit){
+								props.children = _.sortBy(props.children, ['child_unit']);
+							});
+							if (!_.isEqual(assocChildrenInfos2, assocChildrenInfosRAM))
+								throwError("different assocChildrenInfos, db: "+JSON.stringify(assocChildrenInfos)+", ram: "+JSON.stringify(assocChildrenInfosRAM));
+						}
+						
 						var assocWonAmounts = {}; // amounts won, indexed by child unit who won the hc, and payer unit
 						for (var payer_unit in assocChildrenInfos){
 							var headers_commission = assocChildrenInfos[payer_unit].headers_commission;
@@ -123,6 +158,23 @@ function calcHeadersCommissions(conn, onDone){
 							FROM earned_headers_commission_recipients \n\
 							WHERE unit IN("+strWinnerUnitsList+")",
 							function(profit_distribution_rows){
+								// in-memory
+								var arrValuesRAM = [];
+								for (var child_unit in assocWonAmounts){
+									var unit = storage.assocStableUnits[child_unit];
+									for (var payer_unit in assocWonAmounts[child_unit]){
+										var full_amount = assocWonAmounts[child_unit][payer_unit];
+										if (unit.earned_headers_commission_recipients) { // multiple authors or recipient is another address
+											for (var address in unit.earned_headers_commission_recipients) {
+												var share = unit.earned_headers_commission_recipients[address];
+												var amount = Math.round(full_amount * share / 100.0);
+												arrValuesRAM.push("('"+payer_unit+"', '"+address+"', "+amount+")");
+											};
+										} else
+											arrValuesRAM.push("('"+payer_unit+"', '"+unit.authors_addresses[0]+"', "+full_amount+")");
+									}
+								}
+								// sql result
 								var arrValues = [];
 								profit_distribution_rows.forEach(function(row){
 									var child_unit = row.unit;
@@ -138,6 +190,10 @@ function calcHeadersCommissions(conn, onDone){
 										arrValues.push("('"+payer_unit+"', '"+row.address+"', "+amount+")");
 									}
 								});
+								if (!_.isEqual(arrValuesRAM.sort(), arrValues.sort())) {
+									throwError("different arrValues, db: "+JSON.stringify(arrValues)+", ram: "+JSON.stringify(arrValuesRAM));
+								}
+
 								conn.query("INSERT INTO headers_commission_contributions (unit, address, amount) VALUES "+arrValues.join(", "), function(){
 									cb();
 								});
@@ -187,6 +243,11 @@ function initMaxSpendableMci(conn, onDone){
 
 function getMaxSpendableMciForLastBallMci(last_ball_mci){
 	return last_ball_mci - 1;
+}
+
+function throwError(msg){
+	debugger;
+	throw Error(msg);
 }
 
 exports.calcHeadersCommissions = calcHeadersCommissions;

@@ -697,19 +697,29 @@ function readUnitProps(conn, unit, handleProps){
 	if (assocStableUnits[unit])
 		return handleProps(assocStableUnits[unit]);
 	conn.query(
-		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level FROM units WHERE unit=?", 
+		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, sequence, group_concat(address) as authors_addresses \n\
+			FROM units \n\
+			JOIN unit_authors USING(unit) \n\
+			WHERE unit=? \n\
+			GROUP BY unit", 
 		[unit], 
 		function(rows){
 			if (rows.length !== 1)
 				throw Error("not 1 row");
 			var props = rows[0];
-			if (props.is_stable)
+			props.authors_addresses = props.authors_addresses.split(',');
+			if (props.is_stable) {
 				assocStableUnits[unit] = props;
+				var stableUnitsSlice = {};
+				stableUnitsSlice[unit] = assocStableUnits[unit];
+				initParenthoodAndHeadersComissionShareForUnits(stableUnitsSlice);
+			}
 			else{
 				var props2 = _.cloneDeep(assocUnstableUnits[unit]);
 				if (!props2)
 					throw Error("no unstable props of "+unit);
 				delete props2.parent_units;
+				delete props2.earned_headers_commission_recipients;
 				if (!_.isEqual(props, props2))
 					throw Error("different props of "+unit+", mem: "+JSON.stringify(props2)+", db: "+JSON.stringify(props));
 			}
@@ -1235,28 +1245,80 @@ setInterval(shrinkCache, 300*1000);
 
 function initUnstableUnits(onDone){
 	db.query(
-		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level \n\
-		FROM units WHERE is_stable=0 ORDER BY +level",
+		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, sequence, group_concat(address) as authors_addresses \n\
+			FROM units \n\
+			JOIN unit_authors USING(unit) \n\
+			WHERE is_stable=0 \n\
+			GROUP BY unit \n\
+			ORDER BY +level",
 		function(rows){
 		//	assocUnstableUnits = {};
 			rows.forEach(function(row){
-				row.parent_units = [];
+				row.authors_addresses = row.authors_addresses.split(',');
 				assocUnstableUnits[row.unit] = row;
 			});
 			console.log('initUnstableUnits 1 done');
 			if (Object.keys(assocUnstableUnits).length === 0)
 				return onDone ? onDone() : null;
+			initParenthoodAndHeadersComissionShareForUnits(assocUnstableUnits, onDone);
+		}
+	);
+}
+
+function initStableUnits(onDone){
+	readLastStableMcIndex(db, function(last_stable_mci){
+		db.query(
+			"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, sequence, group_concat(address) as authors_addresses \n\
+			FROM units \n\
+			JOIN unit_authors USING(unit) \n\
+			WHERE is_stable=1 AND main_chain_index>=? \n\
+			GROUP BY unit \n\
+			ORDER BY +level", [last_stable_mci-100],
+			function(rows){
+				rows.forEach(function(row){
+					row.authors_addresses = row.authors_addresses.split(',');
+					assocStableUnits[row.unit] = row;
+				});
+				console.log('initStableUnits 1 done');
+				if (Object.keys(assocStableUnits).length === 0)
+					return onDone ? onDone() : null;
+				initParenthoodAndHeadersComissionShareForUnits(assocStableUnits, onDone);
+			}
+		);
+	});
+}
+
+function initParenthoodAndHeadersComissionShareForUnits(assocUnits, onDone) {
+	async.series([
+		function(cb){ // parenthood
 			db.query(
-				"SELECT parent_unit, child_unit FROM parenthoods WHERE child_unit IN("+Object.keys(assocUnstableUnits).map(db.escape)+")", 
+				"SELECT parent_unit, child_unit FROM parenthoods WHERE child_unit IN("+Object.keys(assocUnits).map(db.escape)+")", 
 				function(prows){
 					prows.forEach(function(prow){
-						assocUnstableUnits[prow.child_unit].parent_units.push(prow.parent_unit);
+						if (!assocUnits[prow.child_unit].parent_units)
+							assocUnits[prow.child_unit].parent_units = [];
+						assocUnits[prow.child_unit].parent_units.push(prow.parent_unit);
 					});
-					console.log('initUnstableUnits done');
-					if (onDone)
-						onDone();
+					cb();
 				}
 			);
+		},
+		function(cb){ // headers_commision_share
+			db.query(
+				"SELECT unit, address, earned_headers_commission_share FROM earned_headers_commission_recipients WHERE unit IN("+Object.keys(assocUnits).map(db.escape)+")", 
+				function(prows){
+					prows.forEach(function(prow){
+						if (!assocUnits[prow.unit].earned_headers_commission_recipients)
+							assocUnits[prow.unit].earned_headers_commission_recipients = {};
+						assocUnits[prow.unit].earned_headers_commission_recipients[prow.address] = prow.earned_headers_commission_share;
+					});
+					cb();
+				}
+			);
+		}],
+		function() {
+			if (onDone)
+				onDone();
 		}
 	);
 }
@@ -1269,6 +1331,7 @@ function resetUnstableUnits(onDone){
 }
 
 mutex.lock(['write'], initUnstableUnits);
+mutex.lock(['write'], initStableUnits);
 
 if (!conf.bLight)
 	archiveJointAndDescendantsIfExists('N6QadI9yg3zLxPMphfNGJcPfddW4yHPkoGMbbGZsWa0=');
