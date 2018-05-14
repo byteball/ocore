@@ -710,9 +710,6 @@ function readUnitProps(conn, unit, handleProps){
 			props.authors_addresses = props.authors_addresses.split(',');
 			if (props.is_stable) {
 				assocStableUnits[unit] = props;
-				var stableUnitsSlice = {};
-				stableUnitsSlice[unit] = assocStableUnits[unit];
-				initParenthoodAndHeadersComissionShareForUnits(stableUnitsSlice);
 			}
 			else{
 				var props2 = _.cloneDeep(assocUnstableUnits[unit]);
