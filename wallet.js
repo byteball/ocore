@@ -1546,7 +1546,7 @@ function sendMultiPayment(opts, handleResult)
 												params.callback.ifError("no file path provided for storing private payload");
 												return;
 											}
-											storePrivateAssetPayload(fullPath, root, path, fileName, mnemonic, arrChainsOfRecipientPrivateElements, function(err) {
+											storePrivateAssetPayload(fullPath, {root: root, path: path, fileName: fileName}, mnemonic, arrChainsOfRecipientPrivateElements, function(err) {
 												if (err)
 													throw Error(err);
 												saveMnemonicsPreCommit(conn, objJoint, cb2);
@@ -1833,7 +1833,7 @@ function eraseTextcoin(unit, address) {
 	);
 }
 
-function storePrivateAssetPayload(fullPath, root, path, fileName, mnemonic, chains, cb) {
+function storePrivateAssetPayload(fullPath, cordovaPathObj, mnemonic, chains, cb) {
 	var storedObj = {
 		mnemonic: mnemonic,
 		chains: chains
@@ -1849,9 +1849,9 @@ function storePrivateAssetPayload(fullPath, root, path, fileName, mnemonic, chai
 			fs.writeFile(fullPath, zipFile, cb);
 		} else {
 			window.requestFileSystem(LocalFileSystem.TEMPORARY, 0, function(fs) {
-				window.resolveLocalFileSystemURL(root, function(dirEntry) {
-					dirEntry.getDirectory(path, {create: true, exclusive: false}, function(dirEntry1) {
-						dirEntry1.getFile(fileName, {create: true, exclusive: false}, function(file) {
+				window.resolveLocalFileSystemURL(cordovaPathObj.root, function(dirEntry) {
+					dirEntry.getDirectory(cordovaPathObj.path, {create: true, exclusive: false}, function(dirEntry1) {
+						dirEntry1.getFile(cordovaPathObj.fileName, {create: true, exclusive: false}, function(file) {
 							file.createWriter(function(writer) {
 								writer.onwriteend = function() {
 									cb(null); 
@@ -1877,17 +1877,13 @@ function handlePrivatePaymentFile(fullPath, content, cb) {
 				var data = JSON.parse(data);
 				device.getHubWS(function(err, ws){
 					if (err)
-						throw Error("no hub connection, try again later:" + err);
-					var bRaised = false;
+						return cb("no hub connection, try again later:" + err);
 					eventBus.once('all_private_payments_handled', function(){
-						if (!bRaised) {
-							cb(data);
-							bRaised = true;
-						}
+						cb(null, data);
 					});
 					handlePrivatePaymentChains(ws, data, null, {
 						ifError: function(err){
-							throw err;
+							cb(err);
 						},
 						ifOk: function(){} // we subscribe to event, not waiting for callback
 					});
@@ -1924,9 +1920,9 @@ function handlePrivatePaymentFile(fullPath, content, cb) {
 						unzip(null, fileBuffer);
 					};
 					reader.readAsArrayBuffer(file);
-				});
-			});
-		});
+				}, cb);
+			}, cb);
+		}, cb);
 	}
 }
 
