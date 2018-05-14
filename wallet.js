@@ -1542,8 +1542,10 @@ function sendMultiPayment(opts, handleResult)
 									var mnemonic = assocMnemonics[Object.keys(assocMnemonics)[0]]; // TODO: assuming only one textcoin here
 									if (typeof opts.getPrivateAssetPayloadSavePath === "function") {
 										opts.getPrivateAssetPayloadSavePath(function(fullPath, root, path, fileName){
-											if (!fullPath && !fileName)
-												throw Error("no file path prvided for storing private payload");
+											if (!fullPath && !fileName) {
+												params.callback.ifError("no file path provided for storing private payload");
+												return;
+											}
 											storePrivateAssetPayload(fullPath, root, path, fileName, mnemonic, arrChainsOfRecipientPrivateElements, function(err) {
 												if (err)
 													throw Error(err);
