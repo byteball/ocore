@@ -1543,7 +1543,7 @@ function sendMultiPayment(opts, handleResult)
 									if (typeof opts.getPrivateAssetPayloadSavePath === "function") {
 										opts.getPrivateAssetPayloadSavePath(function(fullPath, root, path, fileName){
 											if (!fullPath && !fileName)
-												return;
+												throw Error("no file path prvided for storing private payload");
 											storePrivateAssetPayload(fullPath, root, path, fileName, mnemonic, arrChainsOfRecipientPrivateElements, function(err) {
 												if (err)
 													throw Error(err);
