@@ -2199,11 +2199,18 @@ function handleJustsaying(ws, subject, body){
 				);
 			});            
 			break;
+			
 		case 'exchange_rates':
 			if (!ws.bLoggingIn && !ws.bLoggedIn) // accept from hub only
 				return;
 			_.assign(exchangeRates, body);
 			eventBus.emit('rates_updated');
+			break;
+			
+		case 'upgrade_required':
+			if (!ws.bLoggingIn && !ws.bLoggedIn) // accept from hub only
+				return;
+			throw Error("Mandatory upgrade required, please check the release notes at https://github.com/byteball/byteball/releases and upgrade.");
 			break;
 	}
 }
@@ -2243,6 +2250,7 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "I'm light, cannot subscribe you to updates");
 			}
 			if (ws.old_core){
+				sendJustsaying(ws, 'upgrade_required');
 				sendErrorResponse(ws, tag, "old core");
 				return ws.close(1000, "old core");
 			}
