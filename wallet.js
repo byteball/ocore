@@ -1875,7 +1875,7 @@ function handlePrivatePaymentFile(fullPath, content, cb) {
 				var data = JSON.parse(data);
 				device.getHubWS(function(err, ws){
 					if (err)
-						throw err;
+						throw Error("no hub connection, try again later:" + err);
 					var bRaised = false;
 					eventBus.once('all_private_payments_handled', function(){
 						if (!bRaised) {
