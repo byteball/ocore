@@ -375,7 +375,7 @@ function processHistory(objResponse, callbacks){
 									unlock();
 									return callbacks.ifOk(true);
 								}
-								db.query("UPDATE units SET is_stable=1, is_free=0 WHERE unit IN(?)", [arrProvenUnits], function(){
+								db.query("UPDATE units SET is_stable=1, is_free=0 WHERE unit IN("+arrProvenUnits.map(db.escape).join(', ')+")", function(){
 									unlock();
 									arrProvenUnits = arrProvenUnits.filter(function(unit){ return !assocProvenUnitsNonserialness[unit]; });
 									if (arrProvenUnits.length === 0)
