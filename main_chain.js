@@ -875,11 +875,14 @@ function markMcIndexStable(conn, mci, onDone){
 		conn.query(
 			"SELECT * FROM units WHERE main_chain_index=? AND sequence!='good' ORDER BY unit", [mci], 
 			function(rows){
+				var arrFinalBadUnits = [];
 				async.eachSeries(
 					rows,
 					function(row, cb){
-						if (row.sequence === 'final-bad')
+						if (row.sequence === 'final-bad'){
+							arrFinalBadUnits.push(row.unit);
 							return row.content_hash ? cb() : setContentHash(row.unit, cb);
+						}
 						// temp-bad
 						if (row.content_hash)
 							throw Error("temp-bad and with content_hash?");
@@ -889,8 +892,10 @@ function markMcIndexStable(conn, mci, onDone){
 							conn.query("UPDATE units SET sequence=? WHERE unit=?", [sequence, row.unit], function(){
 								if (sequence === 'good')
 									conn.query("UPDATE inputs SET is_unique=1 WHERE unit=?", [row.unit], function(){ cb(); });
-								else
+								else{
+									arrFinalBadUnits.push(row.unit);
 									setContentHash(row.unit, cb);
+								}
 							});
 						});
 					},
@@ -898,7 +903,10 @@ function markMcIndexStable(conn, mci, onDone){
 						//if (rows.length > 0)
 						//    throw "stop";
 						// next op
-						addBalls();
+						arrFinalBadUnits.forEach(function(unit){
+							storage.assocStableUnits[unit].sequence = 'final-bad';
+						});
+						propagateFinalBad(arrFinalBadUnits, addBalls);
 					}
 				);
 			}
@@ -916,6 +924,23 @@ function markMcIndexStable(conn, mci, onDone){
 					onSet();
 				});
 			}
+		});
+	}
+	
+	// all future units that spent these unconfirmed units become final-bad too
+	function propagateFinalBad(arrFinalBadUnits, onPropagated){
+		if (arrFinalBadUnits.length === 0)
+			return onPropagated();
+		conn.query("SELECT DISTINCT unit FROM inputs WHERE src_unit IN(?)", [arrFinalBadUnits], function(rows){
+			if (rows.length === 0)
+				return onPropagated();
+			var arrSpendingUnits = rows.map(function(row){ return row.unit; });
+			conn.query("UPDATE units SET sequence='final-bad' WHERE unit IN(?)", [arrSpendingUnits], function(){
+				arrSpendingUnits.forEach(function(unit){
+					storage.assocUnstableUnits[unit].sequence = 'final-bad';
+				});
+				propagateFinalBad(arrSpendingUnits, onPropagated);
+			});
 		});
 	}
 

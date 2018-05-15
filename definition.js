@@ -883,32 +883,36 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 			case 'age':
 				var relation = args[0];
 				var age = args[1];
-				var arrSrcUnits = [];
-				for (var i=0; i<objUnit.messages.length; i++){
-					var message = objUnit.messages[i];
-					if (message.app !== 'payment' || !message.payload)
-						continue;
-					var inputs = message.payload.inputs;
-					for (var j=0; j<inputs.length; j++){
-						var input = inputs[j];
-						if (!input.address) // augment should add it
-							throw Error('no input address');
-						if (input.address === address && arrSrcUnits.indexOf(input.unit) === -1)
-							arrSrcUnits.push(input.unit);
+				augmentMessagesAndContinue(function(){
+					var arrSrcUnits = [];
+					for (var i=0; i<objValidationState.arrAugmentedMessages.length; i++){
+						var message = objValidationState.arrAugmentedMessages[i];
+						if (message.app !== 'payment' || !message.payload)
+							continue;
+						var inputs = message.payload.inputs;
+						for (var j=0; j<inputs.length; j++){
+							var input = inputs[j];
+							if (input.type !== 'transfer') // assume age is satisfied for issue, headers commission, and witnessing commission
+								continue;
+							if (!input.address) // augment should add it
+								throw Error('no input address');
+							if (input.address === address && arrSrcUnits.indexOf(input.unit) === -1)
+								arrSrcUnits.push(input.unit);
+						}
 					}
-				}
-				if (arrSrcUnits.length === 0) // not spending anything from our address
-					return cb2(false);
-				conn.query(
-					"SELECT 1 FROM units \n\
-					WHERE unit IN(?) AND ?"+relation+"main_chain_index AND main_chain_index<=? AND +sequence='good' AND is_stable=1",
-					[arrSrcUnits, objValidationState.last_ball_mci - age, objValidationState.last_ball_mci],
-					function(rows){
-						var bSatisfies = (rows.length === arrSrcUnits.length);
-						console.log(op+" "+bSatisfies);
-						cb2(bSatisfies);
-					}
-				);
+					if (arrSrcUnits.length === 0) // not spending anything from our address
+						return cb2(false);
+					conn.query(
+						"SELECT 1 FROM units \n\
+						WHERE unit IN(?) AND ?"+relation+"main_chain_index AND main_chain_index<=? AND +sequence='good' AND is_stable=1",
+						[arrSrcUnits, objValidationState.last_ball_mci - age, objValidationState.last_ball_mci],
+						function(rows){
+							var bSatisfies = (rows.length === arrSrcUnits.length);
+							console.log(op+" "+bSatisfies);
+							cb2(bSatisfies);
+						}
+					);
+				});
 				break;
 				
 			case 'has':
@@ -987,6 +991,13 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 		}
 	}
 	
+	
+	function augmentMessagesAndContinue(next){
+		if (!objValidationState.arrAugmentedMessages)
+			augmentMessages(next);
+		else
+			next();
+	}
 	
 	function augmentMessagesAndEvaluateFilter(op, filter, handleResult){
 		function doEvaluateFilter(){
@@ -1107,6 +1118,8 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 										input.amount = rows[0].amount;
 										input.address = rows[0].address;
 									} // else will choke when checking the message
+									else
+										console.log(rows.length+" src outputs found");
 									cb4();
 								}
 							);

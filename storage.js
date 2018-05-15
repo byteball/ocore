@@ -34,7 +34,12 @@ function readJoint(conn, unit, callbacks) {
 	conn.query("SELECT json FROM joints WHERE unit=?", [unit], function(rows){
 		if (rows.length === 0)
 			return readJointDirectly(conn, unit, callbacks);
-		callbacks.ifFound(JSON.parse(rows[0].json));
+		var objJoint = JSON.parse(rows[0].json);
+		if (!objJoint.ball){ // got there because of an old bug
+			conn.query("DELETE FROM joints WHERE unit=?", [unit]);
+			return readJointDirectly(conn, unit, callbacks);
+		}
+		callbacks.ifFound(objJoint);
 	});
 }
 
