@@ -1942,7 +1942,7 @@ function handleJustsaying(ws, subject, body){
 				return;
 			}
 			ws.library_version = body.library_version;
-			if (typeof ws.library_version === 'string' && version2int(ws.library_version) < version2int('0.2.70') && constants.version === '1.0')
+			if (typeof ws.library_version === 'string' && version2int(ws.library_version) < version2int(constants.minCoreVersion))
 				ws.old_core = true;
 			eventBus.emit('peer_version', ws, body); // handled elsewhere
 			break;
