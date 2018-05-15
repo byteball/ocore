@@ -1541,12 +1541,12 @@ function sendMultiPayment(opts, handleResult)
 								else if (Object.keys(assocAddresses).length > 0) {
 									var mnemonic = assocMnemonics[Object.keys(assocMnemonics)[0]]; // TODO: assuming only one textcoin here
 									if (typeof opts.getPrivateAssetPayloadSavePath === "function") {
-										opts.getPrivateAssetPayloadSavePath(function(fullPath, root, path, fileName){
-											if (!fullPath && !fileName) {
+										opts.getPrivateAssetPayloadSavePath(function(fullPath, cordovaPathObj){
+											if (!fullPath && !cordovaPathObj.fileName) {
 												params.callback.ifError("no file path provided for storing private payload");
 												return;
 											}
-											storePrivateAssetPayload(fullPath, {root: root, path: path, fileName: fileName}, mnemonic, arrChainsOfRecipientPrivateElements, function(err) {
+											storePrivateAssetPayload(fullPath, cordovaPathObj, mnemonic, arrChainsOfRecipientPrivateElements, function(err) {
 												if (err)
 													throw Error(err);
 												saveMnemonicsPreCommit(conn, objJoint, cb2);
@@ -1872,6 +1872,8 @@ function handlePrivatePaymentFile(fullPath, content, cb) {
 	var zip = new JSZip();
 
 	var unzip = function(err, data) {
+		if (err)
+			return cb(err);
 		zip.loadAsync(data).then(function(zip) {
 			zip.file("private_textcoin").async("string").then(function(data) {
 				var data = JSON.parse(data);
@@ -1888,8 +1890,8 @@ function handlePrivatePaymentFile(fullPath, content, cb) {
 						ifOk: function(){} // we subscribe to event, not waiting for callback
 					});
 				});
-			});
-		});
+			}).catch(function(err){cb(err)});
+		}).catch(function(err){cb(err)});
 	}
 	
 	if (content) {
@@ -1911,9 +1913,11 @@ function handlePrivatePaymentFile(fullPath, content, cb) {
 							var permissions = cordova.plugins.permissions;
 							permissions.requestPermission(permissions.READ_EXTERNAL_STORAGE, function(status){
 								if (status.hasPermission) {
-									handlePrivatePaymentFile(fullPath);
+									handlePrivatePaymentFile(fullPath, null, cb);
+								} else {
+									cb("no file permissions were given");
 								}
-							}, function(){});
+							}, function(){cb("request for file permissions failed")});
 							return;
 						}
 						var fileBuffer = Buffer.from(new Uint8Array(this.result));
