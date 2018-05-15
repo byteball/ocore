@@ -155,9 +155,9 @@ function loginToHub(){
 	});
 }
 
-function getHubWS(cb) {
+function getHubWs(cb) {
 	if (!my_device_hub)
-		return setTimeout(function(){ getHubWS(cb); }, 2000);
+		return setTimeout(function(){ getHubWs(cb); }, 2000);
 	network.findOutboundPeerOrConnect(conf.WS_PROTOCOL+my_device_hub, cb);
 }
 
@@ -773,4 +773,4 @@ exports.removeCorrespondentDevice = removeCorrespondentDevice;
 exports.addIndirectCorrespondents = addIndirectCorrespondents;
 exports.getWitnessesFromHub = getWitnessesFromHub;
 exports.requestFromHub = requestFromHub;
-exports.getHubWS = getHubWS;
+exports.getHubWs = getHubWs;

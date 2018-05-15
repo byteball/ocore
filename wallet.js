@@ -449,6 +449,7 @@ function handlePrivatePaymentChains(ws, body, from_address, callbacks){
 			if (!assocValidatedByKey[key])
 				return console.log('not all private payments validated yet');
 		eventBus.emit('all_private_payments_handled', from_address);
+		eventBus.emit('all_private_payments_handled-' + objectHash.getBase64Hash(arrChains[0]));
 		assocValidatedByKey = null; // to avoid duplicate calls
 		if (!body.forwarded){
 			if (from_address) emitNewPrivatePaymentReceived(from_address, arrChains, current_message_counter);
@@ -1877,10 +1878,10 @@ function handlePrivatePaymentFile(fullPath, content, cb) {
 		zip.loadAsync(data).then(function(zip) {
 			zip.file("private_textcoin").async("string").then(function(data) {
 				var data = JSON.parse(data);
-				device.getHubWS(function(err, ws){
+				device.getHubWs(function(err, ws){
 					if (err)
 						return cb("no hub connection, try again later:" + err);
-					eventBus.once('all_private_payments_handled', function(){
+					eventBus.once('all_private_payments_handled-' + objectHash.getBase64Hash(data.chains[0]), function(){
 						cb(null, data);
 					});
 					handlePrivatePaymentChains(ws, data, null, {
