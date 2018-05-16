@@ -175,6 +175,8 @@ function prepareHistory(historyRequest, callbacks){
 	if (arrAddresses){
 		if (!ValidationUtils.isNonemptyArray(arrAddresses))
 			return callbacks.ifError("no addresses");
+		if (!arrAddresses.every(ValidationUtils.isValidAddress))
+			return callbacks.ifError("some addresses are not valid");
 		if (arrKnownStableUnits && !ValidationUtils.isNonemptyArray(arrKnownStableUnits))
 			return callbacks.ifError("known_stable_units must be non-empty array");
 	}
