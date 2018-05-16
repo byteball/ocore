@@ -1877,20 +1877,22 @@ function handlePrivatePaymentFile(fullPath, content, cb) {
 			return cb(err);
 		zip.loadAsync(data).then(function(zip) {
 			zip.file("private_textcoin").async("string").then(function(data) {
-				var data = JSON.parse(data);
-				device.getHubWs(function(err, ws){
-					if (err)
-						return cb("no hub connection, try again later:" + err);
-					eventBus.once('all_private_payments_handled-' + objectHash.getBase64Hash(data.chains[0][0]), function(){
-						cb(null, data);
+				try {
+					var data = JSON.parse(data);
+					device.getHubWs(function(err, ws){
+						if (err)
+							return cb("no hub connection, try again later:" + err);
+						eventBus.once('all_private_payments_handled-' + objectHash.getBase64Hash(data.chains[0][0]), function(){
+							cb(null, data);
+						});
+						handlePrivatePaymentChains(ws, data, null, {
+							ifError: function(err){
+								cb(err);
+							},
+							ifOk: function(){} // we subscribe to event, not waiting for callback
+						});
 					});
-					handlePrivatePaymentChains(ws, data, null, {
-						ifError: function(err){
-							cb(err);
-						},
-						ifOk: function(){} // we subscribe to event, not waiting for callback
-					});
-				});
+				} catch (err) {cb(e);}
 			}).catch(function(err){cb(err)});
 		}).catch(function(err){cb(err)});
 	}
