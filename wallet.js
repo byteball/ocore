@@ -1878,7 +1878,7 @@ function handlePrivatePaymentFile(fullPath, content, cb) {
 		zip.loadAsync(data).then(function(zip) {
 			zip.file("private_textcoin").async("string").then(function(data) {
 				try {
-					var data = JSON.parse(data);
+					data = JSON.parse(data);
 					var first_chain_elem = data.chains[0][0];
 				} catch (err) {return cb(e);}
 				device.getHubWs(function(err, ws){
