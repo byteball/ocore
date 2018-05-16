@@ -1882,6 +1882,8 @@ function handlePrivatePaymentFile(fullPath, content, cb) {
 					device.getHubWs(function(err, ws){
 						if (err)
 							return cb("no hub connection, try again later:" + err);
+						if (_.at(data, ['chains[0][0]']).length == 0)
+							return cb("incorrect private textcoin content");
 						eventBus.once('all_private_payments_handled-' + objectHash.getBase64Hash(data.chains[0][0]), function(){
 							cb(null, data);
 						});
