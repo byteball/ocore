@@ -861,7 +861,11 @@ function getSavingCallbacks(to_address, callbacks){
 										bPreCommitCallbackFailed = true;
 										return cb(err);
 									}
-									var onSuccessfulPrecommit = !conf.bLight ? cb : function(){
+									var onSuccessfulPrecommit = !conf.bLight ? cb : function(err){
+										if (err) {
+											bPreCommitCallbackFailed = true;
+											return cb(err);
+										}
 										composer.postJointToLightVendorIfNecessaryAndSave(
 											objJoint, 
 											function onLightError(err){ // light only

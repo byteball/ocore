@@ -1543,9 +1543,8 @@ function sendMultiPayment(opts, handleResult)
 									var mnemonic = assocMnemonics[Object.keys(assocMnemonics)[0]]; // TODO: assuming only one textcoin here
 									if (typeof opts.getPrivateAssetPayloadSavePath === "function") {
 										opts.getPrivateAssetPayloadSavePath(function(fullPath, cordovaPathObj){
-											if (!fullPath && !cordovaPathObj.fileName) {
-												params.callback.ifError("no file path provided for storing private payload");
-												return;
+											if (!fullPath && (!cordovaPathObj || !cordovaPathObj.fileName)) {
+												return cb2("no file path provided for storing private payload");
 											}
 											storePrivateAssetPayload(fullPath, cordovaPathObj, mnemonic, arrChainsOfRecipientPrivateElements, function(err) {
 												if (err)
@@ -1880,7 +1879,7 @@ function handlePrivatePaymentFile(fullPath, content, cb) {
 				try {
 					data = JSON.parse(data);
 					var first_chain_elem = data.chains[0][0];
-				} catch (err) {return cb(e);}
+				} catch (err) {return cb(err);}
 				device.getHubWs(function(err, ws){
 					if (err)
 						return cb("no hub connection, try again later:" + err);
