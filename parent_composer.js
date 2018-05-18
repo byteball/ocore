@@ -67,7 +67,7 @@ function adjustParentsToNotRetreatWitnessedLevel(conn, arrWitnesses, arrParentUn
 					var arrNewParents = arrParentsToKeep.concat(arrReplacementParents);
 					console.log('new parents: '+arrNewParents.join(', '));
 					if (arrNewParents.length === 0)
-						throw Error("no new parents");
+						throw Error("no new parents for initial parents "+arrParentUnits.join(', ')+" and witnesses "+arrWitnesses.join(', '));
 					checkWitnessedLevelAndReplace(arrNewParents);
 				}
 			);
