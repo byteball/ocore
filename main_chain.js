@@ -610,6 +610,46 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 				//console.log("alt", arrAltBranchRootUnits);
 				
 				function findMinMcWitnessedLevel(handleMinMcWl){
+					createListOfBestChildrenIncludedByLaterUnits([first_unstable_mc_unit], function(arrBestChildren){
+						conn.query( // if 2 witnesses authored the same unit, unit_authors will be joined 2 times and counted twice
+							"SELECT witnessed_level, address \n\
+							FROM units \n\
+							CROSS JOIN unit_authors USING(unit) \n\
+							WHERE unit IN("+arrBestChildren.map(db.escape).join(', ')+") AND address IN(?) \n\
+							ORDER BY witnessed_level DESC",
+							[arrWitnesses],
+							function(rows){
+								var arrCollectedWitnesses = [];
+								var min_mc_wl = -1;
+								for (var i=0; i<rows.length; i++){
+									var row = rows[i];
+									if (arrCollectedWitnesses.indexOf(row.address) === -1){
+										arrCollectedWitnesses.push(row.address);
+										if (arrCollectedWitnesses.length >= constants.MAJORITY_OF_WITNESSES){
+											min_mc_wl = row.witnessed_level;
+											break;
+										}
+									}
+								}
+								if (min_mc_wl === -1)
+									throw Error("couldn't collect 7 witnesses");
+							//	var min_mc_wl = rows[constants.MAJORITY_OF_WITNESSES-1].witnessed_level;
+								if (first_unstable_mc_index > constants.branchedMinMcWlUpgradeMci)
+									return handleMinMcWl(min_mc_wl);
+								// it might be more optimistic because it collects 7 witness units, not 7 units posted by _different_ witnesses
+								findMinMcWitnessedLevelOld(function(old_min_mc_wl){
+									var diff = min_mc_wl - old_min_mc_wl;
+									console.log("---------- new min_mc_wl="+min_mc_wl+", old min_mc_wl="+old_min_mc_wl+", diff="+diff+", later "+arrLaterUnits.join(', '));
+								//	if (diff < 0)
+								//		throw Error("new min_mc_wl="+min_mc_wl+", old min_mc_wl="+old_min_mc_wl+", diff="+diff+" for earlier "+earlier_unit+", later "+arrLaterUnits.join(', '));
+									handleMinMcWl(old_min_mc_wl);
+								});
+							}
+						);
+					});
+				}
+				
+				function findMinMcWitnessedLevelOld(handleMinMcWl){
 					var min_mc_wl = Number.MAX_VALUE;
 					var count = 0;
 
@@ -624,7 +664,7 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 								var row = rows[0];
 								if (row.count > 0 && row.witnessed_level < min_mc_wl)
 									min_mc_wl = row.witnessed_level;
-								count += row.count;
+								count += row.count; // this is a bug, should count only unique witnesses
 								(count < constants.MAJORITY_OF_WITNESSES) ? goUp(row.best_parent_unit) : handleMinMcWl(min_mc_wl);
 							}
 						);
@@ -683,7 +723,7 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 									
 									function addUnit(){
 										arrBestChildren.push(row.unit);
-										if (row.is_free === 1)
+										if (row.is_free === 1 || arrLaterUnits.indexOf(row.unit) >= 0)
 											cb2();
 										else
 											goDownAndCollectBestChildren([row.unit], cb2);
@@ -727,6 +767,8 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 								},
 								function(){
 									//console.log('filtered:', arrFilteredAltBranchRootUnits);
+									if (arrFilteredAltBranchRootUnits.length === 0)
+										return handleBestChildrenList([]);
 									goDownAndCollectBestChildren(arrFilteredAltBranchRootUnits, cb);
 								}
 							);

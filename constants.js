@@ -47,3 +47,4 @@ exports.TEXTCOIN_ASSET_CLAIM_BASE_MSG_FEE = 158;
 exports.minCoreVersion = exports.bTestnet ? '0.2.89' : '0.2.70';
 
 exports.spendUnconfirmedUpgradeMci = exports.bTestnet ? 589000 : 2609000;
+exports.branchedMinMcWlUpgradeMci = exports.bTestnet ? 593000 : 2609000;
