@@ -960,11 +960,11 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 					console.log("sum="+sum);
 					if (typeof args.equals === "number" && sum === args.equals)
 						return cb2(true);
-					if (typeof args.at_least === "number" && sum >= args.at_least)
-						return cb2(true);
-					if (typeof args.at_most === "number" && sum <= args.at_most)
-						return cb2(true);
-					cb2(false);
+					if (typeof args.at_least === "number" && sum < args.at_least)
+						return cb2(false);
+					if (typeof args.at_most === "number" && sum > args.at_most)
+						return cb2(false);
+					cb2(true);
 				});
 				break;
 				
