@@ -12,8 +12,14 @@ var profiler = require("./profiler.js");
 
 
 function calcWitnessEarnings(conn, type, from_main_chain_index, to_main_chain_index, address, callbacks){
+	// in memory
+	var countRowsRAM = _.countBy(storage.assocStableUnits, function(props){
+		return props.main_chain_index <= (to_main_chain_index+constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING+1) 
+			&& props.main_chain_index >= to_main_chain_index 
+			&& props.is_on_main_chain;
+	})[true];
 	conn.query(
-		"SELECT COUNT(*) AS count FROM units WHERE is_on_main_chain=1 AND is_stable=1 AND main_chain_index>=? AND main_chain_index<=?", 
+		"SELECT COUNT(1) AS count FROM units WHERE is_on_main_chain=1 AND is_stable=1 AND main_chain_index>=? AND main_chain_index<=?", 
 		[to_main_chain_index, to_main_chain_index+constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING+1], 
 		function(count_rows){
 			if (count_rows[0].count !== constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING+2)
