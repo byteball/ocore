@@ -1054,6 +1054,8 @@ function readFundedAddresses(asset, amount, arrAvailablePayingAddresses, arrAvai
 		//	if (arrFundedOtherAddresses.length === 0)
 		//		return handleFundedAddresses(arrAddressesFundedInAsset);
 		//	handleFundedAddresses(arrAddressesFundedInAsset.concat(arrFundedOtherAddresses));
+			if (arrFundedFeePayingAddresses.length === 0)
+				throw new Error("no funded fee paying addresses out of "+arrAvailableFeePayingAddresses.join(', '));
 			handleFundedAddresses(arrAddressesFundedInAsset, arrFundedFeePayingAddresses);
 		});
 	});
