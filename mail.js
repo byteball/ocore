@@ -45,7 +45,7 @@ function sendMailDirectly(params, cb) {
 
 		var transporter = nodemailer.createTransport({
 			host: exchange,
-		//	port: 25,
+			port: conf.smtpPort || null, // custom port
 			secure: conf.smtpSsl || false, // secure=true is port 465
 			requireTLS: false,
 			tls: {
@@ -76,7 +76,7 @@ function sendMailThroughRelay(params, cb){
 	var nodemailer = require('node4mailer'+'');
 	var transportOpts = {
 		host: conf.smtpRelay,
-	//	port: 25,
+		port: conf.smtpPort || null, // custom port
 		secure: conf.smtpSsl || false, // secure=true is port 465
 		requireTLS: false,
 		tls: {
