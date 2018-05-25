@@ -106,7 +106,7 @@ function buildPaidWitnessesForMainChainIndex(conn, main_chain_index, cb){
 	console.log("updating paid witnesses mci "+main_chain_index);
 	profiler.start();
 	conn.query(
-		"SELECT COUNT(*) AS count, SUM(CASE WHEN is_stable=1 THEN 1 ELSE 0 END) AS count_on_stable_mc \n\
+		"SELECT COUNT(1) AS count, SUM(CASE WHEN is_stable=1 THEN 1 ELSE 0 END) AS count_on_stable_mc \n\
 		FROM units WHERE is_on_main_chain=1 AND main_chain_index>=? AND main_chain_index<=?",
 		[main_chain_index, main_chain_index+constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING+1],
 		function(rows){
