@@ -78,8 +78,12 @@ function updateMainChain(conn, from_unit, last_added_unit, onDone){
 		findNextUpMainChainUnit(unit, function(best_parent_unit){
 			storage.readUnitProps(conn, best_parent_unit, function(objBestParentUnitProps){
 				var objBestParentUnitProps2 = storage.assocUnstableUnits[best_parent_unit];
-				if (!objBestParentUnitProps2)
-					throw Error("unstable unit not found: "+best_parent_unit);
+				if (!objBestParentUnitProps2){
+					if (storage.isGenesisUnit(best_parent_unit))
+						objBestParentUnitProps2 = storage.assocStableUnits[best_parent_unit];
+					else
+						throw Error("unstable unit not found: "+best_parent_unit);
+				}
 				var objBestParentUnitPropsForCheck = _.cloneDeep(objBestParentUnitProps2);
 				delete objBestParentUnitPropsForCheck.parent_units;
 				if (!_.isEqual(objBestParentUnitPropsForCheck, objBestParentUnitProps))
@@ -219,7 +223,7 @@ function updateMainChain(conn, from_unit, last_added_unit, onDone){
 		function checkAllLatestIncludedMcIndexesAreSet(){
 			profiler.start();
 			if (!_.isEqual(assocDbLimcisByUnit, assocLimcisByUnit))
-				throwError("different LIMCIs, mem: "+JSON.stringify(assocLimcisByUnit)+", db: "+JSON.stringify(assocDbLimcisByUnit));
+				throwError("different  LIMCIs, mem: "+JSON.stringify(assocLimcisByUnit)+", db: "+JSON.stringify(assocDbLimcisByUnit));
 			conn.query("SELECT unit FROM units WHERE latest_included_mc_index IS NULL AND level!=0", function(rows){
 				if (rows.length > 0)
 					throw Error(rows.length+" units have latest_included_mc_index=NULL, e.g. unit "+rows[0].unit);
@@ -606,6 +610,46 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 				//console.log("alt", arrAltBranchRootUnits);
 				
 				function findMinMcWitnessedLevel(handleMinMcWl){
+					createListOfBestChildrenIncludedByLaterUnits([first_unstable_mc_unit], function(arrBestChildren){
+						conn.query( // if 2 witnesses authored the same unit, unit_authors will be joined 2 times and counted twice
+							"SELECT witnessed_level, address \n\
+							FROM units \n\
+							CROSS JOIN unit_authors USING(unit) \n\
+							WHERE unit IN("+arrBestChildren.map(db.escape).join(', ')+") AND address IN(?) \n\
+							ORDER BY witnessed_level DESC",
+							[arrWitnesses],
+							function(rows){
+								var arrCollectedWitnesses = [];
+								var min_mc_wl = -1;
+								for (var i=0; i<rows.length; i++){
+									var row = rows[i];
+									if (arrCollectedWitnesses.indexOf(row.address) === -1){
+										arrCollectedWitnesses.push(row.address);
+										if (arrCollectedWitnesses.length >= constants.MAJORITY_OF_WITNESSES){
+											min_mc_wl = row.witnessed_level;
+											break;
+										}
+									}
+								}
+								if (min_mc_wl === -1)
+									throw Error("couldn't collect 7 witnesses");
+							//	var min_mc_wl = rows[constants.MAJORITY_OF_WITNESSES-1].witnessed_level;
+								if (first_unstable_mc_index > constants.branchedMinMcWlUpgradeMci)
+									return handleMinMcWl(min_mc_wl);
+								// it might be more optimistic because it collects 7 witness units, not 7 units posted by _different_ witnesses
+								findMinMcWitnessedLevelOld(function(old_min_mc_wl){
+									var diff = min_mc_wl - old_min_mc_wl;
+									console.log("---------- new min_mc_wl="+min_mc_wl+", old min_mc_wl="+old_min_mc_wl+", diff="+diff+", later "+arrLaterUnits.join(', '));
+								//	if (diff < 0)
+								//		throw Error("new min_mc_wl="+min_mc_wl+", old min_mc_wl="+old_min_mc_wl+", diff="+diff+" for earlier "+earlier_unit+", later "+arrLaterUnits.join(', '));
+									handleMinMcWl(old_min_mc_wl);
+								});
+							}
+						);
+					});
+				}
+				
+				function findMinMcWitnessedLevelOld(handleMinMcWl){
 					var min_mc_wl = Number.MAX_VALUE;
 					var count = 0;
 
@@ -620,7 +664,7 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 								var row = rows[0];
 								if (row.count > 0 && row.witnessed_level < min_mc_wl)
 									min_mc_wl = row.witnessed_level;
-								count += row.count;
+								count += row.count; // this is a bug, should count only unique witnesses
 								(count < constants.MAJORITY_OF_WITNESSES) ? goUp(row.best_parent_unit) : handleMinMcWl(min_mc_wl);
 							}
 						);
@@ -679,7 +723,7 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 									
 									function addUnit(){
 										arrBestChildren.push(row.unit);
-										if (row.is_free === 1)
+										if (row.is_free === 1 || arrLaterUnits.indexOf(row.unit) >= 0)
 											cb2();
 										else
 											goDownAndCollectBestChildren([row.unit], cb2);
@@ -723,6 +767,8 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 								},
 								function(){
 									//console.log('filtered:', arrFilteredAltBranchRootUnits);
+									if (arrFilteredAltBranchRootUnits.length === 0)
+										return handleBestChildrenList([]);
 									goDownAndCollectBestChildren(arrFilteredAltBranchRootUnits, cb);
 								}
 							);
@@ -871,11 +917,14 @@ function markMcIndexStable(conn, mci, onDone){
 		conn.query(
 			"SELECT * FROM units WHERE main_chain_index=? AND sequence!='good' ORDER BY unit", [mci], 
 			function(rows){
+				var arrFinalBadUnits = [];
 				async.eachSeries(
 					rows,
 					function(row, cb){
-						if (row.sequence === 'final-bad')
+						if (row.sequence === 'final-bad'){
+							arrFinalBadUnits.push(row.unit);
 							return row.content_hash ? cb() : setContentHash(row.unit, cb);
+						}
 						// temp-bad
 						if (row.content_hash)
 							throw Error("temp-bad and with content_hash?");
@@ -885,8 +934,10 @@ function markMcIndexStable(conn, mci, onDone){
 							conn.query("UPDATE units SET sequence=? WHERE unit=?", [sequence, row.unit], function(){
 								if (sequence === 'good')
 									conn.query("UPDATE inputs SET is_unique=1 WHERE unit=?", [row.unit], function(){ cb(); });
-								else
+								else{
+									arrFinalBadUnits.push(row.unit);
 									setContentHash(row.unit, cb);
+								}
 							});
 						});
 					},
@@ -894,7 +945,10 @@ function markMcIndexStable(conn, mci, onDone){
 						//if (rows.length > 0)
 						//    throw "stop";
 						// next op
-						addBalls();
+						arrFinalBadUnits.forEach(function(unit){
+							storage.assocStableUnits[unit].sequence = 'final-bad';
+						});
+						propagateFinalBad(arrFinalBadUnits, addBalls);
 					}
 				);
 			}
@@ -912,6 +966,23 @@ function markMcIndexStable(conn, mci, onDone){
 					onSet();
 				});
 			}
+		});
+	}
+	
+	// all future units that spent these unconfirmed units become final-bad too
+	function propagateFinalBad(arrFinalBadUnits, onPropagated){
+		if (arrFinalBadUnits.length === 0)
+			return onPropagated();
+		conn.query("SELECT DISTINCT unit FROM inputs WHERE src_unit IN(?)", [arrFinalBadUnits], function(rows){
+			if (rows.length === 0)
+				return onPropagated();
+			var arrSpendingUnits = rows.map(function(row){ return row.unit; });
+			conn.query("UPDATE units SET sequence='final-bad' WHERE unit IN(?)", [arrSpendingUnits], function(){
+				arrSpendingUnits.forEach(function(unit){
+					storage.assocUnstableUnits[unit].sequence = 'final-bad';
+				});
+				propagateFinalBad(arrSpendingUnits, onPropagated);
+			});
 		});
 	}
 
@@ -970,6 +1041,8 @@ function markMcIndexStable(conn, mci, onDone){
 			"SELECT units.*, ball FROM units LEFT JOIN balls USING(unit) \n\
 			WHERE main_chain_index=? ORDER BY level", [mci], 
 			function(unit_rows){
+				if (unit_rows.length === 0)
+					throw Error("no units on mci "+mci);
 				async.eachSeries(
 					unit_rows,
 					function(objUnitProps, cb){
@@ -1007,6 +1080,7 @@ function markMcIndexStable(conn, mci, onDone){
 								
 								function addBall(){
 									var ball = objectHash.getBallHash(unit, arrParentBalls, arrSkiplistBalls.sort(), objUnitProps.sequence === 'final-bad');
+									console.log("ball="+ball);
 									if (objUnitProps.ball){ // already inserted
 										if (objUnitProps.ball !== ball)
 											throw Error("stored and calculated ball hashes do not match, ball="+ball+", objUnitProps="+JSON.stringify(objUnitProps));

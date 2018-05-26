@@ -602,7 +602,7 @@ function heartbeat(){
 	var bJustResumed = (typeof window !== 'undefined' && window && window.cordova && Date.now() - last_hearbeat_wake_ts > 2*HEARTBEAT_TIMEOUT);
 	last_hearbeat_wake_ts = Date.now();
 	wss.clients.concat(arrOutboundPeers).forEach(function(ws){
-		if (ws.bSleeping)
+		if (ws.bSleeping || ws.readyState !== ws.OPEN)
 			return;
 		var elapsed_since_last_received = Date.now() - ws.last_ts;
 		if (elapsed_since_last_received < HEARTBEAT_TIMEOUT)
@@ -1356,6 +1356,8 @@ function flushEvents(forceFlushing) {
 }
 
 function writeEvent(event, host){
+	if (conf.bLight)
+		return;
 	if (event === 'invalid' || event === 'nonserial'){
 		var column = "count_"+event+"_joints";
 		db.query("UPDATE peer_hosts SET "+column+"="+column+"+1 WHERE peer_host=?", [host]);
@@ -1367,7 +1369,8 @@ function writeEvent(event, host){
 	flushEvents();
 }
 
-setInterval(function(){flushEvents(true)}, 1000 * 60);
+if (!conf.bLight)
+	setInterval(function(){flushEvents(true)}, 1000 * 60);
 
 
 function findAndHandleJointsThatAreReady(unit){
@@ -1439,6 +1442,8 @@ function checkCatchupLeftovers(){
 function requestCatchup(ws){
 	console.log("will request catchup from "+ws.peer);
 	eventBus.emit('catching_up_started');
+	if (conf.storage === 'sqlite')
+		db.query("PRAGMA cache_size=-200000", function(){});
 	catchup.purgeHandledBallsFromHashTree(db, function(){
 		db.query(
 			"SELECT hash_tree_balls.unit FROM hash_tree_balls LEFT JOIN units USING(unit) WHERE units.unit IS NULL ORDER BY ball_index", 
@@ -1463,6 +1468,7 @@ function requestCatchup(ws){
 					// (will also reset the flag only after the response is fully processed)
 					bWaitingForCatchupChain = true;
 					
+					console.log('will read last stable mci for catchup');
 					storage.readLastStableMcIndex(db, function(last_stable_mci){
 						storage.readLastMainChainIndex(function(last_known_mci){
 							myWitnesses.readMyWitnesses(function(arrWitnesses){
@@ -1936,7 +1942,7 @@ function handleJustsaying(ws, subject, body){
 				return;
 			}
 			ws.library_version = body.library_version;
-			if (typeof ws.library_version === 'string' && version2int(ws.library_version) < version2int('0.2.70') && constants.version === '1.0')
+			if (typeof ws.library_version === 'string' && version2int(ws.library_version) < version2int(constants.minCoreVersion))
 				ws.old_core = true;
 			eventBus.emit('peer_version', ws, body); // handled elsewhere
 			break;
@@ -2193,11 +2199,18 @@ function handleJustsaying(ws, subject, body){
 				);
 			});            
 			break;
+			
 		case 'exchange_rates':
 			if (!ws.bLoggingIn && !ws.bLoggedIn) // accept from hub only
 				return;
 			_.assign(exchangeRates, body);
 			eventBus.emit('rates_updated');
+			break;
+			
+		case 'upgrade_required':
+			if (!ws.bLoggingIn && !ws.bLoggedIn) // accept from hub only
+				return;
+			throw Error("Mandatory upgrade required, please check the release notes at https://github.com/byteball/byteball/releases and upgrade.");
 			break;
 	}
 }
@@ -2237,6 +2250,7 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "I'm light, cannot subscribe you to updates");
 			}
 			if (ws.old_core){
+				sendJustsaying(ws, 'upgrade_required');
 				sendErrorResponse(ws, tag, "old core");
 				return ws.close(1000, "old core");
 			}
@@ -2508,6 +2522,27 @@ function handleRequest(ws, tag, command, params){
 					sendResponse(ws, tag, objResponse);
 				}
 			});
+			break;
+
+	   case 'light/get_attestation':
+			if (conf.bLight)
+				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
+			if (ws.bOutbound)
+				return sendErrorResponse(ws, tag, "light clients have to be inbound");
+			if (!params)
+				return sendErrorResponse(ws, tag, "no params in light/get_attestation");
+			if (!params.attestor_address || !params.field || !params.value)
+				return sendErrorResponse(ws, tag, "missing params in light/get_attestation");
+			var order = (conf.storage === 'sqlite') ? 'rowid' : 'creation_date';
+			var join = (conf.storage === 'sqlite') ? '' : 'JOIN units USING(unit)';
+			db.query(
+				"SELECT unit FROM attested_fields "+join+" WHERE attestor_address=? AND field=? AND value=? ORDER BY "+order+" DESC LIMIT 1", 
+				[params.attestor_address, params.field, params.value],
+				function(rows){
+					var attestation_unit = (rows.length > 0) ? rows[0].unit : "";
+					sendResponse(ws, tag, attestation_unit);
+				}
+			);
 			break;
 
 		// I'm a hub, the peer wants to enable push notifications

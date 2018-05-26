@@ -34,7 +34,12 @@ function readJoint(conn, unit, callbacks) {
 	conn.query("SELECT json FROM joints WHERE unit=?", [unit], function(rows){
 		if (rows.length === 0)
 			return readJointDirectly(conn, unit, callbacks);
-		callbacks.ifFound(JSON.parse(rows[0].json));
+		var objJoint = JSON.parse(rows[0].json);
+		if (!objJoint.ball){ // got there because of an old bug
+			conn.query("DELETE FROM joints WHERE unit=?", [unit]);
+			return readJointDirectly(conn, unit, callbacks);
+		}
+		callbacks.ifFound(objJoint);
 	});
 }
 
@@ -71,7 +76,7 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 			var bVoided = (objUnit.content_hash && main_chain_index < min_retrievable_mci);
 			var bRetrievable = (main_chain_index >= min_retrievable_mci || main_chain_index === null);
 			
-			if (!conf.bLight && !objUnit.last_ball)
+			if (!conf.bLight && !objUnit.last_ball && !isGenesisUnit(unit))
 				throw Error("no last ball in unit "+JSON.stringify(objUnit));
 			
 			// unit hash verification below will fail if:
@@ -601,7 +606,7 @@ function determineWitnessedLevelAndBestParent(conn, arrParentUnits, arrWitnesses
 
 	determineBestParent(conn, {parent_units: arrParentUnits, witness_list_unit: 'none'}, arrWitnesses, function(best_parent_unit){
 		if (!best_parent_unit)
-			throw Error("no best parent of "+arrParentUnits.join(', '));
+			throw Error("no best parent of "+arrParentUnits.join(', ')+", witnesses "+arrWitnesses.join(', '));
 		my_best_parent_unit = best_parent_unit;
 		addWitnessesAndGoUp(best_parent_unit);
 	});
@@ -753,7 +758,7 @@ function readLastStableMcUnitProps(conn, handleLastStableMcUnitProps){
 				return handleLastStableMcUnitProps(null); // empty database
 				//throw "readLastStableMcUnitProps: no units on stable MC?";
 			if (!rows[0].ball)
-				throw Error("no ball for last stable unit");
+				throw Error("no ball for last stable unit "+rows[0].unit);
 			handleLastStableMcUnitProps(rows[0]);
 		}
 	);
@@ -1244,6 +1249,8 @@ function initUnstableUnits(onDone){
 				assocUnstableUnits[row.unit] = row;
 			});
 			console.log('initUnstableUnits 1 done');
+			if (Object.keys(assocUnstableUnits).length === 0)
+				return onDone ? onDone() : null;
 			db.query(
 				"SELECT parent_unit, child_unit FROM parenthoods WHERE child_unit IN("+Object.keys(assocUnstableUnits).map(db.escape)+")", 
 				function(prows){

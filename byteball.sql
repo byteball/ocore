@@ -103,7 +103,7 @@ CREATE TABLE authentifiers (
 -- must be sorted by address
 CREATE TABLE unit_witnesses (
 	unit CHAR(44) BINARY NOT NULL,
-	address VARCHAR(32) NOT NULL,
+	address CHAR(32) NOT NULL,
 	PRIMARY KEY (unit, address),
 	KEY byAddress(address), -- no foreign key as the address might not be used yet
 	FOREIGN KEY byUnit(unit) REFERENCES units(unit)
@@ -122,7 +122,7 @@ CREATE TABLE witness_list_hashes (
 -- if one author, all commission goes to the author by default
 CREATE TABLE earned_headers_commission_recipients (
 	unit CHAR(44) BINARY NOT NULL,
-	address VARCHAR(32) NOT NULL,
+	address CHAR(32) NOT NULL,
 	earned_headers_commission_share INT NOT NULL, -- percentage
 	PRIMARY KEY (unit, address),
 	KEY byAddress(address), -- no foreign key as the address might not be used yet
@@ -135,9 +135,9 @@ CREATE TABLE messages (
 	message_index TINYINT NOT NULL,
 	app VARCHAR(30) NOT NULL,
 	payload_location ENUM('inline','uri','none') NOT NULL,
-	payload_hash VARCHAR(44) NOT NULL,
+	payload_hash CHAR(44) NOT NULL,
 	payload TEXT NULL,
-	payload_uri_hash VARCHAR(44) NULL,
+	payload_uri_hash CHAR(44) NULL,
 	payload_uri VARCHAR(500) NULL,
 	PRIMARY KEY (unit, message_index),
 	FOREIGN KEY byUnit(unit) REFERENCES units(unit)
@@ -165,7 +165,7 @@ CREATE TABLE address_definition_changes (
 	unit CHAR(44) BINARY NOT NULL,
 	message_index TINYINT NOT NULL,
 	address CHAR(32) NOT NULL,
-	definition_chash VARCHAR(32) NOT NULL, -- might not be defined in definitions yet (almost always, it is not defined)
+	definition_chash CHAR(32) NOT NULL, -- might not be defined in definitions yet (almost always, it is not defined)
 	PRIMARY KEY (unit, message_index),
 	UNIQUE KEY byAddressUnit(address, unit),
 	FOREIGN KEY byUnit(unit) REFERENCES units(unit),
@@ -216,8 +216,8 @@ CREATE TABLE votes (
 CREATE TABLE attestations (
 	unit CHAR(44) BINARY NOT NULL,
 	message_index TINYINT NOT NULL,
-	attestor_address VARCHAR(32) NOT NULL,
-	address VARCHAR(32) NOT NULL,
+	attestor_address CHAR(32) NOT NULL,
+	address CHAR(32) NOT NULL,
 --	name VARCHAR(44) NOT NULL,
 	PRIMARY KEY (unit, message_index),
 	KEY byAddress(address),
@@ -301,7 +301,7 @@ CREATE TABLE outputs (
 	output_index TINYINT NOT NULL,
 	asset CHAR(44) BINARY NULL,
 	denomination INT NOT NULL DEFAULT 1,
-	address VARCHAR(32) NULL, -- NULL if hidden by output_hash
+	address CHAR(32) NULL, -- NULL if hidden by output_hash
 	amount BIGINT NOT NULL,
 	blinding CHAR(16) NULL,
 	output_hash CHAR(44) NULL,
@@ -507,7 +507,7 @@ CREATE TABLE my_addresses (
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 CREATE TABLE my_witnesses (
-	address VARCHAR(32) NOT NULL PRIMARY KEY
+	address CHAR(32) NOT NULL PRIMARY KEY
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 
@@ -660,7 +660,7 @@ ALTER TABLE correspondent_devices ADD COLUMN peer_record_pref INTEGER DEFAULT 1;
 
 CREATE TABLE watched_light_units (
 	peer VARCHAR(100) NOT NULL,
-	unit CHAR(44) NOT NULL,
+	unit CHAR(44) BINARY NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (peer, unit)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
@@ -700,7 +700,7 @@ CREATE INDEX sentByAddress ON sent_mnemonics(address);
 
 CREATE TABLE private_profiles (
 	private_profile_id INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,
-	unit CHAR(44) NOT NULL,
+	unit CHAR(44) BINARY NOT NULL,
 	payload_hash CHAR(44) NOT NULL,
 	attestor_address CHAR(32) NOT NULL,
 	address CHAR(32) NOT NULL,
@@ -720,3 +720,27 @@ CREATE TABLE private_profile_fields (
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 CREATE INDEX ppfByField ON private_profile_fields(`field`);
 
+
+CREATE TABLE attested_fields (
+	unit CHAR(44) BINARY NOT NULL,
+	message_index TINYINT NOT NULL,
+	attestor_address CHAR(32) NOT NULL,
+	address CHAR(32) NOT NULL,
+	`field` VARCHAR(50) NOT NULL,
+	`value` VARCHAR(100) NOT NULL,
+	PRIMARY KEY (unit, message_index, `field`),
+	CONSTRAINT attestedFieldsByAttestorAddress FOREIGN KEY (attestor_address) REFERENCES addresses(address),
+	FOREIGN KEY (unit) REFERENCES units(unit)
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+CREATE INDEX attestedFieldsByAttestorFieldValue ON attested_fields(attestor_address, `field`, `value`);
+CREATE INDEX attestedFieldsByAddressField ON attested_fields(address, `field`);
+
+
+-- user enters an email address (it is original address) and it is translated to BB address
+CREATE TABLE original_addresses (
+	unit CHAR(44) BINARY NOT NULL,
+	address CHAR(32) NOT NULL,
+	original_address VARCHAR(100) NOT NULL, -- email
+	PRIMARY KEY (unit, address),
+	FOREIGN KEY (unit) REFERENCES units(unit)
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;

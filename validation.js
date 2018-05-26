@@ -1,5 +1,6 @@
 /*jslint node: true */
 "use strict";
+var _ = require('lodash');
 var async = require('async');
 var storage = require('./storage.js');
 var graph = require('./graph.js');
@@ -1659,13 +1660,23 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 								return cb("asset mismatch");
 							//if (src_output.is_stable !== 1) // we allow immediate spends, that's why the error is transient
 							//    return cb(createTransientError("input unit is not on stable MC yet, unit "+objUnit.unit+", input "+input.unit));
-							if (!objAsset || !objAsset.is_private){
-								// for public payments, you can't spend unconfirmed transactions
-								if (src_output.main_chain_index > objValidationState.last_ball_mci || src_output.main_chain_index === null)
-									return cb("src output must be before last ball");
+							if (src_output.main_chain_index !== null && src_output.main_chain_index <= objValidationState.last_ball_mci && src_output.sequence !== 'good')
+								return cb("stable input unit "+input.unit+" is not serial");
+							if (objValidationState.last_ball_mci < constants.spendUnconfirmedUpgradeMci){
+								if (!objAsset || !objAsset.is_private){
+									// for public payments, you can't spend unconfirmed transactions
+									if (src_output.main_chain_index > objValidationState.last_ball_mci || src_output.main_chain_index === null)
+										return cb("src output must be before last ball");
+								}
+								if (src_output.sequence !== 'good') // it is also stable or private
+									return cb("input unit "+input.unit+" is not serial");
 							}
-							if (src_output.sequence !== 'good') // it is also stable or private
-								return cb("input unit "+input.unit+" is not serial");
+							else{ // after this MCI, spending unconfirmed is allowed for public assets too, non-good sequence will be inherited
+								if (src_output.sequence !== 'good'){
+									if (objValidationState.sequence === 'good' || objValidationState.sequence === 'temp-bad')
+										objValidationState.sequence = src_output.sequence;
+								}
+							}
 							var owner_address = src_output.address;
 							if (arrAuthorAddresses.indexOf(owner_address) === -1)
 								return cb("output owner is not among authors");
@@ -2031,10 +2042,65 @@ function createJointError(err){
 }
 
 
+function validateSignedMessage(objSignedMessage, handleResult){
+	if (typeof objSignedMessage !== 'object')
+		return handleResult("not an object");
+	if (ValidationUtils.hasFieldsExcept(objSignedMessage, ["signed_message", "authors"]))
+		return handleResult("unknown fields");
+	if (typeof objSignedMessage.signed_message !== 'string')
+		return handleResult("signed message not a string");
+	if (!Array.isArray(objSignedMessage.authors))
+		return handleResult("authors not an array");
+	if (!ValidationUtils.isArrayOfLength(objSignedMessage.authors, 1))
+		return handleResult("authors not an array of len 1");
+	var objAuthor = objSignedMessage.authors[0];
+	if (!objAuthor)
+		return handleResult("no authors[0]");
+	if (!ValidationUtils.isValidAddress(objAuthor.address))
+		return handleResult("not valid address");
+	if (typeof objAuthor.authentifiers !== 'object')
+		return handleResult("not valid authentifiers");
+	var arrAddressDefinition = objAuthor.definition;
+	if (objectHash.getChash160(arrAddressDefinition) !== objAuthor.address)
+		return handleResult("wrong definition: "+objectHash.getChash160(arrAddressDefinition) +"!=="+ objAuthor.address);
+	var objUnit = _.clone(objSignedMessage);
+	objUnit.messages = []; // some ops need it
+	var objValidationState = {
+		unit_hash_to_sign: objectHash.getUnitHashToSign(objSignedMessage),
+		last_ball_mci: -1,
+		bNoReferences: true
+	};
+	// passing db as null
+	Definition.validateAuthentifiers(
+		null, objAuthor.address, null, arrAddressDefinition, objUnit, objValidationState, objAuthor.authentifiers, 
+		function(err, res){
+			if (err) // error in address definition
+				return handleResult(err);
+			if (!res) // wrong signature or the like
+				return handleResult("authentifier verification failed");
+			handleResult();
+		}
+	);
+}
+
+// inconsistent for multisig addresses
+function validateSignedMessageSync(objSignedMessage){
+	var err;
+	var bCalledBack = false;
+	validateSignedMessage(objSignedMessage, function(_err){
+		err = _err;
+		bCalledBack = true;
+	});
+	if (!bCalledBack)
+		throw Error("validateSignedMessage is not sync");
+	return err;
+}
+
 exports.validate = validate;
 exports.hasValidHashes = hasValidHashes;
 exports.validateAuthorSignaturesWithoutReferences = validateAuthorSignaturesWithoutReferences;
 exports.validatePayment = validatePayment;
 exports.initPrivatePaymentValidationState = initPrivatePaymentValidationState;
-
+exports.validateSignedMessage = validateSignedMessage;
+exports.validateSignedMessageSync = validateSignedMessageSync;
 
