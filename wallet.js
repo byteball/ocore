@@ -1106,15 +1106,17 @@ function readFundedAddresses(asset, wallet, estimated_amount, handleFundedAddres
 	// addresses closest to estimated amount come first
 	var order_by = estimated_amount ? "(SUM(amount)>"+estimated_amount+") DESC, ABS(SUM(amount)-"+estimated_amount+") ASC" : "SUM(amount) DESC";
 	db.query(
-		"SELECT address, SUM(amount) AS total \n\
-		FROM outputs JOIN my_addresses USING(address) \n\
-		CROSS JOIN units USING(unit) \n\
-		WHERE wallet=? AND is_stable=1 AND sequence='good' AND is_spent=0 AND "+(asset ? "asset=?" : "asset IS NULL")+" \n\
-			AND NOT EXISTS ( \n\
-				SELECT * FROM unit_authors JOIN units USING(unit) \n\
-				WHERE is_stable=0 AND unit_authors.address=outputs.address AND definition_chash IS NOT NULL \n\
-			) \n\
-		GROUP BY address ORDER BY "+order_by+" LIMIT "+constants.MAX_AUTHORS_PER_UNIT,
+		"SELECT * FROM ( \n\
+			SELECT address, SUM(amount) AS total \n\
+			FROM outputs JOIN my_addresses USING(address) \n\
+			CROSS JOIN units USING(unit) \n\
+			WHERE wallet=? AND is_stable=1 AND sequence='good' AND is_spent=0 AND "+(asset ? "asset=?" : "asset IS NULL")+" \n\
+			GROUP BY address ORDER BY "+order_by+" LIMIT "+constants.MAX_AUTHORS_PER_UNIT+" \n\
+		) AS t \n\
+		WHERE NOT EXISTS ( \n\
+			SELECT * FROM units CROSS JOIN unit_authors USING(unit) \n\
+			WHERE is_stable=0 AND unit_authors.address=t.address AND definition_chash IS NOT NULL \n\
+		)",
 		asset ? [wallet, asset] : [wallet],
 		function(rows){
 			readAssetProps(asset, function(objAsset){
