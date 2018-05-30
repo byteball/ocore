@@ -632,7 +632,7 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 									}
 								}
 								if (min_mc_wl === -1)
-									throw Error("couldn't collect 7 witnesses");
+									throw Error("couldn't collect 7 witnesses, earlier unit "+earlier_unit+", best children "+arrBestChildren.join(', '));
 							//	var min_mc_wl = rows[constants.MAJORITY_OF_WITNESSES-1].witnessed_level;
 								if (first_unstable_mc_index > constants.branchedMinMcWlUpgradeMci)
 									return handleMinMcWl(min_mc_wl);
