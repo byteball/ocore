@@ -1252,7 +1252,7 @@ function initUnstableUnits(onDone){
 			if (Object.keys(assocUnstableUnits).length === 0)
 				return onDone ? onDone() : null;
 			db.query(
-				"SELECT parent_unit, child_unit FROM parenthoods WHERE child_unit IN("+Object.keys(assocUnstableUnits).map(db.escape)+")", 
+				"SELECT parent_unit, child_unit FROM parenthoods WHERE child_unit IN("+Object.keys(assocUnstableUnits).map(db.escape).join(', ')+")", 
 				function(prows){
 					prows.forEach(function(prow){
 						assocUnstableUnits[prow.child_unit].parent_units.push(prow.parent_unit);
