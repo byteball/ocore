@@ -541,7 +541,7 @@ function forwardPrivateChainsToOtherMembersOfOutputAddresses(arrChains, conn, on
 	readWalletsByAddresses(conn, arrOutputAddresses, function(arrWallets){
 		if (arrWallets.length === 0){
 		//	breadcrumbs.add("forwardPrivateChainsToOtherMembersOfOutputAddresses: " + JSON.stringify(arrChains)); // remove in livenet
-			eventBus.emit('nonfatal_error', "not my wallet? output addresses: "+arrOutputAddresses.join(', '), new Error());
+		//	eventBus.emit('nonfatal_error', "not my wallet? output addresses: "+arrOutputAddresses.join(', '), new Error());
 		//	throw Error("not my wallet? output addresses: "+arrOutputAddresses.join(', '));
 		}
 		var arrFuncs = [];
