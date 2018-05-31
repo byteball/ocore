@@ -1590,7 +1590,14 @@ function sendMultiPayment(opts, handleResult)
 										});
 										indivisibleAssetFeesByAddress[new_address] = constants.TEXTCOIN_ASSET_CLAIM_HEADER_FEE + asset_messages_to_address.length * constants.TEXTCOIN_ASSET_CLAIM_MESSAGE_FEE + Object.keys(assocPrivatePayloads).length * constants.TEXTCOIN_PRIVATE_ASSET_CLAIM_MESSAGE_FEE + constants.TEXTCOIN_ASSET_CLAIM_BASE_MSG_FEE;
 									}
-									params.callbacks = old_callbacks;
+									// inject into ifOk an assert to check for correct number of payloads picked
+									_.assign(params.callbacks, old_callbacks, {
+										ifOk: function(objJoint, assocPrivatePayloads2, unlock) {
+												if (Object.keys(assocPrivatePayloads).length != Object.keys(assocPrivatePayloads2).length)
+													throw new Error("assocPrivatePayloads length differs from dry-run, incorrect fees calculated: " + Object.keys(assocPrivatePayloads) + " != " + Object.keys(assocPrivatePayloads2));
+												old_callbacks.ifOk(objJoint, assocPrivatePayloads2, unlock);
+											}
+									});
 									unlock();
 									cb();
 								},
