@@ -1045,19 +1045,20 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 						if (type !== filter.type)
 							continue;
 					}
-					if (filter.own_funds && objValidationState.arrAugmentedMessages[i].payload.inputs[j].address !== address)
+					var augmented_input = objValidationState.arrAugmentedMessages ? objValidationState.arrAugmentedMessages[i].payload.inputs[j] : null;
+					if (filter.own_funds && augmented_input.address !== address)
 						continue;
-					if (filter.own_funds === false && objValidationState.arrAugmentedMessages[i].payload.inputs[j].address === address)
+					if (filter.own_funds === false && augmented_input.address === address)
 						continue;
-					if (filter_address && objValidationState.arrAugmentedMessages[i].payload.inputs[j].address !== filter_address)
+					if (filter_address && augmented_input.address !== filter_address)
 						continue;
-					if (filter.amount && objValidationState.arrAugmentedMessages[i].payload.inputs[j].amount !== filter.amount)
+					if (filter.amount && augmented_input.amount !== filter.amount)
 						continue;
-					if (filter.amount_at_least && objValidationState.arrAugmentedMessages[i].payload.inputs[j].amount < filter.amount_at_least)
+					if (filter.amount_at_least && augmented_input.amount < filter.amount_at_least)
 						continue;
-					if (filter.amount_at_most && objValidationState.arrAugmentedMessages[i].payload.inputs[j].amount > filter.amount_at_most)
+					if (filter.amount_at_most && augmented_input.amount > filter.amount_at_most)
 						continue;
-					arrFoundObjects.push(objValidationState.arrAugmentedMessages[i].payload.inputs[j]);
+					arrFoundObjects.push(augmented_input || input);
 				}
 			} // input
 			else if (filter.what === "output"){
