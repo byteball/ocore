@@ -49,3 +49,4 @@ exports.minCoreVersion = exports.bTestnet ? '0.2.89' : '0.2.70';
 
 exports.spendUnconfirmedUpgradeMci = exports.bTestnet ? 589000 : 2909000;
 exports.branchedMinMcWlUpgradeMci = exports.bTestnet ? 593000 : 2909000;
+exports.otherAddressInDefinitionUpgradeMci = exports.bTestnet ? 602000 : 2909000;
