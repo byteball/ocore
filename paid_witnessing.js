@@ -22,6 +22,9 @@ function calcWitnessEarnings(conn, type, from_main_chain_index, to_main_chain_in
 		"SELECT COUNT(1) AS count FROM units WHERE is_on_main_chain=1 AND is_stable=1 AND main_chain_index>=? AND main_chain_index<=?", 
 		[to_main_chain_index, to_main_chain_index+constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING+1], 
 		function(count_rows){
+			count_rows = count_rows[0].count;
+			if (!_.isEqual(countRowsRAM, count_rows))
+					throwError("different count_rows, db: "+count_rows+", ram: "+countRowsRAM);
 			if (count_rows[0].count !== constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING+2)
 				return callbacks.ifError("not enough stable MC units after to_main_chain_index");
 			mc_outputs.calcEarnings(conn, type, from_main_chain_index, to_main_chain_index, address, callbacks);
