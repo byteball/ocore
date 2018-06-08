@@ -1913,7 +1913,7 @@ function handlePrivatePaymentFile(fullPath, content, cb) {
 
 	if (!bCordova) {
 		var fs = require('fs'+'');
-		fs.readFile(fullPath.replace('file://', ''), unzip);
+		fs.readFile(decodeURIComponent(fullPath.replace('file://', '')), unzip);
 	} else {
 		window.requestFileSystem(LocalFileSystem.TEMPORARY, 0, function(fs) {
 			if (fullPath.indexOf('://') == -1) fullPath = 'file://' + fullPath;
