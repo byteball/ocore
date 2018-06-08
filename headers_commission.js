@@ -171,7 +171,7 @@ function calcHeadersCommissions(conn, onDone){
 												arrValuesRAM.push("('"+payer_unit+"', '"+address+"', "+amount+")");
 											};
 										} else
-											arrValuesRAM.push("('"+payer_unit+"', '"+unit.authors_addresses[0]+"', "+full_amount+")");
+											arrValuesRAM.push("('"+payer_unit+"', '"+unit.author_addresses[0]+"', "+full_amount+")");
 									}
 								}
 								// sql result

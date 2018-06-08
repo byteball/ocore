@@ -697,28 +697,28 @@ function readUnitProps(conn, unit, handleProps){
 	if (assocStableUnits[unit])
 		return handleProps(assocStableUnits[unit]);
 	conn.query(
-		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, sequence, group_concat(address) as authors_addresses \n\
+		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, sequence, group_concat(address) as author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit\n\
 			FROM units \n\
 			JOIN unit_authors USING(unit) \n\
 			WHERE unit=? \n\
-			GROUP BY unit", 
+			GROUP BY +unit", 
 		[unit], 
 		function(rows){
 			if (rows.length !== 1)
 				throw Error("not 1 row");
 			var props = rows[0];
-			props.authors_addresses = props.authors_addresses.split(',');
+			props.author_addresses = props.author_addresses.split(',');
 			if (props.is_stable) {
 				assocStableUnits[unit] = props;
 			}
 			else{
-				var props2 = _.cloneDeep(assocUnstableUnits[unit]);
-				if (!props2)
+				if (!assocUnstableUnits[unit])
 					throw Error("no unstable props of "+unit);
+				var props2 = _.cloneDeep(assocUnstableUnits[unit]);
 				delete props2.parent_units;
 				delete props2.earned_headers_commission_recipients;
-				if (!_.isEqual(props, props2))
-					throw Error("different props of "+unit+", mem: "+JSON.stringify(props2)+", db: "+JSON.stringify(props));
+				if (!_.isEqual(_.assign({}, assocUnstableUnits[unit], props), assocUnstableUnits[unit]))
+					throw Error("different props of "+unit+", mem: "+JSON.stringify(assocUnstableUnits[unit])+", db: "+JSON.stringify(props));
 			}
 			handleProps(props);
 		}
@@ -1242,16 +1242,16 @@ setInterval(shrinkCache, 300*1000);
 
 function initUnstableUnits(onDone){
 	db.query(
-		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, sequence, group_concat(address) as authors_addresses \n\
+		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, sequence, group_concat(address) as author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit \n\
 			FROM units \n\
 			JOIN unit_authors USING(unit) \n\
 			WHERE is_stable=0 \n\
-			GROUP BY unit \n\
+			GROUP BY +unit \n\
 			ORDER BY +level",
 		function(rows){
 		//	assocUnstableUnits = {};
 			rows.forEach(function(row){
-				row.authors_addresses = row.authors_addresses.split(',');
+				row.author_addresses = row.author_addresses.split(',');
 				assocUnstableUnits[row.unit] = row;
 			});
 			console.log('initUnstableUnits 1 done');
@@ -1265,15 +1265,15 @@ function initUnstableUnits(onDone){
 function initStableUnits(onDone){
 	readLastStableMcIndex(db, function(last_stable_mci){
 		db.query(
-			"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, sequence, group_concat(address) as authors_addresses \n\
+			"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, sequence, group_concat(address) as author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit \n\
 			FROM units \n\
 			JOIN unit_authors USING(unit) \n\
 			WHERE is_stable=1 AND main_chain_index>=? \n\
-			GROUP BY unit \n\
+			GROUP BY +unit \n\
 			ORDER BY +level", [last_stable_mci-100],
 			function(rows){
 				rows.forEach(function(row){
-					row.authors_addresses = row.authors_addresses.split(',');
+					row.author_addresses = row.author_addresses.split(',');
 					assocStableUnits[row.unit] = row;
 				});
 				console.log('initStableUnits 1 done');

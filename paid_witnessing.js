@@ -23,9 +23,9 @@ function calcWitnessEarnings(conn, type, from_main_chain_index, to_main_chain_in
 		[to_main_chain_index, to_main_chain_index+constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING+1], 
 		function(count_rows){
 			count_rows = count_rows[0].count;
-			if (!_.isEqual(countRowsRAM, count_rows))
-					throwError("different count_rows, db: "+count_rows+", ram: "+countRowsRAM);
-			if (count_rows[0].count !== constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING+2)
+			// if (!_.isEqual(countRowsRAM, count_rows))
+			// 		throwError("different count_rows, db: "+count_rows+", ram: "+countRowsRAM);
+			if (count_rows !== constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING+2)
 				return callbacks.ifError("not enough stable MC units after to_main_chain_index");
 			mc_outputs.calcEarnings(conn, type, from_main_chain_index, to_main_chain_index, address, callbacks);
 		}
@@ -109,7 +109,7 @@ function buildPaidWitnessesForMainChainIndex(conn, main_chain_index, cb){
 	console.log("updating paid witnesses mci "+main_chain_index);
 	profiler.start();
 	conn.query(
-		"SELECT COUNT(*) AS count, SUM(CASE WHEN is_stable=1 THEN 1 ELSE 0 END) AS count_on_stable_mc \n\
+		"SELECT COUNT(1) AS count, SUM(CASE WHEN is_stable=1 THEN 1 ELSE 0 END) AS count_on_stable_mc \n\
 		FROM units WHERE is_on_main_chain=1 AND main_chain_index>=? AND main_chain_index<=?",
 		[main_chain_index, main_chain_index+constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING+1],
 		function(rows){
@@ -120,14 +120,19 @@ function buildPaidWitnessesForMainChainIndex(conn, main_chain_index, cb){
 				throw Error("main chain is not long enough yet for MC index "+main_chain_index);
 			if (count_on_stable_mc !== count)
 				throw Error("not enough stable MC units yet after MC index "+main_chain_index+": count_on_stable_mc="+count_on_stable_mc+", count="+count);
-			
+			var countRAM = _.countBy(storage.assocStableUnits, function(props){
+				return props.main_chain_index <= (main_chain_index+constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING+1) 
+					&& props.main_chain_index >= main_chain_index 
+					&& props.is_on_main_chain;
+			})["1"];
+			if (!_.isEqual(countRAM, count))
+				throwError("different count in buildPaidWitnessesForMainChainIndex, db: "+count+", ram: "+countRAM);
 			profiler.start();
 			// we read witnesses from MC unit (users can cheat with side-chains to flip the witness list and pay commissions to their own witnesses)
 			readMcUnitWitnesses(conn, main_chain_index, function(arrWitnesses){
 				conn.query("CREATE TEMPORARY TABLE paid_witness_events_tmp ( \n\
 					unit CHAR(44) NOT NULL, \n\
-					address CHAR(32) NOT NULL, \n\
-					delay TINYINT NULL)", function(){
+					address CHAR(32) NOT NULL)", function(){
 						conn.query("SELECT * FROM units WHERE main_chain_index=?", [main_chain_index], function(rows){
 							profiler.stop('mc-wc-select-units');
 							et=0; rt=0;
@@ -180,6 +185,9 @@ function readMcUnitWitnesses(conn, main_chain_index, handleWitnesses){
 		if (rows.length !== 1)
 			throw Error("not 1 row on MC "+main_chain_index);
 		var witness_list_unit = rows[0].witness_list_unit ? rows[0].witness_list_unit : rows[0].unit;
+		var witness_list_unitRAM = _.find(storage.assocStableUnits, function(v, k){return v.main_chain_index == main_chain_index && v.is_on_main_chain}).witness_list_unit;
+		if (!_.isEqual(witness_list_unit, witness_list_unitRAM))
+			throw Error("witness_list_units are not equal db:"+witness_list_unit+", RAM:"+witness_list_unitRAM);
 		storage.readWitnessList(conn, witness_list_unit, handleWitnesses);
 	});
 }
@@ -207,12 +215,12 @@ function buildPaidWitnesses(conn, objUnitProps, arrWitnesses, onDone){
 		conn.query( // we don't care if the unit is majority witnessed by the unit-designated witnesses
 			// _left_ join forces use of indexes in units
 			// can't get rid of filtering by address because units can be co-authored by witness with somebody else
-			"SELECT address, MIN(main_chain_index-?) AS delay \n\
+			"SELECT address \n\
 			FROM units \n\
 			LEFT JOIN unit_authors USING(unit) \n\
 			WHERE unit IN("+strUnitsList+") AND address IN(?) AND +sequence='good' \n\
 			GROUP BY address",
-			[objUnitProps.main_chain_index, arrWitnesses],
+			[arrWitnesses],
 			function(rows){
 				et += Date.now()-t;
 				var count_paid_witnesses = rows.length;
@@ -222,10 +230,10 @@ function buildPaidWitnesses(conn, objUnitProps, arrWitnesses, onDone){
 					arrValues = arrWitnesses.map(function(address){ return "("+conn.escape(unit)+", "+conn.escape(address)+", NULL)"; });
 				}
 				else
-					arrValues = rows.map(function(row){ return "("+conn.escape(unit)+", "+conn.escape(row.address)+", "+row.delay+")"; });
+					arrValues = rows.map(function(row){ return "("+conn.escape(unit)+", "+conn.escape(row.address)+")"; });
 				profiler.stop('mc-wc-select-events');
 				profiler.start();
-				conn.query("INSERT INTO paid_witness_events_tmp (unit, address, delay) VALUES "+arrValues.join(", "), function(){
+				conn.query("INSERT INTO paid_witness_events_tmp (unit, address) VALUES "+arrValues.join(", "), function(){
 					updateCountPaidWitnesses(count_paid_witnesses);
 				});
 			}
@@ -238,6 +246,10 @@ function getMaxSpendableMciForLastBallMci(last_ball_mci){
 	return last_ball_mci - 1 - constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING;
 }
 
+function throwError(msg){
+	debugger;
+	throw Error(msg);
+}
 
 exports.updatePaidWitnesses = updatePaidWitnesses;
 exports.calcWitnessEarnings = calcWitnessEarnings;
