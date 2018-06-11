@@ -1063,7 +1063,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 								continue;
 						}
 						else { // normal address
-							if (augmented_input.address !== address)
+							if (augmented_input.address !== filter.address)
 								continue;
 						}
 					}
@@ -1089,7 +1089,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 								continue;
 						}
 						else { // normal address
-							if (output.address !== address)
+							if (output.address !== filter.address)
 								continue;
 						}
 					}
