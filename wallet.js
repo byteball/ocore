@@ -1700,21 +1700,27 @@ function replaceInTextcoinTemplate(params, handleText){
 	});
 }
 
-function receiveTextCoin(mnemonic, addressTo, cb) {
+function expandMnemonic(mnemonic) {
+	var addrInfo = {};
 	mnemonic = mnemonic.toLowerCase().split('-').join(' ');
 	if ((mnemonic.split(' ').length % 3 !== 0) || !Mnemonic.isValid(mnemonic)) {
-		return cb("invalid mnemonic: "+mnemonic);
+		throw new Error("invalid mnemonic: "+mnemonic);
 	}
-	var mnemonic = new Mnemonic(mnemonic);
+	mnemonic = new Mnemonic(mnemonic);
+	addrInfo.xPrivKey = mnemonic.toHDPrivateKey().derive("m/44'/0'/0'/0/0");
+	addrInfo.pubkey = addrInfo.xPrivKey.publicKey.toBuffer().toString("base64");
+	addrInfo.definition = ["sig", {"pubkey": addrInfo.pubkey}];
+	addrInfo.address = objectHash.getChash160(addrInfo.definition);
+	return addrInfo;
+}
+
+function receiveTextCoin(mnemonic, addressTo, cb) {
 	try {
-		var xPrivKey = mnemonic.toHDPrivateKey().derive("m/44'/0'/0'/0/0");
-		var pubkey = xPrivKey.publicKey.toBuffer().toString("base64");
+		var addrInfo = expandMnemonic(mnemonic);
 	} catch (e) {
 		cb(e.message);
 		return;
 	}
-	var definition = ["sig", {"pubkey": pubkey}];
-	var address = objectHash.getChash160(definition);
 	var signer = {
 		readSigningPaths: function(conn, address, handleLengthsBySigningPaths){ // returns assoc array signing_path => length
 			var assocLengthsBySigningPaths = {};
@@ -1722,16 +1728,16 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 			handleLengthsBySigningPaths(assocLengthsBySigningPaths);
 		},
 		readDefinition: function(conn, address, handleDefinition){
-			handleDefinition(null, definition);
+			handleDefinition(null, addrInfo.definition);
 		},
 		sign: function(objUnsignedUnit, assocPrivatePayloads, address, signing_path, handleSignature){
-			handleSignature(null, ecdsaSig.sign(objectHash.getUnitHashToSign(objUnsignedUnit), xPrivKey.privateKey.bn.toBuffer({size:32})));
+			handleSignature(null, ecdsaSig.sign(objectHash.getUnitHashToSign(objUnsignedUnit), addrInfo.xPrivKey.privateKey.bn.toBuffer({size:32})));
 		}
 	};
 	var opts = {};
 	var asset = null;
 	opts.signer = signer;
-	opts.paying_addresses = [address];
+	opts.paying_addresses = [addrInfo.address];
 
 	opts.callbacks = {
 		ifNotEnoughFunds: function(err){
@@ -1752,10 +1758,10 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 		db.query(
 			"SELECT 1 \n\
 			FROM outputs JOIN units USING(unit) WHERE address=? LIMIT 1", 
-			[address],
+			[addrInfo.address],
 			function(rows){
 				if (rows.length === 0) {
-					network.requestHistoryFor([], [address], checkStability);
+					network.requestHistoryFor([], [addrInfo.address], checkStability);
 				}
 				else
 					checkStability();
@@ -1770,7 +1776,7 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 		db.query(
 			"SELECT is_stable, asset, is_spent, SUM(amount) as `amount` \n\
 			FROM outputs JOIN units USING(unit) WHERE address=? AND sequence='good' GROUP BY asset ORDER BY asset DESC, is_spent ASC LIMIT 1", 
-			[address],
+			[addrInfo.address],
 			function(rows){
 				if (rows.length === 0) {
 					cb("This payment doesn't exist in the network");
@@ -1782,7 +1788,7 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 						if (row.asset) { // claiming asset
 							opts.asset = row.asset;
 							opts.amount = row.amount;
-							opts.fee_paying_addresses = [address];
+							opts.fee_paying_addresses = [addrInfo.address];
 							storage.readAsset(db, row.asset, null, function(err, objAsset){
 								if (err && err.indexOf("not found" !== -1)) {
 									return network.requestHistoryFor([opts.asset], [], checkStability);
@@ -1895,12 +1901,40 @@ function handlePrivatePaymentFile(fullPath, content, cb) {
 					eventBus.once('all_private_payments_handled-' + objectHash.getBase64Hash(first_chain_elem), function(){
 						cb(null, data);
 					});
-					handlePrivatePaymentChains(ws, data, null, {
-						ifError: function(err){
-							cb(err);
-						},
-						ifOk: function(){} // we subscribe to event, not waiting for callback
-					});
+					// for light wallets request history for mnemonic address, check if already spent
+					if (conf.bLight) {
+						var addrInfo = expandMnemonic(data.mnemonic);
+						var checkAddressTxs = function() {
+							db.query(
+								"SELECT 'in' AS 'action' \n\
+								FROM outputs JOIN units USING(unit) WHERE address=? \n\
+								UNION \n\
+								SELECT 'out' AS 'action' \n\
+								FROM inputs JOIN units USING(unit) WHERE address=?", 
+								[addrInfo.address, addrInfo.address],
+								function(rows){
+									var has_input = _.find(rows, function(v, k){return v.action == 'in'});
+									var has_output = _.find(rows, function(v, k){return v.action == 'out'});
+									var onDone = function() {
+									}
+									if (!has_input) {
+										network.requestHistoryFor([], [addrInfo.address], checkAddressTxs);
+									}
+									else if (has_output) {
+										cb("textcoin was already claimed");
+									} else {
+										handlePrivatePaymentChains(ws, data, null, {
+											ifError: function(err){
+												cb(err);
+											},
+											ifOk: function(){} // we subscribe to event, not waiting for callback
+										});
+									}
+								}
+							);
+						};
+						checkAddressTxs();
+					}
 				});
 			}).catch(function(err){cb(err)});
 		}).catch(function(err){cb(err)});
