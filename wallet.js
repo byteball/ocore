@@ -613,32 +613,31 @@ function emitNewPrivatePaymentReceived(payer_device_address, arrChains, message_
 	});
 }
 
-function emitNewPublicPaymentReceived(payer_device_address, objUnit, message_counter){
+function emitNewPublicPaymentReceived(payer_device_address, objUnit){ // current_message_counter unused
 	walletGeneral.readMyAddresses(function(arrAddresses){
-		var assocAmountsByAsset = {};
-		var assocMyReceivingAddresses = {};
-		objUnit.messages.forEach(function(message){
-			if (message.app !== 'payment' || !message.payload)
-				return;
-			var payload = message.payload;
-			var asset = payload.asset || 'base';
-			if (!assocAmountsByAsset[asset])
-				assocAmountsByAsset[asset] = 0;
-			payload.outputs.forEach(function(output){
-				if (output.address && arrAddresses.indexOf(output.address) >= 0){
-					assocAmountsByAsset[asset] += output.amount;
-					assocMyReceivingAddresses[output.address] = true;
-				}
+		db.query("SELECT shared_address FROM shared_addresses", function(rows){
+			var arrSharedAddresses = rows.map(function(row){ return row.shared_address; });
+			var assocAmountsByAsset = {};
+			objUnit.messages.forEach(function(message){
+				if (message.app !== 'payment' || !message.payload)
+					return;
+				var payload = message.payload;
+				var asset = payload.asset || 'base';
+				if (!assocAmountsByAsset[asset])
+					assocAmountsByAsset[asset] = {main: 0, shared: 0};
+				payload.outputs.forEach(function(output){
+					if (output.address && arrAddresses.indexOf(output.address) >= 0){
+						var bShared = (arrSharedAddresses.indexOf(output.address) >= 0);
+						assocAmountsByAsset[asset][bShared ? 'shared' : 'main'] += output.amount;
+					}
+				});
 			});
-		});
-		var arrMyReceivingAddresses = Object.keys(assocMyReceivingAddresses);
-		if (arrMyReceivingAddresses.length === 0)
-			return;
-		db.query("SELECT 1 FROM shared_addresses WHERE shared_address IN(?)", [arrMyReceivingAddresses], function(rows){
-			var bToSharedAddress = (rows.length > 0);
-			for (var asset in assocAmountsByAsset)
-				if (assocAmountsByAsset[asset])
-					eventBus.emit('received_payment', payer_device_address, assocAmountsByAsset[asset], asset, message_counter, bToSharedAddress);
+			for (var asset in assocAmountsByAsset){
+				var amounts = assocAmountsByAsset[asset];
+				for (var type in amounts)
+					if (amounts[type])
+						eventBus.emit('received_payment', payer_device_address, amounts[type], asset, ++message_counter, type === 'shared');
+			}
 		});
 	});
 }
