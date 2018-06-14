@@ -1915,8 +1915,6 @@ function handlePrivatePaymentFile(fullPath, content, cb) {
 								function(rows){
 									var has_input = _.find(rows, function(v, k){return v.action == 'in'});
 									var has_output = _.find(rows, function(v, k){return v.action == 'out'});
-									var onDone = function() {
-									}
 									if (!has_input) {
 										network.requestHistoryFor([], [addrInfo.address], checkAddressTxs);
 									}
@@ -1934,6 +1932,13 @@ function handlePrivatePaymentFile(fullPath, content, cb) {
 							);
 						};
 						checkAddressTxs();
+					} else {
+						handlePrivatePaymentChains(ws, data, null, {
+							ifError: function(err){
+								cb(err);
+							},
+							ifOk: function(){} // we subscribe to event, not waiting for callback
+						});
 					}
 				});
 			}).catch(function(err){cb(err)});
