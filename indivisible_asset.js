@@ -1071,8 +1071,15 @@ function composeMinimalIndivisibleAssetPaymentJoint(params){
 		throw Error('no available_paying_addresses');
 	if (!ValidationUtils.isNonemptyArray(params.available_fee_paying_addresses))
 		throw Error('no available_fee_paying_addresses');
+	var target_amount;
+	if (params.amount)
+		target_amount = params.amount;
+	else if (params.asset_outputs)
+		target_amount = params.asset_outputs.reduce(function(accumulator, output){ return accumulator + output.amount; }, 0);
+	if (!target_amount)
+		throw Error("no target amount");
 	readFundedAddresses(
-		params.asset, params.amount, params.available_paying_addresses, params.available_fee_paying_addresses, 
+		params.asset, target_amount, params.available_paying_addresses, params.available_fee_paying_addresses, 
 		function(arrFundedPayingAddresses, arrFundedFeePayingAddresses){
 			if (arrFundedPayingAddresses.length === 0)
 				return params.callbacks.ifNotEnoughFunds("either the amount you entered can't be composed using available denominations or all paying addresses are unfunded in asset, make sure all your funds are confirmed");
