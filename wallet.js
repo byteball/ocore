@@ -1911,7 +1911,11 @@ function handlePrivatePaymentFile(fullPath, content, cb) {
 					}
 					// for light wallets request history for mnemonic address, check if already spent
 					if (conf.bLight) {
-						var addrInfo = expandMnemonic(data.mnemonic);
+						try {
+							var addrInfo = expandMnemonic(data.mnemonic);
+						} catch (e) {
+							return cb(e);
+						}
 						var history_requested = false;
 						var checkAddressTxs = function() {
 							db.query(
