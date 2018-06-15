@@ -1901,9 +1901,18 @@ function handlePrivatePaymentFile(fullPath, content, cb) {
 					eventBus.once('all_private_payments_handled-' + objectHash.getBase64Hash(first_chain_elem), function(){
 						cb(null, data);
 					});
+					var onDone = function() {
+						handlePrivatePaymentChains(ws, data, null, {
+							ifError: function(err){
+								cb(err);
+							},
+							ifOk: function(){} // we subscribe to event, not waiting for callback
+						});
+					}
 					// for light wallets request history for mnemonic address, check if already spent
 					if (conf.bLight) {
 						var addrInfo = expandMnemonic(data.mnemonic);
+						var history_requested = false;
 						var checkAddressTxs = function() {
 							db.query(
 								"SELECT 'in' AS 'action' \n\
@@ -1913,33 +1922,19 @@ function handlePrivatePaymentFile(fullPath, content, cb) {
 								FROM inputs JOIN units USING(unit) WHERE address=?", 
 								[addrInfo.address, addrInfo.address],
 								function(rows){
-									var has_input = _.find(rows, function(v, k){return v.action == 'in'});
-									var has_output = _.find(rows, function(v, k){return v.action == 'out'});
-									if (!has_input) {
+									var actions_count = _.countBy(rows, function(v){return v.action});
+									if (rows.length === 0 && !history_requested) {
+										history_requested = true;
 										network.requestHistoryFor([], [addrInfo.address], checkAddressTxs);
 									}
-									else if (has_output) {
+									else if (actions_count['in'] === 1 && actions_count['out'] === 1) {
 										cb("textcoin was already claimed");
-									} else {
-										handlePrivatePaymentChains(ws, data, null, {
-											ifError: function(err){
-												cb(err);
-											},
-											ifOk: function(){} // we subscribe to event, not waiting for callback
-										});
-									}
+									} else onDone();
 								}
 							);
 						};
 						checkAddressTxs();
-					} else {
-						handlePrivatePaymentChains(ws, data, null, {
-							ifError: function(err){
-								cb(err);
-							},
-							ifOk: function(){} // we subscribe to event, not waiting for callback
-						});
-					}
+					} else onDone();
 				});
 			}).catch(function(err){cb(err)});
 		}).catch(function(err){cb(err)});
