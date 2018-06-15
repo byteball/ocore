@@ -601,13 +601,14 @@ function handlePairingMessage(json, device_pubkey, callbacks){
 			if (pairing_rows.length === 0)
 				return callbacks.ifError("pairing secret not found or expired");
 			// add new correspondent and delete pending pairing
+			var safe_device_name = body.device_name.replace(/<[^>]*>?/g, '');
 			db.query(
 				"INSERT "+db.getIgnore()+" INTO correspondent_devices (device_address, pubkey, hub, name, is_confirmed) VALUES (?,?,?,?,1)", 
-				[from_address, device_pubkey, json.device_hub, body.device_name],
+				[from_address, device_pubkey, json.device_hub, safe_device_name],
 				function(){
 					db.query( // don't update name if already confirmed
 						"UPDATE correspondent_devices SET is_confirmed=1, name=? WHERE device_address=? AND is_confirmed=0", 
-						[body.device_name, from_address],
+						[safe_device_name, from_address],
 						function(){
 							eventBus.emit("paired", from_address, body.pairing_secret);
 							if (pairing_rows[0].is_permanent === 0){ // multiple peers can pair through permanent secret
