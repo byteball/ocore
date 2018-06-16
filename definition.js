@@ -336,6 +336,26 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 					return cb("invalid new definition chash");
 				return cb();
 				
+			case 'attested':
+				if (objValidationState.bNoReferences)
+					return cb("no references allowed in address definition");
+				if (!isArrayOfLength(args, 2))
+					return cb(op+" must have 2 args");
+				var attested_address = args[0];
+				var arrAttestors = args[1];
+				if (bAssetCondition && attested_address === 'this address')
+					return cb("asset condition cannot reference this address in "+op);
+				if (!isValidAddress(attested_address) && attested_address !== 'this address') // it is ok if the address was never used yet
+					return cb("invalid attested address");
+				if (!ValidationUtils.isNonemptyArray(arrAttestors))
+					return cb("no attestors");
+				for (var i=0; i<arrAttestors.length; i++)
+					if (!isValidAddress(arrAttestors[i]))
+						return cb("invalid attestor address "+arrAttestors[i]);
+				if (objValidationState.last_ball_mci < constants.attestedInDefinitionUpgradeMci)
+					return cb(op+" not enabled yet");
+				return cb();
+				
 			case 'cosigned by':
 				if (bInNegation)
 					return cb(op+" cannot be negated");
@@ -783,6 +803,19 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				conn.query(sql, params, function(rows){
 					cb2(rows.length > 0);
 				});
+				break;
+				
+			case 'attested':
+				// ['attested', ['BASE32', ['BASE32']]]
+				var attested_address = args[0];
+				var arrAttestors = args[1];
+				if (attested_address === 'this address')
+					attested_address = address;
+				storage.filterAttestedAddresses(
+					conn, {arrAttestorAddresses: arrAttestors}, objValidationState.last_ball_mci, [attested_address], function(arrFilteredAddresses){
+						cb2(arrFilteredAddresses.length > 0);
+					}
+				);
 				break;
 				
 			case 'cosigned by':
