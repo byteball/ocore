@@ -133,9 +133,14 @@ function buildPaidWitnessesForMainChainIndex(conn, main_chain_index, cb){
 				conn.query("CREATE TEMPORARY TABLE paid_witness_events_tmp ( \n\
 					unit CHAR(44) NOT NULL, \n\
 					address CHAR(32) NOT NULL)", function(){
-						conn.query("SELECT * FROM units WHERE main_chain_index=?", [main_chain_index], function(rows){
+						conn.query("SELECT unit, main_chain_index FROM units WHERE main_chain_index=?", [main_chain_index], function(rows){
 							profiler.stop('mc-wc-select-units');
 							et=0; rt=0;
+							var unitsRAM = _.map(_.pickBy(storage.assocStableUnits, function(v, k){return v.main_chain_index == main_chain_index}), function(props, unit){return {unit: props.unit, main_chain_index: main_chain_index}});
+							if (!_.isEqual(rows, unitsRAM)) {
+								if (!_.isEqual(_.sortBy(rows, function(v){return v.unit;}), _.sortBy(unitsRAM, function(v){return v.unit;})))
+									throwError("different units in buildPaidWitnessesForMainChainIndex, db: "+rows+", ram: "+unitsRAM);
+							}
 							async.eachSeries(
 								rows, 
 								function(row, cb2){
@@ -224,6 +229,11 @@ function buildPaidWitnesses(conn, objUnitProps, arrWitnesses, onDone){
 			function(rows){
 				et += Date.now()-t;
 				var count_paid_witnesses = rows.length;
+				var arrPaidWitnessesRAM = _.uniq(_.flatMap(_.pickBy(storage.assocStableUnits, function(v, k){return _.includes(arrUnits,k)}), function(v, k){
+					return _.intersection(v.author_addresses, arrWitnesses);
+				}));
+				if (!_.isEqual(arrPaidWitnessesRAM.sort(), _.map(rows, function(v){return v.address}).sort()))
+					throw Error("arrPaidWitnesses are not equal");
 				var arrValues;
 				if (count_paid_witnesses === 0){ // nobody witnessed, pay equally to all
 					count_paid_witnesses = arrWitnesses.length;
@@ -231,6 +241,7 @@ function buildPaidWitnesses(conn, objUnitProps, arrWitnesses, onDone){
 				}
 				else
 					arrValues = rows.map(function(row){ return "("+conn.escape(unit)+", "+conn.escape(row.address)+")"; });
+
 				profiler.stop('mc-wc-select-events');
 				profiler.start();
 				conn.query("INSERT INTO paid_witness_events_tmp (unit, address) VALUES "+arrValues.join(", "), function(){
