@@ -471,6 +471,7 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 			witnessed_level: bGenesis ? 0 : null,
 			parent_units: objUnit.parent_units,
 			headers_commission: objUnit.headers_commission,
+			payload_commission: objUnit.payload_commission,
 			sequence: objValidationState.sequence,
 			author_addresses: arrAuthorAddresses,
 			witness_list_unit: objUnit.witness_list_unit

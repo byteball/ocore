@@ -171,7 +171,6 @@ function determineIfIncludedOrEqual(conn, earlier_unit, arrLaterUnits, handleRes
 function readDescendantUnitsByAuthorsBeforeMcIndex(conn, objEarlierUnitProps, arrAuthorAddresses, to_main_chain_index, handleUnits){
 	
 	var arrUnits = [];
-	var arrUnitsRAM = [];
 	
 	function goDown(arrStartUnits){
 		profiler.start();

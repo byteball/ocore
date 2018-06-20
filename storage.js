@@ -697,7 +697,7 @@ function readUnitProps(conn, unit, handleProps){
 	if (assocStableUnits[unit])
 		return handleProps(assocStableUnits[unit]);
 	conn.query(
-		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, sequence, group_concat(address) as author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit\n\
+		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, group_concat(address) as author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit\n\
 			FROM units \n\
 			JOIN unit_authors USING(unit) \n\
 			WHERE unit=? \n\
@@ -717,8 +717,10 @@ function readUnitProps(conn, unit, handleProps){
 				var props2 = _.cloneDeep(assocUnstableUnits[unit]);
 				delete props2.parent_units;
 				delete props2.earned_headers_commission_recipients;
-				if (!_.isEqual(_.assign({}, assocUnstableUnits[unit], props), assocUnstableUnits[unit]))
-					throw Error("different props of "+unit+", mem: "+JSON.stringify(assocUnstableUnits[unit])+", db: "+JSON.stringify(props));
+				if (!_.isEqual(props, props2)) {
+					debugger;
+					throw Error("different props of "+unit+", mem: "+JSON.stringify(props2)+", db: "+JSON.stringify(props));
+				}
 			}
 			handleProps(props);
 		}
@@ -1242,7 +1244,7 @@ setInterval(shrinkCache, 300*1000);
 
 function initUnstableUnits(onDone){
 	db.query(
-		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, sequence, group_concat(address) as author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit \n\
+		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, group_concat(address) as author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit \n\
 			FROM units \n\
 			JOIN unit_authors USING(unit) \n\
 			WHERE is_stable=0 \n\
@@ -1265,7 +1267,7 @@ function initUnstableUnits(onDone){
 function initStableUnits(onDone){
 	readLastStableMcIndex(db, function(last_stable_mci){
 		db.query(
-			"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, sequence, group_concat(address) as author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit \n\
+			"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, group_concat(address) as author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit \n\
 			FROM units \n\
 			JOIN unit_authors USING(unit) \n\
 			WHERE is_stable=1 AND main_chain_index>=? \n\
