@@ -80,9 +80,9 @@ function parseUri(uri, callbacks){
 	var arrParts = value.split('?');
 	if (arrParts.length > 2)
 		return callbacks.ifError("too many question marks");
-	var address = arrParts[0];
+	var address = decodeURIComponent(arrParts[0]);
 	var query_string = arrParts[1];
-	if (!ValidationUtils.isValidAddress(address))
+	if (!ValidationUtils.isValidAddress(address) && !ValidationUtils.isValidEmail(address))
 		return callbacks.ifError("address "+address+" is invalid");
 	objRequest.type = "address";
 	objRequest.address = address;

@@ -46,11 +46,13 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 			return "asset condition cannot be filtered by own_funds";
 		if ("type" in filter && filter.type !== "issue" && filter.type !== "transfer")
 			return "invalid type: "+filter.type;
+		if ("own_funds" in filter && objValidationState.last_ball_mci >= constants.otherAddressInDefinitionUpgradeMci)
+			return "own_funds is deprecated";
 		if ("own_funds" in filter && typeof filter.own_funds !== "boolean")
 			return "own_funds must be boolean";
-		if (bAssetCondition && filter.address === 'this address')
-			return "asset condition cannot reference this address";
-		if ("address" in filter && !isValidAddress(filter.address) && filter.address !== 'this address') // it is ok if the address was never used yet
+		if (bAssetCondition && (filter.address === 'this address' || filter.address === 'other address'))
+			return "asset condition cannot reference this/other address";
+		if ("address" in filter && !isValidAddress(filter.address) && filter.address !== 'this address' && (filter.address !== 'other address' || objValidationState.last_ball_mci < constants.otherAddressInDefinitionUpgradeMci)) // it is ok if the address was never used yet
 			return "invalid address: "+filter.address;
 		if ("amount" in filter && !isPositiveInteger(filter.amount))
 			return "amount must be positive int";
@@ -326,12 +328,32 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 					return cb(op+" must have 2 args");
 				var changed_address = args[0];
 				var new_definition_chash = args[1];
-				if (bAssetCondition && (changed_address === 'this address' || new_definition_chash === 'this address'))
-					return cb("asset condition cannot reference this address in "+op);
+				if (bAssetCondition && (changed_address === 'this address' || new_definition_chash === 'this address' || changed_address === 'other address' || new_definition_chash === 'other address'))
+					return cb("asset condition cannot reference this/other address in "+op);
 				if (!isValidAddress(changed_address) && changed_address !== 'this address') // it is ok if the address was never used yet
 					return cb("invalid changed address");
 				if (!isValidAddress(new_definition_chash) && new_definition_chash !== 'this address')
 					return cb("invalid new definition chash");
+				return cb();
+				
+			case 'attested':
+				if (objValidationState.bNoReferences)
+					return cb("no references allowed in address definition");
+				if (!isArrayOfLength(args, 2))
+					return cb(op+" must have 2 args");
+				var attested_address = args[0];
+				var arrAttestors = args[1];
+				if (bAssetCondition && attested_address === 'this address')
+					return cb("asset condition cannot reference this address in "+op);
+				if (!isValidAddress(attested_address) && attested_address !== 'this address') // it is ok if the address was never used yet
+					return cb("invalid attested address");
+				if (!ValidationUtils.isNonemptyArray(arrAttestors))
+					return cb("no attestors");
+				for (var i=0; i<arrAttestors.length; i++)
+					if (!isValidAddress(arrAttestors[i]))
+						return cb("invalid attestor address "+arrAttestors[i]);
+				if (objValidationState.last_ball_mci < constants.attestedInDefinitionUpgradeMci)
+					return cb(op+" not enabled yet");
 				return cb();
 				
 			case 'cosigned by':
@@ -443,6 +465,8 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 				if (op === 'seen'){
 					if (!args.address)
 						return cb('seen must specify address');
+					if (args.address === 'other address')
+						return cb('seen cannot be other address');
 					if (args.what === 'input' && (args.amount || args.amount_at_least || args.amount_at_most))
 						return cb('amount not allowed in seen input');
 					if ('own_funds' in args)
@@ -739,7 +763,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				break;
 				
 			case 'seen':
-				// ['seen', {what: 'input', asset: 'asset or base', type: 'transfer'|'issue', own_funds: true, amount_at_least: 123, amount_at_most: 123, amount: 123, address: 'BASE32'}]
+				// ['seen', {what: 'input', asset: 'asset or base', type: 'transfer'|'issue', amount_at_least: 123, amount_at_most: 123, amount: 123, address: 'BASE32'}]
 				var filter = args;
 				var sql = "SELECT 1 FROM "+filter.what+"s CROSS JOIN units USING(unit) \n\
 					LEFT JOIN assets ON asset=assets.unit \n\
@@ -779,6 +803,19 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				conn.query(sql, params, function(rows){
 					cb2(rows.length > 0);
 				});
+				break;
+				
+			case 'attested':
+				// ['attested', ['BASE32', ['BASE32']]]
+				var attested_address = args[0];
+				var arrAttestors = args[1];
+				if (attested_address === 'this address')
+					attested_address = address;
+				storage.filterAttestedAddresses(
+					conn, {arrAttestorAddresses: arrAttestors}, objValidationState.last_ball_mci, [attested_address], function(arrFilteredAddresses){
+						cb2(arrFilteredAddresses.length > 0);
+					}
+				);
 				break;
 				
 			case 'cosigned by':
@@ -883,32 +920,36 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 			case 'age':
 				var relation = args[0];
 				var age = args[1];
-				var arrSrcUnits = [];
-				for (var i=0; i<objUnit.messages.length; i++){
-					var message = objUnit.messages[i];
-					if (message.app !== 'payment' || !message.payload)
-						continue;
-					var inputs = message.payload.inputs;
-					for (var j=0; j<inputs.length; j++){
-						var input = inputs[j];
-						if (!input.address) // augment should add it
-							throw Error('no input address');
-						if (input.address === address && arrSrcUnits.indexOf(input.unit) === -1)
-							arrSrcUnits.push(input.unit);
+				augmentMessagesAndContinue(function(){
+					var arrSrcUnits = [];
+					for (var i=0; i<objValidationState.arrAugmentedMessages.length; i++){
+						var message = objValidationState.arrAugmentedMessages[i];
+						if (message.app !== 'payment' || !message.payload)
+							continue;
+						var inputs = message.payload.inputs;
+						for (var j=0; j<inputs.length; j++){
+							var input = inputs[j];
+							if (input.type !== 'transfer') // assume age is satisfied for issue, headers commission, and witnessing commission
+								continue;
+							if (!input.address) // augment should add it
+								throw Error('no input address');
+							if (input.address === address && arrSrcUnits.indexOf(input.unit) === -1)
+								arrSrcUnits.push(input.unit);
+						}
 					}
-				}
-				if (arrSrcUnits.length === 0) // not spending anything from our address
-					return cb2(false);
-				conn.query(
-					"SELECT 1 FROM units \n\
-					WHERE unit IN(?) AND ?"+relation+"main_chain_index AND main_chain_index<=? AND +sequence='good' AND is_stable=1",
-					[arrSrcUnits, objValidationState.last_ball_mci - age, objValidationState.last_ball_mci],
-					function(rows){
-						var bSatisfies = (rows.length === arrSrcUnits.length);
-						console.log(op+" "+bSatisfies);
-						cb2(bSatisfies);
-					}
-				);
+					if (arrSrcUnits.length === 0) // not spending anything from our address
+						return cb2(false);
+					conn.query(
+						"SELECT 1 FROM units \n\
+						WHERE unit IN(?) AND ?"+relation+"main_chain_index AND main_chain_index<=? AND +sequence='good' AND is_stable=1",
+						[arrSrcUnits, objValidationState.last_ball_mci - age, objValidationState.last_ball_mci],
+						function(rows){
+							var bSatisfies = (rows.length === arrSrcUnits.length);
+							console.log(op+" "+bSatisfies);
+							cb2(bSatisfies);
+						}
+					);
+				});
 				break;
 				
 			case 'has':
@@ -956,11 +997,11 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 					console.log("sum="+sum);
 					if (typeof args.equals === "number" && sum === args.equals)
 						return cb2(true);
-					if (typeof args.at_least === "number" && sum >= args.at_least)
-						return cb2(true);
-					if (typeof args.at_most === "number" && sum <= args.at_most)
-						return cb2(true);
-					cb2(false);
+					if (typeof args.at_least === "number" && sum < args.at_least)
+						return cb2(false);
+					if (typeof args.at_most === "number" && sum > args.at_most)
+						return cb2(false);
+					cb2(true);
 				});
 				break;
 				
@@ -988,6 +1029,13 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 	}
 	
 	
+	function augmentMessagesAndContinue(next){
+		if (!objValidationState.arrAugmentedMessages)
+			augmentMessages(next);
+		else
+			next();
+	}
+	
 	function augmentMessagesAndEvaluateFilter(op, filter, handleResult){
 		function doEvaluateFilter(){
 			//console.log("augmented: ", objValidationState.arrAugmentedMessages[0].payload);
@@ -1001,9 +1049,6 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 	
 	
 	function evaluateFilter(op, filter, handleResult){
-		var filter_address = filter.address;
-		if (filter_address === 'this address')
-			filter_address = address;
 		var arrFoundObjects = [];
 		for (var i=0; i<objUnit.messages.length; i++){
 			var message = objUnit.messages[i];
@@ -1034,26 +1079,53 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 						if (type !== filter.type)
 							continue;
 					}
-					if (filter.own_funds && objValidationState.arrAugmentedMessages[i].payload.inputs[j].address !== address)
+					var augmented_input = objValidationState.arrAugmentedMessages ? objValidationState.arrAugmentedMessages[i].payload.inputs[j] : null;
+					if ("own_funds" in filter){
+						if (filter.own_funds && augmented_input.address !== address)
+							continue;
+						if (filter.own_funds === false && augmented_input.address === address)
+							continue;
+					}
+					if (filter.address){
+						if (filter.address === 'this address'){
+							if (augmented_input.address !== address)
+								continue;
+						}
+						else if (filter.address === 'other address'){
+							if (augmented_input.address === address)
+								continue;
+						}
+						else { // normal address
+							if (augmented_input.address !== filter.address)
+								continue;
+						}
+					}
+					if (filter.amount && augmented_input.amount !== filter.amount)
 						continue;
-					if (filter.own_funds === false && objValidationState.arrAugmentedMessages[i].payload.inputs[j].address === address)
+					if (filter.amount_at_least && augmented_input.amount < filter.amount_at_least)
 						continue;
-					if (filter_address && objValidationState.arrAugmentedMessages[i].payload.inputs[j].address !== filter_address)
+					if (filter.amount_at_most && augmented_input.amount > filter.amount_at_most)
 						continue;
-					if (filter.amount && objValidationState.arrAugmentedMessages[i].payload.inputs[j].amount !== filter.amount)
-						continue;
-					if (filter.amount_at_least && objValidationState.arrAugmentedMessages[i].payload.inputs[j].amount < filter.amount_at_least)
-						continue;
-					if (filter.amount_at_most && objValidationState.arrAugmentedMessages[i].payload.inputs[j].amount > filter.amount_at_most)
-						continue;
-					arrFoundObjects.push(objValidationState.arrAugmentedMessages[i].payload.inputs[j]);
+					arrFoundObjects.push(augmented_input || input);
 				}
 			} // input
 			else if (filter.what === "output"){
 				for (var j=0; j<payload.outputs.length; j++){
 					var output = payload.outputs[j];
-					if (filter_address && output.address !== filter_address)
-						continue;
+					if (filter.address){
+						if (filter.address === 'this address'){
+							if (output.address !== address)
+								continue;
+						}
+						else if (filter.address === 'other address'){
+							if (output.address === address)
+								continue;
+						}
+						else { // normal address
+							if (output.address !== filter.address)
+								continue;
+						}
+					}
 					if (filter.amount && output.amount !== filter.amount)
 						continue;
 					if (filter.amount_at_least && output.amount < filter.amount_at_least)
@@ -1107,6 +1179,8 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 										input.amount = rows[0].amount;
 										input.address = rows[0].address;
 									} // else will choke when checking the message
+									else
+										console.log(rows.length+" src outputs found");
 									cb4();
 								}
 							);

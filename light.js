@@ -175,6 +175,8 @@ function prepareHistory(historyRequest, callbacks){
 	if (arrAddresses){
 		if (!ValidationUtils.isNonemptyArray(arrAddresses))
 			return callbacks.ifError("no addresses");
+		if (!arrAddresses.every(ValidationUtils.isValidAddress))
+			return callbacks.ifError("some addresses are not valid");
 		if (arrKnownStableUnits && !ValidationUtils.isNonemptyArray(arrKnownStableUnits))
 			return callbacks.ifError("known_stable_units must be non-empty array");
 	}
@@ -337,6 +339,7 @@ function processHistory(objResponse, callbacks){
 					rows.forEach(function(row){
 						assocExistingUnits[row.unit] = true;
 					});
+					var arrNewUnits = [];
 					var arrProvenUnits = [];
 					async.eachSeries(
 						objResponse.joints.reverse(), // have them in forward chronological order so that we correctly mark is_spent flag
@@ -361,8 +364,10 @@ function processHistory(objResponse, callbacks){
 									}
 								);
 							}
-							else
+							else{
+								arrNewUnits.push(unit);
 								writer.saveJoint(objJoint, {sequence: sequence, arrDoubleSpendInputs: [], arrAdditionalQueries: []}, null, cb2);
+							}
 						},
 						function(err){
 							breadcrumbs.add('processHistory almost done');
@@ -371,11 +376,13 @@ function processHistory(objResponse, callbacks){
 								return callbacks.ifError(err);
 							}
 							fixIsSpentFlagAndInputAddress(function(){
+								if (arrNewUnits.length > 0)
+									emitNewMyTransactions(arrNewUnits);
 								if (arrProvenUnits.length === 0){
 									unlock();
 									return callbacks.ifOk(true);
 								}
-								db.query("UPDATE units SET is_stable=1, is_free=0 WHERE unit IN(?)", [arrProvenUnits], function(){
+								db.query("UPDATE units SET is_stable=1, is_free=0 WHERE unit IN("+arrProvenUnits.map(db.escape).join(', ')+")", function(){
 									unlock();
 									arrProvenUnits = arrProvenUnits.filter(function(unit){ return !assocProvenUnitsNonserialness[unit]; });
 									if (arrProvenUnits.length === 0)
@@ -462,22 +469,40 @@ function determineIfHaveUnstableJoints(arrAddresses, handleResult){
 	);
 }
 
-function emitStability(arrProvenUnits, onDone){
-	var strUnitList = arrProvenUnits.map(db.escape).join(', ');
-	db.query(
-		"SELECT unit FROM unit_authors JOIN my_addresses USING(address) WHERE unit IN("+strUnitList+") \n\
+function getSqlToFilterMyUnits(arrUnits){
+	var strUnitList = arrUnits.map(db.escape).join(', ');
+	return "SELECT unit FROM unit_authors JOIN my_addresses USING(address) WHERE unit IN("+strUnitList+") \n\
 		UNION \n\
 		SELECT unit FROM outputs JOIN my_addresses USING(address) WHERE unit IN("+strUnitList+") \n\
 		UNION \n\
 		SELECT unit FROM unit_authors JOIN shared_addresses ON address=shared_address WHERE unit IN("+strUnitList+") \n\
 		UNION \n\
-		SELECT unit FROM outputs JOIN shared_addresses ON address=shared_address WHERE unit IN("+strUnitList+")",
+		SELECT unit FROM outputs JOIN shared_addresses ON address=shared_address WHERE unit IN("+strUnitList+")";
+}
+
+function emitStability(arrProvenUnits, onDone){
+	db.query(
+		getSqlToFilterMyUnits(arrProvenUnits),
 		function(rows){
 			onDone(rows.length > 0);
 			if (rows.length > 0){
 				eventBus.emit('my_transactions_became_stable', rows.map(function(row){ return row.unit; }));
 				rows.forEach(function(row){
 					eventBus.emit('my_stable-'+row.unit);
+				});
+			}
+		}
+	);
+}
+
+function emitNewMyTransactions(arrNewUnits){
+	db.query(
+		getSqlToFilterMyUnits(arrNewUnits),
+		function(rows){
+			if (rows.length > 0){
+				eventBus.emit('new_my_transactions', rows.map(function(row){ return row.unit; }));
+				rows.forEach(function(row){
+					eventBus.emit("new_my_unit-"+row.unit);
 				});
 			}
 		}
