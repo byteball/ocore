@@ -9,7 +9,6 @@ var storage = require('./storage.js');
 var eventBus = require('./event_bus.js');
 
 var max_spendable_mci = null;
-var assocUnitHC;
 
 function calcHeadersCommissions(conn, onDone){
 	// we don't require neither source nor recipient to be majority witnessed -- we don't want to return many times to the same MC index.
