@@ -19,15 +19,8 @@ function calcHeadersCommissions(conn, onDone){
 	
 	// max_spendable_mci is old, it was last updated after previous calc
 	var since_mc_index = max_spendable_mci;
-	var last_stable_mci = since_mc_index;
 		
 	async.series([
-		function(cb){
-			storage.readLastStableMcIndex(conn, function(mci){
-				last_stable_mci = mci;
-				cb();
-			});
-		},
 		function(cb){
 			if (conf.storage === 'mysql'){
 				var best_child_sql = "SELECT unit \n\
@@ -94,10 +87,12 @@ function calcHeadersCommissions(conn, onDone){
 					function(rows){
 						// in-memory
 						var assocChildrenInfosRAM = {};
-						var pUnits = _.pickBy(storage.assocStableUnits, function(v, k){return v.main_chain_index > since_mc_index && v.main_chain_index < last_stable_mci && v.sequence == 'good'});
+						var pUnits = _.pickBy(storage.assocStableUnits, function(v, k){return v.main_chain_index == since_mc_index+1 && v.sequence == 'good'});
 						_.forOwn(pUnits, function(props, unit){
 							if (!assocChildrenInfosRAM[unit]) {
 								var next_mc_unit = Object.keys(_.pickBy(storage.assocStableUnits, function(v, k){return v.main_chain_index == props.main_chain_index+1 && v.is_on_main_chain}))[0];
+								if (!next_mc_unit)
+									throwError("no next_mc_unit found");
 								var children = _.map(_.pickBy(storage.assocStableUnits, function(v, k){return (v.main_chain_index - props.main_chain_index == 1 || v.main_chain_index - props.main_chain_index == 0) && v.parent_units.indexOf(unit) > -1}), function(props, unit){return {child_unit: unit, next_mc_unit: next_mc_unit}});
 								assocChildrenInfosRAM[unit] = {headers_commission: props.headers_commission, children: children};
 							}

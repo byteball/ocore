@@ -182,7 +182,8 @@ function buildPaidWitnessesForMainChainIndex(conn, main_chain_index, cb){
 													}, {});
 													var paidAmounts2 = _.map(paidAmounts, function(amount, address) {return {address: address, amount: amount}});
 													if (!_.isEqual(rows, paidAmounts2)){
-														throwError("different amount in buildPaidWitnessesForMainChainIndex db:" + JSON.stringify(rows) + " ram:" + JSON.stringify(paidAmounts2));
+														if (!_.isEqual(_.sortBy(rows, function(v){return v.address}), _sortBy(paidAmounts2, function(v){return v.address})))
+															throwError("different amount in buildPaidWitnessesForMainChainIndex db:" + JSON.stringify(rows) + " ram:" + JSON.stringify(paidAmounts2));
 													}
 											});
 											conn.query(conn.dropTemporaryTable("paid_witness_events_tmp"), function(){
