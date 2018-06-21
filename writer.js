@@ -474,7 +474,7 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 			payload_commission: objUnit.payload_commission,
 			sequence: objValidationState.sequence,
 			author_addresses: arrAuthorAddresses,
-			witness_list_unit: objUnit.witness_list_unit
+			witness_list_unit: (objUnit.witness_list_unit || objUnit.unit)
 		};
 		if ("earned_headers_commission_recipients" in objUnit) {
 			objNewUnitProps.earned_headers_commission_recipients = {};
