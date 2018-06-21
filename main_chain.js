@@ -86,6 +86,7 @@ function updateMainChain(conn, from_unit, last_added_unit, onDone){
 				}
 				var objBestParentUnitPropsForCheck = _.cloneDeep(objBestParentUnitProps2);
 				delete objBestParentUnitPropsForCheck.parent_units;
+				delete objBestParentUnitPropsForCheck.earned_headers_commission_recipients;
 				if (!_.isEqual(objBestParentUnitPropsForCheck, objBestParentUnitProps))
 					throwError("different props, db: "+JSON.stringify(objBestParentUnitProps)+", unstable: "+JSON.stringify(objBestParentUnitProps2));
 				if (!objBestParentUnitProps.is_on_main_chain)
@@ -1155,6 +1156,7 @@ function getSimilarMcis(mci){
 }
 
 function throwError(msg){
+	debugger;
 	if (typeof window === 'undefined')
 		throw Error(msg);
 	else
