@@ -94,11 +94,11 @@ function calcHeadersCommissions(conn, onDone){
 					function(rows){
 						// in-memory
 						var assocChildrenInfosRAM = {};
-						var unhandledUnits = _.pickBy(storage.assocStableUnits, function(v, k){return v.main_chain_index > since_mc_index && v.main_chain_index < last_stable_mci && v.sequence == 'good'});
-						_.forOwn(unhandledUnits, function(props, unit){
+						var pUnits = _.pickBy(storage.assocStableUnits, function(v, k){return v.main_chain_index > since_mc_index && v.main_chain_index < last_stable_mci && v.sequence == 'good'});
+						_.forOwn(pUnits, function(props, unit){
 							if (!assocChildrenInfosRAM[unit]) {
 								var next_mc_unit = Object.keys(_.pickBy(storage.assocStableUnits, function(v, k){return v.main_chain_index == props.main_chain_index+1 && v.is_on_main_chain}))[0];
-								var children = _.map(_.pickBy(storage.assocStableUnits, function(v, k){return Math.abs(v.main_chain_index - props.main_chain_index) <= 1 && v.parent_units.indexOf(unit) > -1}), function(props, unit){return {child_unit: unit, next_mc_unit: next_mc_unit}});
+								var children = _.map(_.pickBy(storage.assocStableUnits, function(v, k){return (v.main_chain_index - props.main_chain_index == 1 || v.main_chain_index - props.main_chain_index == 0) && v.parent_units.indexOf(unit) > -1}), function(props, unit){return {child_unit: unit, next_mc_unit: next_mc_unit}});
 								assocChildrenInfosRAM[unit] = {headers_commission: props.headers_commission, children: children};
 							}
 						});
@@ -161,17 +161,17 @@ function calcHeadersCommissions(conn, onDone){
 								// in-memory
 								var arrValuesRAM = [];
 								for (var child_unit in assocWonAmounts){
-									var unit = storage.assocStableUnits[child_unit];
+									var objUnit = storage.assocStableUnits[child_unit];
 									for (var payer_unit in assocWonAmounts[child_unit]){
 										var full_amount = assocWonAmounts[child_unit][payer_unit];
-										if (unit.earned_headers_commission_recipients) { // multiple authors or recipient is another address
-											for (var address in unit.earned_headers_commission_recipients) {
-												var share = unit.earned_headers_commission_recipients[address];
+										if (objUnit.earned_headers_commission_recipients) { // multiple authors or recipient is another address
+											for (var address in objUnit.earned_headers_commission_recipients) {
+												var share = objUnit.earned_headers_commission_recipients[address];
 												var amount = Math.round(full_amount * share / 100.0);
 												arrValuesRAM.push("('"+payer_unit+"', '"+address+"', "+amount+")");
 											};
 										} else
-											arrValuesRAM.push("('"+payer_unit+"', '"+unit.author_addresses[0]+"', "+full_amount+")");
+											arrValuesRAM.push("('"+payer_unit+"', '"+objUnit.author_addresses[0]+"', "+full_amount+")");
 									}
 								}
 								// sql result
