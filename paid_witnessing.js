@@ -172,13 +172,13 @@ function buildPaidWitnessesForMainChainIndex(conn, main_chain_index, cb){
 											//console.log(Date.now()-t);
 											conn.query("SELECT address, amount FROM witnessing_outputs WHERE main_chain_index=?", [main_chain_index], function(rows){
 													var countPaidWitnesses = _.countBy(paidWitnessEvents, function(v){return v.unit});
-													var paidAmounts = _.reduce(paidWitnessEvents, function(amounts, v) {
-														var unit = storage.assocStableUnits[v.unit];
-														if (typeof amounts[v.address] === "undefined")
-															amounts[v.address] = 0;
-														if (unit.sequence == 'good')
-															amounts[v.address] += Math.round(unit.payload_commission / countPaidWitnesses[v.unit]);
-														return amounts;
+													var paidAmounts = _.reduce(paidWitnessEvents, function(amountsByAddress, v) {
+														var objUnit = storage.assocStableUnits[v.unit];
+														if (typeof amountsByAddress[v.address] === "undefined")
+															amountsByAddress[v.address] = 0;
+														if (objUnit.sequence == 'good')
+															amountsByAddress[v.address] += Math.round(objUnit.payload_commission / countPaidWitnesses[v.unit]);
+														return amountsByAddress;
 													}, {});
 													var paidAmounts2 = _.map(paidAmounts, function(amount, address) {return {address: address, amount: amount}});
 													if (!_.isEqual(rows, paidAmounts2)){

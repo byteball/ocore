@@ -702,7 +702,7 @@ function readUnitProps(conn, unit, handleProps){
 	if (assocStableUnits[unit])
 		return handleProps(assocStableUnits[unit]);
 	conn.query(
-		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, group_concat(address) as author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit\n\
+		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit\n\
 			FROM units \n\
 			JOIN unit_authors USING(unit) \n\
 			WHERE unit=? \n\
@@ -1228,7 +1228,7 @@ function shrinkCache(){
 			// filter units that became stable more than 100 MC indexes ago
 			db.query(
 				"SELECT unit FROM units WHERE unit IN(?) AND main_chain_index<? AND main_chain_index!=0", 
-				[arrUnits.slice(offset, offset+CHUNK_SIZE), last_stable_mci-100], 
+				[arrUnits.slice(offset, offset+CHUNK_SIZE), last_stable_mci-constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING], 
 				function(rows){
 					console.log('will remove '+rows.length+' units from cache');
 					rows.forEach(function(row){
@@ -1249,7 +1249,7 @@ setInterval(shrinkCache, 300*1000);
 
 function initUnstableUnits(onDone){
 	db.query(
-		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, group_concat(address) as author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit \n\
+		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit \n\
 			FROM units \n\
 			JOIN unit_authors USING(unit) \n\
 			WHERE is_stable=0 \n\
@@ -1272,12 +1272,12 @@ function initUnstableUnits(onDone){
 function initStableUnits(onDone){
 	readLastStableMcIndex(db, function(last_stable_mci){
 		db.query(
-			"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, group_concat(address) as author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit \n\
+			"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit \n\
 			FROM units \n\
 			JOIN unit_authors USING(unit) \n\
 			WHERE is_stable=1 AND main_chain_index>=? \n\
 			GROUP BY +unit \n\
-			ORDER BY +level", [last_stable_mci-100],
+			ORDER BY +level", [last_stable_mci-constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING],
 			function(rows){
 				rows.forEach(function(row){
 					row.author_addresses = row.author_addresses.split(',');
