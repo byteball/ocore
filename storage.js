@@ -1228,7 +1228,7 @@ function shrinkCache(){
 			// filter units that became stable more than 100 MC indexes ago
 			db.query(
 				"SELECT unit FROM units WHERE unit IN(?) AND main_chain_index<? AND main_chain_index!=0", 
-				[arrUnits.slice(offset, offset+CHUNK_SIZE), last_stable_mci-constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING], 
+				[arrUnits.slice(offset, offset+CHUNK_SIZE), last_stable_mci-constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING-10], 
 				function(rows){
 					console.log('will remove '+rows.length+' units from cache');
 					rows.forEach(function(row){
@@ -1277,7 +1277,7 @@ function initStableUnits(onDone){
 			JOIN unit_authors USING(unit) \n\
 			WHERE is_stable=1 AND main_chain_index>=? \n\
 			GROUP BY +unit \n\
-			ORDER BY +level", [last_stable_mci-constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING],
+			ORDER BY +level", [last_stable_mci-constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING-10],
 			function(rows){
 				rows.forEach(function(row){
 					row.author_addresses = row.author_addresses.split(',');
