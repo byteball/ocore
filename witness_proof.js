@@ -27,7 +27,8 @@ function prepareWitnessProof(arrWitnesses, last_stable_mci, handleResult){
 		function(cb){ // collect all unstable MC units
 			var arrFoundWitnesses = [];
 			db.query(
-				"SELECT unit FROM units WHERE is_on_main_chain=1 AND is_stable=0 ORDER BY main_chain_index DESC", 
+				"SELECT unit FROM units WHERE +is_on_main_chain=1 AND main_chain_index>? ORDER BY main_chain_index DESC",
+				[storage.getMinRetrievableMci()],
 				function(rows){
 					async.eachSeries(rows, function(row, cb2){
 						storage.readJointWithBall(db, row.unit, function(objJoint){

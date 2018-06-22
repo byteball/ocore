@@ -469,8 +469,19 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 			is_free: 1,
 			is_stable: bGenesis ? 1 : 0,
 			witnessed_level: bGenesis ? 0 : null,
-			parent_units: objUnit.parent_units
+			parent_units: objUnit.parent_units,
+			headers_commission: objUnit.headers_commission,
+			payload_commission: objUnit.payload_commission,
+			sequence: objValidationState.sequence,
+			author_addresses: arrAuthorAddresses,
+			witness_list_unit: (objUnit.witness_list_unit || objUnit.unit)
 		};
+		if ("earned_headers_commission_recipients" in objUnit) {
+			objNewUnitProps.earned_headers_commission_recipients = {};
+			objUnit.earned_headers_commission_recipients.forEach(function(row){
+				objNewUnitProps.earned_headers_commission_recipients[row.address] = row.earned_headers_commission_share;
+			});
+		}
 		
 		// without this locking, we get frequent deadlocks from mysql
 		mutex.lock(["write"], function(unlock){

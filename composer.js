@@ -868,15 +868,17 @@ function readSortedFundedAddresses(asset, arrAvailableAddresses, estimated_amoun
 	// addresses closest to estimated amount come first
 	var order_by = estimated_amount ? "(SUM(amount)>"+estimated_amount+") DESC, ABS(SUM(amount)-"+estimated_amount+") ASC" : "SUM(amount) DESC";
 	db.query(
-		"SELECT address, SUM(amount) AS total \n\
-		FROM outputs \n\
-		CROSS JOIN units USING(unit) \n\
-		WHERE address IN(?) AND is_stable=1 AND sequence='good' AND is_spent=0 AND asset"+(asset ? "=?" : " IS NULL")+" \n\
-			AND NOT EXISTS ( \n\
-				SELECT * FROM unit_authors JOIN units USING(unit) \n\
-				WHERE is_stable=0 AND unit_authors.address=outputs.address AND definition_chash IS NOT NULL \n\
-			) \n\
-		GROUP BY address ORDER BY "+order_by,
+		"SELECT * FROM ( \n\
+			SELECT address, SUM(amount) AS total \n\
+			FROM outputs \n\
+			CROSS JOIN units USING(unit) \n\
+			WHERE address IN(?) AND is_stable=1 AND sequence='good' AND is_spent=0 AND asset"+(asset ? "=?" : " IS NULL")+" \n\
+			GROUP BY address ORDER BY "+order_by+" \n\
+		) AS t \n\
+		WHERE NOT EXISTS ( \n\
+			SELECT * FROM units CROSS JOIN unit_authors USING(unit) \n\
+			WHERE is_stable=0 AND unit_authors.address=t.address AND definition_chash IS NOT NULL \n\
+		)",
 		asset ? [arrAvailableAddresses, asset] : [arrAvailableAddresses],
 		function(rows){
 			var arrFundedAddresses = filterMostFundedAddresses(rows, estimated_amount);

@@ -387,96 +387,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			break;
 			
 		case 'private_payments':
-			var arrChains = body.chains;
-			if (!ValidationUtils.isNonemptyArray(arrChains))
-				return callbacks.ifError("no chains found");
-			profiler.increment();
-			
-			if (conf.bLight)
-				network.requestUnfinishedPastUnitsOfPrivateChains(arrChains); // it'll work in the background
-			
-			var assocValidatedByKey = {};
-			var bParsingComplete = false;
-			var cancelAllKeys = function(){
-				for (var key in assocValidatedByKey)
-					eventBus.removeAllListeners(key);
-			};
-
-			var current_message_counter = ++message_counter;
-
-			var checkIfAllValidated = function(){
-				if (!assocValidatedByKey) // duplicate call - ignore
-					return console.log('duplicate call of checkIfAllValidated');
-				for (var key in assocValidatedByKey)
-					if (!assocValidatedByKey[key])
-						return console.log('not all private payments validated yet');
-				assocValidatedByKey = null; // to avoid duplicate calls
-				if (!body.forwarded){
-					emitNewPrivatePaymentReceived(from_address, arrChains, current_message_counter);
-					// note, this forwarding won't work if the user closes the wallet before validation of the private chains
-					var arrUnits = arrChains.map(function(arrPrivateElements){ return arrPrivateElements[0].unit; });
-					db.query("SELECT address FROM unit_authors WHERE unit IN(?)", [arrUnits], function(rows){
-						var arrAuthorAddresses = rows.map(function(row){ return row.address; });
-						// if the addresses are not shared, it doesn't forward anything
-						forwardPrivateChainsToOtherMembersOfSharedAddresses(arrChains, arrAuthorAddresses, from_address, true);
-					});
-				}
-				profiler.print();
-			};
-			
-			async.eachSeries(
-				arrChains,
-				function(arrPrivateElements, cb){ // validate each chain individually
-					var objHeadPrivateElement = arrPrivateElements[0];
-					if (!!objHeadPrivateElement.payload.denomination !== ValidationUtils.isNonnegativeInteger(objHeadPrivateElement.output_index))
-						return cb("divisibility doesn't match presence of output_index");
-					var output_index = objHeadPrivateElement.payload.denomination ? objHeadPrivateElement.output_index : -1;
-					var payload_hash = objectHash.getBase64Hash(objHeadPrivateElement.payload);
-					var key = 'private_payment_validated-'+objHeadPrivateElement.unit+'-'+payload_hash+'-'+output_index;
-					assocValidatedByKey[key] = false;
-					network.handleOnlinePrivatePayment(ws, arrPrivateElements, true, {
-						ifError: function(error){
-							console.log("handleOnlinePrivatePayment error: "+error);
-							cb("an error"); // do not leak error message to the hub
-						},
-						ifValidationError: function(unit, error){
-							console.log("handleOnlinePrivatePayment validation error: "+error);
-							cb("an error"); // do not leak error message to the hub
-						},
-						ifAccepted: function(unit){
-							console.log("handleOnlinePrivatePayment accepted");
-							assocValidatedByKey[key] = true;
-							cb(); // do not leak unit info to the hub
-						},
-						// this is the most likely outcome for light clients
-						ifQueued: function(){
-							console.log("handleOnlinePrivatePayment queued, will wait for "+key);
-							eventBus.once(key, function(bValid){
-								if (!bValid)
-									return cancelAllKeys();
-								assocValidatedByKey[key] = true;
-								if (bParsingComplete)
-									checkIfAllValidated();
-								else
-									console.log('parsing incomplete yet');
-							});
-							cb();
-						}
-					});
-				},
-				function(err){
-					bParsingComplete = true;
-					if (err){
-						cancelAllKeys();
-						return callbacks.ifError(err);
-					}
-					checkIfAllValidated();
-					callbacks.ifOk();
-					// forward the chains to other members of output addresses
-					if (!body.forwarded)
-						forwardPrivateChainsToOtherMembersOfOutputAddresses(arrChains);
-				}
-			);
+			handlePrivatePaymentChains(ws, body, from_address, callbacks);
 			break;
 			
 		case 'payment_notification':
@@ -513,6 +424,101 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 	}
 }
 
+function handlePrivatePaymentChains(ws, body, from_address, callbacks){
+	var arrChains = body.chains;
+	if (!ValidationUtils.isNonemptyArray(arrChains))
+		return callbacks.ifError("no chains found");
+	profiler.increment();
+	
+	if (conf.bLight)
+		network.requestUnfinishedPastUnitsOfPrivateChains(arrChains); // it'll work in the background
+	
+	var assocValidatedByKey = {};
+	var bParsingComplete = false;
+	var cancelAllKeys = function(){
+		for (var key in assocValidatedByKey)
+			eventBus.removeAllListeners(key);
+	};
+
+	var current_message_counter = ++message_counter;
+
+	var checkIfAllValidated = function(){
+		if (!assocValidatedByKey) // duplicate call - ignore
+			return console.log('duplicate call of checkIfAllValidated');
+		for (var key in assocValidatedByKey)
+			if (!assocValidatedByKey[key])
+				return console.log('not all private payments validated yet');
+		eventBus.emit('all_private_payments_handled', from_address);
+		eventBus.emit('all_private_payments_handled-' + arrChains[0][0].unit);
+		assocValidatedByKey = null; // to avoid duplicate calls
+		if (!body.forwarded){
+			if (from_address) emitNewPrivatePaymentReceived(from_address, arrChains, current_message_counter);
+			// note, this forwarding won't work if the user closes the wallet before validation of the private chains
+			var arrUnits = arrChains.map(function(arrPrivateElements){ return arrPrivateElements[0].unit; });
+			db.query("SELECT address FROM unit_authors WHERE unit IN(?)", [arrUnits], function(rows){
+				var arrAuthorAddresses = rows.map(function(row){ return row.address; });
+				// if the addresses are not shared, it doesn't forward anything
+				forwardPrivateChainsToOtherMembersOfSharedAddresses(arrChains, arrAuthorAddresses, from_address, true);
+			});
+		}
+		profiler.print();
+	};
+	
+	async.eachSeries(
+		arrChains,
+		function(arrPrivateElements, cb){ // validate each chain individually
+			var objHeadPrivateElement = arrPrivateElements[0];
+			if (!!objHeadPrivateElement.payload.denomination !== ValidationUtils.isNonnegativeInteger(objHeadPrivateElement.output_index))
+				return cb("divisibility doesn't match presence of output_index");
+			var output_index = objHeadPrivateElement.payload.denomination ? objHeadPrivateElement.output_index : -1;
+			var payload_hash = objectHash.getBase64Hash(objHeadPrivateElement.payload);
+			var key = 'private_payment_validated-'+objHeadPrivateElement.unit+'-'+payload_hash+'-'+output_index;
+			assocValidatedByKey[key] = false;
+			network.handleOnlinePrivatePayment(ws, arrPrivateElements, true, {
+				ifError: function(error){
+					console.log("handleOnlinePrivatePayment error: "+error);
+					cb("an error"); // do not leak error message to the hub
+				},
+				ifValidationError: function(unit, error){
+					console.log("handleOnlinePrivatePayment validation error: "+error);
+					cb("an error"); // do not leak error message to the hub
+				},
+				ifAccepted: function(unit){
+					console.log("handleOnlinePrivatePayment accepted");
+					assocValidatedByKey[key] = true;
+					cb(); // do not leak unit info to the hub
+				},
+				// this is the most likely outcome for light clients
+				ifQueued: function(){
+					console.log("handleOnlinePrivatePayment queued, will wait for "+key);
+					eventBus.once(key, function(bValid){
+						if (!bValid)
+							return cancelAllKeys();
+						assocValidatedByKey[key] = true;
+						if (bParsingComplete)
+							checkIfAllValidated();
+						else
+							console.log('parsing incomplete yet');
+					});
+					cb();
+				}
+			});
+		},
+		function(err){
+			bParsingComplete = true;
+			if (err){
+				cancelAllKeys();
+				return callbacks.ifError(err);
+			}
+			checkIfAllValidated();
+			callbacks.ifOk();
+			// forward the chains to other members of output addresses
+			if (!body.forwarded)
+				forwardPrivateChainsToOtherMembersOfOutputAddresses(arrChains);
+		}
+	);
+}
+
 
 function forwardPrivateChainsToOtherMembersOfOutputAddresses(arrChains, conn, onSaved){
 	console.log("forwardPrivateChainsToOtherMembersOfOutputAddresses", arrChains);
@@ -535,7 +541,7 @@ function forwardPrivateChainsToOtherMembersOfOutputAddresses(arrChains, conn, on
 	readWalletsByAddresses(conn, arrOutputAddresses, function(arrWallets){
 		if (arrWallets.length === 0){
 		//	breadcrumbs.add("forwardPrivateChainsToOtherMembersOfOutputAddresses: " + JSON.stringify(arrChains)); // remove in livenet
-			eventBus.emit('nonfatal_error', "not my wallet? output addresses: "+arrOutputAddresses.join(', '), new Error());
+		//	eventBus.emit('nonfatal_error', "not my wallet? output addresses: "+arrOutputAddresses.join(', '), new Error());
 		//	throw Error("not my wallet? output addresses: "+arrOutputAddresses.join(', '));
 		}
 		var arrFuncs = [];
@@ -607,32 +613,31 @@ function emitNewPrivatePaymentReceived(payer_device_address, arrChains, message_
 	});
 }
 
-function emitNewPublicPaymentReceived(payer_device_address, objUnit, message_counter){
+function emitNewPublicPaymentReceived(payer_device_address, objUnit){ // current_message_counter unused
 	walletGeneral.readMyAddresses(function(arrAddresses){
-		var assocAmountsByAsset = {};
-		var assocMyReceivingAddresses = {};
-		objUnit.messages.forEach(function(message){
-			if (message.app !== 'payment' || !message.payload)
-				return;
-			var payload = message.payload;
-			var asset = payload.asset || 'base';
-			if (!assocAmountsByAsset[asset])
-				assocAmountsByAsset[asset] = 0;
-			payload.outputs.forEach(function(output){
-				if (output.address && arrAddresses.indexOf(output.address) >= 0){
-					assocAmountsByAsset[asset] += output.amount;
-					assocMyReceivingAddresses[output.address] = true;
-				}
+		db.query("SELECT shared_address FROM shared_addresses", function(rows){
+			var arrSharedAddresses = rows.map(function(row){ return row.shared_address; });
+			var assocAmountsByAsset = {};
+			objUnit.messages.forEach(function(message){
+				if (message.app !== 'payment' || !message.payload)
+					return;
+				var payload = message.payload;
+				var asset = payload.asset || 'base';
+				if (!assocAmountsByAsset[asset])
+					assocAmountsByAsset[asset] = {main: 0, shared: 0};
+				payload.outputs.forEach(function(output){
+					if (output.address && arrAddresses.indexOf(output.address) >= 0){
+						var bShared = (arrSharedAddresses.indexOf(output.address) >= 0);
+						assocAmountsByAsset[asset][bShared ? 'shared' : 'main'] += output.amount;
+					}
+				});
 			});
-		});
-		var arrMyReceivingAddresses = Object.keys(assocMyReceivingAddresses);
-		if (arrMyReceivingAddresses.length === 0)
-			return;
-		db.query("SELECT 1 FROM shared_addresses WHERE shared_address IN(?)", [arrMyReceivingAddresses], function(rows){
-			var bToSharedAddress = (rows.length > 0);
-			for (var asset in assocAmountsByAsset)
-				if (assocAmountsByAsset[asset])
-					eventBus.emit('received_payment', payer_device_address, assocAmountsByAsset[asset], asset, message_counter, bToSharedAddress);
+			for (var asset in assocAmountsByAsset){
+				var amounts = assocAmountsByAsset[asset];
+				for (var type in amounts)
+					if (amounts[type])
+						eventBus.emit('received_payment', payer_device_address, amounts[type], asset, ++message_counter, type === 'shared');
+			}
 		});
 	});
 }
@@ -1100,15 +1105,17 @@ function readFundedAddresses(asset, wallet, estimated_amount, handleFundedAddres
 	// addresses closest to estimated amount come first
 	var order_by = estimated_amount ? "(SUM(amount)>"+estimated_amount+") DESC, ABS(SUM(amount)-"+estimated_amount+") ASC" : "SUM(amount) DESC";
 	db.query(
-		"SELECT address, SUM(amount) AS total \n\
-		FROM outputs JOIN my_addresses USING(address) \n\
-		CROSS JOIN units USING(unit) \n\
-		WHERE wallet=? AND is_stable=1 AND sequence='good' AND is_spent=0 AND "+(asset ? "asset=?" : "asset IS NULL")+" \n\
-			AND NOT EXISTS ( \n\
-				SELECT * FROM unit_authors JOIN units USING(unit) \n\
-				WHERE is_stable=0 AND unit_authors.address=outputs.address AND definition_chash IS NOT NULL \n\
-			) \n\
-		GROUP BY address ORDER BY "+order_by+" LIMIT "+constants.MAX_AUTHORS_PER_UNIT,
+		"SELECT * FROM ( \n\
+			SELECT address, SUM(amount) AS total \n\
+			FROM outputs JOIN my_addresses USING(address) \n\
+			CROSS JOIN units USING(unit) \n\
+			WHERE wallet=? AND is_stable=1 AND sequence='good' AND is_spent=0 AND "+(asset ? "asset=?" : "asset IS NULL")+" \n\
+			GROUP BY address ORDER BY "+order_by+" LIMIT "+constants.MAX_AUTHORS_PER_UNIT+" \n\
+		) AS t \n\
+		WHERE NOT EXISTS ( \n\
+			SELECT * FROM units CROSS JOIN unit_authors USING(unit) \n\
+			WHERE is_stable=0 AND unit_authors.address=t.address AND definition_chash IS NOT NULL \n\
+		)",
 		asset ? [wallet, asset] : [wallet],
 		function(rows){
 			readAssetProps(asset, function(objAsset){
@@ -1524,15 +1531,35 @@ function sendMultiPayment(opts, handleResult)
 						throw Error(err);
 
 					if (objAsset.is_private){
+						var saveMnemonicsPreCommit = params.callbacks.preCommitCb;
 						// save messages in outbox before committing
-						params.callbacks.preCommitCb = function(conn, arrChainsOfRecipientPrivateElements, arrChainsOfCosignerPrivateElements, cb){
+						params.callbacks.preCommitCb = function(conn, objJoint, arrChainsOfRecipientPrivateElements, arrChainsOfCosignerPrivateElements, cb){
 							if (!arrChainsOfRecipientPrivateElements || !arrChainsOfCosignerPrivateElements)
 								throw Error('no private elements');
 							var sendToRecipients = function(cb2){
-								if (recipient_device_address)
+								if (recipient_device_address) {
 									walletGeneral.sendPrivatePayments(recipient_device_address, arrChainsOfRecipientPrivateElements, false, conn, cb2);
-								else // paying to another wallet on the same device
+								} 
+								else if (Object.keys(assocAddresses).length > 0) {
+									var mnemonic = assocMnemonics[Object.keys(assocMnemonics)[0]]; // TODO: assuming only one textcoin here
+									if (typeof opts.getPrivateAssetPayloadSavePath === "function") {
+										opts.getPrivateAssetPayloadSavePath(function(fullPath, cordovaPathObj){
+											if (!fullPath && (!cordovaPathObj || !cordovaPathObj.fileName)) {
+												return cb2("no file path provided for storing private payload");
+											}
+											storePrivateAssetPayload(fullPath, cordovaPathObj, mnemonic, arrChainsOfRecipientPrivateElements, function(err) {
+												if (err)
+													throw Error(err);
+												saveMnemonicsPreCommit(conn, objJoint, cb2);
+											});
+										});
+									} else {
+										throw Error("no getPrivateAssetPayloadSavePath provided");
+									}
+								}
+								else { // paying to another wallet on the same device
 									forwardPrivateChainsToOtherMembersOfOutputAddresses(arrChainsOfRecipientPrivateElements, conn, cb2);
+								}
 							};
 							var sendToCosigners = function(cb2){
 								if (wallet)
@@ -1560,9 +1587,16 @@ function sendMultiPayment(opts, handleResult)
 										var asset_messages_to_address = _.filter(objJoint.unit.messages, function(m){
 											return m.app === "payment" && _.get(m, 'payload.asset') === asset && (_.get(m, 'payload.outputs[0].address') === new_address || _.get(m, 'payload.outputs[1].address') === new_address);
 										});
-										indivisibleAssetFeesByAddress[new_address] = constants.TEXTCOIN_ASSET_CLAIM_HEADER_FEE + asset_messages_to_address.length * constants.TEXTCOIN_ASSET_CLAIM_MESSAGE_FEE + constants.TEXTCOIN_ASSET_CLAIM_BASE_MSG_FEE;
+										indivisibleAssetFeesByAddress[new_address] = constants.TEXTCOIN_ASSET_CLAIM_HEADER_FEE + asset_messages_to_address.length * constants.TEXTCOIN_ASSET_CLAIM_MESSAGE_FEE + Object.keys(assocPrivatePayloads).length * constants.TEXTCOIN_PRIVATE_ASSET_CLAIM_MESSAGE_FEE + constants.TEXTCOIN_ASSET_CLAIM_BASE_MSG_FEE;
 									}
-									params.callbacks = old_callbacks;
+									// inject into ifOk an assert to check for correct number of payloads picked
+									_.assign(params.callbacks, old_callbacks, {
+										ifOk: function(objJoint, assocPrivatePayloads2, unlock) {
+												if (Object.keys(assocPrivatePayloads).length != Object.keys(assocPrivatePayloads2).length)
+													throw new Error("assocPrivatePayloads length differs from dry-run, incorrect fees calculated: " + Object.keys(assocPrivatePayloads) + " != " + Object.keys(assocPrivatePayloads2));
+												old_callbacks.ifOk(objJoint, assocPrivatePayloads2, unlock);
+											}
+									});
 									unlock();
 									cb();
 								},
@@ -1665,21 +1699,27 @@ function replaceInTextcoinTemplate(params, handleText){
 	});
 }
 
-function receiveTextCoin(mnemonic, addressTo, cb) {
+function expandMnemonic(mnemonic) {
+	var addrInfo = {};
 	mnemonic = mnemonic.toLowerCase().split('-').join(' ');
 	if ((mnemonic.split(' ').length % 3 !== 0) || !Mnemonic.isValid(mnemonic)) {
-		return cb("invalid mnemonic: "+mnemonic);
+		throw new Error("invalid mnemonic: "+mnemonic);
 	}
-	var mnemonic = new Mnemonic(mnemonic);
+	mnemonic = new Mnemonic(mnemonic);
+	addrInfo.xPrivKey = mnemonic.toHDPrivateKey().derive("m/44'/0'/0'/0/0");
+	addrInfo.pubkey = addrInfo.xPrivKey.publicKey.toBuffer().toString("base64");
+	addrInfo.definition = ["sig", {"pubkey": addrInfo.pubkey}];
+	addrInfo.address = objectHash.getChash160(addrInfo.definition);
+	return addrInfo;
+}
+
+function receiveTextCoin(mnemonic, addressTo, cb) {
 	try {
-		var xPrivKey = mnemonic.toHDPrivateKey().derive("m/44'/0'/0'/0/0");
-		var pubkey = xPrivKey.publicKey.toBuffer().toString("base64");
+		var addrInfo = expandMnemonic(mnemonic);
 	} catch (e) {
 		cb(e.message);
 		return;
 	}
-	var definition = ["sig", {"pubkey": pubkey}];
-	var address = objectHash.getChash160(definition);
 	var signer = {
 		readSigningPaths: function(conn, address, handleLengthsBySigningPaths){ // returns assoc array signing_path => length
 			var assocLengthsBySigningPaths = {};
@@ -1687,16 +1727,16 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 			handleLengthsBySigningPaths(assocLengthsBySigningPaths);
 		},
 		readDefinition: function(conn, address, handleDefinition){
-			handleDefinition(null, definition);
+			handleDefinition(null, addrInfo.definition);
 		},
 		sign: function(objUnsignedUnit, assocPrivatePayloads, address, signing_path, handleSignature){
-			handleSignature(null, ecdsaSig.sign(objectHash.getUnitHashToSign(objUnsignedUnit), xPrivKey.privateKey.bn.toBuffer({size:32})));
+			handleSignature(null, ecdsaSig.sign(objectHash.getUnitHashToSign(objUnsignedUnit), addrInfo.xPrivKey.privateKey.bn.toBuffer({size:32})));
 		}
 	};
 	var opts = {};
 	var asset = null;
 	opts.signer = signer;
-	opts.paying_addresses = [address];
+	opts.paying_addresses = [addrInfo.address];
 
 	opts.callbacks = {
 		ifNotEnoughFunds: function(err){
@@ -1717,10 +1757,10 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 		db.query(
 			"SELECT 1 \n\
 			FROM outputs JOIN units USING(unit) WHERE address=? LIMIT 1", 
-			[address],
+			[addrInfo.address],
 			function(rows){
 				if (rows.length === 0) {
-					network.requestHistoryFor([], [address], checkStability);
+					network.requestHistoryFor([], [addrInfo.address], checkStability);
 				}
 				else
 					checkStability();
@@ -1735,7 +1775,7 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 		db.query(
 			"SELECT is_stable, asset, is_spent, SUM(amount) as `amount` \n\
 			FROM outputs JOIN units USING(unit) WHERE address=? AND sequence='good' GROUP BY asset ORDER BY asset DESC, is_spent ASC LIMIT 1", 
-			[address],
+			[addrInfo.address],
 			function(rows){
 				if (rows.length === 0) {
 					cb("This payment doesn't exist in the network");
@@ -1747,7 +1787,7 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 						if (row.asset) { // claiming asset
 							opts.asset = row.asset;
 							opts.amount = row.amount;
-							opts.fee_paying_addresses = [address];
+							opts.fee_paying_addresses = [addrInfo.address];
 							storage.readAsset(db, row.asset, null, function(err, objAsset){
 								if (err && err.indexOf("not found" !== -1)) {
 									return network.requestHistoryFor([opts.asset], [], checkStability);
@@ -1805,6 +1845,138 @@ function eraseTextcoin(unit, address) {
 		[unit, address],
 		function(){}
 	);
+}
+
+function storePrivateAssetPayload(fullPath, cordovaPathObj, mnemonic, chains, cb) {
+	var storedObj = {
+		mnemonic: mnemonic,
+		chains: chains
+	};
+	var bCordova = (typeof window === 'object' && window.cordova);
+	var JSZip = require("jszip");
+	var zip = new JSZip();
+	zip.file('private_textcoin', JSON.stringify(storedObj));
+	var zipParams = {type: "nodebuffer", compression: 'DEFLATE', compressionOptions: {level: 9}};
+	zip.generateAsync(zipParams).then(function(zipFile) {
+		if (!bCordova) {
+			var fs = require('fs'+'');
+			fs.writeFile(fullPath, zipFile, cb);
+		} else {
+			window.requestFileSystem(LocalFileSystem.TEMPORARY, 0, function(fs) {
+				window.resolveLocalFileSystemURL(cordovaPathObj.root, function(dirEntry) {
+					dirEntry.getDirectory(cordovaPathObj.path, {create: true, exclusive: false}, function(dirEntry1) {
+						dirEntry1.getFile(cordovaPathObj.fileName, {create: true, exclusive: false}, function(file) {
+							file.createWriter(function(writer) {
+								writer.onwriteend = function() {
+									cb(null); 
+								};
+								writer.write(zipFile.buffer);
+							}, cb);
+						}, cb);
+					}, cb);
+				}, cb);
+			}, cb);
+		}
+	}, cb);
+}
+
+function handlePrivatePaymentFile(fullPath, content, cb) {
+	var bCordova = (typeof window === 'object' && window.cordova);
+	var JSZip = require("jszip");
+	var zip = new JSZip();
+
+	var unzip = function(err, data) {
+		if (err)
+			return cb(err);
+		zip.loadAsync(data).then(function(zip) {
+			zip.file("private_textcoin").async("string").then(function(data) {
+				try {
+					data = JSON.parse(data);
+					var first_chain_unit = data.chains[0][0].unit;
+				} catch (err) {return cb(err);}
+				device.getHubWs(function(err, ws){
+					if (err)
+						return cb("no hub connection, try again later:" + err);
+					eventBus.once('all_private_payments_handled-' + first_chain_unit, function(){
+						cb(null, data);
+					});
+					var onDone = function() {
+						handlePrivatePaymentChains(ws, data, null, {
+							ifError: function(err){
+								cb(err);
+							},
+							ifOk: function(){} // we subscribe to event, not waiting for callback
+						});
+					}
+					// for light wallets request history for mnemonic address, check if already spent
+					if (conf.bLight) {
+						try {
+							var addrInfo = expandMnemonic(data.mnemonic);
+						} catch (e) {
+							return cb(e);
+						}
+						var history_requested = false;
+						var checkAddressTxs = function() {
+							db.query(
+								"SELECT 'in' AS 'action' \n\
+								FROM outputs JOIN units USING(unit) WHERE address=? \n\
+								UNION \n\
+								SELECT 'out' AS 'action' \n\
+								FROM inputs JOIN units USING(unit) WHERE address=?", 
+								[addrInfo.address, addrInfo.address],
+								function(rows){
+									var actions_count = _.countBy(rows, function(v){return v.action});
+									if (rows.length === 0 && !history_requested) {
+										history_requested = true;
+										network.requestHistoryFor([], [addrInfo.address], checkAddressTxs);
+									}
+									else if (actions_count['in'] === 1 && actions_count['out'] === 1) {
+										cb("textcoin was already claimed");
+									} else onDone();
+								}
+							);
+						};
+						checkAddressTxs();
+					} else onDone();
+				});
+			}).catch(function(err){cb(err)});
+		}).catch(function(err){cb(err)});
+	}
+	
+	if (content) {
+		unzip(null, content);
+		return;
+	}
+
+	if (!bCordova) {
+		var fs = require('fs'+'');
+		fs.readFile(decodeURIComponent(fullPath.replace('file://', '')), unzip);
+	} else {
+		window.requestFileSystem(LocalFileSystem.TEMPORARY, 0, function(fs) {
+			if (fullPath.indexOf('://') == -1) fullPath = 'file://' + fullPath;
+			window.resolveLocalFileSystemURL(fullPath, function(fileEntry) {
+				fileEntry.file(function(file) {
+					var reader = new FileReader();
+					reader.onloadend = function() {
+						if (this.result == null) {
+							var permissions = cordova.plugins.permissions;
+							permissions.requestPermission(permissions.READ_EXTERNAL_STORAGE, function(status){
+								if (status.hasPermission) {
+									handlePrivatePaymentFile(fullPath, null, cb);
+								} else {
+									cb("no file permissions were given");
+								}
+							}, function(){cb("request for file permissions failed")});
+							return;
+						}
+						var fileBuffer = Buffer.from(new Uint8Array(this.result));
+						unzip(null, fileBuffer);
+					};
+					reader.readAsArrayBuffer(file);
+				}, cb);
+			}, cb);
+		}, cb);
+	}
 }
 
 function readDeviceAddressesUsedInSigningPaths(onDone){
@@ -1869,3 +2041,5 @@ exports.claimBackOldTextcoins = claimBackOldTextcoins;
 exports.eraseTextcoin = eraseTextcoin;
 exports.getSigner = getSigner;
 exports.signMessage = signMessage;
+exports.storePrivateAssetPayload = storePrivateAssetPayload;
+exports.handlePrivatePaymentFile = handlePrivatePaymentFile;
