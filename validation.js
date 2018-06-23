@@ -1690,14 +1690,14 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 								arrInputAddresses.push(owner_address);
 							total_input += src_output.amount;
 							
-							if (!objAsset || !objAsset.is_private)
+							if (src_output.main_chain_index <= objValidationState.last_ball_mci)
 								return checkInputDoubleSpend(cb);
 
-							// for private payments only, unit already saved (if public, we are already before last ball)
+							// the below is for unstable inputs only.
 							// when divisible, the asset is also non-transferrable and auto-destroy, 
 							// then this transfer is a transfer back to the issuer 
 							// and input.unit is known both to payer and the payee (issuer), even if light
-							graph.determineIfIncluded(conn, input.unit, [objUnit.unit], function(bIncluded){
+							graph.determineIfIncludedOrEqual(conn, input.unit, objUnit.parent_units, function(bIncluded){
 								if (!bIncluded)
 									return cb("input "+input.unit+" is not in your genes");
 								checkInputDoubleSpend(cb);
