@@ -60,9 +60,9 @@ function prepareRequestForHistory(handleResult){
 				objHistoryRequest.last_stable_mci = 0;
 				var strAddressList = arrAddresses.map(db.escape).join(', ');
 				db.query(
-					"SELECT unit FROM unit_authors JOIN units USING(unit) WHERE is_stable=1 AND address IN("+strAddressList+") \n\
+					"SELECT unit FROM unit_authors CROSS JOIN units USING(unit) WHERE is_stable=1 AND address IN("+strAddressList+") \n\
 					UNION \n\
-					SELECT unit FROM outputs JOIN units USING(unit) WHERE is_stable=1 AND address IN("+strAddressList+")",
+					SELECT unit FROM outputs CROSS JOIN units USING(unit) WHERE is_stable=1 AND address IN("+strAddressList+")",
 					function(rows){
 						if (rows.length)
 							objHistoryRequest.known_stable_units = rows.map(function(row){ return row.unit; });
