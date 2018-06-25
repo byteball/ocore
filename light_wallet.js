@@ -120,8 +120,8 @@ function refreshLightClientHistory(){
 				}
 				ws.bLightVendor = true;
 				var interval = setInterval(function(){ // refresh UI periodically while we are processing history
-					eventBus.emit('maybe_new_transactions');
-				}, 500);
+				//	eventBus.emit('maybe_new_transactions');
+				}, 10*1000);
 				light.processHistory(response, {
 					ifError: function(err){
 						clearInterval(interval);
