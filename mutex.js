@@ -100,6 +100,7 @@ setInterval(function(){
 
 exports.lock = lock;
 exports.lockOrSkip = lockOrSkip;
+exports.isAnyOfKeysLocked = isAnyOfKeysLocked;
 exports.getCountOfQueuedJobs = getCountOfQueuedJobs;
 exports.getCountOfLocks = getCountOfLocks;
 

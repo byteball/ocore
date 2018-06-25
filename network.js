@@ -1657,7 +1657,10 @@ function handleOnlinePrivatePayment(ws, arrPrivateElements, bViaHub, callbacks){
 function handleSavedPrivatePayments(unit){
 	//if (unit && assocUnitsInWork[unit])
 	//    return;
-	mutex.lock(["saved_private"], function(unlock){
+	if (!unit && mutex.isAnyOfKeysLocked(["private_chains"])) // we are still downloading the history (light)
+		return console.log("skipping handleSavedPrivatePayments because history download is still under way");
+	var lock = unit ? mutex.lock : mutex.lockOrSkip;
+	lock(["saved_private"], function(unlock){
 		var sql = unit
 			? "SELECT json, peer, unit, message_index, output_index, linked FROM unhandled_private_payments WHERE unit="+db.escape(unit)
 			: "SELECT json, peer, unit, message_index, output_index, linked FROM unhandled_private_payments CROSS JOIN units USING(unit)";
@@ -1698,6 +1701,7 @@ function handleSavedPrivatePayments(unit){
 							},
 							// light only. Means that chain joints (excluding the head) not downloaded yet or not stable yet
 							ifWaitingForChain: function(){
+								console.log('waiting for chain: unit '+row.unit+', message '+row.message_index+' output '+row.output_index);
 								cb();
 							}
 						});
@@ -1764,13 +1768,18 @@ function rerequestLostJointsOfPrivatePayments(){
 
 // light only
 function requestUnfinishedPastUnitsOfPrivateChains(arrChains, onDone){
-	if (!onDone)
-		onDone = function(){};
-	privatePayment.findUnfinishedPastUnitsOfPrivateChains(arrChains, true, function(arrUnits){
-		if (arrUnits.length === 0)
-			return onDone();
-		breadcrumbs.add(arrUnits.length+" unfinished past units of private chains");
-		requestHistoryFor(arrUnits, [], onDone);
+	mutex.lock(["private_chains"], function(unlock){
+		function finish(){
+			unlock();
+			if (onDone)
+				onDone();
+		}
+		privatePayment.findUnfinishedPastUnitsOfPrivateChains(arrChains, true, function(arrUnits){
+			if (arrUnits.length === 0)
+				return finish();
+			breadcrumbs.add(arrUnits.length+" unfinished past units of private chains");
+			requestHistoryFor(arrUnits, [], finish);
+		});
 	});
 }
 
@@ -1813,7 +1822,7 @@ function requestProofsOfJointsIfNewOrUnstable(arrUnits, onDone){
 
 // light only
 function requestUnfinishedPastUnitsOfSavedPrivateElements(){
-	mutex.lock(['private_chains'], function(unlock){
+	mutex.lockOrSkip(['saved_private_chains'], function(unlock){
 		db.query("SELECT json FROM unhandled_private_payments", function(rows){
 			eventBus.emit('unhandled_private_payments_left', rows.length);
 			if (rows.length === 0)
@@ -1825,8 +1834,11 @@ function requestUnfinishedPastUnitsOfSavedPrivateElements(){
 				arrChains.push(arrPrivateElements);
 			});
 			requestUnfinishedPastUnitsOfPrivateChains(arrChains, function onPrivateChainsReceived(err){
-				if (err)
+				if (err){
+					console.log("error from requestUnfinishedPastUnitsOfPrivateChains: "+err);
 					return unlock();
+				}
+				console.log("requestUnfinishedPastUnitsOfPrivateChains done");
 				handleSavedPrivatePayments();
 				setTimeout(unlock, 2000);
 			});
