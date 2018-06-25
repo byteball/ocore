@@ -407,7 +407,7 @@ function fixIsSpentFlag(onDone){
 	db.query(
 		"SELECT outputs.unit, outputs.message_index, outputs.output_index \n\
 		FROM outputs \n\
-		JOIN inputs ON outputs.unit=inputs.src_unit AND outputs.message_index=inputs.src_message_index AND outputs.output_index=inputs.src_output_index \n\
+		CROSS JOIN inputs ON outputs.unit=inputs.src_unit AND outputs.message_index=inputs.src_message_index AND outputs.output_index=inputs.src_output_index \n\
 		WHERE is_spent=0 AND type='transfer'",
 		function(rows){
 			console.log(rows.length+" previous outputs appear to be spent");
