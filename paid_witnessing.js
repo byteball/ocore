@@ -246,7 +246,7 @@ function buildPaidWitnesses(conn, objUnitProps, arrWitnesses, onDone){
 				var arrValues;
 				if (count_paid_witnesses === 0){ // nobody witnessed, pay equally to all
 					count_paid_witnesses = arrWitnesses.length;
-					arrValues = arrWitnesses.map(function(address){ return "("+conn.escape(unit)+", "+conn.escape(address)+", NULL)"; });
+					arrValues = arrWitnesses.map(function(address){ return "("+conn.escape(unit)+", "+conn.escape(address)+")"; });
 					paidWitnessEvents = _.concat(paidWitnessEvents, arrWitnesses.map(function(address){ return {unit: unit, address: address};}));
 				}
 				else {
