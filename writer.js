@@ -517,8 +517,21 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 							profiler.increment();
 							if (err)
 								storage.resetUnstableUnits(unlock);
-							else
+							else{
+								objValidationState.arrAdditionalQueries.forEach(function(objQuery){
+									if (objQuery.sql.match(/temp-bad/)){
+										var arrUnstableConflictingUnits = objQuery.params[0];
+										arrUnstableConflictingUnits.forEach(function(conflicting_unit){
+											var objConflictingUnitProps = storage.assocUnstableUnits[conflicting_unit];
+											if (!objConflictingUnitProps)
+												throw Error("conflicting unit "+conflicting_unit+" not found in unstable cache");
+											if (objConflictingUnitProps.sequence === 'good')
+												objConflictingUnitProps.sequence = 'temp-bad';
+										});
+									}
+								});
 								unlock();
+							}
 							if (!err)
 								eventBus.emit('saved_unit-'+objUnit.unit, objJoint);
 							if (onDone)
