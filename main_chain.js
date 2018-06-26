@@ -935,7 +935,10 @@ function markMcIndexStable(conn, mci, onDone){
 							console.log("unit "+row.unit+" has competitors "+arrConflictingUnits+", it becomes "+sequence);
 							conn.query("UPDATE units SET sequence=? WHERE unit=?", [sequence, row.unit], function(){
 								if (sequence === 'good')
-									conn.query("UPDATE inputs SET is_unique=1 WHERE unit=?", [row.unit], function(){ cb(); });
+									conn.query("UPDATE inputs SET is_unique=1 WHERE unit=?", [row.unit], function(){
+										storage.assocStableUnits[row.unit].sequence = 'good';
+										cb();
+									});
 								else{
 									arrFinalBadUnits.push(row.unit);
 									setContentHash(row.unit, cb);
