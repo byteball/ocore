@@ -92,7 +92,7 @@ function calcHeadersCommissions(conn, onDone){
 								var next_mc_unit = Object.keys(_.pickBy(storage.assocStableUnits, function(v, k){return v.main_chain_index == props.main_chain_index+1 && v.is_on_main_chain}))[0];
 								if (!next_mc_unit)
 									throwError("no next_mc_unit found for unit " + unit);
-								var children = _.map(_.pickBy(storage.assocStableUnits, function(v, k){return (v.main_chain_index - props.main_chain_index == 1 || v.main_chain_index - props.main_chain_index == 0) && v.parent_units.indexOf(unit) > -1}), function(props, unit){return {child_unit: unit, next_mc_unit: next_mc_unit}});
+								var children = _.map(_.pickBy(storage.assocStableUnits, function(v, k){return (v.main_chain_index - props.main_chain_index == 1 || v.main_chain_index - props.main_chain_index == 0) && v.parent_units.indexOf(unit) > -1 && v.sequence === 'good';}), function(props, unit){return {child_unit: unit, next_mc_unit: next_mc_unit}});
 								assocChildrenInfosRAM[unit] = {headers_commission: props.headers_commission, children: children};
 							}
 						});
