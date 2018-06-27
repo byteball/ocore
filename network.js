@@ -23,6 +23,7 @@ var ecdsaSig = require('./signature.js');
 var eventBus = require('./event_bus.js');
 var light = require('./light.js');
 var breadcrumbs = require('./breadcrumbs.js');
+var composer = require('./composer.js');
 var mail = process.browser ? null : require('./mail.js'+'');
 
 var FORWARDING_TIMEOUT = 10*1000; // don't forward if the joint was received more than FORWARDING_TIMEOUT ms ago
@@ -2555,6 +2556,26 @@ function handleRequest(ws, tag, command, params){
 					sendResponse(ws, tag, attestation_unit);
 				}
 			);
+			break;
+
+		case 'light/pick_divisible_coins_for_amount':
+			if (conf.bLight)
+				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
+			if (ws.bOutbound)
+				return sendErrorResponse(ws, tag, "light clients have to be inbound");
+			if (!params)
+				return sendErrorResponse(ws, tag, "no params in light/pick_divisible_coins_for_amount");
+			if (!params.addresses || !params.last_ball_mci || !params.amount)
+				return sendErrorResponse(ws, tag, "missing params in light/pick_divisible_coins_for_amount");
+			if (params.obj_asset && (!ValidationUtils.isNonemptyObject(params.obj_asset) || params.obj_asset.asset))
+				return sendError(ws, "obj_asset must contain asset param");
+			if (!ValidationUtils.isNonemptyArray(params.addresses))
+				return sendError(ws, "addresses must be non-empty array");
+			var bMultiAuthored = !!params.is_multi_authored;
+			composer.pickDivisibleCoinsForAmount(db, params.obj_asset, params.addresses, params.last_ball_mci, params.amount, bMultiAuthored, function(arrInputsWithProofs, total_amount) {
+				var objResponse = {inputs_with_proofs: arrInputsWithProofs, total_amount: total_amount};
+				sendResponse(ws, tag, objResponse);
+			});
 			break;
 
 		// I'm a hub, the peer wants to enable push notifications
