@@ -14,6 +14,8 @@ var RECONNECT_TO_LIGHT_VENDOR_PERIOD = 60*1000;
 
 
 function setLightVendorHost(light_vendor_host){
+	if (network.light_vendor_url)
+		return console.log("light_vendor_url is already set, current:" + network.light_vendor_url + ", new one:" + light_vendor_host);
 	network.light_vendor_url = conf.WS_PROTOCOL+light_vendor_host; // for now, light vendor is also a hub
 	if (conf.bLight){
 		refreshLightClientHistory();
