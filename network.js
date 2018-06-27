@@ -2566,8 +2566,16 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "no params in light/pick_divisible_coins_for_amount");
 			if (!params.addresses || !params.last_ball_mci || !params.amount)
 				return sendErrorResponse(ws, tag, "missing params in light/pick_divisible_coins_for_amount");
+			if (params.asset && !ValidationUtils.isValidBase64(params.asset, constants.HASH_LENGTH))
+				return sendError(ws, 'invalid asset');
 			if (!ValidationUtils.isNonemptyArray(params.addresses))
 				return sendError(ws, "addresses must be non-empty array");
+			if (!params.addresses.every(ValidationUtils.isValidAddress))
+				return sendError(ws, "some addresses are not valid");
+			if (typeof params.last_ball_mci !== "number")
+				return sendError(ws, "no last_ball_mci");
+			if (typeof params.amount !== "number")
+				return sendError(ws, "no amount");
 			var objAsset = params.asset ? {asset: params.asset} : null;
 			var bMultiAuthored = !!params.is_multi_authored;
 			light.pickDivisibleCoinsForAmount(db, objAsset, params.addresses, params.last_ball_mci, params.amount, bMultiAuthored, function(arrInputsWithProofs, total_amount) {
