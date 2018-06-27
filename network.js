@@ -23,7 +23,6 @@ var ecdsaSig = require('./signature.js');
 var eventBus = require('./event_bus.js');
 var light = require('./light.js');
 var breadcrumbs = require('./breadcrumbs.js');
-var composer = require('./composer.js');
 var mail = process.browser ? null : require('./mail.js'+'');
 
 var FORWARDING_TIMEOUT = 10*1000; // don't forward if the joint was received more than FORWARDING_TIMEOUT ms ago
@@ -2572,7 +2571,7 @@ function handleRequest(ws, tag, command, params){
 			if (!ValidationUtils.isNonemptyArray(params.addresses))
 				return sendError(ws, "addresses must be non-empty array");
 			var bMultiAuthored = !!params.is_multi_authored;
-			composer.pickDivisibleCoinsForAmount(db, params.obj_asset, params.addresses, params.last_ball_mci, params.amount, bMultiAuthored, function(arrInputsWithProofs, total_amount) {
+			light.pickDivisibleCoinsForAmount(db, params.obj_asset, params.addresses, params.last_ball_mci, params.amount, bMultiAuthored, function(arrInputsWithProofs, total_amount) {
 				var objResponse = {inputs_with_proofs: arrInputsWithProofs, total_amount: total_amount};
 				sendResponse(ws, tag, objResponse);
 			});
