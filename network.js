@@ -1954,8 +1954,15 @@ function handleJustsaying(ws, subject, body){
 				return;
 			}
 			ws.library_version = body.library_version;
-			if (typeof ws.library_version === 'string' && version2int(ws.library_version) < version2int(constants.minCoreVersion))
+			if (typeof ws.library_version === 'string' && version2int(ws.library_version) < version2int(constants.minCoreVersion)){
 				ws.old_core = true;
+				if (ws.bSubscribed){
+					ws.bSubscribed = false;
+					sendJustsaying(ws, 'upgrade_required');
+					sendJustsaying(ws, "old core");
+					ws.close(1000, "old core");
+				}
+			}
 			eventBus.emit('peer_version', ws, body); // handled elsewhere
 			break;
 
