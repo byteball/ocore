@@ -24,6 +24,7 @@ var eventBus = require('./event_bus.js');
 var light = require('./light.js');
 var breadcrumbs = require('./breadcrumbs.js');
 var mail = process.browser ? null : require('./mail.js'+'');
+var libraryPackageJson = require('./package.json');
 
 var FORWARDING_TIMEOUT = 10*1000; // don't forward if the joint was received more than FORWARDING_TIMEOUT ms ago
 var STALLED_TIMEOUT = 5000; // a request is treated as stalled if no response received within STALLED_TIMEOUT ms
@@ -124,7 +125,6 @@ function sendErrorResult(ws, unit, error) {
 }
 
 function sendVersion(ws){
-	var libraryPackageJson = require('./package.json');
 	sendJustsaying(ws, 'version', {
 		protocol_version: constants.version, 
 		alt: constants.alt, 
@@ -648,7 +648,7 @@ function printConnectionStatus(){
 function subscribe(ws){
 	ws.subscription_id = crypto.randomBytes(30).toString("base64"); // this is to detect self-connect
 	storage.readLastMainChainIndex(function(last_mci){
-		sendRequest(ws, 'subscribe', {subscription_id: ws.subscription_id, last_mci: last_mci}, false, function(ws, request, response){
+		sendRequest(ws, 'subscribe', {subscription_id: ws.subscription_id, last_mci: last_mci, library_version: libraryPackageJson.version}, false, function(ws, request, response){
 			delete ws.subscription_id;
 			if (response.error)
 				return;
@@ -2268,7 +2268,9 @@ function handleRequest(ws, tag, command, params){
 				//    sendFreeJoints(ws);
 				return sendErrorResponse(ws, tag, "I'm light, cannot subscribe you to updates");
 			}
-			if (ws.old_core){
+			if (typeof params.library_version === 'string' && version2int(params.library_version) < version2int(constants.minCoreVersion))
+				ws.old_core = true;
+			if (ws.old_core){ // can be also set in 'version'
 				sendJustsaying(ws, 'upgrade_required');
 				sendErrorResponse(ws, tag, "old core");
 				return ws.close(1000, "old core");
