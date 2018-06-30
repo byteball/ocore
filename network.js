@@ -2568,15 +2568,15 @@ function handleRequest(ws, tag, command, params){
 			if (!params.addresses || !params.last_ball_mci || !params.amount)
 				return sendErrorResponse(ws, tag, "missing params in light/pick_divisible_coins_for_amount");
 			if (params.asset && !ValidationUtils.isValidBase64(params.asset, constants.HASH_LENGTH))
-				return sendErrorResponse(ws, tag, "invalid asset");
+				return sendErrorResponse(ws, tag, "asset is not valid");
 			if (!ValidationUtils.isNonemptyArray(params.addresses))
 				return sendErrorResponse(ws, tag, "addresses must be non-empty array");
 			if (!params.addresses.every(ValidationUtils.isValidAddress))
 				return sendErrorResponse(ws, tag, "some addresses are not valid");
-			if (typeof params.last_ball_mci !== "number")
-				return sendErrorResponse(ws, tag, "no last_ball_mci");
-			if (typeof params.amount !== "number")
-				return sendErrorResponse(ws, tag, "no amount");
+			if (!ValidationUtils.isPositiveInteger(params.last_ball_mci))
+				return sendErrorResponse(ws, tag, "last_ball_mci is not valid");
+			if (!ValidationUtils.isPositiveInteger(params.amount))
+				return sendErrorResponse(ws, tag, "amount is not valid");
 			var objAsset = params.asset ? {asset: params.asset} : null;
 			var bMultiAuthored = !!params.is_multi_authored;
 			inputs.pickDivisibleCoinsForAmount(db, objAsset, params.addresses, params.last_ball_mci, params.amount, bMultiAuthored, function(arrInputsWithProofs, total_amount) {
