@@ -16,6 +16,7 @@ var validation = require('./validation.js');
 var writer = require('./writer.js');
 var conf = require('./conf.js');
 var profiler = require('./profiler.js');
+var inputs = require('./inputs.js');
 
 var hash_placeholder = "--------------------------------------------"; // 256 bits (32 bytes) base64: 44 bytes
 var sig_placeholder = "----------------------------------------------------------------------------------------"; // 88 bytes
@@ -449,7 +450,7 @@ function composeJoint(params){
 			
 			// all inputs must appear before last_ball
 			var target_amount = params.send_all ? Infinity : (total_amount + objUnit.headers_commission + naked_payload_commission);
-			pickDivisibleCoinsForAmount(
+			inputs.pickDivisibleCoinsForAmount(
 				conn, null, arrPayingAddresses, last_ball_mci, target_amount, bMultiAuthored, 
 				function(arrInputsWithProofs, _total_input){
 					if (!arrInputsWithProofs)

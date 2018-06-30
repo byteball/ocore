@@ -22,6 +22,7 @@ var objectHash = require('./object_hash.js');
 var ecdsaSig = require('./signature.js');
 var eventBus = require('./event_bus.js');
 var light = require('./light.js');
+var inputs = require('./inputs.js');
 var breadcrumbs = require('./breadcrumbs.js');
 var mail = process.browser ? null : require('./mail.js'+'');
 
@@ -2578,7 +2579,7 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "no amount");
 			var objAsset = params.asset ? {asset: params.asset} : null;
 			var bMultiAuthored = !!params.is_multi_authored;
-			light.pickDivisibleCoinsForAmount(db, objAsset, params.addresses, params.last_ball_mci, params.amount, bMultiAuthored, function(arrInputsWithProofs, total_amount) {
+			inputs.pickDivisibleCoinsForAmount(db, objAsset, params.addresses, params.last_ball_mci, params.amount, bMultiAuthored, function(arrInputsWithProofs, total_amount) {
 				var objResponse = {inputs_with_proofs: arrInputsWithProofs, total_amount: total_amount};
 				sendResponse(ws, tag, objResponse);
 			});
