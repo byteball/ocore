@@ -22,6 +22,7 @@ var objectHash = require('./object_hash.js');
 var ecdsaSig = require('./signature.js');
 var eventBus = require('./event_bus.js');
 var light = require('./light.js');
+var inputs = require('./inputs.js');
 var breadcrumbs = require('./breadcrumbs.js');
 var mail = process.browser ? null : require('./mail.js'+'');
 var libraryPackageJson = require('./package.json');
@@ -2564,6 +2565,45 @@ function handleRequest(ws, tag, command, params){
 					sendResponse(ws, tag, attestation_unit);
 				}
 			);
+			break;
+
+		case 'light/pick_divisible_coins_for_amount':
+			if (conf.bLight)
+				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
+			if (ws.bOutbound)
+				return sendErrorResponse(ws, tag, "light clients have to be inbound");
+			if (!params)
+				return sendErrorResponse(ws, tag, "no params in light/pick_divisible_coins_for_amount");
+			if (!params.addresses || !params.last_ball_mci || !params.amount)
+				return sendErrorResponse(ws, tag, "missing params in light/pick_divisible_coins_for_amount");
+			if (params.asset && !ValidationUtils.isValidBase64(params.asset, constants.HASH_LENGTH))
+				return sendErrorResponse(ws, tag, "asset is not valid");
+			if (!ValidationUtils.isNonemptyArray(params.addresses))
+				return sendErrorResponse(ws, tag, "addresses must be non-empty array");
+			if (!params.addresses.every(ValidationUtils.isValidAddress))
+				return sendErrorResponse(ws, tag, "some addresses are not valid");
+			if (!ValidationUtils.isPositiveInteger(params.last_ball_mci))
+				return sendErrorResponse(ws, tag, "last_ball_mci is not valid");
+			if (!ValidationUtils.isPositiveInteger(params.amount))
+				return sendErrorResponse(ws, tag, "amount is not valid");
+			var getAssetInfoOrNull = function(conn, asset, cb){
+				if (!asset)
+					return cb(null, null);
+				storage.readAssetInfo(conn, asset, function(objAsset){
+					if (!objAsset)
+						return cb("asset " + asset + " not found", null);
+					return cb(null, objAsset);
+				});
+			};
+			getAssetInfoOrNull(db, params.asset, function(err, objAsset){
+				if (err)
+					return sendErrorResponse(ws, tag, err);
+				var bMultiAuthored = !!params.is_multi_authored;
+				inputs.pickDivisibleCoinsForAmount(db, objAsset, params.addresses, params.last_ball_mci, params.amount, bMultiAuthored, function(arrInputsWithProofs, total_amount) {
+					var objResponse = {inputs_with_proofs: arrInputsWithProofs || [], total_amount: total_amount || 0};
+					sendResponse(ws, tag, objResponse);
+				});
+			});
 			break;
 
 		// I'm a hub, the peer wants to enable push notifications

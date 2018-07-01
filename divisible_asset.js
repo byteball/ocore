@@ -10,6 +10,7 @@ var composer = require("./composer.js");
 var ValidationUtils = require('./validation_utils.js');
 var validation = require('./validation.js');
 var writer = require('./writer.js');
+var inputs = require('./inputs.js');
 
 
 function validateAndSavePrivatePaymentChain(conn, arrPrivateElements, callbacks){
@@ -202,7 +203,7 @@ function composeDivisibleAssetPaymentJoint(params){
 				var target_amount = params.to_address 
 					? params.amount 
 					: params.asset_outputs.reduce(function(accumulator, output){ return accumulator + output.amount; }, 0);
-				composer.pickDivisibleCoinsForAmount(
+				inputs.pickDivisibleCoinsForAmount(
 					conn, objAsset, arrAssetPayingAddresses, last_ball_mci, target_amount, bMultiAuthored, 
 					function(arrInputsWithProofs, total_input){
 						console.log("pick coins callback "+arrInputsWithProofs);

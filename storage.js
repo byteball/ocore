@@ -1372,6 +1372,7 @@ exports.updateMinRetrievableMciAfterStabilizingMci = updateMinRetrievableMciAfte
 exports.archiveJointAndDescendantsIfExists = archiveJointAndDescendantsIfExists;
 
 exports.readAsset = readAsset;
+exports.readAssetInfo = readAssetInfo;
 exports.filterAttestedAddresses = filterAttestedAddresses;
 exports.loadAssetWithListOfAttestedAuthors = loadAssetWithListOfAttestedAuthors;
 
