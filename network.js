@@ -2586,19 +2586,19 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "last_ball_mci is not valid");
 			if (!ValidationUtils.isPositiveInteger(params.amount))
 				return sendErrorResponse(ws, tag, "amount is not valid");
-			var getAssetInfoOrNull = function(conn, asset, cb){
+			var getAssetInfoOrNull = function(asset, cb){
 				if (!asset)
 					return cb(null, null);
-				storage.readAssetInfo(conn, asset, function(objAsset){
+				storage.readAssetInfo(db, asset, function(objAsset){
 					if (!objAsset)
 						return cb("asset " + asset + " not found", null);
 					return cb(null, objAsset);
 				});
 			};
-			getAssetInfoOrNull(db, params.asset, function(err, objAsset){
+			getAssetInfoOrNull(params.asset, function(err, objAsset){
 				if (err)
 					return sendErrorResponse(ws, tag, err);
-				var bMultiAuthored = !!params.is_multi_authored;
+				var bMultiAuthored = (params.addresses.length > 1);
 				inputs.pickDivisibleCoinsForAmount(db, objAsset, params.addresses, params.last_ball_mci, params.amount, bMultiAuthored, function(arrInputsWithProofs, total_amount) {
 					var objResponse = {inputs_with_proofs: arrInputsWithProofs || [], total_amount: total_amount || 0};
 					sendResponse(ws, tag, objResponse);
