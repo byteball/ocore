@@ -2577,11 +2577,23 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "last_ball_mci is not valid");
 			if (!ValidationUtils.isPositiveInteger(params.amount))
 				return sendErrorResponse(ws, tag, "amount is not valid");
-			var objAsset = params.asset ? {asset: params.asset} : null;
-			var bMultiAuthored = !!params.is_multi_authored;
-			inputs.pickDivisibleCoinsForAmount(db, objAsset, params.addresses, params.last_ball_mci, params.amount, bMultiAuthored, function(arrInputsWithProofs, total_amount) {
-				var objResponse = {inputs_with_proofs: arrInputsWithProofs, total_amount: total_amount};
-				sendResponse(ws, tag, objResponse);
+			var getAssetInfoOrNull = function(conn, asset, cb){
+				if (!asset)
+					return cb(null, null);
+				storage.readAssetInfo(conn, asset, function(objAsset){
+					if (!objAsset)
+						return cb("asset " + asset + " not found", null);
+					return cb(null, objAsset);
+				});
+			};
+			getAssetInfoOrNull(db, params.asset, function(err, objAsset){
+				if (err)
+					return sendErrorResponse(ws, tag, err);
+				var bMultiAuthored = !!params.is_multi_authored;
+				inputs.pickDivisibleCoinsForAmount(db, objAsset, params.addresses, params.last_ball_mci, params.amount, bMultiAuthored, function(arrInputsWithProofs, total_amount) {
+					var objResponse = {inputs_with_proofs: arrInputsWithProofs || [], total_amount: total_amount || 0};
+					sendResponse(ws, tag, objResponse);
+				});
 			});
 			break;
 
