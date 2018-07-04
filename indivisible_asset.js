@@ -861,23 +861,31 @@ function getSavingCallbacks(to_address, callbacks){
 										bPreCommitCallbackFailed = true;
 										return cb(err);
 									}
-									var onSuccessfulPrecommit = !conf.bLight ? cb : function(err){
-										if (err) {
-											bPreCommitCallbackFailed = true;
+									if (!conf.bLight)
+										var onSuccessfulPrecommit = function(err) {
+											if (err) {
+												bPreCommitCallbackFailed = true;
+											}
 											return cb(err);
 										}
-										composer.postJointToLightVendorIfNecessaryAndSave(
-											objJoint, 
-											function onLightError(err){ // light only
-												console.log("failed to post indivisible payment "+unit);
+									else 
+										var onSuccessfulPrecommit = function(err){
+											if (err) {
 												bPreCommitCallbackFailed = true;
-												cb(err); // will rollback
-											},
-											function save(){ // not actually saving yet but greenlighting the commit
-												cb();
+												return cb(err);
 											}
-										);
-									};
+											composer.postJointToLightVendorIfNecessaryAndSave(
+												objJoint, 
+												function onLightError(err){ // light only
+													console.log("failed to post indivisible payment "+unit);
+													bPreCommitCallbackFailed = true;
+													cb(err); // will rollback
+												},
+												function save(){ // not actually saving yet but greenlighting the commit
+													cb();
+												}
+											);
+										};
 									if (!callbacks.preCommitCb)
 										return onSuccessfulPrecommit();
 									callbacks.preCommitCb(conn, objJoint, arrRecipientChains, arrCosignerChains, onSuccessfulPrecommit);
