@@ -1334,6 +1334,13 @@ function resetUnstableUnits(onDone){
 	initUnstableUnits(onDone);
 }
 
+function resetStableUnits(onDone){
+	Object.keys(assocStableUnits).forEach(function(unit){
+		delete assocStableUnits[unit];
+	});
+	initStableUnits(onDone);
+}
+
 mutex.lock(['write'], initUnstableUnits);
 mutex.lock(['write'], initStableUnits);
 
@@ -1393,3 +1400,4 @@ exports.sliceAndExecuteQuery = sliceAndExecuteQuery;
 exports.assocUnstableUnits = assocUnstableUnits;
 exports.assocStableUnits = assocStableUnits;
 exports.resetUnstableUnits = resetUnstableUnits;
+exports.resetStableUnits = resetStableUnits;

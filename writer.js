@@ -515,8 +515,11 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 							console.log((err ? (err+", therefore rolled back unit ") : "committed unit ")+objUnit.unit);
 							profiler.stop('write-commit');
 							profiler.increment();
-							if (err)
-								storage.resetUnstableUnits(unlock);
+							if (err) {
+								storage.resetUnstableUnits(function(){
+									storage.resetStableUnits(unlock);
+								});
+							}
 							else{
 								objValidationState.arrAdditionalQueries.forEach(function(objQuery){
 									if (objQuery.sql.match(/temp-bad/)){
