@@ -1076,6 +1076,8 @@ function checkForDoublespends(conn, type, sql, arrSqlArgs, objUnit, objValidatio
 				function(objConflictingRecord, cb2){
 					if (arrAuthorAddresses.indexOf(objConflictingRecord.address) === -1)
 						throw Error("conflicting "+type+" spent from another address?");
+					if (conf.bLight) // we can't use graph in light wallet, the private payment can be resent and revalidated when stable
+						return cb2(objUnit.unit+": conflicting "+type);
 					graph.determineIfIncludedOrEqual(conn, objConflictingRecord.unit, objUnit.parent_units, function(bIncluded){
 						if (bIncluded){
 							var error = objUnit.unit+": conflicting "+type+" in inner unit "+objConflictingRecord.unit;
