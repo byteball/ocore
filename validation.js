@@ -2045,7 +2045,7 @@ function createJointError(err){
 function validateSignedMessage(objSignedMessage, handleResult){
 	if (typeof objSignedMessage !== 'object')
 		return handleResult("not an object");
-	if (ValidationUtils.hasFieldsExcept(objSignedMessage, ["signed_message", "authors"]))
+	if (ValidationUtils.hasFieldsExcept(objSignedMessage, ["signed_message", "authors", "last_ball_unit", "timestamp"]))
 		return handleResult("unknown fields");
 	if (typeof objSignedMessage.signed_message !== 'string')
 		return handleResult("signed message not a string");
