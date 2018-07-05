@@ -24,13 +24,30 @@ var ADDRESS_SIZE = 32;
 
 // bMultiAuthored includes all addresses, not just those that pay
 // arrAddresses is paying addresses
-function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci, amount, bMultiAuthored, onDone){
+// spend_unconfirmed is one of: none, all, own
+function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci, amount, bMultiAuthored, spend_unconfirmed, onDone){
 	var asset = objAsset ? objAsset.asset : null;
-	console.log("pick coins "+asset+" amount "+amount);
+	console.log("pick coins in "+asset+" for amount "+amount+" with spend_unconfirmed "+spend_unconfirmed);
 	var is_base = objAsset ? 0 : 1;
 	var arrInputsWithProofs = [];
 	var total_amount = 0;
 	var required_amount = amount;
+	
+	if (!(typeof last_ball_mci === 'number' && last_ball_mci >= 0))
+		throw Error("invalid last_ball_mci: "+last_ball_mci);
+	var confirmation_condition;
+	if (spend_unconfirmed === 'none')
+		confirmation_condition = 'AND main_chain_index<='+last_ball_mci;
+	else if (spend_unconfirmed === 'all')
+		confirmation_condition = '';
+	else if (spend_unconfirmed === 'own')
+		confirmation_condition = 'AND ( main_chain_index<='+last_ball_mci+' OR EXISTS ( \n\
+			SELECT 1 FROM unit_authors CROSS JOIN my_addresses USING(address) WHERE unit_authors.unit=outputs.unit \n\
+			UNION \n\
+			SELECT 1 FROM unit_authors CROSS JOIN shared_addresses ON address=shared_address WHERE unit_authors.unit=outputs.unit \n\
+		) )';
+	else
+		throw Error("invalid spend_unconfirmed="+spend_unconfirmed);
 
 	// adds element to arrInputsWithProofs
 	function addInput(input){
@@ -68,9 +85,9 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 			FROM outputs \n\
 			CROSS JOIN units USING(unit) \n\
 			WHERE address IN(?) AND asset"+(asset ? "="+conn.escape(asset) : " IS NULL")+" AND is_spent=0 AND amount "+more+" ? \n\
-				AND is_stable=1 AND sequence='good' AND main_chain_index<=?  \n\
-			ORDER BY amount LIMIT 1",
-			[arrSpendableAddresses, amount+is_base*TRANSFER_INPUT_SIZE, last_ball_mci],
+				AND sequence='good' "+confirmation_condition+" \n\
+			ORDER BY is_stable DESC, amount LIMIT 1",
+			[arrSpendableAddresses, amount+is_base*TRANSFER_INPUT_SIZE],
 			function(rows){
 				if (rows.length === 1){
 					var input = rows[0];
@@ -91,9 +108,9 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 			FROM outputs \n\
 			CROSS JOIN units USING(unit) \n\
 			WHERE address IN(?) AND asset"+(asset ? "="+conn.escape(asset) : " IS NULL")+" AND is_spent=0 \n\
-				AND is_stable=1 AND sequence='good' AND main_chain_index<=?  \n\
+				AND sequence='good' "+confirmation_condition+"  \n\
 			ORDER BY amount DESC LIMIT ?",
-			[arrSpendableAddresses, last_ball_mci, constants.MAX_INPUTS_PER_PAYMENT_MESSAGE-2],
+			[arrSpendableAddresses, constants.MAX_INPUTS_PER_PAYMENT_MESSAGE-2],
 			function(rows){
 				async.eachSeries(
 					rows,
@@ -245,4 +262,21 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 		issueAsset();
 }
 
+function getConfirmationConditionSql(spend_unconfirmed){
+	if (spend_unconfirmed === 'none')
+		return 'AND is_stable=1';
+	else if (spend_unconfirmed === 'all')
+		return '';
+	else if (spend_unconfirmed === 'own')
+		return 'AND ( is_stable=1 OR EXISTS ( \n\
+			SELECT 1 FROM unit_authors CROSS JOIN my_addresses USING(address) WHERE unit_authors.unit=outputs.unit \n\
+			UNION \n\
+			SELECT 1 FROM unit_authors CROSS JOIN shared_addresses ON address=shared_address WHERE unit_authors.unit=outputs.unit \n\
+		) )';
+	else
+		throw Error("invalid spend_unconfirmed="+spend_unconfirmed);
+
+}
+
 exports.pickDivisibleCoinsForAmount = pickDivisibleCoinsForAmount;
+exports.getConfirmationConditionSql = getConfirmationConditionSql;

@@ -212,7 +212,7 @@ function composeDivisibleAssetPaymentJoint(params){
 					? params.amount 
 					: params.asset_outputs.reduce(function(accumulator, output){ return accumulator + output.amount; }, 0);
 				inputs.pickDivisibleCoinsForAmount(
-					conn, objAsset, arrAssetPayingAddresses, last_ball_mci, target_amount, bMultiAuthored, 
+					conn, objAsset, arrAssetPayingAddresses, last_ball_mci, target_amount, bMultiAuthored, params.spend_unconfirmed || 'own',
 					function(arrInputsWithProofs, total_input){
 						console.log("pick coins callback "+arrInputsWithProofs);
 						if (!arrInputsWithProofs)
@@ -370,7 +370,7 @@ function composeMinimalDivisibleAssetPaymentJoint(params){
 		throw Error('no available_paying_addresses');
 	if (!ValidationUtils.isNonemptyArray(params.available_fee_paying_addresses))
 		throw Error('no available_fee_paying_addresses');
-	composer.readSortedFundedAddresses(params.asset, params.available_paying_addresses, params.amount, function(arrFundedPayingAddresses){
+	composer.readSortedFundedAddresses(params.asset, params.available_paying_addresses, params.amount, params.spend_unconfirmed || 'own', function(arrFundedPayingAddresses){
 		if (arrFundedPayingAddresses.length === 0){
 			 // special case for issuing uncapped asset.  If it is not issuing, not-enough-funds will pop anyway
 			if (params.available_paying_addresses.length === 1)
@@ -378,7 +378,7 @@ function composeMinimalDivisibleAssetPaymentJoint(params){
 			else
 				return params.callbacks.ifNotEnoughFunds("all paying addresses are unfunded in asset, make sure all your funds are confirmed");
 		}
-		composer.readSortedFundedAddresses(null, params.available_fee_paying_addresses, TYPICAL_FEE, function(arrFundedFeePayingAddresses){
+		composer.readSortedFundedAddresses(null, params.available_fee_paying_addresses, TYPICAL_FEE, params.spend_unconfirmed || 'own', function(arrFundedFeePayingAddresses){
 			if (arrFundedFeePayingAddresses.length === 0)
 				return params.callbacks.ifNotEnoughFunds("all paying addresses are unfunded in bytes necessary for fees, make sure all your funds are confirmed");
 			var minimal_params = _.clone(params);

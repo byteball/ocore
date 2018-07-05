@@ -451,7 +451,7 @@ function composeJoint(params){
 			// all inputs must appear before last_ball
 			var target_amount = params.send_all ? Infinity : (total_amount + objUnit.headers_commission + naked_payload_commission);
 			inputs.pickDivisibleCoinsForAmount(
-				conn, null, arrPayingAddresses, last_ball_mci, target_amount, bMultiAuthored, 
+				conn, null, arrPayingAddresses, last_ball_mci, target_amount, bMultiAuthored, params.spend_unconfirmed || 'own',
 				function(arrInputsWithProofs, _total_input){
 					if (!arrInputsWithProofs)
 						return cb({ 
@@ -619,7 +619,7 @@ function filterMostFundedAddresses(rows, estimated_amount){
 	return arrFundedAddresses;
 }
 
-function readSortedFundedAddresses(asset, arrAvailableAddresses, estimated_amount, handleFundedAddresses){
+function readSortedFundedAddresses(asset, arrAvailableAddresses, estimated_amount, spend_unconfirmed, handleFundedAddresses){
 	if (arrAvailableAddresses.length === 0)
 		return handleFundedAddresses([]);
 	if (estimated_amount && typeof estimated_amount !== 'number')
@@ -631,7 +631,8 @@ function readSortedFundedAddresses(asset, arrAvailableAddresses, estimated_amoun
 			SELECT address, SUM(amount) AS total \n\
 			FROM outputs \n\
 			CROSS JOIN units USING(unit) \n\
-			WHERE address IN(?) AND is_stable=1 AND sequence='good' AND is_spent=0 AND asset"+(asset ? "=?" : " IS NULL")+" \n\
+			WHERE address IN(?) "+inputs.getConfirmationConditionSql(spend_unconfirmed)+" AND sequence='good' \n\
+				AND is_spent=0 AND asset"+(asset ? "=?" : " IS NULL")+" \n\
 			GROUP BY address ORDER BY "+order_by+" \n\
 		) AS t \n\
 		WHERE NOT EXISTS ( \n\
@@ -662,7 +663,7 @@ function readSortedFundedAddresses(asset, arrAvailableAddresses, estimated_amoun
 // note: it doesn't select addresses that have _only_ witnessing or headers commissions outputs
 function composeMinimalJoint(params){
 	var estimated_amount = (params.send_all || params.retrieveMessages) ? 0 : params.outputs.reduce(function(acc, output){ return acc+output.amount; }, 0) + TYPICAL_FEE;
-	readSortedFundedAddresses(null, params.available_paying_addresses, estimated_amount, function(arrFundedPayingAddresses){
+	readSortedFundedAddresses(null, params.available_paying_addresses, estimated_amount, params.spend_unconfirmed || 'own', function(arrFundedPayingAddresses){
 		if (arrFundedPayingAddresses.length === 0)
 			return params.callbacks.ifNotEnoughFunds("all paying addresses are unfunded");
 		var minimal_params = _.clone(params);

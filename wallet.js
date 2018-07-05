@@ -24,6 +24,7 @@ var profiler = require('./profiler.js');
 var breadcrumbs = require('./breadcrumbs.js');
 var balances = require('./balances');
 var Mnemonic = require('bitcore-mnemonic');
+var inputs = require('./inputs.js');
 
 var message_counter = 0;
 var assocLastFailedAssetMetadataTimestamps = {};
@@ -1096,10 +1097,10 @@ function readAssetProps(asset, handleResult){
 	});
 }
 
-function readFundedAddresses(asset, wallet, estimated_amount, handleFundedAddresses){
+function readFundedAddresses(asset, wallet, estimated_amount, spend_unconfirmed, handleFundedAddresses){
 	var walletIsAddresses = ValidationUtils.isNonemptyArray(wallet);
 	if (walletIsAddresses)
-		return composer.readSortedFundedAddresses(asset, wallet, estimated_amount, handleFundedAddresses);
+		return composer.readSortedFundedAddresses(asset, wallet, estimated_amount, spend_unconfirmed, handleFundedAddresses);
 	if (estimated_amount && typeof estimated_amount !== 'number')
 		throw Error('invalid estimated amount: '+estimated_amount);
 	// addresses closest to estimated amount come first
@@ -1109,7 +1110,8 @@ function readFundedAddresses(asset, wallet, estimated_amount, handleFundedAddres
 			SELECT address, SUM(amount) AS total \n\
 			FROM outputs JOIN my_addresses USING(address) \n\
 			CROSS JOIN units USING(unit) \n\
-			WHERE wallet=? AND is_stable=1 AND sequence='good' AND is_spent=0 AND "+(asset ? "asset=?" : "asset IS NULL")+" \n\
+			WHERE wallet=? "+inputs.getConfirmationConditionSql(spend_unconfirmed)+" AND sequence='good' \n\
+				AND is_spent=0 AND "+(asset ? "asset=?" : "asset IS NULL")+" \n\
 			GROUP BY address ORDER BY "+order_by+" LIMIT "+constants.MAX_AUTHORS_PER_UNIT+" \n\
 		) AS t \n\
 		WHERE NOT EXISTS ( \n\
@@ -1186,9 +1188,10 @@ var TYPICAL_FEE = 1000;
 
 // fee_paying_wallet is used only if there are no bytes on the asset wallet, it is a sort of fallback wallet for fees
 function readFundedAndSigningAddresses(
-		asset, wallet, estimated_amount, fee_paying_wallet, arrSigningAddresses, arrSigningDeviceAddresses, handleFundedAndSigningAddresses)
+		asset, wallet, estimated_amount, spend_unconfirmed, fee_paying_wallet,
+		arrSigningAddresses, arrSigningDeviceAddresses, handleFundedAndSigningAddresses)
 {
-	readFundedAddresses(asset, wallet, estimated_amount, function(arrFundedAddresses){
+	readFundedAddresses(asset, wallet, estimated_amount, spend_unconfirmed, function(arrFundedAddresses){
 		if (arrFundedAddresses.length === 0)
 			return handleFundedAndSigningAddresses([], [], []);
 		var arrBaseFundedAddresses = [];
@@ -1200,13 +1203,13 @@ function readFundedAndSigningAddresses(
 		};
 		if (!asset)
 			return addSigningAddressesAndReturn();
-		readFundedAddresses(null, wallet, TYPICAL_FEE, function(_arrBaseFundedAddresses){
+		readFundedAddresses(null, wallet, TYPICAL_FEE, spend_unconfirmed, function(_arrBaseFundedAddresses){
 			// fees will be paid from the same addresses as the asset
 			if (_arrBaseFundedAddresses.length > 0 || !fee_paying_wallet || fee_paying_wallet === wallet){
 				arrBaseFundedAddresses = _arrBaseFundedAddresses;
 				return addSigningAddressesAndReturn();
 			}
-			readFundedAddresses(null, fee_paying_wallet, TYPICAL_FEE, function(_arrBaseFundedAddresses){
+			readFundedAddresses(null, fee_paying_wallet, TYPICAL_FEE, spend_unconfirmed, function(_arrBaseFundedAddresses){
 				arrBaseFundedAddresses = _arrBaseFundedAddresses;
 				addSigningAddressesAndReturn();
 			});
@@ -1362,7 +1365,8 @@ function sendMultiPayment(opts, handleResult)
 		estimated_amount += TYPICAL_FEE;
 	
 	readFundedAndSigningAddresses(
-		asset, wallet || arrPayingAddresses, estimated_amount, fee_paying_wallet, arrSigningAddresses, arrSigningDeviceAddresses, 
+		asset, wallet || arrPayingAddresses, estimated_amount, opts.spend_unconfirmed || 'own', fee_paying_wallet,
+		arrSigningAddresses, arrSigningDeviceAddresses,
 		function(arrFundedAddresses, arrBaseFundedAddresses, arrAllSigningAddresses){
 		
 			if (arrFundedAddresses.length === 0)
@@ -1737,6 +1741,7 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 	var asset = null;
 	opts.signer = signer;
 	opts.paying_addresses = [addrInfo.address];
+	opts.spend_unconfirmed = 'all';
 
 	opts.callbacks = {
 		ifNotEnoughFunds: function(err){
@@ -1781,7 +1786,7 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 					cb("This payment doesn't exist in the network");
 				} else {
 					var row = rows[0];
-					if (!row.is_stable) {
+					if (false && !row.is_stable) {
 						cb("This payment is not confirmed yet, try again later");
 					} else {
 						if (row.asset) { // claiming asset

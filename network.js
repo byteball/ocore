@@ -2599,7 +2599,7 @@ function handleRequest(ws, tag, command, params){
 				if (err)
 					return sendErrorResponse(ws, tag, err);
 				var bMultiAuthored = (params.addresses.length > 1);
-				inputs.pickDivisibleCoinsForAmount(db, objAsset, params.addresses, params.last_ball_mci, params.amount, bMultiAuthored, function(arrInputsWithProofs, total_amount) {
+				inputs.pickDivisibleCoinsForAmount(db, objAsset, params.addresses, params.last_ball_mci, params.amount, bMultiAuthored, 'own', function(arrInputsWithProofs, total_amount) {
 					var objResponse = {inputs_with_proofs: arrInputsWithProofs || [], total_amount: total_amount || 0};
 					sendResponse(ws, tag, objResponse);
 				});
