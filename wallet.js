@@ -1790,6 +1790,8 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 							opts.fee_paying_addresses = [addrInfo.address];
 							storage.readAsset(db, row.asset, null, function(err, objAsset){
 								if (err && err.indexOf("not found" !== -1)) {
+									if (!conf.bLight) // full wallets must have this asset
+										throw Error("textcoin asset "+row.asset+" not found");
 									return network.requestHistoryFor([opts.asset], [], checkStability);
 								}
 								asset = opts.asset;
