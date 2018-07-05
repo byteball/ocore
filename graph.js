@@ -175,7 +175,8 @@ function readDescendantUnitsByAuthorsBeforeMcIndex(conn, objEarlierUnitProps, ar
 	function goDown(arrStartUnits){
 		profiler.start();
 		conn.query(
-			"SELECT units.unit, unit_authors.address AS author_in_list \n\
+			"SELECT units.unit, unit_authors.address, \n\
+				main_chain_index AS mci, (+sequence='good') AS good \n\
 			FROM parenthoods \n\
 			JOIN units ON child_unit=units.unit \n\
 			LEFT JOIN unit_authors ON unit_authors.unit=units.unit AND address IN(?) \n\
@@ -186,8 +187,9 @@ function readDescendantUnitsByAuthorsBeforeMcIndex(conn, objEarlierUnitProps, ar
 				for (var i=0; i<rows.length; i++){
 					var objUnitProps = rows[i];
 					arrNewStartUnits.push(objUnitProps.unit);
-					if (objUnitProps.author_in_list)
-						arrUnits.push(objUnitProps.unit);
+					if (objUnitProps.address) {
+						arrUnits.push(objUnitProps);
+					}
 				}
 				profiler.stop('mc-wc-descendants-goDown');
 				(arrNewStartUnits.length > 0) ? goDown(arrNewStartUnits) : handleUnits(arrUnits);
@@ -197,14 +199,21 @@ function readDescendantUnitsByAuthorsBeforeMcIndex(conn, objEarlierUnitProps, ar
 	
 	profiler.start();
 
-	conn.query( // _left_ join forces use of indexes in units
-		"SELECT unit FROM units "+db.forceIndex("byMcIndex")+" LEFT JOIN unit_authors USING(unit) \n\
-		WHERE latest_included_mc_index>=? AND main_chain_index>? AND main_chain_index<=? AND latest_included_mc_index<? AND address IN(?)", 
-		[objEarlierUnitProps.main_chain_index, objEarlierUnitProps.main_chain_index, to_main_chain_index, to_main_chain_index, arrAuthorAddresses],
-//        "SELECT unit FROM units WHERE latest_included_mc_index>=? AND main_chain_index<=?", 
-//        [objEarlierUnitProps.main_chain_index, to_main_chain_index],
+	conn.query(
+		"SELECT units.unit, \n\
+			main_chain_index AS mci, (+sequence='good') AS good, \n\
+			unit_authors.address \n\
+		FROM units \n" +
+		db.forceIndex("byMcIndex") +
+		"LEFT JOIN unit_authors USING(unit) \n\
+		WHERE main_chain_index BETWEEN (?)+1 AND ? \n\
+			AND latest_included_mc_index BETWEEN ? AND (?)-1 ",
+		[objEarlierUnitProps.main_chain_index,
+		 to_main_chain_index,
+		 objEarlierUnitProps.main_chain_index,
+		 to_main_chain_index],
 		function(rows){
-			arrUnits = rows.map(function(row) { return row.unit; });
+			arrUnits = rows.filter(function(row){ return arrAuthorAddresses.indexOf(row.address) !== -1; });
 			profiler.stop('mc-wc-descendants-initial');
 			goDown([objEarlierUnitProps.unit]);
 		}

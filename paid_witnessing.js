@@ -192,35 +192,48 @@ function buildPaidWitnesses(conn, objUnitProps, arrWitnesses, onDone){
 	graph.readDescendantUnitsByAuthorsBeforeMcIndex(conn, objUnitProps, arrWitnesses, to_main_chain_index, function(arrUnits){
 		rt+=Date.now()-t;
 		t=Date.now();
-		var strUnitsList = (arrUnits.length === 0) ? 'NULL' : arrUnits.map(function(unit){ return conn.escape(unit); }).join(', ');
 			//throw "no witnesses before mc "+to_main_chain_index+" for unit "+objUnitProps.unit;
 		profiler.start();
-		conn.query( // we don't care if the unit is majority witnessed by the unit-designated witnesses
-			// _left_ join forces use of indexes in units
-			// can't get rid of filtering by address because units can be co-authored by witness with somebody else
-			"SELECT address, MIN(main_chain_index-?) AS delay \n\
-			FROM units \n\
-			LEFT JOIN unit_authors USING(unit) \n\
-			WHERE unit IN("+strUnitsList+") AND address IN(?) AND +sequence='good' \n\
-			GROUP BY address",
-			[objUnitProps.main_chain_index, arrWitnesses],
-			function(rows){
-				et += Date.now()-t;
-				var count_paid_witnesses = rows.length;
-				var arrValues;
-				if (count_paid_witnesses === 0){ // nobody witnessed, pay equally to all
-					count_paid_witnesses = arrWitnesses.length;
-					arrValues = arrWitnesses.map(function(address){ return "("+conn.escape(unit)+", "+conn.escape(address)+", NULL)"; });
-				}
-				else
-					arrValues = rows.map(function(row){ return "("+conn.escape(unit)+", "+conn.escape(row.address)+", "+row.delay+")"; });
-				profiler.stop('mc-wc-select-events');
-				profiler.start();
-				conn.query("INSERT INTO paid_witness_events_tmp (unit, address, delay) VALUES "+arrValues.join(", "), function(){
-					updateCountPaidWitnesses(count_paid_witnesses);
-				});
+
+		arrUnits.forEach(function(objUnit){
+			objUnit.delay = objUnit.mci - objUnitProps.main_chain_index;
+		});
+
+		let minDelayByAddress = {};
+		arrUnits.forEach(function(row){
+			if (!row.good) { return; }
+			let address = row.address;
+			minDelayByAddress[address] =
+				Math.min(row.delay, minDelayByAddress[address] || +Infinity);
+		});
+		let rows = Object.keys(minDelayByAddress).map(function(address){
+			return { address: address, delay: minDelayByAddress[address] };
+		});
+
+		let count_paid_witnesses = 0;
+		rows.map(function(row){
+			if (arrWitnesses.indexOf(row.address) !== -1) {
+				count_paid_witnesses++;
+			} else {
+				// failpath
+				row._skip = true;
 			}
-		);
+		});
+
+		et += Date.now()-t;
+		//var count_paid_witnesses = rows.length;
+		var arrValues;
+		if (count_paid_witnesses === 0){ // nobody witnessed, pay equally to all
+			count_paid_witnesses = arrWitnesses.length;
+			arrValues = arrWitnesses.map(function(address){ return "("+conn.escape(unit)+", "+conn.escape(address)+", NULL)"; });
+		}
+		else
+			arrValues = rows.filter(function(row){ return !row._skip; }).map(function(row){ return "("+conn.escape(unit)+", "+conn.escape(row.address)+", "+row.delay+")"; });
+		profiler.stop('mc-wc-select-events');
+		profiler.start();
+		conn.query("INSERT INTO paid_witness_events_tmp (unit, address, delay) VALUES "+arrValues.join(", "), function(){
+			updateCountPaidWitnesses(count_paid_witnesses);
+		});
 	});
 	
 }
