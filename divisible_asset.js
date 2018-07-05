@@ -172,6 +172,14 @@ function composeDivisibleAssetPaymentJoint(params){
 	console.log("asset payment from "+params.paying_addresses);
 	if ((params.to_address || params.amount) && params.asset_outputs)
 		throw Error("to_address and asset_outputs at the same time");
+	if (params.to_address && !params.amount)
+		throw Error("to_address but not amount");
+	if (!params.to_address && params.amount)
+		throw Error("amount but not to_address");
+	if (!params.to_address && !params.asset_outputs)
+		throw Error("neither to_address nor asset_outputs");
+	if (params.asset_outputs && !ValidationUtils.isNonemptyArray(params.asset_outputs))
+		throw Error('asset_outputs must be non-empty array');
 	if (!ValidationUtils.isNonemptyArray(params.fee_paying_addresses))
 		throw Error('no fee_paying_addresses');
 	var private_payload;
