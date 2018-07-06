@@ -15,7 +15,7 @@ var parentComposer = require('./parent_composer.js');
 var breadcrumbs = require('./breadcrumbs.js');
 var eventBus = require('./event_bus.js');
 
-var MAX_HISTORY_ITEMS = 1000;
+var MAX_HISTORY_ITEMS = 2000;
 
 // unit's MC index is earlier_mci
 function buildProofChain(later_mci, earlier_mci, unit, arrBalls, onDone){
