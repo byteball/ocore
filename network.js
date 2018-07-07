@@ -48,6 +48,7 @@ var arrWatchedAddresses = []; // does not include my addresses, therefore always
 var last_hearbeat_wake_ts = Date.now();
 var peer_events_buffer = [];
 var assocKnownPeers = {};
+var assocBlockedPeers = {};
 var exchangeRates = {};
 
 if (process.browser){ // browser
@@ -1362,11 +1363,41 @@ function writeEvent(event, host){
 		var column = "count_"+event+"_joints";
 		db.query("UPDATE peer_hosts SET "+column+"="+column+"+1 WHERE peer_host=?", [host]);
 		db.query("INSERT INTO peer_events (peer_host, event) VALUES (?,?)", [host, event]);
+		if (event === 'invalid')
+			assocBlockedPeers[host] = Date.now();
 		return;
 	}
 	var event_date = Math.floor(Date.now() / 1000);
 	peer_events_buffer.push({host: host, event: event, event_date: event_date});
 	flushEvents();
+}
+
+function determineIfPeerIsBlocked(host, handleResult){
+	/*	"SELECT \n\
+			SUM(CASE WHEN event='invalid' THEN 1 ELSE 0 END) AS count_invalid, \n\
+			SUM(CASE WHEN event='new_good' THEN 1 ELSE 0 END) AS count_new_good \n\
+			FROM peer_events WHERE peer_host=? AND event_date>"+db.addTime("-1 HOUR"),*/
+	/*	"SELECT 1 FROM peer_events WHERE peer_host=? AND event_date>"+db.addTime("-1 HOUR")+" AND event='invalid' LIMIT 1",*/
+	handleResult(!!assocBlockedPeers[host]);
+}
+
+function unblockPeers(){
+	for (var host in assocBlockedPeers)
+		if (assocBlockedPeers[host] < Date.now() - 3600*1000)
+			delete assocBlockedPeers[host];
+}
+
+function initBlockedPeers(){
+	db.query(
+		"SELECT peer_host, MAX("+db.getUnixTimestamp('event_date')+") AS ts FROM peer_events \n\
+		WHERE event_date>"+db.addTime("-1 HOUR")+" AND event='invalid' \n\
+		GROUP BY peer_host",
+		function(rows){
+			rows.forEach(function(row){
+				assocBlockedPeers[row.peer_host] = row.ts*1000;
+			});
+		}
+	);
 }
 
 if (!conf.bLight)
@@ -2677,6 +2708,8 @@ function startAcceptingConnections(){
 	db.query("DELETE FROM watched_light_addresses");
 	db.query("DELETE FROM watched_light_units");
 	//db.query("DELETE FROM light_peer_witnesses");
+	setInterval(unblockPeers, 10*60*1000);
+	initBlockedPeers();
 	// listen for new connections
 	wss = new WebSocketServer({ port: conf.port });
 	wss.on('connection', function(ws) {
@@ -2701,37 +2734,28 @@ function startAcceptingConnections(){
 			return;
 		}
 		var bStatsCheckUnderWay = true;
-		db.query(
-		/*	"SELECT \n\
-				SUM(CASE WHEN event='invalid' THEN 1 ELSE 0 END) AS count_invalid, \n\
-				SUM(CASE WHEN event='new_good' THEN 1 ELSE 0 END) AS count_new_good \n\
-				FROM peer_events WHERE peer_host=? AND event_date>"+db.addTime("-1 HOUR"),*/
-			"SELECT 1 FROM peer_events WHERE peer_host=? AND event_date>"+db.addTime("-1 HOUR")+" AND event='invalid' LIMIT 1",
-			[ws.host],
-			function(rows){
-				bStatsCheckUnderWay = false;
-			//	var stats = rows[0];
-				if (rows.length > 0){
-					console.log("rejecting new client "+ws.host+" because of bad stats");
-					return ws.terminate();
-				}
-			
-				// welcome the new peer with the list of free joints
-				//if (!bCatchingUp)
-				//    sendFreeJoints(ws);
-
-				sendVersion(ws);
-
-				// I'm a hub, send challenge
-				if (conf.bServeAsHub){
-					ws.challenge = crypto.randomBytes(30).toString("base64");
-					sendJustsaying(ws, 'hub/challenge', ws.challenge);
-				}
-				if (!conf.bLight)
-					subscribe(ws);
-				eventBus.emit('connected', ws);
+		determineIfPeerIsBlocked(ws.host, function(bBlocked){
+			bStatsCheckUnderWay = false;
+			if (bBlocked){
+				console.log("rejecting new client "+ws.host+" because of bad stats");
+				return ws.terminate();
 			}
-		);
+
+			// welcome the new peer with the list of free joints
+			//if (!bCatchingUp)
+			//    sendFreeJoints(ws);
+
+			sendVersion(ws);
+
+			// I'm a hub, send challenge
+			if (conf.bServeAsHub){
+				ws.challenge = crypto.randomBytes(30).toString("base64");
+				sendJustsaying(ws, 'hub/challenge', ws.challenge);
+			}
+			if (!conf.bLight)
+				subscribe(ws);
+			eventBus.emit('connected', ws);
+		});
 		ws.on('message', function(message){ // might come earlier than stats check completes
 			function tryHandleMessage(){
 				if (bStatsCheckUnderWay)
