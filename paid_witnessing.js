@@ -128,7 +128,7 @@ function buildPaidWitnessesForMainChainIndex(conn, main_chain_index, cb){
 						conn.query("SELECT unit, main_chain_index FROM units WHERE main_chain_index=?", [main_chain_index], function(rows){
 							profiler.stop('mc-wc-select-units');
 							et=0; rt=0;
-							var unitsRAM = _.map(_.pickBy(storage.assocStableUnits, function(v, k){return v.main_chain_index == main_chain_index}), function(props, unit){return {unit: props.unit, main_chain_index: main_chain_index}});
+							var unitsRAM = storage.assocStableUnitsByMci[main_chain_index].map(function(props){return {unit: props.unit, main_chain_index: main_chain_index}});
 							if (!_.isEqual(rows, unitsRAM)) {
 								if (!_.isEqual(_.sortBy(rows, function(v){return v.unit;}), _.sortBy(unitsRAM, function(v){return v.unit;})))
 									throwError("different units in buildPaidWitnessesForMainChainIndex, db: "+JSON.stringify(rows)+", ram: "+JSON.stringify(unitsRAM));
@@ -199,7 +199,7 @@ function readMcUnitWitnesses(conn, main_chain_index, handleWitnesses){
 		if (rows.length !== 1)
 			throw Error("not 1 row on MC "+main_chain_index);
 		var witness_list_unit = rows[0].witness_list_unit ? rows[0].witness_list_unit : rows[0].unit;
-		var witness_list_unitRAM = _.find(storage.assocStableUnits, function(v, k){return v.main_chain_index == main_chain_index && v.is_on_main_chain}).witness_list_unit;
+		var witness_list_unitRAM = storage.assocStableUnitsByMci[main_chain_index].find(function(props){return props.is_on_main_chain}).witness_list_unit;
 		if (!_.isEqual(witness_list_unit, witness_list_unitRAM))
 			throw Error("witness_list_units are not equal db:"+witness_list_unit+", RAM:"+witness_list_unitRAM);
 		storage.readWitnessList(conn, witness_list_unit, handleWitnesses);

@@ -23,6 +23,7 @@ var assocCachedAssetInfos = {};
 
 var assocUnstableUnits = {};
 var assocStableUnits = {};
+var assocStableUnitsByMci = {};
 
 var min_retrievable_mci = null;
 initializeMinRetrievableMci();
@@ -715,6 +716,7 @@ function readUnitProps(conn, unit, handleProps){
 			props.author_addresses = props.author_addresses.split(',');
 			if (props.is_stable) {
 				assocStableUnits[unit] = props;
+				// we don't add it to assocStableUnitsByMci as all we need there is already there
 			}
 			else{
 				if (!assocUnstableUnits[unit])
@@ -848,7 +850,8 @@ function updateMinRetrievableMciAfterStabilizingMci(conn, last_stable_mci, handl
 							return handleMinRetrievableMci(min_retrievable_mci);
 						async.series(arrQueries, function(){
 							unit_rows.forEach(function(unit_row){
-								forgetUnit(unit_row.unit);
+								// don't forget, can be still used when calculating witnessing commissions
+							//	forgetUnit(unit_row.unit);
 							});
 							handleMinRetrievableMci(min_retrievable_mci);
 						});
@@ -1206,6 +1209,8 @@ function forgetUnit(unit){
 	delete assocCachedUnitAuthors[unit];
 	delete assocCachedUnitWitnesses[unit];
 	delete assocUnstableUnits[unit];
+	if (!conf.bLight && assocStableUnits[unit])
+		throw Error("trying to forget stable unit "+unit);
 	delete assocStableUnits[unit];
 }
 
@@ -1223,6 +1228,12 @@ function shrinkCache(){
 	var arrUnits = _.union(arrPropsUnits, arrAuthorsUnits, arrWitnessesUnits, arrKnownUnits, arrStableUnits);
 	console.log('will shrink cache, total units: '+arrUnits.length);
 	readLastStableMcIndex(db, function(last_stable_mci){
+		for (var mci = last_stable_mci-constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING-10-1; true; mci--){
+			if (assocStableUnitsByMci[mci])
+				delete assocStableUnitsByMci[mci];
+			else
+				break;
+		}
 		var CHUNK_SIZE = 500; // there is a limit on the number of query params
 		for (var offset=0; offset<arrUnits.length; offset+=CHUNK_SIZE){
 			// filter units that became stable more than 100 MC indexes ago
@@ -1282,6 +1293,9 @@ function initStableUnits(onDone){
 				rows.forEach(function(row){
 					row.author_addresses = row.author_addresses.split(',');
 					assocStableUnits[row.unit] = row;
+					if (!assocStableUnitsByMci[row.main_chain_index])
+						assocStableUnitsByMci[row.main_chain_index] = [];
+					assocStableUnitsByMci[row.main_chain_index].push(row);
 				});
 				console.log('initStableUnits 1 done');
 				if (Object.keys(assocStableUnits).length === 0)
@@ -1337,6 +1351,9 @@ function resetUnstableUnits(onDone){
 function resetStableUnits(onDone){
 	Object.keys(assocStableUnits).forEach(function(unit){
 		delete assocStableUnits[unit];
+	});
+	Object.keys(assocStableUnitsByMci).forEach(function(mci){
+		delete assocStableUnitsByMci[mci];
 	});
 	initStableUnits(onDone);
 }
@@ -1400,5 +1417,6 @@ exports.sliceAndExecuteQuery = sliceAndExecuteQuery;
 
 exports.assocUnstableUnits = assocUnstableUnits;
 exports.assocStableUnits = assocStableUnits;
+exports.assocStableUnitsByMci = assocStableUnitsByMci;
 exports.resetUnstableUnits = resetUnstableUnits;
 exports.resetStableUnits = resetStableUnits;

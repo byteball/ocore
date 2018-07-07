@@ -894,11 +894,13 @@ function readBestParentAndItsWitnesses(conn, unit, handleBestParentAndItsWitness
 function markMcIndexStable(conn, mci, onDone){
 	profiler.start();
 	var arrStabilizedUnits = [];
+	storage.assocStableUnitsByMci[mci] = [];
 	for (var unit in storage.assocUnstableUnits){
 		var o = storage.assocUnstableUnits[unit];
 		if (o.main_chain_index === mci && o.is_stable === 0){
 			o.is_stable = 1;
 			storage.assocStableUnits[unit] = o;
+			storage.assocStableUnitsByMci[mci].push(o);
 			arrStabilizedUnits.push(unit);
 		}
 	}

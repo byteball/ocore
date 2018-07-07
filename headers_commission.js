@@ -86,17 +86,27 @@ function calcHeadersCommissions(conn, onDone){
 					function(rows){
 						// in-memory
 						var assocChildrenInfosRAM = {};
-						var pUnits = _.pickBy(storage.assocStableUnits, function(v, k){return v.main_chain_index == since_mc_index+1 && v.sequence == 'good'});
-						_.forOwn(pUnits, function(props, unit){
-							if (!assocChildrenInfosRAM[unit]) {
-								var next_mc_unit = Object.keys(_.pickBy(storage.assocStableUnits, function(v, k){return v.main_chain_index == props.main_chain_index+1 && v.is_on_main_chain}))[0];
-								if (!next_mc_unit) {
+						var arrParentUnits = storage.assocStableUnitsByMci[since_mc_index+1].filter(function(props){return props.sequence === 'good'});
+						arrParentUnits.forEach(function(parent){
+							if (!assocChildrenInfosRAM[parent.unit]) {
+								var next_mc_unit_props = storage.assocStableUnitsByMci[parent.main_chain_index+1].find(function(props){return props.is_on_main_chain});
+								if (!next_mc_unit_props) {
 									 if (since_mc_index == 0) //hack for genesis and bb units (they have no stable next_mc_units)
 									 		return;
-									throwError("no next_mc_unit found for unit " + unit);
+									throwError("no next_mc_unit found for unit " + parent.unit);
 								}
-								var children = _.map(_.pickBy(storage.assocStableUnits, function(v, k){return (v.main_chain_index - props.main_chain_index == 1 || v.main_chain_index - props.main_chain_index == 0) && v.parent_units.indexOf(unit) > -1 && v.sequence === 'good';}), function(props, unit){return {child_unit: unit, next_mc_unit: next_mc_unit}});
-								assocChildrenInfosRAM[unit] = {headers_commission: props.headers_commission, children: children};
+								var next_mc_unit = next_mc_unit_props.unit;
+								var filter_func = function(child){
+									return (child.sequence === 'good' && child.parent_units.indexOf(parent.unit) > -1);
+								};
+								var arrSameMciChildren = storage.assocStableUnitsByMci[parent.main_chain_index].filter(filter_func);
+								var arrNextMciChildren = storage.assocStableUnitsByMci[parent.main_chain_index+1].filter(filter_func);
+								var arrCandidateChildren = arrSameMciChildren.concat(arrNextMciChildren);
+								var children = arrCandidateChildren.map(function(child){
+									return {child_unit: child.unit, next_mc_unit: next_mc_unit};
+								});
+							//	var children = _.map(_.pickBy(storage.assocStableUnits, function(v, k){return (v.main_chain_index - props.main_chain_index == 1 || v.main_chain_index - props.main_chain_index == 0) && v.parent_units.indexOf(props.unit) > -1 && v.sequence === 'good';}), function(props, unit){return {child_unit: unit, next_mc_unit: next_mc_unit}});
+								assocChildrenInfosRAM[parent.unit] = {headers_commission: parent.headers_commission, children: children};
 							}
 						});
 						var assocChildrenInfos = {};
