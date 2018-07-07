@@ -238,9 +238,15 @@ function buildPaidWitnesses(conn, objUnitProps, arrWitnesses, onDone){
 			function(rows){
 				et += Date.now()-t;
 				var count_paid_witnesses = rows.length;
-				var arrPaidWitnessesRAM = _.uniq(_.flatMap(_.pickBy(storage.assocStableUnits, function(v, k){return _.includes(arrUnits,k) && v.sequence == 'good'}), function(v, k){
+				/*var arrPaidWitnessesRAM = _.uniq(_.flatMap(_.pickBy(storage.assocStableUnits, function(v, k){return _.includes(arrUnits,k) && v.sequence == 'good'}), function(v, k){
 					return _.intersection(v.author_addresses, arrWitnesses);
-				}));
+				}));*/
+				var arrPaidWitnessesRAM = _.uniq(_.flatten(arrUnits.map(function(_unit){
+					var unitProps = storage.assocStableUnits[_unit];
+					if (!unitProps)
+						throw Error("stable unit "+_unit+" not found in cache");
+					return (unitProps.sequence !== 'good') ? [] : _.intersection(unitProps.author_addresses, arrWitnesses);
+				}) ) );
 				if (!_.isEqual(arrPaidWitnessesRAM.sort(), _.map(rows, function(v){return v.address}).sort()))
 					throw Error("arrPaidWitnesses are not equal");
 				var arrValues;
