@@ -1260,13 +1260,13 @@ function notifyWatchersAboutStableJoints(mci){
 // from_mci is non-inclusive, to_mci is inclusive
 function notifyLightClientsAboutStableJoints(from_mci, to_mci){
 	db.query(
-		"SELECT peer FROM units JOIN unit_authors USING(unit) JOIN watched_light_addresses USING(address) \n\
+		"SELECT peer FROM units CROSS JOIN unit_authors USING(unit) CROSS JOIN watched_light_addresses USING(address) \n\
 		WHERE main_chain_index>? AND main_chain_index<=? \n\
 		UNION \n\
-		SELECT peer FROM units JOIN outputs USING(unit) JOIN watched_light_addresses USING(address) \n\
+		SELECT peer FROM units CROSS JOIN outputs USING(unit) CROSS JOIN watched_light_addresses USING(address) \n\
 		WHERE main_chain_index>? AND main_chain_index<=? \n\
 		UNION \n\
-		SELECT peer FROM units JOIN watched_light_units USING(unit) \n\
+		SELECT peer FROM units CROSS JOIN watched_light_units USING(unit) \n\
 		WHERE main_chain_index>? AND main_chain_index<=?",
 		[from_mci, to_mci, from_mci, to_mci, from_mci, to_mci],
 		function(rows){
