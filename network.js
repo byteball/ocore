@@ -2702,14 +2702,16 @@ function startAcceptingConnections(){
 		}
 		var bStatsCheckUnderWay = true;
 		db.query(
-			"SELECT \n\
+		/*	"SELECT \n\
 				SUM(CASE WHEN event='invalid' THEN 1 ELSE 0 END) AS count_invalid, \n\
 				SUM(CASE WHEN event='new_good' THEN 1 ELSE 0 END) AS count_new_good \n\
-				FROM peer_events WHERE peer_host=? AND event_date>"+db.addTime("-1 HOUR"), [ws.host],
+				FROM peer_events WHERE peer_host=? AND event_date>"+db.addTime("-1 HOUR"),*/
+			"SELECT 1 FROM peer_events WHERE peer_host=? AND event_date>"+db.addTime("-1 HOUR")+" AND event='invalid' LIMIT 1",
+			[ws.host],
 			function(rows){
 				bStatsCheckUnderWay = false;
-				var stats = rows[0];
-				if (stats.count_invalid){
+			//	var stats = rows[0];
+				if (rows.length > 0){
 					console.log("rejecting new client "+ws.host+" because of bad stats");
 					return ws.terminate();
 				}
