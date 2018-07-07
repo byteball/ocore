@@ -527,11 +527,10 @@ function findOutboundPeerOrConnect(url, onOpen){
 }
 
 function purgePeerEvents(){
-    if (conf.storage !== 'sqlite') {
+    if (conf.storage !== 'sqlite')
         return;
-    }
     console.log('will purge peer events');
-    db.query("DELETE FROM peer_events WHERE event_date <= datetime('now', '-3 day')", function() {
+    db.query("DELETE FROM peer_events WHERE event_date <= datetime('now', '-0.5 day')", function() {
         console.log("deleted some old peer_events");
     });
 }
@@ -2772,7 +2771,7 @@ function startRelay(){
 		setTimeout(checkIfHaveEnoughOutboundPeersAndAdd, 30*1000);
 		setInterval(purgeDeadPeers, 30*60*1000);
 	}
-	// purge peer_events every 6 hours, removing those older than 3 days ago.
+	// purge peer_events every 6 hours, removing those older than 0.5 days ago.
 	setInterval(purgePeerEvents, 6*60*60*1000);
 	
 	// request needed joints that were not received during the previous session
