@@ -248,6 +248,10 @@ function initMaxSpendableMci(conn, onDone){
 	});
 }
 
+function resetMaxSpendableMci(){
+	max_spendable_mci = null;
+}
+
 function getMaxSpendableMciForLastBallMci(last_ball_mci){
 	return last_ball_mci - 1;
 }
@@ -257,6 +261,7 @@ function throwError(msg){
 	throw Error(msg);
 }
 
+exports.resetMaxSpendableMci = resetMaxSpendableMci;
 exports.calcHeadersCommissions = calcHeadersCommissions;
 exports.getMaxSpendableMciForLastBallMci = getMaxSpendableMciForLastBallMci;
 

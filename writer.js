@@ -515,11 +515,11 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 							profiler.stop('write-commit');
 							profiler.increment();
 							if (err) {
-								storage.resetUnstableUnits(conn, function(){
-									storage.resetStableUnits(conn, function(){
-										unlock();
-										conn.release();
-									});
+								var headers_commission = require("./headers_commission.js");
+								headers_commission.resetMaxSpendableMci();
+								storage.resetMemory(conn, function(){
+									unlock();
+									conn.release();
 								});
 							}
 							else{
