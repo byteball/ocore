@@ -922,7 +922,7 @@ function getSavingCallbacks(to_address, callbacks){
 							objJoint, objValidationState, 
 							preCommitCallback,
 							function onDone(err){
-								console.log("saved unit "+unit);
+								console.log("saved unit "+unit+", err="+err);
 								validation_unlock();
 								composer_unlock();
 								if (bPreCommitCallbackFailed)

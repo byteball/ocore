@@ -339,7 +339,7 @@ function getSavingCallbacks(callbacks){
 								objJoint, objValidationState, 
 								preCommitCallback,
 								function onDone(err){
-									console.log("saved unit "+unit, objPrivateElement);
+									console.log("saved unit "+unit+", err="+err, objPrivateElement);
 									validation_unlock();
 									composer_unlock();
 									var arrChains = objPrivateElement ? [[objPrivateElement]] : null; // only one chain that consists of one element

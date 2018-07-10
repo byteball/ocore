@@ -737,7 +737,7 @@ function getSavingCallbacks(callbacks){
 									composer_unlock();
 									if (err)
 										return callbacks.ifError(err);
-									console.log("saved unit "+unit);
+									console.log("composer saved unit "+unit);
 									callbacks.ifOk(objJoint, assocPrivatePayloads);
 								}
 							);
