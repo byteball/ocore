@@ -536,6 +536,7 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 									}
 								});
 								unlock();
+								conn.release();
 							}
 							if (!err)
 								eventBus.emit('saved_unit-'+objUnit.unit, objJoint);
