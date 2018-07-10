@@ -584,7 +584,7 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 		for (var i=0; i<objUnit.witnesses.length; i++){
 			var curr_witness = objUnit.witnesses[i];
 			if (!chash.isChashValid(curr_witness))
-				return cb("witness address "+curr_witness+" is invalid");
+				return callback("witness address "+curr_witness+" is invalid");
 			if (i === 0)
 				continue;
 			if (curr_witness <= prev_witness)
@@ -983,19 +983,19 @@ function validateMessage(conn, objMessage, message_index, objUnit, objValidation
 			var address = null;
 			if (arrAuthorAddresses.length === 1){
 				if ("address" in objSpendProof)
-					return cb("when single-authored, must not put address in spend proof");
+					return callback("when single-authored, must not put address in spend proof");
 				address = arrAuthorAddresses[0];
 			}
 			else{
 				if (typeof objSpendProof.address !== "string")
-					return cb("when multi-authored, must put address in spend_proofs");
+					return callback("when multi-authored, must put address in spend_proofs");
 				if (arrAuthorAddresses.indexOf(objSpendProof.address) === -1)
-					return cb("spend proof address "+objSpendProof.address+" is not an author");
+					return callback("spend proof address "+objSpendProof.address+" is not an author");
 				address = objSpendProof.address;
 			}
 			
 			if (objValidationState.arrInputKeys.indexOf(objSpendProof.spend_proof) >= 0)
-				return cb("spend proof "+objSpendProof.spend_proof+" already used");
+				return callback("spend proof "+objSpendProof.spend_proof+" already used");
 			objValidationState.arrInputKeys.push(objSpendProof.spend_proof);
 			
 			//prev_spend_proof = objSpendProof.spend_proof;
