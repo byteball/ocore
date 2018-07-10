@@ -220,7 +220,9 @@ function validate(objJoint, callbacks) {
 			function(err){
 				profiler.stop('validation-messages');
 				if(err){
-					conn.query("ROLLBACK", function(){
+					// We might have advanced the stability point and have to commit the changes as the caches are already updated.
+					// There are no other updates/inserts/deletes during validation
+					conn.query("COMMIT", function(){ 
 						conn.release();
 						unlock();
 						if (typeof err === "object"){
@@ -476,7 +478,7 @@ function validateParents(conn, objJoint, objValidationState, callback){
 							return checkNoSameAddressInDifferentParents();
 					}
 					// Last ball is not stable yet in our view. Check if it is stable in view of the parents
-					main_chain.determineIfStableInLaterUnitsAndUpdateStableMcFlag(conn, last_ball_unit, objUnit.parent_units, objLastBallUnitProps.is_stable, function(bStable){
+					main_chain.determineIfStableInLaterUnitsAndUpdateStableMcFlag(conn, last_ball_unit, objUnit.parent_units, objLastBallUnitProps.is_stable, function(bStable, bAdvancedLastStableMci){
 						/*if (!bStable && objLastBallUnitProps.is_stable === 1){
 							var eventBus = require('./event_bus.js');
 							eventBus.emit('nonfatal_error', "last ball is stable, but not stable in parents, unit "+objUnit.unit, new Error());
@@ -490,6 +492,8 @@ function validateParents(conn, objJoint, objValidationState, callback){
 							if (ball_rows[0].ball !== last_ball)
 								return callback("last_ball "+last_ball+" and last_ball_unit "+last_ball_unit
 												+" do not match after advancing stability point");
+							if (bAdvancedLastStableMci)
+								objValidationState.bAdvancedLastStableMci = true; // not used
 							checkNoSameAddressInDifferentParents();
 						});
 					});

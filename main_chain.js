@@ -870,7 +870,7 @@ function determineIfStableInLaterUnitsAndUpdateStableMcFlag(conn, earlier_unit, 
 							markMcIndexStable(conn, mci, advanceLastStableMcUnitAndStepForward);
 						else{
 							unlock();
-							handleResult(bStable);
+							handleResult(bStable, true);
 						}
 					}            
 				});
