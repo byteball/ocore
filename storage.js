@@ -715,7 +715,8 @@ function readUnitProps(conn, unit, handleProps){
 			var props = rows[0];
 			props.author_addresses = props.author_addresses.split(',');
 			if (props.is_stable) {
-				assocStableUnits[unit] = props;
+				if (props.sequence === 'good') // we don't cache final-bads as they can be voided later
+					assocStableUnits[unit] = props;
 				// we don't add it to assocStableUnitsByMci as all we need there is already there
 			}
 			else{
