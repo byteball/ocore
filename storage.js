@@ -1260,7 +1260,6 @@ setInterval(shrinkCache, 300*1000);
 
 
 function initUnstableUnits(conn, onDone){
-	console.log("AWDAWD", conn);
 	var conn = conn || db;
 	conn.query(
 		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit \n\
