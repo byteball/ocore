@@ -511,13 +511,15 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 					async.series(arrOps, function(err){
 						profiler.start();
 						conn.query(err ? "ROLLBACK" : "COMMIT", function(){
-							conn.release();
 							console.log((err ? (err+", therefore rolled back unit ") : "committed unit ")+objUnit.unit);
 							profiler.stop('write-commit');
 							profiler.increment();
 							if (err) {
-								storage.resetUnstableUnits(function(){
-									storage.resetStableUnits(unlock);
+								storage.resetUnstableUnits(conn, function(){
+									storage.resetStableUnits(conn, function(){
+										unlock();
+										conn.release();
+									});
 								});
 							}
 							else{

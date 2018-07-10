@@ -1259,8 +1259,10 @@ setInterval(shrinkCache, 300*1000);
 
 
 
-function initUnstableUnits(onDone){
-	db.query(
+function initUnstableUnits(conn, onDone){
+	console.log("AWDAWD", conn);
+	var conn = conn || db;
+	conn.query(
 		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit \n\
 			FROM units \n\
 			JOIN unit_authors USING(unit) \n\
@@ -1276,14 +1278,15 @@ function initUnstableUnits(onDone){
 			console.log('initUnstableUnits 1 done');
 			if (Object.keys(assocUnstableUnits).length === 0)
 				return onDone ? onDone() : null;
-			initParenthoodAndHeadersComissionShareForUnits(assocUnstableUnits, onDone);
+			initParenthoodAndHeadersComissionShareForUnits(conn, assocUnstableUnits, onDone);
 		}
 	);
 }
 
-function initStableUnits(onDone){
-	readLastStableMcIndex(db, function(last_stable_mci){
-		db.query(
+function initStableUnits(conn, onDone){
+	var conn = conn || db;
+	readLastStableMcIndex(conn, function(last_stable_mci){
+		conn.query(
 			"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit \n\
 			FROM units \n\
 			JOIN unit_authors USING(unit) \n\
@@ -1301,16 +1304,16 @@ function initStableUnits(onDone){
 				console.log('initStableUnits 1 done');
 				if (Object.keys(assocStableUnits).length === 0)
 					return onDone ? onDone() : null;
-				initParenthoodAndHeadersComissionShareForUnits(assocStableUnits, onDone);
+				initParenthoodAndHeadersComissionShareForUnits(conn, assocStableUnits, onDone);
 			}
 		);
 	});
 }
 
-function initParenthoodAndHeadersComissionShareForUnits(assocUnits, onDone) {
+function initParenthoodAndHeadersComissionShareForUnits(conn, assocUnits, onDone) {
 	async.series([
 		function(cb){ // parenthood
-			db.query(
+			conn.query(
 				"SELECT parent_unit, child_unit FROM parenthoods WHERE child_unit IN("+Object.keys(assocUnits).map(db.escape).join(', ')+")", 
 				function(prows){
 					prows.forEach(function(prow){
@@ -1323,7 +1326,7 @@ function initParenthoodAndHeadersComissionShareForUnits(assocUnits, onDone) {
 			);
 		},
 		function(cb){ // headers_commision_share
-			db.query(
+			conn.query(
 				"SELECT unit, address, earned_headers_commission_share FROM earned_headers_commission_recipients WHERE unit IN("+Object.keys(assocUnits).map(db.escape).join(', ')+")",
 				function(prows){
 					prows.forEach(function(prow){
@@ -1342,25 +1345,24 @@ function initParenthoodAndHeadersComissionShareForUnits(assocUnits, onDone) {
 	);
 }
 
-function resetUnstableUnits(onDone){
+function resetUnstableUnits(conn, onDone){
 	Object.keys(assocUnstableUnits).forEach(function(unit){
 		delete assocUnstableUnits[unit];
 	});
-	initUnstableUnits(onDone);
+	initUnstableUnits(conn, onDone);
 }
 
-function resetStableUnits(onDone){
+function resetStableUnits(conn, onDone){
 	Object.keys(assocStableUnits).forEach(function(unit){
 		delete assocStableUnits[unit];
 	});
 	Object.keys(assocStableUnitsByMci).forEach(function(mci){
 		delete assocStableUnitsByMci[mci];
 	});
-	initStableUnits(onDone);
+	initStableUnits(conn, onDone);
 }
 
-mutex.lock(['write'], initUnstableUnits);
-mutex.lock(['write'], initStableUnits);
+mutex.lock(['write'], function(unlock) {initUnstableUnits(db, initStableUnits.bind(this, db, unlock))});
 
 if (!conf.bLight)
 	archiveJointAndDescendantsIfExists('N6QadI9yg3zLxPMphfNGJcPfddW4yHPkoGMbbGZsWa0=');
