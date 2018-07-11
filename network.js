@@ -2577,6 +2577,7 @@ function handleRequest(ws, tag, command, params){
 			break;
 
 	   case 'light/get_attestation':
+			// find an attestation posted by the given attestor and attesting field=value
 			if (conf.bLight)
 				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
 			if (ws.bOutbound)
@@ -2593,6 +2594,35 @@ function handleRequest(ws, tag, command, params){
 				function(rows){
 					var attestation_unit = (rows.length > 0) ? rows[0].unit : "";
 					sendResponse(ws, tag, attestation_unit);
+				}
+			);
+			break;
+
+	   case 'light/get_attestations':
+			// get list of all attestations of an address
+			if (conf.bLight)
+				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
+			if (ws.bOutbound)
+				return sendErrorResponse(ws, tag, "light clients have to be inbound");
+			if (!params)
+				return sendErrorResponse(ws, tag, "no params in light/get_attestations");
+			if (!ValidationUtils.isValidAddress(params.address))
+				return sendErrorResponse(ws, tag, "missing address in light/get_attestations");
+			var order = (conf.storage === 'sqlite') ? 'attestations.rowid' : 'creation_date';
+			var join = (conf.storage === 'sqlite') ? '' : 'JOIN units USING(unit)';
+			db.query(
+				"SELECT unit, attestor_address, payload \n\
+				FROM attestations CROSS JOIN messages USING(unit, message_index) "+join+" \n\
+				WHERE address=? ORDER BY "+order, 
+				[params.address],
+				function(rows){
+					var arrAttestations = rows.map(function(row){
+						var payload = JSON.parse(row.payload);
+						if (payload.address !== params.address)
+							throw Error("not matching addresses, expected "+params.address+", got "+payload.address);
+						return {unit: row.unit, attestor_address: row.attestor_address, profile: payload.profile};
+					});
+					sendResponse(ws, tag, arrAttestations);
 				}
 			);
 			break;
