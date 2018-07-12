@@ -6,7 +6,6 @@ var db = require('./db.js');
 var conf = require('./conf.js');
 var _ = require('lodash');
 var storage = require('./storage.js');
-var eventBus = require('./event_bus.js');
 
 var max_spendable_mci = null;
 
@@ -257,8 +256,12 @@ function getMaxSpendableMciForLastBallMci(last_ball_mci){
 }
 
 function throwError(msg){
+	var eventBus = require('./event_bus.js');
 	debugger;
-	throw Error(msg);
+	if (typeof window === 'undefined')
+		throw Error(msg);
+	else
+		eventBus.emit('nonfatal_error', msg, new Error());
 }
 
 exports.resetMaxSpendableMci = resetMaxSpendableMci;
