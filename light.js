@@ -647,7 +647,7 @@ function buildPath(objLaterJoint, objEarlierJoint, arrChain, onDone){
 			[objJoint.unit.unit, objJoint.unit.main_chain_index],
 			function(rows){
 				if (rows.length === 0)
-					throw Error("no parents with same mci?");
+					throw Error("no parents with same mci? unit="+objJoint.unit.unit+", mci="+objJoint.unit.main_chain_index+", earlier="+objEarlierJoint.unit.unit+", later="+objLaterJoint.unit.unit);
 				var arrParentUnits = rows.map(function(row){ return row.unit });
 				if (arrParentUnits.indexOf(objEarlierJoint.unit.unit) >= 0)
 					return onDone();
