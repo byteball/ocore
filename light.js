@@ -631,6 +631,8 @@ function buildPath(objLaterJoint, objEarlierJoint, arrChain, onDone){
 			function(rows){
 				if (rows.length !== 1)
 					throw Error("goUp not 1 parent");
+				if (rows[0].unit === objEarlierJoint.unit.unit)
+					return onDone();
 				if (rows[0].main_chain_index < objEarlierJoint.unit.main_chain_index) // jumped over the target
 					return buildPathToEarlierUnit(objChildJoint);
 				addJoint(rows[0].unit, function(objJoint){
