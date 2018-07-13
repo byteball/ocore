@@ -164,20 +164,20 @@ function buildPaidWitnessesForMainChainIndex(conn, main_chain_index, cb){
 										function(){
 											//console.log(Date.now()-t);
 											conn.query("SELECT address, amount FROM witnessing_outputs WHERE main_chain_index=?", [main_chain_index], function(rows){
-													var countPaidWitnesses = _.countBy(paidWitnessEvents, function(v){return v.unit});
-													var assocPaidAmountsByAddress = _.reduce(paidWitnessEvents, function(amountsByAddress, v) {
-														var objUnit = storage.assocStableUnits[v.unit];
-														if (typeof amountsByAddress[v.address] === "undefined")
-															amountsByAddress[v.address] = 0;
-														if (objUnit.sequence == 'good')
-															amountsByAddress[v.address] += Math.round(objUnit.payload_commission / countPaidWitnesses[v.unit]);
-														return amountsByAddress;
-													}, {});
-													var arrPaidAmounts2 = _.map(assocPaidAmountsByAddress, function(amount, address) {return {address: address, amount: amount}});
-													if (!_.isEqual(rows, arrPaidAmounts2)){
-														if (!_.isEqual(_.sortBy(rows, function(v){return v.address}), _.sortBy(arrPaidAmounts2, function(v){return v.address})))
-															throwError("different amount in buildPaidWitnessesForMainChainIndex db:" + JSON.stringify(rows) + " ram:" + JSON.stringify(arrPaidAmounts2));
-													}
+												var countPaidWitnesses = _.countBy(paidWitnessEvents, function(v){return v.unit});
+												var assocPaidAmountsByAddress = _.reduce(paidWitnessEvents, function(amountsByAddress, v) {
+													var objUnit = storage.assocStableUnits[v.unit];
+													if (typeof amountsByAddress[v.address] === "undefined")
+														amountsByAddress[v.address] = 0;
+													if (objUnit.sequence == 'good')
+														amountsByAddress[v.address] += Math.round(objUnit.payload_commission / countPaidWitnesses[v.unit]);
+													return amountsByAddress;
+												}, {});
+												var arrPaidAmounts2 = _.map(assocPaidAmountsByAddress, function(amount, address) {return {address: address, amount: amount}});
+												if (!_.isEqual(rows, arrPaidAmounts2)){
+													if (!_.isEqual(_.sortBy(rows, function(v){return v.address}), _.sortBy(arrPaidAmounts2, function(v){return v.address})))
+														throwError("different amount in buildPaidWitnessesForMainChainIndex db:" + JSON.stringify(rows) + " ram:" + JSON.stringify(arrPaidAmounts2));
+												}
 											});
 											conn.query(conn.dropTemporaryTable("paid_witness_events_tmp"), function(){
 												profiler.stop('mc-wc-aggregate-events');
