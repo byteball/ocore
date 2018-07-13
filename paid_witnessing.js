@@ -122,9 +122,11 @@ function buildPaidWitnessesForMainChainIndex(conn, main_chain_index, cb){
 			profiler.start();
 			// we read witnesses from MC unit (users can cheat with side-chains to flip the witness list and pay commissions to their own witnesses)
 			readMcUnitWitnesses(conn, main_chain_index, function(arrWitnesses){
-				conn.query("CREATE TEMPORARY TABLE paid_witness_events_tmp ( \n\
+				conn.query(
+					"CREATE TEMPORARY TABLE paid_witness_events_tmp ( \n\
 					unit CHAR(44) NOT NULL, \n\
-					address CHAR(32) NOT NULL)", function(){
+					address CHAR(32) NOT NULL)",
+					function(){
 						conn.query("SELECT unit, main_chain_index FROM units WHERE main_chain_index=?", [main_chain_index], function(rows){
 							profiler.stop('mc-wc-select-units');
 							et=0; rt=0;
