@@ -835,6 +835,7 @@ function updateMinRetrievableMciAfterStabilizingMci(conn, last_stable_mci, handl
 					unit_rows,
 					function(unit_row, cb){
 						var unit = unit_row.unit;
+						console.log('voiding unit '+unit);
 						if (!unit_row.content_hash)
 							throw Error("no content hash in bad unit "+unit);
 						readJoint(conn, unit, {
@@ -1208,6 +1209,7 @@ function setUnitIsKnown(unit){
 }
 
 function forgetUnit(unit){
+	console.log('forgetting unit '+unit);
 	delete assocKnownUnits[unit];
 	delete assocCachedUnits[unit];
 	delete assocCachedUnitAuthors[unit];
