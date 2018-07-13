@@ -2153,7 +2153,7 @@ function handleJustsaying(ws, subject, body){
 			};
 			db.query("SELECT 1 FROM devices WHERE device_address=?", [ws.device_address], function(rows){
 				if (rows.length === 0)
-					db.query("INSERT INTO devices (device_address, pubkey) VALUES (?,?)", [ws.device_address, objLogin.pubkey], function(){
+					db.query("INSERT "+db.getIgnore()+" INTO devices (device_address, pubkey) VALUES (?,?)", [ws.device_address, objLogin.pubkey], function(){
 						sendInfo(ws, "address created");
 						finishLogin();
 					});
