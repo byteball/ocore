@@ -477,12 +477,12 @@ function updateMainChain(conn, from_unit, last_added_unit, onDone){
 										FROM units \n\
 										LEFT JOIN parenthoods ON units.unit=child_unit \n\
 										LEFT JOIN units AS punits ON parent_unit=punits.unit AND punits.witnessed_level >= units.witnessed_level \n\
-										WHERE units.unit IN(?) AND punits.unit IS NULL AND ( \n\
+										WHERE units.unit IN("+arrAltBestChildren.map(db.escape).join(', ')+") AND punits.unit IS NULL AND ( \n\
 											SELECT COUNT(*) \n\
 											FROM unit_witnesses \n\
 											WHERE unit_witnesses.unit IN(units.unit, units.witness_list_unit) AND unit_witnesses.address IN(?) \n\
 										)>=?",
-										[arrAltBestChildren, arrWitnesses, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS],
+										[arrWitnesses, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS],
 										function(max_alt_rows){
 											if (max_alt_rows.length !== 1)
 												throw Error("not a single max alt level");
@@ -817,12 +817,12 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 								FROM units \n\
 								LEFT JOIN parenthoods ON units.unit=child_unit \n\
 								LEFT JOIN units AS punits ON parent_unit=punits.unit AND punits.witnessed_level >= units.witnessed_level \n\
-								WHERE units.unit IN(?) AND punits.unit IS NULL AND ( \n\
+								WHERE units.unit IN("+arrAltBestChildren.map(db.escape).join(', ')+") AND punits.unit IS NULL AND ( \n\
 									SELECT COUNT(*) \n\
 									FROM unit_witnesses \n\
 									WHERE unit_witnesses.unit IN(units.unit, units.witness_list_unit) AND unit_witnesses.address IN(?) \n\
 								)>=?",
-								[arrAltBestChildren, arrWitnesses, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS],
+								[arrWitnesses, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS],
 								function(max_alt_rows){
 									if (max_alt_rows.length !== 1)
 										throw Error("not a single max alt level");
