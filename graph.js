@@ -68,8 +68,12 @@ function compareUnitsByProps(conn, objUnitProps1, objUnitProps2, handleResult){
 	var earlier_unit_delta = objEarlierUnit.main_chain_index - objEarlierUnit.latest_included_mc_index;
 	var later_unit_delta = objLaterUnit.main_chain_index - objLaterUnit.latest_included_mc_index;
 	
+	var arrKnownUnits = [];
+		
 	function goUp(arrStartUnits){
 		//console.log('compare', arrStartUnits);
+		//console.log('compare goUp', objUnitProps1.unit, objUnitProps2.unit);
+		arrKnownUnits = arrKnownUnits.concat(arrStartUnits);
 		conn.query(
 			"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain \n\
 			FROM parenthoods JOIN units ON parent_unit=unit \n\
@@ -84,12 +88,15 @@ function compareUnitsByProps(conn, objUnitProps1, objUnitProps2, handleResult){
 					if (objUnitProps.is_on_main_chain === 0 && objUnitProps.level > objEarlierUnit.level)
 						arrNewStartUnits.push(objUnitProps.unit);
 				}
+				arrNewStartUnits = _.uniq(arrNewStartUnits);
+				arrNewStartUnits = _.difference(arrNewStartUnits, arrKnownUnits);
 				(arrNewStartUnits.length > 0) ? goUp(arrNewStartUnits) : handleResult(null);
 			}
 		);
 	}
 	
 	function goDown(arrStartUnits){
+		arrKnownUnits = arrKnownUnits.concat(arrStartUnits);
 		conn.query(
 			"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain \n\
 			FROM parenthoods JOIN units ON child_unit=unit \n\
@@ -104,6 +111,8 @@ function compareUnitsByProps(conn, objUnitProps1, objUnitProps2, handleResult){
 					if (objUnitProps.is_on_main_chain === 0 && objUnitProps.level < objLaterUnit.level)
 						arrNewStartUnits.push(objUnitProps.unit);
 				}
+				arrNewStartUnits = _.uniq(arrNewStartUnits);
+				arrNewStartUnits = _.difference(arrNewStartUnits, arrKnownUnits);
 				(arrNewStartUnits.length > 0) ? goDown(arrNewStartUnits) : handleResult(null);
 			}
 		);
@@ -115,6 +124,7 @@ function compareUnitsByProps(conn, objUnitProps1, objUnitProps2, handleResult){
 
 // determines if earlier_unit is included by at least one of arrLaterUnits 
 function determineIfIncluded(conn, earlier_unit, arrLaterUnits, handleResult){
+//	console.log('determineIfIncluded', new Error().stack);
 	if (!earlier_unit)
 		throw Error("no earlier_unit");
 	if (storage.isGenesisUnit(earlier_unit))
@@ -134,24 +144,70 @@ function determineIfIncluded(conn, earlier_unit, arrLaterUnits, handleResult){
 		if (max_later_level < objEarlierUnitProps.level)
 			return handleResult(false);
 		
+		var bAllLaterUnitsAreWithMci = !arrLaterUnitProps.find(function(objLaterUnitProps){ return (objLaterUnitProps.main_chain_index === null); });
+		if (bAllLaterUnitsAreWithMci && objEarlierUnitProps.main_chain_index === null){
+			console.log('all later are with mci, earlier is null mci', objEarlierUnitProps, arrLaterUnitProps);
+			return handleResult(false);
+		}
+		
+		var arrKnownUnits = [];
+		
 		function goUp(arrStartUnits){
-			//console.log('determine', earlier_unit, arrLaterUnits, arrStartUnits);
+		//	console.log('determine goUp', earlier_unit, arrLaterUnits/*, arrStartUnits*/);
+			arrKnownUnits = arrKnownUnits.concat(arrStartUnits);
+			var arrDbStartUnits = [];
+			var arrParents = [];
+			arrStartUnits.forEach(function(unit){
+				var props = storage.assocUnstableUnits[unit];
+				if (!props){
+					arrDbStartUnits.push(unit);
+					return;
+				}
+				props.parent_units.forEach(function(parent_unit){
+					var objParent = storage.assocUnstableUnits[parent_unit] || storage.assocStableUnits[parent_unit];
+					if (!objParent){
+						if (arrDbStartUnits.indexOf(unit) === -1)
+							arrDbStartUnits.push(unit);
+						return;
+					}
+					/*objParent = _.cloneDeep(objParent);
+					for (var key in objParent)
+						if (['unit', 'level', 'latest_included_mc_index', 'main_chain_index', 'is_on_main_chain'].indexOf(key) === -1)
+							delete objParent[key];*/
+					arrParents.push(objParent);
+				});
+			});
+			if (arrDbStartUnits.length > 0){
+				console.log('failed to find all parents in memory, will query the db');
+				arrParents = [];
+			}
+			
+			function handleParents(rows){
+			//	var sort_fun = function(row){ return row.unit; };
+			//	if (arrParents.length > 0 && !_.isEqual(_.sortBy(rows, sort_fun), _.sortBy(arrParents, sort_fun)))
+			//		throw Error("different parents");
+				var arrNewStartUnits = [];
+				for (var i=0; i<rows.length; i++){
+					var objUnitProps = rows[i];
+					if (objUnitProps.unit === earlier_unit)
+						return handleResult(true);
+					if (objUnitProps.is_on_main_chain === 0 && objUnitProps.level > objEarlierUnitProps.level)
+						arrNewStartUnits.push(objUnitProps.unit);
+				}
+				arrNewStartUnits = _.uniq(arrNewStartUnits);
+				arrNewStartUnits = _.difference(arrNewStartUnits, arrKnownUnits);
+				(arrNewStartUnits.length > 0) ? goUp(arrNewStartUnits) : handleResult(false);
+			}
+			
+			if (arrParents.length)
+				return handleParents(arrParents);
+			
 			conn.query(
 				"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain \n\
 				FROM parenthoods JOIN units ON parent_unit=unit \n\
 				WHERE child_unit IN(?)",
 				[arrStartUnits],
-				function(rows){
-					var arrNewStartUnits = [];
-					for (var i=0; i<rows.length; i++){
-						var objUnitProps = rows[i];
-						if (objUnitProps.unit === earlier_unit)
-							return handleResult(true);
-						if (objUnitProps.is_on_main_chain === 0 && objUnitProps.level > objEarlierUnitProps.level)
-							arrNewStartUnits.push(objUnitProps.unit);
-					}
-					(arrNewStartUnits.length > 0) ? goUp(_.uniq(arrNewStartUnits)) : handleResult(false);
-				}
+				handleParents
 			);
 		}
 		
