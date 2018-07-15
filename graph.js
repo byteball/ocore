@@ -85,6 +85,8 @@ function compareUnitsByProps(conn, objUnitProps1, objUnitProps2, handleResult){
 					var objUnitProps = rows[i];
 					if (objUnitProps.unit === objEarlierUnit.unit)
 						return handleResult(resultIfFound);
+					if (objUnitProps.main_chain_index !== null && objUnitProps.main_chain_index <= objEarlierUnit.latest_included_mc_index)
+						continue;
 					if (objUnitProps.is_on_main_chain === 0 && objUnitProps.level > objEarlierUnit.level)
 						arrNewStartUnits.push(objUnitProps.unit);
 				}
@@ -108,6 +110,8 @@ function compareUnitsByProps(conn, objUnitProps1, objUnitProps2, handleResult){
 					var objUnitProps = rows[i];
 					if (objUnitProps.unit === objLaterUnit.unit)
 						return handleResult(resultIfFound);
+					if (objLaterUnit.main_chain_index !== null && objLaterUnit.main_chain_index <= objUnitProps.latest_included_mc_index)
+						continue;
 					if (objUnitProps.is_on_main_chain === 0 && objUnitProps.level < objLaterUnit.level)
 						arrNewStartUnits.push(objUnitProps.unit);
 				}
@@ -191,6 +195,8 @@ function determineIfIncluded(conn, earlier_unit, arrLaterUnits, handleResult){
 					var objUnitProps = rows[i];
 					if (objUnitProps.unit === earlier_unit)
 						return handleResult(true);
+					if (objUnitProps.main_chain_index !== null && objUnitProps.main_chain_index <= objEarlierUnitProps.latest_included_mc_index)
+						continue;
 					if (objUnitProps.is_on_main_chain === 0 && objUnitProps.level > objEarlierUnitProps.level)
 						arrNewStartUnits.push(objUnitProps.unit);
 				}
