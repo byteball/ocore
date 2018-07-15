@@ -1375,7 +1375,18 @@ function resetMemory(conn, onDone){
 	});
 }
 
-mutex.lock(['write'], function(unlock) {initUnstableUnits(db, initStableUnits.bind(this, db, unlock))});
+function initCaches(){
+	console.log('initCaches');
+	db.executeInTransaction(function(conn, onDone){
+		mutex.lock(['write'], function(unlock) {
+			initUnstableUnits(conn, initStableUnits.bind(this, conn, function(){
+				console.log('initCaches done');
+				unlock();
+				onDone();
+			}));
+		});
+	});
+}
 
 if (!conf.bLight)
 	archiveJointAndDescendantsIfExists('N6QadI9yg3zLxPMphfNGJcPfddW4yHPkoGMbbGZsWa0=');
@@ -1434,4 +1445,5 @@ exports.sliceAndExecuteQuery = sliceAndExecuteQuery;
 exports.assocUnstableUnits = assocUnstableUnits;
 exports.assocStableUnits = assocStableUnits;
 exports.assocStableUnitsByMci = assocStableUnitsByMci;
+exports.initCaches = initCaches;
 exports.resetMemory = resetMemory;

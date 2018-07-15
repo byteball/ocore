@@ -2817,6 +2817,7 @@ function startRelay(){
 	else
 		startAcceptingConnections();
 	
+	storage.initCaches();
 	checkCatchupLeftovers();
 
 	if (conf.bWantNewPeers){
