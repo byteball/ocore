@@ -233,9 +233,11 @@ function determineIfIncludedOrEqual(conn, earlier_unit, arrLaterUnits, handleRes
 function readDescendantUnitsByAuthorsBeforeMcIndex(conn, objEarlierUnitProps, arrAuthorAddresses, to_main_chain_index, handleUnits){
 	
 	var arrUnits = [];
+	var arrKnownUnits = [];
 	
 	function goDown(arrStartUnits){
 		profiler.start();
+		arrKnownUnits = arrKnownUnits.concat(arrStartUnits);
 		conn.query(
 			"SELECT units.unit, unit_authors.address AS author_in_list \n\
 			FROM parenthoods \n\
@@ -252,6 +254,7 @@ function readDescendantUnitsByAuthorsBeforeMcIndex(conn, objEarlierUnitProps, ar
 						arrUnits.push(objUnitProps.unit);
 				}
 				profiler.stop('mc-wc-descendants-goDown');
+				arrNewStartUnits = _.difference(arrNewStartUnits, arrKnownUnits);
 				(arrNewStartUnits.length > 0) ? goDown(arrNewStartUnits) : handleUnits(arrUnits);
 			}
 		);
