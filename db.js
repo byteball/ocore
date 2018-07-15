@@ -28,7 +28,8 @@ function executeInTransaction(doWork, onDone){
 			doWork(conn, function(err){
 				conn.query(err ? "ROLLBACK" : "COMMIT", function(){
 					conn.release();
-					onDone(err);
+					if (onDone)
+						onDone(err);
 				});
 			});
 		});
