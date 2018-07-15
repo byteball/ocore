@@ -469,24 +469,9 @@ function updateMainChain(conn, from_unit, last_added_unit, onDone){
 									*/
 								}
 								createListOfBestChildren(arrAltBranchRootUnits, function(arrAltBestChildren){
-									// Compose a set S of units that increase WL, that is their own WL is greater than that of every parent. 
-									// In this set, find max L. Alt WL will never reach it. If min_mc_wl > L, next MC unit is stable.
-									// Also filter the set S to include only those units that are conformant with the last stable MC unit.
-									conn.query(
-										"SELECT MAX(units.level) AS max_alt_level \n\
-										FROM units \n\
-										LEFT JOIN parenthoods ON units.unit=child_unit \n\
-										LEFT JOIN units AS punits ON parent_unit=punits.unit AND punits.witnessed_level >= units.witnessed_level \n\
-										WHERE units.unit IN("+arrAltBestChildren.map(db.escape).join(', ')+") AND punits.unit IS NULL AND ( \n\
-											SELECT COUNT(*) \n\
-											FROM unit_witnesses \n\
-											WHERE unit_witnesses.unit IN(units.unit, units.witness_list_unit) AND unit_witnesses.address IN(?) \n\
-										)>=?",
-										[arrWitnesses, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS],
-										function(max_alt_rows){
-											if (max_alt_rows.length !== 1)
-												throw Error("not a single max alt level");
-											var max_alt_level = max_alt_rows[0].max_alt_level;
+									determineMaxAltLevel(
+										conn, first_unstable_mc_index, first_unstable_mc_level, arrAltBestChildren, arrWitnesses,
+										function(max_alt_level){
 											(min_mc_wl > max_alt_level) ? advanceLastStableMcUnitAndTryNext() : finish();
 										}
 									);
@@ -581,6 +566,51 @@ function createListOfPrivateMcUnits(start_unit, min_level, handleList){
 
 */
 
+
+function determineMaxAltLevel(conn, first_unstable_mc_index, first_unstable_mc_level, arrAltBestChildren, arrWitnesses, handleResult){
+//	console.log('=============  alt branch children\n', arrAltBestChildren.join('\n'));
+	// Compose a set S of units that increase WL, that is their own WL is greater than that of every parent. 
+	// In this set, find max L. Alt WL will never reach it. If min_mc_wl > L, next MC unit is stable.
+	// Also filter the set S to include only those units that are conformant with the last stable MC unit.
+	if (first_unstable_mc_index >= constants.altBranchByBestParentUpgradeMci){
+		conn.query(
+			"SELECT MAX(units.level) AS max_alt_level \n\
+			FROM units \n\
+			CROSS JOIN units AS bpunits \n\
+				ON units.best_parent_unit=bpunits.unit AND bpunits.witnessed_level < units.witnessed_level \n\
+			WHERE units.unit IN("+arrAltBestChildren.map(db.escape).join(', ')+")",
+			function(max_alt_rows){
+				var max_alt_level = max_alt_rows[0].max_alt_level; // can be null
+			//	console.log('===== min_mc_wl='+min_mc_wl+', max_alt_level='+max_alt_level+", first_unstable_mc_level="+first_unstable_mc_level);
+				handleResult(max_alt_level || first_unstable_mc_level);
+			}
+		);
+	}
+	else{
+		// this sql query is totally wrong but we still leave it for compatibility
+		conn.query(
+			"SELECT MAX(units.level) AS max_alt_level \n\
+			FROM units \n\
+			LEFT JOIN parenthoods ON units.unit=child_unit \n\
+			LEFT JOIN units AS punits ON parent_unit=punits.unit AND punits.witnessed_level >= units.witnessed_level \n\
+			WHERE units.unit IN("+arrAltBestChildren.map(db.escape).join(', ')+") AND punits.unit IS NULL AND ( \n\
+				SELECT COUNT(*) \n\
+				FROM unit_witnesses \n\
+				WHERE unit_witnesses.unit IN(units.unit, units.witness_list_unit) AND unit_witnesses.address IN(?) \n\
+			)>=?",
+			[arrWitnesses, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS],
+			function(max_alt_rows){
+				if (max_alt_rows.length !== 1)
+					throw Error("not a single max alt level");
+				var max_alt_level = max_alt_rows[0].max_alt_level;
+			//	console.log('===== min_mc_wl='+min_mc_wl+', max_alt_level='+max_alt_level+", first_unstable_mc_level="+first_unstable_mc_level);
+				handleResult(max_alt_level);
+			}
+		);
+	}
+}
+
+
 function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handleResult){
 	if (storage.isGenesisUnit(earlier_unit))
 		return handleResult(true);
@@ -662,7 +692,7 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 							FROM units WHERE unit=?", [arrWitnesses, start_unit],
 							function(rows){
 								if (rows.length !== 1)
-									throw Error("findMinMcWitnessedLevel: not 1 row");
+									throw Error("findMinMcWitnessedLevelOld: not 1 row");
 								var row = rows[0];
 								if (row.count > 0 && row.witnessed_level < min_mc_wl)
 									min_mc_wl = row.witnessed_level;
@@ -745,6 +775,7 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 
 					// leaves only those roots that are included by later units
 					function filterAltBranchRootUnits(cb){
+						//console.log('===== before filtering:', arrAltBranchRootUnits);
 						var arrFilteredAltBranchRootUnits = [];
 						conn.query("SELECT unit, is_free, main_chain_index FROM units WHERE unit IN(?)", [arrAltBranchRootUnits], function(rows){
 							if (rows.length === 0)
@@ -807,26 +838,14 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 							*/
 						}
 						// has alt branches
+						if (first_unstable_mc_index >= constants.altBranchByBestParentUpgradeMci && min_mc_wl < first_unstable_mc_level){
+							console.log("min_mc_wl < first_unstable_mc_level with branches: not stable");
+							return handleResult(false);
+						}
 						createListOfBestChildrenIncludedByLaterUnits(arrAltBranchRootUnits, function(arrAltBestChildren){
-							//throw arrAltBestChildren;
-							// Compose a set S of units that increase WL, that is their own WL is greater than that of every parent. 
-							// In this set, find max L. Alt WL will never reach it. If min_mc_wl > L, next MC unit is stable.
-							// Also filter the set S to include only those units that are conformant with the last stable MC unit.
-							conn.query(
-								"SELECT MAX(units.level) AS max_alt_level \n\
-								FROM units \n\
-								LEFT JOIN parenthoods ON units.unit=child_unit \n\
-								LEFT JOIN units AS punits ON parent_unit=punits.unit AND punits.witnessed_level >= units.witnessed_level \n\
-								WHERE units.unit IN("+arrAltBestChildren.map(db.escape).join(', ')+") AND punits.unit IS NULL AND ( \n\
-									SELECT COUNT(*) \n\
-									FROM unit_witnesses \n\
-									WHERE unit_witnesses.unit IN(units.unit, units.witness_list_unit) AND unit_witnesses.address IN(?) \n\
-								)>=?",
-								[arrWitnesses, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS],
-								function(max_alt_rows){
-									if (max_alt_rows.length !== 1)
-										throw Error("not a single max alt level");
-									var max_alt_level = max_alt_rows[0].max_alt_level;
+							determineMaxAltLevel(
+								conn, first_unstable_mc_index, first_unstable_mc_level, arrAltBestChildren, arrWitnesses,
+								function(max_alt_level){
 									// allow '=' since alt WL will *never* reach max_alt_level.
 									// The comparison when moving the stability point above is still strict for compatibility
 									handleResult(min_mc_wl >= max_alt_level);
