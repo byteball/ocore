@@ -669,7 +669,7 @@ function sendJoint(ws, objJoint, tag) {
 
 // sent by light clients to their vendors
 function postJointToLightVendor(objJoint, handleResponse) {
-	console.log('posing joint identified by unit ' + objJoint.unit.unit + ' to light vendor');
+	console.log('posting joint identified by unit ' + objJoint.unit.unit + ' to light vendor');
 	requestFromLightVendor('post_joint', objJoint, function(ws, request, response){
 		handleResponse(response);
 	});
