@@ -178,10 +178,10 @@ function buildPaidWitnessesForMainChainIndex(conn, main_chain_index, cb){
 													if (!_.isEqual(_.sortBy(rows, function(v){return v.address}), _.sortBy(arrPaidAmounts2, function(v){return v.address})))
 														throwError("different amount in buildPaidWitnessesForMainChainIndex db:" + JSON.stringify(rows) + " ram:" + JSON.stringify(arrPaidAmounts2));
 												}
-											});
-											conn.query(conn.dropTemporaryTable("paid_witness_events_tmp"), function(){
-												profiler.stop('mc-wc-aggregate-events');
-												cb();
+												conn.query(conn.dropTemporaryTable("paid_witness_events_tmp"), function(){
+													profiler.stop('mc-wc-aggregate-events');
+													cb();
+												});
 											});
 										}
 									);
