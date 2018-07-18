@@ -17,7 +17,7 @@ function parseUri(uri, callbacks){
 	
 	// pairing / start a chat
 //	var arrPairingMatches = value.match(/^([\w\/+]{44})@([\w.:\/-]+)(?:#|%23)([\w\/+]+)$/);
-	var arrPairingMatches = value.replace('%23', '#').match(/^([\w\/+]{44})@([\w.:\/-]+)#([\w\/+-]+)$/);
+	var arrPairingMatches = value.replace('%23', '#').match(/^([\w\/+]{44})@([\w.:\/-]+)#(.+)$/);
 	if (arrPairingMatches){
 		objRequest.type = "pairing";
 		objRequest.pubkey = arrPairingMatches[1];
