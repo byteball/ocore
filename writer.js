@@ -22,6 +22,7 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 	profiler.start();
 	
 	db.takeConnectionFromPool(function(conn){
+		var start_time = Date.now();
 		var arrQueries = [];
 		conn.addQuery(arrQueries, "BEGIN");
 		
@@ -511,7 +512,7 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 					async.series(arrOps, function(err){
 						profiler.start();
 						conn.query(err ? "ROLLBACK" : "COMMIT", function(){
-							console.log((err ? (err+", therefore rolled back unit ") : "committed unit ")+objUnit.unit);
+							console.log((err ? (err+", therefore rolled back unit ") : "committed unit ")+objUnit.unit+", write took "+(Date.now()-start_time)+"ms");
 							profiler.stop('write-commit');
 							profiler.increment();
 							if (err) {
