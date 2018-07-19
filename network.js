@@ -1522,6 +1522,7 @@ function handleCatchupChain(ws, request, response){
 		return;
 	}
 	var catchupChain = response;
+	console.log('received catchup chain from '+ws.peer);
 	catchup.processCatchupChain(catchupChain, ws.peer, {
 		ifError: function(error){
 			bWaitingForCatchupChain = false;
@@ -1572,6 +1573,7 @@ function handleHashTree(ws, request, response){
 		waitTillHashTreeFullyProcessedAndRequestNext(ws); // after 1 sec, it'll request the same hash tree, likely from another peer
 		return;
 	}
+	console.log('received hash tree from '+ws.peer);
 	var hashTree = response;
 	catchup.processHashTree(hashTree.balls, {
 		ifError: function(error){
