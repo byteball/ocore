@@ -332,7 +332,7 @@ CREATE INDEX outputsIsSerial ON outputs(is_serial);
 
 -- updated immediately after main chain is updated
 CREATE TABLE headers_commission_contributions (
-	unit CHAR(44) NOT NULL, -- child unit that receives (and optionally redistributes) commission from parent units
+	unit CHAR(44) NOT NULL, -- parent unit that pays commission
 	address CHAR(32) NOT NULL, -- address of the commission receiver: author of child unit or address named in earned_headers_commission_recipients
 	amount BIGINT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -342,7 +342,7 @@ CREATE TABLE headers_commission_contributions (
 CREATE INDEX hccbyAddress ON headers_commission_contributions(address);
 
 CREATE TABLE headers_commission_outputs (
-	main_chain_index INT NOT NULL,
+	main_chain_index INT NOT NULL, -- mci of the sponsoring (paying) unit
 	address CHAR(32) NOT NULL, -- address of the commission receiver
 	amount BIGINT NOT NULL,
 	is_spent TINYINT NOT NULL DEFAULT 0,
