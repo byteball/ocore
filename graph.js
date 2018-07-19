@@ -128,7 +128,7 @@ function compareUnitsByProps(conn, objUnitProps1, objUnitProps2, handleResult){
 
 // determines if earlier_unit is included by at least one of arrLaterUnits 
 function determineIfIncluded(conn, earlier_unit, arrLaterUnits, handleResult){
-//	console.log('determineIfIncluded', new Error().stack);
+//	console.log('determineIfIncluded', earlier_unit, arrLaterUnits, new Error().stack);
 	if (!earlier_unit)
 		throw Error("no earlier_unit");
 	if (storage.isGenesisUnit(earlier_unit))
@@ -162,8 +162,8 @@ function determineIfIncluded(conn, earlier_unit, arrLaterUnits, handleResult){
 			var arrDbStartUnits = [];
 			var arrParents = [];
 			arrStartUnits.forEach(function(unit){
-				var props = storage.assocUnstableUnits[unit];
-				if (!props){
+				var props = storage.assocUnstableUnits[unit] || storage.assocStableUnits[unit];
+				if (!props || !props.parent_units){
 					arrDbStartUnits.push(unit);
 					return;
 				}
@@ -182,7 +182,7 @@ function determineIfIncluded(conn, earlier_unit, arrLaterUnits, handleResult){
 				});
 			});
 			if (arrDbStartUnits.length > 0){
-				console.log('failed to find all parents in memory, will query the db');
+				console.log('failed to find all parents in memory, will query the db, earlier '+earlier_unit+', later '+arrLaterUnits+', not found '+arrDbStartUnits);
 				arrParents = [];
 			}
 			
