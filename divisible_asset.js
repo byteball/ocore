@@ -214,7 +214,7 @@ function composeDivisibleAssetPaymentJoint(params){
 				inputs.pickDivisibleCoinsForAmount(
 					conn, objAsset, arrAssetPayingAddresses, last_ball_mci, target_amount, bMultiAuthored, params.spend_unconfirmed || 'own',
 					function(arrInputsWithProofs, total_input){
-						console.log("pick coins callback "+arrInputsWithProofs);
+						console.log("pick coins callback "+JSON.stringify(arrInputsWithProofs));
 						if (!arrInputsWithProofs)
 							return onDone({error_code: "NOT_ENOUGH_FUNDS", error: "not enough asset coins"});
 						var arrOutputs = params.to_address ? [{address: params.to_address, amount: params.amount}] : params.asset_outputs;

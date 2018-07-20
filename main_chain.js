@@ -86,7 +86,8 @@ function updateMainChain(conn, from_unit, last_added_unit, onDone){
 				}
 				var objBestParentUnitPropsForCheck = _.cloneDeep(objBestParentUnitProps2);
 				delete objBestParentUnitPropsForCheck.parent_units;
-				delete objBestParentUnitPropsForCheck.earned_headers_commission_recipients;
+				if (!storage.isGenesisUnit(best_parent_unit))
+					delete objBestParentUnitPropsForCheck.earned_headers_commission_recipients;
 				if (!_.isEqual(objBestParentUnitPropsForCheck, objBestParentUnitProps))
 					throwError("different props, db: "+JSON.stringify(objBestParentUnitProps)+", unstable: "+JSON.stringify(objBestParentUnitProps2));
 				if (!objBestParentUnitProps.is_on_main_chain)
@@ -617,6 +618,7 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 	// hack to workaround past validation error
 	if (earlier_unit === 'LGFzduLJNQNzEqJqUXdkXr58wDYx77V8WurDF3+GIws=' && arrLaterUnits.join(',') === '6O4t3j8kW0/Lo7n2nuS8ITDv2UbOhlL9fF1M6j/PrJ4=')
 		return handleResult(true);
+	var start_time = Date.now();
 	storage.readPropsOfUnits(conn, earlier_unit, arrLaterUnits, function(objEarlierUnitProps, arrLaterUnitProps){
 		if (objEarlierUnitProps.is_free === 1)
 			return handleResult(false);
@@ -818,7 +820,7 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 					//console.log("min mc wl", min_mc_wl);
 					determineIfHasAltBranches(function(bHasAltBranches){
 						if (!bHasAltBranches){
-							//console.log("no alt");
+							console.log("determineIfStableInLaterUnits no alt took "+(Date.now()-start_time)+"ms");
 							if (min_mc_wl >= first_unstable_mc_level) 
 								return handleResult(true);
 							return handleResult(false);
@@ -839,13 +841,14 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 						}
 						// has alt branches
 						if (first_unstable_mc_index >= constants.altBranchByBestParentUpgradeMci && min_mc_wl < first_unstable_mc_level){
-							console.log("min_mc_wl < first_unstable_mc_level with branches: not stable");
+							console.log("determineIfStableInLaterUnits min_mc_wl < first_unstable_mc_level with branches: not stable took "+(Date.now()-start_time)+"ms");
 							return handleResult(false);
 						}
 						createListOfBestChildrenIncludedByLaterUnits(arrAltBranchRootUnits, function(arrAltBestChildren){
 							determineMaxAltLevel(
 								conn, first_unstable_mc_index, first_unstable_mc_level, arrAltBestChildren, arrWitnesses,
 								function(max_alt_level){
+									console.log("determineIfStableInLaterUnits with branches took "+(Date.now()-start_time)+"ms");
 									// allow '=' since alt WL will *never* reach max_alt_level.
 									// The comparison when moving the stability point above is still strict for compatibility
 									handleResult(min_mc_wl >= max_alt_level);

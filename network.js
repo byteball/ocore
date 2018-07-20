@@ -669,7 +669,7 @@ function sendJoint(ws, objJoint, tag) {
 
 // sent by light clients to their vendors
 function postJointToLightVendor(objJoint, handleResponse) {
-	console.log('posing joint identified by unit ' + objJoint.unit.unit + ' to light vendor');
+	console.log('posting joint identified by unit ' + objJoint.unit.unit + ' to light vendor');
 	requestFromLightVendor('post_joint', objJoint, function(ws, request, response){
 		handleResponse(response);
 	});
@@ -1522,6 +1522,7 @@ function handleCatchupChain(ws, request, response){
 		return;
 	}
 	var catchupChain = response;
+	console.log('received catchup chain from '+ws.peer);
 	catchup.processCatchupChain(catchupChain, ws.peer, {
 		ifError: function(error){
 			bWaitingForCatchupChain = false;
@@ -1572,6 +1573,7 @@ function handleHashTree(ws, request, response){
 		waitTillHashTreeFullyProcessedAndRequestNext(ws); // after 1 sec, it'll request the same hash tree, likely from another peer
 		return;
 	}
+	console.log('received hash tree from '+ws.peer);
 	var hashTree = response;
 	catchup.processHashTree(hashTree.balls, {
 		ifError: function(error){

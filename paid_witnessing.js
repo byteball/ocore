@@ -176,12 +176,12 @@ function buildPaidWitnessesForMainChainIndex(conn, main_chain_index, cb){
 												var arrPaidAmounts2 = _.map(assocPaidAmountsByAddress, function(amount, address) {return {address: address, amount: amount}});
 												if (!_.isEqual(rows, arrPaidAmounts2)){
 													if (!_.isEqual(_.sortBy(rows, function(v){return v.address}), _.sortBy(arrPaidAmounts2, function(v){return v.address})))
-														throwError("different amount in buildPaidWitnessesForMainChainIndex db:" + JSON.stringify(rows) + " ram:" + JSON.stringify(arrPaidAmounts2));
+														throwError("different amount in buildPaidWitnessesForMainChainIndex mci "+main_chain_index+" db:" + JSON.stringify(rows) + " ram:" + JSON.stringify(arrPaidAmounts2)+" paidWitnessEvents="+JSON.stringify(paidWitnessEvents));
 												}
-											});
-											conn.query(conn.dropTemporaryTable("paid_witness_events_tmp"), function(){
-												profiler.stop('mc-wc-aggregate-events');
-												cb();
+												conn.query(conn.dropTemporaryTable("paid_witness_events_tmp"), function(){
+													profiler.stop('mc-wc-aggregate-events');
+													cb();
+												});
 											});
 										}
 									);
