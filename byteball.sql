@@ -642,6 +642,7 @@ DROP TABLE IF EXISTS paid_witness_events;
 CREATE TABLE IF NOT EXISTS push_registrations (
 	registrationId VARCHAR(200),
 	device_address CHAR(33) NOT NULL,
+	platform VARCHAR(20) NOT NULL,
 	PRIMARY KEY (device_address)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
