@@ -9,7 +9,7 @@ function readBalance(wallet, handleBalance){
 	var join_my_addresses = walletIsAddress ? "" : "JOIN my_addresses USING(address)";
 	var where_condition = walletIsAddress ? "address=?" : "wallet=?";
 	var assocBalances = {base: {stable: 0, pending: 0}};
-//	assocBalances[constants.BLACKBYTES_ASSET] = {is_private: 1, stable: 0, pending: 0};
+	assocBalances[constants.BLACKBYTES_ASSET] = {is_private: 1, stable: 0, pending: 0};
 	db.query(
 		"SELECT asset, is_stable, SUM(amount) AS balance \n\
 		FROM outputs "+join_my_addresses+" CROSS JOIN units USING(unit) \n\
@@ -52,6 +52,8 @@ function readBalance(wallet, handleBalance){
 									assocBalances[asset] = {stable: 0, pending: 0};
 								assocBalances[asset].is_private = row.is_private;
 							}
+							if (assocBalances[constants.BLACKBYTES_ASSET].stable === 0 && assocBalances[constants.BLACKBYTES_ASSET].pending === 0)
+								delete assocBalances[constants.BLACKBYTES_ASSET];
 							handleBalance(assocBalances);
 						}
 					);
