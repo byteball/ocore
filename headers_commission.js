@@ -88,15 +88,18 @@ function calcHeadersCommissions(conn, onDone){
 						var arrParentUnits = storage.assocStableUnitsByMci[since_mc_index+1].filter(function(props){return props.sequence === 'good'});
 						arrParentUnits.forEach(function(parent){
 							if (!assocChildrenInfosRAM[parent.unit]) {
+								if (!storage.assocStableUnitsByMci[parent.main_chain_index+1]) { // hack for genesis unit where we lose hc
+									if (since_mc_index == 0)
+										return;
+									throwError("no storage.assocStableUnitsByMci[parent.main_chain_index+1] on " + parent.unit);
+								}
 								var next_mc_unit_props = storage.assocStableUnitsByMci[parent.main_chain_index+1].find(function(props){return props.is_on_main_chain});
 								if (!next_mc_unit_props) {
-									 if (since_mc_index == 0) //hack for genesis and bb units (they have no stable next_mc_units)
-									 		return;
 									throwError("no next_mc_unit found for unit " + parent.unit);
 								}
 								var next_mc_unit = next_mc_unit_props.unit;
 								var filter_func = function(child){
-									return (child.sequence === 'good' && child.parent_units.indexOf(parent.unit) > -1);
+									return (child.sequence === 'good' && child.parent_units && child.parent_units.indexOf(parent.unit) > -1);
 								};
 								var arrSameMciChildren = storage.assocStableUnitsByMci[parent.main_chain_index].filter(filter_func);
 								var arrNextMciChildren = storage.assocStableUnitsByMci[parent.main_chain_index+1].filter(filter_func);
@@ -241,7 +244,7 @@ function getWinnerInfo(arrChildren){
 
 function initMaxSpendableMci(conn, onDone){
 	conn.query("SELECT MAX(main_chain_index) AS max_spendable_mci FROM headers_commission_outputs", function(rows){
-		max_spendable_mci = rows[0].max_spendable_mci || 0;
+		max_spendable_mci = rows[0].max_spendable_mci || 0; // should be -1, we lose headers commissions paid by genesis unit
 		if (onDone)
 			onDone();
 	});
