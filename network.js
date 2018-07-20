@@ -2162,10 +2162,7 @@ function handleJustsaying(ws, subject, body){
 					finishLogin();
 				}
 			});
-			if (conf.pushApiProjectNumber && conf.pushApiKey || (conf.APNsAuthKey && conf.keyId && conf.teamId))
-				sendJustsaying(ws, 'hub/push_project_number', {projectNumber: (conf.pushApiProjectNumber || conf.keyId)});
-			else
-				sendJustsaying(ws, 'hub/push_project_number', {projectNumber: 0});
+			sendJustsaying(ws, 'hub/push_project_number', {projectNumber: (conf.pushApiProjectNumber && conf.pushApiKey ? conf.pushApiProjectNumber : "0"), hasKeyId: !!conf.keyId});
 			eventBus.emit('client_logged_in', ws);
 			break;
 			
