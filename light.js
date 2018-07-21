@@ -582,9 +582,9 @@ function createLinkProof(later_unit, earlier_unit, arrChain, cb){
 					ifFound: function(objEarlierJoint){
 						var earlier_mci = objEarlierJoint.unit.main_chain_index;
 						var earlier_unit = objEarlierJoint.unit.unit;
-						if (later_mci < earlier_mci)
+						if (later_mci < earlier_mci && later_mci !== null && earlier_mci !== null)
 							return cb("not included");
-						if (later_lb_mci >= earlier_mci){ // was spent when confirmed
+						if (later_lb_mci >= earlier_mci && earlier_mci !== null){ // was spent when confirmed
 							// includes the ball of earlier unit
 							buildProofChain(later_lb_mci + 1, earlier_mci, earlier_unit, arrChain, function(){
 								cb();
@@ -633,7 +633,7 @@ function buildPath(objLaterJoint, objEarlierJoint, arrChain, onDone){
 					throw Error("goUp not 1 parent");
 				if (rows[0].unit === objEarlierJoint.unit.unit)
 					return onDone();
-				if (rows[0].main_chain_index < objEarlierJoint.unit.main_chain_index) // jumped over the target
+				if (rows[0].main_chain_index < objEarlierJoint.unit.main_chain_index && rows[0].main_chain_index !== null) // jumped over the target
 					return buildPathToEarlierUnit(objChildJoint);
 				addJoint(rows[0].unit, function(objJoint){
 					(objJoint.unit.main_chain_index === objEarlierJoint.unit.main_chain_index) ? buildPathToEarlierUnit(objJoint) : goUp(objJoint);
@@ -647,8 +647,8 @@ function buildPath(objLaterJoint, objEarlierJoint, arrChain, onDone){
 			throw Error("mci undefined? unit="+objJoint.unit.unit+", mci="+objJoint.unit.main_chain_index+", earlier="+objEarlierJoint.unit.unit+", later="+objLaterJoint.unit.unit);
 		db.query(
 			"SELECT unit FROM parenthoods JOIN units ON parent_unit=unit \n\
-			WHERE child_unit=? AND main_chain_index=?", 
-			[objJoint.unit.unit, objJoint.unit.main_chain_index],
+			WHERE child_unit=? AND main_chain_index"+(objJoint.unit.main_chain_index === null ? ' IS NULL' : '='+objJoint.unit.main_chain_index), 
+			[objJoint.unit.unit],
 			function(rows){
 				if (rows.length === 0)
 					throw Error("no parents with same mci? unit="+objJoint.unit.unit+", mci="+objJoint.unit.main_chain_index+", earlier="+objEarlierJoint.unit.unit+", later="+objLaterJoint.unit.unit);
