@@ -643,6 +643,8 @@ function buildPath(objLaterJoint, objEarlierJoint, arrChain, onDone){
 	}
 	
 	function buildPathToEarlierUnit(objJoint){
+		if (objJoint.unit.main_chain_index === undefined)
+			throw Error("mci undefined? unit="+objJoint.unit.unit+", mci="+objJoint.unit.main_chain_index+", earlier="+objEarlierJoint.unit.unit+", later="+objLaterJoint.unit.unit);
 		db.query(
 			"SELECT unit FROM parenthoods JOIN units ON parent_unit=unit \n\
 			WHERE child_unit=? AND main_chain_index=?", 
