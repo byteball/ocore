@@ -1700,7 +1700,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 								arrInputAddresses.push(owner_address);
 							total_input += src_output.amount;
 							
-							if (src_output.main_chain_index <= objValidationState.last_ball_mci)
+							if (src_output.main_chain_index !== null && src_output.main_chain_index <= objValidationState.last_ball_mci)
 								return checkInputDoubleSpend(cb);
 
 							// the below is for unstable inputs only.
