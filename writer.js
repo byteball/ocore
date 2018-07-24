@@ -12,6 +12,7 @@ var main_chain = require("./main_chain.js");
 var Definition = require("./definition.js");
 var eventBus = require('./event_bus.js');
 var profiler = require('./profiler.js');
+var breadcrumbs = require('./breadcrumbs.js');
 
 var count_writes = 0;
 var count_units_in_prev_analyze = 0;
@@ -531,8 +532,10 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 							}
 							else{
 								objValidationState.arrAdditionalQueries.forEach(function(objQuery){
+									breadcrumbs.add('====== additional query '+JSON.stringify(objQuery));
 									if (objQuery.sql.match(/temp-bad/)){
 										var arrUnstableConflictingUnits = objQuery.params[0];
+										breadcrumbs.add('====== conflicting units in additional queries '+arrUnstableConflictingUnits.join(', '));
 										arrUnstableConflictingUnits.forEach(function(conflicting_unit){
 											var objConflictingUnitProps = storage.assocUnstableUnits[conflicting_unit];
 											if (!objConflictingUnitProps)
