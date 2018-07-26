@@ -143,7 +143,7 @@ function refreshLightClientHistory(){
 }
 
 function archiveDoublespendUnits(){
-	db.query("SELECT unit FROM units WHERE is_stable=0 AND is_free=1 AND creation_date<"+db.addTime('-1 DAY'), function(rows){
+	db.query("SELECT unit FROM units WHERE is_stable=0 AND creation_date<"+db.addTime('-1 DAY')+" ORDER BY rowid DESC", function(rows){
 		var arrUnits = rows.map(function(row){ return row.unit; });
 		breadcrumbs.add("units still unstable after 1 day: "+arrUnits.join(', '));
 		arrUnits.forEach(function(unit){
