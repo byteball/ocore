@@ -2,6 +2,7 @@
 "use strict";
 var async = require('async');
 var storage = require('./storage.js');
+var archiving = require('./archiving.js');
 var objectHash = require("./object_hash.js");
 var db = require('./db.js');
 var mutex = require('./mutex.js');
@@ -360,7 +361,16 @@ function processHistory(objResponse, callbacks){
 									"UPDATE units SET main_chain_index=?, sequence=? WHERE unit=?", 
 									[objUnit.main_chain_index, sequence, unit], 
 									function(){
-										cb2();
+										if (sequence === 'good')
+											return cb2();
+										// void the final-bad
+										breadcrumbs.add('will void '+unit);
+										db.executeInTransaction(function doWork(conn, cb3){
+											var arrQueries = [];
+											archiving.generateQueriesToArchiveJoint(conn, objJoint, 'voided', arrQueries, function(){
+												async.series(arrQueries, cb3);
+											});
+										}, cb2);
 									}
 								);
 							}
