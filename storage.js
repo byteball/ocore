@@ -24,6 +24,7 @@ var assocCachedAssetInfos = {};
 var assocUnstableUnits = {};
 var assocStableUnits = {};
 var assocStableUnitsByMci = {};
+var assocBestChildren = {};
 
 var min_retrievable_mci = null;
 initializeMinRetrievableMci();
@@ -702,6 +703,7 @@ function isGenesisBall(ball){
 function readUnitProps(conn, unit, handleProps){
 	if (assocStableUnits[unit])
 		return handleProps(assocStableUnits[unit]);
+	var stack = new Error().stack;
 	conn.query(
 		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit\n\
 			FROM units \n\
@@ -727,7 +729,7 @@ function readUnitProps(conn, unit, handleProps){
 				delete props2.earned_headers_commission_recipients;
 				if (!_.isEqual(props, props2)) {
 					debugger;
-					throw Error("different props of "+unit+", mem: "+JSON.stringify(props2)+", db: "+JSON.stringify(props));
+					throw Error("different props of "+unit+", mem: "+JSON.stringify(props2)+", db: "+JSON.stringify(props)+", stack "+stack);
 				}
 			}
 			handleProps(props);
@@ -736,6 +738,11 @@ function readUnitProps(conn, unit, handleProps){
 }
 
 function readPropsOfUnits(conn, earlier_unit, arrLaterUnits, handleProps){
+	var objEarlierUnitProps2 = assocUnstableUnits[earlier_unit] || assocStableUnits[earlier_unit];
+	var arrLaterUnitProps2 = arrLaterUnits.map(function(later_unit){ return assocUnstableUnits[later_unit] || assocStableUnits[later_unit]; });
+//	if (objEarlierUnitProps2 && arrLaterUnitProps2.every(function(p){ return !!p; }))
+//		return handleProps(objEarlierUnitProps2, arrLaterUnitProps2);
+	
 	var bEarlierInLaterUnits = (arrLaterUnits.indexOf(earlier_unit) !== -1);
 	conn.query(
 		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free FROM units WHERE unit IN(?, ?)", 
@@ -752,6 +759,29 @@ function readPropsOfUnits(conn, earlier_unit, arrLaterUnits, handleProps){
 			}
 			if (bEarlierInLaterUnits)
 				arrLaterUnitProps.push(objEarlierUnitProps);
+			if (objEarlierUnitProps2 && arrLaterUnitProps2.every(function(p){ return !!p; })){
+				console.log('have earlier and later in cache, earlier '+earlier_unit);
+				var objEarlierUnitProps2cmp = _.cloneDeep(objEarlierUnitProps2);
+				var arrLaterUnitProps2cmp = _.cloneDeep(arrLaterUnitProps2);
+				var arrAllProps2cmp = arrLaterUnitProps2cmp.concat([objEarlierUnitProps2cmp]);
+				arrAllProps2cmp.forEach(function(props){
+					delete props.parent_units;
+					delete props.earned_headers_commission_recipients;
+					delete props.author_addresses;
+					delete props.is_stable;
+					delete props.witnessed_level;
+					delete props.headers_commission;
+					delete props.payload_commission;
+					delete props.sequence;
+					delete props.witness_list_unit;
+				});
+				if (!_.isEqual(objEarlierUnitProps, objEarlierUnitProps2cmp))
+					throwError("different earlier, db "+JSON.stringify(objEarlierUnitProps)+", mem "+JSON.stringify(objEarlierUnitProps2cmp));
+				if (!_.isEqual(_.sortBy(arrLaterUnitProps, 'unit'), _.sortBy(arrLaterUnitProps2cmp, 'unit')))
+					throwError("different later, db "+JSON.stringify(arrLaterUnitProps)+", mem "+JSON.stringify(arrLaterUnitProps2cmp));
+			}
+			else
+				console.log('have earlier or later not in cache');
 			handleProps(objEarlierUnitProps, arrLaterUnitProps);
 		}
 	);
@@ -1210,6 +1240,17 @@ function setUnitIsKnown(unit){
 
 function forgetUnit(unit){
 	console.log('forgetting unit '+unit);
+	if (!conf.bLight){
+		console.log('parents', assocUnstableUnits[unit].parent_units);
+		assocUnstableUnits[unit].parent_units.forEach(function(parent_unit){
+			console.log('parent '+parent_unit+' best children', JSON.stringify(assocBestChildren[parent_unit]));
+			if (assocBestChildren[parent_unit] && assocBestChildren[parent_unit].indexOf(assocUnstableUnits[unit]) >= 0){
+				console.log('before pull', assocBestChildren[parent_unit]);
+				_.pull(assocBestChildren[parent_unit], assocUnstableUnits[unit]);
+				console.log('after pull', assocBestChildren[parent_unit]);
+			}
+		});
+	}
 	delete assocKnownUnits[unit];
 	delete assocCachedUnits[unit];
 	delete assocCachedUnitAuthors[unit];
@@ -1251,6 +1292,7 @@ function shrinkCache(){
 					rows.forEach(function(row){
 						delete assocKnownUnits[row.unit];
 						delete assocCachedUnits[row.unit];
+						delete assocBestChildren[row.unit];
 						delete assocStableUnits[row.unit];
 						delete assocCachedUnitAuthors[row.unit];
 						delete assocCachedUnitWitnesses[row.unit];
@@ -1267,7 +1309,7 @@ setInterval(shrinkCache, 300*1000);
 function initUnstableUnits(conn, onDone){
 	var conn = conn || db;
 	conn.query(
-		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit \n\
+		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit, best_parent_unit \n\
 			FROM units \n\
 			JOIN unit_authors USING(unit) \n\
 			WHERE is_stable=0 \n\
@@ -1276,8 +1318,15 @@ function initUnstableUnits(conn, onDone){
 		function(rows){
 		//	assocUnstableUnits = {};
 			rows.forEach(function(row){
+				var best_parent_unit = row.best_parent_unit;
+				delete row.best_parent_unit;
 				row.author_addresses = row.author_addresses.split(',');
 				assocUnstableUnits[row.unit] = row;
+				if (assocUnstableUnits[best_parent_unit]){
+					if (!assocBestChildren[best_parent_unit])
+						assocBestChildren[best_parent_unit] = [];
+					assocBestChildren[best_parent_unit].push(row);
+				}
 			});
 			console.log('initUnstableUnits 1 done');
 			if (Object.keys(assocUnstableUnits).length === 0)
@@ -1350,6 +1399,9 @@ function initParenthoodAndHeadersComissionShareForUnits(conn, assocUnits, onDone
 }
 
 function resetUnstableUnits(conn, onDone){
+	Object.keys(assocBestChildren).forEach(function(unit){
+		delete assocBestChildren[unit];
+	});
 	Object.keys(assocUnstableUnits).forEach(function(unit){
 		delete assocUnstableUnits[unit];
 	});
@@ -1445,5 +1497,6 @@ exports.sliceAndExecuteQuery = sliceAndExecuteQuery;
 exports.assocUnstableUnits = assocUnstableUnits;
 exports.assocStableUnits = assocStableUnits;
 exports.assocStableUnitsByMci = assocStableUnitsByMci;
+exports.assocBestChildren = assocBestChildren;
 exports.initCaches = initCaches;
 exports.resetMemory = resetMemory;

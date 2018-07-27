@@ -542,6 +542,11 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 								});
 							}
 							else{
+								if (!bGenesis && storage.assocUnstableUnits[my_best_parent_unit]){
+									if (!storage.assocBestChildren[my_best_parent_unit])
+										storage.assocBestChildren[my_best_parent_unit] = [];
+									storage.assocBestChildren[my_best_parent_unit].push(objNewUnitProps);
+								}
 								unlock();
 								conn.release();
 							}

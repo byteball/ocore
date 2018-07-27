@@ -568,6 +568,39 @@ function createListOfPrivateMcUnits(start_unit, min_level, handleList){
 */
 
 
+function readBestChildrenProps(conn, arrUnits, handleResult){
+	if (arrUnits.every(function(unit){ return !!storage.assocUnstableUnits[unit]; })){
+		var arrProps = [];
+		arrUnits.forEach(function(unit){
+			if (storage.assocBestChildren[unit])
+				arrProps = arrProps.concat(storage.assocBestChildren[unit]);
+		});
+		return handleResult(arrProps);
+	}
+	conn.query("SELECT unit, is_on_main_chain, main_chain_index, level, is_free FROM units WHERE best_parent_unit IN(?)", [arrUnits], function(rows){
+		if (arrUnits.every(function(unit){ return !!storage.assocUnstableUnits[unit]; })){
+			var arrProps = [];
+			arrUnits.forEach(function(unit){
+				if (storage.assocBestChildren[unit])
+					arrProps = arrProps.concat(storage.assocBestChildren[unit]);
+			});
+			if (!arraysEqual(_.sortBy(rows, 'unit'), _.sortBy(arrProps, 'unit'), ['unit', 'is_on_main_chain', 'main_chain_index', 'level', 'is_free']))
+				throwError("different best children of "+arrUnits.join(', ')+": db "+JSON.stringify(rows)+", mem "+JSON.stringify(arrProps));
+		}
+		handleResult(rows);
+	});
+}
+
+function arraysEqual(arr1, arr2, fields){
+	if (arr1.length !== arr2.length)
+		return false;
+	for (var i=0; i<arr1.length; i++)
+		for (var j=0; j<fields.length; j++)
+			if (arr1[i][fields[i]] !== arr2[i][fields[i]])
+				return false;
+	return true;
+}
+
 function determineMaxAltLevel(conn, first_unstable_mc_index, first_unstable_mc_level, arrAltBestChildren, arrWitnesses, handleResult){
 //	console.log('=============  alt branch children\n', arrAltBestChildren.join('\n'));
 	// Compose a set S of units that increase WL, that is their own WL is greater than that of every parent. 
@@ -624,6 +657,8 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 			return handleResult(false);
 		var max_later_limci = Math.max.apply(
 			null, arrLaterUnitProps.map(function(objLaterUnitProps){ return objLaterUnitProps.latest_included_mc_index; }));
+		var max_later_level = Math.max.apply(
+			null, arrLaterUnitProps.map(function(objLaterUnitProps){ return objLaterUnitProps.level; }));
 		readBestParentAndItsWitnesses(conn, earlier_unit, function(best_parent_unit, arrWitnesses){
 			conn.query("SELECT unit, is_on_main_chain, main_chain_index, level FROM units WHERE best_parent_unit=?", [best_parent_unit], function(rows){
 				if (rows.length === 0)
@@ -746,6 +781,9 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 					if (arrAltBranchRootUnits.length === 0)
 						return handleBestChildrenList([]);
 					var arrBestChildren = [];
+					var arrTips = [];
+					var arrNotIncludedTips = [];
+					var arrRemovedBestChildren = [];
 
 					function goDownAndCollectBestChildren(arrStartUnits, cb){
 						conn.query("SELECT unit, is_free, main_chain_index FROM units WHERE best_parent_unit IN(?)", [arrStartUnits], function(rows){
@@ -772,6 +810,89 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 								},
 								cb
 							);
+						});
+					}
+
+					function goDownAndCollectBestChildrenFast(arrStartUnits, cb){
+						readBestChildrenProps(conn, arrStartUnits, function(rows){
+							if (rows.length === 0){
+								arrStartUnits.forEach(function(start_unit){
+									arrTips.push(start_unit);
+								});
+								return cb();
+							}
+							async.eachSeries(
+								rows, 
+								function(row, cb2){
+									arrBestChildren.push(row.unit);
+									if (arrLaterUnits.indexOf(row.unit) >= 0)
+										cb2();
+									else if (row.is_free === 1 || row.level >= max_later_level || row.is_on_main_chain && row.main_chain_index > max_later_limci){
+										arrTips.push(row.unit);
+										arrNotIncludedTips.push(row.unit);
+										cb2();
+									}
+									else
+										goDownAndCollectBestChildrenFast([row.unit], cb2);
+								},
+								cb
+							);
+						});
+					}
+					
+					function findBestChildrenNotIncludedInLaterUnits(arrUnits, cb){
+						var arrUnitsToRemove = [];
+						async.eachSeries(
+							arrUnits, 
+							function(unit, cb2){
+								if (arrRemovedBestChildren.indexOf(unit) >= 0)
+									return cb2();
+								if (arrNotIncludedTips.indexOf(unit) >= 0){
+									arrUnitsToRemove.push(unit);
+									return cb2();
+								}
+								graph.determineIfIncludedOrEqual(conn, unit, arrLaterUnits, function(bIncluded){
+									if (!bIncluded)
+										arrUnitsToRemove.push(unit);
+									cb2();
+								});
+							},
+							function(){
+								if (arrUnitsToRemove.length === 0)
+									return cb();
+								arrRemovedBestChildren = arrRemovedBestChildren.concat(arrUnitsToRemove);
+								goUp(arrUnitsToRemove, cb);
+							}
+						);
+					}
+					
+					function goUp(arrCurrentTips, cb){
+						var arrUnits = [];
+						async.eachSeries(
+							arrCurrentTips,
+							function(unit, cb2){
+								storage.readStaticUnitProps(conn, unit, function(props){
+									if (arrUnits.indexOf(props.best_parent_unit) === -1)
+										arrUnits.push(props.best_parent_unit);
+									cb2();
+								});
+							},
+							function(){
+								findBestChildrenNotIncludedInLaterUnits(arrUnits, cb);
+							}
+						);
+					}
+					
+					function collectBestChildren(arrFilteredAltBranchRootUnits, cb){
+						goDownAndCollectBestChildrenFast(arrFilteredAltBranchRootUnits, function(){
+							if (arrTips.length === 0)
+								return cb();
+							var start_time = Date.now();
+							findBestChildrenNotIncludedInLaterUnits(arrTips, function(){
+								console.log("findBestChildrenNotIncludedInLaterUnits took "+(Date.now()-start_time)+"ms");
+								arrBestChildren = _.difference(arrBestChildren, arrRemovedBestChildren);
+								cb();
+							});
 						});
 					}
 
@@ -804,7 +925,23 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 									//console.log('filtered:', arrFilteredAltBranchRootUnits);
 									if (arrFilteredAltBranchRootUnits.length === 0)
 										return handleBestChildrenList([]);
-									goDownAndCollectBestChildren(arrFilteredAltBranchRootUnits, cb);
+									var arrInitialBestChildren = _.clone(arrBestChildren);
+									var start_time = Date.now();
+									goDownAndCollectBestChildren(arrFilteredAltBranchRootUnits, function(){
+										console.log("goDownAndCollectBestChildren took "+(Date.now()-start_time)+"ms");
+										var arrBestChildren1 = _.clone(arrBestChildren.sort());
+										arrBestChildren = arrInitialBestChildren;
+										start_time = Date.now();
+										collectBestChildren(arrFilteredAltBranchRootUnits, function(){
+											console.log("collectBestChildren took "+(Date.now()-start_time)+"ms");
+											arrBestChildren.sort();
+											if (!_.isEqual(arrBestChildren, arrBestChildren1)){
+												throwError("different best children, old "+arrBestChildren1.join(', ')+'; new '+arrBestChildren.join(', '));
+												arrBestChildren = arrBestChildren1;
+											}
+											cb();
+										});
+									});
 								}
 							);
 						});
