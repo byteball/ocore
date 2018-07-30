@@ -787,6 +787,14 @@ function readPropsOfUnits(conn, earlier_unit, arrLaterUnits, handleProps){
 	);
 }
 
+function throwError(msg){
+	var eventBus = require('./event_bus.js');
+	debugger;
+	if (typeof window === 'undefined')
+		throw Error(msg);
+	else
+		eventBus.emit('nonfatal_error', msg, new Error());
+}
 
 
 
