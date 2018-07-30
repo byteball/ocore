@@ -38,7 +38,7 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 				arrUnstableConflictingUnits.forEach(function(conflicting_unit){
 					var objConflictingUnitProps = storage.assocUnstableUnits[conflicting_unit];
 					if (!objConflictingUnitProps)
-						throw Error("conflicting unit "+conflicting_unit+" not found in unstable cache");
+						return breadcrumbs.add("====== conflicting unit "+conflicting_unit+" not found in unstable cache"); // already removed as uncovered
 					if (objConflictingUnitProps.sequence === 'good')
 						objConflictingUnitProps.sequence = 'temp-bad';
 				});
