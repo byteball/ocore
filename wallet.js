@@ -155,6 +155,19 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			callbacks.ifOk();
 			break;
 
+		case "json":
+			message_counter++;
+			if(!ValidationUtils.isNonemptyString(body))
+				return callbacks.ifError("json body must be string");
+			try {
+				let objMessage = JSON.parse(body);
+				eventBus.emit("json", from_address, objMessage, message_counter);
+				callbacks.ifOk();
+			}catch (e) {
+				return callbacks.ifError("invalid json in message")
+			}
+			break;
+
 		case "removed_paired_device":
 			if(conf.bIgnoreUnpairRequests) {
 				// unpairing is ignored
