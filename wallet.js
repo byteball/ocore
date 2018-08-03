@@ -155,6 +155,15 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			callbacks.ifOk();
 			break;
 
+		case "object":
+			message_counter++;
+			if(typeof body !== 'object')
+				return callbacks.ifError("body must be object");
+
+			eventBus.emit("object", from_address, body, message_counter);
+			callbacks.ifOk();
+			break;
+
 		case "removed_paired_device":
 			if(conf.bIgnoreUnpairRequests) {
 				// unpairing is ignored
