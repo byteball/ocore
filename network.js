@@ -97,13 +97,14 @@ function sendMessage(ws, type, content) {
 	if (ws.readyState !== ws.OPEN)
 		return console.log("readyState="+ws.readyState+' on peer '+ws.peer+', will not send '+message);
 	console.log("SENDING "+message+" to "+ws.peer);
-	if (!window.cordova)
+	if (typeof window !== 'undefined' && window && window.cordova) {
+		ws.send(message);
+	} else {
 		ws.send(message, function(err){
 			if (err)
 				ws.emit('error', 'From send: '+err);
 		});
-	else
-		ws.send(message);
+	}
 }
 
 function sendJustsaying(ws, subject, body){
