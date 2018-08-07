@@ -1426,6 +1426,7 @@ function sendMultiPayment(opts, handleResult)
 			var params = {
 				available_paying_addresses: arrFundedAddresses, // forces 'minimal' for payments from shared addresses too, it doesn't hurt
 				signing_addresses: arrAllSigningAddresses,
+				spend_unconfirmed: opts.spend_unconfirmed || 'own',
 				messages: messages, 
 				signer: signer, 
 				callbacks: {
