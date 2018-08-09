@@ -2844,7 +2844,8 @@ function startRelay(){
 	
 	setInterval(purgeJunkUnhandledJoints, 30*60*1000);
 	setInterval(joint_storage.purgeUncoveredNonserialJointsUnderLock, 60*1000);
-	setInterval(findAndHandleJointsThatAreReady, 5*1000);
+	setInterval(handleSavedPrivatePayments, 5*1000);
+	joint_storage.readDependentJointsThatAreReady(null, handleSavedJoint);
 }
 
 function startLightClient(){
