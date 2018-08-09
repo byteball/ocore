@@ -1198,6 +1198,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 	var bAssetCondition = (assocAuthentifiers === null);
 	if (bAssetCondition && address || !bAssetCondition && this_asset)
 		throw Error("incompatible params");
+	var arrAuthentifierPaths = bAssetCondition ? null : Object.keys(assocAuthentifiers);
 	var fatal_error = null;
 	var arrUsedPaths = [];
 	
@@ -1206,7 +1207,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 	// 2. redefinition of a referenced address might introduce loops that will drive complexity to infinity
 	// 3. if an inner address was redefined by keychange but the definition for the new keyset not supplied before last ball, the address 
 	// becomes temporarily unusable
-	validateDefinition(conn, arrDefinition, objUnit, objValidationState, Object.keys(assocAuthentifiers), bAssetCondition, function(err){
+	validateDefinition(conn, arrDefinition, objUnit, objValidationState, arrAuthentifierPaths, bAssetCondition, function(err){
 		if (err)
 			return cb(err);
 		//console.log("eval def");
