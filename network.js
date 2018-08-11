@@ -901,67 +901,78 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 	assocUnitsInWork[unit] = true;
 	
 	var validate = function(){
-		validation.validate(objJoint, {
-			ifUnitError: function(error){
-				console.log(objJoint.unit.unit+" validation failed: "+error);
-				callbacks.ifUnitError(error);
-			//	throw Error(error);
-				purgeJointAndDependenciesAndNotifyPeers(objJoint, error, function(){
-					delete assocUnitsInWork[unit];
-				});
-				if (ws && error !== 'authentifier verification failed' && !error.match(/bad merkle proof at path/))
-					writeEvent('invalid', ws.host);
-				if (objJoint.unsigned)
-					eventBus.emit("validated-"+unit, false);
-			},
-			ifJointError: function(error){
-				callbacks.ifJointError(error);
-			//	throw Error(error);
-				db.query(
-					"INSERT INTO known_bad_joints (joint, json, error) VALUES (?,?,?)", 
-					[objectHash.getJointHash(objJoint), JSON.stringify(objJoint), error],
-					function(){
+		mutex.lock(['handleJoint'], function(unlock){
+			validation.validate(objJoint, {
+				ifUnitError: function(error){
+					console.log(objJoint.unit.unit+" validation failed: "+error);
+					callbacks.ifUnitError(error);
+				//	throw Error(error);
+					unlock();
+					purgeJointAndDependenciesAndNotifyPeers(objJoint, error, function(){
 						delete assocUnitsInWork[unit];
-					}
-				);
-				if (ws)
-					writeEvent('invalid', ws.host);
-				if (objJoint.unsigned)
-					eventBus.emit("validated-"+unit, false);
-			},
-			ifTransientError: function(error){
-				throw Error(error);
-				console.log("############################## transient error "+error);
-				delete assocUnitsInWork[unit];
-			},
-			ifNeedHashTree: function(){
-				console.log('need hash tree for unit '+unit);
-				if (objJoint.unsigned)
-					throw Error("ifNeedHashTree() unsigned");
-				callbacks.ifNeedHashTree();
-				// we are not saving unhandled joint because we don't know dependencies
-				delete assocUnitsInWork[unit];
-			},
-			ifNeedParentUnits: callbacks.ifNeedParentUnits,
-			ifOk: function(objValidationState, validation_unlock){
-				if (objJoint.unsigned)
-					throw Error("ifOk() unsigned");
-				writer.saveJoint(objJoint, objValidationState, null, function(){
-					validation_unlock();
-					callbacks.ifOk();
+					});
+					if (ws && error !== 'authentifier verification failed' && !error.match(/bad merkle proof at path/))
+						writeEvent('invalid', ws.host);
+					if (objJoint.unsigned)
+						eventBus.emit("validated-"+unit, false);
+				},
+				ifJointError: function(error){
+					callbacks.ifJointError(error);
+				//	throw Error(error);
+					unlock();
+					db.query(
+						"INSERT INTO known_bad_joints (joint, json, error) VALUES (?,?,?)", 
+						[objectHash.getJointHash(objJoint), JSON.stringify(objJoint), error],
+						function(){
+							delete assocUnitsInWork[unit];
+						}
+					);
 					if (ws)
-						writeEvent((objValidationState.sequence !== 'good') ? 'nonserial' : 'new_good', ws.host);
-					notifyWatchers(objJoint, ws);
-					if (!bCatchingUp)
-						eventBus.emit('new_joint', objJoint);
-				});
-			},
-			ifOkUnsigned: function(bSerial){
-				if (!objJoint.unsigned)
-					throw Error("ifOkUnsigned() signed");
-				callbacks.ifOkUnsigned();
-				eventBus.emit("validated-"+unit, bSerial);
-			}
+						writeEvent('invalid', ws.host);
+					if (objJoint.unsigned)
+						eventBus.emit("validated-"+unit, false);
+				},
+				ifTransientError: function(error){
+					throw Error(error);
+					unlock();
+					console.log("############################## transient error "+error);
+					delete assocUnitsInWork[unit];
+				},
+				ifNeedHashTree: function(){
+					console.log('need hash tree for unit '+unit);
+					if (objJoint.unsigned)
+						throw Error("ifNeedHashTree() unsigned");
+					callbacks.ifNeedHashTree();
+					// we are not saving unhandled joint because we don't know dependencies
+					delete assocUnitsInWork[unit];
+					unlock();
+				},
+				ifNeedParentUnits: function(arrMissingUnits){
+					callbacks.ifNeedParentUnits(arrMissingUnits);
+					unlock();
+				},
+				ifOk: function(objValidationState, validation_unlock){
+					if (objJoint.unsigned)
+						throw Error("ifOk() unsigned");
+					writer.saveJoint(objJoint, objValidationState, null, function(){
+						validation_unlock();
+						callbacks.ifOk();
+						unlock();
+						if (ws)
+							writeEvent((objValidationState.sequence !== 'good') ? 'nonserial' : 'new_good', ws.host);
+						notifyWatchers(objJoint, ws);
+						if (!bCatchingUp)
+							eventBus.emit('new_joint', objJoint);
+					});
+				},
+				ifOkUnsigned: function(bSerial){
+					if (!objJoint.unsigned)
+						throw Error("ifOkUnsigned() signed");
+					callbacks.ifOkUnsigned();
+					unlock();
+					eventBus.emit("validated-"+unit, bSerial);
+				}
+			});
 		});
 	};
 
