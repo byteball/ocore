@@ -117,9 +117,16 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 				
 				var start_ts = Date.now();
 				if (bCordova)
-					this.db.query.apply(this.db, new_args);
+					self.db.query.apply(self.db, new_args);
 				else
-					bSelect ? this.db.all.apply(this.db, new_args) : this.db.run.apply(this.db, new_args);
+					bSelect ? self.db.all.apply(self.db, new_args) : self.db.run.apply(self.db, new_args);
+			},
+			
+			cquery: function(){
+				var conf = require('./conf.js');
+				if (conf.bFaster)
+					return arguments[arguments.length - 1]();
+				this.query.apply(this, arguments);
 			},
 			
 			addQuery: addQuery,

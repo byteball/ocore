@@ -54,6 +54,12 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 			values += ",?,"+conn.getFromUnixTime("?");
 			params.push(objUnit.main_chain_index, objUnit.timestamp);
 		}
+		if (conf.bFaster){
+			my_best_parent_unit = objValidationState.best_parent_unit;
+			fields += ", best_parent_unit, witnessed_level";
+			values += ",?,?";
+			params.push(objValidationState.best_parent_unit, objValidationState.witnessed_level);
+		}
 		conn.addQuery(arrQueries, "INSERT INTO units ("+fields+") VALUES ("+values+")", params);
 		
 		if (objJoint.ball && !conf.bLight){
@@ -402,10 +408,12 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 		}
 		
 		function updateLevel(cb){
-			conn.query("SELECT MAX(level) AS max_level FROM units WHERE unit IN(?)", [objUnit.parent_units], function(rows){
-				if (rows.length !== 1)
+			conn.cquery("SELECT MAX(level) AS max_level FROM units WHERE unit IN(?)", [objUnit.parent_units], function(rows){
+				if (!conf.bFaster && rows.length !== 1)
 					throw Error("not a single max level?");
 				determineMaxLevel(function(max_level){
+					if (conf.bFaster)
+						rows = [{max_level: max_level}]
 					if (max_level !== rows[0].max_level)
 						throwError("different max level, sql: "+rows[0].max_level+", props: "+max_level);
 					objNewUnitProps.level = max_level + 1;
@@ -481,7 +489,7 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 			is_on_main_chain: bGenesis ? 1 : 0,
 			is_free: 1,
 			is_stable: bGenesis ? 1 : 0,
-			witnessed_level: bGenesis ? 0 : null,
+			witnessed_level: bGenesis ? 0 : (conf.bFaster ? objValidationState.witnessed_level : null),
 			headers_commission: objUnit.headers_commission || 0,
 			payload_commission: objUnit.payload_commission || 0,
 			sequence: objValidationState.sequence,
@@ -513,9 +521,11 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 					var arrOps = [];
 					if (objUnit.parent_units){
 						if (!conf.bLight){
-							arrOps.push(updateBestParent);
+							if (!conf.bFaster)
+								arrOps.push(updateBestParent);
 							arrOps.push(updateLevel);
-							arrOps.push(updateWitnessedLevel);
+							if (!conf.bFaster)
+								arrOps.push(updateWitnessedLevel);
 							arrOps.push(function(cb){
 								console.log("updating MC after adding "+objUnit.unit);
 								main_chain.updateMainChain(conn, null, objUnit.unit, cb);
@@ -530,7 +540,9 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 					async.series(arrOps, function(err){
 						profiler.start();
 						conn.query(err ? "ROLLBACK" : "COMMIT", function(){
-							console.log((err ? (err+", therefore rolled back unit ") : "committed unit ")+objUnit.unit+", write took "+(Date.now()-start_time)+"ms");
+							var consumed_time = Date.now()-start_time;
+							profiler.add_result('write', consumed_time);
+							console.log((err ? (err+", therefore rolled back unit ") : "committed unit ")+objUnit.unit+", write took "+consumed_time+"ms");
 							profiler.stop('write-commit');
 							profiler.increment();
 							if (err) {

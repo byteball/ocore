@@ -703,6 +703,8 @@ function isGenesisBall(ball){
 function readUnitProps(conn, unit, handleProps){
 	if (assocStableUnits[unit])
 		return handleProps(assocStableUnits[unit]);
+	if (conf.bFaster && assocUnstableUnits[unit])
+		return handleProps(assocUnstableUnits[unit]);
 	var stack = new Error().stack;
 	conn.query(
 		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit\n\
@@ -740,8 +742,8 @@ function readUnitProps(conn, unit, handleProps){
 function readPropsOfUnits(conn, earlier_unit, arrLaterUnits, handleProps){
 	var objEarlierUnitProps2 = assocUnstableUnits[earlier_unit] || assocStableUnits[earlier_unit];
 	var arrLaterUnitProps2 = arrLaterUnits.map(function(later_unit){ return assocUnstableUnits[later_unit] || assocStableUnits[later_unit]; });
-//	if (objEarlierUnitProps2 && arrLaterUnitProps2.every(function(p){ return !!p; }))
-//		return handleProps(objEarlierUnitProps2, arrLaterUnitProps2);
+	if (conf.bFaster && objEarlierUnitProps2 && arrLaterUnitProps2.every(function(p){ return !!p; }))
+		return handleProps(objEarlierUnitProps2, arrLaterUnitProps2);
 	
 	var bEarlierInLaterUnits = (arrLaterUnits.indexOf(earlier_unit) !== -1);
 	conn.query(

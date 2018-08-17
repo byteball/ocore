@@ -67,7 +67,7 @@ function calcHeadersCommissions(conn, onDone){
 				);
 			}
 			else{ // there is no SHA1 in sqlite, have to do it in js
-				conn.query(
+				conn.cquery(
 					// chunits is any child unit and contender for headers commission, punits is hc-payer unit
 					"SELECT chunits.unit AS child_unit, punits.headers_commission, next_mc_units.unit AS next_mc_unit, punits.unit AS payer_unit \n\
 					FROM units AS chunits \n\
@@ -111,30 +111,32 @@ function calcHeadersCommissions(conn, onDone){
 								assocChildrenInfosRAM[parent.unit] = {headers_commission: parent.headers_commission, children: children};
 							}
 						});
-						var assocChildrenInfos = {};
+						var assocChildrenInfos = conf.bFaster ? assocChildrenInfosRAM : {};
 						// sql result
-						rows.forEach(function(row){
-							var payer_unit = row.payer_unit;
-							var child_unit = row.child_unit;
-							if (!assocChildrenInfos[payer_unit])
-								assocChildrenInfos[payer_unit] = {headers_commission: row.headers_commission, children: []};
-							else if (assocChildrenInfos[payer_unit].headers_commission !== row.headers_commission)
-								throw Error("different headers_commission");
-							delete row.headers_commission;
-							delete row.payer_unit;
-							assocChildrenInfos[payer_unit].children.push(row);
-						});
-						if (!_.isEqual(assocChildrenInfos, assocChildrenInfosRAM)) {
-							// try sort children
-							var assocChildrenInfos2 = _.cloneDeep(assocChildrenInfos);
-							_.forOwn(assocChildrenInfos2, function(props, unit){
-								props.children = _.sortBy(props.children, ['child_unit']);
+						if (!conf.bFaster){
+							rows.forEach(function(row){
+								var payer_unit = row.payer_unit;
+								var child_unit = row.child_unit;
+								if (!assocChildrenInfos[payer_unit])
+									assocChildrenInfos[payer_unit] = {headers_commission: row.headers_commission, children: []};
+								else if (assocChildrenInfos[payer_unit].headers_commission !== row.headers_commission)
+									throw Error("different headers_commission");
+								delete row.headers_commission;
+								delete row.payer_unit;
+								assocChildrenInfos[payer_unit].children.push(row);
 							});
-							_.forOwn(assocChildrenInfosRAM, function(props, unit){
-								props.children = _.sortBy(props.children, ['child_unit']);
-							});
-							if (!_.isEqual(assocChildrenInfos2, assocChildrenInfosRAM))
-								throwError("different assocChildrenInfos, db: "+JSON.stringify(assocChildrenInfos)+", ram: "+JSON.stringify(assocChildrenInfosRAM));
+							if (!_.isEqual(assocChildrenInfos, assocChildrenInfosRAM)) {
+								// try sort children
+								var assocChildrenInfos2 = _.cloneDeep(assocChildrenInfos);
+								_.forOwn(assocChildrenInfos2, function(props, unit){
+									props.children = _.sortBy(props.children, ['child_unit']);
+								});
+								_.forOwn(assocChildrenInfosRAM, function(props, unit){
+									props.children = _.sortBy(props.children, ['child_unit']);
+								});
+								if (!_.isEqual(assocChildrenInfos2, assocChildrenInfosRAM))
+									throwError("different assocChildrenInfos, db: "+JSON.stringify(assocChildrenInfos)+", ram: "+JSON.stringify(assocChildrenInfosRAM));
+							}
 						}
 						
 						var assocWonAmounts = {}; // amounts won, indexed by child unit who won the hc, and payer unit
@@ -151,7 +153,7 @@ function calcHeadersCommissions(conn, onDone){
 						if (arrWinnerUnits.length === 0)
 							return cb();
 						var strWinnerUnitsList = arrWinnerUnits.map(db.escape).join(', ');
-						conn.query(
+						conn.cquery(
 							"SELECT \n\
 								unit_authors.unit, \n\
 								unit_authors.address, \n\
@@ -184,23 +186,25 @@ function calcHeadersCommissions(conn, onDone){
 									}
 								}
 								// sql result
-								var arrValues = [];
-								profit_distribution_rows.forEach(function(row){
-									var child_unit = row.unit;
-									for (var payer_unit in assocWonAmounts[child_unit]){
-										var full_amount = assocWonAmounts[child_unit][payer_unit];
-										if (!full_amount)
-											throw Error("no amount for child unit "+child_unit+", payer unit "+payer_unit);
-										// note that we round _before_ summing up header commissions won from several parent units
-										var amount = (row.earned_headers_commission_share === 100) 
-											? full_amount 
-											: Math.round(full_amount * row.earned_headers_commission_share / 100.0);
-										// hc outputs will be indexed by mci of _payer_ unit
-										arrValues.push("('"+payer_unit+"', '"+row.address+"', "+amount+")");
+								var arrValues = conf.bFaster ? arrValuesRAM : [];
+								if (!conf.bFaster){
+									profit_distribution_rows.forEach(function(row){
+										var child_unit = row.unit;
+										for (var payer_unit in assocWonAmounts[child_unit]){
+											var full_amount = assocWonAmounts[child_unit][payer_unit];
+											if (!full_amount)
+												throw Error("no amount for child unit "+child_unit+", payer unit "+payer_unit);
+											// note that we round _before_ summing up header commissions won from several parent units
+											var amount = (row.earned_headers_commission_share === 100) 
+												? full_amount 
+												: Math.round(full_amount * row.earned_headers_commission_share / 100.0);
+											// hc outputs will be indexed by mci of _payer_ unit
+											arrValues.push("('"+payer_unit+"', '"+row.address+"', "+amount+")");
+										}
+									});
+									if (!_.isEqual(arrValuesRAM.sort(), arrValues.sort())) {
+										throwError("different arrValues, db: "+JSON.stringify(arrValues)+", ram: "+JSON.stringify(arrValuesRAM));
 									}
-								});
-								if (!_.isEqual(arrValuesRAM.sort(), arrValues.sort())) {
-									throwError("different arrValues, db: "+JSON.stringify(arrValues)+", ram: "+JSON.stringify(arrValuesRAM));
 								}
 
 								conn.query("INSERT INTO headers_commission_contributions (unit, address, amount) VALUES "+arrValues.join(", "), function(){
@@ -220,6 +224,8 @@ function calcHeadersCommissions(conn, onDone){
 				GROUP BY main_chain_index, address",
 				[since_mc_index],
 				function(){
+					if (conf.bFaster)
+						return cb();
 					conn.query("SELECT DISTINCT main_chain_index FROM headers_commission_contributions JOIN units USING(unit) WHERE main_chain_index>?", [since_mc_index], function(contrib_rows){
 						if (contrib_rows.length === 1 && contrib_rows[0].main_chain_index === since_mc_index+1 || since_mc_index === 0)
 							return cb();

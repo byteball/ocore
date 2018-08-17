@@ -224,8 +224,10 @@ function validate(objJoint, callbacks) {
 				if(err){
 					// We might have advanced the stability point and have to commit the changes as the caches are already updated.
 					// There are no other updates/inserts/deletes during validation
-					conn.query("COMMIT", function(){ 
-						console.log(objUnit.unit+" validation "+JSON.stringify(err)+" took "+(Date.now()-start_time)+"ms");
+					conn.query("COMMIT", function(){
+						var consumed_time = Date.now()-start_time;
+						profiler.add_result('failed validation', consumed_time);
+						console.log(objUnit.unit+" validation "+JSON.stringify(err)+" took "+consumed_time+"ms");
 						conn.release();
 						unlock();
 						if (typeof err === "object"){
@@ -247,7 +249,9 @@ function validate(objJoint, callbacks) {
 				else{
 					profiler.start();
 					conn.query("COMMIT", function(){
-						console.log(objUnit.unit+" validation ok took "+(Date.now()-start_time)+"ms");
+						var consumed_time = Date.now()-start_time;
+						profiler.add_result('validation', consumed_time);
+						console.log(objUnit.unit+" validation ok took "+consumed_time+"ms");
 						conn.release();
 						profiler.stop('validation-commit');
 						if (objJoint.unsigned){
