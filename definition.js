@@ -28,7 +28,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 	function getFilterError(filter){
 		if (!filter)
 			return "no filter";
-		if (hasFieldsExcept(filter, ["what", "asset", "type", "own_funds", "address", "amount", "amount_at_least", "amount_at_most"]))
+		if (hasFieldsExcept(filter, ["what", "asset", "type", "address", "amount", "amount_at_least", "amount_at_most"]))
 			return "unknown fields in filter";
 		if (filter.what !== "input" && filter.what !== "output")
 			return "invalid what="+filter.what;
@@ -39,17 +39,9 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 		if (filter.what === "output"){
 			if ("type" in filter)
 				return "output canot have type";
-			if ("own_funds" in filter)
-				return "output canot have own_funds";
 		}
-		if (bAssetCondition && "own_funds" in filter)
-			return "asset condition cannot be filtered by own_funds";
 		if ("type" in filter && filter.type !== "issue" && filter.type !== "transfer")
 			return "invalid type: "+filter.type;
-		if ("own_funds" in filter && objValidationState.last_ball_mci >= constants.otherAddressInDefinitionUpgradeMci)
-			return "own_funds is deprecated";
-		if ("own_funds" in filter && typeof filter.own_funds !== "boolean")
-			return "own_funds must be boolean";
 		if (bAssetCondition && (filter.address === 'this address' || filter.address === 'other address'))
 			return "asset condition cannot reference this/other address";
 		if ("address" in filter && !isValidAddress(filter.address) && filter.address !== 'this address' && (filter.address !== 'other address' || objValidationState.last_ball_mci < constants.otherAddressInDefinitionUpgradeMci)) // it is ok if the address was never used yet
@@ -469,8 +461,6 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 						return cb('seen cannot be other address');
 					if (args.what === 'input' && (args.amount || args.amount_at_least || args.amount_at_most))
 						return cb('amount not allowed in seen input');
-					if ('own_funds' in args)
-						return cb('own_funds not allowed in seen');
 				}
 				if (!args.asset || args.asset === 'base' || bAssetCondition && args.asset === "this asset")
 					return cb();
@@ -954,8 +944,8 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				
 			case 'has':
 			case 'has one':
-				// ['has', {what: 'input', asset: 'asset or base', type: 'transfer'|'issue', own_funds: true, amount_at_least: 123, amount_at_most: 123, amount: 123, address: 'BASE32'}]
-				// when an address is included (referenced from another address), own_funds refers to outer address' funds
+				// ['has', {what: 'input', asset: 'asset or base', type: 'transfer'|'issue', amount_at_least: 123, amount_at_most: 123, amount: 123, address: 'BASE32'}]
+				// when an address is included (referenced from another address), "this address" refers to the outer address
 				augmentMessagesAndEvaluateFilter(op, args, function(res){
 					console.log(op+" "+res, args);
 					cb2(res);
@@ -964,7 +954,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				
 			case 'has equal':
 			case 'has one equal':
-				// ['has equal', {equal_fields: ['address', 'amount'], search_criteria: [{what: 'output', asset: 'asset1', address: 'BASE32'}, {what: 'input', asset: 'asset2', type: 'issue', own_funds: true, address: 'ANOTHERBASE32'}]}]
+				// ['has equal', {equal_fields: ['address', 'amount'], search_criteria: [{what: 'output', asset: 'asset1', address: 'BASE32'}, {what: 'input', asset: 'asset2', type: 'issue', address: 'ANOTHERBASE32'}]}]
 				augmentMessagesAndEvaluateFilter("has", args.search_criteria[0], function(res1, arrFirstObjects){
 					if (!res1)
 						return cb2(false);
@@ -988,7 +978,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				break;
 				
 			case 'sum':
-				// ['sum', {filter: {what: 'input', asset: 'asset or base', type: 'transfer'|'issue', own_funds: true, address: 'BASE32'}, at_least: 123, at_most: 123, equals: 123}]
+				// ['sum', {filter: {what: 'input', asset: 'asset or base', type: 'transfer'|'issue', address: 'BASE32'}, at_least: 123, at_most: 123, equals: 123}]
 				augmentMessagesAndEvaluateFilter("has", args.filter, function(res, arrFoundObjects){
 					var sum = 0;
 					if (res)
@@ -1041,7 +1031,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 			//console.log("augmented: ", objValidationState.arrAugmentedMessages[0].payload);
 			evaluateFilter(op, filter, handleResult);
 		}
-		if (!objValidationState.arrAugmentedMessages && filter.what === "input" && (filter.address || "own_funds" in filter || typeof filter.amount === "number" || typeof filter.amount_at_least === "number" || typeof filter.amount_at_most === "number"))
+		if (!objValidationState.arrAugmentedMessages && filter.what === "input" && (filter.address || typeof filter.amount === "number" || typeof filter.amount_at_least === "number" || typeof filter.amount_at_most === "number"))
 			augmentMessages(doEvaluateFilter);
 		else
 			doEvaluateFilter();
@@ -1080,12 +1070,6 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 							continue;
 					}
 					var augmented_input = objValidationState.arrAugmentedMessages ? objValidationState.arrAugmentedMessages[i].payload.inputs[j] : null;
-					if ("own_funds" in filter){
-						if (filter.own_funds && augmented_input.address !== address)
-							continue;
-						if (filter.own_funds === false && augmented_input.address === address)
-							continue;
-					}
 					if (filter.address){
 						if (filter.address === 'this address'){
 							if (augmented_input.address !== address)
