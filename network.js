@@ -847,7 +847,7 @@ function havePendingJointRequest(unit){
 
 // We may receive a reference to a nonexisting unit in parents. We are not going to keep the referencing joint forever.
 function purgeJunkUnhandledJoints(){
-	if (bCatchingUp || Date.now() - coming_online_time < 3600*1000)
+	if (bCatchingUp || Date.now() - coming_online_time < 3600*1000 || wss.clients.length === 0 && arrOutboundPeers.length === 0)
 		return;
 	db.query("DELETE FROM unhandled_joints WHERE creation_date < "+db.addTime("-1 HOUR"), function(){
 		db.query("DELETE FROM dependencies WHERE NOT EXISTS (SELECT * FROM unhandled_joints WHERE unhandled_joints.unit=dependencies.unit)");
