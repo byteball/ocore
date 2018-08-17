@@ -1128,7 +1128,11 @@ function handleSavedJoint(objJoint, creation_ts, peer){
 		ws = null;
 
 	handleJoint(ws, objJoint, true, {
-		ifUnitInWork: function(){},
+		ifUnitInWork: function(){
+			setTimeout(function(){
+				handleSavedJoint(objJoint, creation_ts, peer);
+			}, 1000);
+		},
 		ifUnitError: function(error){
 			if (ws)
 				sendErrorResult(ws, unit, error);
