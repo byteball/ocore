@@ -612,6 +612,8 @@ function updateSqliteStats(){
 		prev_time = Date.now();
 	//	console.error(count_writes+" units done in "+total_time+" s, recent "+recent_tps+" tps, avg "+avg_tps+" tps");
 	}
+	if (conf.storage !== 'sqlite')
+		return;
 	db.query("SELECT MAX(rowid) AS count_units FROM units", function(rows){
 		var count_units = rows[0].count_units;
 		if (count_units > 500000) // the db is too big
