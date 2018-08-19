@@ -43,9 +43,13 @@ module.exports = function(connection_or_pool){
 			}
 			if (Array.isArray(results))
 				results = results.map(function(row){ return Object.assign({}, row); });
+			var consumed_time = Date.now() - start_ts;
+			if (consumed_time > 25)
+				console.log("long query took "+consumed_time+"ms:\n"+new_args.filter(function(a, i){ return (i<new_args.length-1); }).join(", ")+"\nload avg: "+require('os').loadavg().join(', '));
 			last_arg(results, fields);
 		});
 		//console.log(new_args);
+		var start_ts = Date.now();
 		q = connection_or_pool.original_query.apply(connection_or_pool, new_args);
 		//console.log(q.sql);
 		return q;
