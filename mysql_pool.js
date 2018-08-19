@@ -49,6 +49,13 @@ module.exports = function(connection_or_pool){
 		return q;
 	};
 
+	safe_connection.cquery = function(){
+		var conf = require('./conf.js');
+		if (conf.bFaster)
+			return arguments[arguments.length - 1]();
+		safe_connection.query.apply(this, arguments);
+	};
+
 	safe_connection.escape = function(str){
 		return connection_or_pool.original_escape(str);
 	};
