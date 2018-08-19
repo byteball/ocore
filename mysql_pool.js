@@ -41,6 +41,8 @@ module.exports = function(connection_or_pool){
 				}*/
 				throw err;
 			}
+			if (Array.isArray(results))
+				results = results.map(function(row){ return Object.assign({}, row); });
 			last_arg(results, fields);
 		});
 		//console.log(new_args);
