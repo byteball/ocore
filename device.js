@@ -330,7 +330,11 @@ function decryptPackage(objEncryptedPackage){
 	}
 	var decrypted1 = Buffer.concat(arrChunks);
 	arrChunks = null;
-	var decrypted2 = decipher.final();
+	try {
+		var decrypted2 = decipher.final();
+	} catch(e) {
+		return console.log("Failed to decrypt package: " + e);
+	}
 	breadcrumbs.add("decrypted lengths: "+decrypted1.length+" + "+decrypted2.length);
 	var decrypted_message_buf = Buffer.concat([decrypted1, decrypted2]);
 	var decrypted_message = decrypted_message_buf.toString("utf8");
