@@ -206,7 +206,7 @@ function determineIfIncluded(conn, earlier_unit, arrLaterUnits, handleResult){
 			}
 			
 			if (arrParents.length)
-				return handleParents(arrParents);
+				return setImmediate(handleParents, arrParents);
 			
 			conn.query(
 				"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain \n\
