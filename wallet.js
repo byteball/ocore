@@ -324,6 +324,14 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 						return callbacks.ifError("no such payload hash in the messages");
 				}
 			}
+			var assocMessages = objUnit.messages;
+			if (!Array.isArray(assocMessages))
+				return callbacks.ifError("bad message type");
+			assocMessages.forEach(function(message){
+				var calculated_payload_hash = objectHash.getBase64Hash(message.payload);
+				if (message.payload_hash !== calculated_payload_hash)
+					return callbacks.ifError("payload hash does not match");
+			});
 			// findAddress handles both types of addresses
 			findAddress(body.address, body.signing_path, {
 				ifError: callbacks.ifError,
