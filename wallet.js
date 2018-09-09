@@ -71,37 +71,40 @@ function handleJustsaying(ws, subject, body){
 			if (from_address !== json.from) 
 				return respondWithError("wrong message signature");
 			
-			var handleMessage = function(bIndirectCorrespondent){
-				// serialize all messages from hub
-				mutex.lock(["from_hub"], function(unlock){
-					handleMessageFromHub(ws, json, objDeviceMessage.pubkey, bIndirectCorrespondent, {
-						ifError: function(err){
-							respondWithError(err);
-							unlock();
-						},
-						ifOk: function(){
-							network.sendJustsaying(ws, 'hub/delete', message_hash);
-							unlock();
-						}
-					});
+			var handleMessage = function(bIndirectCorrespondent, onDone){
+				handleMessageFromHub(ws, json, objDeviceMessage.pubkey, bIndirectCorrespondent, {
+					ifError: function(err){
+						respondWithError(err);
+						onDone();
+					},
+					ifOk: function(){
+						network.sendJustsaying(ws, 'hub/delete', message_hash);
+						onDone();
+					}
 				});
 			};
-			// check that we know this device
-			db.query("SELECT hub, is_indirect FROM correspondent_devices WHERE device_address=?", [from_address], function(rows){
-				if (rows.length > 0){
-					if (json.device_hub && json.device_hub !== rows[0].hub) // update correspondent's home address if necessary
-						db.query("UPDATE correspondent_devices SET hub=? WHERE device_address=?", [json.device_hub, from_address], function(){
-							handleMessage(rows[0].is_indirect);
-						});
-					else
-						handleMessage(rows[0].is_indirect);
-				}
-				else{ // correspondent not known
-					var arrSubjectsAllowedFromNoncorrespondents = ["pairing", "my_xpubkey", "wallet_fully_approved"];
-					if (arrSubjectsAllowedFromNoncorrespondents.indexOf(json.subject) === -1)
-						return respondWithError("correspondent not known and not whitelisted subject");
-					handleMessage(false);
-				}
+			
+			// serialize all messages from hub
+			mutex.lock(["from_hub"], function(unlock){
+				// check that we know this device
+				db.query("SELECT hub, is_indirect FROM correspondent_devices WHERE device_address=?", [from_address], function(rows){
+					if (rows.length > 0){
+						if (json.device_hub && json.device_hub !== rows[0].hub) // update correspondent's home address if necessary
+							db.query("UPDATE correspondent_devices SET hub=? WHERE device_address=?", [json.device_hub, from_address], function(){
+								handleMessage(rows[0].is_indirect, unlock);
+							});
+						else
+							handleMessage(rows[0].is_indirect, unlock);
+					}
+					else{ // correspondent not known
+						var arrSubjectsAllowedFromNoncorrespondents = ["pairing", "my_xpubkey", "wallet_fully_approved"];
+						if (arrSubjectsAllowedFromNoncorrespondents.indexOf(json.subject) === -1){
+							respondWithError("correspondent not known and not whitelisted subject");
+							return unlock();
+						}
+						handleMessage(false, unlock);
+					}
+				});
 			});
 			break;
 			
