@@ -2,6 +2,7 @@
 "use strict";
 var async = require('async');
 var storage = require('./storage.js');
+var archiving = require('./archiving.js');
 var objectHash = require("./object_hash.js");
 var db = require('./db.js');
 var mutex = require('./mutex.js');
@@ -15,7 +16,7 @@ var parentComposer = require('./parent_composer.js');
 var breadcrumbs = require('./breadcrumbs.js');
 var eventBus = require('./event_bus.js');
 
-var MAX_HISTORY_ITEMS = 1000;
+var MAX_HISTORY_ITEMS = 2000;
 
 // unit's MC index is earlier_mci
 function buildProofChain(later_mci, earlier_mci, unit, arrBalls, onDone){
@@ -360,7 +361,16 @@ function processHistory(objResponse, callbacks){
 									"UPDATE units SET main_chain_index=?, sequence=? WHERE unit=?", 
 									[objUnit.main_chain_index, sequence, unit], 
 									function(){
-										cb2();
+										if (sequence === 'good')
+											return cb2();
+										// void the final-bad
+										breadcrumbs.add('will void '+unit);
+										db.executeInTransaction(function doWork(conn, cb3){
+											var arrQueries = [];
+											archiving.generateQueriesToArchiveJoint(conn, objJoint, 'voided', arrQueries, function(){
+												async.series(arrQueries, cb3);
+											});
+										}, cb2);
 									}
 								);
 							}
@@ -407,7 +417,7 @@ function fixIsSpentFlag(onDone){
 	db.query(
 		"SELECT outputs.unit, outputs.message_index, outputs.output_index \n\
 		FROM outputs \n\
-		JOIN inputs ON outputs.unit=inputs.src_unit AND outputs.message_index=inputs.src_message_index AND outputs.output_index=inputs.src_output_index \n\
+		CROSS JOIN inputs ON outputs.unit=inputs.src_unit AND outputs.message_index=inputs.src_message_index AND outputs.output_index=inputs.src_output_index \n\
 		WHERE is_spent=0 AND type='transfer'",
 		function(rows){
 			console.log(rows.length+" previous outputs appear to be spent");
@@ -582,9 +592,9 @@ function createLinkProof(later_unit, earlier_unit, arrChain, cb){
 					ifFound: function(objEarlierJoint){
 						var earlier_mci = objEarlierJoint.unit.main_chain_index;
 						var earlier_unit = objEarlierJoint.unit.unit;
-						if (later_mci < earlier_mci)
+						if (later_mci < earlier_mci && later_mci !== null && earlier_mci !== null)
 							return cb("not included");
-						if (later_lb_mci >= earlier_mci){ // was spent when confirmed
+						if (later_lb_mci >= earlier_mci && earlier_mci !== null){ // was spent when confirmed
 							// includes the ball of earlier unit
 							buildProofChain(later_lb_mci + 1, earlier_mci, earlier_unit, arrChain, function(){
 								cb();
@@ -631,7 +641,9 @@ function buildPath(objLaterJoint, objEarlierJoint, arrChain, onDone){
 			function(rows){
 				if (rows.length !== 1)
 					throw Error("goUp not 1 parent");
-				if (rows[0].main_chain_index < objEarlierJoint.unit.main_chain_index) // jumped over the target
+				if (rows[0].unit === objEarlierJoint.unit.unit)
+					return onDone();
+				if (rows[0].main_chain_index < objEarlierJoint.unit.main_chain_index && rows[0].main_chain_index !== null) // jumped over the target
 					return buildPathToEarlierUnit(objChildJoint);
 				addJoint(rows[0].unit, function(objJoint){
 					(objJoint.unit.main_chain_index === objEarlierJoint.unit.main_chain_index) ? buildPathToEarlierUnit(objJoint) : goUp(objJoint);
@@ -641,13 +653,15 @@ function buildPath(objLaterJoint, objEarlierJoint, arrChain, onDone){
 	}
 	
 	function buildPathToEarlierUnit(objJoint){
+		if (objJoint.unit.main_chain_index === undefined)
+			throw Error("mci undefined? unit="+objJoint.unit.unit+", mci="+objJoint.unit.main_chain_index+", earlier="+objEarlierJoint.unit.unit+", later="+objLaterJoint.unit.unit);
 		db.query(
 			"SELECT unit FROM parenthoods JOIN units ON parent_unit=unit \n\
-			WHERE child_unit=? AND main_chain_index=?", 
-			[objJoint.unit.unit, objJoint.unit.main_chain_index],
+			WHERE child_unit=? AND main_chain_index"+(objJoint.unit.main_chain_index === null ? ' IS NULL' : '='+objJoint.unit.main_chain_index), 
+			[objJoint.unit.unit],
 			function(rows){
 				if (rows.length === 0)
-					throw Error("no parents with same mci?");
+					throw Error("no parents with same mci? unit="+objJoint.unit.unit+", mci="+objJoint.unit.main_chain_index+", earlier="+objEarlierJoint.unit.unit+", later="+objLaterJoint.unit.unit);
 				var arrParentUnits = rows.map(function(row){ return row.unit });
 				if (arrParentUnits.indexOf(objEarlierJoint.unit.unit) >= 0)
 					return onDone();

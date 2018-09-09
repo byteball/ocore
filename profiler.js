@@ -28,6 +28,13 @@ function mark_end(tag, id) {
 	timers[tag][id] = 0;
 }
 
+function add_result(tag, consumed_time){
+	return;
+	if (!timers_results[tag])
+		timers_results[tag] = [];
+	timers_results[tag].push(consumed_time);
+}
+
 function start(){
 	if (start_ts)
 		throw Error("profiler already started");
@@ -73,7 +80,13 @@ function print_results() {
 		}
 		console.log(tag.padding(50) + ": avg:" + Math.round(sum / results.length).toString().padding(8) + "max:" + Math.round(max).toString().padding(8) + "min:" + Math.round(min).toString().padding(8) + "records:" + results.length);
 	}
+	var elapsed = Date.now() - profiler_start_ts;
 	console.log("\n\nStart time: " + profiler_start_ts + ", End time: " + Date.now() + " Elapsed ms:" + (Date.now() - profiler_start_ts));
+	console.log("time in db "+exports.time_in_db+"ms, "+(exports.time_in_db/elapsed*100)+"%");
+	if (process.cpuUsage){
+		var usage = process.cpuUsage();
+		console.log("usage "+usage.user+"mus "+(usage.user/1000/elapsed*100)+"%, sys "+usage.system+"mus "+(usage.system/1000/elapsed*100)+"%, total "+((usage.system+usage.user)/1000/elapsed*100)+"%");
+	}
 }
 
 function pad_right(str, len){
@@ -123,7 +136,8 @@ var clog = console.log;
 exports.print = print;
 exports.mark_start = mark_start;
 exports.mark_end = mark_end;
-
+exports.add_result = add_result;
+exports.time_in_db = 0;
 
 exports.start = function(){};
 exports.stop = function(){};

@@ -52,6 +52,8 @@ function readBalance(wallet, handleBalance){
 									assocBalances[asset] = {stable: 0, pending: 0};
 								assocBalances[asset].is_private = row.is_private;
 							}
+							if (assocBalances[constants.BLACKBYTES_ASSET].stable === 0 && assocBalances[constants.BLACKBYTES_ASSET].pending === 0)
+								delete assocBalances[constants.BLACKBYTES_ASSET];
 							handleBalance(assocBalances);
 						}
 					);

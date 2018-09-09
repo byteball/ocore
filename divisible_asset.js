@@ -10,6 +10,7 @@ var composer = require("./composer.js");
 var ValidationUtils = require('./validation_utils.js');
 var validation = require('./validation.js');
 var writer = require('./writer.js');
+var inputs = require('./inputs.js');
 
 
 function validateAndSavePrivatePaymentChain(conn, arrPrivateElements, callbacks){
@@ -171,6 +172,14 @@ function composeDivisibleAssetPaymentJoint(params){
 	console.log("asset payment from "+params.paying_addresses);
 	if ((params.to_address || params.amount) && params.asset_outputs)
 		throw Error("to_address and asset_outputs at the same time");
+	if (params.to_address && !params.amount)
+		throw Error("to_address but not amount");
+	if (!params.to_address && params.amount)
+		throw Error("amount but not to_address");
+	if (!params.to_address && !params.asset_outputs)
+		throw Error("neither to_address nor asset_outputs");
+	if (params.asset_outputs && !ValidationUtils.isNonemptyArray(params.asset_outputs))
+		throw Error('asset_outputs must be non-empty array');
 	if (!ValidationUtils.isNonemptyArray(params.fee_paying_addresses))
 		throw Error('no fee_paying_addresses');
 	var private_payload;
@@ -202,10 +211,10 @@ function composeDivisibleAssetPaymentJoint(params){
 				var target_amount = params.to_address 
 					? params.amount 
 					: params.asset_outputs.reduce(function(accumulator, output){ return accumulator + output.amount; }, 0);
-				composer.pickDivisibleCoinsForAmount(
-					conn, objAsset, arrAssetPayingAddresses, last_ball_mci, target_amount, bMultiAuthored, 
+				inputs.pickDivisibleCoinsForAmount(
+					conn, objAsset, arrAssetPayingAddresses, last_ball_mci, target_amount, bMultiAuthored, params.spend_unconfirmed || 'own',
 					function(arrInputsWithProofs, total_input){
-						console.log("pick coins callback "+arrInputsWithProofs);
+						console.log("pick coins callback "+JSON.stringify(arrInputsWithProofs));
 						if (!arrInputsWithProofs)
 							return onDone({error_code: "NOT_ENOUGH_FUNDS", error: "not enough asset coins"});
 						var arrOutputs = params.to_address ? [{address: params.to_address, amount: params.amount}] : params.asset_outputs;
@@ -330,7 +339,7 @@ function getSavingCallbacks(callbacks){
 								objJoint, objValidationState, 
 								preCommitCallback,
 								function onDone(err){
-									console.log("saved unit "+unit, objPrivateElement);
+									console.log("saved unit "+unit+", err="+err, objPrivateElement);
 									validation_unlock();
 									composer_unlock();
 									var arrChains = objPrivateElement ? [[objPrivateElement]] : null; // only one chain that consists of one element
@@ -361,7 +370,7 @@ function composeMinimalDivisibleAssetPaymentJoint(params){
 		throw Error('no available_paying_addresses');
 	if (!ValidationUtils.isNonemptyArray(params.available_fee_paying_addresses))
 		throw Error('no available_fee_paying_addresses');
-	composer.readSortedFundedAddresses(params.asset, params.available_paying_addresses, params.amount, function(arrFundedPayingAddresses){
+	composer.readSortedFundedAddresses(params.asset, params.available_paying_addresses, params.amount, params.spend_unconfirmed || 'own', function(arrFundedPayingAddresses){
 		if (arrFundedPayingAddresses.length === 0){
 			 // special case for issuing uncapped asset.  If it is not issuing, not-enough-funds will pop anyway
 			if (params.available_paying_addresses.length === 1)
@@ -369,7 +378,7 @@ function composeMinimalDivisibleAssetPaymentJoint(params){
 			else
 				return params.callbacks.ifNotEnoughFunds("all paying addresses are unfunded in asset, make sure all your funds are confirmed");
 		}
-		composer.readSortedFundedAddresses(null, params.available_fee_paying_addresses, TYPICAL_FEE, function(arrFundedFeePayingAddresses){
+		composer.readSortedFundedAddresses(null, params.available_fee_paying_addresses, TYPICAL_FEE, params.spend_unconfirmed || 'own', function(arrFundedFeePayingAddresses){
 			if (arrFundedFeePayingAddresses.length === 0)
 				return params.callbacks.ifNotEnoughFunds("all paying addresses are unfunded in bytes necessary for fees, make sure all your funds are confirmed");
 			var minimal_params = _.clone(params);

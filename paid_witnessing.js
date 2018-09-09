@@ -100,42 +100,46 @@ function buildPaidWitnessesTillMainChainIndex(conn, to_main_chain_index, cb){
 function buildPaidWitnessesForMainChainIndex(conn, main_chain_index, cb){
 	console.log("updating paid witnesses mci "+main_chain_index);
 	profiler.start();
-	conn.query(
+	conn.cquery(
 		"SELECT COUNT(1) AS count, SUM(CASE WHEN is_stable=1 THEN 1 ELSE 0 END) AS count_on_stable_mc \n\
 		FROM units WHERE is_on_main_chain=1 AND main_chain_index>=? AND main_chain_index<=?",
 		[main_chain_index, main_chain_index+constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING+1],
 		function(rows){
 			profiler.stop('mc-wc-select-count');
-			var count = rows[0].count;
-			var count_on_stable_mc = rows[0].count_on_stable_mc;
-			if (count !== constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING+2)
-				throw Error("main chain is not long enough yet for MC index "+main_chain_index);
-			if (count_on_stable_mc !== count)
-				throw Error("not enough stable MC units yet after MC index "+main_chain_index+": count_on_stable_mc="+count_on_stable_mc+", count="+count);
 			var countRAM = _.countBy(storage.assocStableUnits, function(props){
 				return props.main_chain_index <= (main_chain_index+constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING+1) 
 					&& props.main_chain_index >= main_chain_index 
 					&& props.is_on_main_chain;
 			})["1"];
-			if (!_.isEqual(countRAM, count))
-				throwError("different count in buildPaidWitnessesForMainChainIndex, db: "+count+", ram: "+countRAM);
+			var count = conf.bFaster ? countRAM : rows[0].count;
+			if (count !== constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING+2)
+				throw Error("main chain is not long enough yet for MC index "+main_chain_index);
+			if (!conf.bFaster){
+				var count_on_stable_mc = rows[0].count_on_stable_mc;
+				if (count_on_stable_mc !== count)
+					throw Error("not enough stable MC units yet after MC index "+main_chain_index+": count_on_stable_mc="+count_on_stable_mc+", count="+count);
+				if (!_.isEqual(countRAM, count))
+					throwError("different count in buildPaidWitnessesForMainChainIndex, db: "+count+", ram: "+countRAM);
+			}
 			profiler.start();
 			// we read witnesses from MC unit (users can cheat with side-chains to flip the witness list and pay commissions to their own witnesses)
 			readMcUnitWitnesses(conn, main_chain_index, function(arrWitnesses){
-				conn.query("CREATE TEMPORARY TABLE paid_witness_events_tmp ( \n\
+				conn.cquery(
+					"CREATE TEMPORARY TABLE paid_witness_events_tmp ( \n\
 					unit CHAR(44) NOT NULL, \n\
-					address CHAR(32) NOT NULL)", function(){
-						conn.query("SELECT unit, main_chain_index FROM units WHERE main_chain_index=?", [main_chain_index], function(rows){
+					address CHAR(32) NOT NULL)",
+					function(){
+						conn.cquery("SELECT unit, main_chain_index FROM units WHERE main_chain_index=?", [main_chain_index], function(rows){
 							profiler.stop('mc-wc-select-units');
 							et=0; rt=0;
-							var unitsRAM = _.map(_.pickBy(storage.assocStableUnits, function(v, k){return v.main_chain_index == main_chain_index}), function(props, unit){return {unit: props.unit, main_chain_index: main_chain_index}});
-							if (!_.isEqual(rows, unitsRAM)) {
+							var unitsRAM = storage.assocStableUnitsByMci[main_chain_index].map(function(props){return {unit: props.unit, main_chain_index: main_chain_index}});
+							if (!conf.bFaster && !_.isEqual(rows, unitsRAM)) {
 								if (!_.isEqual(_.sortBy(rows, function(v){return v.unit;}), _.sortBy(unitsRAM, function(v){return v.unit;})))
 									throwError("different units in buildPaidWitnessesForMainChainIndex, db: "+JSON.stringify(rows)+", ram: "+JSON.stringify(unitsRAM));
 							}
 							paidWitnessEvents = [];
 							async.eachSeries(
-								rows, 
+								conf.bFaster ? unitsRAM : rows, 
 								function(row, cb2){
 									// the unit itself might be never majority witnessed by unit-designated witnesses (which might be far off), 
 									// but its payload commission still belongs to and is spendable by the MC-unit-designated witnesses.
@@ -148,6 +152,18 @@ function buildPaidWitnessesForMainChainIndex(conn, main_chain_index, cb){
 									if (err) // impossible
 										throw Error(err);
 									//var t=Date.now();
+									var countPaidWitnesses = _.countBy(paidWitnessEvents, function(v){return v.unit});
+									var assocPaidAmountsByAddress = _.reduce(paidWitnessEvents, function(amountsByAddress, v) {
+										var objUnit = storage.assocStableUnits[v.unit];
+										if (typeof amountsByAddress[v.address] === "undefined")
+											amountsByAddress[v.address] = 0;
+										if (objUnit.sequence == 'good')
+											amountsByAddress[v.address] += Math.round(objUnit.payload_commission / countPaidWitnesses[v.unit]);
+										return amountsByAddress;
+									}, {});
+									var arrPaidAmounts2 = _.map(assocPaidAmountsByAddress, function(amount, address) {return {address: address, amount: amount}});
+									if (conf.bFaster)
+										return conn.query("INSERT INTO witnessing_outputs (main_chain_index, address, amount) VALUES " + arrPaidAmounts2.map(function(o){ return "("+main_chain_index+", "+db.escape(o.address)+", "+o.amount+")" }).join(', '), function(){ cb(); });
 									profiler.start();
 									conn.query(
 										"INSERT INTO witnessing_outputs (main_chain_index, address, amount) \n\
@@ -162,24 +178,14 @@ function buildPaidWitnessesForMainChainIndex(conn, main_chain_index, cb){
 										function(){
 											//console.log(Date.now()-t);
 											conn.query("SELECT address, amount FROM witnessing_outputs WHERE main_chain_index=?", [main_chain_index], function(rows){
-													var countPaidWitnesses = _.countBy(paidWitnessEvents, function(v){return v.unit});
-													var paidAmounts = _.reduce(paidWitnessEvents, function(amountsByAddress, v) {
-														var objUnit = storage.assocStableUnits[v.unit];
-														if (typeof amountsByAddress[v.address] === "undefined")
-															amountsByAddress[v.address] = 0;
-														if (objUnit.sequence == 'good')
-															amountsByAddress[v.address] += Math.round(objUnit.payload_commission / countPaidWitnesses[v.unit]);
-														return amountsByAddress;
-													}, {});
-													var paidAmounts2 = _.map(paidAmounts, function(amount, address) {return {address: address, amount: amount}});
-													if (!_.isEqual(rows, paidAmounts2)){
-														if (!_.isEqual(_.sortBy(rows, function(v){return v.address}), _sortBy(paidAmounts2, function(v){return v.address})))
-															throwError("different amount in buildPaidWitnessesForMainChainIndex db:" + JSON.stringify(rows) + " ram:" + JSON.stringify(paidAmounts2));
-													}
-											});
-											conn.query(conn.dropTemporaryTable("paid_witness_events_tmp"), function(){
-												profiler.stop('mc-wc-aggregate-events');
-												cb();
+												if (!_.isEqual(rows, arrPaidAmounts2)){
+													if (!_.isEqual(_.sortBy(rows, function(v){return v.address}), _.sortBy(arrPaidAmounts2, function(v){return v.address})))
+														throwError("different amount in buildPaidWitnessesForMainChainIndex mci "+main_chain_index+" db:" + JSON.stringify(rows) + " ram:" + JSON.stringify(arrPaidAmounts2)+" paidWitnessEvents="+JSON.stringify(paidWitnessEvents));
+												}
+												conn.query(conn.dropTemporaryTable("paid_witness_events_tmp"), function(){
+													profiler.stop('mc-wc-aggregate-events');
+													cb();
+												});
 											});
 										}
 									);
@@ -195,11 +201,13 @@ function buildPaidWitnessesForMainChainIndex(conn, main_chain_index, cb){
 
 
 function readMcUnitWitnesses(conn, main_chain_index, handleWitnesses){
+	var witness_list_unitRAM = storage.assocStableUnitsByMci[main_chain_index].find(function(props){return props.is_on_main_chain}).witness_list_unit;
+	if (conf.bFaster)
+		return storage.readWitnessList(conn, witness_list_unitRAM, handleWitnesses);
 	conn.query("SELECT witness_list_unit, unit FROM units WHERE main_chain_index=? AND is_on_main_chain=1", [main_chain_index], function(rows){
 		if (rows.length !== 1)
 			throw Error("not 1 row on MC "+main_chain_index);
 		var witness_list_unit = rows[0].witness_list_unit ? rows[0].witness_list_unit : rows[0].unit;
-		var witness_list_unitRAM = _.find(storage.assocStableUnits, function(v, k){return v.main_chain_index == main_chain_index && v.is_on_main_chain}).witness_list_unit;
 		if (!_.isEqual(witness_list_unit, witness_list_unitRAM))
 			throw Error("witness_list_units are not equal db:"+witness_list_unit+", RAM:"+witness_list_unitRAM);
 		storage.readWitnessList(conn, witness_list_unit, handleWitnesses);
@@ -226,7 +234,7 @@ function buildPaidWitnesses(conn, objUnitProps, arrWitnesses, onDone){
 		var strUnitsList = (arrUnits.length === 0) ? 'NULL' : arrUnits.map(function(unit){ return conn.escape(unit); }).join(', ');
 			//throw "no witnesses before mc "+to_main_chain_index+" for unit "+objUnitProps.unit;
 		profiler.start();
-		conn.query( // we don't care if the unit is majority witnessed by the unit-designated witnesses
+		conn.cquery( // we don't care if the unit is majority witnessed by the unit-designated witnesses
 			// _left_ join forces use of indexes in units
 			// can't get rid of filtering by address because units can be co-authored by witness with somebody else
 			"SELECT address \n\
@@ -237,16 +245,24 @@ function buildPaidWitnesses(conn, objUnitProps, arrWitnesses, onDone){
 			[arrWitnesses],
 			function(rows){
 				et += Date.now()-t;
-				var count_paid_witnesses = rows.length;
-				var arrPaidWitnessesRAM = _.uniq(_.flatMap(_.pickBy(storage.assocStableUnits, function(v, k){return _.includes(arrUnits,k) && v.sequence == 'good'}), function(v, k){
+				/*var arrPaidWitnessesRAM = _.uniq(_.flatMap(_.pickBy(storage.assocStableUnits, function(v, k){return _.includes(arrUnits,k) && v.sequence == 'good'}), function(v, k){
 					return _.intersection(v.author_addresses, arrWitnesses);
-				}));
-				if (!_.isEqual(arrPaidWitnessesRAM.sort(), _.map(rows, function(v){return v.address}).sort()))
+				}));*/
+				var arrPaidWitnessesRAM = _.uniq(_.flatten(arrUnits.map(function(_unit){
+					var unitProps = storage.assocStableUnits[_unit];
+					if (!unitProps)
+						throw Error("stable unit "+_unit+" not found in cache");
+					return (unitProps.sequence !== 'good') ? [] : _.intersection(unitProps.author_addresses, arrWitnesses);
+				}) ) );
+				if (conf.bFaster)
+					rows = arrPaidWitnessesRAM.map(function(address){ return {address: address}; });
+				if (!conf.bFaster && !_.isEqual(arrPaidWitnessesRAM.sort(), _.map(rows, function(v){return v.address}).sort()))
 					throw Error("arrPaidWitnesses are not equal");
 				var arrValues;
+				var count_paid_witnesses = rows.length;
 				if (count_paid_witnesses === 0){ // nobody witnessed, pay equally to all
 					count_paid_witnesses = arrWitnesses.length;
-					arrValues = arrWitnesses.map(function(address){ return "("+conn.escape(unit)+", "+conn.escape(address)+", NULL)"; });
+					arrValues = arrWitnesses.map(function(address){ return "("+conn.escape(unit)+", "+conn.escape(address)+")"; });
 					paidWitnessEvents = _.concat(paidWitnessEvents, arrWitnesses.map(function(address){ return {unit: unit, address: address};}));
 				}
 				else {
@@ -256,7 +272,7 @@ function buildPaidWitnesses(conn, objUnitProps, arrWitnesses, onDone){
 
 				profiler.stop('mc-wc-select-events');
 				profiler.start();
-				conn.query("INSERT INTO paid_witness_events_tmp (unit, address) VALUES "+arrValues.join(", "), function(){
+				conn.cquery("INSERT INTO paid_witness_events_tmp (unit, address) VALUES "+arrValues.join(", "), function(){
 					updateCountPaidWitnesses(count_paid_witnesses);
 				});
 			}
@@ -270,8 +286,12 @@ function getMaxSpendableMciForLastBallMci(last_ball_mci){
 }
 
 function throwError(msg){
+	var eventBus = require('./event_bus.js');
 	debugger;
-	throw Error(msg);
+	if (typeof window === 'undefined')
+		throw Error(msg);
+	else
+		eventBus.emit('nonfatal_error', msg, new Error());
 }
 
 exports.updatePaidWitnesses = updatePaidWitnesses;

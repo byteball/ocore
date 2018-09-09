@@ -36,7 +36,7 @@ function pickParentUnits(conn, arrWitnesses, onDone){
 				return pickDeepParentUnits(conn, arrWitnesses, null, onDone);
 			var arrParentUnits = rows.map(function(row){ return row.unit; });
 			adjustParentsToNotRetreatWitnessedLevel(conn, arrWitnesses, arrParentUnits, function(arrAdjustedParents){
-				onDone(null, arrAdjustedParents.slice(0, constants.MAX_PARENTS_PER_UNIT));
+				onDone(null, arrAdjustedParents);
 			});
 		//	checkWitnessedLevelNotRetreatingAndLookLower(conn, arrWitnesses, arrParentUnits, (arrParentUnits.length === 1), onDone);
 		}
@@ -57,8 +57,9 @@ function adjustParentsToNotRetreatWitnessedLevel(conn, arrWitnesses, arrParentUn
 			var arrCandidateReplacements = rows.map(function(row){ return row.parent_unit; });
 			console.log('candidate replacements: '+arrCandidateReplacements.join(', '));
 			conn.query(
-				"SELECT DISTINCT parent_unit FROM parenthoods WHERE parent_unit IN(?) AND child_unit NOT IN(?)", 
-				[arrCandidateReplacements, arrExcludedUnits], 
+				"SELECT DISTINCT parent_unit FROM parenthoods \n\
+				WHERE parent_unit IN(?) AND child_unit NOT IN("+arrExcludedUnits.map(db.escape).join(', ')+")", 
+				[arrCandidateReplacements], 
 				function(rows){
 					var arrCandidatesWithOtherChildren = rows.map(function(row){ return row.parent_unit; });
 					console.log('candidates with other children: '+arrCandidatesWithOtherChildren.join(', '));
@@ -67,7 +68,7 @@ function adjustParentsToNotRetreatWitnessedLevel(conn, arrWitnesses, arrParentUn
 					var arrNewParents = arrParentsToKeep.concat(arrReplacementParents);
 					console.log('new parents: '+arrNewParents.join(', '));
 					if (arrNewParents.length === 0)
-						throw Error("no new parents for initial parents "+arrParentUnits.join(', ')+" and witnesses "+arrWitnesses.join(', '));
+						throw Error("no new parents for initial parents "+arrParentUnits.join(', ')+", current parents "+arrCurrentParentUnits.join(', ')+", excluded unit "+excluded_unit+", excluded units "+arrExcludedUnits.join(', ')+", and witnesses "+arrWitnesses.join(', '));
 					checkWitnessedLevelAndReplace(arrNewParents);
 				}
 			);
@@ -80,8 +81,16 @@ function adjustParentsToNotRetreatWitnessedLevel(conn, arrWitnesses, arrParentUn
 			throw Error("infinite cycle");
 		iterations++;
 		determineWitnessedLevels(conn, arrWitnesses, arrCurrentParentUnits, function(child_witnessed_level, best_parent_witnessed_level, best_parent_unit){
-			if (child_witnessed_level >= best_parent_witnessed_level)
-				return handleAdjustedParents(arrCurrentParentUnits.sort());
+			if (child_witnessed_level >= best_parent_witnessed_level){
+				if (arrCurrentParentUnits.length <= constants.MAX_PARENTS_PER_UNIT)
+					return handleAdjustedParents(arrCurrentParentUnits.sort());
+				var bp_index = arrCurrentParentUnits.indexOf(best_parent_unit);
+				if (bp_index < 0)
+					throw Error("best parent "+best_parent_unit+" not found among parents "+arrCurrentParentUnits.join(', '));
+				arrCurrentParentUnits.splice(bp_index, 1);
+				arrCurrentParentUnits.unshift(best_parent_unit); // moves best_parent_unit to the 1st position to make sure it is not sliced off
+				return handleAdjustedParents(arrCurrentParentUnits.slice(0, constants.MAX_PARENTS_PER_UNIT).sort());
+			}
 			console.log('wl would retreat from '+best_parent_witnessed_level+' to '+child_witnessed_level+', parents '+arrCurrentParentUnits.join(', '));
 			replaceExcludedParent(arrCurrentParentUnits, best_parent_unit);
 		});

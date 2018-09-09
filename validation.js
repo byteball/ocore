@@ -164,12 +164,14 @@ function validate(objJoint, callbacks) {
 	mutex.lock(arrAuthorAddresses, function(unlock){
 		
 		var conn = null;
+		var start_time = null;
 
 		async.series(
 			[
 				function(cb){
 					db.takeConnectionFromPool(function(new_conn){
 						conn = new_conn;
+						start_time = Date.now();
 						conn.query("BEGIN", function(){cb();});
 					});
 				},
@@ -220,7 +222,12 @@ function validate(objJoint, callbacks) {
 			function(err){
 				profiler.stop('validation-messages');
 				if(err){
-					conn.query("ROLLBACK", function(){
+					// We might have advanced the stability point and have to commit the changes as the caches are already updated.
+					// There are no other updates/inserts/deletes during validation
+					conn.query("COMMIT", function(){
+						var consumed_time = Date.now()-start_time;
+						profiler.add_result('failed validation', consumed_time);
+						console.log(objUnit.unit+" validation "+JSON.stringify(err)+" took "+consumed_time+"ms");
 						conn.release();
 						unlock();
 						if (typeof err === "object"){
@@ -242,6 +249,9 @@ function validate(objJoint, callbacks) {
 				else{
 					profiler.start();
 					conn.query("COMMIT", function(){
+						var consumed_time = Date.now()-start_time;
+						profiler.add_result('validation', consumed_time);
+						console.log(objUnit.unit+" validation ok took "+consumed_time+"ms");
 						conn.release();
 						profiler.stop('validation-commit');
 						if (objJoint.unsigned){
@@ -476,7 +486,7 @@ function validateParents(conn, objJoint, objValidationState, callback){
 							return checkNoSameAddressInDifferentParents();
 					}
 					// Last ball is not stable yet in our view. Check if it is stable in view of the parents
-					main_chain.determineIfStableInLaterUnitsAndUpdateStableMcFlag(conn, last_ball_unit, objUnit.parent_units, objLastBallUnitProps.is_stable, function(bStable){
+					main_chain.determineIfStableInLaterUnitsAndUpdateStableMcFlag(conn, last_ball_unit, objUnit.parent_units, objLastBallUnitProps.is_stable, function(bStable, bAdvancedLastStableMci){
 						/*if (!bStable && objLastBallUnitProps.is_stable === 1){
 							var eventBus = require('./event_bus.js');
 							eventBus.emit('nonfatal_error', "last ball is stable, but not stable in parents, unit "+objUnit.unit, new Error());
@@ -490,6 +500,8 @@ function validateParents(conn, objJoint, objValidationState, callback){
 							if (ball_rows[0].ball !== last_ball)
 								return callback("last_ball "+last_ball+" and last_ball_unit "+last_ball_unit
 												+" do not match after advancing stability point");
+							if (bAdvancedLastStableMci)
+								objValidationState.bAdvancedLastStableMci = true; // not used
 							checkNoSameAddressInDifferentParents();
 						});
 					});
@@ -580,7 +592,7 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 		for (var i=0; i<objUnit.witnesses.length; i++){
 			var curr_witness = objUnit.witnesses[i];
 			if (!chash.isChashValid(curr_witness))
-				return cb("witness address "+curr_witness+" is invalid");
+				return callback("witness address "+curr_witness+" is invalid");
 			if (i === 0)
 				continue;
 			if (curr_witness <= prev_witness)
@@ -979,19 +991,19 @@ function validateMessage(conn, objMessage, message_index, objUnit, objValidation
 			var address = null;
 			if (arrAuthorAddresses.length === 1){
 				if ("address" in objSpendProof)
-					return cb("when single-authored, must not put address in spend proof");
+					return callback("when single-authored, must not put address in spend proof");
 				address = arrAuthorAddresses[0];
 			}
 			else{
 				if (typeof objSpendProof.address !== "string")
-					return cb("when multi-authored, must put address in spend_proofs");
+					return callback("when multi-authored, must put address in spend_proofs");
 				if (arrAuthorAddresses.indexOf(objSpendProof.address) === -1)
-					return cb("spend proof address "+objSpendProof.address+" is not an author");
+					return callback("spend proof address "+objSpendProof.address+" is not an author");
 				address = objSpendProof.address;
 			}
 			
 			if (objValidationState.arrInputKeys.indexOf(objSpendProof.spend_proof) >= 0)
-				return cb("spend proof "+objSpendProof.spend_proof+" already used");
+				return callback("spend proof "+objSpendProof.spend_proof+" already used");
 			objValidationState.arrInputKeys.push(objSpendProof.spend_proof);
 			
 			//prev_spend_proof = objSpendProof.spend_proof;
@@ -1076,6 +1088,8 @@ function checkForDoublespends(conn, type, sql, arrSqlArgs, objUnit, objValidatio
 				function(objConflictingRecord, cb2){
 					if (arrAuthorAddresses.indexOf(objConflictingRecord.address) === -1)
 						throw Error("conflicting "+type+" spent from another address?");
+					if (conf.bLight) // we can't use graph in light wallet, the private payment can be resent and revalidated when stable
+						return cb2(objUnit.unit+": conflicting "+type);
 					graph.determineIfIncludedOrEqual(conn, objConflictingRecord.unit, objUnit.parent_units, function(bIncluded){
 						if (bIncluded){
 							var error = objUnit.unit+": conflicting "+type+" in inner unit "+objConflictingRecord.unit;
@@ -1690,14 +1704,14 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 								arrInputAddresses.push(owner_address);
 							total_input += src_output.amount;
 							
-							if (!objAsset || !objAsset.is_private)
+							if (src_output.main_chain_index !== null && src_output.main_chain_index <= objValidationState.last_ball_mci)
 								return checkInputDoubleSpend(cb);
 
-							// for private payments only, unit already saved (if public, we are already before last ball)
+							// the below is for unstable inputs only.
 							// when divisible, the asset is also non-transferrable and auto-destroy, 
 							// then this transfer is a transfer back to the issuer 
 							// and input.unit is known both to payer and the payee (issuer), even if light
-							graph.determineIfIncluded(conn, input.unit, [objUnit.unit], function(bIncluded){
+							graph.determineIfIncludedOrEqual(conn, input.unit, objUnit.parent_units, function(bIncluded){
 								if (!bIncluded)
 									return cb("input "+input.unit+" is not in your genes");
 								checkInputDoubleSpend(cb);
@@ -2045,7 +2059,7 @@ function createJointError(err){
 function validateSignedMessage(objSignedMessage, handleResult){
 	if (typeof objSignedMessage !== 'object')
 		return handleResult("not an object");
-	if (ValidationUtils.hasFieldsExcept(objSignedMessage, ["signed_message", "authors"]))
+	if (ValidationUtils.hasFieldsExcept(objSignedMessage, ["signed_message", "authors", "last_ball_unit", "timestamp"]))
 		return handleResult("unknown fields");
 	if (typeof objSignedMessage.signed_message !== 'string')
 		return handleResult("signed message not a string");

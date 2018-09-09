@@ -17,7 +17,7 @@ function parseUri(uri, callbacks){
 	
 	// pairing / start a chat
 //	var arrPairingMatches = value.match(/^([\w\/+]{44})@([\w.:\/-]+)(?:#|%23)([\w\/+]+)$/);
-	var arrPairingMatches = value.replace('%23', '#').match(/^([\w\/+]{44})@([\w.:\/-]+)#([\w\/+-]+)$/);
+	var arrPairingMatches = value.replace('%23', '#').match(/^([\w\/+]{44})@([\w.:\/-]+)#(.+)$/);
 	if (arrPairingMatches){
 		objRequest.type = "pairing";
 		objRequest.pubkey = arrPairingMatches[1];
@@ -82,7 +82,7 @@ function parseUri(uri, callbacks){
 		return callbacks.ifError("too many question marks");
 	var address = decodeURIComponent(arrParts[0]);
 	var query_string = arrParts[1];
-	if (!ValidationUtils.isValidAddress(address) && !ValidationUtils.isValidEmail(address))
+	if (!ValidationUtils.isValidAddress(address) && !ValidationUtils.isValidEmail(address) && !address.match(/^(steem\/|reddit\/|@).{3,}/i) && !address.match(/^\+\d{9,14}$/))
 		return callbacks.ifError("address "+address+" is invalid");
 	objRequest.type = "address";
 	objRequest.address = address;

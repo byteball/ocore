@@ -372,7 +372,8 @@ function updateIndivisibleOutputsThatWereReceivedUnstable(conn, onDone){
 }
 
 function pickIndivisibleCoinsForAmount(
-	conn, objAsset, arrAddresses, last_ball_mci, to_address, change_address, amount, tolerance_plus, tolerance_minus, bMultiAuthored, onDone)
+	conn, objAsset, arrAddresses, last_ball_mci, to_address, change_address, amount, tolerance_plus, tolerance_minus,
+	bMultiAuthored, spend_unconfirmed, onDone)
 {
 	if (!ValidationUtils.isPositiveInteger(amount))
 		throw Error("bad amount: "+amount);
@@ -382,6 +383,22 @@ function pickIndivisibleCoinsForAmount(
 		var arrOutputIds = [];
 		var accumulated_amount = 0;
 		var asset = objAsset.asset;
+		
+		if (!(typeof last_ball_mci === 'number' && last_ball_mci >= 0))
+			throw Error("invalid last_ball_mci: "+last_ball_mci);
+		var confirmation_condition;
+		if (spend_unconfirmed === 'none')
+			confirmation_condition = 'AND main_chain_index<='+last_ball_mci+' AND +is_serial=1';
+		else if (spend_unconfirmed === 'all')
+			confirmation_condition = '';
+		else if (spend_unconfirmed === 'own')
+			confirmation_condition = 'AND ( main_chain_index<='+last_ball_mci+' AND +is_serial=1 OR EXISTS ( \n\
+				SELECT 1 FROM unit_authors CROSS JOIN my_addresses USING(address) WHERE unit_authors.unit=outputs.unit \n\
+				UNION \n\
+				SELECT 1 FROM unit_authors CROSS JOIN shared_addresses ON address=shared_address WHERE unit_authors.unit=outputs.unit \n\
+			) )';
+		else
+			throw Error("invalid spend_unconfirmed="+spend_unconfirmed);
 		
 		function createOutputs(amount_to_use, change_amount){
 			var output = {
@@ -411,17 +428,17 @@ function pickIndivisibleCoinsForAmount(
 			conn.query(
 				"SELECT output_id, unit, message_index, output_index, amount, denomination, address, blinding, is_stable \n\
 				FROM outputs CROSS JOIN units USING(unit) \n\
-				WHERE asset=? AND address IN(?) AND +is_serial=1 AND is_spent=0 AND sequence='good' \n\
-					AND main_chain_index<=? AND denomination<=? AND output_id NOT IN(?) \n\
+				WHERE asset=? AND address IN(?) AND is_spent=0 AND sequence='good' \n\
+					"+confirmation_condition+" AND denomination<=? AND output_id NOT IN(?) \n\
 				ORDER BY denomination DESC, (amount>=?) DESC, ABS(amount-?) LIMIT 1",
 				[asset, arrAddresses, 
-				last_ball_mci, remaining_amount, (arrOutputIds.length > 0) ? arrOutputIds : -1, 
+				remaining_amount, (arrOutputIds.length > 0) ? arrOutputIds : -1, 
 				remaining_amount + tolerance_plus, remaining_amount],
 				function(rows){
 					if (rows.length === 0)
 						return issueNextCoinIfAllowed(remaining_amount);
 					var row = rows[0];
-					if (row.is_stable === 0) // contradicts to main_chain_index<=last_ball_mci
+					if (row.is_stable === 0 && spend_unconfirmed === 'none') // contradicts to main_chain_index<=last_ball_mci
 						throw Error("unstable or nonserial unit");
 					var input = {
 						unit: row.unit,
@@ -724,7 +741,7 @@ function composeIndivisibleAssetPaymentJoint(params){
 					conn, objAsset, arrAssetPayingAddresses, last_ball_mci, 
 					to_address, params.change_address,
 					target_amount, params.tolerance_plus || 0, params.tolerance_minus || 0, 
-					bMultiAuthored, 
+					bMultiAuthored, params.spend_unconfirmed || 'own',
 					function(err, arrPayloadsWithProofs){
 						if (!arrPayloadsWithProofs)
 							return onDone({
@@ -861,23 +878,31 @@ function getSavingCallbacks(to_address, callbacks){
 										bPreCommitCallbackFailed = true;
 										return cb(err);
 									}
-									var onSuccessfulPrecommit = !conf.bLight ? cb : function(err){
-										if (err) {
-											bPreCommitCallbackFailed = true;
+									if (!conf.bLight)
+										var onSuccessfulPrecommit = function(err) {
+											if (err) {
+												bPreCommitCallbackFailed = true;
+											}
 											return cb(err);
 										}
-										composer.postJointToLightVendorIfNecessaryAndSave(
-											objJoint, 
-											function onLightError(err){ // light only
-												console.log("failed to post indivisible payment "+unit);
+									else 
+										var onSuccessfulPrecommit = function(err){
+											if (err) {
 												bPreCommitCallbackFailed = true;
-												cb(err); // will rollback
-											},
-											function save(){ // not actually saving yet but greenlighting the commit
-												cb();
+												return cb(err);
 											}
-										);
-									};
+											composer.postJointToLightVendorIfNecessaryAndSave(
+												objJoint, 
+												function onLightError(err){ // light only
+													console.log("failed to post indivisible payment "+unit);
+													bPreCommitCallbackFailed = true;
+													cb(err); // will rollback
+												},
+												function save(){ // not actually saving yet but greenlighting the commit
+													cb();
+												}
+											);
+										};
 									if (!callbacks.preCommitCb)
 										return onSuccessfulPrecommit();
 									callbacks.preCommitCb(conn, objJoint, arrRecipientChains, arrCosignerChains, onSuccessfulPrecommit);
@@ -897,7 +922,7 @@ function getSavingCallbacks(to_address, callbacks){
 							objJoint, objValidationState, 
 							preCommitCallback,
 							function onDone(err){
-								console.log("saved unit "+unit);
+								console.log("saved unit "+unit+", err="+err);
 								validation_unlock();
 								composer_unlock();
 								if (bPreCommitCallbackFailed)
@@ -1016,12 +1041,13 @@ function composeAndSaveIndivisibleAssetPaymentJoint(params){
 	composeIndivisibleAssetPaymentJoint(params_with_save);
 }
 
-function readAddressesFundedInAsset(asset, amount, arrAvailablePayingAddresses, handleFundedAddresses){
+function readAddressesFundedInAsset(asset, amount, spend_unconfirmed, arrAvailablePayingAddresses, handleFundedAddresses){
+	var inputs = require('./inputs.js');
 	var remaining_amount = amount;
 	var assocAddresses = {};
 	db.query(
 		"SELECT amount, denomination, address FROM outputs CROSS JOIN units USING(unit) \n\
-		WHERE is_spent=0 AND address IN(?) AND is_stable=1 AND sequence='good' AND asset=? \n\
+		WHERE is_spent=0 AND address IN(?) "+inputs.getConfirmationConditionSql(spend_unconfirmed)+" AND sequence='good' AND asset=? \n\
 			AND NOT EXISTS ( \n\
 				SELECT * FROM unit_authors JOIN units USING(unit) \n\
 				WHERE is_stable=0 AND unit_authors.address=outputs.address AND definition_chash IS NOT NULL \n\
@@ -1048,13 +1074,13 @@ function readAddressesFundedInAsset(asset, amount, arrAvailablePayingAddresses, 
 var TYPICAL_FEE = 3000;
 
 // reads addresses funded in asset plus addresses for paying commissions
-function readFundedAddresses(asset, amount, arrAvailablePayingAddresses, arrAvailableFeePayingAddresses, handleFundedAddresses){
-	readAddressesFundedInAsset(asset, amount, arrAvailablePayingAddresses, function(arrAddressesFundedInAsset){
+function readFundedAddresses(asset, amount, arrAvailablePayingAddresses, arrAvailableFeePayingAddresses, spend_unconfirmed, handleFundedAddresses){
+	readAddressesFundedInAsset(asset, amount, spend_unconfirmed, arrAvailablePayingAddresses, function(arrAddressesFundedInAsset){
 		// add other addresses to pay for commissions (in case arrAddressesFundedInAsset don't have enough bytes to pay commissions)
 	//	var arrOtherAddresses = _.difference(arrAvailablePayingAddresses, arrAddressesFundedInAsset);
 	//	if (arrOtherAddresses.length === 0)
 	//		return handleFundedAddresses(arrAddressesFundedInAsset);
-		composer.readSortedFundedAddresses(null, arrAvailableFeePayingAddresses, TYPICAL_FEE, function(arrFundedFeePayingAddresses){
+		composer.readSortedFundedAddresses(null, arrAvailableFeePayingAddresses, TYPICAL_FEE, spend_unconfirmed, function(arrFundedFeePayingAddresses){
 		//	if (arrFundedOtherAddresses.length === 0)
 		//		return handleFundedAddresses(arrAddressesFundedInAsset);
 		//	handleFundedAddresses(arrAddressesFundedInAsset.concat(arrFundedOtherAddresses));
@@ -1079,7 +1105,7 @@ function composeMinimalIndivisibleAssetPaymentJoint(params){
 	if (!target_amount)
 		throw Error("no target amount");
 	readFundedAddresses(
-		params.asset, target_amount, params.available_paying_addresses, params.available_fee_paying_addresses, 
+		params.asset, target_amount, params.available_paying_addresses, params.available_fee_paying_addresses, params.spend_unconfirmed || 'own',
 		function(arrFundedPayingAddresses, arrFundedFeePayingAddresses){
 			if (arrFundedPayingAddresses.length === 0)
 				return params.callbacks.ifNotEnoughFunds("either the amount you entered can't be composed using available denominations or all paying addresses are unfunded in asset, make sure all your funds are confirmed");

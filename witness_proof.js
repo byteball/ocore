@@ -70,17 +70,26 @@ function prepareWitnessProof(arrWitnesses, last_stable_mci, handleResult){
 					AND (unit_authors.definition_chash IS NOT NULL OR address_definition_changes.unit IS NOT NULL) \n\
 				ORDER BY `level`", 
 				[arrWitnesses],*/
+				// 1. initial definitions
+				// 2. address_definition_changes
+				// 3. revealing changed definitions
 				"SELECT unit, `level` \n\
 				FROM unit_authors "+db.forceIndex('unitAuthorsIndexByAddressDefinitionChash')+" \n\
 				CROSS JOIN units USING(unit) \n\
-				WHERE address IN(?) AND definition_chash IS NOT NULL AND "+after_last_stable_mci_cond+" AND is_stable=1 AND sequence='good' \n\
+				WHERE address IN(?) AND definition_chash=address AND "+after_last_stable_mci_cond+" AND is_stable=1 AND sequence='good' \n\
 				UNION \n\
 				SELECT unit, `level` \n\
 				FROM address_definition_changes \n\
 				CROSS JOIN units USING(unit) \n\
 				WHERE address_definition_changes.address IN(?) AND "+after_last_stable_mci_cond+" AND is_stable=1 AND sequence='good' \n\
+				UNION \n\
+				SELECT units.unit, `level` \n\
+				FROM address_definition_changes \n\
+				CROSS JOIN unit_authors USING(address, definition_chash) \n\
+				CROSS JOIN units ON unit_authors.unit=units.unit \n\
+				WHERE address_definition_changes.address IN(?) AND "+after_last_stable_mci_cond+" AND is_stable=1 AND sequence='good' \n\
 				ORDER BY `level`", 
-				[arrWitnesses, arrWitnesses],
+				[arrWitnesses, arrWitnesses, arrWitnesses],
 				function(rows){
 					async.eachSeries(rows, function(row, cb2){
 						storage.readJoint(db, row.unit, {
