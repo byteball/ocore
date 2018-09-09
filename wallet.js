@@ -111,6 +111,13 @@ function handleJustsaying(ws, subject, body){
 				return respondWithError("you are not my hub");
 			if (body === 'empty')
 				device.scheduleTempDeviceKeyRotation();
+			else if (body === 'has_more')
+				mutex.lock(["from_hub"], function(unlock){ // we'll obtain the lock after all messages are handled
+					setTimeout(function(){ // wait to make sure all hub/deletes finish
+						network.sendJustsaying(ws, 'hub/refresh');
+						unlock();
+					}, 1000)
+				});
 			break;
 			
 		case 'light/have_updates':
