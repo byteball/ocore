@@ -671,6 +671,8 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 			null, arrLaterUnitProps.map(function(objLaterUnitProps){ return objLaterUnitProps.latest_included_mc_index; }));
 		var max_later_level = Math.max.apply(
 			null, arrLaterUnitProps.map(function(objLaterUnitProps){ return objLaterUnitProps.level; }));
+		var max_later_witnessed_level = Math.max.apply(
+			null, arrLaterUnitProps.map(function(objLaterUnitProps){ return objLaterUnitProps.witnessed_level; }));
 		readBestParentAndItsWitnesses(conn, earlier_unit, function(best_parent_unit, arrWitnesses){
 			conn.query("SELECT unit, is_on_main_chain, main_chain_index, level FROM units WHERE best_parent_unit=?", [best_parent_unit], function(rows){
 				if (rows.length === 0)
@@ -839,7 +841,13 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 									arrBestChildren.push(row.unit);
 									if (arrLaterUnits.indexOf(row.unit) >= 0)
 										cb2();
-									else if (row.is_free === 1 || row.level >= max_later_level || row.is_on_main_chain && row.main_chain_index > max_later_limci){
+									else if (
+										row.is_free === 1
+										|| row.level >= max_later_level
+										|| row.witnessed_level > max_later_witnessed_level && first_unstable_mc_index >= constants.witnessedLevelMustNotRetreatUpgradeMci
+										|| row.latest_included_mc_index > max_later_limci
+										|| row.is_on_main_chain && row.main_chain_index > max_later_limci
+									){
 										arrTips.push(row.unit);
 										arrNotIncludedTips.push(row.unit);
 										cb2();
