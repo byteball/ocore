@@ -1968,7 +1968,7 @@ function initWitnessesIfNecessary(ws, onDone){
 
 function deleteOverlengthMessagesIfLimitIsSet(ws, device_address, handle){
 	if (ws.max_message_length)
-		db.query("DELETE FROM device_messages WHERE device_address=? AND length(message)>?", [device_address, ws.max_message_length], function(){
+		db.query("DELETE FROM device_messages WHERE device_address=? AND LENGTH(message)>?", [device_address, ws.max_message_length], function(){
 			return handle();
 		});
 	else
@@ -2173,9 +2173,9 @@ function handleJustsaying(ws, subject, body){
 				return sendError(ws, "wrong challenge");
 			if (!objLogin.pubkey || !objLogin.signature)
 				return sendError(ws, "no login params");
-			if (objLogin.pubkey.length !== constants.PUBKEY_LENGTH)
+			if (!ValidationUtils.isStringOfLength(objLogin.pubkey, constants.PUBKEY_LENGTH))
 				return sendError(ws, "wrong pubkey length");
-			if (objLogin.signature.length !== constants.SIG_LENGTH)
+			if (!ValidationUtils.isStringOfLength(objLogin.signature, constants.SIG_LENGTH))
 				return sendError(ws, "wrong signature length");
 			if (objLogin.max_message_length && !ValidationUtils.isPositiveInteger(objLogin.max_message_length))
 				return sendError(ws, "max_message_length must be an integer");
@@ -2492,9 +2492,7 @@ function handleRequest(ws, tag, command, params){
 		// I'm a hub, the peer wants to get a correspondent's temporary pubkey
 		case 'hub/get_temp_pubkey':
 			var permanent_pubkey = params;
-			if (!permanent_pubkey)
-				return sendErrorResponse(ws, tag, "no permanent_pubkey");
-			if (permanent_pubkey.length !== constants.PUBKEY_LENGTH)
+			if (!ValidationUtils.isStringOfLength(permanent_pubkey, constants.PUBKEY_LENGTH))
 				return sendErrorResponse(ws, tag, "wrong permanent_pubkey length");
 			var device_address = objectHash.getDeviceAddress(permanent_pubkey);
 			if (device_address === my_device_address) // to me
@@ -2520,7 +2518,7 @@ function handleRequest(ws, tag, command, params){
 			var objTempPubkey = params;
 			if (!objTempPubkey || !objTempPubkey.temp_pubkey || !objTempPubkey.pubkey || !objTempPubkey.signature)
 				return sendErrorResponse(ws, tag, "no temp_pubkey params");
-			if (objTempPubkey.temp_pubkey.length !== constants.PUBKEY_LENGTH)
+			if (!ValidationUtils.isStringOfLength(objTempPubkey.temp_pubkey, constants.PUBKEY_LENGTH))
 				return sendErrorResponse(ws, tag, "wrong temp_pubkey length");
 			if (objectHash.getDeviceAddress(objTempPubkey.pubkey) !== ws.device_address)
 				return sendErrorResponse(ws, tag, "signed by another pubkey");
