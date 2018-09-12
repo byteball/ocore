@@ -98,6 +98,15 @@ function cleanNulls(obj){
 	});
 }
 
+function cleanNullsDeep(obj){
+	Object.keys(obj).forEach(function(key){
+		if (obj[key] === null)
+			delete obj[key];
+		else if (typeof obj[key] === 'object') // array included
+			cleanNullsDeep(obj[key]);
+	});
+}
+
 // -----------------
 
 // prefix device addresses with 0 to avoid confusion with payment addresses
@@ -111,6 +120,7 @@ function getDeviceAddress(b64_pubkey){
 function getDeviceMessageHashToSign(objDeviceMessage) {
 	var objNakedDeviceMessage = _.clone(objDeviceMessage);
 	delete objNakedDeviceMessage.signature;
+	cleanNullsDeep(objNakedDeviceMessage); // device messages have free format and we can't guarantee absence of malicious fields
 	return crypto.createHash("sha256").update(getSourceString(objNakedDeviceMessage), "utf8").digest();
 }
 
