@@ -1966,13 +1966,26 @@ function initWitnessesIfNecessary(ws, onDone){
 
 // hub
 
-function sendStoredDeviceMessages(ws, device_address){
-	db.query("SELECT message_hash, message FROM device_messages WHERE device_address=? ORDER BY creation_date LIMIT 100", [device_address], function(rows){
-		rows.forEach(function(row){
-			sendJustsaying(ws, 'hub/message', {message_hash: row.message_hash, message: JSON.parse(row.message)});
+function deleteOverlengthMessagesIfLimitIsSet(ws, device_address, handle){
+	if (ws.max_message_length)
+		db.query("DELETE FROM device_messages WHERE device_address=? AND length(message)>?", [device_address, ws.max_message_length], function(){
+			return handle();
 		});
-		sendInfo(ws, rows.length+" messages sent");
-		sendJustsaying(ws, 'hub/message_box_status', (rows.length === 100) ? 'has_more' : 'empty');
+	else
+		return handle();
+}
+
+
+function sendStoredDeviceMessages(ws, device_address){
+	deleteOverlengthMessagesIfLimitIsSet(ws, device_address, function(){
+		var max_message_count = ws.max_message_count ? ws.max_message_count : 100;
+		db.query("SELECT message_hash, message FROM device_messages WHERE device_address=? ORDER BY creation_date LIMIT ?", [device_address, max_message_count], function(rows){
+			rows.forEach(function(row){
+				sendJustsaying(ws, 'hub/message', {message_hash: row.message_hash, message: JSON.parse(row.message)});
+			});
+			sendInfo(ws, rows.length+" messages sent");
+			sendJustsaying(ws, 'hub/message_box_status', (rows.length === max_message_count) ? 'has_more' : 'empty');
+		});
 	});
 }
 
@@ -2164,9 +2177,15 @@ function handleJustsaying(ws, subject, body){
 				return sendError(ws, "wrong pubkey length");
 			if (objLogin.signature.length !== constants.SIG_LENGTH)
 				return sendError(ws, "wrong signature length");
+			if (objLogin.max_message_length && !ValidationUtils.isPositiveInteger(objLogin.max_message_length))
+				return sendError(ws, "max_message_length must be an integer");
+			if (objLogin.max_message_count && (!ValidationUtils.isPositiveInteger(objLogin.max_message_count) || objLogin.max_message_count > 100))
+				return sendError(ws, "max_message_count must be an integer > 0 and <= 100");
 			if (!ecdsaSig.verify(objectHash.getDeviceMessageHashToSign(objLogin), objLogin.signature, objLogin.pubkey))
 				return sendError(ws, "wrong signature");
 			ws.device_address = objectHash.getDeviceAddress(objLogin.pubkey);
+			ws.max_message_length = objLogin.max_message_length;
+			ws.max_message_count = objLogin.max_message_count;
 			// after this point the device is authenticated and can send further commands
 			var finishLogin = function(){
 				ws.bLoginComplete = true;
@@ -2181,7 +2200,7 @@ function handleJustsaying(ws, subject, body){
 						sendInfo(ws, "address created");
 						finishLogin();
 					});
-				else{
+				else {
 					sendStoredDeviceMessages(ws, ws.device_address);
 					finishLogin();
 				}
@@ -2449,13 +2468,14 @@ function handleRequest(ws, tag, command, params){
 				if (rows.length === 0)
 					return sendErrorResponse(ws, tag, "address "+objDeviceMessage.to+" not registered here");
 				var message_hash = objectHash.getBase64Hash(objDeviceMessage);
+				var message_string = JSON.stringify(objDeviceMessage);
 				db.query(
 					"INSERT "+db.getIgnore()+" INTO device_messages (message_hash, message, device_address) VALUES (?,?,?)", 
-					[message_hash, JSON.stringify(objDeviceMessage), objDeviceMessage.to],
+					[message_hash, message_string, objDeviceMessage.to],
 					function(){
 						// if the addressee is connected, deliver immediately
 						wss.clients.forEach(function(client){
-							if (client.device_address === objDeviceMessage.to) {
+							if (client.device_address === objDeviceMessage.to && (!client.max_message_length || message_string.length <= client.max_message_length)) {
 								sendJustsaying(client, 'hub/message', {
 									message_hash: message_hash,
 									message: objDeviceMessage
