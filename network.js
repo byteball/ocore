@@ -1968,7 +1968,7 @@ function initWitnessesIfNecessary(ws, onDone){
 
 function deleteOverlengthMessagesIfLimitIsSet(ws, device_address, handle){
 	if (ws.max_message_length)
-		db.query("DELETE FROM device_messages WHERE device_address=? AND length(message)>?", [ws.device_address, ws.max_message_length], function(){
+		db.query("DELETE FROM device_messages WHERE device_address=? AND length(message)>?", [device_address, ws.max_message_length], function(){
 			return handle();
 		});
 	else
