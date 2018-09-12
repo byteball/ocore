@@ -232,8 +232,6 @@ function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 									archiving.generateQueriesToArchiveJoint(conn, objJoint, 'uncovered', arrQueries, function(){
 										conn.addQuery(arrQueries, "COMMIT");
 										async.series(arrQueries, function(){
-											unlock();
-											conn.release();
 											breadcrumbs.add("------- done archiving "+row.unit);
 											var parent_units = storage.assocUnstableUnits[row.unit].parent_units;
 											storage.forgetUnit(row.unit);
@@ -249,6 +247,8 @@ function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 												if (!bHasChildren)
 													storage.assocUnstableUnits[parent_unit].is_free = 1;
 											});
+											unlock();
+											conn.release();
 											cb();
 										});
 									});
