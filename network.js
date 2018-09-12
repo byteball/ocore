@@ -2759,6 +2759,8 @@ function onWebsocketMessage(message) {
 	}
 	var message_type = arrMessage[0];
 	var content = arrMessage[1];
+	if (!content || typeof content !== 'object')
+		return console.log("content is not object: "+content);
 	
 	switch (message_type){
 		case 'justsaying':
