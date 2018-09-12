@@ -1981,7 +1981,7 @@ function sendStoredDeviceMessages(ws, device_address){
 		var max_message_count = ws.max_message_count ? ws.max_message_count : 100;
 		db.query("SELECT message_hash, message FROM device_messages WHERE device_address=? ORDER BY creation_date LIMIT ?", [device_address, max_message_count], function(rows){
 			rows.forEach(function(row){
-					sendJustsaying(ws, 'hub/message', {message_hash: row.message_hash, message: JSON.parse(row.message)});
+				sendJustsaying(ws, 'hub/message', {message_hash: row.message_hash, message: JSON.parse(row.message)});
 			});
 			sendInfo(ws, rows.length+" messages sent");
 			sendJustsaying(ws, 'hub/message_box_status', (rows.length === max_message_count) ? 'has_more' : 'empty');
