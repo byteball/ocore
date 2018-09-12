@@ -2177,9 +2177,9 @@ function handleJustsaying(ws, subject, body){
 				return sendError(ws, "wrong pubkey length");
 			if (objLogin.signature.length !== constants.SIG_LENGTH)
 				return sendError(ws, "wrong signature length");
-			if (objLogin.max_message_length && !ValidationUtils.isInteger(objLogin.max_message_length))
+			if (objLogin.max_message_length && !ValidationUtils.isPositiveInteger(objLogin.max_message_length))
 				return sendError(ws, "max_message_length must be an integer");
-			if (objLogin.max_message_count && (!ValidationUtils.isInteger(objLogin.max_message_count) || objLogin.max_message_count === 0 || objLogin.max_message_count > 100))
+			if (objLogin.max_message_count && (!ValidationUtils.isPositiveInteger(objLogin.max_message_count) || objLogin.max_message_count > 100))
 				return sendError(ws, "max_message_count must be an integer > 0 and <= 100");
 			if (!ecdsaSig.verify(objectHash.getDeviceMessageHashToSign(objLogin), objLogin.signature, objLogin.pubkey))
 				return sendError(ws, "wrong signature");
