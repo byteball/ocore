@@ -556,7 +556,7 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 		storage.determineWitnessedLevelAndBestParent(conn, objUnit.parent_units, arrWitnesses, function(witnessed_level, best_parent_unit){
 			objValidationState.witnessed_level = witnessed_level;
 			objValidationState.best_parent_unit = best_parent_unit;
-			if (objValidationState.last_ball_mci < 1400000) // not enforced
+			if (objValidationState.last_ball_mci < constants.witnessedLevelMustNotRetreatUpgradeMci) // not enforced
 				return callback();
 			storage.readStaticUnitProps(conn, best_parent_unit, function(props){
 				(witnessed_level >= props.witnessed_level) 
