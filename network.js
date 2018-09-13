@@ -2706,6 +2706,20 @@ function handleRequest(ws, tag, command, params){
 			});
 			break;
 
+		case 'light/get_definition':
+			if (conf.bLight)
+				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
+			if (ws.bOutbound)
+				return sendErrorResponse(ws, tag, "light clients have to be inbound");
+			if (!params)
+				return sendErrorResponse(ws, tag, "no params in light/get_definition");
+			if (!ValidationUtils.isValidAddress(params))
+				return sendErrorResponse(ws, tag, "address not valid");
+			db.query("SELECT * FROM definitions WHERE definition_chash=? LIMIT 1", [params], function(rows){
+				sendResponse(ws, tag, rows);
+			});
+			break;
+
 		// I'm a hub, the peer wants to enable push notifications
 		case 'hub/enable_notification':
 			if(ws.device_address)
