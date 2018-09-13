@@ -192,7 +192,12 @@ function collectQueriesToPurgeDependentJoints(conn, arrQueries, unit, error, onP
 
 function purgeUncoveredNonserialJointsUnderLock(){
 	mutex.lockOrSkip(["purge_uncovered"], function(unlock){
-		purgeUncoveredNonserialJoints(false, unlock);
+		mutex.lock(["handleJoint"], function(unlock_hj){
+			purgeUncoveredNonserialJoints(false, function(){
+				unlock_hj();
+				unlock();
+			});
+		});
 	});
 }
 
