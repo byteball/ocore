@@ -2706,6 +2706,48 @@ function handleRequest(ws, tag, command, params){
 			});
 			break;
 
+		case 'light/get_balances':
+			var addresses = params;
+			if (conf.bLight)
+				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
+			if (ws.bOutbound)
+				return sendErrorResponse(ws, tag, "light clients have to be inbound");
+			if (!addresses)
+				return sendErrorResponse(ws, tag, "no params in light/get_balances");
+			if (!ValidationUtils.isNonemptyArray(addresses))
+				return sendErrorResponse(ws, tag, "addresses must be non-empty array");
+			if (!addresses.every(ValidationUtils.isValidAddress))
+				return sendErrorResponse(ws, tag, "some addresses are not valid");
+			async.map(addresses, function(address, cb) {
+				db.query(
+					"SELECT asset, is_stable, SUM(amount) AS balance \n\
+					FROM outputs JOIN units USING(unit) \n\
+					WHERE is_spent=0 AND address=? AND sequence='good' \n\
+					GROUP BY asset, is_stable",
+					[address],
+					function(rows) {
+						var balances = {};
+						balances.base = {
+							stable: 0,
+							pending: 0
+						};
+						for (var i = 0; i < rows.length; i++) {
+							var row = rows[i];
+							if (row.asset && !balances[row.asset])
+								balances[row.asset] = {
+									stable: 0,
+									pending: 0
+								};
+							balances[row.asset || 'base'][row.is_stable ? 'stable' : 'pending'] = row.balance;
+						}
+						cb(null, balances);
+					}
+				)
+			}, function(err, arrBalances) {
+				sendResponse(ws, tag, arrBalances);
+			});
+			break;
+
 		// I'm a hub, the peer wants to enable push notifications
 		case 'hub/enable_notification':
 			if(ws.device_address)
