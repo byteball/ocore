@@ -2718,6 +2718,8 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "addresses must be non-empty array");
 			if (!addresses.every(ValidationUtils.isValidAddress))
 				return sendErrorResponse(ws, tag, "some addresses are not valid");
+			if (addresses.length > 100)
+				return sendErrorResponse(ws, tag, "too many addresses");
 			async.map(addresses, function(address, cb) {
 				db.query(
 					"SELECT asset, is_stable, SUM(amount) AS balance \n\
