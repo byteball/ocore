@@ -2715,7 +2715,7 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "no params in light/get_definition");
 			if (!ValidationUtils.isValidAddress(params))
 				return sendErrorResponse(ws, tag, "address not valid");
-			db.query("SELECT * FROM definitions WHERE definition_chash=? LIMIT 1", [params], function(rows){
+			db.query("SELECT * FROM definitions WHERE definition_chash=?", [params], function(rows){
 				sendResponse(ws, tag, rows);
 			});
 			break;
