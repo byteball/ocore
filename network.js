@@ -2706,7 +2706,7 @@ function handleRequest(ws, tag, command, params){
 			});
 			break;
 
-		case 'light/get_profiles_units':
+		case 'light/get_profile_units':
 			var addresses = params;
 			if (conf.bLight)
 				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
@@ -2720,18 +2720,14 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "some addresses are not valid");
 			if (addresses.length > 100)
 				return sendErrorResponse(ws, tag, "too many addresses");
-			async.map(addresses, function(address, cb) {
-				db.query(
-					"SELECT unit FROM messages JOIN unit_authors USING(unit) \n\
-					JOIN units USING(unit) WHERE app='profile' AND address=? \n\
-					ORDER BY main_chain_index DESC", [address], function(rows) {
-						var units = rows.map(function(row) { return row.unit; });
-						cb(null, units);
-					}
-				);
-			}, function(err, profilesUnits) {
-				sendResponse(ws, tag, profilesUnits);
-			});
+			db.query(
+				"SELECT unit FROM messages JOIN unit_authors USING(unit) \n\
+				JOIN units USING(unit) WHERE app='profile' AND address IN(?) \n\
+				ORDER BY main_chain_index ASC", [addresses], function(rows) {
+					var units = rows.map(function(row) { return row.unit; });
+					sendResponse(ws, tag, units);
+				}
+			);
 			break;
 
 		// I'm a hub, the peer wants to enable push notifications
