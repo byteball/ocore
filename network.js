@@ -2720,34 +2720,33 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "some addresses are not valid");
 			if (addresses.length > 100)
 				return sendErrorResponse(ws, tag, "too many addresses");
-			async.map(addresses, function(address, cb) {
-				db.query(
-					"SELECT asset, is_stable, SUM(amount) AS balance \n\
-					FROM outputs JOIN units USING(unit) \n\
-					WHERE is_spent=0 AND address=? AND sequence='good' \n\
-					GROUP BY asset, is_stable",
-					[address],
-					function(rows) {
+			db.query(
+				"SELECT address, asset, is_stable, SUM(amount) AS balance \n\
+				FROM outputs JOIN units USING(unit) \n\
+				WHERE is_spent=0 AND address IN(?) AND sequence='good' \n\
+				GROUP BY address, asset, is_stable", [addresses], function(rows) {
+					const arrBalances = [];
+					addresses.forEach(function(address) {
 						var balances = {};
 						balances.base = {
 							stable: 0,
 							pending: 0
 						};
-						for (var i = 0; i < rows.length; i++) {
-							var row = rows[i];
-							if (row.asset && !balances[row.asset])
-								balances[row.asset] = {
-									stable: 0,
-									pending: 0
-								};
-							balances[row.asset || 'base'][row.is_stable ? 'stable' : 'pending'] = row.balance;
-						}
-						cb(null, balances);
-					}
-				)
-			}, function(err, arrBalances) {
-				sendResponse(ws, tag, arrBalances);
-			});
+						rows.forEach(function(row) {
+							if (row.address === address) {
+								if (row.asset && !balances[row.asset])
+									balances[row.asset] = {
+										stable: 0,
+										pending: 0
+									};
+								balances[row.asset || 'base'][row.is_stable ? 'stable' : 'pending'] = row.balance;
+							}
+						});
+						arrBalances.push(balances);
+					});
+					sendResponse(ws, tag, arrBalances);
+				}
+			);
 			break;
 
 		// I'm a hub, the peer wants to enable push notifications
