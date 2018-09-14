@@ -2715,8 +2715,11 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "no params in light/get_definition");
 			if (!ValidationUtils.isValidAddress(params))
 				return sendErrorResponse(ws, tag, "address not valid");
-			db.query("SELECT * FROM definitions WHERE definition_chash=?", [params], function(rows){
-				sendResponse(ws, tag, rows);
+			db.query("SELECT definition FROM definitions WHERE definition_chash=?", [params], function(rows){
+				if (!rows[0])
+					return sendResponse(ws, tag, null);
+				var arrDefinition = JSON.parse(rows[0].definition);
+				sendResponse(ws, tag, arrDefinition);
 			});
 			break;
 
