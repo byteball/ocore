@@ -2706,6 +2706,23 @@ function handleRequest(ws, tag, command, params){
 			});
 			break;
 
+		case 'light/get_definition':
+			if (conf.bLight)
+				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
+			if (ws.bOutbound)
+				return sendErrorResponse(ws, tag, "light clients have to be inbound");
+			if (!params)
+				return sendErrorResponse(ws, tag, "no params in light/get_definition");
+			if (!ValidationUtils.isValidAddress(params))
+				return sendErrorResponse(ws, tag, "address not valid");
+			db.query("SELECT definition FROM definitions WHERE definition_chash=?", [params], function(rows){
+				if (!rows[0])
+					return sendResponse(ws, tag, null);
+				var arrDefinition = JSON.parse(rows[0].definition);
+				sendResponse(ws, tag, arrDefinition);
+			});
+			break;
+
 		case 'light/get_profile_units':
 			var addresses = params;
 			if (conf.bLight)
