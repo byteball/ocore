@@ -2723,7 +2723,7 @@ function handleRequest(ws, tag, command, params){
 			});
 			break;
 
-    case 'light/get_balances':
+    	case 'light/get_balances':
 			var addresses = params;
 			if (conf.bLight)
 				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
@@ -2751,6 +2751,30 @@ function handleRequest(ws, tag, command, params){
 						balances[row.address][row.asset || 'base'][row.is_stable ? 'stable' : 'pending'] = row.balance;
 					});
 					sendResponse(ws, tag, balances);
+				}
+			);
+			break;
+      
+    	case 'light/get_profile_units':
+			var addresses = params;
+			if (conf.bLight)
+				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
+			if (ws.bOutbound)
+				return sendErrorResponse(ws, tag, "light clients have to be inbound");
+			if (!addresses)
+				return sendErrorResponse(ws, tag, "no params in light/get_profiles_units");
+			if (!ValidationUtils.isNonemptyArray(addresses))
+				return sendErrorResponse(ws, tag, "addresses must be non-empty array");
+			if (!addresses.every(ValidationUtils.isValidAddress))
+				return sendErrorResponse(ws, tag, "some addresses are not valid");
+			if (addresses.length > 100)
+				return sendErrorResponse(ws, tag, "too many addresses");
+			db.query(
+				"SELECT unit FROM messages JOIN unit_authors USING(unit) \n\
+				JOIN units USING(unit) WHERE app='profile' AND address IN(?) \n\
+				ORDER BY main_chain_index ASC", [addresses], function(rows) {
+					var units = rows.map(function(row) { return row.unit; });
+					sendResponse(ws, tag, units);
 				}
 			);
 			break;
