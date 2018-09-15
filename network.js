@@ -2723,7 +2723,39 @@ function handleRequest(ws, tag, command, params){
 			});
 			break;
 
-		case 'light/get_profile_units':
+    case 'light/get_balances':
+			var addresses = params;
+			if (conf.bLight)
+				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
+			if (ws.bOutbound)
+				return sendErrorResponse(ws, tag, "light clients have to be inbound");
+			if (!addresses)
+				return sendErrorResponse(ws, tag, "no params in light/get_balances");
+			if (!ValidationUtils.isNonemptyArray(addresses))
+				return sendErrorResponse(ws, tag, "addresses must be non-empty array");
+			if (!addresses.every(ValidationUtils.isValidAddress))
+				return sendErrorResponse(ws, tag, "some addresses are not valid");
+			if (addresses.length > 100)
+				return sendErrorResponse(ws, tag, "too many addresses");
+			db.query(
+				"SELECT address, asset, is_stable, SUM(amount) AS balance \n\
+				FROM outputs JOIN units USING(unit) \n\
+				WHERE is_spent=0 AND address IN(?) AND sequence='good' \n\
+				GROUP BY address, asset, is_stable", [addresses], function(rows) {
+					var balances = {};
+					rows.forEach(function(row) {
+						if (!balances[row.address])
+							balances[row.address] = { base: { stable: 0, pending: 0 }};
+						if (row.asset && !balances[row.address][row.asset])
+							balances[row.address][row.asset] = { stable: 0, pending: 0 };
+						balances[row.address][row.asset || 'base'][row.is_stable ? 'stable' : 'pending'] = row.balance;
+					});
+					sendResponse(ws, tag, balances);
+				}
+			);
+			break;
+      
+    case 'light/get_profile_units':
 			var addresses = params;
 			if (conf.bLight)
 				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
