@@ -2725,7 +2725,7 @@ function handleRequest(ws, tag, command, params){
 				FROM outputs JOIN units USING(unit) \n\
 				WHERE is_spent=0 AND address IN(?) AND sequence='good' \n\
 				GROUP BY address, asset, is_stable", [addresses], function(rows) {
-					const arrBalances = [];
+					var objBalances = {};
 					addresses.forEach(function(address) {
 						var balances = {};
 						balances.base = {
@@ -2742,9 +2742,9 @@ function handleRequest(ws, tag, command, params){
 								balances[row.asset || 'base'][row.is_stable ? 'stable' : 'pending'] = row.balance;
 							}
 						});
-						arrBalances.push(balances);
+						objBalances[address] = balances;
 					});
-					sendResponse(ws, tag, arrBalances);
+					sendResponse(ws, tag, objBalances);
 				}
 			);
 			break;
