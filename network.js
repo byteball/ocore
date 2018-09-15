@@ -2742,26 +2742,15 @@ function handleRequest(ws, tag, command, params){
 				FROM outputs JOIN units USING(unit) \n\
 				WHERE is_spent=0 AND address IN(?) AND sequence='good' \n\
 				GROUP BY address, asset, is_stable", [addresses], function(rows) {
-					var objBalances = {};
-					addresses.forEach(function(address) {
-						var balances = {};
-						balances.base = {
-							stable: 0,
-							pending: 0
-						};
-						rows.forEach(function(row) {
-							if (row.address === address) {
-								if (row.asset && !balances[row.asset])
-									balances[row.asset] = {
-										stable: 0,
-										pending: 0
-									};
-								balances[row.asset || 'base'][row.is_stable ? 'stable' : 'pending'] = row.balance;
-							}
-						});
-						objBalances[address] = balances;
+					var balances = {};
+					rows.forEach(function(row) {
+						if (!balances[row.address])
+							balances[row.address] = { base: { stable: 0, pending: 0 }};
+						if (row.asset && !balances[row.address][row.asset])
+							balances[row.address][row.asset] = { stable: 0, pending: 0 };
+						balances[row.address][row.asset || 'base'][row.is_stable ? 'stable' : 'pending'] = row.balance;
 					});
-					sendResponse(ws, tag, objBalances);
+					sendResponse(ws, tag, balances);
 				}
 			);
 			break;
