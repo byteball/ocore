@@ -494,6 +494,8 @@ function validateParents(conn, objJoint, objValidationState, callback){
 						}
 						else */if (!bStable)
 							return callback(objUnit.unit+": last ball unit "+last_ball_unit+" is not stable in view of your parents "+objUnit.parent_units);
+						if (!bAdvancedLastStableMci)
+							return checkNoSameAddressInDifferentParents();
 						conn.query("SELECT ball FROM balls WHERE unit=?", [last_ball_unit], function(ball_rows){
 							if (ball_rows.length === 0)
 								throw Error("last ball unit "+last_ball_unit+" just became stable but ball not found");
