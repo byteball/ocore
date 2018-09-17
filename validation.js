@@ -737,17 +737,21 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 			"+cross+" JOIN unit_authors USING(unit) \n\
 			WHERE address=? AND (main_chain_index>? OR main_chain_index IS NULL) AND unit != ?",
 			[objAuthor.address, objValidationState.max_parent_limci, objUnit.unit],*/
-			"SELECT unit, is_stable \n\
+			"SELECT unit, is_stable, sequence, level \n\
 			FROM unit_authors \n\
 			CROSS JOIN units USING(unit) \n\
 			WHERE address=? AND _mci>? AND unit != ? \n\
 			UNION \n\
-			SELECT unit, is_stable \n\
+			SELECT unit, is_stable, sequence, level \n\
 			FROM unit_authors \n\
 			CROSS JOIN units USING(unit) \n\
-			WHERE address=? AND _mci IS NULL AND unit != ?",
+			WHERE address=? AND _mci IS NULL AND unit != ? \n\
+			ORDER BY level DESC",
 			[objAuthor.address, objValidationState.max_parent_limci, objUnit.unit, objAuthor.address, objUnit.unit],
 			function(rows){
+				if (rows.length === 0)
+					return handleConflictingUnits([]);
+				var bAllSerial = rows.every(function(row){ return (row.sequence === 'good'); });
 				var arrConflictingUnitProps = [];
 				async.eachSeries(
 					rows,
@@ -755,6 +759,8 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 						graph.determineIfIncludedOrEqual(conn, row.unit, objUnit.parent_units, function(bIncluded){
 							if (!bIncluded)
 								arrConflictingUnitProps.push(row);
+							else if (bAllSerial)
+								return cb('done'); // all are serial and this one is included, therefore the earlier ones are included too
 							cb();
 						});
 					},
