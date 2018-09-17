@@ -213,6 +213,8 @@ function determineIfIncluded(conn, earlier_unit, arrLaterUnits, handleResult){
 						continue;
 					if (objUnitProps.main_chain_index !== null && objEarlierUnitProps.main_chain_index !== null && objUnitProps.main_chain_index < objEarlierUnitProps.main_chain_index)
 						continue;
+					if (objUnitProps.main_chain_index !== null && objEarlierUnitProps.main_chain_index === null)
+						continue;
 					if (objUnitProps.latest_included_mc_index < objEarlierUnitProps.latest_included_mc_index)
 						continue;
 					if (objUnitProps.witnessed_level < objEarlierUnitProps.witnessed_level && objEarlierUnitProps.main_chain_index > constants.witnessedLevelMustNotRetreatUpgradeMci)
