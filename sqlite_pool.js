@@ -93,6 +93,11 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 					new_args.push(arguments[i]);
 				if (count_arguments_without_callback === 1) // no params
 					new_args.push([]);
+				if (!bHasCallback && !bCordova)
+					return new Promise(function(resolve){
+						new_args.push(resolve);
+						self.query.apply(self, new_args);
+					});
 				expandArrayPlaceholders(new_args);
 				
 				// add callback with error handling
@@ -211,18 +216,24 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 	// takes a connection from the pool, executes the single query on this connection, and immediately releases the connection
 	function query(){
 		//console.log(arguments[0]);
+		var self = this;
 		var args = arguments;
+		var last_arg = args[args.length - 1];
+		var bHasCallback = (typeof last_arg === 'function');
+		if (!bHasCallback) // no callback
+			last_arg = function(){};
+
+		var count_arguments_without_callback = bHasCallback ? (args.length-1) : args.length;
+		var new_args = [];
+
+		for (var i=0; i<count_arguments_without_callback; i++) // except callback
+			new_args.push(args[i]);
+		if (!bHasCallback && !bCordova)
+			return new Promise(function(resolve){
+				new_args.push(resolve);
+				self.query.apply(self, new_args);
+			});
 		takeConnectionFromPool(function(connection){
-			var last_arg = args[args.length - 1];
-			var bHasCallback = (typeof last_arg === 'function');
-			if (!bHasCallback) // no callback
-				last_arg = function(){};
-
-			var count_arguments_without_callback = bHasCallback ? (args.length-1) : args.length;
-			var new_args = [];
-
-			for (var i=0; i<count_arguments_without_callback; i++) // except callback
-				new_args.push(args[i]);
 			// add callback that releases the connection before calling the supplied callback
 			new_args.push(function(rows){
 				connection.release();
