@@ -58,12 +58,8 @@ function parseUri(uri, callbacks){
 		objRequest.params = assocParams;
 		return callbacks.ifOk(objRequest);
 	}
-
-	// claim textcoin using mnemonic
-	var arrMnemonicMatches = value.match(/^textcoin\?(.+)$/);
-	if (arrMnemonicMatches){
-		objRequest.type = "textcoin";
-		var mnemonic = arrMnemonicMatches[1].split('-').join(' ');
+	
+	function handleMnemonic(mnemonic){
 		try {
 			if (Mnemonic.isValid(mnemonic)) {
 				objRequest.mnemonic = mnemonic;
@@ -74,6 +70,20 @@ function parseUri(uri, callbacks){
 		} catch(e) {
 			return callbacks.ifError("invalid mnemonic");
 		}
+	}
+
+	// claim textcoin using mnemonic
+	var arrMnemonicMatches = value.match(/^textcoin\?(.+)$/);
+	if (arrMnemonicMatches){
+		objRequest.type = "textcoin";
+		var mnemonic = arrMnemonicMatches[1].split('-').join(' ');
+		return handleMnemonic(mnemonic);
+	}
+	var arrWords = value.split('-');
+	if (arrWords.length === 12){
+		objRequest.type = "textcoin";
+		mnemonic = arrWords.join(' ');
+		return handleMnemonic(mnemonic);
 	}
 	
 	// pay to address

@@ -568,7 +568,7 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 								onDone(err);
 							count_writes++;
 							if (conf.storage === 'sqlite')
-								updateSqliteStats();
+								updateSqliteStats(objUnit.unit);
 						});
 					});
 				});
@@ -597,7 +597,7 @@ function readCountOfAnalyzedUnits(handleCount){
 var start_time = 0;
 var prev_time = 0;
 // update stats for query planner
-function updateSqliteStats(){
+function updateSqliteStats(unit){
 	if (count_writes === 1){
 		start_time = Date.now();
 		prev_time = Date.now();
@@ -610,7 +610,7 @@ function updateSqliteStats(){
 		var recent_tps = 1000/recent_time;
 		var avg_tps = count_writes/total_time;
 		prev_time = Date.now();
-	//	console.error(count_writes+" units done in "+total_time+" s, recent "+recent_tps+" tps, avg "+avg_tps+" tps");
+	//	console.error(count_writes+" units done in "+total_time+" s, recent "+recent_tps+" tps, avg "+avg_tps+" tps, unit "+unit);
 	}
 	if (conf.storage !== 'sqlite')
 		return;

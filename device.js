@@ -282,6 +282,8 @@ function deriveSharedSecret(ecdh, peer_b64_pubkey){
 
 function decryptPackage(objEncryptedPackage){
 	var priv_key;
+	if (typeof objEncryptedPackage.iv !== 'string' || typeof objEncryptedPackage.authtag !== 'string' || typeof objEncryptedPackage.encrypted_message !== 'string' || !objEncryptedPackage.dh || typeof objEncryptedPackage.dh !== 'object')
+		return console.log("wrong params in encrypted package");
 	if (objEncryptedPackage.dh.recipient_ephemeral_pubkey === objMyTempDeviceKey.pub_b64){
 		priv_key = objMyTempDeviceKey.priv;
 		if (objMyTempDeviceKey.use_count)

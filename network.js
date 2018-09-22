@@ -1460,12 +1460,11 @@ function waitTillIdle(onIdle){
 }
 
 function broadcastJoint(objJoint){
-	if (conf.bLight) // the joint was already posted to light vendor before saving
-		return;
-	wss.clients.concat(arrOutboundPeers).forEach(function(client) {
-		if (client.bSubscribed)
-			sendJoint(client, objJoint);
-	});
+	if (!conf.bLight) // the joint was already posted to light vendor before saving
+		wss.clients.concat(arrOutboundPeers).forEach(function(client) {
+			if (client.bSubscribed)
+				sendJoint(client, objJoint);
+		});
 	notifyWatchers(objJoint);
 }
 
@@ -1966,13 +1965,26 @@ function initWitnessesIfNecessary(ws, onDone){
 
 // hub
 
-function sendStoredDeviceMessages(ws, device_address){
-	db.query("SELECT message_hash, message FROM device_messages WHERE device_address=? ORDER BY creation_date LIMIT 100", [device_address], function(rows){
-		rows.forEach(function(row){
-			sendJustsaying(ws, 'hub/message', {message_hash: row.message_hash, message: JSON.parse(row.message)});
+function deleteOverlengthMessagesIfLimitIsSet(ws, device_address, handle){
+	if (ws.max_message_length)
+		db.query("DELETE FROM device_messages WHERE device_address=? AND LENGTH(message)>?", [device_address, ws.max_message_length], function(){
+			return handle();
 		});
-		sendInfo(ws, rows.length+" messages sent");
-		sendJustsaying(ws, 'hub/message_box_status', (rows.length === 100) ? 'has_more' : 'empty');
+	else
+		return handle();
+}
+
+
+function sendStoredDeviceMessages(ws, device_address){
+	deleteOverlengthMessagesIfLimitIsSet(ws, device_address, function(){
+		var max_message_count = ws.max_message_count ? ws.max_message_count : 100;
+		db.query("SELECT message_hash, message FROM device_messages WHERE device_address=? ORDER BY creation_date LIMIT ?", [device_address, max_message_count], function(rows){
+			rows.forEach(function(row){
+				sendJustsaying(ws, 'hub/message', {message_hash: row.message_hash, message: JSON.parse(row.message)});
+			});
+			sendInfo(ws, rows.length+" messages sent");
+			sendJustsaying(ws, 'hub/message_box_status', (rows.length === max_message_count) ? 'has_more' : 'empty');
+		});
 	});
 }
 
@@ -2160,13 +2172,19 @@ function handleJustsaying(ws, subject, body){
 				return sendError(ws, "wrong challenge");
 			if (!objLogin.pubkey || !objLogin.signature)
 				return sendError(ws, "no login params");
-			if (objLogin.pubkey.length !== constants.PUBKEY_LENGTH)
+			if (!ValidationUtils.isStringOfLength(objLogin.pubkey, constants.PUBKEY_LENGTH))
 				return sendError(ws, "wrong pubkey length");
-			if (objLogin.signature.length !== constants.SIG_LENGTH)
+			if (!ValidationUtils.isStringOfLength(objLogin.signature, constants.SIG_LENGTH))
 				return sendError(ws, "wrong signature length");
+			if (objLogin.max_message_length && !ValidationUtils.isPositiveInteger(objLogin.max_message_length))
+				return sendError(ws, "max_message_length must be an integer");
+			if (objLogin.max_message_count && (!ValidationUtils.isPositiveInteger(objLogin.max_message_count) || objLogin.max_message_count > 100))
+				return sendError(ws, "max_message_count must be an integer > 0 and <= 100");
 			if (!ecdsaSig.verify(objectHash.getDeviceMessageHashToSign(objLogin), objLogin.signature, objLogin.pubkey))
 				return sendError(ws, "wrong signature");
 			ws.device_address = objectHash.getDeviceAddress(objLogin.pubkey);
+			ws.max_message_length = objLogin.max_message_length;
+			ws.max_message_count = objLogin.max_message_count;
 			// after this point the device is authenticated and can send further commands
 			var finishLogin = function(){
 				ws.bLoginComplete = true;
@@ -2181,7 +2199,7 @@ function handleJustsaying(ws, subject, body){
 						sendInfo(ws, "address created");
 						finishLogin();
 					});
-				else{
+				else {
 					sendStoredDeviceMessages(ws, ws.device_address);
 					finishLogin();
 				}
@@ -2449,13 +2467,14 @@ function handleRequest(ws, tag, command, params){
 				if (rows.length === 0)
 					return sendErrorResponse(ws, tag, "address "+objDeviceMessage.to+" not registered here");
 				var message_hash = objectHash.getBase64Hash(objDeviceMessage);
+				var message_string = JSON.stringify(objDeviceMessage);
 				db.query(
 					"INSERT "+db.getIgnore()+" INTO device_messages (message_hash, message, device_address) VALUES (?,?,?)", 
-					[message_hash, JSON.stringify(objDeviceMessage), objDeviceMessage.to],
+					[message_hash, message_string, objDeviceMessage.to],
 					function(){
 						// if the addressee is connected, deliver immediately
 						wss.clients.forEach(function(client){
-							if (client.device_address === objDeviceMessage.to) {
+							if (client.device_address === objDeviceMessage.to && (!client.max_message_length || message_string.length <= client.max_message_length)) {
 								sendJustsaying(client, 'hub/message', {
 									message_hash: message_hash,
 									message: objDeviceMessage
@@ -2472,9 +2491,7 @@ function handleRequest(ws, tag, command, params){
 		// I'm a hub, the peer wants to get a correspondent's temporary pubkey
 		case 'hub/get_temp_pubkey':
 			var permanent_pubkey = params;
-			if (!permanent_pubkey)
-				return sendErrorResponse(ws, tag, "no permanent_pubkey");
-			if (permanent_pubkey.length !== constants.PUBKEY_LENGTH)
+			if (!ValidationUtils.isStringOfLength(permanent_pubkey, constants.PUBKEY_LENGTH))
 				return sendErrorResponse(ws, tag, "wrong permanent_pubkey length");
 			var device_address = objectHash.getDeviceAddress(permanent_pubkey);
 			if (device_address === my_device_address) // to me
@@ -2500,7 +2517,7 @@ function handleRequest(ws, tag, command, params){
 			var objTempPubkey = params;
 			if (!objTempPubkey || !objTempPubkey.temp_pubkey || !objTempPubkey.pubkey || !objTempPubkey.signature)
 				return sendErrorResponse(ws, tag, "no temp_pubkey params");
-			if (objTempPubkey.temp_pubkey.length !== constants.PUBKEY_LENGTH)
+			if (!ValidationUtils.isStringOfLength(objTempPubkey.temp_pubkey, constants.PUBKEY_LENGTH))
 				return sendErrorResponse(ws, tag, "wrong temp_pubkey length");
 			if (objectHash.getDeviceAddress(objTempPubkey.pubkey) !== ws.device_address)
 				return sendErrorResponse(ws, tag, "signed by another pubkey");
@@ -2688,6 +2705,79 @@ function handleRequest(ws, tag, command, params){
 			});
 			break;
 
+		case 'light/get_definition':
+			if (conf.bLight)
+				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
+			if (ws.bOutbound)
+				return sendErrorResponse(ws, tag, "light clients have to be inbound");
+			if (!params)
+				return sendErrorResponse(ws, tag, "no params in light/get_definition");
+			if (!ValidationUtils.isValidAddress(params))
+				return sendErrorResponse(ws, tag, "address not valid");
+			db.query("SELECT definition FROM definitions WHERE definition_chash=?", [params], function(rows){
+				if (!rows[0])
+					return sendResponse(ws, tag, null);
+				var arrDefinition = JSON.parse(rows[0].definition);
+				sendResponse(ws, tag, arrDefinition);
+			});
+			break;
+
+    	case 'light/get_balances':
+			var addresses = params;
+			if (conf.bLight)
+				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
+			if (ws.bOutbound)
+				return sendErrorResponse(ws, tag, "light clients have to be inbound");
+			if (!addresses)
+				return sendErrorResponse(ws, tag, "no params in light/get_balances");
+			if (!ValidationUtils.isNonemptyArray(addresses))
+				return sendErrorResponse(ws, tag, "addresses must be non-empty array");
+			if (!addresses.every(ValidationUtils.isValidAddress))
+				return sendErrorResponse(ws, tag, "some addresses are not valid");
+			if (addresses.length > 100)
+				return sendErrorResponse(ws, tag, "too many addresses");
+			db.query(
+				"SELECT address, asset, is_stable, SUM(amount) AS balance \n\
+				FROM outputs JOIN units USING(unit) \n\
+				WHERE is_spent=0 AND address IN(?) AND sequence='good' \n\
+				GROUP BY address, asset, is_stable", [addresses], function(rows) {
+					var balances = {};
+					rows.forEach(function(row) {
+						if (!balances[row.address])
+							balances[row.address] = { base: { stable: 0, pending: 0 }};
+						if (row.asset && !balances[row.address][row.asset])
+							balances[row.address][row.asset] = { stable: 0, pending: 0 };
+						balances[row.address][row.asset || 'base'][row.is_stable ? 'stable' : 'pending'] = row.balance;
+					});
+					sendResponse(ws, tag, balances);
+				}
+			);
+			break;
+      
+    	case 'light/get_profile_units':
+			var addresses = params;
+			if (conf.bLight)
+				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
+			if (ws.bOutbound)
+				return sendErrorResponse(ws, tag, "light clients have to be inbound");
+			if (!addresses)
+				return sendErrorResponse(ws, tag, "no params in light/get_profiles_units");
+			if (!ValidationUtils.isNonemptyArray(addresses))
+				return sendErrorResponse(ws, tag, "addresses must be non-empty array");
+			if (!addresses.every(ValidationUtils.isValidAddress))
+				return sendErrorResponse(ws, tag, "some addresses are not valid");
+			if (addresses.length > 100)
+				return sendErrorResponse(ws, tag, "too many addresses");
+			db.query(
+				"SELECT unit FROM messages JOIN unit_authors USING(unit) \n\
+				JOIN units USING(unit) WHERE app='profile' AND address IN(?) \n\
+				ORDER BY main_chain_index ASC", [addresses], function(rows) {
+					var units = rows.map(function(row) { return row.unit; });
+					sendResponse(ws, tag, units);
+				}
+			);
+			break;
+
 		// I'm a hub, the peer wants to enable push notifications
 		case 'hub/enable_notification':
 			if(ws.device_address)
@@ -2739,6 +2829,8 @@ function onWebsocketMessage(message) {
 	}
 	var message_type = arrMessage[0];
 	var content = arrMessage[1];
+	if (!content || typeof content !== 'object')
+		return console.log("content is not object: "+content);
 	
 	switch (message_type){
 		case 'justsaying':

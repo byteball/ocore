@@ -365,15 +365,15 @@ function validateParents(conn, objJoint, objValidationState, callback){
 	// avoid merging the obvious nonserials
 	function checkNoSameAddressInDifferentParents(){
 		if (objUnit.parent_units.length === 1)
-			return checkLastBallDidNotRetreat();
+			return callback();
 		conn.query("SELECT address, COUNT(*) AS c FROM unit_authors WHERE unit IN(?) GROUP BY address HAVING c>1", [objUnit.parent_units], function(rows){
 			if (rows.length > 0)
 				return callback("some addresses found more than once in parents, e.g. "+rows[0].address);
-			return checkLastBallDidNotRetreat();
+			return callback();
 		});
 	}
 	
-	function checkLastBallDidNotRetreat(){
+	function readMaxParentLastBallMci(handleResult){
 		conn.query(
 			"SELECT MAX(lb_units.main_chain_index) AS max_parent_last_ball_mci \n\
 			FROM units JOIN units AS lb_units ON units.last_ball_unit=lb_units.unit \n\
@@ -383,7 +383,7 @@ function validateParents(conn, objJoint, objValidationState, callback){
 				var max_parent_last_ball_mci = rows[0].max_parent_last_ball_mci;
 				if (max_parent_last_ball_mci > objValidationState.last_ball_mci)
 					return callback("last ball mci must not retreat, parents: "+objUnit.parent_units.join(', '));
-				callback();
+				handleResult(max_parent_last_ball_mci);
 			}
 		);
 	}
@@ -478,31 +478,35 @@ function validateParents(conn, objJoint, objValidationState, callback){
 					objValidationState.max_known_mci = objLastBallUnitProps.max_known_mci;
 					if (objValidationState.max_parent_limci < objValidationState.last_ball_mci)
 						return callback("last ball unit "+last_ball_unit+" is not included in parents, unit "+objUnit.unit);
-					if (objLastBallUnitProps.is_stable === 1){
-						// if it were not stable, we wouldn't have had the ball at all
-						if (objLastBallUnitProps.ball !== last_ball)
-							return callback("stable: last_ball "+last_ball+" and last_ball_unit "+last_ball_unit+" do not match");
-						if (objValidationState.last_ball_mci <= 1300000)
-							return checkNoSameAddressInDifferentParents();
-					}
-					// Last ball is not stable yet in our view. Check if it is stable in view of the parents
-					main_chain.determineIfStableInLaterUnitsAndUpdateStableMcFlag(conn, last_ball_unit, objUnit.parent_units, objLastBallUnitProps.is_stable, function(bStable, bAdvancedLastStableMci){
-						/*if (!bStable && objLastBallUnitProps.is_stable === 1){
-							var eventBus = require('./event_bus.js');
-							eventBus.emit('nonfatal_error', "last ball is stable, but not stable in parents, unit "+objUnit.unit, new Error());
-							return checkNoSameAddressInDifferentParents();
+					readMaxParentLastBallMci(function(max_parent_last_ball_mci){
+						if (objLastBallUnitProps.is_stable === 1){
+							// if it were not stable, we wouldn't have had the ball at all
+							if (objLastBallUnitProps.ball !== last_ball)
+								return callback("stable: last_ball "+last_ball+" and last_ball_unit "+last_ball_unit+" do not match");
+							if (objValidationState.last_ball_mci <= 1300000 || max_parent_last_ball_mci === objValidationState.last_ball_mci)
+								return checkNoSameAddressInDifferentParents();
 						}
-						else */if (!bStable)
-							return callback(objUnit.unit+": last ball unit "+last_ball_unit+" is not stable in view of your parents "+objUnit.parent_units);
-						conn.query("SELECT ball FROM balls WHERE unit=?", [last_ball_unit], function(ball_rows){
-							if (ball_rows.length === 0)
-								throw Error("last ball unit "+last_ball_unit+" just became stable but ball not found");
-							if (ball_rows[0].ball !== last_ball)
-								return callback("last_ball "+last_ball+" and last_ball_unit "+last_ball_unit
-												+" do not match after advancing stability point");
-							if (bAdvancedLastStableMci)
-								objValidationState.bAdvancedLastStableMci = true; // not used
-							checkNoSameAddressInDifferentParents();
+						// Last ball is not stable yet in our view. Check if it is stable in view of the parents
+						main_chain.determineIfStableInLaterUnitsAndUpdateStableMcFlag(conn, last_ball_unit, objUnit.parent_units, objLastBallUnitProps.is_stable, function(bStable, bAdvancedLastStableMci){
+							/*if (!bStable && objLastBallUnitProps.is_stable === 1){
+								var eventBus = require('./event_bus.js');
+								eventBus.emit('nonfatal_error', "last ball is stable, but not stable in parents, unit "+objUnit.unit, new Error());
+								return checkNoSameAddressInDifferentParents();
+							}
+							else */if (!bStable)
+								return callback(objUnit.unit+": last ball unit "+last_ball_unit+" is not stable in view of your parents "+objUnit.parent_units);
+							if (!bAdvancedLastStableMci)
+								return checkNoSameAddressInDifferentParents();
+							conn.query("SELECT ball FROM balls WHERE unit=?", [last_ball_unit], function(ball_rows){
+								if (ball_rows.length === 0)
+									throw Error("last ball unit "+last_ball_unit+" just became stable but ball not found");
+								if (ball_rows[0].ball !== last_ball)
+									return callback("last_ball "+last_ball+" and last_ball_unit "+last_ball_unit
+													+" do not match after advancing stability point");
+								if (bAdvancedLastStableMci)
+									objValidationState.bAdvancedLastStableMci = true; // not used
+								checkNoSameAddressInDifferentParents();
+							});
 						});
 					});
 				}
@@ -556,7 +560,7 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 		storage.determineWitnessedLevelAndBestParent(conn, objUnit.parent_units, arrWitnesses, function(witnessed_level, best_parent_unit){
 			objValidationState.witnessed_level = witnessed_level;
 			objValidationState.best_parent_unit = best_parent_unit;
-			if (objValidationState.last_ball_mci < 1400000) // not enforced
+			if (objValidationState.last_ball_mci < constants.witnessedLevelMustNotRetreatUpgradeMci) // not enforced
 				return callback();
 			storage.readStaticUnitProps(conn, best_parent_unit, function(props){
 				(witnessed_level >= props.witnessed_level) 
@@ -733,17 +737,21 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 			"+cross+" JOIN unit_authors USING(unit) \n\
 			WHERE address=? AND (main_chain_index>? OR main_chain_index IS NULL) AND unit != ?",
 			[objAuthor.address, objValidationState.max_parent_limci, objUnit.unit],*/
-			"SELECT unit, is_stable \n\
+			"SELECT unit, is_stable, sequence, level \n\
 			FROM unit_authors \n\
 			CROSS JOIN units USING(unit) \n\
 			WHERE address=? AND _mci>? AND unit != ? \n\
 			UNION \n\
-			SELECT unit, is_stable \n\
+			SELECT unit, is_stable, sequence, level \n\
 			FROM unit_authors \n\
 			CROSS JOIN units USING(unit) \n\
-			WHERE address=? AND _mci IS NULL AND unit != ?",
+			WHERE address=? AND _mci IS NULL AND unit != ? \n\
+			ORDER BY level DESC",
 			[objAuthor.address, objValidationState.max_parent_limci, objUnit.unit, objAuthor.address, objUnit.unit],
 			function(rows){
+				if (rows.length === 0)
+					return handleConflictingUnits([]);
+				var bAllSerial = rows.every(function(row){ return (row.sequence === 'good'); });
 				var arrConflictingUnitProps = [];
 				async.eachSeries(
 					rows,
@@ -751,6 +759,8 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 						graph.determineIfIncludedOrEqual(conn, row.unit, objUnit.parent_units, function(bIncluded){
 							if (!bIncluded)
 								arrConflictingUnitProps.push(row);
+							else if (bAllSerial)
+								return cb('done'); // all are serial and this one is included, therefore the earlier ones are included too
 							cb();
 						});
 					},

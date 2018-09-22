@@ -747,7 +747,7 @@ function readPropsOfUnits(conn, earlier_unit, arrLaterUnits, handleProps){
 	
 	var bEarlierInLaterUnits = (arrLaterUnits.indexOf(earlier_unit) !== -1);
 	conn.query(
-		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free FROM units WHERE unit IN(?, ?)", 
+		"SELECT unit, level, witnessed_level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free FROM units WHERE unit IN(?, ?)", 
 		[earlier_unit, arrLaterUnits], 
 		function(rows){
 			if (rows.length !== arrLaterUnits.length + (bEarlierInLaterUnits ? 0 : 1))
@@ -771,7 +771,7 @@ function readPropsOfUnits(conn, earlier_unit, arrLaterUnits, handleProps){
 					delete props.earned_headers_commission_recipients;
 					delete props.author_addresses;
 					delete props.is_stable;
-					delete props.witnessed_level;
+				//	delete props.witnessed_level;
 					delete props.headers_commission;
 					delete props.payload_commission;
 					delete props.sequence;
