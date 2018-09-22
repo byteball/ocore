@@ -1460,12 +1460,11 @@ function waitTillIdle(onIdle){
 }
 
 function broadcastJoint(objJoint){
-	if (conf.bLight) // the joint was already posted to light vendor before saving
-		return;
-	wss.clients.concat(arrOutboundPeers).forEach(function(client) {
-		if (client.bSubscribed)
-			sendJoint(client, objJoint);
-	});
+	if (!conf.bLight) // the joint was already posted to light vendor before saving
+		wss.clients.concat(arrOutboundPeers).forEach(function(client) {
+			if (client.bSubscribed)
+				sendJoint(client, objJoint);
+		});
 	notifyWatchers(objJoint);
 }
 
