@@ -24,6 +24,11 @@ module.exports = function(connection_or_pool){
 		
 		for (var i=0; i<count_arguments_without_callback; i++) // except callback
 			new_args.push(arguments[i]);
+		if (!bHasCallback)
+			return new Promise(function(resolve){
+				new_args.push(resolve);
+				safe_connection.query.apply(safe_connection, new_args);
+			});
 		
 		// add callback with error handling
 		new_args.push(function(err, results, fields){
