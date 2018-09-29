@@ -11,7 +11,7 @@ var ValidationUtils = require('./validation_utils.js');
 var validation = require('./validation.js');
 var writer = require('./writer.js');
 var inputs = require('./inputs.js');
-
+var conf = require('./conf.js');
 
 function validateAndSavePrivatePaymentChain(conn, arrPrivateElements, callbacks){
 	// we always have only one element
@@ -205,7 +205,7 @@ function composeDivisibleAssetPaymentJoint(params){
 					return onDone("the asset is not transferrable and definer not found on either side of the deal");
 				if (objAsset.cosigned_by_definer && arrPayingAddresses.concat(params.signing_addresses || []).indexOf(objAsset.definer_address) === -1)
 					return onDone("the asset must be cosigned by definer");
-				if (objAsset.spender_attested && objAsset.arrAttestedAddresses.length === 0)
+				if (!conf.bLight && objAsset.spender_attested && objAsset.arrAttestedAddresses.length === 0)
 					return onDone("none of the authors is attested");
 				
 				var target_amount = params.to_address 
