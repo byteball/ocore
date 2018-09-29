@@ -1831,7 +1831,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 						if (!objAsset.spender_attested)
 							return cb();
 						storage.filterAttestedAddresses(
-							conn, objAsset, lobjValidationState.last_ball_mci, arrOutputAddresses, 
+							conn, objAsset, objValidationState.last_ball_mci, arrOutputAddresses, 
 							function(arrAttestedOutputAddresses){
 								if (arrAttestedOutputAddresses.length !== arrOutputAddresses.length)
 									return cb("some output addresses are not attested");
