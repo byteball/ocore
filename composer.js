@@ -94,7 +94,7 @@ function composeDataJoint(from_address, data, signer, callbacks){
 	composeContentJoint(from_address, "data", data, signer, callbacks);
 }
 
-function composeDedinitionTemplateJoint(from_address, arrDefinitionTemplate, signer, callbacks){
+function composeDefinitionTemplateJoint(from_address, arrDefinitionTemplate, signer, callbacks){
 	composeContentJoint(from_address, "definition_template", arrDefinitionTemplate, signer, callbacks);
 }
 
@@ -786,7 +786,7 @@ exports.composePaymentJoint = composePaymentJoint;
 exports.composeDefinitionChangeJoint = composeDefinitionChangeJoint;
 exports.composeDataFeedJoint = composeDataFeedJoint;
 exports.composeDataJoint = composeDataJoint;
-exports.composeDedinitionTemplateJoint = composeDedinitionTemplateJoint;
+exports.composeDefinitionTemplateJoint = composeDefinitionTemplateJoint;
 exports.composePollJoint = composePollJoint;
 exports.composeVoteJoint = composeVoteJoint;
 exports.composeProfileJoint = composeProfileJoint;
