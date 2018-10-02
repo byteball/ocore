@@ -536,6 +536,40 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 					bPrivate ? cb("asset must be public") : cb();
 				});
 				break;
+			case 'formula':
+				if (!isNonemptyString(args))
+					return cb("no relation");
+				if (!args.match(/\s(>|<|==|!=|>=|<=)\s/))
+					return cb("need logical(>|<|==|!=|>=|<=)");
+				var m = args.match(/data_feed\[[a-zA-Z0-9=!:><\-,_\s]+\]/g);
+				if (m) {
+					m.forEach(function (v) {
+						if (!(/oracles/i.test(v)) || !(/feed_name/i.test(v))) {
+							console.error('\n\n\n\n', v, '\n\n\n\n\n')
+							return cb('Incorrect data_feed:', v)
+						}
+					});
+				}
+				m = args.match(/input\[[a-zA-Z0-9=!:><\-,_\s]+\]/g);
+				if (m) {
+					m.forEach(function (v) {
+						if (!(/address/i.test(v)) && !(/asset/i.test(v)) && !(/value/i.test(v))) {
+							console.error('\n\n\n\n', v, '\n\n\n\n\n')
+							return cb('Incorrect input:', v)
+						}
+					});
+				}
+				m = args.match(/output\[[a-zA-Z0-9=!:><\-,_\s]+\]/g);
+				if (m) {
+					m.forEach(function (v) {
+						if (!(/address/i.test(v)) && !(/asset/i.test(v)) && !(/value/i.test(v))) {
+							console.error('\n\n\n\n', v, '\n\n\n\n\n')
+							return cb('Incorrect output:', v)
+						}
+					});
+				}
+				cb();
+				break;
 				
 			default:
 				return cb("unknown op: "+op);
@@ -1014,10 +1048,323 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 					return (address === changed_address);
 				}));
 				break;
-				
+
+			case 'formula':
+				args = args.toLowerCase();
+				parseAndReplaceDataFeedInFormula(args, objValidationState, function (err, args2) {
+					if (err) {
+						console.error('formula error', new Error(err));
+						return cb2(false);
+					}
+					parseAndReplaceInputsInFormula(args2, objUnit.messages, function (err2, args3, params) {
+						if (err) {
+							console.error('formula error', new Error(err));
+							return cb2(false);
+						}
+						parseAndReplaceOutputsInFormula(args3, objUnit.messages, function (err2, args4, params2) {
+							if (err) {
+								console.error('formula error', new Error(err));
+								return cb2(false);
+							}
+
+							if (!params) params = {};
+							if (!params2) params2 = {};
+							var parser = new Parser();
+							try {
+								var expr = parser.parse(args4);
+								cb2(expr.evaluate(Object.assign({}, params, params2)));
+							} catch (e) {
+								cb(false);
+							}
+						});
+					});
+				});
+				break;
 		}
 	}
-	
+
+	function parseAndReplaceDataFeedInFormula(args, objValidationState, cb) {
+		var listDataFeed = args.match(/data_feed\[[a-zA-Z0-9=!:><\-,_\s]+\]/g);
+		if (listDataFeed) {
+			async.eachSeries(listDataFeed, function (value, cbr) {
+				var params = value.match(/data_feed\[([a-zA-Z0-9=!:><\-,_\s]+)\]/)[1];
+				var mParams = params.match(/[a-zA-Z_]+(|\s)(>=|<=|!=|=|>|<)(|\s)[a-zA-Z0-9_\-.:]+/g);
+
+				var objParams = {};
+				mParams.forEach(value => {
+					var operator = value.match(/(|\s)>=|<=|!=|=|>|<(|\s)/)[2];
+					var split = value.split(/>=|<=|!=|=|>|</);
+					objParams[split[0].toLowerCase()] = {value: split[1].trim(), operator: operator.trim()};
+				});
+				if (objParams.oracles && objParams.feed_name) {
+					getDataFeed(objParams, objValidationState, function (err, feedValue) {
+						if (err) return cbr(err);
+						args = args.replace(value, feedValue);
+						return cbr();
+					});
+				} else {
+					return cbr('incorrect data_feed');
+				}
+			}, function (err) {
+				return cb(err, args);
+			});
+		} else {
+			cb(null, args);
+		}
+	}
+
+	function getDataFeed(params, objValidationState, cb) {
+		var arrAddresses = params.oracles.value.split(':').map(function (val) {
+			return val.toUpperCase();
+		});
+		var feed_name = params.feed_name.value;
+		var value = null;
+		var relation = '';
+		var mci_relation = '<=';
+		var min_mci = 0;
+		if (params.feed_value) {
+			value = params.feed_value.value;
+			relation = params.feed_value.operator;
+		}
+		if (params.mci) {
+			min_mci = params.mci.value;
+			min_mci = params.mci.operator;
+		}
+		var ifseveral = 'ORDER BY main_chain_index DESC';
+		var abortIfSeveral = false;
+		if (params.ifseveral) {
+			if (params.ifseveral.value.toLowerCase() === 'first') {
+				ifseveral = 'ORDER BY main_chain_index ASC';
+			} else if (params.ifseveral.value.toLowerCase() === 'abort') {
+				ifseveral = '';
+				abortIfSeveral = true;
+			}
+		}
+		var ifnone = (params.ifnone && params.ifnone.value != 'abort') ? params.ifnone.value : false;
+
+
+		var value_condition = '';
+		var queryParams = [arrAddresses, feed_name];
+		if (value) {
+			var isNumber = /^-?\d+\.?\d*$/.test(value);
+			if (isNumber) {
+				var bForceNumericComparison = (['>', '>=', '<', '<='].indexOf(relation) >= 0);
+				var plus_0 = bForceNumericComparison ? '+0' : '';
+				value_condition = '(value' + plus_0 + relation + value + ' OR int_value' + relation + value + ')';
+			}
+			else {
+				value_condition = 'value' + relation + '?';
+				queryParams.push(value);
+			}
+		}
+		queryParams.push(objValidationState.last_ball_mci, min_mci);
+		conn.query(
+			"SELECT value, int_value FROM data_feeds CROSS JOIN units USING(unit) CROSS JOIN unit_authors USING(unit) \n\
+					WHERE address IN(?) AND feed_name=? " + (value_condition ? ' AND ' + value_condition : '') + " \n\
+						AND main_chain_index<=? AND main_chain_index" + mci_relation + "? AND sequence='good' AND is_stable=1 " + ifseveral + " LIMIT " + (abortIfSeveral ? "2" : "1"),
+			queryParams,
+			function (rows) {
+				console.log("formula " + feed_name + " " + rows.length);
+				if (rows.length) {
+					if (abortIfSeveral && rows.length > 1) {
+						cb('abort');
+					} else {
+						cb(null, rows[0].value || rows[0].int_value);
+					}
+				} else {
+					if (ifnone === false) {
+						cb('not found');
+					} else {
+						cb(null, ifnone);
+					}
+				}
+			}
+		);
+	}
+
+	function parseAndReplaceOutputsInFormula(args, messages, cb) {
+		var params = {};
+		var incName = 0;
+
+
+		function findOutputAndReturnName(objParams) {
+			var asset = objParams.asset ? objParams.asset.value : null;
+			if (asset === 'null') asset = null;
+			var outputs = [];
+			messages.forEach(function (value) {
+				if (!asset && !value.payload.asset) {
+					outputs = outputs.concat(value.payload.outputs);
+				} else if (asset === value.payload.asset) {
+					outputs = outputs.concat(value.payload.outputs);
+				}
+			});
+			if (outputs.length) {
+				if (objParams.address) {
+					outputs = outputs.filter(function (objValue) {
+						if (objParams.address.operator === '=') {
+							return objValue.address === objParams.address.value.toUpperCase();
+						} else {
+							return objValue.address !== objParams.address.value.toUpperCase();
+						}
+					});
+				}
+				if (objParams.amount) {
+					outputs = outputs.filter(function (objValue) {
+						if (objParams.amount.operator === '=') {
+							return objValue === objParams.amount.value;
+						} else if (objParams.amount.operator === '>') {
+							return objValue > objParams.amount.value;
+						} else if (objParams.amount.operator === '<') {
+							return objValue < objParams.amount.value;
+						} else if (objParams.amount.operator === '<=') {
+							return objValue <= objParams.amount.value;
+						} else if (objParams.amount.operator === '>=') {
+							return objValue >= objParams.amount.value;
+						} else {
+							return objValue !== objParams.amount.value;
+						}
+					});
+				}
+				if (outputs.length) {
+					var name = 'x' + (incName++);
+					params[name] = outputs[0];
+					return name;
+				} else {
+					return '';
+				}
+			} else {
+				return '';
+			}
+		}
+
+		var listOutputs = args.match(/output\[[a-zA-Z0-9=!:><\-,_\s]+\]/g);
+		if (listOutputs) {
+			listOutputs.forEach(value => {
+				var params = value.match(/output\[([a-zA-Z0-9=!:><\-,_\s]+)\]/)[1];
+				var mParams = params.match(/[a-zA-Z_]+(|\s)(>=|<=|!=|=)(|\s)[a-zA-Z0-9_\-.:\s]+/g);
+
+				var objParams = {};
+				mParams.forEach(value => {
+					var operator = value.match(/(|\s+)(>=|<=|!=|=|>|<)(|\s+)/)[2];
+					var split = value.split(/>=|<=|!=|=|>|</);
+					objParams[split[0].toLowerCase()] = {value: split[1].trim(), operator: operator.trim()};
+				});
+				var name = findOutputAndReturnName(objParams);
+				if (name === '') {
+					return cb('not found');
+				}
+				args = args.replace(value, name);
+			});
+			cb(null, args, params);
+		} else {
+			cb(null, args);
+		}
+	}
+
+	function parseAndReplaceInputsInFormula(args, messages, cb) {
+		var params = {};
+		var incName = 0;
+
+
+		function findInputAndReturnName(objParams, cb) {
+			var name = '';
+			var asset = objParams.asset ? objParams.asset.value : null;
+			if (asset === 'null') asset = null;
+			var inputs = [];
+			messages.forEach(function (value) {
+				if (!asset && !value.payload.asset) {
+					inputs = inputs.concat(value.payload.inputs);
+				} else if (asset === value.payload.asset) {
+					inputs = inputs.concat(value.payload.inputs);
+				}
+			});
+			if (inputs.length) {
+				var operatorAddress;
+				if (objParams.address) {
+					if (objParams.address.operator === '=') {
+						operatorAddress = '=';
+					} else {
+						operatorAddress = '!='
+					}
+				}
+
+				var operatorAmount;
+				if (objParams.amount) {
+					switch (objParams.amount.operator) {
+						case '=':
+							operatorAmount = '=';
+							break;
+						case '>':
+							operatorAmount = '>';
+							break;
+						case '<':
+							operatorAmount = '<';
+							break;
+						case '<=':
+							operatorAmount = '<=';
+							break;
+						case '>=':
+							operatorAmount = '>=';
+							break;
+						default:
+							operatorAmount = '!=';
+							break;
+					}
+				}
+				async.eachSeries(inputs, function (input, cbr) {
+					var queryParams = [input.unit, input.message_index, input.output_index];
+					if(objParams.address) queryParams.push(objParams.address.value.toUpperCase());
+					if(objParams.amount) queryParams.push(objParams.amount.value);
+					conn.query("SELECT amount, asset, address FROM outputs WHERE unit = ? AND message_index = ? AND output_index = ? " +
+						(operatorAddress ? "AND address " + operatorAddress + "?" : '') +
+						(operatorAmount ? "AND amount" + operatorAmount + "?" : ''),
+						queryParams, function (rows) {
+
+							if (rows.length) {
+								name = 'y' + (incName++);
+								params[name] = rows[0];
+								cbr('ok');
+							} else {
+								cbr();
+							}
+
+						});
+				}, function (err) {
+					if (err === 'ok') {
+						cb(null, name);
+					} else {
+						cb('not found');
+					}
+				});
+			} else {
+				return cb('not found');
+			}
+		}
+
+		var listInputs = args.match(/input\[[a-zA-Z0-9=!:><\-,_\s]+\]/g);
+		if (listInputs) {
+			async.eachSeries(listInputs, function (value, cbr) {
+				var params = value.match(/input\[([a-zA-Z0-9=!:><\-,_\s]+)\]/)[1];
+				var mParams = params.match(/[a-zA-Z_]+(|\s)(>=|<=|!=|=)(|\s)[a-zA-Z0-9_\-.:\s]+/g);
+
+				var objParams = {};
+				mParams.forEach(value => {
+					var operator = value.match(/(|\s+)(>=|<=|!=|=|>|<)(|\s+)/)[2];
+					var split = value.split(/>=|<=|!=|=|>|</);
+					objParams[split[0].toLowerCase()] = {value: split[1].trim(), operator: operator.trim()};
+				});
+				findInputAndReturnName(objParams, function (err, name) {
+					if (err) return cbr('not found');
+					args = args.replace(value, name);
+					cbr();
+				});
+			}, function (err) {
+				cb(err, args, params);
+			});
+		} else {
+			cb(null, args);
+		}
+	}
 	
 	function augmentMessagesAndContinue(next){
 		if (!objValidationState.arrAugmentedMessages)
@@ -1288,6 +1635,7 @@ function hasReferences(arrDefinition){
 			case 'has equal':
 			case 'has one equal':
 			case 'sum':
+			case 'formula':
 				return true;
 				
 			default:
