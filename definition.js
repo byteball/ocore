@@ -10,6 +10,7 @@ var ecdsaSig = require('./signature.js');
 var merkle = require('./merkle.js');
 var ValidationUtils = require("./validation_utils.js");
 var objectHash = require("./object_hash.js");
+var Parser = require('expr-eval-bignumber').Parser;
 
 
 var hasFieldsExcept = ValidationUtils.hasFieldsExcept;
