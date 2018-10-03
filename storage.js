@@ -1031,19 +1031,19 @@ function readAsset(conn, asset, last_ball_mci, handleAsset){
 
 		// find latest list of attestors
 		conn.query(
-			"SELECT MAX(level) AS max_level FROM asset_attestors CROSS JOIN units USING(unit) \n\
-			WHERE asset=? AND main_chain_index<=? AND is_stable=1 AND sequence='good'", 
+			"SELECT unit FROM asset_attestors CROSS JOIN units USING(unit) \n\
+			WHERE asset=? AND main_chain_index<=? AND is_stable=1 AND sequence='good' ORDER BY "+(conf.bLight ? "units.rowid" : "level")+" DESC LIMIT 1", 
 			[asset, last_ball_mci],
 			function(latest_rows){
-				var max_level = latest_rows[0].max_level;
-				if (!max_level)
-					throw Error("no max level of asset attestors");
+				if (latest_rows.length === 0)
+					throw Error("no latest attestor list");
+				var latest_attestor_list_unit = latest_rows[0].unit;
 
 				// read the list
 				conn.query(
 					"SELECT attestor_address FROM asset_attestors CROSS JOIN units USING(unit) \n\
-					WHERE asset=? AND level=? AND main_chain_index<=? AND is_stable=1 AND sequence='good'",
-					[asset, max_level, last_ball_mci],
+					WHERE asset=? AND unit=? AND main_chain_index<=? AND is_stable=1 AND sequence='good'",
+					[asset, latest_attestor_list_unit, last_ball_mci],
 					function(att_rows){
 						if (att_rows.length === 0)
 							throw Error("no attestors?");
