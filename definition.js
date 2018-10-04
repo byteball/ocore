@@ -538,7 +538,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 				});
 				break;
 			case 'formula':
-				formula_validation(args, complexity, function (err, _complexity) {
+				validate_formula(args, complexity, function (err, _complexity) {
 					complexity = _complexity;
 					cb(err);
 				});
@@ -561,7 +561,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 	});
 }
 
-function formula_validation(args, complexity, cb) {
+function validate_formula(args, complexity, cb) {
 	complexity++;
 	var formula = args;
 	if (!isNonemptyString(formula))
@@ -1601,5 +1601,5 @@ exports.evaluateAssetCondition = evaluateAssetCondition;
 exports.validateAuthentifiers = validateAuthentifiers;
 exports.hasReferences = hasReferences;
 exports.replaceInTemplate = replaceInTemplate;
-exports.formula_validation = formula_validation;
+exports.formula_validation = validate_formula;
 
