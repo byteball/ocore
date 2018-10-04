@@ -1808,8 +1808,8 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 	// check stability of payingAddresses
 	function checkStability() {
 		db.query(
-			"SELECT is_stable, asset, is_spent, SUM(amount) as `amount` \n\
-			FROM outputs JOIN units USING(unit) WHERE address=? AND sequence='good' GROUP BY asset ORDER BY asset DESC, is_spent ASC LIMIT 1", 
+			"SELECT is_stable, asset, SUM(amount) AS `amount` \n\
+			FROM outputs JOIN units USING(unit) WHERE address=? AND sequence='good' AND is_spent=0 GROUP BY asset ORDER BY asset DESC LIMIT 1", 
 			[addrInfo.address],
 			function(rows){
 				if (rows.length === 0) {
