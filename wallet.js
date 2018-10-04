@@ -338,6 +338,8 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			if (!Array.isArray(arrMessages))
 				return callbacks.ifError("bad message type");
 			for (var i=0; i<arrMessages.length; i++){
+				if (arrMessages[i].payload === undefined)
+					continue;
 				var calculated_payload_hash = objectHash.getBase64Hash(arrMessages[i].payload);
 				if (arrMessages[i].payload_hash !== calculated_payload_hash)
 					return callbacks.ifError("payload hash does not match");
