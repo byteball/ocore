@@ -569,25 +569,25 @@ function validate_formula(args, complexity, cb) {
 	if (!formula.match(/(|\s)(>|<|==|!=|>=|<=)(|\s)/))
 		return cb("need logical(>|<|==|!=|>=|<=)", complexity);
 	
-	if(formula.match(/data_feed\[(|\s+)\]/g))
+	if (formula.match(/data_feed\[(|\s+)\]/g))
 		return cb('Incorrect data_feed', complexity);
-	if(formula.match(/input\[(|\s+)\]/g))
+	if (formula.match(/input\[(|\s+)\]/g))
 		return cb('Incorrect input', complexity);
-	if(formula.match(/output\[(|\s+)\]/g))
+	if (formula.match(/output\[(|\s+)\]/g))
 		return cb('Incorrect output', complexity);
 	
 	var m = formula.match(/data_feed\[[a-zA-Z0-9=!:><\-,_\s]+\]/g);
 	if (m) {
-		for(var i = 0; i < m.length; i++){
+		for (var i = 0; i < m.length; i++) {
 			if (!(/oracles(|\s)=/i.test(m[i])) || !(/feed_name(|\s)=/i.test(m[i]))) {
 				return cb('Incorrect data_feed:' + m[i], complexity);
 			}
 			var matchOracles = m[i].match(/oracles(\s|)=(\s|)([A-Z0-9]+)/);
-			if (matchOracles && matchOracles[3]){
+			if (matchOracles && matchOracles[3]) {
 				var oracles = matchOracles[3].split(':');
 				complexity += oracles.length - 1;
-				for (var i2 = 0; i2 < oracles.length; i2++){
-					if(!isValidAddress(oracles[i2]))
+				for (var i2 = 0; i2 < oracles.length; i2++) {
+					if (!isValidAddress(oracles[i2]))
 						return cb('Incorrect address in data_feed', complexity)
 				}
 			} else {
@@ -598,16 +598,16 @@ function validate_formula(args, complexity, cb) {
 	
 	m = formula.match(/input\[[a-zA-Z0-9=!:><\-,_\s]+\]/g);
 	if (m) {
-		for (var i = 0; i < m.length; i++){
+		for (var i = 0; i < m.length; i++) {
 			if (!(/address(|\s)=/i.test(m[i])) && !(/asset(|\s)=/i.test(m[i])) && !(/value(|\s)(>|<|==|!=|>=|<=)/i.test(m[i]))) {
 				return cb('Incorrect input:' + m[i], complexity);
 			}
-			if(/address(|\s)=/i.test(m[i])){
-				var matchAddress = m[i].match(/address(|\s)=(|\s)([a-zA-Z0-9]+)/);
-				if(matchAddress && matchAddress[3]){
-					if(!isValidAddress(matchAddress[3]))
+			if (/address(|\s)=/i.test(m[i])) {
+				var matchAddress = m[i].match(/address(|\s)=(|\s)([a-zA-Z0-9\s]+)/);
+				if (matchAddress && matchAddress[3]) {
+					if (!isValidAddress(matchAddress[3]) && matchAddress[3] !== 'this address')
 						return cb('Incorrect address in input', complexity);
-				}else{
+				} else {
 					return cb('Incorrect address in input', complexity);
 				}
 			}
@@ -615,16 +615,16 @@ function validate_formula(args, complexity, cb) {
 	}
 	m = formula.match(/output\[[a-zA-Z0-9=!:><\-,_\s]+\]/g);
 	if (m) {
-		for (var i = 0; i < m.length; i++){
+		for (var i = 0; i < m.length; i++) {
 			if (!(/address(|\s)=/i.test(m[i])) && !(/asset(|\s)=/i.test(m[i])) && !(/value(|\s)(>|<|==|!=|>=|<=)/i.test(m[i]))) {
 				return cb('Incorrect output:' + m[i], complexity);
 			}
-			if(/address(|\s)=/i.test(m[i])){
-				var matchAddress = m[i].match(/address(|\s)=(|\s)([a-zA-Z0-9]+)/);
-				if(matchAddress && matchAddress[3]){
-					if(!isValidAddress(matchAddress[3]))
+			if (/address(|\s)=/i.test(m[i])) {
+				var matchAddress = m[i].match(/address(|\s)=(|\s)([a-zA-Z0-9\s]+)/);
+				if (matchAddress && matchAddress[3]) {
+					if (!isValidAddress(matchAddress[3]) && matchAddress[3] !== 'this address')
 						return cb('Incorrect address in output', complexity);
-				}else{
+				} else {
 					return cb('Incorrect address in output', complexity);
 				}
 			}
@@ -1104,14 +1104,14 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 					augmentMessagesAndContinue(function () {
 						var messages = objValidationState.arrAugmentedMessages;
 						parseAndReplaceInputsAndOutputsInFormula(formula2, 'inputs', messages, function (err2, formula3, params) {
-							if (err) {
-								console.error('formula error', new Error(err));
+							if (err2) {
+								console.error('formula error', new Error(err2));
 								return cb2(false);
 							}
 							parseAndReplaceInputsAndOutputsInFormula(formula3, 'outputs', messages,
-								function (err2, formula4, params2) {
-									if (err) {
-										console.error('formula error', new Error(err));
+								function (err3, formula4, params2) {
+									if (err3) {
+										console.error('formula error', new Error(err3));
 										return cb2(false);
 									}
 									
@@ -1138,10 +1138,10 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 			async.eachSeries(listDataFeed, function (value, cbr) {
 				var params = value.match(/data_feed\[([a-zA-Z0-9=!:><\-,_\s]+)\]/)[1];
 				var mParams = params.match(/[a-zA-Z_]+(|\s)(>=|<=|!=|=|>|<)(|\s)[a-zA-Z0-9_\-.:]+/g);
-
+				
 				var objParams = {};
 				mParams.forEach(value => {
-					var operator = value.match(/(|\s)>=|<=|!=|=|>|<(|\s)/)[2];
+					var operator = value.match(/(|\s)(>=|<=|!=|=|>|<)(|\s)/)[1];
 					var split = value.split(/>=|<=|!=|=|>|</);
 					objParams[split[0]] = {value: split[1].trim(), operator: operator.trim()};
 				});
@@ -1190,8 +1190,8 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 			}
 		}
 		var ifnone = (params.ifnone && params.ifnone.value !== 'abort') ? params.ifnone.value : false;
-
-
+		
+		
 		var value_condition = '';
 		var queryParams = [arrAddresses, feed_name];
 		if (value) {
@@ -1218,9 +1218,9 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 					if (abortIfSeveral && rows.length > 1) {
 						cb('abort');
 					} else {
-						if(rows[0].value === null){
+						if (rows[0].value === null) {
 							cb(null, rows[0].int_value);
-						}else {
+						} else {
 							cb(null, "'" + rows[0].value + "'");
 						}
 					}
@@ -1235,8 +1235,8 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 		);
 	}
 	
-	function parseAndReplaceInputsAndOutputsInFormula(args, nameData, messages, cb) {
-		var params = {};
+	function parseAndReplaceInputsAndOutputsInFormula(formula, nameData, messages, cb) {
+		var _params = {};
 		var incName = 0;
 		
 		
@@ -1253,8 +1253,9 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 			});
 			if (arrData.length) {
 				if (objParams.address) {
-					if(objParams.address.value === 'this address')
+					if (objParams.address.value === 'this address')
 						objParams.address.value = address;
+					
 					arrData = arrData.filter(function (objValue) {
 						if (objParams.address.operator === '=') {
 							return objValue.address === objParams.address.value.toUpperCase();
@@ -1282,7 +1283,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				}
 				if (arrData.length) {
 					var name = nameData + '_x' + (incName++);
-					params[name] = arrData[0];
+					_params[name] = arrData[0];
 					return name;
 				} else {
 					return '';
@@ -1292,27 +1293,28 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 			}
 		}
 		var nameInMatch = nameData === 'inputs' ? 'input' : 'output';
-		var listData = args.match(new RegExp(nameInMatch + '\\[[a-zA-Z0-9=!:><\\-,_\\s]+\\]', 'g'));
+		var listData = formula.match(new RegExp(nameInMatch + '\\[[a-zA-Z0-9=!:><\\-,_\\s]+\\]', 'g'));
 		if (listData) {
-			listData.forEach(value => {
-				var params = value.match(new RegExp(nameInMatch + '\\[([a-zA-Z0-9=!:><\\-,_\\s]+)'))[1];
+			for (var i = 0; i < listData.length; i++) {
+				var params = listData[i].match(new RegExp(nameInMatch + '\\[([a-zA-Z0-9=!:><\\-,_\\s]+)'))[1];
 				var mParams = params.match(/[a-zA-Z_]+(|\s)(>=|<=|!=|=)(|\s)[a-zA-Z0-9_\-.:\s]+/g);
 				
 				var objParams = {};
-				mParams.forEach(value => {
-					var operator = value.match(/(|\s+)(>=|<=|!=|=|>|<)(|\s+)/)[2];
-					var split = value.split(/>=|<=|!=|=|>|</);
+				mParams.forEach(arg => {
+					var operator = arg.match(/(|\s+)(>=|<=|!=|=|>|<)(|\s+)/)[2];
+					var split = arg.split(/>=|<=|!=|=|>|</);
 					objParams[split[0]] = {value: split[1].trim(), operator: operator.trim()};
 				});
 				var name = findOutputAndReturnName(objParams);
 				if (name === '') {
 					return cb('not found');
 				}
-				args = args.replace(value, name);
-			});
-			cb(null, args, params);
+				formula = formula.replace(listData[i], name);
+			}
+
+			cb(null, formula, _params);
 		} else {
-			cb(null, args);
+			cb(null, formula, {});
 		}
 	}
 	
