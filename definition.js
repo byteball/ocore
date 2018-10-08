@@ -10,6 +10,7 @@ var ecdsaSig = require('./signature.js');
 var merkle = require('./merkle.js');
 var ValidationUtils = require("./validation_utils.js");
 var objectHash = require("./object_hash.js");
+var Parser = require('expr-eval-bignumber').Parser;
 
 
 var hasFieldsExcept = ValidationUtils.hasFieldsExcept;
@@ -283,8 +284,8 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 						return cb("each param must be string or number");
 				conn.query(
 					"SELECT payload FROM messages JOIN units USING(unit) \n\
-					WHERE unit=? AND app='definition_template' AND main_chain_index<=? AND +sequence='good' AND is_stable=1", 
-					[unit, objValidationState.last_ball_mci], 
+					WHERE unit=? AND app='definition_template' AND main_chain_index<=? AND +sequence='good' AND is_stable=1",
+					[unit, objValidationState.last_ball_mci],
 					function(rows){
 						if (rows.length !== 1)
 							return cb("template not found or too many");
@@ -536,7 +537,12 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 					bPrivate ? cb("asset must be public") : cb();
 				});
 				break;
-				
+			case 'formula':
+				validate_formula(args, complexity, function (err, _complexity) {
+					complexity = _complexity;
+					cb(err);
+				});
+				break;
 			default:
 				return cb("unknown op: "+op);
 		}
@@ -552,6 +558,77 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 			return handleResult("complexity exceeded");
 		handleResult();
 	});
+}
+
+function validate_formula(args, complexity, cb) {
+	complexity++;
+	var formula = args;
+	if (!isNonemptyString(formula))
+		return cb("no relation", complexity);
+	if (!formula.match(/\s*(>|<|==|!=|>=|<=)\s*/))
+		return cb("need logical(>|<|==|!=|>=|<=)", complexity);
+	if (formula.match(/data_feed\[\s*\]/g))
+		return cb('Incorrect data_feed', complexity);
+	if (formula.match(/input\[\s*\]/g))
+		return cb('Incorrect input', complexity);
+	if (formula.match(/output\[\s*\]/g))
+		return cb('Incorrect output', complexity);
+	
+	var m = formula.match(/data_feed\[[a-zA-Z0-9=!:><\-,_\s]+\]/g);
+	if (m) {
+		for (var i = 0; i < m.length; i++) {
+			if (!(/oracles\s*=/.test(m[i])) || !(/feed_name\s*=/.test(m[i]))) {
+				return cb('Incorrect data_feed:' + m[i], complexity);
+			}
+			var matchOracles = m[i].match(/oracles\s*=\s*([A-Z0-9]+)/);
+			if (matchOracles && matchOracles[1]) {
+				var oracles = matchOracles[1].split(':');
+				complexity += oracles.length;
+				var allAddressesValid = oracles.every(function (address) {
+					return isValidAddress(address);
+				});
+				if(!allAddressesValid) return cb('Incorrect address in data_feed', complexity)
+			} else {
+				return cb('Incorrect data_feed oracles: ' + m[i], complexity);
+			}
+		}
+	}
+	
+	m = formula.match(/input\[[a-zA-Z0-9=!:><\-,_\s]+\]/g);
+	if (m) {
+		for (var i = 0; i < m.length; i++) {
+			if (!(/address\s*=/.test(m[i])) && !(/asset\s*=/.test(m[i])) && !(/value\s*(>|<|==|!=|>=|<=)/.test(m[i]))) {
+				return cb('Incorrect input:' + m[i], complexity);
+			}
+			if (/address\s*=/.test(m[i])) {
+				var matchAddress = m[i].match(/address\s*=\s*([a-zA-Z0-9\s]+)/);
+				if (matchAddress && matchAddress[1]) {
+					if (!isValidAddress(matchAddress[1]) && matchAddress[1] !== 'this address' && matchAddress[1] !== 'other address')
+						return cb('Incorrect address in input', complexity);
+				} else {
+					return cb('Incorrect address in input', complexity);
+				}
+			}
+		}
+	}
+	m = formula.match(/output\[[a-zA-Z0-9=!:><\-,_\s]+\]/g);
+	if (m) {
+		for (var i = 0; i < m.length; i++) {
+			if (!(/address\s*=/.test(m[i])) && !(/asset\s*=/.test(m[i])) && !(/value\s*(>|<|==|!=|>=|<=)/.test(m[i]))) {
+				return cb('Incorrect output:' + m[i], complexity);
+			}
+			if (/address\s*=/.test(m[i])) {
+				var matchAddress = m[i].match(/address\s*=\s*([a-zA-Z0-9\s]+)/);
+				if (matchAddress && matchAddress[1]) {
+					if (!isValidAddress(matchAddress[1]) && matchAddress[1] !== 'this address' && matchAddress[1] !== 'other address')
+						return cb('Incorrect address in output', complexity);
+				} else {
+					return cb('Incorrect address in output', complexity);
+				}
+			}
+		}
+	}
+	return cb(null, complexity);
 }
 
 function evaluateAssetCondition(conn, asset, arrDefinition, objUnit, objValidationState, cb){
@@ -706,8 +783,8 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				var params = args[1];
 				conn.query(
 					"SELECT payload FROM messages JOIN units USING(unit) \n\
-					WHERE unit=? AND app='definition_template' AND main_chain_index<=? AND +sequence='good' AND is_stable=1", 
-					[unit, objValidationState.last_ball_mci], 
+					WHERE unit=? AND app='definition_template' AND main_chain_index<=? AND +sequence='good' AND is_stable=1",
+					[unit, objValidationState.last_ball_mci],
 					function(rows){
 						if (rows.length !== 1)
 							throw Error("not 1 template");
@@ -1014,10 +1091,247 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 					return (address === changed_address);
 				}));
 				break;
-				
+			
+			case 'formula':
+				var formula = args;
+				parseAndReplaceDataFeedsInFormula(formula, objValidationState, function (err, formula2) {
+					if (err) {
+						console.error('formula error', new Error(err));
+						return cb2(false);
+					}
+					augmentMessagesOrIgnore(formula, function (isAugment) {
+						var messages = isAugment ? objValidationState.arrAugmentedMessages : objUnit.messages;
+						parseAndReplaceInputsAndOutputsInFormula(formula2, 'inputs', messages, function (err2, formula3, params) {
+							if (err2) {
+								console.error('formula error', new Error(err2));
+								return cb2(false);
+							}
+							parseAndReplaceInputsAndOutputsInFormula(formula3, 'outputs', messages,
+								function (err3, formula4, params2) {
+									if (err3) {
+										console.error('formula error', new Error(err3));
+										return cb2(false);
+									}
+									
+									if (!params) params = {};
+									if (!params2) params2 = {};
+									var parser = new Parser();
+									try {
+										var expr = parser.parse(formula4);
+										cb2(expr.evaluate(Object.assign({}, params, params2)));
+									} catch (e) {
+										cb(false);
+									}
+								});
+						});
+					});
+				});
+				break;
 		}
 	}
 	
+	function augmentMessagesOrIgnore(formula, cb){
+		if (objValidationState.arrAugmentedMessages || /(input|output)/.test(formula)){
+			augmentMessagesAndContinue(function () {
+				cb(true);
+			});
+		}else{
+			cb(false);
+		}
+	}
+	
+	function parseAndReplaceDataFeedsInFormula(args, objValidationState, cb) {
+		var listDataFeed = args.match(/data_feed\[[a-zA-Z0-9=!:><\-,_\s]+\]/g);
+		if (listDataFeed) {
+			async.eachSeries(listDataFeed, function (value, cb2) {
+				var params = value.match(/data_feed\[([a-zA-Z0-9=!:><\-,_\s]+)\]/)[1];
+				var mParams = params.match(/[a-zA-Z_]+\s*(>=|<=|!=|=|>|<)\s*[a-zA-Z0-9_\-.:]+/g);
+				
+				var objParams = {};
+				mParams.forEach(value => {
+					var operator = value.match(/\s*(>=|<=|!=|=|>|<)\s*/)[1];
+					var split = value.split(/>=|<=|!=|=|>|</);
+					objParams[split[0]] = {value: split[1].trim(), operator: operator.trim()};
+				});
+				if (objParams.oracles && objParams.feed_name) {
+					getDataFeed(objParams, objValidationState, function (err, feedValue) {
+						if (err) return cb2(err);
+						args = args.replace(value, feedValue);
+						return cb2();
+					});
+				} else {
+					return cb2('incorrect data_feed');
+				}
+			}, function (err) {
+				return cb(err, args);
+			});
+		} else {
+			cb(null, args);
+		}
+	}
+	
+	function getDataFeed(params, objValidationState, cb) {
+		var arrAddresses = params.oracles.value.split(':');
+		var feed_name = params.feed_name.value;
+		var value = null;
+		var relation = '';
+		var mci_relation = '<=';
+		var min_mci = 0;
+		if (params.feed_value) {
+			value = params.feed_value.value;
+			relation = params.feed_value.operator;
+		}
+		if (params.mci) {
+			min_mci = params.mci.value;
+			mci_relation = params.mci.operator;
+		}
+		var ifseveral = 'ORDER BY main_chain_index DESC';
+		var abortIfSeveral = false;
+		if (params.ifseveral) {
+			if (params.ifseveral.value === 'first') {
+				ifseveral = 'ORDER BY main_chain_index ASC';
+			} else if (params.ifseveral.value === 'abort') {
+				ifseveral = '';
+				abortIfSeveral = true;
+			}
+		}
+		var ifnone = (params.ifnone && params.ifnone.value !== 'abort') ? params.ifnone.value : false;
+		
+		
+		var value_condition = '';
+		var queryParams = [arrAddresses, feed_name];
+		if (value) {
+			var isNumber = /^-?\d+\.?\d*$/.test(value);
+			if (isNumber) {
+				var bForceNumericComparison = (['>', '>=', '<', '<='].indexOf(relation) >= 0);
+				var plus_0 = bForceNumericComparison ? '+0' : '';
+				value_condition = '(value' + plus_0 + relation + value + ' OR int_value' + relation + value + ')';
+			}
+			else {
+				value_condition = 'value' + relation + '?';
+				queryParams.push(value);
+			}
+		}
+		queryParams.push(objValidationState.last_ball_mci, min_mci);
+		conn.query(
+			"SELECT value, int_value FROM data_feeds CROSS JOIN units USING(unit) CROSS JOIN unit_authors USING(unit) \n\
+					WHERE address IN(?) AND feed_name=? " + (value_condition ? ' AND ' + value_condition : '') + " \n\
+						AND main_chain_index<=? AND main_chain_index" + mci_relation + "? AND sequence='good' AND is_stable=1 " + ifseveral + " LIMIT " + (abortIfSeveral ? "2" : "1"),
+			queryParams,
+			function (rows) {
+				console.log("formula " + feed_name + " " + rows.length);
+				if (rows.length) {
+					if (abortIfSeveral && rows.length > 1) {
+						cb('abort');
+					} else {
+						if (rows[0].value === null) {
+							cb(null, rows[0].int_value);
+						} else {
+							cb(null, "'" + rows[0].value + "'");
+						}
+					}
+				} else {
+					if (ifnone === false) {
+						cb('not found');
+					} else {
+						cb(null, ifnone);
+					}
+				}
+			}
+		);
+	}
+	
+	function parseAndReplaceInputsAndOutputsInFormula(formula, nameData, messages, cb) {
+		var _params = {};
+		var incName = 0;
+		
+		
+		function findOutputAndReturnName(objParams) {
+			var asset = objParams.asset ? objParams.asset.value : null;
+			if (asset === 'base') asset = null;
+			var arrData = [];
+			messages.forEach(function (value) {
+				if (!asset && !value.payload.asset) {
+					arrData = arrData.concat(value.payload[nameData]);
+				} else if (asset === value.payload.asset) {
+					arrData = arrData.concat(value.payload[nameData]);
+				}
+			});
+			if (arrData.length) {
+				if (objParams.address) {
+					if (objParams.address.value === 'this address')
+						objParams.address.value = address;
+					
+					if (objParams.address.value === 'other_address') {
+						objParams.address.value = address;
+						if (objParams.address.operator === '=') {
+							objParams.address.operator = '!=';
+						} else {
+							objParams.address.operator = '=';
+						}
+					}
+					
+					arrData = arrData.filter(function (objValue) {
+						if (objParams.address.operator === '=') {
+							return objValue.address === objParams.address.value;
+						} else {
+							return objValue.address !== objParams.address.value;
+						}
+					});
+				}
+				if (objParams.amount) {
+					arrData = arrData.filter(function (objValue) {
+						if (objParams.amount.operator === '=') {
+							return objValue === objParams.amount.value;
+						} else if (objParams.amount.operator === '>') {
+							return objValue > objParams.amount.value;
+						} else if (objParams.amount.operator === '<') {
+							return objValue < objParams.amount.value;
+						} else if (objParams.amount.operator === '<=') {
+							return objValue <= objParams.amount.value;
+						} else if (objParams.amount.operator === '>=') {
+							return objValue >= objParams.amount.value;
+						} else {
+							return objValue !== objParams.amount.value;
+						}
+					});
+				}
+				if (arrData.length) {
+					var name = nameData + '_x' + (incName++);
+					_params[name] = arrData[0];
+					return name;
+				} else {
+					return '';
+				}
+			} else {
+				return '';
+			}
+		}
+		var nameInMatch = nameData === 'inputs' ? 'input' : 'output';
+		var listData = formula.match(new RegExp(nameInMatch + '\\[[a-zA-Z0-9=!:><\\-,_\\s]+\\]', 'g'));
+		if (listData) {
+			for (var i = 0; i < listData.length; i++) {
+				var params = listData[i].match(new RegExp(nameInMatch + '\\[([a-zA-Z0-9=!:><\\-,_\\s]+)'))[1];
+				var mParams = params.match(/[a-zA-Z_]+\s*(>=|<=|!=|=)\s*[a-zA-Z0-9_\-.:\s]+/g);
+				
+				var objParams = {};
+				mParams.forEach(arg => {
+					var operator = arg.match(/\s*(>=|<=|!=|=|>|<)\s*/)[1];
+					var split = arg.split(/>=|<=|!=|=|>|</);
+					objParams[split[0]] = {value: split[1].trim(), operator: operator.trim()};
+				});
+				var name = findOutputAndReturnName(objParams);
+				if (name === '') {
+					return cb('not found');
+				}
+				formula = formula.replace(listData[i], name);
+			}
+			
+			cb(null, formula, _params);
+		} else {
+			cb(null, formula, {});
+		}
+	}
 	
 	function augmentMessagesAndContinue(next){
 		if (!objValidationState.arrAugmentedMessages)
@@ -1155,7 +1469,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 						else if (!input.type){
 							input.type = "transfer";
 							conn.query(
-								"SELECT amount, address FROM outputs WHERE unit=? AND message_index=? AND output_index=?", 
+								"SELECT amount, address FROM outputs WHERE unit=? AND message_index=? AND output_index=?",
 								[input.unit, input.message_index, input.output_index],
 								function(rows){
 									if (rows.length === 1){
@@ -1189,7 +1503,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 	// we need to re-validate the definition every time, not just the first time we see it, because:
 	// 1. in case a referenced address was redefined, complexity might change and exceed the limit
 	// 2. redefinition of a referenced address might introduce loops that will drive complexity to infinity
-	// 3. if an inner address was redefined by keychange but the definition for the new keyset not supplied before last ball, the address 
+	// 3. if an inner address was redefined by keychange but the definition for the new keyset not supplied before last ball, the address
 	// becomes temporarily unusable
 	validateDefinition(conn, arrDefinition, objUnit, objValidationState, arrAuthentifierPaths, bAssetCondition, function(err){
 		if (err)
@@ -1208,8 +1522,8 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 function replaceInTemplate(arrTemplate, params){
 	function replaceInVar(x){
 		switch (typeof x){
-			case 'number': 
-			case 'boolean': 
+			case 'number':
+			case 'boolean':
 				return x;
 			case 'string':
 				// searching for pattern "$name"
