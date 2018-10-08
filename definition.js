@@ -566,9 +566,8 @@ function validate_formula(args, complexity, cb) {
 	var formula = args;
 	if (!isNonemptyString(formula))
 		return cb("no relation", complexity);
-	if (!formula.match(/(|\s)(>|<|==|!=|>=|<=)(|\s)/))
+	if (!formula.match(/\s*(>|<|==|!=|>=|<=)\s*/))
 		return cb("need logical(>|<|==|!=|>=|<=)", complexity);
-	
 	if (formula.match(/data_feed\[(|\s+)\]/g))
 		return cb('Incorrect data_feed', complexity);
 	if (formula.match(/input\[(|\s+)\]/g))
@@ -579,17 +578,17 @@ function validate_formula(args, complexity, cb) {
 	var m = formula.match(/data_feed\[[a-zA-Z0-9=!:><\-,_\s]+\]/g);
 	if (m) {
 		for (var i = 0; i < m.length; i++) {
-			if (!(/oracles(|\s)=/i.test(m[i])) || !(/feed_name(|\s)=/i.test(m[i]))) {
+			if (!(/oracles\s*=/.test(m[i])) || !(/feed_name\s*=/.test(m[i]))) {
 				return cb('Incorrect data_feed:' + m[i], complexity);
 			}
-			var matchOracles = m[i].match(/oracles(\s|)=(\s|)([A-Z0-9]+)/);
-			if (matchOracles && matchOracles[3]) {
-				var oracles = matchOracles[3].split(':');
-				complexity += oracles.length - 1;
-				for (var i2 = 0; i2 < oracles.length; i2++) {
-					if (!isValidAddress(oracles[i2]))
-						return cb('Incorrect address in data_feed', complexity)
-				}
+			var matchOracles = m[i].match(/oracles\s*=\s*([A-Z0-9]+)/);
+			if (matchOracles && matchOracles[1]) {
+				var oracles = matchOracles[1].split(':');
+				complexity += oracles.length;
+				var allAddressesValid = oracles.every(function (address) {
+					return isValidAddress(address);
+				});
+				if(!allAddressesValid) return cb('Incorrect address in data_feed', complexity)
 			} else {
 				return cb('Incorrect data_feed oracles: ' + m[i], complexity);
 			}
@@ -599,13 +598,13 @@ function validate_formula(args, complexity, cb) {
 	m = formula.match(/input\[[a-zA-Z0-9=!:><\-,_\s]+\]/g);
 	if (m) {
 		for (var i = 0; i < m.length; i++) {
-			if (!(/address(|\s)=/i.test(m[i])) && !(/asset(|\s)=/i.test(m[i])) && !(/value(|\s)(>|<|==|!=|>=|<=)/i.test(m[i]))) {
+			if (!(/address\s*=/.test(m[i])) && !(/asset\s*=/.test(m[i])) && !(/value\s*(>|<|==|!=|>=|<=)/.test(m[i]))) {
 				return cb('Incorrect input:' + m[i], complexity);
 			}
-			if (/address(|\s)=/i.test(m[i])) {
-				var matchAddress = m[i].match(/address(|\s)=(|\s)([a-zA-Z0-9\s]+)/);
-				if (matchAddress && matchAddress[3]) {
-					if (!isValidAddress(matchAddress[3]) && matchAddress[3] !== 'this address')
+			if (/address\s*=/.test(m[i])) {
+				var matchAddress = m[i].match(/address\s*=\s*([A-Z0-9\s]+)/);
+				if (matchAddress && matchAddress[1]) {
+					if (!isValidAddress(matchAddress[1]) && matchAddress[3] !== 'this address')
 						return cb('Incorrect address in input', complexity);
 				} else {
 					return cb('Incorrect address in input', complexity);
@@ -616,13 +615,13 @@ function validate_formula(args, complexity, cb) {
 	m = formula.match(/output\[[a-zA-Z0-9=!:><\-,_\s]+\]/g);
 	if (m) {
 		for (var i = 0; i < m.length; i++) {
-			if (!(/address(|\s)=/i.test(m[i])) && !(/asset(|\s)=/i.test(m[i])) && !(/value(|\s)(>|<|==|!=|>=|<=)/i.test(m[i]))) {
+			if (!(/address\s*=/.test(m[i])) && !(/asset\s*=/.test(m[i])) && !(/value\s*(>|<|==|!=|>=|<=)/.test(m[i]))) {
 				return cb('Incorrect output:' + m[i], complexity);
 			}
-			if (/address(|\s)=/i.test(m[i])) {
-				var matchAddress = m[i].match(/address(|\s)=(|\s)([a-zA-Z0-9\s]+)/);
-				if (matchAddress && matchAddress[3]) {
-					if (!isValidAddress(matchAddress[3]) && matchAddress[3] !== 'this address')
+			if (/address\s*=/.test(m[i])) {
+				var matchAddress = m[i].match(/address\s*=\s*([a-zA-Z0-9\s]+)/);
+				if (matchAddress && matchAddress[1]) {
+					if (!isValidAddress(matchAddress[1]) && matchAddress[3] !== 'this address')
 						return cb('Incorrect address in output', complexity);
 				} else {
 					return cb('Incorrect address in output', complexity);
@@ -1096,13 +1095,13 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 
 			case 'formula':
 				var formula = args;
-				parseAndReplaceDataFeedInFormula(formula, objValidationState, function (err, formula2) {
+				parseAndReplaceDataFeedsInFormula(formula, objValidationState, function (err, formula2) {
 					if (err) {
 						console.error('formula error', new Error(err));
 						return cb2(false);
 					}
-					augmentMessagesAndContinue(function () {
-						var messages = objValidationState.arrAugmentedMessages;
+					augmentMessagesOrIgnore(formula, function (isAugment) {
+						var messages = isAugment ? objValidationState.arrAugmentedMessages : objUnit.messages;
 						parseAndReplaceInputsAndOutputsInFormula(formula2, 'inputs', messages, function (err2, formula3, params) {
 							if (err2) {
 								console.error('formula error', new Error(err2));
@@ -1131,28 +1130,38 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				break;
 		}
 	}
+	
+	function augmentMessagesOrIgnore(formula, cb){
+		if (objValidationState.arrAugmentedMessages || /(input|output)/.test(formula)){
+			augmentMessagesAndContinue(function () {
+				cb(true);
+			});
+		}else{
+			cb(false);
+		}
+	}
 
-	function parseAndReplaceDataFeedInFormula(args, objValidationState, cb) {
+	function parseAndReplaceDataFeedsInFormula(args, objValidationState, cb) {
 		var listDataFeed = args.match(/data_feed\[[a-zA-Z0-9=!:><\-,_\s]+\]/g);
 		if (listDataFeed) {
-			async.eachSeries(listDataFeed, function (value, cbr) {
+			async.eachSeries(listDataFeed, function (value, cb2) {
 				var params = value.match(/data_feed\[([a-zA-Z0-9=!:><\-,_\s]+)\]/)[1];
-				var mParams = params.match(/[a-zA-Z_]+(|\s)(>=|<=|!=|=|>|<)(|\s)[a-zA-Z0-9_\-.:]+/g);
+				var mParams = params.match(/[a-zA-Z_]+\s*(>=|<=|!=|=|>|<)\s*[a-zA-Z0-9_\-.:]+/g);
 				
 				var objParams = {};
 				mParams.forEach(value => {
-					var operator = value.match(/(|\s)(>=|<=|!=|=|>|<)(|\s)/)[1];
+					var operator = value.match(/\s*(>=|<=|!=|=|>|<)\s*/)[1];
 					var split = value.split(/>=|<=|!=|=|>|</);
 					objParams[split[0]] = {value: split[1].trim(), operator: operator.trim()};
 				});
 				if (objParams.oracles && objParams.feed_name) {
 					getDataFeed(objParams, objValidationState, function (err, feedValue) {
-						if (err) return cbr(err);
+						if (err) return cb2(err);
 						args = args.replace(value, feedValue);
-						return cbr();
+						return cb2();
 					});
 				} else {
-					return cbr('incorrect data_feed');
+					return cb2('incorrect data_feed');
 				}
 			}, function (err) {
 				return cb(err, args);
@@ -1163,9 +1172,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 	}
 
 	function getDataFeed(params, objValidationState, cb) {
-		var arrAddresses = params.oracles.value.split(':').map(function (val) {
-			return val.toUpperCase();
-		});
+		var arrAddresses = params.oracles.value.split(':');
 		var feed_name = params.feed_name.value;
 		var value = null;
 		var relation = '';
@@ -1182,9 +1189,9 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 		var ifseveral = 'ORDER BY main_chain_index DESC';
 		var abortIfSeveral = false;
 		if (params.ifseveral) {
-			if (params.ifseveral.value.toLowerCase() === 'first') {
+			if (params.ifseveral.value === 'first') {
 				ifseveral = 'ORDER BY main_chain_index ASC';
-			} else if (params.ifseveral.value.toLowerCase() === 'abort') {
+			} else if (params.ifseveral.value === 'abort') {
 				ifseveral = '';
 				abortIfSeveral = true;
 			}
@@ -1258,9 +1265,9 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 					
 					arrData = arrData.filter(function (objValue) {
 						if (objParams.address.operator === '=') {
-							return objValue.address === objParams.address.value.toUpperCase();
+							return objValue.address === objParams.address.value;
 						} else {
-							return objValue.address !== objParams.address.value.toUpperCase();
+							return objValue.address !== objParams.address.value;
 						}
 					});
 				}
@@ -1297,7 +1304,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 		if (listData) {
 			for (var i = 0; i < listData.length; i++) {
 				var params = listData[i].match(new RegExp(nameInMatch + '\\[([a-zA-Z0-9=!:><\\-,_\\s]+)'))[1];
-				var mParams = params.match(/[a-zA-Z_]+(|\s)(>=|<=|!=|=)(|\s)[a-zA-Z0-9_\-.:\s]+/g);
+				var mParams = params.match(/[a-zA-Z_]+\s*(>=|<=|!=|=)\s*[a-zA-Z0-9_\-.:\s]+/g);
 				
 				var objParams = {};
 				mParams.forEach(arg => {

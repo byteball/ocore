@@ -37,8 +37,9 @@ test('formula - ok 1', t => {
 });
 
 test('formula - ok 2', t => {
-	definition.formula_validation("data_feed[oracles=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU, feed_name=Test] * input[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU] == 20 / output[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU]", 0, err => {
+	definition.formula_validation("data_feed[oracles=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU, feed_name=Test] * input[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU] == 20 / output[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU]", 0, (err, complexity) => {
 		t.is(err, null);
+		t.deepEqual(complexity, 2);
 	});
 });
 
@@ -54,6 +55,18 @@ test('formula - ok 4', t => {
 	});
 });
 
+test('formula - ok 5', t => {
+	definition.validateAuthentifiers(db, null, 'base', ['formula', "10 == 10"], null, objValidationState, null, function (err, res) {
+		t.is(res, true);
+	});
+});
+
+test('formula - ok 6', t => {
+	definition.validateAuthentifiers(db, null, 'base', ['formula', "0.1 + 0.2 == 0.3"], null, objValidationState, null, function (err, res) {
+		t.is(res, true);
+	});
+});
+
 test('formula - error 0', t => {
 	definition.validateAuthentifiers(db, null, 'base', ['formula', "input[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].amount == output[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].amount"], null, objValidationState, null, function (err, res) {
 		t.is(res, false);
@@ -62,36 +75,41 @@ test('formula - error 0', t => {
 
 test('formula - error 1', t => {
 	definition.formula_validation("data_feed[oracles=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU] * input[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU] == 20 / output[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU]", 0,
-		err => {
+		(err, complexity) => {
 			t.not(err.match(/Incorrect data_feed/), null);
+			t.deepEqual(complexity, 1);
 		});
 });
 
 test('formula - error 2', t => {
 	definition.formula_validation("data_feed[] * input[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU] == 20 / output[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU]", 0,
-		err => {
+		(err, complexity) => {
 			t.not(err.match(/Incorrect data_feed/), null);
+			t.deepEqual(complexity, 1);
 		});
 });
 
 test('formula - error 3', t => {
 	definition.formula_validation("data_feed[oracles=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU, feed_name = test] * input[address=TEST] == 20 / output[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU]", 0,
-		err => {
+		(err, complexity) => {
 			t.not(err.match(/Incorrect address in input/), null);
+			t.deepEqual(complexity, 2);
 		});
 });
 
 test('formula - error 4', t => {
 	definition.formula_validation("data_feed[oracles=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU, feed_name = test] == 20 / output[]", 0,
-		err => {
+		(err, complexity) => {
 			t.not(err.match(/Incorrect output/), null);
+			t.deepEqual(complexity, 1);
 		});
 });
 
 test('formula - error 5', t => {
 	definition.formula_validation("data_feed[oracles=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU, feed_name = test] == 20 / input[]", 0,
-		err => {
+		(err, complexity) => {
 			t.not(err.match(/Incorrect input/), null);
+			t.deepEqual(complexity, 1);
 		});
 });
 
