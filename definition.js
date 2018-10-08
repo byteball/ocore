@@ -602,9 +602,9 @@ function validate_formula(args, complexity, cb) {
 				return cb('Incorrect input:' + m[i], complexity);
 			}
 			if (/address\s*=/.test(m[i])) {
-				var matchAddress = m[i].match(/address\s*=\s*([A-Z0-9\s]+)/);
+				var matchAddress = m[i].match(/address\s*=\s*([a-zA-Z0-9\s]+)/);
 				if (matchAddress && matchAddress[1]) {
-					if (!isValidAddress(matchAddress[1]) && matchAddress[3] !== 'this address')
+					if (!isValidAddress(matchAddress[1]) && matchAddress[1] !== 'this address')
 						return cb('Incorrect address in input', complexity);
 				} else {
 					return cb('Incorrect address in input', complexity);
@@ -621,7 +621,7 @@ function validate_formula(args, complexity, cb) {
 			if (/address\s*=/.test(m[i])) {
 				var matchAddress = m[i].match(/address\s*=\s*([a-zA-Z0-9\s]+)/);
 				if (matchAddress && matchAddress[1]) {
-					if (!isValidAddress(matchAddress[1]) && matchAddress[3] !== 'this address')
+					if (!isValidAddress(matchAddress[1]) && matchAddress[1] !== 'this address')
 						return cb('Incorrect address in output', complexity);
 				} else {
 					return cb('Incorrect address in output', complexity);
