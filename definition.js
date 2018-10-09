@@ -565,7 +565,7 @@ function validate_formula(args, complexity, cb) {
 	var formula = args;
 	if (!isNonemptyString(formula))
 		return cb("no relation", complexity);
-	if (!formula.match(/\s*(>|<|==|!=|>=|<=)\s*/))
+	if (!formula.match(/(>|<|==|!=|>=|<=)/))
 		return cb("need logical(>|<|==|!=|>=|<=)", complexity);
 	if (formula.match(/data_feed\[\s*\]/g))
 		return cb('Incorrect data_feed', complexity);
@@ -584,12 +584,17 @@ function validate_formula(args, complexity, cb) {
 			if (matchOracles && matchOracles[1]) {
 				var oracles = matchOracles[1].split(':');
 				complexity += oracles.length;
-				var allAddressesValid = oracles.every(function (address) {
-					return isValidAddress(address);
-				});
+				var allAddressesValid = oracles.every(isValidAddress);
 				if(!allAddressesValid) return cb('Incorrect address in data_feed', complexity)
 			} else {
 				return cb('Incorrect data_feed oracles: ' + m[i], complexity);
+			}
+			if (/mci\s*=/.test(m[i])){
+				var matchMci = m[i].match(/mci\s*=([\-0-9]+)/);
+				if (matchMci && matchMci[1]){
+					if(!isPositiveInteger(parseInt(matchMci[1])))
+						return cb('MCI must be positive int', complexity);
+				}
 			}
 		}
 	}
@@ -597,7 +602,7 @@ function validate_formula(args, complexity, cb) {
 	m = formula.match(/input\[[a-zA-Z0-9=!:><\-,_\s]+\]/g);
 	if (m) {
 		for (var i = 0; i < m.length; i++) {
-			if (!(/address\s*=/.test(m[i])) && !(/asset\s*=/.test(m[i])) && !(/value\s*(>|<|==|!=|>=|<=)/.test(m[i]))) {
+			if (!(/address\s*=/.test(m[i])) && !(/asset\s*=/.test(m[i])) && !(/amount\s*(>|<|==|!=|>=|<=)/.test(m[i]))) {
 				return cb('Incorrect input:' + m[i], complexity);
 			}
 			if (/address\s*=/.test(m[i])) {
@@ -614,7 +619,7 @@ function validate_formula(args, complexity, cb) {
 	m = formula.match(/output\[[a-zA-Z0-9=!:><\-,_\s]+\]/g);
 	if (m) {
 		for (var i = 0; i < m.length; i++) {
-			if (!(/address\s*=/.test(m[i])) && !(/asset\s*=/.test(m[i])) && !(/value\s*(>|<|==|!=|>=|<=)/.test(m[i]))) {
+			if (!(/address\s*=/.test(m[i])) && !(/asset\s*=/.test(m[i])) && !(/amount\s*(>|<|==|!=|>=|<=)/.test(m[i]))) {
 				return cb('Incorrect output:' + m[i], complexity);
 			}
 			if (/address\s*=/.test(m[i])) {
@@ -1099,8 +1104,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 						console.error('formula error', new Error(err));
 						return cb2(false);
 					}
-					augmentMessagesOrIgnore(formula, function (isAugment) {
-						var messages = isAugment ? objValidationState.arrAugmentedMessages : objUnit.messages;
+					augmentMessagesOrIgnore(formula, function (messages) {
 						parseAndReplaceInputsAndOutputsInFormula(formula2, 'inputs', messages, function (err2, formula3, params) {
 							if (err2) {
 								console.error('formula error', new Error(err2));
@@ -1133,40 +1137,40 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 	function augmentMessagesOrIgnore(formula, cb){
 		if (objValidationState.arrAugmentedMessages || /(input|output)/.test(formula)){
 			augmentMessagesAndContinue(function () {
-				cb(true);
+				cb(objValidationState.arrAugmentedMessages);
 			});
 		}else{
-			cb(false);
+			cb(objUnit.messages);
 		}
 	}
 	
-	function parseAndReplaceDataFeedsInFormula(args, objValidationState, cb) {
-		var listDataFeed = args.match(/data_feed\[[a-zA-Z0-9=!:><\-,_\s]+\]/g);
+	function parseAndReplaceDataFeedsInFormula(formula, objValidationState, cb) {
+		var listDataFeed = formula.match(/data_feed\[[a-zA-Z0-9=!:><\-,_\s]+\]/g);
 		if (listDataFeed) {
-			async.eachSeries(listDataFeed, function (value, cb2) {
-				var params = value.match(/data_feed\[([a-zA-Z0-9=!:><\-,_\s]+)\]/)[1];
+			async.eachSeries(listDataFeed, function (dataFeed, cb2) {
+				var params = dataFeed.match(/data_feed\[([a-zA-Z0-9=!:><\-,_\s]+)\]/)[1];
 				var mParams = params.match(/[a-zA-Z_]+\s*(>=|<=|!=|=|>|<)\s*[a-zA-Z0-9_\-.:]+/g);
 				
 				var objParams = {};
-				mParams.forEach(value => {
-					var operator = value.match(/\s*(>=|<=|!=|=|>|<)\s*/)[1];
-					var split = value.split(/>=|<=|!=|=|>|</);
+				mParams.forEach(param => {
+					var operator = param.match(/\s*(>=|<=|!=|=|>|<)\s*/)[1];
+					var split = param.split(/>=|<=|!=|=|>|</);
 					objParams[split[0]] = {value: split[1].trim(), operator: operator.trim()};
 				});
 				if (objParams.oracles && objParams.feed_name) {
 					getDataFeed(objParams, objValidationState, function (err, feedValue) {
 						if (err) return cb2(err);
-						args = args.replace(value, feedValue);
+						formula = formula.replace(dataFeed, feedValue);
 						return cb2();
 					});
 				} else {
 					return cb2('incorrect data_feed');
 				}
 			}, function (err) {
-				return cb(err, args);
+				return cb(err, formula);
 			});
 		} else {
-			cb(null, args);
+			cb(null, formula);
 		}
 	}
 	
@@ -1250,11 +1254,11 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 			var asset = objParams.asset ? objParams.asset.value : null;
 			if (asset === 'base') asset = null;
 			var arrData = [];
-			messages.forEach(function (value) {
-				if (!asset && !value.payload.asset) {
-					arrData = arrData.concat(value.payload[nameData]);
-				} else if (asset === value.payload.asset) {
-					arrData = arrData.concat(value.payload[nameData]);
+			messages.forEach(function (message) {
+				if (!asset && !message.payload.asset) {
+					arrData = arrData.concat(message.payload[nameData]);
+				} else if (asset === message.payload.asset) {
+					arrData = arrData.concat(message.payload[nameData]);
 				}
 			});
 			if (arrData.length) {
@@ -1617,4 +1621,4 @@ exports.evaluateAssetCondition = evaluateAssetCondition;
 exports.validateAuthentifiers = validateAuthentifiers;
 exports.hasReferences = hasReferences;
 exports.replaceInTemplate = replaceInTemplate;
-
+exports.validate_formula = validate_formula;
