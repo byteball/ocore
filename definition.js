@@ -563,8 +563,11 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 function validate_formula(args, complexity, cb) {
 	complexity++;
 	var formula = args;
+	var checkResult;
 	if (!isNonemptyString(formula))
 		return cb("no relation", complexity);
+	if (formula.match(/(inputs|outputs)_x[0-9]+/))
+		return cb("Incorrect formula", complexity);
 	if (!formula.match(/(>|<|==|!=|>=|<=)/))
 		return cb("need logical(>|<|==|!=|>=|<=)", complexity);
 	if (formula.match(/data_feed\[\s*\]/g))
@@ -574,64 +577,100 @@ function validate_formula(args, complexity, cb) {
 	if (formula.match(/output\[\s*\]/g))
 		return cb('Incorrect output', complexity);
 	
-	var m = formula.match(/data_feed\[[a-zA-Z0-9=!:><\-,_\s]+\]/g);
+	var m = formula.match(/data_feed\[[\w=!:><\-,\s]+\]/g);
 	if (m) {
-		for (var i = 0; i < m.length; i++) {
-			if (!(/oracles\s*=/.test(m[i])) || !(/feed_name\s*=/.test(m[i]))) {
-				return cb('Incorrect data_feed:' + m[i], complexity);
+		var oraclesExists = false;
+		var feedNameExists = false;
+		checkResult = m.every(function (data_feed) {
+			var mDataFeed = data_feed.match(/data_feed\[([\w.,=\s\-]+)\]/);
+			if(mDataFeed && mDataFeed[1]){
+				var params = mDataFeed[1].split(',');
+				return params.every(function (param) {
+					if (!param.match(/(!=|>=|<=|<|>|=)/)) return false;
+					var splitParam = param.split(/!=|>=|<=|<|>|=/);
+					switch (splitParam[0].trim()) {
+						case 'oracles':
+							oraclesExists = true;
+							var addresses = splitParam[1].trim().split(':');
+							complexity += addresses.length;
+							return addresses.every(isValidAddress);
+						
+						case 'feed_name':
+							feedNameExists = true;
+							return true;
+						case 'mci':
+							return isPositiveInteger(parseInt(splitParam[1].trim()));
+						
+						case 'feed_value':
+						case 'ifseveral':
+						case 'ifnone':
+							return true;
+						default:
+							return false;
+					}
+				});
+			}else{
+				return false;
 			}
-			var matchOracles = m[i].match(/oracles\s*=\s*([A-Z0-9]+)/);
-			if (matchOracles && matchOracles[1]) {
-				var oracles = matchOracles[1].split(':');
-				complexity += oracles.length;
-				var allAddressesValid = oracles.every(isValidAddress);
-				if(!allAddressesValid) return cb('Incorrect address in data_feed', complexity)
-			} else {
-				return cb('Incorrect data_feed oracles: ' + m[i], complexity);
-			}
-			if (/mci\s*(>=|<=|!=|=|>|<)/.test(m[i])){
-				var matchMci = m[i].match(/mci\s*=([\-0-9]+)/);
-				if (matchMci && matchMci[1]){
-					if(!isPositiveInteger(parseInt(matchMci[1])))
-						return cb('MCI must be positive int', complexity);
-				}
-			}
-		}
+		});
+		if(!checkResult || !feedNameExists || !oraclesExists) return cb('Incorrect data_feed', complexity);
 	}
 	
-	m = formula.match(/input\[[a-zA-Z0-9=!:><\-,_\s]+\]/g);
+	m = formula.match(/input\[[\w=!:><\-,\s]+\]/g);
 	if (m) {
-		for (var i = 0; i < m.length; i++) {
-			if (!(/address\s*=/.test(m[i])) && !(/asset\s*=/.test(m[i])) && !(/amount\s*(>|<|==|!=|>=|<=)/.test(m[i]))) {
-				return cb('Incorrect input:' + m[i], complexity);
+		checkResult = m.every(function (input) {
+			var mInput = input.match(/input\[([\w.,=\s\-]+)\]/);
+			if(mInput && mInput[1]){
+				var params = mInput[1].split(',');
+				return params.every(function (param) {
+					if (!param.match(/(!=|>=|<=|<|>|=)/)) return false;
+					var splitParam = param.split(/!=|>=|<=|<|>|=/);
+					switch (splitParam[0].trim()) {
+						case 'address':
+							return isValidAddress(splitParam[1].trim());
+						
+						case 'amount':
+							return isPositiveInteger(parseInt(splitParam[1].trim()));
+						
+						case 'asset':
+							return true;
+						default:
+							return false;
+					}
+				});
+			}else{
+				return false;
 			}
-			if (/address\s*=/.test(m[i])) {
-				var matchAddress = m[i].match(/address\s*=\s*([a-zA-Z0-9\s]+)/);
-				if (matchAddress && matchAddress[1]) {
-					if (!isValidAddress(matchAddress[1]) && matchAddress[1] !== 'this address' && matchAddress[1] !== 'other address')
-						return cb('Incorrect address in input', complexity);
-				} else {
-					return cb('Incorrect address in input', complexity);
-				}
-			}
-		}
+		});
+		if (!checkResult) return cb('Incorrect input', complexity);
 	}
-	m = formula.match(/output\[[a-zA-Z0-9=!:><\-,_\s]+\]/g);
+	m = formula.match(/output\[[\w=!:><\-,\s]+\]/g);
 	if (m) {
-		for (var i = 0; i < m.length; i++) {
-			if (!(/address\s*=/.test(m[i])) && !(/asset\s*=/.test(m[i])) && !(/amount\s*(>|<|==|!=|>=|<=)/.test(m[i]))) {
-				return cb('Incorrect output:' + m[i], complexity);
+		checkResult = m.every(function (output) {
+			var mOutput = output.match(/output\[([\w.,=\s\-]+)\]/);
+			if(mOutput && mOutput[1]){
+				var params = mOutput[1].split(',');
+				return params.every(function (param) {
+					if (!param.match(/(!=|>=|<=|<|>|=)/)) return false;
+					var splitParam = param.split(/!=|>=|<=|<|>|=/);
+					switch (splitParam[0].trim()) {
+						case 'address':
+							return isValidAddress(splitParam[1].trim());
+						
+						case 'amount':
+							return isPositiveInteger(parseInt(splitParam[1].trim()));
+						
+						case 'asset':
+							return true;
+						default:
+							return false;
+					}
+				});
+			}else{
+				return false;
 			}
-			if (/address\s*=/.test(m[i])) {
-				var matchAddress = m[i].match(/address\s*=\s*([a-zA-Z0-9\s]+)/);
-				if (matchAddress && matchAddress[1]) {
-					if (!isValidAddress(matchAddress[1]) && matchAddress[1] !== 'this address' && matchAddress[1] !== 'other address')
-						return cb('Incorrect address in output', complexity);
-				} else {
-					return cb('Incorrect address in output', complexity);
-				}
-			}
-		}
+		});
+		if(!checkResult) return cb('Incorrect output', complexity);
 	}
 	return cb(null, complexity);
 }
@@ -1155,7 +1194,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				mParams.forEach(param => {
 					var operator = param.match(/\s*(>=|<=|!=|=|>|<)\s*/)[1];
 					var split = param.split(/>=|<=|!=|=|>|</);
-					objParams[split[0]] = {value: split[1].trim(), operator: operator.trim()};
+					objParams[split[0].trim()] = {value: split[1].trim(), operator: operator.trim()};
 				});
 				if (objParams.oracles && objParams.feed_name) {
 					getDataFeed(objParams, objValidationState, function (err, feedValue) {
@@ -1323,7 +1362,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				mParams.forEach(arg => {
 					var operator = arg.match(/\s*(>=|<=|!=|=|>|<)\s*/)[1];
 					var split = arg.split(/>=|<=|!=|=|>|</);
-					objParams[split[0]] = {value: split[1].trim(), operator: operator.trim()};
+					objParams[split[0].trim()] = {value: split[1].trim(), operator: operator.trim()};
 				});
 				var name = findOutputAndInputAndReturnName(objParams);
 				if (name === '') {
