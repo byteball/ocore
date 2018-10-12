@@ -210,9 +210,9 @@ test('formula - correct operator in asset in input - ok - 1', t => {
 	});
 });
 
-test('formula - incorrect operator in asset in input - error', t => {
+test('formula - != operator in asset in input - ok', t => {
 	definition.validate_formula("input[asset!=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU] == 20", 0, (err, complexity) => {
-		t.not(err.match(/Incorrect input/, null));
+		t.is(err, null);
 		t.deepEqual(complexity, 1);
 	});
 });
@@ -266,9 +266,9 @@ test('formula - correct operator in asset in output - ok - 1', t => {
 	});
 });
 
-test('formula - incorrect operator in asset in output - error', t => {
+test('formula - != operator in asset in output - ok', t => {
 	definition.validate_formula("output[asset!=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU] == 20", 0, (err, complexity) => {
-		t.not(err.match(/Incorrect output/), null);
+		t.is(err, null);
 		t.deepEqual(complexity, 1);
 	});
 });

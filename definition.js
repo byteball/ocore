@@ -564,6 +564,7 @@ function validate_formula(args, complexity, cb) {
 	complexity++;
 	var formula = args;
 	var checkResult;
+	var variableExists;
 	if (!isNonemptyString(formula))
 		return cb("no relation", complexity);
 	if (formula.match(/(inputs|outputs)_x[0-9]+/))
@@ -579,12 +580,12 @@ function validate_formula(args, complexity, cb) {
 	
 	var m = formula.match(/data_feed\[[\w=!:><\-,\s]+\]/g);
 	if (m) {
-		var variableExists = [];
 		var dataFeedExists = {};
 		checkResult = m.every(function (data_feed) {
 			if(dataFeedExists[data_feed]) {
 				return true;
 			}
+			variableExists = [];
 			var mDataFeed = data_feed.match(/data_feed\[([\w=!:><\-,\s]+)\]/);
 			if(mDataFeed && mDataFeed[1]){
 				var params = mDataFeed[1].split(',');
@@ -595,39 +596,31 @@ function validate_formula(args, complexity, cb) {
 					var operator = splitParam[1].trim();
 					var value = splitParam[2].trim();
 					dataFeedExists[data_feed] = true;
+					if (variableExists[name]) return false;
+					if (!(/^[a-zA-Z0-9_\s\-.]+$/.test(value)) || splitParam.length > 3 || value === '') return false;
+					variableExists[name] = true;
 					switch (name) {
 						case 'oracles':
 							if (operator !== '=') return false;
-							if (variableExists['oracles']) return false;
-							variableExists['oracles'] = true;
 							var addresses = value.split(':');
 							if (addresses.length === 0) return false;
 							complexity += addresses.length;
-							return addresses.every(isValidAddress);
+							return addresses.every(function (address) {
+								return isValidAddress(address) || address === 'this address';
+							});
 						
 						case 'feed_name':
-							if (variableExists['feed_name']) return false;
-							if (!(/^[a-zA-Z0-9_\-.]+$/.test(value)) || splitParam.length > 3 || value === '') return false;
-							if (operator !== '=') return false;
-							variableExists['feed_name'] = true;
-							return true;
+							return operator === '=';
+						
 						case 'mci':
-							if (variableExists['mci']) return false;
-							variableExists['mci'] = true;
-							return parseInt(value.trim()) >= 0;
+							return /^\d+$/.test(value) && isNonnegativeInteger(parseInt(value));
 						
 						case 'feed_value':
-							if (variableExists['feed_value']) return false;
-							if (!(/^[a-zA-Z0-9_\-.]+$/.test(value)) || splitParam.length > 3 || value === '') return false;
-							variableExists['feed_value'] = true;
 							return true;
 						case 'ifseveral':
 						case 'ifnone':
-							if (variableExists[name.trim()]) return false;
-							if (operator !== '=') return false;
-							if (!(/^[a-zA-Z0-9_\-.]+$/.test(value)) || splitParam.length > 3 || value === '') return false;
-							variableExists[value] = true;
-							return true;
+							return operator === '=';
+						
 						default:
 							return false;
 					}
@@ -642,6 +635,7 @@ function validate_formula(args, complexity, cb) {
 	m = formula.match(/input\[[\w=!:><\-,\s]+\]/g);
 	if (m) {
 		checkResult = m.every(function (input) {
+			variableExists = [];
 			var mInput = input.match(/input\[([\w=!:><\-,\s]+)\]/);
 			if(mInput && mInput[1]){
 				var params = mInput[1].split(',');
@@ -651,6 +645,8 @@ function validate_formula(args, complexity, cb) {
 					var name = splitParam[0].trim();
 					var operator = splitParam[1].trim();
 					var value = splitParam[2].trim();
+					if (variableExists[name]) return false;
+					if (!(/^[a-zA-Z0-9_\-\s.]+$/.test(value)) || splitParam.length > 3 || value === '') return false;
 					switch (name) {
 						case 'address':
 							if(!(/^(!=|=)$/.test(operator))) return false;
@@ -660,7 +656,7 @@ function validate_formula(args, complexity, cb) {
 							return isPositiveInteger(parseInt(value));
 						
 						case 'asset':
-							if(operator !== '=') return false;
+							if(!(/^(!=|=)$/.test(operator))) return false;
 							return /[a-zA-Z0-9=]+/.test(value);
 						
 						default:
@@ -676,6 +672,7 @@ function validate_formula(args, complexity, cb) {
 	m = formula.match(/output\[[\w=!:><\-,\s]+\]/g);
 	if (m) {
 		checkResult = m.every(function (output) {
+			variableExists = [];
 			var mOutput = output.match(/output\[([\w=!:><\-,\s]+)\]/);
 			if(mOutput && mOutput[1]){
 				var params = mOutput[1].split(',');
@@ -685,6 +682,8 @@ function validate_formula(args, complexity, cb) {
 					var name = splitParam[0].trim();
 					var operator = splitParam[1].trim();
 					var value = splitParam[2].trim();
+					if (variableExists[name]) return false;
+					if (!(/^[a-zA-Z0-9_\s\-.]+$/.test(value)) || splitParam.length > 3 || value === '') return false;
 					switch (name) {
 						case 'address':
 							if(!(/^(!=|=)$/.test(operator))) return false;
@@ -694,7 +693,7 @@ function validate_formula(args, complexity, cb) {
 							return isPositiveInteger(parseInt(value));
 						
 						case 'asset':
-							if(operator !== '=') return false;
+							if(!(/^(!=|=)$/.test(operator))) return false;
 							return /[a-zA-Z0-9=]+/.test(value);
 						
 						default:
@@ -1273,7 +1272,15 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				abortIfSeveral = true;
 			}
 		}
-		var ifnone = (params.ifnone && params.ifnone.value !== 'abort') ? params.ifnone.value : false;
+		var ifnone =  false;
+		if(params.ifnone && params.ifnone.value !== 'abort') {
+			var isNumber2 = /^-?\d+\.?\d*$/.test(params.ifnone.value);
+			if (isNumber2) {
+				ifnone = params.ifnone.value;
+			} else {
+				ifnone = "'" + params.ifnone.value + "'";
+			}
+		}
 		
 		
 		var value_condition = '';
@@ -1312,7 +1319,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 					if (ifnone === false) {
 						cb('not found');
 					} else {
-						cb(null, "'" + ifnone + "'");
+						cb(null, ifnone);
 					}
 				}
 			}
@@ -1326,13 +1333,16 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 		
 		function findOutputAndInputAndReturnName(objParams) {
 			var asset = objParams.asset ? objParams.asset.value : null;
+			var operator = objParams.asset ? objParams.asset.operator : null;
 			if (asset === 'base') asset = null;
 			var arrData = [];
 			messages.forEach(function (message) {
 				if(message.payload) {
 					if (!asset && !message.payload.asset) {
 						arrData = arrData.concat(message.payload[type]);
-					} else if (asset === message.payload.asset) {
+					} else if (operator === '=' && asset === message.payload.asset && message.payload.asset) {
+						arrData = arrData.concat(message.payload[type]);
+					} else if (operator === '!=' && asset !== message.payload.asset && message.payload.asset) {
 						arrData = arrData.concat(message.payload[type]);
 					}
 				}
