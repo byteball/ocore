@@ -44,6 +44,13 @@ test('formula - validate formula (data_feed, input, output) - ok', t => {
 	});
 });
 
+test('formula - validate formula (data_feed, input, output) 2 oracles - ok', t => {
+	definition.validate_formula("data_feed[oracles=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:this address, feed_name=Test, mci=1] * input[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].amount == 20 / output[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].amount", 0, (err, complexity) => {
+		t.is(err, null);
+		t.deepEqual(complexity, 3);
+	});
+});
+
 test('formula - validate calculation 1 - ok', t => {
 	definition.validateAuthentifiers(db, null, 'base', ['formula', "input[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].amount - 912 == output[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].amount"], null, objValidationState, null, function (err, res) {
 		t.is(res, true);

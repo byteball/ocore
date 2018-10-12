@@ -597,7 +597,7 @@ function validate_formula(args, complexity, cb) {
 					var value = splitParam[2].trim();
 					dataFeedExists[data_feed] = true;
 					if (variableExists[name]) return false;
-					if (!(/^[a-zA-Z0-9_\s\-.]+$/.test(value)) || splitParam.length > 3 || value === '') return false;
+					if (!(/^[a-zA-Z0-9:_\s\-.]+$/.test(value)) || splitParam.length > 3 || value === '') return false;
 					variableExists[name] = true;
 					switch (name) {
 						case 'oracles':
