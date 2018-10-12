@@ -25,8 +25,9 @@ var objValidationState = {
 };
 
 test('formula - validate formula - ok', t => {
-	definition.validate_formula("10 + 10 == 20", 0, err => {
+	definition.validate_formula("10 + 10 == 20", 0, (err, complexity) => {
 		t.is(err, null);
+		t.deepEqual(complexity, 1);
 	});
 });
 
@@ -129,10 +130,194 @@ test('formula - without parameters in input - error', t => {
 });
 
 
-test('formula - inputs_x0 - error', t => {
-	definition.validate_formula("inputs_x0.amount * outputs_x1.amount == 10", 0,
+test('formula - input_x0 - error', t => {
+	definition.validate_formula("input_x0.amount * outputs_x1.amount == 10", 0,
 		(err, complexity) => {
 			t.not(err.match(/Incorrect formula/), null);
 			t.deepEqual(complexity, 1);
 		});
+});
+
+test('formula - invalid operator in feed_name - error', t => {
+	definition.validate_formula("data_feed[feed_name>test, oracles=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU] == 20", 0, (err, complexity) => {
+		t.not(err.match(/Incorrect data_feed/, null));
+		t.deepEqual(complexity, 1);
+	});
+});
+
+test('formula - =name=name in feed_name - error', t => {
+	definition.validate_formula("data_feed[feed_name=name=name, oracles=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU] == 20", 0, (err, complexity) => {
+		t.not(err.match(/Incorrect data_feed/, null));
+		t.deepEqual(complexity, 1);
+	});
+});
+
+test('formula - empty value in feed_name - error', t => {
+	definition.validate_formula("data_feed[feed_name=, oracles=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU] == 20", 0, (err, complexity) => {
+		t.not(err.match(/Incorrect data_feed/, null));
+		t.deepEqual(complexity, 1);
+	});
+});
+
+test('formula - incorrect operator in oracles - error', t => {
+	definition.validate_formula("data_feed[feed_name=, oracles>MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU] == 20", 0, (err, complexity) => {
+		t.not(err.match(/Incorrect data_feed/, null));
+		t.deepEqual(complexity, 1);
+	});
+});
+
+test('formula - incorrect param in data_feed - error', t => {
+	definition.validate_formula("data_feed[feed_name=test, oracles=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU, hi=kyky] == 20", 0,
+		(err, complexity) => {
+			t.not(err.match(/Incorrect data_feed/, null));
+			t.deepEqual(complexity, 2);
+		});
+});
+
+test('formula - identical data_feed - ok', t => {
+	definition.validate_formula("data_feed[feed_name=test, oracles=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU] == data_feed[feed_name=test, oracles=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU]", 0,
+		(err, complexity) => {
+			t.is(err, null);
+			t.deepEqual(complexity, 2);
+		});
+});
+test('formula - identical data_feed - error', t => {
+	definition.validate_formula("data_feed[feed_name=test, oracles>MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU] == data_feed[feed_name=test, oracles>MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU]", 0,
+		(err, complexity) => {
+			t.not(err.match(/Incorrect data_feed/), null);
+			t.deepEqual(complexity, 1);
+		});
+});
+
+test('formula - correct operator in address in input - ok', t => {
+	definition.validate_formula("input[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU] == 20", 0, (err, complexity) => {
+		t.is(err, null);
+		t.deepEqual(complexity, 1);
+	});
+});
+
+test('formula - correct operator in address in input - ok - 2', t => {
+	definition.validate_formula("input[address!=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU] == 20", 0, (err, complexity) => {
+		t.is(err, null);
+		t.deepEqual(complexity, 1);
+	});
+});
+
+test('formula - correct operator in asset in input - ok - 1', t => {
+	definition.validate_formula("input[asset=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU] == 20", 0, (err, complexity) => {
+		t.is(err, null);
+		t.deepEqual(complexity, 1);
+	});
+});
+
+test('formula - incorrect operator in asset in input - error', t => {
+	definition.validate_formula("input[asset!=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU] == 20", 0, (err, complexity) => {
+		t.not(err.match(/Incorrect input/, null));
+		t.deepEqual(complexity, 1);
+	});
+});
+
+test('formula - incorrect operator in address in input - error', t => {
+	definition.validate_formula("input[address>MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU] == 20", 0, (err, complexity) => {
+		t.not(err.match(/Incorrect input/, null));
+		t.deepEqual(complexity, 1);
+	});
+});
+
+test('formula - incorrect operator in address in input - error - 2', t => {
+	definition.validate_formula("input[address<=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU] == 20", 0, (err, complexity) => {
+		t.not(err.match(/Incorrect input/, null));
+		t.deepEqual(complexity, 1);
+	});
+});
+
+test('formula - incorrect operator in address in input - error - 3', t => {
+	definition.validate_formula("input[address>=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU] == 20", 0, (err, complexity) => {
+		t.not(err.match(/Incorrect input/, null));
+		t.deepEqual(complexity, 1);
+	});
+});
+
+test('formula - incorrect param in input - error', t => {
+	definition.validate_formula("input[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU, bb=bb] == 20", 0, (err, complexity) => {
+		t.not(err.match(/Incorrect input/, null));
+		t.deepEqual(complexity, 1);
+	});
+});
+
+test('formula - correct operator in address in output - ok', t => {
+	definition.validate_formula("output[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU] == 20", 0, (err, complexity) => {
+		t.is(err, null);
+		t.deepEqual(complexity, 1);
+	});
+});
+
+test('formula - correct operator in address in output - ok - 2', t => {
+	definition.validate_formula("output[address!=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU] == 20", 0, (err, complexity) => {
+		t.is(err, null);
+		t.deepEqual(complexity, 1);
+	});
+});
+
+test('formula - correct operator in asset in output - ok - 1', t => {
+	definition.validate_formula("output[asset=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU] == 20", 0, (err, complexity) => {
+		t.is(err, null);
+		t.deepEqual(complexity, 1);
+	});
+});
+
+test('formula - incorrect operator in asset in output - error', t => {
+	definition.validate_formula("output[asset!=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU] == 20", 0, (err, complexity) => {
+		t.not(err.match(/Incorrect output/), null);
+		t.deepEqual(complexity, 1);
+	});
+});
+
+test('formula - incorrect operator in address in output - error', t => {
+	definition.validate_formula("output[address>MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU] == 20", 0, (err, complexity) => {
+		t.not(err.match(/Incorrect output/), null);
+		t.deepEqual(complexity, 1);
+	});
+});
+
+test('formula - incorrect operator in address in output - error - 2', t => {
+	definition.validate_formula("output[address<=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU] == 20", 0, (err, complexity) => {
+		t.not(err.match(/Incorrect output/), null);
+		t.deepEqual(complexity, 1);
+	});
+});
+
+test('formula - incorrect operator in address in output - error - 3', t => {
+	definition.validate_formula("output[address>=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU] == 20", 0, (err, complexity) => {
+		t.not(err.match(/Incorrect output/), null);
+		t.deepEqual(complexity, 1);
+	});
+});
+
+test('formula - this address in input - ok', t => {
+	definition.validate_formula("input[address=this address] == 20", 0, (err, complexity) => {
+		t.is(err, null);
+		t.deepEqual(complexity, 1);
+	});
+});
+
+test('formula - other address in input - ok', t => {
+	definition.validate_formula("input[address=other address] == 20", 0, (err, complexity) => {
+		t.is(err, null);
+		t.deepEqual(complexity, 1);
+	});
+});
+
+test('formula - this address in output - ok', t => {
+	definition.validate_formula("output[address=this address] == 20", 0, (err, complexity) => {
+		t.is(err, null);
+		t.deepEqual(complexity, 1);
+	});
+});
+
+test('formula - other address in output - ok', t => {
+	definition.validate_formula("output[address=other address] == 20", 0, (err, complexity) => {
+		t.is(err, null);
+		t.deepEqual(complexity, 1);
+	});
 });
