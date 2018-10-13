@@ -1219,7 +1219,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				if (objParams.oracles && objParams.feed_name) {
 					getDataFeed(objParams, objValidationState, function (err, feedValue) {
 						if (err) return cb2(err);
-						formula = formula.replace(new RegExp(dataFeed, 'g'), feedValue);
+						formula = formula.split(dataFeed).join(feedValue);
 						dataFeedExists[dataFeed] = true;
 						return cb2();
 					});
