@@ -572,21 +572,21 @@ function validate_formula(args, complexity, cb) {
 		return cb("Incorrect formula", complexity);
 	if (!formula.match(/(>|<|==|!=|>=|<=)/))
 		return cb("need logical(>|<|==|!=|>=|<=)", complexity);
-	if (formula.match(/data_feed\[\s*\]/g))
+	if (formula.match(/data_feed\[ *\]/g))
 		return cb('Incorrect data_feed', complexity);
-	if (formula.match(/input\[\s*\]/g))
+	if (formula.match(/input\[ *\]/g))
 		return cb('Incorrect input', complexity);
-	if (formula.match(/output\[\s*\]/g))
+	if (formula.match(/output\[ *\]/g))
 		return cb('Incorrect output', complexity);
 	
-	var m = formula.match(/data_feed\[[\w=!:><\-,\s]+\]/g);
+	var m = formula.match(/data_feed\[[\w=!:><\-, ]+\]/g);
 	if (m) {
 		var dataFeedExists = {};
 		checkResult = m.every(function (data_feed) {
 			if (dataFeedExists[data_feed]) {
 				return true;
 			}
-			var mDataFeed = data_feed.match(/data_feed\[([\w=!:><\-,\s]+)\]/);
+			var mDataFeed = data_feed.match(/data_feed\[([\w=!:><\-, ]+)\]/);
 			if (mDataFeed && mDataFeed[1]) {
 				var params = mDataFeed[1].split(',');
 				variableExists = {};
@@ -635,10 +635,10 @@ function validate_formula(args, complexity, cb) {
 		if(!checkResult) return cb('Incorrect data_feed', complexity);
 	}
 	
-	m = formula.match(/input\[[\w=!:><\-,\s]+\](\.[a-z]+)*/g);
+	m = formula.match(/input\[[\w=!:><\-, ]+\](\.[a-z]+)*/g);
 	if (m) {
 		checkResult = m.every(function (input) {
-			var mInput = input.match(/input\[([\w=!:><\-,\s]+)\].(asset|amount|address)/);
+			var mInput = input.match(/input\[([\w=!:><\-, ]+)\].(asset|amount|address)/);
 			if (mInput && mInput[1]) {
 				var params = mInput[1].split(',');
 				return checkParamsInInputsOrOutputs(params);
@@ -648,10 +648,10 @@ function validate_formula(args, complexity, cb) {
 		});
 		if (!checkResult) return cb('Incorrect input', complexity);
 	}
-	m = formula.match(/output\[[\w=!:><\-,\s]+\](\.[a-z]+)*/g);
+	m = formula.match(/output\[[\w=!:><\-, ]+\](\.[a-z]+)*/g);
 	if (m) {
 		checkResult = m.every(function (output) {
-			var mOutput = output.match(/output\[([\w=!:><\-,\s]+)\].(asset|amount|address)/);
+			var mOutput = output.match(/output\[([\w=!:><\-, ]+)\].(asset|amount|address)/);
 			if (mOutput && mOutput[1]) {
 				var params = mOutput[1].split(',');
 				return checkParamsInInputsOrOutputs(params);
@@ -1201,17 +1201,17 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 	}
 	
 	function parseAndReplaceDataFeedsInFormula(formula, objValidationState, cb) {
-		var listDataFeed = formula.match(/data_feed\[[a-zA-Z0-9=!:><\-,_\s]+\]/g);
+		var listDataFeed = formula.match(/data_feed\[[a-zA-Z0-9=!:><\-,_ ]+\]/g);
 		if (listDataFeed) {
 			var dataFeedExists = {};
 			async.eachSeries(listDataFeed, function (dataFeed, cb2) {
 				if (dataFeedExists[dataFeed]) return cb2();
-				var params = dataFeed.match(/data_feed\[([a-zA-Z0-9=!:><\-,_\s]+)\]/)[1];
-				var mParams = params.match(/[a-zA-Z_]+\s*(>=|<=|!=|=|>|<)\s*[\w\-.:]+/g);
+				var params = dataFeed.match(/data_feed\[([a-zA-Z0-9=!:><\-,_ ]+)\]/)[1];
+				var mParams = params.match(/[a-zA-Z_]+ *(>=|<=|!=|=|>|<) *[\w\-.:]+/g);
 				
 				var objParams = {};
 				mParams.forEach(param => {
-					var operator = param.match(/\s*(>=|<=|!=|=|>|<)\s*/)[1];
+					var operator = param.match(/ *(>=|<=|!=|=|>|<) */)[1];
 					var split = param.split(/>=|<=|!=|=|>|</);
 					objParams[split[0].trim()] = {value: split[1].trim(), operator: operator.trim()};
 				});
@@ -1388,15 +1388,15 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 			}
 		}
 		var nameForMatch = type === 'inputs' ? 'input' : 'output';
-		var listData = formula.match(new RegExp(nameForMatch + '\\[[a-zA-Z0-9=!:><\\-,_\\s]+\\]', 'g'));
+		var listData = formula.match(new RegExp(nameForMatch + '\\[[a-zA-Z0-9=!:><\\-,_ ]+\\]', 'g'));
 		if (listData) {
 			for (var i = 0; i < listData.length; i++) {
-				var params = listData[i].match(new RegExp(nameForMatch + '\\[([a-zA-Z0-9=!:><\\-,_\\s]+)'))[1];
-				var mParams = params.match(/[a-zA-Z_]+\s*(>=|<=|!=|=|>|<)\s*[\w\-.:\s]+/g);
+				var params = listData[i].match(new RegExp(nameForMatch + '\\[([a-zA-Z0-9=!:><\\-,_ ]+)'))[1];
+				var mParams = params.match(/[a-zA-Z_]+ *(>=|<=|!=|=|>|<) *[\w\-.: ]+/g);
 				
 				var objParams = {};
 				mParams.forEach(arg => {
-					var operator = arg.match(/\s*(>=|<=|!=|=|>|<)\s*/)[1];
+					var operator = arg.match(/ *(>=|<=|!=|=|>|<) */)[1];
 					var split = arg.split(/>=|<=|!=|=|>|</);
 					objParams[split[0].trim()] = {value: split[1].trim(), operator: operator.trim()};
 				});
