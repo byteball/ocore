@@ -1351,28 +1351,28 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 						}
 					}
 					
-					puts = puts.filter(function (objValue) {
+					puts = puts.filter(function (put) {
 						if (objParams.address.operator === '=') {
-							return objValue.address === objParams.address.value;
+							return put.address === objParams.address.value;
 						} else {
-							return objValue.address !== objParams.address.value;
+							return put.address !== objParams.address.value;
 						}
 					});
 				}
 				if (objParams.amount) {
-					puts = puts.filter(function (objValue) {
+					puts = puts.filter(function (put) {
 						if (objParams.amount.operator === '=') {
-							return objValue === objParams.amount.value;
+							return put === objParams.amount.value;
 						} else if (objParams.amount.operator === '>') {
-							return objValue > objParams.amount.value;
+							return put > objParams.amount.value;
 						} else if (objParams.amount.operator === '<') {
-							return objValue < objParams.amount.value;
+							return put < objParams.amount.value;
 						} else if (objParams.amount.operator === '<=') {
-							return objValue <= objParams.amount.value;
+							return put <= objParams.amount.value;
 						} else if (objParams.amount.operator === '>=') {
-							return objValue >= objParams.amount.value;
+							return put >= objParams.amount.value;
 						} else {
-							return objValue !== objParams.amount.value;
+							return put !== objParams.amount.value;
 						}
 					});
 				}
