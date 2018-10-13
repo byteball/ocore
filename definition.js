@@ -637,7 +637,7 @@ function validate_formula(args, complexity, cb) {
 	m = formula.match(/input\[[\w=!:><\-, ]+\](\.[a-z]+)*/g);
 	if (m) {
 		checkResult = m.every(function (input) {
-			var mInput = input.match(/input\[([\w=!:><\-, ]+)\].(asset|amount|address)/);
+			var mInput = input.match(/input\[([\w=!:><\-, ]+)\]\.(asset|amount|address)/);
 			if (mInput && mInput[1]) {
 				var params = mInput[1].split(',');
 				return checkParamsInInputsOrOutputs(params);
@@ -650,7 +650,7 @@ function validate_formula(args, complexity, cb) {
 	m = formula.match(/output\[[\w=!:><\-, ]+\](\.[a-z]+)*/g);
 	if (m) {
 		checkResult = m.every(function (output) {
-			var mOutput = output.match(/output\[([\w=!:><\-, ]+)\].(asset|amount|address)/);
+			var mOutput = output.match(/output\[([\w=!:><\-, ]+)\]\.(asset|amount|address)/);
 			if (mOutput && mOutput[1]) {
 				var params = mOutput[1].split(',');
 				return checkParamsInInputsOrOutputs(params);
