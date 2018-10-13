@@ -567,7 +567,7 @@ function validate_formula(args, complexity, cb) {
 	var checkResult;
 	if (!isNonemptyString(formula))
 		return cb("no relation", complexity);
-	if (formula.match(/(inputs|outputs)_x[0-9]+/))
+	if (formula.match(/(inputs|outputs|datafeed)_x[0-9]+/))
 		return cb("Incorrect formula", complexity);
 	if (!formula.match(/(>|<|==|!=|>=|<=)/))
 		return cb("need logical(>|<|==|!=|>=|<=)", complexity);
@@ -1154,7 +1154,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 			
 			case 'formula':
 				var formula = args;
-				parseAndReplaceDataFeedsInFormula(formula, objValidationState, function (err, formula2) {
+				parseAndReplaceDataFeedsInFormula(formula, objValidationState, function (err, formula2, dataFeed_params) {
 					if (err) {
 						console.error('formula error', new Error(err));
 						return cb2(false);
@@ -1177,7 +1177,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 									var parser = new Parser();
 									try {
 										var expr = parser.parse(formula4);
-										cb2(expr.evaluate(Object.assign({}, input_params, output_params)));
+										cb2(expr.evaluate(Object.assign({}, input_params, output_params, dataFeed_params)));
 									} catch (e) {
 										cb(false);
 									}
@@ -1200,6 +1200,8 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 	}
 	
 	function parseAndReplaceDataFeedsInFormula(formula, objValidationState, cb) {
+		var _params = {};
+		var incName = 0;
 		var listDataFeed = formula.match(/data_feed\[[a-zA-Z0-9=!:><\-,_ ]+\]/g);
 		if (listDataFeed) {
 			var dataFeedExists = {};
@@ -1217,7 +1219,9 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				if (objParams.oracles && objParams.feed_name) {
 					getDataFeed(objParams, objValidationState, function (err, feedValue) {
 						if (err) return cb2(err);
-						formula = formula.split(dataFeed).join(feedValue);
+						var name = 'datafeed_x' + (incName++);
+						_params[name] = feedValue;
+						formula = formula.split(dataFeed).join(name);
 						dataFeedExists[dataFeed] = true;
 						return cb2();
 					});
@@ -1225,7 +1229,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 					return cb2('incorrect data_feed');
 				}
 			}, function (err) {
-				return cb(err, formula);
+				return cb(err, formula, _params);
 			});
 		} else {
 			cb(null, formula);
