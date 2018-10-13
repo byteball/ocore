@@ -1204,7 +1204,9 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 	function parseAndReplaceDataFeedsInFormula(formula, objValidationState, cb) {
 		var listDataFeed = formula.match(/data_feed\[[a-zA-Z0-9=!:><\-,_\s]+\]/g);
 		if (listDataFeed) {
+			var dataFeedExists = {};
 			async.eachSeries(listDataFeed, function (dataFeed, cb2) {
+				if (dataFeedExists[dataFeed]) return cb2();
 				var params = dataFeed.match(/data_feed\[([a-zA-Z0-9=!:><\-,_\s]+)\]/)[1];
 				var mParams = params.match(/[a-zA-Z_]+\s*(>=|<=|!=|=|>|<)\s*[\w\-.:]+/g);
 				
@@ -1217,7 +1219,8 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				if (objParams.oracles && objParams.feed_name) {
 					getDataFeed(objParams, objValidationState, function (err, feedValue) {
 						if (err) return cb2(err);
-						formula = formula.replace(dataFeed, feedValue);
+						formula = formula.replace(new RegExp(dataFeed, 'g'), feedValue);
+						dataFeedExists[dataFeed] = true;
 						return cb2();
 					});
 				} else {
