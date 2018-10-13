@@ -582,14 +582,14 @@ function validate_formula(args, complexity, cb) {
 	if (m) {
 		var dataFeedExists = {};
 		checkResult = m.every(function (data_feed) {
-			if(dataFeedExists[data_feed]) {
+			if (dataFeedExists[data_feed]) {
 				return true;
 			}
 			variableExists = {};
 			var mDataFeed = data_feed.match(/data_feed\[([\w=!:><\-,\s]+)\]/);
-			if(mDataFeed && mDataFeed[1]){
+			if (mDataFeed && mDataFeed[1]) {
 				var params = mDataFeed[1].split(',');
-				return params.every(function (param) {
+				var result = params.every(function (param) {
 					if (!param.match(/(!=|>=|<=|<|>|=)/)) return false;
 					var splitParam = param.split(/(!=|>=|<=|<|>|=)/);
 					var name = splitParam[0].trim();
@@ -625,11 +625,13 @@ function validate_formula(args, complexity, cb) {
 							return false;
 					}
 				});
-			}else{
+				if (!result || !variableExists['feed_name'] || !variableExists['oracles']) return false;
+				return true;
+			} else {
 				return false;
 			}
 		});
-		if(!checkResult || !variableExists['feed_name'] || !variableExists['oracles']) return cb('Incorrect data_feed', complexity);
+		if(!checkResult) return cb('Incorrect data_feed', complexity);
 	}
 	
 	m = formula.match(/input\[[\w=!:><\-,\s]+\]/g);
