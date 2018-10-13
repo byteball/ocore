@@ -1326,7 +1326,9 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				if(message.payload) {
 					if(!asset) {
 						puts = puts.concat(message.payload[type]);
-					} else if (asset === 'base' && !message.payload.asset) {
+					} else if (operator === '=' && asset === 'base' && !message.payload.asset) {
+						puts = puts.concat(message.payload[type]);
+					} else if (operator === '!=' && asset === 'base' && message.payload.asset) {
 						puts = puts.concat(message.payload[type]);
 					} else if (operator === '=' && asset === message.payload.asset && message.payload.asset) {
 						puts = puts.concat(message.payload[type]);
