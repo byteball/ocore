@@ -1321,8 +1321,8 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 			var operator = objParams.asset ? objParams.asset.operator : null;
 			var puts = [];
 			messages.forEach(function (message) {
-				if(message.payload) {
-					if(!asset) {
+				if (message.payload) {
+					if (!asset) {
 						puts = puts.concat(message.payload[type]);
 					} else if (operator === '=' && asset === 'base' && !message.payload.asset) {
 						puts = puts.concat(message.payload[type]);
@@ -1335,62 +1335,59 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 					}
 				}
 			});
-			if (puts.length) {
-				if (objParams.address) {
-					if (objParams.address.value === 'this address')
-						objParams.address.value = address;
-					
-					if (objParams.address.value === 'other address') {
-						objParams.address.value = address;
-						if (objParams.address.operator === '=') {
-							objParams.address.operator = '!=';
-						} else {
-							objParams.address.operator = '=';
-						}
+			if (puts.length === 0) return '';
+			if (objParams.address) {
+				if (objParams.address.value === 'this address')
+					objParams.address.value = address;
+				
+				if (objParams.address.value === 'other address') {
+					objParams.address.value = address;
+					if (objParams.address.operator === '=') {
+						objParams.address.operator = '!=';
+					} else {
+						objParams.address.operator = '=';
 					}
-					
-					puts = puts.filter(function (put) {
-						if (objParams.address.operator === '=') {
-							return put.address === objParams.address.value;
-						} else {
-							return put.address !== objParams.address.value;
-						}
-					});
 				}
-				if (objParams.amount) {
-					puts = puts.filter(function (put) {
-						if (objParams.amount.operator === '=') {
-							return put.amount === objParams.amount.value;
-						} else if (objParams.amount.operator === '>') {
-							return put.amount > objParams.amount.value;
-						} else if (objParams.amount.operator === '<') {
-							return put.amount < objParams.amount.value;
-						} else if (objParams.amount.operator === '<=') {
-							return put.amount <= objParams.amount.value;
-						} else if (objParams.amount.operator === '>=') {
-							return put.amount >= objParams.amount.value;
-						} else {
-							return put.amount !== objParams.amount.value;
-						}
-					});
-				}
-				if (puts.length) {
-					if(puts.length > 1) return '';
-					var name = type + '_x' + (incName++);
-					_params[name] = puts[0];
-					return name;
-				} else {
-					return '';
-				}
+				
+				puts = puts.filter(function (put) {
+					if (objParams.address.operator === '=') {
+						return put.address === objParams.address.value;
+					} else {
+						return put.address !== objParams.address.value;
+					}
+				});
+			}
+			if (objParams.amount) {
+				puts = puts.filter(function (put) {
+					if (objParams.amount.operator === '=') {
+						return put.amount === objParams.amount.value;
+					} else if (objParams.amount.operator === '>') {
+						return put.amount > objParams.amount.value;
+					} else if (objParams.amount.operator === '<') {
+						return put.amount < objParams.amount.value;
+					} else if (objParams.amount.operator === '<=') {
+						return put.amount <= objParams.amount.value;
+					} else if (objParams.amount.operator === '>=') {
+						return put.amount >= objParams.amount.value;
+					} else {
+						return put.amount !== objParams.amount.value;
+					}
+				});
+			}
+			if (puts.length) {
+				if (puts.length > 1) return '';
+				var name = type + '_x' + (incName++);
+				_params[name] = puts[0];
+				return name;
 			} else {
 				return '';
 			}
 		}
 		var nameForMatch = type === 'inputs' ? 'input' : 'output';
-		var listData = formula.match(new RegExp(nameForMatch + '\\[[a-zA-Z0-9=!:><\\-,_ ]+\\]', 'g'));
-		if (listData) {
-			for (var i = 0; i < listData.length; i++) {
-				var params = listData[i].match(new RegExp(nameForMatch + '\\[([a-zA-Z0-9=!:><\\-,_ ]+)'))[1];
+		var arrInputOrOutputExpressions = formula.match(new RegExp(nameForMatch + '\\[[a-zA-Z0-9=!:><\\-,_ ]+\\]', 'g'));
+		if (arrInputOrOutputExpressions) {
+			for (var i = 0; i < arrInputOrOutputExpressions.length; i++) {
+				var params = arrInputOrOutputExpressions[i].match(new RegExp(nameForMatch + '\\[([a-zA-Z0-9=!:><\\-,_ ]+)'))[1];
 				var mParams = params.match(/[a-zA-Z_]+ *(>=|<=|!=|=|>|<) *[\w\-.: ]+/g);
 				
 				var objParams = {};
@@ -1403,7 +1400,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				if (name === '') {
 					return cb('not found');
 				}
-				formula = formula.replace(listData[i], name);
+				formula = formula.replace(arrInputOrOutputExpressions[i], name);
 			}
 			
 			cb(null, formula, _params);
