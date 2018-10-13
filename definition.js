@@ -22,6 +22,7 @@ var isPositiveInteger = ValidationUtils.isPositiveInteger;
 var isNonemptyArray = ValidationUtils.isNonemptyArray;
 var isArrayOfLength = ValidationUtils.isArrayOfLength;
 var isValidAddress = ValidationUtils.isValidAddress;
+var isValidBase64 = ValidationUtils.isValidBase64;
 
 // validate definition of address or asset spending conditions
 function validateDefinition(conn, arrDefinition, objUnit, objValidationState, arrAuthentifierPaths, bAssetCondition, handleResult){
