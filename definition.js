@@ -1154,7 +1154,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 			
 			case 'formula':
 				var formula = args;
-				parseAndReplaceDataFeedsInFormula(formula, objValidationState, function (err, formula2, dataFeed_params) {
+				parseAndReplaceDataFeedsInFormula(formula, objValidationState, function (err, formula2, data_feed_params) {
 					if (err) {
 						console.error('formula error', new Error(err));
 						return cb2(false);
@@ -1177,7 +1177,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 									var parser = new Parser();
 									try {
 										var expr = parser.parse(formula4);
-										cb2(expr.evaluate(Object.assign({}, input_params, output_params, dataFeed_params)));
+										cb2(expr.evaluate(Object.assign({}, input_params, output_params, data_feed_params)));
 									} catch (e) {
 										cb(false);
 									}
@@ -1265,9 +1265,9 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 		if(params.ifnone && params.ifnone.value !== 'abort') {
 			var isNumber2 = /^-?\d+\.?\d*$/.test(params.ifnone.value);
 			if (isNumber2) {
-				ifnone = params.ifnone.value;
+				ifnone = parseFloat(params.ifnone.value);
 			} else {
-				ifnone = "'" + params.ifnone.value + "'";
+				ifnone = params.ifnone.value;
 			}
 		}
 		
@@ -1301,7 +1301,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 						if (rows[0].value === null) {
 							cb(null, rows[0].int_value);
 						} else {
-							cb(null, "'" + rows[0].value + "'");
+							cb(null, rows[0].value);
 						}
 					}
 				} else {
