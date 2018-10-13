@@ -211,14 +211,21 @@ test('formula - correct operator in address in input - ok - 2', t => {
 });
 
 test('formula - correct operator in asset in input - ok - 1', t => {
-	definition.validate_formula("input[asset=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU] == 20", 0, (err, complexity) => {
+	definition.validate_formula("input[asset=p+U9OB+JOCW5/7hXiRpVw65HwzFprNfj68PCy/7BR6A=] == 20", 0, (err, complexity) => {
 		t.is(err, null);
 		t.deepEqual(complexity, 1);
 	});
 });
 
+test('formula - incorrect value in asset in input - error - 1', t => {
+	definition.validate_formula("input[asset=test] == 20", 0, (err, complexity) => {
+		t.not(err.match(/Incorrect input/, null));
+		t.deepEqual(complexity, 1);
+	});
+});
+
 test('formula - != operator in asset in input - ok', t => {
-	definition.validate_formula("input[asset!=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU] == 20", 0, (err, complexity) => {
+	definition.validate_formula("input[asset!=p+U9OB+JOCW5/7hXiRpVw65HwzFprNfj68PCy/7BR6A=] == 20", 0, (err, complexity) => {
 		t.is(err, null);
 		t.deepEqual(complexity, 1);
 	});
@@ -267,14 +274,14 @@ test('formula - correct operator in address in output - ok - 2', t => {
 });
 
 test('formula - correct operator in asset in output - ok - 1', t => {
-	definition.validate_formula("output[asset=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU] == 20", 0, (err, complexity) => {
+	definition.validate_formula("output[asset=p+U9OB+JOCW5/7hXiRpVw65HwzFprNfj68PCy/7BR6A=] == 20", 0, (err, complexity) => {
 		t.is(err, null);
 		t.deepEqual(complexity, 1);
 	});
 });
 
 test('formula - != operator in asset in output - ok', t => {
-	definition.validate_formula("output[asset!=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU] == 20", 0, (err, complexity) => {
+	definition.validate_formula("output[asset!=p+U9OB+JOCW5/7hXiRpVw65HwzFprNfj68PCy/7BR6A=] == 20", 0, (err, complexity) => {
 		t.is(err, null);
 		t.deepEqual(complexity, 1);
 	});
