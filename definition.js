@@ -586,10 +586,10 @@ function validate_formula(args, complexity, cb) {
 			if (dataFeedExists[data_feed]) {
 				return true;
 			}
-			variableExists = {};
 			var mDataFeed = data_feed.match(/data_feed\[([\w=!:><\-,\s]+)\]/);
 			if (mDataFeed && mDataFeed[1]) {
 				var params = mDataFeed[1].split(',');
+				variableExists = {};
 				var result = params.every(function (param) {
 					if (!param.match(/(!=|>=|<=|<|>|=)/)) return false;
 					var splitParam = param.split(/(!=|>=|<=|<|>|=)/);
@@ -638,7 +638,6 @@ function validate_formula(args, complexity, cb) {
 	m = formula.match(/input\[[\w=!:><\-,\s]+\]/g);
 	if (m) {
 		checkResult = m.every(function (input) {
-			variableExists = {};
 			var mInput = input.match(/input\[([\w=!:><\-,\s]+)\]/);
 			if (mInput && mInput[1]) {
 				var params = mInput[1].split(',');
@@ -652,7 +651,6 @@ function validate_formula(args, complexity, cb) {
 	m = formula.match(/output\[[\w=!:><\-,\s]+\]/g);
 	if (m) {
 		checkResult = m.every(function (output) {
-			variableExists = {};
 			var mOutput = output.match(/output\[([\w=!:><\-,\s]+)\]/);
 			if (mOutput && mOutput[1]) {
 				var params = mOutput[1].split(',');
@@ -665,6 +663,7 @@ function validate_formula(args, complexity, cb) {
 	}
 	
 	function checkParamsInInputsOrOutputs(params) {
+		variableExists = {};
 		return params.every(function (param) {
 			if (!param.match(/(!=|>=|<=|<|>|=)/)) return false;
 			var splitParam = param.split(/(!=|>=|<=|<|>|=)/);
@@ -1362,17 +1361,17 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				if (objParams.amount) {
 					puts = puts.filter(function (put) {
 						if (objParams.amount.operator === '=') {
-							return put === objParams.amount.value;
+							return put.amount === objParams.amount.value;
 						} else if (objParams.amount.operator === '>') {
-							return put > objParams.amount.value;
+							return put.amount > objParams.amount.value;
 						} else if (objParams.amount.operator === '<') {
-							return put < objParams.amount.value;
+							return put.amount < objParams.amount.value;
 						} else if (objParams.amount.operator === '<=') {
-							return put <= objParams.amount.value;
+							return put.amount <= objParams.amount.value;
 						} else if (objParams.amount.operator === '>=') {
-							return put >= objParams.amount.value;
+							return put.amount >= objParams.amount.value;
 						} else {
-							return put !== objParams.amount.value;
+							return put.amount !== objParams.amount.value;
 						}
 					});
 				}
@@ -1393,7 +1392,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 		if (listData) {
 			for (var i = 0; i < listData.length; i++) {
 				var params = listData[i].match(new RegExp(nameInMatch + '\\[([a-zA-Z0-9=!:><\\-,_\\s]+)'))[1];
-				var mParams = params.match(/[a-zA-Z_]+\s*(>=|<=|!=|=)\s*[\w\-.:\s]+/g);
+				var mParams = params.match(/[a-zA-Z_]+\s*(>=|<=|!=|=|>|<)\s*[\w\-.:\s]+/g);
 				
 				var objParams = {};
 				mParams.forEach(arg => {
