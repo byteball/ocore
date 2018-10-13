@@ -565,7 +565,6 @@ function validate_formula(args, complexity, cb) {
 	complexity++;
 	var formula = args;
 	var checkResult;
-	var variableExists;
 	if (!isNonemptyString(formula))
 		return cb("no relation", complexity);
 	if (formula.match(/(inputs|outputs)_x[0-9]+/))
@@ -589,7 +588,7 @@ function validate_formula(args, complexity, cb) {
 			var mDataFeed = data_feed.match(/data_feed\[([\w=!:><\-, ]+)\]/);
 			if (mDataFeed && mDataFeed[1]) {
 				var params = mDataFeed[1].split(',');
-				variableExists = {};
+				var variableExists = {};
 				var result = params.every(function (param) {
 					if (!param.match(/(!=|>=|<=|<|>|=)/)) return false;
 					var splitParam = param.split(/(!=|>=|<=|<|>|=)/);
