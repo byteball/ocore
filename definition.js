@@ -635,10 +635,10 @@ function validate_formula(args, complexity, cb) {
 		if(!checkResult) return cb('Incorrect data_feed', complexity);
 	}
 	
-	m = formula.match(/input\[[\w=!:><\-,\s]+\]/g);
+	m = formula.match(/input\[[\w=!:><\-,\s]+\](\.[a-z]+)*/g);
 	if (m) {
 		checkResult = m.every(function (input) {
-			var mInput = input.match(/input\[([\w=!:><\-,\s]+)\]/);
+			var mInput = input.match(/input\[([\w=!:><\-,\s]+)\].(asset|amount|address)/);
 			if (mInput && mInput[1]) {
 				var params = mInput[1].split(',');
 				return checkParamsInInputsOrOutputs(params);
@@ -648,10 +648,10 @@ function validate_formula(args, complexity, cb) {
 		});
 		if (!checkResult) return cb('Incorrect input', complexity);
 	}
-	m = formula.match(/output\[[\w=!:><\-,\s]+\]/g);
+	m = formula.match(/output\[[\w=!:><\-,\s]+\](\.[a-z]+)*/g);
 	if (m) {
 		checkResult = m.every(function (output) {
-			var mOutput = output.match(/output\[([\w=!:><\-,\s]+)\]/);
+			var mOutput = output.match(/output\[([\w=!:><\-,\s]+)\].(asset|amount|address)/);
 			if (mOutput && mOutput[1]) {
 				var params = mOutput[1].split(',');
 				return checkParamsInInputsOrOutputs(params);
