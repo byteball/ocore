@@ -663,7 +663,7 @@ function validate_formula(args, complexity, cb) {
 	}
 	
 	function checkParamsInInputsOrOutputs(params) {
-		variableExists = {};
+		var variableExists = {};
 		return params.every(function (param) {
 			if (!param.match(/(!=|>=|<=|<|>|=)/)) return false;
 			var splitParam = param.split(/(!=|>=|<=|<|>|=)/);
@@ -1387,11 +1387,11 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				return '';
 			}
 		}
-		var nameInMatch = type === 'inputs' ? 'input' : 'output';
-		var listData = formula.match(new RegExp(nameInMatch + '\\[[a-zA-Z0-9=!:><\\-,_\\s]+\\]', 'g'));
+		var nameForMatch = type === 'inputs' ? 'input' : 'output';
+		var listData = formula.match(new RegExp(nameForMatch + '\\[[a-zA-Z0-9=!:><\\-,_\\s]+\\]', 'g'));
 		if (listData) {
 			for (var i = 0; i < listData.length; i++) {
-				var params = listData[i].match(new RegExp(nameInMatch + '\\[([a-zA-Z0-9=!:><\\-,_\\s]+)'))[1];
+				var params = listData[i].match(new RegExp(nameForMatch + '\\[([a-zA-Z0-9=!:><\\-,_\\s]+)'))[1];
 				var mParams = params.match(/[a-zA-Z_]+\s*(>=|<=|!=|=|>|<)\s*[\w\-.:\s]+/g);
 				
 				var objParams = {};
