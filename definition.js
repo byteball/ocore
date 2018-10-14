@@ -1175,6 +1175,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 									if (!input_params) input_params = {};
 									if (!output_params) output_params = {};
 									var parser = new Parser();
+									delete parser.functions.random;
 									try {
 										var expr = parser.parse(formula4);
 										cb2(expr.evaluate(Object.assign({}, input_params, output_params, data_feed_params)));

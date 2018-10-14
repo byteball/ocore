@@ -89,6 +89,36 @@ test('formula - validate calculation bignumber 1 - ok', t => {
 	});
 });
 
+test('formula - amount !=', t => {
+	definition.validateAuthentifiers(db, null, 'base', ['formula', "input[asset=base].amount != output[asset=base].amount"], null, objValidationState, null, function (err, res) {
+		t.is(res, true);
+	});
+});
+
+test('formula - asset - asset !=', t => {
+	definition.validateAuthentifiers(db, null, 'base', ['formula', "input[asset=base].asset != output[asset=base].asset"], null, objValidationState, null, function (err, res) {
+		t.is(res, false);
+	});
+});
+
+test('formula - address - amount !=', t => {
+	definition.validateAuthentifiers(db, null, 'base', ['formula', "input[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].asset != output[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].asset"], null, objValidationState, null, function (err, res) {
+		t.is(res, false);
+	});
+});
+
+test('formula - asset ==', t => {
+	definition.validateAuthentifiers(db, null, 'base', ['formula', "output[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].asset == input[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].asset"], null, objValidationState, null, function (err, res) {
+		t.is(res, true);
+	});
+});
+
+test('formula - address ==', t => {
+	definition.validateAuthentifiers(db, null, 'base', ['formula', "output[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].address == input[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].address"], null, objValidationState, null, function (err, res) {
+		t.is(res, true);
+	});
+});
+
 test('formula - validate calculation bignumber 2 - ok', t => {
 	definition.validateAuthentifiers(db, null, 'base', ['formula', "0.1 + 0.2 == 0.3"], null, objValidationState, null, function (err, res) {
 		t.is(res, true);
