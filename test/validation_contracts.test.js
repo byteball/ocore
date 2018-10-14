@@ -57,6 +57,26 @@ test('formula - validate calculation 1 - ok', t => {
 	});
 });
 
+test('formula - validate this address - ok', async (t) => {
+	var signature = require('../signature');
+	signature.verify = function () {
+		return true;
+	};
+	let result = await new Promise(resolve => {
+		definition.validateAuthentifiers(db, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', null,
+			['and',
+				[
+					['sig', {pubkey: 'AoKzoVEoN6CpH1Vfi6Vnn0PS9BBJ9Ld92Nh8RCeOAqQI'}],
+					['formula', "input[address=this address].amount == 20000"]
+				]
+			], null, objValidationState, {'r.0': 'AoKzoVEoN6CpH1Vfi6Vnn0PS9BBJ9Ld92Nh8RCeOAqQI'}, function (err, res) {
+				return resolve({err, res});
+			});
+	});
+	t.is(result.res, true);
+	t.is(result.err, null);
+});
+
 test('formula - validate calculation 2 - ok', t => {
 	definition.validateAuthentifiers(db, null, 'base', ['formula', "input[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].amount == 60000 /3 * 4 / 4"], null, objValidationState, null, function (err, res) {
 		t.is(res, true);
