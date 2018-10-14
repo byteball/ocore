@@ -144,6 +144,38 @@ test('formula - amount in input - ok', t => {
 	});
 });
 
+test('formula - amount in input - ok', t => {
+	definition.validateAuthentifiers(db, null, 'base', ['formula', "min(2,5,7) == 2"], null, objValidationState, null, function (err, res) {
+		t.is(res, true);
+	});
+});
+
+test('formula - amount in input - ok', t => {
+	definition.validateAuthentifiers(db, null, 'base', ['formula', "max(2,5,7) == 2"], null, objValidationState, null, function (err, res) {
+		t.is(res, false);
+	});
+});
+
+test('formula - amount in input - ok', t => {
+	definition.validateAuthentifiers(db, null, 'base', ['formula', "pow(2,9) == 512"], null, objValidationState, null, function (err, res) {
+		t.is(res, true);
+	});
+});
+
+test('formula - amount in input - ok', t => {
+	definition.validateAuthentifiers(db, null, 'base', ['formula', "round(2.9) == 2"], null, objValidationState, null, function (err, res) {
+		console.error('qq',err, res)
+		t.is(res, false);
+	});
+});
+
+test('formula - amount in input - ok', t => {
+	definition.validateAuthentifiers(db, null, 'base', ['formula', "round(2.9) == 3"], null, objValidationState, null, function (err, res) {
+		console.error('qq',err, res)
+		t.is(res, true);
+	});
+});
+
 test('formula - Incorrect data_feed(no parameter feed_name) - error', t => {
 	definition.validate_formula("data_feed[oracles=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU] * input[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].amount == 20 / output[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].amount", 0,
 		(err, complexity) => {
