@@ -618,6 +618,7 @@ function validate_formula(args, complexity, cb) {
 						case 'feed_value':
 							return true;
 						case 'ifseveral':
+							return value === 'first' || value === 'last' || value === 'abort';
 						case 'ifnone':
 							return operator === '=';
 						
