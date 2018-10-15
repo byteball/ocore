@@ -1171,7 +1171,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 										var expr = parser.parse(formula4);
 										cb2(expr.evaluate(Object.assign({}, input_params, output_params, data_feed_params)));
 									} catch (e) {
-										cb(false);
+										cb2(false);
 									}
 								});
 						});
@@ -1252,6 +1252,8 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				ifseveral = '';
 				abortIfSeveral = true;
 			}
+		} else {
+			params.ifseveral = {value: 'last'};
 		}
 		var ifnone =  false;
 		if(params.ifnone && params.ifnone.value !== 'abort') {
@@ -1285,15 +1287,23 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 						AND main_chain_index<=? AND main_chain_index" + mci_relation + "? AND sequence='good' AND is_stable=1 " + ifseveral + " LIMIT " + (abortIfSeveral ? "2" : "1"),
 			queryParams,
 			function (rows) {
-				console.log("formula " + feed_name + " " + rows.length);
 				if (rows.length) {
 					if (abortIfSeveral && rows.length > 1) {
 						cb('abort');
 					} else {
-						if (rows[0].value === null) {
-							cb(null, rows[0].int_value);
+						if (params.ifseveral && params.ifseveral.value === 'last') {
+							var number = rows.length - 1;
+							if (rows[number].value === null) {
+								cb(null, rows[number].int_value);
+							} else {
+								cb(null, rows[number].value);
+							}
 						} else {
-							cb(null, rows[0].value);
+							if (rows[0].value === null) {
+								cb(null, rows[0].int_value);
+							} else {
+								cb(null, rows[0].value);
+							}
 						}
 					}
 				} else {

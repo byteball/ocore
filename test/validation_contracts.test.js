@@ -454,3 +454,154 @@ test('formula - other address in output - ok', t => {
 		t.deepEqual(complexity, 1);
 	});
 });
+
+test('formula - random < 10', t => {
+	definition.validateAuthentifiers(db, null, 'base', ['formula', "random(1) < 10"], null, objValidationState, null, function (err, res) {
+		console.error('err', err, res);
+		t.is(res, false);
+	});
+});
+
+test('formula - random < -1', t => {
+	definition.validateAuthentifiers(db, null, 'base', ['formula', "random(1) > -1"], null, objValidationState, null, function (err, res) {
+		t.is(res, false);
+	});
+});
+
+test('formula - test', t => {
+	definition.validateAuthentifiers(db, null, 'base', ['formula', "test(1) == test(1)"], null, objValidationState, null, function (err, res) {
+		t.is(res, false);
+	});
+});
+
+test('formula - test', t => {
+	definition.validateAuthentifiers(db, null, 'base', ['formula', "test(1) == test(1)"], null, objValidationState, null, function (err, res) {
+		t.is(res, false);
+	});
+});
+
+test('formula - y == x', t => {
+	definition.validateAuthentifiers(db, null, 'base', ['formula', "y == x"], null, objValidationState, null, function (err, res) {
+		t.is(res, false);
+	});
+});
+
+test('formula - data_feed == 10', t => {
+	db.query = function (query, params, cb) {
+		let rows = [{value: null, int_value: 10}];
+		cb(rows);
+	};
+	definition.validateAuthentifiers(db, null, 'base',
+		['formula', "data_feed[oracles=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU, feed_name=test] == 10"], null, objValidationState, null,
+		function (err, res) {
+			t.is(res, true);
+		});
+});
+
+test('formula - if not ifnone and ifseveral', t => {
+	db.query = function (query, params, cb) {
+		let rows = [];
+		cb(rows);
+	};
+	definition.validateAuthentifiers(db, null, 'base',
+		['formula', "data_feed[oracles=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU, feed_name=test] == 10"], null, objValidationState, null,
+		function (err, res) {
+			t.is(res, false);
+		});
+});
+
+test('formula - data_feed == 10', t => {
+	db.query = function (query, params, cb) {
+		let rows = [{value: null, int_value: 10}];
+		cb(rows);
+	};
+	definition.validateAuthentifiers(db, null, 'base',
+		['formula', "data_feed[oracles=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU, feed_name=test, mci>1] == 10"], null, objValidationState, null,
+		function (err, res) {
+			t.is(res, true);
+		});
+});
+
+test('formula - if not ifnone and ifseveral', t => {
+	db.query = function (query, params, cb) {
+		let rows = [];
+		cb(rows);
+	};
+	definition.validateAuthentifiers(db, null, 'base',
+		['formula', "data_feed[oracles=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU, feed_name=test, mci>1] == 10"], null, objValidationState, null,
+		function (err, res) {
+			t.is(res, false);
+		});
+});
+
+test('formula - if not ifnone and ifseveral - 2 rows', t => {
+	db.query = function (query, params, cb) {
+		let rows = [{value: null, int_value: 9}, {value: null, int_value: 12}];
+		cb(rows);
+	};
+	definition.validateAuthentifiers(db, null, 'base',
+		['formula', "data_feed[oracles=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU, feed_name=test, mci>1] == 12"], null, objValidationState, null,
+		function (err, res) {
+			t.is(res, true);
+		});
+});
+
+test('formula - if ifnone 10', t => {
+	db.query = function (query, params, cb) {
+		let rows = [];
+		cb(rows);
+	};
+	definition.validateAuthentifiers(db, null, 'base',
+		['formula', "data_feed[oracles=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU, feed_name=test, ifnone=10] == 10"], null, objValidationState, null,
+		function (err, res) {
+			t.is(res, true);
+		});
+});
+
+test('formula - if ifnone abort', t => {
+	db.query = function (query, params, cb) {
+		let rows = [];
+		cb(rows);
+	};
+	definition.validateAuthentifiers(db, null, 'base',
+		['formula', "data_feed[oracles=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU, feed_name=test, ifnone=abort] == 10"], null, objValidationState, null,
+		function (err, res) {
+			t.is(res, false);
+		});
+});
+
+test('formula - if ifseveral abort', t => {
+	db.query = function (query, params, cb) {
+		let rows = [{value: 'test'}, {value: 'test2'}];
+		cb(rows);
+	};
+	definition.validateAuthentifiers(db, null, 'base',
+		['formula', "data_feed[oracles=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU, feed_name=test, ifseveral=abort] == 10"], null, objValidationState, null,
+		function (err, res) {
+			t.is(res, false);
+		});
+});
+
+test('formula - if ifseveral first', t => {
+	db.query = function (query, params, cb) {
+		let rows = [{value: null, int_value: 9}, {value: 'test2'}];
+		cb(rows);
+	};
+	definition.validateAuthentifiers(db, null, 'base',
+		['formula', "data_feed[oracles=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU, feed_name=test, ifseveral=first] == 9"], null, objValidationState, null,
+		function (err, res) {
+			t.is(res, true);
+		});
+});
+
+test('formula - if ifseveral last', t => {
+	db.query = function (query, params, cb) {
+		let rows = [{value: null, int_value: 9}, {value: null, int_value: 11}];
+		cb(rows);
+	};
+	definition.validateAuthentifiers(db, null, 'base',
+		['formula', "data_feed[oracles=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU, feed_name=test, ifseveral=last] == 11"], null, objValidationState, null,
+		function (err, res) {
+			t.is(res, true);
+		});
+});
