@@ -1291,19 +1291,11 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 					if (abortIfSeveral && rows.length > 1) {
 						cb('abort');
 					} else {
-						if (params.ifseveral && params.ifseveral.value === 'last') {
-							var number = rows.length - 1;
-							if (rows[number].value === null) {
-								cb(null, rows[number].int_value);
-							} else {
-								cb(null, rows[number].value);
-							}
+						var number = (params.ifseveral && params.ifseveral.value === 'last') ? rows.length - 1 : 0;
+						if (rows[number].value === null) {
+							cb(null, rows[number].int_value);
 						} else {
-							if (rows[0].value === null) {
-								cb(null, rows[0].int_value);
-							} else {
-								cb(null, rows[0].value);
-							}
+							cb(null, rows[number].value);
 						}
 					}
 				} else {
