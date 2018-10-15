@@ -1,7 +1,6 @@
 var test = require('ava');
 
 var definition = require("../definition");
-var db = require("../db");
 
 var objValidationState = {
 	last_ball_mci: 0,
@@ -487,6 +486,7 @@ test('formula - y == x', t => {
 });
 
 test('formula - data_feed == 10', t => {
+	let db = {};
 	db.query = function (query, params, cb) {
 		let rows = [{value: null, int_value: 10}];
 		cb(rows);
@@ -499,6 +499,7 @@ test('formula - data_feed == 10', t => {
 });
 
 test('formula - if not ifnone and ifseveral', t => {
+	let db = {};
 	db.query = function (query, params, cb) {
 		let rows = [];
 		cb(rows);
@@ -511,6 +512,7 @@ test('formula - if not ifnone and ifseveral', t => {
 });
 
 test('formula - data_feed == 10', t => {
+	let db = {};
 	db.query = function (query, params, cb) {
 		let rows = [{value: null, int_value: 10}];
 		cb(rows);
@@ -523,6 +525,7 @@ test('formula - data_feed == 10', t => {
 });
 
 test('formula - if not ifnone and ifseveral', t => {
+	let db = {};
 	db.query = function (query, params, cb) {
 		let rows = [];
 		cb(rows);
@@ -535,8 +538,9 @@ test('formula - if not ifnone and ifseveral', t => {
 });
 
 test('formula - if not ifnone and ifseveral - 2 rows', t => {
+	let db = {};
 	db.query = function (query, params, cb) {
-		let rows = [{value: null, int_value: 9}, {value: null, int_value: 12}];
+		let rows = [{value: null, int_value: 12}, {value: null, int_value: 9}];
 		cb(rows);
 	};
 	definition.validateAuthentifiers(db, null, 'base',
@@ -547,6 +551,7 @@ test('formula - if not ifnone and ifseveral - 2 rows', t => {
 });
 
 test('formula - if ifnone 10', t => {
+	let db = {};
 	db.query = function (query, params, cb) {
 		let rows = [];
 		cb(rows);
@@ -559,6 +564,7 @@ test('formula - if ifnone 10', t => {
 });
 
 test('formula - if ifnone abort', t => {
+	let db = {};
 	db.query = function (query, params, cb) {
 		let rows = [];
 		cb(rows);
@@ -571,6 +577,7 @@ test('formula - if ifnone abort', t => {
 });
 
 test('formula - if ifseveral abort', t => {
+	let db = {};
 	db.query = function (query, params, cb) {
 		let rows = [{value: 'test'}, {value: 'test2'}];
 		cb(rows);
@@ -583,6 +590,7 @@ test('formula - if ifseveral abort', t => {
 });
 
 test('formula - if ifseveral first', t => {
+	let db = {};
 	db.query = function (query, params, cb) {
 		let rows = [{value: null, int_value: 9}, {value: 'test2'}];
 		cb(rows);
@@ -595,8 +603,9 @@ test('formula - if ifseveral first', t => {
 });
 
 test('formula - if ifseveral last', t => {
+	let db = {};
 	db.query = function (query, params, cb) {
-		let rows = [{value: null, int_value: 9}, {value: null, int_value: 11}];
+		let rows = [{value: null, int_value: 11}, {value: null, int_value: 9}];
 		cb(rows);
 	};
 	definition.validateAuthentifiers(db, null, 'base',

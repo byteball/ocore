@@ -1252,8 +1252,6 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				ifseveral = '';
 				abortIfSeveral = true;
 			}
-		} else {
-			params.ifseveral = {value: 'last'};
 		}
 		var ifnone =  false;
 		if(params.ifnone && params.ifnone.value !== 'abort') {
@@ -1291,11 +1289,10 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 					if (abortIfSeveral && rows.length > 1) {
 						cb('abort');
 					} else {
-						var number = (params.ifseveral && params.ifseveral.value === 'last') ? rows.length - 1 : 0;
-						if (rows[number].value === null) {
-							cb(null, rows[number].int_value);
+						if (rows[0].value === null) {
+							cb(null, rows[0].int_value);
 						} else {
-							cb(null, rows[number].value);
+							cb(null, rows[0].value);
 						}
 					}
 				} else {
