@@ -10,7 +10,10 @@ var objValidationState = {
 		"payload_location": "inline",
 		"payload_hash": "2p893QLyyaUi0Nw5IWGjRtocjAksxpiFvXYuBRwPTZI=",
 		"payload": {
-			"outputs": [{"address": "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", "amount": 19088}],
+			"outputs": [
+				{"address": "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", "amount": 19088},
+				{"address": "GFK3RDAPQLLNCMQEVGGD2KCPZTLSG3HN", "amount": 1}
+			],
 			"inputs": [{
 				"unit": "p+U9OB+JOCW5/7hXiRpVw65HwzFprNfj68PCy/7BR6A=",
 				"message_index": 0,
@@ -90,8 +93,20 @@ test('formula - validate calculation bignumber 1 - ok', t => {
 });
 
 test('formula - amount !=', t => {
-	definition.validateAuthentifiers(db, null, 'base', ['formula', "input[asset=base].amount != output[asset=base].amount"], null, objValidationState, null, function (err, res) {
+	definition.validateAuthentifiers(db, null, 'base', ['formula', "input[asset=base].amount != output[asset=base, address=GFK3RDAPQLLNCMQEVGGD2KCPZTLSG3HN].amount"], null, objValidationState, null, function (err, res) {
 		t.is(res, true);
+	});
+});
+
+test('formula - amount = 1', t => {
+	definition.validateAuthentifiers(db, null, 'base', ['formula', "output[asset=base, amount=1].amount == 1"], null, objValidationState, null, function (err, res) {
+		t.is(res, true);
+	});
+});
+
+test('formula - amount > 0 - error', t => {
+	definition.validateAuthentifiers(db, null, 'base', ['formula', "output[asset=base, amount!=2].amount == 1"], null, objValidationState, null, function (err, res) {
+		t.is(res, false);
 	});
 });
 
@@ -144,34 +159,32 @@ test('formula - amount in input - ok', t => {
 	});
 });
 
-test('formula - amount in input - ok', t => {
+test('formula - min - ok', t => {
 	definition.validateAuthentifiers(db, null, 'base', ['formula', "min(2,5,7) == 2"], null, objValidationState, null, function (err, res) {
 		t.is(res, true);
 	});
 });
 
-test('formula - amount in input - ok', t => {
+test('formula - max - error', t => {
 	definition.validateAuthentifiers(db, null, 'base', ['formula', "max(2,5,7) == 2"], null, objValidationState, null, function (err, res) {
 		t.is(res, false);
 	});
 });
 
-test('formula - amount in input - ok', t => {
+test('formula - pow - ok', t => {
 	definition.validateAuthentifiers(db, null, 'base', ['formula', "pow(2,9) == 512"], null, objValidationState, null, function (err, res) {
 		t.is(res, true);
 	});
 });
 
-test('formula - amount in input - ok', t => {
+test('formula - round - 2 - error', t => {
 	definition.validateAuthentifiers(db, null, 'base', ['formula', "round(2.9) == 2"], null, objValidationState, null, function (err, res) {
-		console.error('qq',err, res)
 		t.is(res, false);
 	});
 });
 
-test('formula - amount in input - ok', t => {
+test('formula - round - 3 - ok', t => {
 	definition.validateAuthentifiers(db, null, 'base', ['formula', "round(2.9) == 3"], null, objValidationState, null, function (err, res) {
-		console.error('qq',err, res)
 		t.is(res, true);
 	});
 });

@@ -1155,22 +1155,13 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 			case 'formula':
 				var formula = args;
 				parseAndReplaceDataFeedsInFormula(formula, objValidationState, function (err, formula2, data_feed_params) {
-					if (err) {
-						console.error('formula error', new Error(err));
-						return cb2(false);
-					}
+					if (err) return cb2(false);
 					augmentMessagesOrIgnore(formula, function (messages) {
 						parseAndReplaceInputsOrOutputsInFormula(formula2, 'inputs', messages, function (err2, formula3, input_params) {
-							if (err2) {
-								console.error('formula error', new Error(err2));
-								return cb2(false);
-							}
+							if (err2) return cb2(false);
 							parseAndReplaceInputsOrOutputsInFormula(formula3, 'outputs', messages,
 								function (err3, formula4, output_params) {
-									if (err3) {
-										console.error('formula error', new Error(err3));
-										return cb2(false);
-									}
+									if (err3) return cb2(false);
 									
 									if (!input_params) input_params = {};
 									if (!output_params) output_params = {};
@@ -1363,6 +1354,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				});
 			}
 			if (objParams.amount) {
+				objParams.amount.value = parseInt(objParams.amount.value);
 				puts = puts.filter(function (put) {
 					if (objParams.amount.operator === '=') {
 						return put.amount === objParams.amount.value;
