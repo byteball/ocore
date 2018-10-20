@@ -163,6 +163,14 @@ function archiveDoublespendUnits(){
 if (conf.bLight){
 //	setTimeout(archiveDoublespendUnits, 5*1000);
 	setInterval(archiveDoublespendUnits, 24*3600*1000);
+	eventBus.on('new_my_transactions', function(arrUnits){
+		db.query("SELECT DISTINCT asset FROM outputs WHERE unit IN("+arrUnits.map(db.escape).join(',')+") AND asset IS NOT NULL", function(rows){
+			if (rows.length === 0)
+				return;
+			var arrAssets = rows.map(function(row){ return row.asset; });
+			network.requestProofsOfJointsIfNewOrUnstable(arrAssets);
+		});
+	});
 }
 
 exports.setLightVendorHost = setLightVendorHost;
