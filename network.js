@@ -153,6 +153,10 @@ function sendErrorResponse(ws, tag, error) {
 	sendResponse(ws, tag, {error: error});
 }
 
+function sendCustomAppObject(ws, content) {
+	sendMessage(ws, 'customapp', content);
+}
+
 // if a 2nd identical request is issued before we receive a response to the 1st request, then:
 // 1. its responseHandler will be called too but no second request will be sent to the wire
 // 2. bReroutable flag must be the same
@@ -500,6 +504,14 @@ function getPeerWebSocket(peer){
 	for (var i=0; i<wss.clients.length; i++)
 		if (wss.clients[i].peer === peer)
 			return wss.clients[i];
+	return null;
+}
+
+function getDeviceWebSocket(device_address){
+	for (var i=0; i<wss.clients.length; i++){
+		if (wss.clients[i].device_address === device_address)
+			return wss.clients[i];
+	}
 	return null;
 }
 
@@ -2842,6 +2854,9 @@ function onWebsocketMessage(message) {
 		case 'response':
 			return handleResponse(ws, content.tag, content.response);
 			
+		case 'customapp':
+			return eventBus.emit('custom_app_object_received', ws, content);
+			
 		default: 
 			console.log("unknown type: "+message_type);
 		//	throw Error("unknown type: "+message_type);
@@ -2996,6 +3011,7 @@ exports.sendJustsaying = sendJustsaying;
 exports.sendAllInboundJustsaying = sendAllInboundJustsaying;
 exports.sendError = sendError;
 exports.sendRequest = sendRequest;
+exports.sendCustomAppObject = sendCustomAppObject;
 exports.findOutboundPeerOrConnect = findOutboundPeerOrConnect;
 exports.handleOnlineJoint = handleOnlineJoint;
 
@@ -3020,3 +3036,4 @@ exports.isConnected = isConnected;
 exports.isCatchingUp = isCatchingUp;
 exports.requestHistoryFor = requestHistoryFor;
 exports.exchangeRates = exchangeRates;
+exports.getDeviceWebSocket = getDeviceWebSocket;
