@@ -2816,7 +2816,7 @@ function onWebsocketMessage(message) {
 	var ws = this;
 	
 	if (ws.readyState !== ws.OPEN)
-		return;
+		return console.log("received a message on socket with ready state "+ws.readyState);
 	
 	console.log('RECEIVED '+(message.length > 1000 ? message.substr(0,1000)+'... ('+message.length+' chars)' : message)+' from '+ws.peer);
 	ws.last_ts = Date.now();
