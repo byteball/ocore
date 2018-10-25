@@ -2109,7 +2109,7 @@ function handleJustsaying(ws, subject, body){
 			break;
 			
 		case 'my_url':
-			if (!body)
+			if (!ValidationUtils.isNonemptyString(body))
 				return;
 			var url = body;
 			if (ws.bOutbound) // ignore: if you are outbound, I already know your url
