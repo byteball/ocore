@@ -1288,7 +1288,7 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 			if (objValidationState.assocHasAssetAttestors[payload.asset])
 				return callback("can be only one asset attestor list update per asset");
 			objValidationState.assocHasAssetAttestors[payload.asset] = true;
-			validateAssetorListUpdate(conn, payload, objUnit, objValidationState, callback);
+			validateAttestorListUpdate(conn, payload, objUnit, objValidationState, callback);
 			break;
 
 		case "payment":
@@ -1994,7 +1994,7 @@ function validateAssetDefinition(conn, payload, objUnit, objValidationState, cal
 	], callback);
 }
 
-function validateAssetorListUpdate(conn, payload, objUnit, objValidationState, callback){
+function validateAttestorListUpdate(conn, payload, objUnit, objValidationState, callback){
 	if (objUnit.authors.length !== 1)
 		return callback("attestor list must be single-authored");
 	if (!isStringOfLength(payload.asset, constants.HASH_LENGTH))
