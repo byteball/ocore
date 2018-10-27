@@ -143,7 +143,8 @@ function refreshLightClientHistory(){
 }
 
 function archiveDoublespendUnits(){
-	db.query("SELECT unit FROM units WHERE is_stable=0 AND creation_date<"+db.addTime('-1 DAY')+" ORDER BY rowid DESC", function(rows){
+	var col = (conf.storage === 'sqlite') ? 'rowid' : 'creation_date';
+	db.query("SELECT unit FROM units WHERE is_stable=0 AND creation_date<"+db.addTime('-1 DAY')+" ORDER BY "+col+" DESC", function(rows){
 		var arrUnits = rows.map(function(row){ return row.unit; });
 		breadcrumbs.add("units still unstable after 1 day: "+arrUnits.join(', '));
 		arrUnits.forEach(function(unit){
@@ -162,6 +163,14 @@ function archiveDoublespendUnits(){
 if (conf.bLight){
 //	setTimeout(archiveDoublespendUnits, 5*1000);
 	setInterval(archiveDoublespendUnits, 24*3600*1000);
+	eventBus.on('new_my_transactions', function(arrUnits){
+		db.query("SELECT DISTINCT asset FROM outputs WHERE unit IN("+arrUnits.map(db.escape).join(',')+") AND asset IS NOT NULL", function(rows){
+			if (rows.length === 0)
+				return;
+			var arrAssets = rows.map(function(row){ return row.asset; });
+			network.requestProofsOfJointsIfNewOrUnstable(arrAssets);
+		});
+	});
 }
 
 exports.setLightVendorHost = setLightVendorHost;

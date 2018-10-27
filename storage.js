@@ -703,6 +703,8 @@ function isGenesisBall(ball){
 function readUnitProps(conn, unit, handleProps){
 	if (assocStableUnits[unit])
 		return handleProps(assocStableUnits[unit]);
+	if (conf.bFaster && assocUnstableUnits[unit])
+		return handleProps(assocUnstableUnits[unit]);
 	var stack = new Error().stack;
 	conn.query(
 		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit\n\
@@ -740,12 +742,12 @@ function readUnitProps(conn, unit, handleProps){
 function readPropsOfUnits(conn, earlier_unit, arrLaterUnits, handleProps){
 	var objEarlierUnitProps2 = assocUnstableUnits[earlier_unit] || assocStableUnits[earlier_unit];
 	var arrLaterUnitProps2 = arrLaterUnits.map(function(later_unit){ return assocUnstableUnits[later_unit] || assocStableUnits[later_unit]; });
-//	if (objEarlierUnitProps2 && arrLaterUnitProps2.every(function(p){ return !!p; }))
-//		return handleProps(objEarlierUnitProps2, arrLaterUnitProps2);
+	if (conf.bFaster && objEarlierUnitProps2 && arrLaterUnitProps2.every(function(p){ return !!p; }))
+		return handleProps(objEarlierUnitProps2, arrLaterUnitProps2);
 	
 	var bEarlierInLaterUnits = (arrLaterUnits.indexOf(earlier_unit) !== -1);
 	conn.query(
-		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free FROM units WHERE unit IN(?, ?)", 
+		"SELECT unit, level, witnessed_level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free FROM units WHERE unit IN(?, ?)", 
 		[earlier_unit, arrLaterUnits], 
 		function(rows){
 			if (rows.length !== arrLaterUnits.length + (bEarlierInLaterUnits ? 0 : 1))
@@ -769,7 +771,7 @@ function readPropsOfUnits(conn, earlier_unit, arrLaterUnits, handleProps){
 					delete props.earned_headers_commission_recipients;
 					delete props.author_addresses;
 					delete props.is_stable;
-					delete props.witnessed_level;
+				//	delete props.witnessed_level;
 					delete props.headers_commission;
 					delete props.payload_commission;
 					delete props.sequence;
@@ -1029,19 +1031,19 @@ function readAsset(conn, asset, last_ball_mci, handleAsset){
 
 		// find latest list of attestors
 		conn.query(
-			"SELECT MAX(level) AS max_level FROM asset_attestors CROSS JOIN units USING(unit) \n\
-			WHERE asset=? AND main_chain_index<=? AND is_stable=1 AND sequence='good'", 
+			"SELECT unit FROM asset_attestors CROSS JOIN units USING(unit) \n\
+			WHERE asset=? AND main_chain_index<=? AND is_stable=1 AND sequence='good' ORDER BY "+(conf.bLight ? "units.rowid" : "level")+" DESC LIMIT 1", 
 			[asset, last_ball_mci],
 			function(latest_rows){
-				var max_level = latest_rows[0].max_level;
-				if (!max_level)
-					throw Error("no max level of asset attestors");
+				if (latest_rows.length === 0)
+					throw Error("no latest attestor list");
+				var latest_attestor_list_unit = latest_rows[0].unit;
 
 				// read the list
 				conn.query(
 					"SELECT attestor_address FROM asset_attestors CROSS JOIN units USING(unit) \n\
-					WHERE asset=? AND level=? AND main_chain_index<=? AND is_stable=1 AND sequence='good'",
-					[asset, max_level, last_ball_mci],
+					WHERE asset=? AND unit=? AND main_chain_index<=? AND is_stable=1 AND sequence='good'",
+					[asset, latest_attestor_list_unit, last_ball_mci],
 					function(att_rows){
 						if (att_rows.length === 0)
 							throw Error("no attestors?");

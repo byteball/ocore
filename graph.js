@@ -2,6 +2,7 @@
 "use strict";
 var _ = require('lodash');
 var async = require('async');
+var constants = require('./constants.js');
 var storage = require('./storage.js');
 var db = require('./db.js');
 var profiler = require('./profiler.js');
@@ -142,16 +143,29 @@ function determineIfIncluded(conn, earlier_unit, arrLaterUnits, handleResult){
 		//console.log("max limci "+max_later_limci+", earlier mci "+objEarlierUnitProps.main_chain_index);
 		if (objEarlierUnitProps.main_chain_index !== null && max_later_limci >= objEarlierUnitProps.main_chain_index)
 			return handleResult(true);
+		if (max_later_limci < objEarlierUnitProps.latest_included_mc_index)
+			return handleResult(false);
 		
 		var max_later_level = Math.max.apply(
 			null, arrLaterUnitProps.map(function(objLaterUnitProps){ return objLaterUnitProps.level; }));
 		if (max_later_level < objEarlierUnitProps.level)
 			return handleResult(false);
 		
-		var bAllLaterUnitsAreWithMci = !arrLaterUnitProps.find(function(objLaterUnitProps){ return (objLaterUnitProps.main_chain_index === null); });
-		if (bAllLaterUnitsAreWithMci && objEarlierUnitProps.main_chain_index === null){
-			console.log('all later are with mci, earlier is null mci', objEarlierUnitProps, arrLaterUnitProps);
+		var max_later_wl = Math.max.apply(
+			null, arrLaterUnitProps.map(function(objLaterUnitProps){ return objLaterUnitProps.witnessed_level; }));
+		if (max_later_wl < objEarlierUnitProps.witnessed_level && objEarlierUnitProps.main_chain_index > constants.witnessedLevelMustNotRetreatUpgradeMci)
 			return handleResult(false);
+		
+		var bAllLaterUnitsAreWithMci = !arrLaterUnitProps.find(function(objLaterUnitProps){ return (objLaterUnitProps.main_chain_index === null); });
+		if (bAllLaterUnitsAreWithMci){
+			if (objEarlierUnitProps.main_chain_index === null){
+				console.log('all later are with mci, earlier is null mci', objEarlierUnitProps, arrLaterUnitProps);
+				return handleResult(false);
+			}
+			var max_later_mci = Math.max.apply(
+				null, arrLaterUnitProps.map(function(objLaterUnitProps){ return objLaterUnitProps.main_chain_index; }));
+			if (max_later_mci < objEarlierUnitProps.main_chain_index)
+				return handleResult(false);
 		}
 		
 		var arrKnownUnits = [];
@@ -197,6 +211,14 @@ function determineIfIncluded(conn, earlier_unit, arrLaterUnits, handleResult){
 						return handleResult(true);
 					if (objUnitProps.main_chain_index !== null && objUnitProps.main_chain_index <= objEarlierUnitProps.latest_included_mc_index)
 						continue;
+					if (objUnitProps.main_chain_index !== null && objEarlierUnitProps.main_chain_index !== null && objUnitProps.main_chain_index < objEarlierUnitProps.main_chain_index)
+						continue;
+					if (objUnitProps.main_chain_index !== null && objEarlierUnitProps.main_chain_index === null)
+						continue;
+					if (objUnitProps.latest_included_mc_index < objEarlierUnitProps.latest_included_mc_index)
+						continue;
+					if (objUnitProps.witnessed_level < objEarlierUnitProps.witnessed_level && objEarlierUnitProps.main_chain_index > constants.witnessedLevelMustNotRetreatUpgradeMci)
+						continue;
 					if (objUnitProps.is_on_main_chain === 0 && objUnitProps.level > objEarlierUnitProps.level)
 						arrNewStartUnits.push(objUnitProps.unit);
 				}
@@ -206,10 +228,10 @@ function determineIfIncluded(conn, earlier_unit, arrLaterUnits, handleResult){
 			}
 			
 			if (arrParents.length)
-				return handleParents(arrParents);
+				return setImmediate(handleParents, arrParents);
 			
 			conn.query(
-				"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain \n\
+				"SELECT unit, level, witnessed_level, latest_included_mc_index, main_chain_index, is_on_main_chain \n\
 				FROM parenthoods JOIN units ON parent_unit=unit \n\
 				WHERE child_unit IN(?)",
 				[arrStartUnits],

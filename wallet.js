@@ -71,37 +71,40 @@ function handleJustsaying(ws, subject, body){
 			if (from_address !== json.from) 
 				return respondWithError("wrong message signature");
 			
-			var handleMessage = function(bIndirectCorrespondent){
-				// serialize all messages from hub
-				mutex.lock(["from_hub"], function(unlock){
-					handleMessageFromHub(ws, json, objDeviceMessage.pubkey, bIndirectCorrespondent, {
-						ifError: function(err){
-							respondWithError(err);
-							unlock();
-						},
-						ifOk: function(){
-							network.sendJustsaying(ws, 'hub/delete', message_hash);
-							unlock();
-						}
-					});
+			var handleMessage = function(bIndirectCorrespondent, onDone){
+				handleMessageFromHub(ws, json, objDeviceMessage.pubkey, bIndirectCorrespondent, {
+					ifError: function(err){
+						respondWithError(err);
+						onDone();
+					},
+					ifOk: function(){
+						network.sendJustsaying(ws, 'hub/delete', message_hash);
+						onDone();
+					}
 				});
 			};
-			// check that we know this device
-			db.query("SELECT hub, is_indirect FROM correspondent_devices WHERE device_address=?", [from_address], function(rows){
-				if (rows.length > 0){
-					if (json.device_hub && json.device_hub !== rows[0].hub) // update correspondent's home address if necessary
-						db.query("UPDATE correspondent_devices SET hub=? WHERE device_address=?", [json.device_hub, from_address], function(){
-							handleMessage(rows[0].is_indirect);
-						});
-					else
-						handleMessage(rows[0].is_indirect);
-				}
-				else{ // correspondent not known
-					var arrSubjectsAllowedFromNoncorrespondents = ["pairing", "my_xpubkey", "wallet_fully_approved"];
-					if (arrSubjectsAllowedFromNoncorrespondents.indexOf(json.subject) === -1)
-						return respondWithError("correspondent not known and not whitelisted subject");
-					handleMessage(false);
-				}
+			
+			// serialize all messages from hub
+			mutex.lock(["from_hub"], function(unlock){
+				// check that we know this device
+				db.query("SELECT hub, is_indirect FROM correspondent_devices WHERE device_address=?", [from_address], function(rows){
+					if (rows.length > 0){
+						if (json.device_hub && json.device_hub !== rows[0].hub) // update correspondent's home address if necessary
+							db.query("UPDATE correspondent_devices SET hub=? WHERE device_address=?", [json.device_hub, from_address], function(){
+								handleMessage(rows[0].is_indirect, unlock);
+							});
+						else
+							handleMessage(rows[0].is_indirect, unlock);
+					}
+					else{ // correspondent not known
+						var arrSubjectsAllowedFromNoncorrespondents = ["pairing", "my_xpubkey", "wallet_fully_approved"];
+						if (arrSubjectsAllowedFromNoncorrespondents.indexOf(json.subject) === -1){
+							respondWithError("correspondent not known and not whitelisted subject");
+							return unlock();
+						}
+						handleMessage(false, unlock);
+					}
+				});
 			});
 			break;
 			
@@ -111,6 +114,13 @@ function handleJustsaying(ws, subject, body){
 				return respondWithError("you are not my hub");
 			if (body === 'empty')
 				device.scheduleTempDeviceKeyRotation();
+			else if (body === 'has_more')
+				mutex.lock(["from_hub"], function(unlock){ // we'll obtain the lock after all messages are handled
+					setTimeout(function(){ // wait to make sure all hub/deletes finish
+						network.sendJustsaying(ws, 'hub/refresh');
+						unlock();
+					}, 1000)
+				});
 			break;
 			
 		case 'light/have_updates':
@@ -152,6 +162,15 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				return callbacks.ifError("text body must be string");
 			// the wallet should have an event handler that displays the text to the user
 			eventBus.emit("text", from_address, body, message_counter);
+			callbacks.ifOk();
+			break;
+
+		case "object":
+			message_counter++;
+			if(typeof body !== 'object')
+				return callbacks.ifError("body must be object");
+
+			eventBus.emit("object", from_address, body, message_counter);
 			callbacks.ifOk();
 			break;
 
@@ -314,6 +333,16 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					if (objUnit.messages.filter(function(objMessage){ return (objMessage.payload_hash === payload_hash); }).length !== 1)
 						return callbacks.ifError("no such payload hash in the messages");
 				}
+			}
+			var arrMessages = objUnit.messages;
+			if (!Array.isArray(arrMessages))
+				return callbacks.ifError("bad message type");
+			for (var i=0; i<arrMessages.length; i++){
+				if (arrMessages[i].payload === undefined)
+					continue;
+				var calculated_payload_hash = objectHash.getBase64Hash(arrMessages[i].payload);
+				if (arrMessages[i].payload_hash !== calculated_payload_hash)
+					return callbacks.ifError("payload hash does not match");
 			}
 			// findAddress handles both types of addresses
 			findAddress(body.address, body.signing_path, {
@@ -1417,6 +1446,7 @@ function sendMultiPayment(opts, handleResult)
 			var params = {
 				available_paying_addresses: arrFundedAddresses, // forces 'minimal' for payments from shared addresses too, it doesn't hurt
 				signing_addresses: arrAllSigningAddresses,
+				spend_unconfirmed: opts.spend_unconfirmed || 'own',
 				messages: messages, 
 				signer: signer, 
 				callbacks: {
@@ -1778,8 +1808,8 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 	// check stability of payingAddresses
 	function checkStability() {
 		db.query(
-			"SELECT is_stable, asset, is_spent, SUM(amount) as `amount` \n\
-			FROM outputs JOIN units USING(unit) WHERE address=? AND sequence='good' GROUP BY asset ORDER BY asset DESC, is_spent ASC LIMIT 1", 
+			"SELECT is_stable, asset, SUM(amount) AS `amount` \n\
+			FROM outputs JOIN units USING(unit) WHERE address=? AND sequence='good' AND is_spent=0 GROUP BY asset ORDER BY asset DESC LIMIT 1", 
 			[addrInfo.address],
 			function(rows){
 				if (rows.length === 0) {

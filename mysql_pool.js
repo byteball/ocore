@@ -24,6 +24,11 @@ module.exports = function(connection_or_pool){
 		
 		for (var i=0; i<count_arguments_without_callback; i++) // except callback
 			new_args.push(arguments[i]);
+		if (!bHasCallback)
+			return new Promise(function(resolve){
+				new_args.push(resolve);
+				safe_connection.query.apply(safe_connection, new_args);
+			});
 		
 		// add callback with error handling
 		new_args.push(function(err, results, fields){
@@ -41,12 +46,25 @@ module.exports = function(connection_or_pool){
 				}*/
 				throw err;
 			}
+			if (Array.isArray(results))
+				results = results.map(function(row){ return Object.assign({}, row); });
+			var consumed_time = Date.now() - start_ts;
+			if (consumed_time > 25)
+				console.log("long query took "+consumed_time+"ms:\n"+new_args.filter(function(a, i){ return (i<new_args.length-1); }).join(", ")+"\nload avg: "+require('os').loadavg().join(', '));
 			last_arg(results, fields);
 		});
 		//console.log(new_args);
+		var start_ts = Date.now();
 		q = connection_or_pool.original_query.apply(connection_or_pool, new_args);
 		//console.log(q.sql);
 		return q;
+	};
+
+	safe_connection.cquery = function(){
+		var conf = require('./conf.js');
+		if (conf.bFaster)
+			return arguments[arguments.length - 1]();
+		safe_connection.query.apply(this, arguments);
 	};
 
 	safe_connection.escape = function(str){
