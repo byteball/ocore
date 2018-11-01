@@ -21,6 +21,13 @@ function getBase64Hash(obj) {
 	return crypto.createHash("sha256").update(getSourceString(obj), "utf8").digest("base64");
 }
 
+function getUnitHashForHMAC(objUnit) {
+	var objNakedUnit = _.cloneDeep(objUnit);
+	delete objNakedUnit.authors;
+	delete objNakedUnit.headers_commission;
+	delete objNakedUnit.unit;
+	return getBase64Hash(objNakedUnit);
+}
 
 function getNakedUnit(objUnit){
 	var objNakedUnit = _.cloneDeep(objUnit);
@@ -142,5 +149,5 @@ exports.cleanNulls = cleanNulls;
 
 exports.getDeviceAddress = getDeviceAddress;
 exports.getDeviceMessageHashToSign = getDeviceMessageHashToSign;
-
+exports.getUnitHashForHMAC = getUnitHashForHMAC;
 

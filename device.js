@@ -743,6 +743,11 @@ function requestFromHub(command, params, responseHandler){
 	});
 }
 
+function calculateHMAC(str) {
+	 var hmac = crypto.createHmac('sha256', objMyPermanentDeviceKey.priv);
+	 hmac.update(str);
+	 return hmac.digest('base64');
+}
 
 exports.getMyDevicePubKey = getMyDevicePubKey;
 exports.getMyDeviceAddress = getMyDeviceAddress;
@@ -781,3 +786,4 @@ exports.addIndirectCorrespondents = addIndirectCorrespondents;
 exports.getWitnessesFromHub = getWitnessesFromHub;
 exports.requestFromHub = requestFromHub;
 exports.getHubWs = getHubWs;
+exports.calculateHMAC = calculateHMAC;
