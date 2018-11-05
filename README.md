@@ -106,4 +106,15 @@ server {
 }
 ```
 
+By default Node limits itself to 1.76GB the RAM it uses. If you accept incoming connections, you will likely reach this limit and get this error after some time:
+```
+FATAL ERROR: CALL_AND_RETRY_LAST Allocation failed - JavaScript heap out of memory
+1: node::Abort() [node]
+...
+...
+12: 0x3c0f805c7567
+Out of memory
+```
+To prevent this, increase the RAM limit by adding `--max_old_space_size=<size>` to the launch command where size is the amount in MB you want to allocate.
 
+For example `--max-old-space-size=4096`, if your server has at least 4GB available.
