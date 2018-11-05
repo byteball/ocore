@@ -153,6 +153,7 @@ function sendErrorResponse(ws, tag, error) {
 	sendResponse(ws, tag, {error: error});
 }
 
+
 // if a 2nd identical request is issued before we receive a response to the 1st request, then:
 // 1. its responseHandler will be called too but no second request will be sent to the wire
 // 2. bReroutable flag must be the same
@@ -213,7 +214,34 @@ function sendRequest(ws, command, params, bReroutable, responseHandler){
 		};
 		sendMessage(ws, 'request', content);
 	}
+	return tag;
 }
+
+
+function deletePendingRequest(ws, tag){
+	if (ws && ws.assocPendingRequests && ws.assocPendingRequests[tag]){
+		var pendingRequest = ws.assocPendingRequests[tag];
+		clearTimeout(pendingRequest.reroute_timer);
+		clearTimeout(pendingRequest.cancel_timer);
+		delete ws.assocPendingRequests[tag];
+
+		// if the request was rerouted, cancel all other pending requests
+		if (assocReroutedConnectionsByTag[tag]){
+			assocReroutedConnectionsByTag[tag].forEach(function(client){
+				if (client.assocPendingRequests[tag]){
+					clearTimeout(client.assocPendingRequests[tag].reroute_timer);
+					clearTimeout(client.assocPendingRequests[tag].cancel_timer);
+					delete client.assocPendingRequests[tag];
+				}
+			});
+			delete assocReroutedConnectionsByTag[tag];
+		}
+		return true;
+	}else{
+		return false;
+	}
+}
+
 
 function handleResponse(ws, tag, response){
 	var pendingRequest = ws.assocPendingRequests[tag];
@@ -225,22 +253,8 @@ function handleResponse(ws, tag, response){
 			responseHandler(ws, pendingRequest.request, response);
 		});
 	});
-	
-	clearTimeout(pendingRequest.reroute_timer);
-	clearTimeout(pendingRequest.cancel_timer);
-	delete ws.assocPendingRequests[tag];
-	
-	// if the request was rerouted, cancel all other pending requests
-	if (assocReroutedConnectionsByTag[tag]){
-		assocReroutedConnectionsByTag[tag].forEach(function(client){
-			if (client.assocPendingRequests[tag]){
-				clearTimeout(client.assocPendingRequests[tag].reroute_timer);
-				clearTimeout(client.assocPendingRequests[tag].cancel_timer);
-				delete client.assocPendingRequests[tag];
-			}
-		});
-		delete assocReroutedConnectionsByTag[tag];
-	}
+
+	deletePendingRequest(ws, tag);
 }
 
 function cancelRequestsOnClosedConnection(ws){
@@ -502,6 +516,16 @@ function getPeerWebSocket(peer){
 			return wss.clients[i];
 	return null;
 }
+
+function getInboundDeviceWebSocket(device_address){
+	for (var i=0; i<wss.clients.length; i++){
+		if (wss.clients[i].device_address === device_address)
+			return wss.clients[i];
+	}
+	return null;
+}
+
+
 
 function findOutboundPeerOrConnect(url, onOpen){
 	if (!url)
@@ -2097,7 +2121,7 @@ function handleJustsaying(ws, subject, body){
 			break;
 			
 		case 'my_url':
-			if (!body)
+			if (!ValidationUtils.isNonemptyString(body))
 				return;
 			var url = body;
 			if (ws.bOutbound) // ignore: if you are outbound, I already know your url
@@ -2301,6 +2325,10 @@ function handleJustsaying(ws, subject, body){
 				return;
 			ws.close(1000, "my core is old");
 			throw Error("Mandatory upgrade required, please check the release notes at https://github.com/byteball/byteball/releases and upgrade.");
+			break;
+			
+		case 'custom':
+			eventBus.emit('custom_justsaying', ws, body);
 			break;
 	}
 }
@@ -2808,6 +2836,10 @@ function handleRequest(ws, tag, command, params){
 				sendResponse(ws, tag, rows[0]);
 			});
 			break;
+			
+		case 'custom':
+			eventBus.emit('custom_request', ws, params,tag);
+		break;
 	}
 }
 
@@ -2996,6 +3028,7 @@ exports.sendJustsaying = sendJustsaying;
 exports.sendAllInboundJustsaying = sendAllInboundJustsaying;
 exports.sendError = sendError;
 exports.sendRequest = sendRequest;
+exports.sendResponse = sendResponse;
 exports.findOutboundPeerOrConnect = findOutboundPeerOrConnect;
 exports.handleOnlineJoint = handleOnlineJoint;
 
@@ -3020,3 +3053,5 @@ exports.isConnected = isConnected;
 exports.isCatchingUp = isCatchingUp;
 exports.requestHistoryFor = requestHistoryFor;
 exports.exchangeRates = exchangeRates;
+exports.getInboundDeviceWebSocket = getInboundDeviceWebSocket;
+exports.deletePendingRequest = deletePendingRequest;
