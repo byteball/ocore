@@ -236,6 +236,7 @@ function deletePendingRequest(ws, tag){
 			});
 			delete assocReroutedConnectionsByTag[tag];
 		}
+		return true;
 	}else{
 		return false;
 	}
@@ -516,7 +517,7 @@ function getPeerWebSocket(peer){
 	return null;
 }
 
-function getDeviceWebSocket(device_address){
+function getInboundDeviceWebSocket(device_address){
 	for (var i=0; i<wss.clients.length; i++){
 		if (wss.clients[i].device_address === device_address)
 			return wss.clients[i];
@@ -3052,5 +3053,5 @@ exports.isConnected = isConnected;
 exports.isCatchingUp = isCatchingUp;
 exports.requestHistoryFor = requestHistoryFor;
 exports.exchangeRates = exchangeRates;
-exports.getDeviceWebSocket = getDeviceWebSocket;
+exports.getInboundDeviceWebSocket = getInboundDeviceWebSocket;
 exports.deletePendingRequest = deletePendingRequest;
