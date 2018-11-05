@@ -139,6 +139,7 @@ exports.getBallHash = getBallHash;
 exports.getJointHash = getJointHash;
 
 exports.cleanNulls = cleanNulls;
+exports.cleanNullsDeep = cleanNullsDeep;
 
 exports.getDeviceAddress = getDeviceAddress;
 exports.getDeviceMessageHashToSign = getDeviceMessageHashToSign;
