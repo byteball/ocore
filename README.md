@@ -76,6 +76,8 @@ Byteball network works over secure WebSocket protocol wss://.  To accept incomin
 
 This is an example configuration for nginx to accept websocket connections at wss://byteball.one/bb and forward them to locally running daemon that listens on port 6611:
 
+If your server doesn't support IPv6, comment or delete the two lines containing [::] or nginx won't start
+
 ```nginx
 server {
 	listen 80 default_server;
