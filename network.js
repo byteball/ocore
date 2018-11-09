@@ -2501,7 +2501,7 @@ function handleRequest(ws, tag, command, params){
 					[message_hash, message_string, objDeviceMessage.to],
 					function(){
 						// if the addressee is connected, deliver immediately
-						wss.clients.forEach(function(client){
+						wss.clients.concat(arrOutboundPeers).forEach(function(client){
 							if (client.device_address === objDeviceMessage.to && (!client.max_message_length || message_string.length <= client.max_message_length)) {
 								sendJustsaying(client, 'hub/message', {
 									message_hash: message_hash,
