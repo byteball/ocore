@@ -466,6 +466,34 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				}
 			});
 			break;
+		
+		case 'offer_prosaic_contract':
+			var text_hash = objectHash.getBase64Hash(body.text);
+			eventBus.once("prosaic-contract-response" + text_hash, function(accepted){
+				composer.retrieveAbsentAuthorsDefinitions(db, [body.address], null, getSigner(null, [device.getMyDeviceAddress()]), function(authors, assocSigningPaths) {
+					if (authors.length && !authors[0].definition)
+						authors = []; // remove author without definition
+					device.sendMessageToDevice(from_address, "prosaic-contract-response", {text: body.text, accepted: accepted, hmac: body.hmac, authors: authors});
+				});
+				callbacks.ifOk();
+			});
+			eventBus.emit("prosaic-contract-request", body.text, from_address);
+			break;
+
+		case 'prosaic-contract-response':
+			var text_hash = objectHash.getBase64Hash(body.text);
+			if (device.calculateHMAC(text_hash) !== body.hmac)
+					return callbacks.ifError("bad HMAC");
+			if (body.authors && body.authors.length) {
+				if (body.authors.length !== 1)
+					return callbacks.ifError("wrong number of authors recieved");
+				var author = body.authors[0];
+				if (author.definition && (author.address !== objectHash.getChash160(author.definition)))
+					return callbacks.ifError("incorrect definition recieved");
+			}
+			eventBus.emit("prosaic-contract-response-recieved" + text_hash + from_address, body.accepted, body.authors);
+			callbacks.ifOk();
+			break;
 			
 		default:
 			callbacks.ifError("unknnown subject: "+subject);
@@ -1551,6 +1579,9 @@ function sendMultiPayment(opts, handleResult)
 					}
 				}
 			};
+
+			if (opts.authors)
+				params.authors = opts.authors;
 
 			// textcoin claim fees are paid by the sender
 			var indivisibleAssetFeesByAddress = [];

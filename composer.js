@@ -232,7 +232,7 @@ function composeJoint(params){
 		alt: constants.alt,
 		//timestamp: Date.now(),
 		messages: arrMessages,
-		authors: []
+		authors: params.authors || []
 	};
 	var objJoint = {unit: objUnit};
 	if (params.earned_headers_commission_recipients) // it needn't be already sorted by address, we'll sort it now
