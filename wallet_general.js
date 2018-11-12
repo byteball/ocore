@@ -3,15 +3,13 @@
 var async = require('async');
 var db = require('./db.js');
 var device = require('./device.js');
-var _ = require('lodash');
-var objectHash = require('./object_hash.js');
+
 
 
 function sendOfferToSign(device_address, address, signing_path, objUnsignedUnit, assocPrivatePayloads){
 	var body = {address: address, signing_path: signing_path, unsigned_unit: objUnsignedUnit};
 	if (assocPrivatePayloads && Object.keys(assocPrivatePayloads).length > 0)
 		body.private_payloads = assocPrivatePayloads;
-	body.hmac = device.calculateHMAC(objectHash.getUnitHashForHMAC(objUnsignedUnit));
 	device.sendMessageToDevice(device_address, "sign", body);
 }
 
