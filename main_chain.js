@@ -420,6 +420,38 @@ function updateMainChain(conn, from_unit, last_added_unit, onDone){
 		});
 	}
 
+	function findMinMcWitnessedLevel(tip_unit, min_level, arrWitnesses, handleMinMcWl){
+		var arrCollectedWitnesses = [];
+		var min_mc_wl = Math.pow(2, 31) - 1;
+
+		function addWitnessesAndGoUp(start_unit){
+			storage.readStaticUnitProps(conn, start_unit, function(props){
+				var best_parent_unit = props.best_parent_unit;
+				var level = props.level;
+				if (level === null)
+					throw Error("null level in findMinMcWitnessedLevel");
+				if (level < min_level) {
+					console.log("unit " + start_unit + ", level=" + level + ", first_unstable_levle=" + min_level + ", min_mc_wl=" + min_mc_wl);
+					return handleMinMcWl(-1);
+				}
+				storage.readUnitAuthors(conn, start_unit, function(arrAuthors){
+					for (var i=0; i<arrAuthors.length; i++){
+						var address = arrAuthors[i];
+						if (arrWitnesses.indexOf(address) !== -1 && arrCollectedWitnesses.indexOf(address) === -1) {
+							arrCollectedWitnesses.push(address);
+							var witnessed_level = props.witnessed_level;
+							if (min_mc_wl > witnessed_level)
+								min_mc_wl = witnessed_level;
+						}
+					}
+					(arrCollectedWitnesses.length < constants.MAJORITY_OF_WITNESSES) 
+						? addWitnessesAndGoUp(best_parent_unit) : handleMinMcWl(min_mc_wl);
+				});
+			});
+		}
+
+		addWitnessesAndGoUp(tip_unit);
+	}
 	
 	function updateStableMcFlag(){
 		console.log("updateStableMcFlag");
@@ -447,20 +479,17 @@ function updateMainChain(conn, from_unit, last_added_unit, onDone){
 						markMcIndexStable(conn, first_unstable_mc_index, updateStableMcFlag);
 					}
 				
-					conn.query("SELECT witnessed_level FROM units WHERE is_free=1 AND is_on_main_chain=1", function(wl_rows){
+					conn.query("SELECT unit FROM units WHERE is_free=1 AND is_on_main_chain=1", function(wl_rows){
 						if (wl_rows.length !== 1)
 							throw Error("not a single mc wl");
 						// this is the level when we colect 7 witnesses if walking up the MC from its end
-						var mc_end_witnessed_level = wl_rows[0].witnessed_level;
-						conn.query(
-							// among these 7 witnesses, find min wl
-							"SELECT MIN(witnessed_level) AS min_mc_wl FROM units LEFT JOIN unit_authors USING(unit) \n\
-							WHERE is_on_main_chain=1 AND level>=? AND address IN(?)", // _left_ join enforces the best query plan in sqlite
-							[mc_end_witnessed_level, arrWitnesses],
-							function(min_wl_rows){
-								if (min_wl_rows.length !== 1)
-									throw Error("not a single min mc wl");
-								var min_mc_wl = min_wl_rows[0].min_mc_wl;
+						var tip_unit = wl_rows[0].unit;
+						findMinMcWitnessedLevel(tip_unit, first_unstable_mc_level, arrWitnesses,
+							function(min_mc_wl){
+								console.log("minimum witnessed level "+min_mc_wl);
+								if (min_mc_wl == -1)
+									return finish();
+
 								if (arrAltBranchRootUnits.length === 0){ // no alt branches
 									if (min_mc_wl >= first_unstable_mc_level) 
 										return advanceLastStableMcUnitAndTryNext();
