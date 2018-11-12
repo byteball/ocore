@@ -137,8 +137,8 @@ eventBus.on("message_for_light", handleJustsaying);
 
 
 // called from UI after user confirms signing request initiated from another device, initiator device being the recipient of this message
-function sendSignature(device_address, signed_text, signature, signing_path, address, unit, hmac){
-	device.sendMessageToDevice(device_address, "signature", {signed_text: signed_text, signature: signature, signing_path: signing_path, address: address, hmac: hmac, unit: unit});
+function sendSignature(device_address, signed_text, signature, signing_path, address){
+	device.sendMessageToDevice(device_address, "signature", {signed_text: signed_text, signature: signature, signing_path: signing_path, address: address});
 }
 
 // one of callbacks MUST be called, otherwise the mutex will stay locked
@@ -353,38 +353,26 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					//    if (sender_rows.length !== 1)
 					//        return callbacks.ifError("sender is not cosigner of this address");
 						callbacks.ifOk();
-						var setSigEventHandler = function(objUnit) {
-							var text_to_sign = objectHash.getUnitHashToSign(objUnit).toString("base64");
-							eventBus.once("signature-"+from_address+"-"+body.address+"-"+body.signing_path+"-"+text_to_sign, function(sig){
-								sendSignature(from_address, text_to_sign, sig, body.signing_path, body.address, objUnit, body.hmac);
-							});
-						}
 						if (objUnit.signed_message && !ValidationUtils.hasFieldsExcept(objUnit, ["signed_message", "authors"])){
 							objUnit.unit = objectHash.getBase64Hash(objUnit);
-							setSigEventHandler(objUnit);
 							return eventBus.emit("signing_request", objAddress, body.address, objUnit, assocPrivatePayloads, from_address, body.signing_path);
 						}
-						composer.retrieveAbsentAuthorsDefinitions(db, [objAddress.address], null, getSigner(null, [device.getMyDeviceAddress()]), function(authors, assocSigningPaths) {
-							objUnit.authors = objUnit.authors.concat(authors);
-							objUnit.unit = objectHash.getUnitHash(objUnit);
-							objUnit.headers_commission = require("./object_length.js").getHeadersSize(objUnit);
-							var objJoint = {unit: objUnit, unsigned: true};
-							eventBus.once("validated-"+objUnit.unit, function(bValid){
-								if (!bValid){
-									console.log("===== unit in signing request is invalid");
-									return;
-								}
-								// This event should trigger a confirmation dialog.
-								// If we merge coins from several addresses of the same wallet, we'll fire this event multiple times for the same unit.
-								// The event handler must lock the unit before displaying a confirmation dialog, then remember user's choice and apply it to all
-								// subsequent requests related to the same unit
-								setSigEventHandler(objUnit);
-								eventBus.emit("signing_request", objAddress, body.address, objUnit, assocPrivatePayloads, from_address, body.signing_path);
-							});
-							// if validation is already under way, handleOnlineJoint will quickly exit because of assocUnitsInWork.
-							// as soon as the previously started validation finishes, it will trigger our event handler (as well as its own)
-							network.handleOnlineJoint(ws, objJoint);
+						objUnit.unit = objectHash.getUnitHash(objUnit);
+						var objJoint = {unit: objUnit, unsigned: true};
+						eventBus.once("validated-"+objUnit.unit, function(bValid){
+							if (!bValid){
+								console.log("===== unit in signing request is invalid");
+								return;
+							}
+							// This event should trigger a confirmation dialog.
+							// If we merge coins from several addresses of the same wallet, we'll fire this event multiple times for the same unit.
+							// The event handler must lock the unit before displaying a confirmation dialog, then remember user's choice and apply it to all
+							// subsequent requests related to the same unit
+							eventBus.emit("signing_request", objAddress, body.address, objUnit, assocPrivatePayloads, from_address, body.signing_path);
 						});
+						// if validation is already under way, handleOnlineJoint will quickly exit because of assocUnitsInWork.
+						// as soon as the previously started validation finishes, it will trigger our event handler (as well as its own)
+						network.handleOnlineJoint(ws, objJoint);
 					//});
 				},
 				ifRemote: function(device_address){
@@ -394,8 +382,8 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					}
 					var text_to_sign = objectHash.getUnitHashToSign(body.unsigned_unit).toString("base64");
 					// I'm a proxy, wait for response from the actual signer and forward to the requestor
-					eventBus.once("signature-"+device_address+"-"+body.address+"-"+body.signing_path+"-"+text_to_sign, function(sig, unit){
-						sendSignature(from_address, text_to_sign, sig, body.signing_path, body.address, unit, body.hmac);
+					eventBus.once("signature-"+device_address+"-"+body.address+"-"+body.signing_path+"-"+text_to_sign, function(sig){
+						sendSignature(from_address, text_to_sign, sig, body.signing_path, body.address);
 					});
 					// forward the offer to the actual signer
 					device.sendMessageToDevice(device_address, subject, body);
@@ -424,13 +412,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				return callbacks.ifError("bad signing path");
 			if (!ValidationUtils.isValidAddress(body.address))
 				return callbacks.ifError("bad address");
-			if (body.unit) {// signer could've added definition
-				if (device.calculateHMAC(objectHash.getUnitHashForHMAC(body.unit)) !== body.hmac)
-					return callbacks.ifError("bad HMAC");
-				eventBus.emit("signature-" + from_address + "-" + body.address + "-" + body.signing_path + "-" + objectHash.getUnitHashForHMAC(body.unit), body.signature, body.unit);
-			} else {
-				eventBus.emit("signature-" + from_address + "-" + body.address + "-" + body.signing_path + "-" + body.signed_text, body.signature);
-			}
+			eventBus.emit("signature-" + from_address + "-" + body.address + "-" + body.signing_path + "-" + body.signed_text, body.signature);
 			callbacks.ifOk();
 			break;
 			
@@ -1364,20 +1346,12 @@ function getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey) {
 					});
 				},
 				ifRemote: function (device_address) {
-					// old proto, without definition additions
-					var eventNameOld = "signature-" + device_address + "-" + address + "-" + signing_path + "-" + buf_to_sign.toString("base64");
-					// new proto, with definition additions
-					var eventNameNew = "signature-" + device_address + "-" + address + "-" + signing_path + "-" + objectHash.getUnitHashForHMAC(objUnsignedUnit);
-					var signatureHandler = function (sig, unit) {
-						eventBus.removeAllListeners(eventNameOld);
-						eventBus.removeAllListeners(eventNameNew);
-						handleSignature(null, sig, unit);
+					// we'll receive this event after the peer signs
+					eventBus.once("signature-" + device_address + "-" + address + "-" + signing_path + "-" + buf_to_sign.toString("base64"), function (sig) {
+						handleSignature(null, sig);
 						if (sig === '[refused]')
 							eventBus.emit('refused_to_sign', device_address);
-					};
-					// we'll receive this event after the peer signs
-					eventBus.once(eventNameOld, signatureHandler);
-					eventBus.once(eventNameNew, signatureHandler);
+					});
 					walletGeneral.sendOfferToSign(device_address, address, signing_path, objUnsignedUnit, assocPrivatePayloads);
 					if (!bRequestedConfirmation) {
 						eventBus.emit("confirm_on_other_devices");
@@ -1395,34 +1369,6 @@ function getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey) {
 					if (!opts.secrets || !opts.secrets[signing_path])
 						throw Error("secret " + signing_path + " not found");
 					handleSignature(null, opts.secrets[signing_path])
-				}
-			});
-		}, 
-		getAddressType: function(address, signing_path, cb) {
-			findAddress(address, signing_path, {
-				ifError: function () {
-					cb("unknown");
-				},
-				ifUnknownAddress: function () {
-					cb("unknown");
-				},
-				ifLocal: function () {
-					cb("local");
-				},
-				ifRemote: function () {
-					cb("remote");
-				},
-				ifMerkle: function (bLocal) {
-					if (!bLocal)
-						return cb("unknown");
-					if (!opts.merkle_proof)
-						return cb("unknown");
-					cb("local");
-				},
-				ifSecret: function () {
-					if (!opts.secrets || !opts.secrets[signing_path])
-						return cb("unknown");
-					cb("local");
 				}
 			});
 		}
