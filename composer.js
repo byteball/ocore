@@ -433,107 +433,63 @@ function composeJoint(params){
 				return handleError(err);
 			
 			// change, payload hash, signature, and unit hash
-			var payment_msg_hash;
-			var calculateChange = function() {
-				var change = total_input - total_amount - objUnit.headers_commission - objUnit.payload_commission;
-				if (change <= 0){
-					if (!params.send_all)
-						throw Error("change="+change+", params="+JSON.stringify(params));
-					handleError({ 
-						error_code: "NOT_ENOUGH_FUNDS", 
-						error: "not enough spendable funds from "+arrPayingAddresses+" for fees"
-					});
-					return false;
-				}
-				objPaymentMessage.payload.outputs[0].amount = change;
-				objPaymentMessage.payload.outputs.sort(sortOutputs);
-				payment_msg_hash = objPaymentMessage.payload_hash = objectHash.getBase64Hash(objPaymentMessage.payload);
-				return true;
+			var change = total_input - total_amount - objUnit.headers_commission - objUnit.payload_commission;
+			if (change <= 0){
+				if (!params.send_all)
+					throw Error("change="+change+", params="+JSON.stringify(params));
+				return handleError({ 
+					error_code: "NOT_ENOUGH_FUNDS", 
+					error: "not enough spendable funds from "+arrPayingAddresses+" for fees"
+				});
 			}
-			if (!calculateChange()) return;
-
-			var signPaths = function(paths, cb2) {
-				async.each(
-					paths,
-					function(pathObj, cb3) {
-						var author = pathObj.author;
-						var address = pathObj.address;
-						var path = pathObj.path;
-						if (signer.sign){
-							signer.sign(objUnit, assocPrivatePayloads, address, path, function(err, signature, newUnit){
-								if (err)
-									return cb3(err);
-								// it can't be accidentally confused with real signature as there are no [ and ] in base64 alphabet
-								if (signature === '[refused]')
-									return cb3('one of the cosigners refused to sign');
-								
-								if (newUnit) {
-									_.merge(objUnit, newUnit);
-									calculateChange();
-								}
-
-								author.authentifiers[path] = signature;
-								cb3();
-							});
-						}
-						else{
-							signer.readPrivateKey(address, path, function(err, privKey){
-								if (err)
-									return cb3(err);
-								author.authentifiers[path] = ecdsaSig.sign(text_to_sign, privKey);
-								cb3();
-							});
-						}
-					},
-					function(err) {
-						cb2(err);
-					}
-				);
-			}
-
-			var localPaths = [];
-			var remotePaths = [];
+			objPaymentMessage.payload.outputs[0].amount = change;
+			objPaymentMessage.payload.outputs.sort(sortOutputs);
+			objPaymentMessage.payload_hash = objectHash.getBase64Hash(objPaymentMessage.payload);
+			var text_to_sign = objectHash.getUnitHashToSign(objUnit);
 			async.each(
 				objUnit.authors,
 				function(author, cb2){
 					var address = author.address;
-					async.each(
+					async.each( // different keys sign in parallel (if multisig)
 						assocSigningPaths[address],
 						function(path, cb3){
-							signer.getAddressType(address, path, function(type){
-								var arr;
-								if (type == "remote")
-									arr = remotePaths;
-								if (type == "local")
-									arr = localPaths;
-								arr.push({address: address, path: path, author: author});
-								cb3();
-							})
+							if (signer.sign){
+								signer.sign(objUnit, assocPrivatePayloads, address, path, function(err, signature){
+									if (err)
+										return cb3(err);
+									// it can't be accidentally confused with real signature as there are no [ and ] in base64 alphabet
+									if (signature === '[refused]')
+										return cb3('one of the cosigners refused to sign');
+									author.authentifiers[path] = signature;
+									cb3();
+								});
+							}
+							else{
+								signer.readPrivateKey(address, path, function(err, privKey){
+									if (err)
+										return cb3(err);
+									author.authentifiers[path] = ecdsaSig.sign(text_to_sign, privKey);
+									cb3();
+								});
+							}
 						},
-						function() {
-							cb2();
+						function(err){
+							cb2(err);
 						}
 					);
 				},
-				function() {
-					async.series([function(cb){
-						signPaths(remotePaths, cb);
-					},
-					function(cb){
-						signPaths(localPaths, cb);
-					}], function(err){
-						if (err)
-							return handleError(err);
-						objUnit.unit = objectHash.getUnitHash(objUnit);
-						if (bGenesis)
-							objJoint.ball = objectHash.getBallHash(objUnit.unit);
-						console.log(require('util').inspect(objJoint, {depth:null}));
-						objJoint.unit.timestamp = Math.round(Date.now()/1000); // light clients need timestamp
-						if (Object.keys(assocPrivatePayloads).length === 0)
-							assocPrivatePayloads = null;
-						//profiler.stop('compose');
-						callbacks.ifOk(objJoint, assocPrivatePayloads, unlock_callback);
-					});
+				function(err){
+					if (err)
+						return handleError(err);
+					objUnit.unit = objectHash.getUnitHash(objUnit);
+					if (bGenesis)
+						objJoint.ball = objectHash.getBallHash(objUnit.unit);
+					console.log(require('util').inspect(objJoint, {depth:null}));
+					objJoint.unit.timestamp = Math.round(Date.now()/1000); // light clients need timestamp
+					if (Object.keys(assocPrivatePayloads).length === 0)
+						assocPrivatePayloads = null;
+					//profiler.stop('compose');
+					callbacks.ifOk(objJoint, assocPrivatePayloads, unlock_callback);
 				}
 			);
 		});
