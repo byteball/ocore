@@ -226,7 +226,7 @@ function composeJoint(params){
 	});
 	arrMessages.push(objPaymentMessage);
 	
-	var bMultiAuthored = (arrFromAddresses.length > 1);
+	var bMultiAuthored = (arrFromAddresses.length > 1 || (params.authors && params.authors.length));
 	var objUnit = {
 		version: constants.version, 
 		alt: constants.alt,
@@ -244,7 +244,6 @@ function composeJoint(params){
 	
 	var total_input;
 	var last_ball_mci;
-	var assocSigningPaths = {};
 	var unlock_callback;
 	var conn;
 	var lightProps;
@@ -336,9 +335,9 @@ function composeJoint(params){
 			);
 		},
 		function(cb){ // authors
-			retrieveAbsentAuthorsDefinitions(conn, arrFromAddresses, last_ball_mci, signer, function(authors, _assocSigningPaths) {
-				assocSigningPaths = _assocSigningPaths;
+			retrieveAbsentAuthorsDefinitions(conn, arrFromAddresses, last_ball_mci, signer, function(authors) {
 				objUnit.authors = objUnit.authors.concat(authors);
+				objUnit.authors = _.sortBy(objUnit.authors, function(objAuthor) {return objAuthor.address});
 				cb();
 			});
 		},
@@ -450,8 +449,11 @@ function composeJoint(params){
 				objUnit.authors,
 				function(author, cb2){
 					var address = author.address;
+					var arrPaths = [];
+					for (var path in author.authentifiers)
+						arrPaths.push(path);
 					async.each( // different keys sign in parallel (if multisig)
-						assocSigningPaths[address],
+						arrPaths,
 						function(path, cb3){
 							if (signer.sign){
 								signer.sign(objUnit, assocPrivatePayloads, address, path, function(err, signature){
@@ -770,7 +772,6 @@ function retrieveAbsentAuthorsDefinitions(conn, arrFromAddresses, last_ball_mci,
 			} else cb2();
 		}, function() {
 			var authors = [];
-			var assocSigningPaths = {};
 			async.eachSeries(arrFromAddresses, function(from_address, cb2){
 				function setDefinition(){
 					signer.readDefinition(conn, from_address, function(err, arrDefinition){
@@ -787,7 +788,6 @@ function retrieveAbsentAuthorsDefinitions(conn, arrFromAddresses, last_ball_mci,
 				};
 				signer.readSigningPaths(conn, from_address, function(assocLengthsBySigningPaths){
 					var arrSigningPaths = Object.keys(assocLengthsBySigningPaths);
-					assocSigningPaths[from_address] = arrSigningPaths;
 					for (var j=0; j<arrSigningPaths.length; j++)
 						objAuthor.authentifiers[arrSigningPaths[j]] = repeatString("-", assocLengthsBySigningPaths[arrSigningPaths[j]]);
 					authors.push(objAuthor);
@@ -817,7 +817,7 @@ function retrieveAbsentAuthorsDefinitions(conn, arrFromAddresses, last_ball_mci,
 					);
 				});
 			}, function() {
-				cb(authors, assocSigningPaths);
+				cb(authors);
 			});
 		}
 	]);

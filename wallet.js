@@ -452,7 +452,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 		case 'offer_prosaic_contract':
 			var text_hash = objectHash.getBase64Hash(body.text);
 			eventBus.once("prosaic-contract-response" + text_hash, function(accepted){
-				composer.retrieveAbsentAuthorsDefinitions(db, [body.address], null, getSigner(null, [device.getMyDeviceAddress()]), function(authors, assocSigningPaths) {
+				composer.retrieveAbsentAuthorsDefinitions(db, [body.address], null, getSigner(null, [device.getMyDeviceAddress()]), function(authors) {
 					if (authors.length && !authors[0].definition)
 						authors = []; // remove author without definition
 					device.sendMessageToDevice(from_address, "prosaic-contract-response", {text: body.text, accepted: accepted, hmac: body.hmac, authors: authors});
@@ -733,22 +733,22 @@ function findAddress(address, signing_path, callbacks, fallback_remote_device_ad
 				WHERE shared_address=? AND signing_path=SUBSTR(?, 1, LENGTH(signing_path))", 
 				[address, signing_path],
 				function(sa_rows){
-					if (rows.length > 1)
+					if (sa_rows.length > 1)
 						throw Error("more than 1 member address found for shared address "+address+" and signing path "+signing_path);
-					if (sa_rows.length === 0){
-						if (fallback_remote_device_address)
-							return callbacks.ifRemote(fallback_remote_device_address);
-						return callbacks.ifUnknownAddress();
+					if (sa_rows.length === 1) {
+						var objSharedAddress = sa_rows[0];
+						var relative_signing_path = 'r' + signing_path.substr(objSharedAddress.signing_path.length);
+						var bLocal = (objSharedAddress.device_address === device.getMyDeviceAddress()); // local keys
+						if (objSharedAddress.address === '') {
+							return callbacks.ifMerkle(bLocal);
+						} else if(objSharedAddress.address === 'secret') {
+							return callbacks.ifSecret();
+						}
+						findAddress(objSharedAddress.address, relative_signing_path, callbacks, bLocal ? null : objSharedAddress.device_address);
 					}
-					var objSharedAddress = sa_rows[0];
-					var relative_signing_path = 'r' + signing_path.substr(objSharedAddress.signing_path.length);
-					var bLocal = (objSharedAddress.device_address === device.getMyDeviceAddress()); // local keys
-					if (objSharedAddress.address === '') {
-						return callbacks.ifMerkle(bLocal);
-					} else if(objSharedAddress.address === 'secret') {
-						return callbacks.ifSecret();
-					}
-					findAddress(objSharedAddress.address, relative_signing_path, callbacks, bLocal ? null : objSharedAddress.device_address);
+					if (fallback_remote_device_address)
+						return callbacks.ifRemote(fallback_remote_device_address);
+					return callbacks.ifUnknownAddress();
 				}
 			);
 		}
@@ -1296,7 +1296,7 @@ opts = {
 	secrets: array of strings, optional
 }
 */
-function getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey) {
+function getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey, fallback_remote_device_address) {
 	var bRequestedConfirmation = false;
 	return {
 		readSigningPaths: function (conn, address, handleLengthsBySigningPaths) { // returns assoc array signing_path => length
@@ -1370,7 +1370,7 @@ function getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey) {
 						throw Error("secret " + signing_path + " not found");
 					handleSignature(null, opts.secrets[signing_path])
 				}
-			});
+			}, fallback_remote_device_address);
 		}
 	}
 }
@@ -1431,7 +1431,7 @@ function sendMultiPayment(opts, handleResult)
 			if (asset && arrBaseFundedAddresses.length === 0)
 				return handleResult("No bytes to pay fees");
 
-			var signer = getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey);
+			var signer = getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey, opts.fallback_remote_device_address);
 
 			// if we have any output with text addresses / not byteball addresses (e.g. email) - generate new addresses and return them
 			var assocMnemonics = {}; // return all generated wallet mnemonics to caller in callback
