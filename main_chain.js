@@ -799,7 +799,7 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 					var arrNotIncludedTips = [];
 					var arrRemovedBestChildren = [];
 
-					function goDownAndCollectBestChildren(arrStartUnits, cb){
+					function goDownAndCollectBestChildrenOld(arrStartUnits, cb){
 						conn.query("SELECT unit, is_free, main_chain_index FROM units WHERE best_parent_unit IN(?)", [arrStartUnits], function(rows){
 							if (rows.length === 0)
 								return cb();
@@ -812,7 +812,7 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 										if (row.is_free === 1 || arrLaterUnits.indexOf(row.unit) >= 0)
 											cb2();
 										else
-											goDownAndCollectBestChildren([row.unit], cb2);
+											goDownAndCollectBestChildrenOld([row.unit], cb2);
 									}
 									
 									if (row.main_chain_index !== null && row.main_chain_index <= max_later_limci)
@@ -952,8 +952,8 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 											console.log("collectBestChildren took "+(Date.now()-start_time)+"ms");
 											cb();
 										});
-									goDownAndCollectBestChildren(arrFilteredAltBranchRootUnits, function(){
-										console.log("goDownAndCollectBestChildren took "+(Date.now()-start_time)+"ms");
+									goDownAndCollectBestChildrenOld(arrFilteredAltBranchRootUnits, function(){
+										console.log("goDownAndCollectBestChildrenOld took "+(Date.now()-start_time)+"ms");
 										var arrBestChildren1 = _.clone(arrBestChildren.sort());
 										arrBestChildren = arrInitialBestChildren;
 										start_time = Date.now();
