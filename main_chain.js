@@ -420,9 +420,9 @@ function updateMainChain(conn, from_unit, last_added_unit, onDone){
 		});
 	}
 
-	function findMinMcWitnessedLevel(tip_unit, min_level, arrWitnesses, handleMinMcWl){
+	function findMinMcWitnessedLevel(tip_unit, first_unstable_mc_level, arrWitnesses, handleMinMcWl){
 		var arrCollectedWitnesses = [];
-		var min_mc_wl = Math.pow(2, 31) - 1;
+		var min_mc_wl = Number.POSITIVE_INFINITY;
 
 		function addWitnessesAndGoUp(start_unit){
 			storage.readStaticUnitProps(conn, start_unit, function(props){
@@ -430,8 +430,8 @@ function updateMainChain(conn, from_unit, last_added_unit, onDone){
 				var level = props.level;
 				if (level === null)
 					throw Error("null level in findMinMcWitnessedLevel");
-				if (level < min_level) {
-					console.log("unit " + start_unit + ", level=" + level + ", first_unstable_levle=" + min_level + ", min_mc_wl=" + min_mc_wl);
+				if (level < first_unstable_mc_level) {
+					console.log("unit " + start_unit + ", level=" + level + ", first_unstable_level=" + first_unstable_mc_level + ", min_mc_wl=" + min_mc_wl);
 					return handleMinMcWl(-1);
 				}
 				storage.readUnitAuthors(conn, start_unit, function(arrAuthors){
