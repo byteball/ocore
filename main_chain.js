@@ -431,7 +431,7 @@ function updateMainChain(conn, from_unit, last_added_unit, onDone){
 				if (level === null)
 					throw Error("null level in findMinMcWitnessedLevel");
 				if (level < first_unstable_mc_level) {
-					console.log("unit " + start_unit + ", level=" + level + ", first_unstable_level=" + first_unstable_mc_level + ", min_mc_wl=" + min_mc_wl);
+					console.log("unit " + start_unit + ", level=" + level + ", first_unstable_mc_level=" + first_unstable_mc_level + ", min_mc_wl=" + min_mc_wl);
 					return handleMinMcWl(-1);
 				}
 				storage.readUnitAuthors(conn, start_unit, function(arrAuthors){
