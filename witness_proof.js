@@ -185,8 +185,8 @@ function processWitnessProof(arrUnstableMcJoints, arrWitnessChangeAndDefinitionJ
 				objUnit.authors,
 				function(author, cb3){
 					var address = author.address;
-					if (arrWitnesses.indexOf(address) === -1) // not a witness - skip it
-						return cb3();
+				//	if (arrWitnesses.indexOf(address) === -1) // not a witness - skip it
+				//		return cb3();
 					var definition_chash = assocDefinitionChashes[address];
 					if (!definition_chash)
 						throw Error("definition chash not known for address "+address);
