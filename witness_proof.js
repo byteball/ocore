@@ -222,7 +222,7 @@ function processWitnessProof(arrUnstableMcJoints, arrWitnessChangeAndDefinitionJ
 							handleAuthor();
 						},
 						ifDefinitionNotFound: function(d){
-							throw Error("definition "+definition_chash+" not found, address "+address);
+							throw Error("definition "+definition_chash+" not found, address "+address+", my witnesses "+arrWitnesses.join(', '));
 						}
 					});
 				},
