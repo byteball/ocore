@@ -767,5 +767,13 @@ CREATE TABLE original_addresses (
 	FOREIGN KEY (unit) REFERENCES units(unit)
 );
 
+CREATE TABLE IF NOT EXISTS peer_addresses (
+	address CHAR(32) NOT NULL,
+	signing_path VARCHAR(255) NULL,
+	device_address CHAR(33) NOT NULL,
+	definition TEXT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	PRIMARY KEY (address, signing_path)
+);
 
-PRAGMA user_version=21;
+PRAGMA user_version=22;

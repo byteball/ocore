@@ -452,9 +452,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 		case 'offer_prosaic_contract':
 			var text_hash = objectHash.getBase64Hash(body.text);
 			eventBus.once("prosaic-contract-response" + text_hash, function(accepted){
-				composer.retrieveAbsentAuthorsDefinitions(db, [body.address], null, getSigner(null, [device.getMyDeviceAddress()]), function(authors) {
-					if (authors.length && !authors[0].definition)
-						authors = []; // remove author without definition
+				composer.retrieveAbsentAuthorsDefinitions(db, [body.address], null, getSigner(), function(authors) {
 					device.sendMessageToDevice(from_address, "prosaic-contract-response", {text: body.text, accepted: accepted, hmac: body.hmac, authors: authors});
 				});
 				callbacks.ifOk();
@@ -472,6 +470,9 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				var author = body.authors[0];
 				if (author.definition && (author.address !== objectHash.getChash160(author.definition)))
 					return callbacks.ifError("incorrect definition recieved");
+				for (var signing_path in author.authentifiers)
+					db.query("INSERT "+db.getIgnore()+" INTO peer_addresses (address, device_address, signing_path, definition) VALUES (?, ?, ?, ?)",
+						[author.address, from_address, signing_path, JSON.stringify(author.definition)]);
 			}
 			eventBus.emit("prosaic-contract-response-recieved" + text_hash + from_address, body.accepted, body.authors);
 			callbacks.ifOk();
@@ -744,11 +745,22 @@ function findAddress(address, signing_path, callbacks, fallback_remote_device_ad
 						} else if(objSharedAddress.address === 'secret') {
 							return callbacks.ifSecret();
 						}
-						findAddress(objSharedAddress.address, relative_signing_path, callbacks, bLocal ? null : objSharedAddress.device_address);
+						return findAddress(objSharedAddress.address, relative_signing_path, callbacks, bLocal ? null : objSharedAddress.device_address);
 					}
-					if (fallback_remote_device_address)
-						return callbacks.ifRemote(fallback_remote_device_address);
-					return callbacks.ifUnknownAddress();
+					db.query(
+						"SELECT device_address FROM peer_addresses \n\
+						WHERE address=? AND signing_path=SUBSTR(?, 1, LENGTH(signing_path))", 
+						[address, signing_path],
+						function(pa_rows) {
+							if (pa_rows.length > 1)
+								throw Error("more than 1 member address found for shared address "+address+" and signing path "+signing_path);
+							if (pa_rows.length == 1)
+								return callbacks.ifRemote(pa_rows[0].device_address);
+							if (fallback_remote_device_address)
+								return callbacks.ifRemote(fallback_remote_device_address);
+							return callbacks.ifUnknownAddress();
+						}
+					);
 				}
 			);
 		}
@@ -1132,8 +1144,21 @@ function readFullSigningPaths(conn, address, arrSigningDeviceAddresses, handleSi
 						onDone
 					);
 				} else {
-					assocSigningPaths[path_prefix] = 'key';
-					onDone();
+					sql = "SELECT signing_path FROM peer_addresses WHERE address=?";
+					arrParams = [member_address];
+					if (arrSigningDeviceAddresses && arrSigningDeviceAddresses.length > 0){
+						sql += " AND device_address IN(?)";
+						arrParams.push(arrSigningDeviceAddresses);
+					}
+					conn.query(sql, [member_address], function(rows){
+						rows.forEach(function(row){
+							assocSigningPaths[path_prefix + row.signing_path.substr(1)] = 'key';
+						});
+						if (rows.length > 0)
+							return onDone();
+						assocSigningPaths[path_prefix] = 'key';
+						onDone();
+					});
 				}
 			});
 		});
@@ -1322,8 +1347,12 @@ function getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey, fal
 		},
 		readDefinition: function (conn, address, handleDefinition) {
 			conn.query(
-				"SELECT definition FROM my_addresses WHERE address=? UNION SELECT definition FROM shared_addresses WHERE shared_address=?",
-				[address, address],
+				"SELECT definition FROM my_addresses WHERE address=? \n\
+				UNION \n\
+				SELECT definition FROM shared_addresses WHERE shared_address=? \n\
+				UNION \n\
+				SELECT definition FROM peer_addresses WHERE address=?",
+				[address, address, address],
 				function (rows) {
 					if (rows.length !== 1)
 						throw Error("definition not found");

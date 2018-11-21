@@ -226,7 +226,7 @@ function composeJoint(params){
 	});
 	arrMessages.push(objPaymentMessage);
 	
-	var bMultiAuthored = (arrFromAddresses.length > 1 || (params.authors && params.authors.length));
+	var bMultiAuthored = (arrFromAddresses.length > 1);
 	var objUnit = {
 		version: constants.version, 
 		alt: constants.alt,
@@ -338,6 +338,8 @@ function composeJoint(params){
 			retrieveAbsentAuthorsDefinitions(conn, arrFromAddresses, last_ball_mci, signer, function(authors) {
 				objUnit.authors = objUnit.authors.concat(authors);
 				objUnit.authors = _.sortBy(objUnit.authors, function(objAuthor) {return objAuthor.address});
+				if (!objUnit.earned_headers_commission_recipients && objUnit.authors.length > 1)
+					objUnit.earned_headers_commission_recipients = [{address: arrChangeOutputs[0].address, earned_headers_commission_share: 100}];
 				cb();
 			});
 		},
@@ -740,6 +742,7 @@ function generateBlinding(){
 }
 
 function retrieveAbsentAuthorsDefinitions(conn, arrFromAddresses, last_ball_mci, signer, cb) {
+	var authors = [];
 	async.series([
 		function(cb2){
 			if (!last_ball_mci) {
@@ -770,8 +773,7 @@ function retrieveAbsentAuthorsDefinitions(conn, arrFromAddresses, last_ball_mci,
 						);
 				});
 			} else cb2();
-		}, function() {
-			var authors = [];
+		}, function(cb2) {
 			async.eachSeries(arrFromAddresses, function(from_address, cb2){
 				function setDefinition(){
 					signer.readDefinition(conn, from_address, function(err, arrDefinition){
@@ -816,9 +818,26 @@ function retrieveAbsentAuthorsDefinitions(conn, arrFromAddresses, last_ball_mci,
 						}
 					);
 				});
-			}, function() {
-				cb(authors);
-			});
+			}, function(){
+					cb2();
+				}
+			);
+		}, function() { // check if some "nested" addresses needs to reveal it's definitions (used in prosaic contract)
+			conn.query("SELECT address FROM shared_address_signing_paths WHERE shared_address IN (?)", [arrFromAddresses],
+				function(rows) {
+					if (!rows.length)
+						return cb(authors);
+					retrieveAbsentAuthorsDefinitions(conn, _.map(rows, function(v){return v.address}), last_ball_mci, signer,
+						function(arrAuthors) {
+							for (var i = 0; i < arrAuthors.length; i++) {
+								if (arrAuthors[i].definition)
+									authors.push(arrAuthors[i]);
+							}
+							cb(authors);
+						}
+					);
+				}
+			);
 		}
 	]);
 }

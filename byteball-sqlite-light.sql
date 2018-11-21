@@ -749,4 +749,13 @@ CREATE TABLE original_addresses (
 );
 
 
-PRAGMA user_version=21;
+CREATE TABLE IF NOT EXISTS peer_addresses (
+	address CHAR(32) NOT NULL,
+	signing_path VARCHAR(255) NULL, -- full path to signing key which is a member of the member address
+	device_address CHAR(33) NOT NULL, -- where this signing key lives or is reachable through
+	definition TEXT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	PRIMARY KEY (address, signing_path)
+);
+
+PRAGMA user_version=22;
