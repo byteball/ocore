@@ -211,11 +211,11 @@ function migrateDb(connection, onDone){
 				if (version < 22)
 					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS peer_addresses ( \n\
 						address CHAR(32) NOT NULL, \n\
-						signing_path VARCHAR(255) NULL, \n\
+						signing_paths VARCHAR(255) NULL, \n\
 						device_address CHAR(33) NOT NULL, \n\
 						definition TEXT NULL, \n\
 						creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, \n\
-						PRIMARY KEY (address, signing_path) \n\
+						PRIMARY KEY (address) \n\
 					)");
 				cb();
 			}

@@ -470,9 +470,10 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				var author = body.authors[0];
 				if (author.definition && (author.address !== objectHash.getChash160(author.definition)))
 					return callbacks.ifError("incorrect definition recieved");
-				for (var signing_path in author.authentifiers)
-					db.query("INSERT "+db.getIgnore()+" INTO peer_addresses (address, device_address, signing_path, definition) VALUES (?, ?, ?, ?)",
-						[author.address, from_address, signing_path, JSON.stringify(author.definition)]);
+				if (!ValidationUtils.isValidAddress(author.address))
+					return callbacks.ifError("incorrect author address");
+				db.query("INSERT "+db.getIgnore()+" INTO peer_addresses (address, device_address, signing_paths, definition) VALUES (?, ?, ?, ?)",
+						[author.address, from_address, JSON.stringify(Object.keys(author.authentifiers)), JSON.stringify(author.definition)]);
 			}
 			eventBus.emit("prosaic-contract-response-recieved" + text_hash + from_address, body.accepted, body.authors);
 			callbacks.ifOk();
@@ -1144,20 +1145,21 @@ function readFullSigningPaths(conn, address, arrSigningDeviceAddresses, handleSi
 						onDone
 					);
 				} else {
-					sql = "SELECT signing_path FROM peer_addresses WHERE address=?";
+					sql = "SELECT signing_paths FROM peer_addresses WHERE address=?";
 					arrParams = [member_address];
 					if (arrSigningDeviceAddresses && arrSigningDeviceAddresses.length > 0){
 						sql += " AND device_address IN(?)";
 						arrParams.push(arrSigningDeviceAddresses);
 					}
-					conn.query(sql, [member_address], function(rows){
-						rows.forEach(function(row){
-							assocSigningPaths[path_prefix + row.signing_path.substr(1)] = 'key';
-						});
-						if (rows.length > 0)
+					conn.query(sql, arrParams, function(rows){
+						if (!rows.length) {
+							assocSigningPaths[path_prefix] = 'key';
 							return onDone();
-						assocSigningPaths[path_prefix] = 'key';
-						onDone();
+						}
+						JSON.parse(rows[0].signing_paths).forEach(function(signing_path){
+							assocSigningPaths[path_prefix + signing_path] = 'key';
+						});
+						return onDone();
 					});
 				}
 			});
