@@ -749,14 +749,21 @@ function findAddress(address, signing_path, callbacks, fallback_remote_device_ad
 						return findAddress(objSharedAddress.address, relative_signing_path, callbacks, bLocal ? null : objSharedAddress.device_address);
 					}
 					db.query(
-						"SELECT device_address FROM peer_addresses \n\
-						WHERE address=? AND signing_path=SUBSTR(?, 1, LENGTH(signing_path))", 
-						[address, signing_path],
+						"SELECT device_address, signing_paths FROM peer_addresses WHERE address=?", 
+						[address],
 						function(pa_rows) {
-							if (pa_rows.length > 1)
+							var candidate_addresses = [];
+							for (var i = 0; i < pa_rows.length; i++) {
+								var row = pa_rows[i];
+								JSON.parse(row.signing_paths).forEach(function(signing_path_candidate){
+									if (signing_path_candidate.substr(0, signing_path.length) === signing_path)
+										candidate_addresses.push(row.device_address);
+								});
+							}
+							if (candidate_addresses.length > 1)
 								throw Error("more than 1 member address found for shared address "+address+" and signing path "+signing_path);
-							if (pa_rows.length == 1)
-								return callbacks.ifRemote(pa_rows[0].device_address);
+							if (candidate_addresses.length == 1)
+								return callbacks.ifRemote(candidate_addresses[0]);
 							if (fallback_remote_device_address)
 								return callbacks.ifRemote(fallback_remote_device_address);
 							return callbacks.ifUnknownAddress();
@@ -1157,7 +1164,7 @@ function readFullSigningPaths(conn, address, arrSigningDeviceAddresses, handleSi
 							return onDone();
 						}
 						JSON.parse(rows[0].signing_paths).forEach(function(signing_path){
-							assocSigningPaths[path_prefix + signing_path] = 'key';
+							assocSigningPaths[path_prefix + signing_path.substr(1)] = 'key';
 						});
 						return onDone();
 					});
