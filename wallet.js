@@ -1330,7 +1330,7 @@ opts = {
 	secrets: array of strings, optional
 }
 */
-function getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey, fallback_remote_device_address) {
+function getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey) {
 	var bRequestedConfirmation = false;
 	return {
 		readSigningPaths: function (conn, address, handleLengthsBySigningPaths) { // returns assoc array signing_path => length
@@ -1408,7 +1408,7 @@ function getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey, fal
 						throw Error("secret " + signing_path + " not found");
 					handleSignature(null, opts.secrets[signing_path])
 				}
-			}, fallback_remote_device_address);
+			});
 		}
 	}
 }
@@ -1469,7 +1469,7 @@ function sendMultiPayment(opts, handleResult)
 			if (asset && arrBaseFundedAddresses.length === 0)
 				return handleResult("No bytes to pay fees");
 
-			var signer = getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey, opts.fallback_remote_device_address);
+			var signer = getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey);
 
 			// if we have any output with text addresses / not byteball addresses (e.g. email) - generate new addresses and return them
 			var assocMnemonics = {}; // return all generated wallet mnemonics to caller in callback
@@ -1563,9 +1563,6 @@ function sendMultiPayment(opts, handleResult)
 					}
 				}
 			};
-
-			if (opts.authors)
-				params.authors = opts.authors;
 
 			// textcoin claim fees are paid by the sender
 			var indivisibleAssetFeesByAddress = [];
