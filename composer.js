@@ -335,14 +335,8 @@ function composeJoint(params){
 			);
 		},
 		function(cb){ // authors
-			retrieveAbsentAuthorsDefinitions(conn, arrFromAddresses, last_ball_mci, signer, function(authors) {
-				objUnit.authors = objUnit.authors.concat(authors);
-				objUnit.authors = _.sortBy(objUnit.authors, function(objAuthor) {return objAuthor.address});
-				if (!bMultiAuthored && objUnit.authors.length > 1) {
-					bMultiAuthored = true;
-					if (!objUnit.earned_headers_commission_recipients)
-						objUnit.earned_headers_commission_recipients = [{address: arrChangeOutputs[0].address, earned_headers_commission_share: 100}];
-				}
+			retrieveAuthorsForAddresses(conn, arrFromAddresses, last_ball_mci, signer, function(authors) {
+				objUnit.authors = authors;
 				cb();
 			});
 		},
@@ -859,4 +853,4 @@ exports.composeAndSavePaymentJoint = composeAndSavePaymentJoint;
 
 exports.generateBlinding = generateBlinding;
 exports.getMessageIndexByPayloadHash = getMessageIndexByPayloadHash;
-exports.retrieveAbsentAuthorsDefinitions = retrieveAbsentAuthorsDefinitions;
+exports.retrieveAuthorsForAddresses = retrieveAuthorsForAddresses;
