@@ -745,3 +745,12 @@ CREATE TABLE original_addresses (
 	PRIMARY KEY (unit, address),
 	FOREIGN KEY (unit) REFERENCES units(unit)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS peer_addresses (
+	address CHAR(32) NOT NULL,
+	signing_paths VARCHAR(255) NULL,
+	device_address CHAR(33) NOT NULL,
+	definition TEXT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	PRIMARY KEY (address)
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;

@@ -452,7 +452,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 		case 'offer_prosaic_contract':
 			var text_hash = objectHash.getBase64Hash(body.text);
 			eventBus.once("prosaic-contract-response" + text_hash, function(accepted){
-				composer.retrieveAbsentAuthorsDefinitions(db, [body.address], null, getSigner(), function(authors) {
+				composer.retrieveAuthorsForAddresses(db, [body.address], null, getSigner(), function(authors) {
 					device.sendMessageToDevice(from_address, "prosaic-contract-response", {text: body.text, accepted: accepted, hmac: body.hmac, authors: authors});
 				});
 				callbacks.ifOk();
@@ -1242,6 +1242,8 @@ function readAdditionalSigningAddresses(arrPayingAddresses, arrSigningAddresses,
 				EXISTS (SELECT 1 FROM my_addresses WHERE my_addresses.address=shared_address_signing_paths.address) \n\
 				OR \n\
 				EXISTS (SELECT 1 FROM shared_addresses WHERE shared_addresses.shared_address=shared_address_signing_paths.address) \n\
+				OR \n\
+				EXISTS (SELECT 1 FROM peer_addresses WHERE peer_addresses.address=shared_address_signing_paths.address) \n\
 			) \n\
 			AND ( \n\
 				NOT EXISTS (SELECT 1 FROM addresses WHERE addresses.address=shared_address_signing_paths.address) \n\

@@ -744,7 +744,7 @@ function generateBlinding(){
 	return crypto.randomBytes(12).toString("base64");
 }
 
-function retrieveAbsentAuthorsDefinitions(conn, arrFromAddresses, last_ball_mci, signer, cb) {
+function retrieveAuthorsForAddresses(conn, arrFromAddresses, last_ball_mci, signer, cb) {
 	var authors = [];
 	async.series([
 		function(cb2){
@@ -776,7 +776,7 @@ function retrieveAbsentAuthorsDefinitions(conn, arrFromAddresses, last_ball_mci,
 						);
 				});
 			} else cb2();
-		}, function(cb2) {
+		}, function() {
 			async.eachSeries(arrFromAddresses, function(from_address, cb2){
 				function setDefinition(){
 					signer.readDefinition(conn, from_address, function(err, arrDefinition){
@@ -822,23 +822,7 @@ function retrieveAbsentAuthorsDefinitions(conn, arrFromAddresses, last_ball_mci,
 					);
 				});
 			}, function(){
-					cb2();
-				}
-			);
-		}, function() { // check if some "nested" addresses needs to reveal it's definitions (used in prosaic contract)
-			conn.query("SELECT address FROM shared_address_signing_paths WHERE shared_address IN (?)", [arrFromAddresses],
-				function(rows) {
-					if (!rows.length)
-						return cb(authors);
-					retrieveAbsentAuthorsDefinitions(conn, _.map(rows, function(v){return v.address}), last_ball_mci, signer,
-						function(arrAuthors) {
-							for (var i = 0; i < arrAuthors.length; i++) {
-								if (arrAuthors[i].definition)
-									authors.push(arrAuthors[i]);
-							}
-							cb(authors);
-						}
-					);
+					cb(authors);
 				}
 			);
 		}
