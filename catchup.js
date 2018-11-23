@@ -210,6 +210,7 @@ function readHashTree(hashTreeRequest, callbacks){
 		return callbacks.ifError("no from_ball");
 	if (typeof to_ball !== 'string')
 		return callbacks.ifError("no to_ball");
+	var start_ts = Date.now();
 	var from_mci;
 	var to_mci;
 	db.query(
@@ -270,6 +271,7 @@ function readHashTree(hashTreeRequest, callbacks){
 							);
 						},
 						function(){
+							console.log("readHashTree for "+JSON.stringify(hashTreeRequest)+" took "+(Date.now()-start_ts)+'ms');
 							callbacks.ifOk(arrBalls);
 						}
 					);
