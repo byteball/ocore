@@ -448,11 +448,8 @@ function composeJoint(params){
 				objUnit.authors,
 				function(author, cb2){
 					var address = author.address;
-					var arrPaths = [];
-					for (var path in author.authentifiers)
-						arrPaths.push(path);
 					async.each( // different keys sign in parallel (if multisig)
-						arrPaths,
+						Object.keys(author.authentifiers),
 						function(path, cb3){
 							if (signer.sign){
 								signer.sign(objUnit, assocPrivatePayloads, address, path, function(err, signature){
