@@ -479,11 +479,11 @@ function updateMainChain(conn, from_unit, last_added_unit, onDone){
 						markMcIndexStable(conn, first_unstable_mc_index, updateStableMcFlag);
 					}
 				
-					conn.query("SELECT unit FROM units WHERE is_free=1 AND is_on_main_chain=1", function(wl_rows){
-						if (wl_rows.length !== 1)
-							throw Error("not a single mc wl");
+					conn.query("SELECT unit FROM units WHERE is_free=1 AND is_on_main_chain=1", function(tip_rows){
+						if (tip_rows.length !== 1)
+							throw Error("not a single mc tip");
 						// this is the level when we colect 7 witnesses if walking up the MC from its end
-						var tip_unit = wl_rows[0].unit;
+						var tip_unit = tip_rows[0].unit;
 						findMinMcWitnessedLevel(tip_unit, first_unstable_mc_level, arrWitnesses,
 							function(min_mc_wl){
 								console.log("minimum witnessed level "+min_mc_wl);
