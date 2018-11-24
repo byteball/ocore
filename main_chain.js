@@ -990,7 +990,7 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 											console.log("collectBestChildren took "+(Date.now()-start_time)+"ms");
 											arrBestChildren.sort();
 											if (!_.isEqual(arrBestChildren, arrBestChildren1)){
-												throwError("different best children, old "+arrBestChildren1.join(', ')+'; new '+arrBestChildren.join(', ')+', later '+arrLaterUnits.join(', ')+', earlier '+earlier_unit);
+												throwError("different best children, old "+arrBestChildren1.join(', ')+'; new '+arrBestChildren.join(', ')+', later '+arrLaterUnits.join(', ')+', earlier '+earlier_unit+", global db? = "+(conn === db));
 												arrBestChildren = arrBestChildren1;
 											}
 											cb();
