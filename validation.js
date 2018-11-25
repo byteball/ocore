@@ -32,6 +32,7 @@ var isNonemptyArray = ValidationUtils.isNonemptyArray;
 var isValidAddress = ValidationUtils.isValidAddress;
 var isValidBase64 = ValidationUtils.isValidBase64;
 
+var assocWitnessListMci = {};
 
 function hasValidHashes(objJoint){
 	var objUnit = objJoint.unit;
@@ -573,23 +574,26 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 	profiler.start();
 	var last_ball_unit = objUnit.last_ball_unit;
 	if (typeof objUnit.witness_list_unit === "string"){
-		conn.query("SELECT sequence, is_stable, main_chain_index FROM units WHERE unit=?", [objUnit.witness_list_unit], function(unit_rows){
-			if (unit_rows.length === 0)
-				return callback("witness list unit "+objUnit.witness_list_unit+" not found");
-			var objWitnessListUnitProps = unit_rows[0];
-			if (objWitnessListUnitProps.sequence !== 'good')
-				return callback("witness list unit "+objUnit.witness_list_unit+" is not serial");
-			if (objWitnessListUnitProps.is_stable !== 1)
-				return callback("witness list unit "+objUnit.witness_list_unit+" is not stable");
-			if (objWitnessListUnitProps.main_chain_index > objValidationState.last_ball_mci)
-				return callback("witness list unit "+objUnit.witness_list_unit+" must come before last ball");
-			storage.readWitnessList(conn, objUnit.witness_list_unit, function(arrWitnesses){
-				if (arrWitnesses.length === 0)
-					return callback("referenced witness list unit "+objUnit.witness_list_unit+" has no witnesses");
+		storage.readWitnessList(conn, objUnit.witness_list_unit, function(arrWitnesses){
+			if (arrWitnesses.length === 0)
+				return callback("referenced witness list unit "+objUnit.witness_list_unit+" has no witnesses");
+			if (typeof assocWitnessListMci[objUnit.witness_list_unit] === 'number' && assocWitnessListMci[objUnit.witness_list_unit] <= objValidationState.last_ball_mci)
+				return validateWitnessListMutations(arrWitnesses);
+			conn.query("SELECT sequence, is_stable, main_chain_index FROM units WHERE unit=?", [objUnit.witness_list_unit], function(unit_rows){
+				if (unit_rows.length === 0)
+					return callback("witness list unit "+objUnit.witness_list_unit+" not found");
+				var objWitnessListUnitProps = unit_rows[0];
+				if (objWitnessListUnitProps.sequence !== 'good')
+					return callback("witness list unit "+objUnit.witness_list_unit+" is not serial");
+				if (objWitnessListUnitProps.is_stable !== 1)
+					return callback("witness list unit "+objUnit.witness_list_unit+" is not stable");
+				if (objWitnessListUnitProps.main_chain_index > objValidationState.last_ball_mci)
+					return callback("witness list unit "+objUnit.witness_list_unit+" must come before last ball");
+				assocWitnessListMci[objUnit.witness_list_unit] = objWitnessListUnitProps.main_chain_index;
 				profiler.stop('validation-witnesses-read-list');
 				validateWitnessListMutations(arrWitnesses);
-			}, true);
-		});
+			});
+		}, true);
 	}
 	else if (Array.isArray(objUnit.witnesses) && objUnit.witnesses.length === constants.COUNT_WITNESSES){
 		var prev_witness = objUnit.witnesses[0];
