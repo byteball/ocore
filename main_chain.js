@@ -754,7 +754,7 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 									console.log("---------- new min_mc_wl="+min_mc_wl+", old min_mc_wl="+old_min_mc_wl+", diff="+diff+", later "+arrLaterUnits.join(', '));
 								//	if (diff < 0)
 								//		throw Error("new min_mc_wl="+min_mc_wl+", old min_mc_wl="+old_min_mc_wl+", diff="+diff+" for earlier "+earlier_unit+", later "+arrLaterUnits.join(', '));
-									handleMinMcWl(old_min_mc_wl);
+									handleMinMcWl(Math.max(old_min_mc_wl, min_mc_wl));
 								});
 							}
 						);
