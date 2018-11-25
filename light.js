@@ -270,7 +270,7 @@ function prepareHistory(historyRequest, callbacks){
 }
 
 
-function processHistory(objResponse, callbacks){
+function processHistory(objResponse, arrWitnesses, callbacks){
 	if (!("joints" in objResponse)) // nothing found
 		return callbacks.ifOk(false);
 	if (!ValidationUtils.isNonemptyArray(objResponse.unstable_mc_joints))
@@ -285,7 +285,7 @@ function processHistory(objResponse, callbacks){
 		objResponse.proofchain_balls = [];
 
 	witnessProof.processWitnessProof(
-		objResponse.unstable_mc_joints, objResponse.witness_change_and_definition_joints, false, 
+		objResponse.unstable_mc_joints, objResponse.witness_change_and_definition_joints, false, arrWitnesses,
 		function(err, arrLastBallUnits, assocLastBallByLastBallUnit){
 			
 			if (err)

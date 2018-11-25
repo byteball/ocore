@@ -1568,7 +1568,7 @@ function handleCatchupChain(ws, request, response){
 	}
 	var catchupChain = response;
 	console.log('received catchup chain from '+ws.peer);
-	catchup.processCatchupChain(catchupChain, ws.peer, {
+	catchup.processCatchupChain(catchupChain, ws.peer, request.params.witnesses, {
 		ifError: function(error){
 			bWaitingForCatchupChain = false;
 			sendError(ws, error);
@@ -1875,7 +1875,7 @@ function requestHistoryFor(arrUnits, arrAddresses, onDone){
 				console.log(response.error);
 				return onDone(response.error);
 			}
-			light.processHistory(response, {
+			light.processHistory(response, arrWitnesses, {
 				ifError: function(err){
 					sendError(ws, err);
 					onDone(err);

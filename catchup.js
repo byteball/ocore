@@ -88,7 +88,7 @@ function prepareCatchupChain(catchupRequest, callbacks){
 
 
 
-function processCatchupChain(catchupChain, peer, callbacks){
+function processCatchupChain(catchupChain, peer, arrWitnesses, callbacks){
 	if (catchupChain.status === "current")
 		return callbacks.ifCurrent();
 	if (!Array.isArray(catchupChain.unstable_mc_joints))
@@ -103,7 +103,7 @@ function processCatchupChain(catchupChain, peer, callbacks){
 		return callbacks.ifError("witness_change_and_definition_joints must be array");
 	
 	witnessProof.processWitnessProof(
-		catchupChain.unstable_mc_joints, catchupChain.witness_change_and_definition_joints, true, 
+		catchupChain.unstable_mc_joints, catchupChain.witness_change_and_definition_joints, true, arrWitnesses,
 		function(err, arrLastBallUnits, assocLastBallByLastBallUnit){
 			
 			if (err)
