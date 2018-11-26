@@ -1010,8 +1010,8 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 						return false;
 					if (message.payload.definition_chash !== new_definition_chash)
 						return false;
-					var address = message.payload.address || objUnit.authors[0].address;
-					return (address === changed_address);
+					var payload_address = message.payload.address || objUnit.authors[0].address;
+					return (payload_address === changed_address);
 				}));
 				break;
 				
