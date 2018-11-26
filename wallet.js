@@ -452,15 +452,15 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 		case 'offer_prosaic_contract':
 			var text_hash = objectHash.getBase64Hash(body.text);
 			eventBus.once("prosaic-contract-response" + text_hash, function(accepted){
-				composer.retrieveAuthorsForAddresses(db, [body.address], null, getSigner(), function(authors) {
-					device.sendMessageToDevice(from_address, "prosaic-contract-response", {text: body.text, accepted: accepted, hmac: body.hmac, authors: authors});
+				composer.retrieveAuthorsAndMciForAddresses(db, [body.address], getSigner(), function(authors) {
+					device.sendMessageToDevice(from_address, "prosaic_contract_response", {text: body.text, accepted: accepted, hmac: body.hmac, authors: authors});
 				});
 				callbacks.ifOk();
 			});
 			eventBus.emit("prosaic-contract-request", body.text, from_address);
 			break;
 
-		case 'prosaic-contract-response':
+		case 'prosaic_contract_response':
 			var text_hash = objectHash.getBase64Hash(body.text);
 			if (device.calculateHMAC(text_hash) !== body.hmac)
 					return callbacks.ifError("bad HMAC");
@@ -756,7 +756,7 @@ function findAddress(address, signing_path, callbacks, fallback_remote_device_ad
 							for (var i = 0; i < pa_rows.length; i++) {
 								var row = pa_rows[i];
 								JSON.parse(row.signing_paths).forEach(function(signing_path_candidate){
-									if (signing_path_candidate.substr(0, signing_path.length) === signing_path)
+									if (signing_path_candidate === signing_path)
 										candidate_addresses.push(row.device_address);
 								});
 							}
