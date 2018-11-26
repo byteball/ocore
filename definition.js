@@ -324,8 +324,10 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 					return cb("asset condition cannot reference this/other address in "+op);
 				if (!isValidAddress(changed_address) && changed_address !== 'this address') // it is ok if the address was never used yet
 					return cb("invalid changed address");
-				if (!isValidAddress(new_definition_chash) && new_definition_chash !== 'this address')
+				if (!isValidAddress(new_definition_chash) && new_definition_chash !== 'this address' && new_definition_chash !== 'any')
 					return cb("invalid new definition chash");
+				if (new_definition_chash === 'any' && objValidationState.last_ball_mci < constants.anyDefinitionChangeUpgradeMci)
+					return cb("too early use of 'any' in new_definition_chash");
 				return cb();
 				
 			case 'attested':
@@ -741,11 +743,12 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 					changed_address = address;
 				if (new_definition_chash === 'this address')
 					new_definition_chash = address;
+				var and_definition_chash = (new_definition_chash === 'any') ? '' : 'AND definition_chash='+db.escape(new_definition_chash);
 				conn.query(
 					"SELECT 1 FROM address_definition_changes CROSS JOIN units USING(unit) \n\
-					WHERE address=? AND definition_chash=? AND main_chain_index<=? AND sequence='good' AND is_stable=1 \n\
+					WHERE address=? "+and_definition_chash+" AND main_chain_index<=? AND sequence='good' AND is_stable=1 \n\
 					LIMIT 1",
-					[changed_address, new_definition_chash, objValidationState.last_ball_mci],
+					[changed_address, objValidationState.last_ball_mci],
 					function(rows){
 						cb2(rows.length > 0);
 					}
@@ -1008,7 +1011,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 						return false;
 					if (!message.payload)
 						return false;
-					if (message.payload.definition_chash !== new_definition_chash)
+					if (new_definition_chash !== 'any' && message.payload.definition_chash !== new_definition_chash)
 						return false;
 					var payload_address = message.payload.address || objUnit.authors[0].address;
 					return (payload_address === changed_address);
