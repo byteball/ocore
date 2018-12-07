@@ -171,7 +171,7 @@ test('formula - max - error', t => {
 });
 
 test('formula - pow - ok', t => {
-	definition.validateAuthentifiers({}, null, 'base', ['formula', "pow(2,9) == 512"], null, objValidationState, null, function (err, res) {
+	definition.validateAuthentifiers({}, null, 'base', ['formula', "2^9 == 512"], null, objValidationState, null, function (err, res) {
 		t.is(res, true);
 	});
 });

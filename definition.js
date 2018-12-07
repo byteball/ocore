@@ -10,8 +10,7 @@ var ecdsaSig = require('./signature.js');
 var merkle = require('./merkle.js');
 var ValidationUtils = require("./validation_utils.js");
 var objectHash = require("./object_hash.js");
-var Parser = require('expr-eval-bignumber').Parser;
-
+var evalFormula = require('eval-formula');
 
 var hasFieldsExcept = ValidationUtils.hasFieldsExcept;
 var isStringOfLength = ValidationUtils.isStringOfLength;
@@ -1162,19 +1161,33 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 							if (err2) return cb2(false);
 							parseAndReplaceInputsOrOutputsInFormula(formula3, 'outputs', messages,
 								function (err3, formula4, output_params) {
-									if (err3) return cb2(false);
-									
-									if (!input_params) input_params = {};
-									if (!output_params) output_params = {};
-									var parser = new Parser();
-									delete parser.functions.random;
-									try {
-										var expr = parser.parse(formula4);
-										cb2(expr.evaluate(Object.assign({}, input_params, output_params, data_feed_params)));
-									} catch (e) {
-										cb2(false);
+								if (err3) return cb2(false);
+								
+								if (!input_params) input_params = {};
+								if (!output_params) output_params = {};
+								var objForReplace = Object.assign({}, input_params, output_params, data_feed_params);
+								for(var key in objForReplace) {
+									if (typeof objForReplace[key] === 'object') {
+										var match = formula4.match(new RegExp(key + '.[a-z]+', 'g'));
+										match.forEach(function (m) {
+											var type = m.split('.')[1];
+											if (type === 'asset' && !objForReplace[key][type]) objForReplace[key][type] = 'base';
+											if ((type === 'asset' || type === 'address') && objForReplace[key][type].substr(0,1) !== '"') {
+												formula4 = formula4.replace(m, '"' + objForReplace[key][type] + '"');
+											}else {
+												formula4 = formula4.replace(m, objForReplace[key][type]);
+											}
+										});
+									} else {
+										formula4 = formula4.split(key).join(objForReplace[key]);
 									}
-								});
+								}
+								try {
+									cb2(evalFormula(formula4));
+								} catch (e) {
+									cb2(false);
+								}
+							});
 						});
 					});
 				});
@@ -1397,7 +1410,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				if (name === '') {
 					return cb('not found');
 				}
-				formula = formula.replace(arrInputOrOutputExpressions[i], name);
+				formula = formula.split(arrInputOrOutputExpressions[i]).join(name);
 			}
 			
 			cb(null, formula, _params);
