@@ -1341,10 +1341,12 @@ function notifyLocalWatchedAddressesAboutStableJoints(mci){
 	}
 	if (arrWatchedAddresses.length > 0)
 		db.query(
-			"SELECT unit FROM units CROSS JOIN unit_authors USING(unit) WHERE main_chain_index=? AND address IN(?) AND sequence='good' \n\
+			"SELECT unit FROM units CROSS JOIN unit_authors USING(unit) \n\
+			WHERE main_chain_index=? AND address IN("+arrWatchedAddresses.map(db.escape).join(', ')+") AND sequence='good' \n\
 			UNION \n\
-			SELECT unit FROM units CROSS JOIN outputs USING(unit) WHERE main_chain_index=? AND address IN(?) AND sequence='good'",
-			[mci, arrWatchedAddresses, mci, arrWatchedAddresses],
+			SELECT unit FROM units CROSS JOIN outputs USING(unit) \n\
+			WHERE main_chain_index=? AND address IN("+arrWatchedAddresses.map(db.escape).join(', ')+") AND sequence='good'",
+			[mci, mci],
 			handleRows
 		);
 	db.query(
