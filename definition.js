@@ -10,7 +10,7 @@ var ecdsaSig = require('./signature.js');
 var merkle = require('./merkle.js');
 var ValidationUtils = require("./validation_utils.js");
 var objectHash = require("./object_hash.js");
-var evalFormula = require('eval-formula');
+var evalFormulaBB = require('eval-formula-for-bb');
 
 var hasFieldsExcept = ValidationUtils.hasFieldsExcept;
 var isStringOfLength = ValidationUtils.isStringOfLength;
@@ -538,9 +538,9 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 				});
 				break;
 			case 'formula':
-				validate_formula(args, complexity, function (err, _complexity) {
-					complexity = _complexity;
-					cb(err);
+				evalFormulaBB.validate(args, complexity, function (result) {
+					complexity = result.complexity;
+					cb(result.error);
 				});
 				break;
 			default:
@@ -558,137 +558,6 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 			return handleResult("complexity exceeded");
 		handleResult();
 	});
-}
-
-function validate_formula(args, complexity, cb) {
-	complexity++;
-	var formula = args;
-	var checkResult;
-	if (!isNonemptyString(formula))
-		return cb("no relation", complexity);
-	if (formula.match(/(inputs|outputs|datafeed)_x[0-9]+/))
-		return cb("Incorrect formula", complexity);
-	if (!formula.match(/(>|<|==|!=|>=|<=)/))
-		return cb("need logical(>|<|==|!=|>=|<=)", complexity);
-	if (formula.match(/data_feed\[ *\]/g))
-		return cb('Incorrect data_feed', complexity);
-	if (formula.match(/input\[ *\]/g))
-		return cb('Incorrect input', complexity);
-	if (formula.match(/output\[ *\]/g))
-		return cb('Incorrect output', complexity);
-	
-	var m = formula.match(/data_feed\[[\w=!:><\-, ]+\]/g);
-	if (m) {
-		var dataFeedExists = {};
-		checkResult = m.every(function (data_feed) {
-			if (dataFeedExists[data_feed]) {
-				return true;
-			}
-			var mDataFeed = data_feed.match(/data_feed\[([\w=!:><\-, ]+)\]/);
-			if (mDataFeed && mDataFeed[1]) {
-				var params = mDataFeed[1].split(',');
-				var variableExists = {};
-				var result = params.every(function (param) {
-					if (!param.match(/(!=|>=|<=|<|>|=)/)) return false;
-					var splitParam = param.split(/(!=|>=|<=|<|>|=)/);
-					var name = splitParam[0].trim();
-					var operator = splitParam[1].trim();
-					var value = splitParam[2].trim();
-					dataFeedExists[data_feed] = true;
-					if (variableExists[name]) return false;
-					if (!(/^[a-zA-Z0-9_: \-.]+$/.test(value)) || splitParam.length > 3 || value === '') return false;
-					variableExists[name] = true;
-					switch (name) {
-						case 'oracles':
-							if (operator !== '=') return false;
-							var addresses = value.split(':');
-							if (addresses.length === 0) return false;
-							complexity += addresses.length;
-							return addresses.every(function (address) {
-								return isValidAddress(address) || address === 'this address';
-							});
-						
-						case 'feed_name':
-							return operator === '=';
-						
-						case 'mci':
-							return /^\d+$/.test(value) && isNonnegativeInteger(parseInt(value));
-						
-						case 'feed_value':
-							return true;
-						case 'ifseveral':
-							return value === 'first' || value === 'last' || value === 'abort';
-						case 'ifnone':
-							return operator === '=';
-						
-						default:
-							return false;
-					}
-				});
-				if (!result || !variableExists['feed_name'] || !variableExists['oracles']) return false;
-				return true;
-			} else {
-				return false;
-			}
-		});
-		if(!checkResult) return cb('Incorrect data_feed', complexity);
-	}
-	
-	m = formula.match(/input\[[\w=!:><\-, ]+\](\.[a-z]+)*/g);
-	if (m) {
-		checkResult = m.every(function (input) {
-			var mInput = input.match(/input\[([\w=!:><\-, ]+)\]\.(asset|amount|address)/);
-			if (mInput && mInput[1]) {
-				var params = mInput[1].split(',');
-				return checkParamsInInputsOrOutputs(params);
-			} else {
-				return false;
-			}
-		});
-		if (!checkResult) return cb('Incorrect input', complexity);
-	}
-	m = formula.match(/output\[[\w=!:><\-, ]+\](\.[a-z]+)*/g);
-	if (m) {
-		checkResult = m.every(function (output) {
-			var mOutput = output.match(/output\[([\w=!:><\-, ]+)\]\.(asset|amount|address)/);
-			if (mOutput && mOutput[1]) {
-				var params = mOutput[1].split(',');
-				return checkParamsInInputsOrOutputs(params);
-			} else {
-				return false;
-			}
-		});
-		if(!checkResult) return cb('Incorrect output', complexity);
-	}
-	
-	function checkParamsInInputsOrOutputs(params) {
-		var variableExists = {};
-		return params.every(function (param) {
-			if (!param.match(/(!=|>=|<=|<|>|=)/)) return false;
-			var splitParam = param.split(/(!=|>=|<=|<|>|=)/);
-			var name = splitParam[0].trim();
-			var operator = splitParam[1].trim();
-			var value = splitParam[2].trim();
-			if (variableExists[name]) return false;
-			if (!(/^[a-zA-Z0-9_ \-.]+$/.test(value)) || splitParam.length > 3 || value === '') return false;
-			switch (name) {
-				case 'address':
-					if (operator !== '=' && operator !== '!=') return false;
-					return value === 'this address' || value === 'other address' || isValidAddress(value);
-				
-				case 'amount':
-					return /^\d+$/.test(value) && isPositiveInteger(parseInt(value));
-				
-				case 'asset':
-					if (operator !== '=' && operator !== '!=') return false;
-					return value === 'base' || isValidBase64(value, constants.HASH_LENGTH);
-				
-				default:
-					return false;
-			}
-		});
-	}
-	return cb(null, complexity);
 }
 
 function evaluateAssetCondition(conn, asset, arrDefinition, objUnit, objValidationState, cb){
@@ -1154,42 +1023,14 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 			
 			case 'formula':
 				var formula = args;
-				parseAndReplaceDataFeedsInFormula(formula, objValidationState, function (err, formula2, data_feed_params) {
-					if (err) return cb2(false);
-					augmentMessagesOrIgnore(formula, function (messages) {
-						parseAndReplaceInputsOrOutputsInFormula(formula2, 'inputs', messages, function (err2, formula3, input_params) {
-							if (err2) return cb2(false);
-							parseAndReplaceInputsOrOutputsInFormula(formula3, 'outputs', messages,
-								function (err3, formula4, output_params) {
-								if (err3) return cb2(false);
-								
-								if (!input_params) input_params = {};
-								if (!output_params) output_params = {};
-								var objForReplace = Object.assign({}, input_params, output_params, data_feed_params);
-								for(var key in objForReplace) {
-									if (typeof objForReplace[key] === 'object') {
-										var match = formula4.match(new RegExp(key + '.[a-z]+', 'g'));
-										match.forEach(function (m) {
-											var type = m.split('.')[1];
-											if (type === 'asset' && !objForReplace[key][type]) objForReplace[key][type] = 'base';
-											if ((type === 'asset' || type === 'address') && objForReplace[key][type].substr(0,1) !== '"') {
-												formula4 = formula4.replace(m, '"' + objForReplace[key][type] + '"');
-											}else {
-												formula4 = formula4.replace(m, objForReplace[key][type]);
-											}
-										});
-									} else {
-										formula4 = formula4.split(key).join(objForReplace[key]);
-									}
-								}
-								try {
-									cb2(evalFormula(formula4));
-								} catch (e) {
-									cb2(false);
-								}
-							});
+				augmentMessagesOrIgnore(formula, function (messages) {
+					try {
+						evalFormulaBB.evaluate(formula, conn, messages, objValidationState, address, function (result) {
+							cb2(!!result);
 						});
-					});
+					} catch (e) {
+						cb2(false);
+					}
 				});
 				break;
 		}
@@ -1202,220 +1043,6 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 			});
 		}else{
 			cb(objUnit.messages);
-		}
-	}
-	
-	function parseAndReplaceDataFeedsInFormula(formula, objValidationState, cb) {
-		var _params = {};
-		var incName = 0;
-		var listDataFeed = formula.match(/data_feed\[[a-zA-Z0-9=!:><\-,_ ]+\]/g);
-		if (listDataFeed) {
-			var dataFeedExists = {};
-			async.eachSeries(listDataFeed, function (dataFeed, cb2) {
-				if (dataFeedExists[dataFeed]) return cb2();
-				var params = dataFeed.match(/data_feed\[([a-zA-Z0-9=!:><\-,_ ]+)\]/)[1];
-				var mParams = params.match(/[a-zA-Z_]+ *(>=|<=|!=|=|>|<) *[\w\-.:]+/g);
-				
-				var objParams = {};
-				mParams.forEach(param => {
-					var operator = param.match(/ *(>=|<=|!=|=|>|<) */)[1];
-					var split = param.split(/>=|<=|!=|=|>|</);
-					objParams[split[0].trim()] = {value: split[1].trim(), operator: operator.trim()};
-				});
-				if (objParams.oracles && objParams.feed_name) {
-					getDataFeed(objParams, objValidationState, function (err, feedValue) {
-						if (err) return cb2(err);
-						var name = 'datafeed_x' + (incName++);
-						_params[name] = feedValue;
-						formula = formula.split(dataFeed).join(name);
-						dataFeedExists[dataFeed] = true;
-						return cb2();
-					});
-				} else {
-					return cb2('incorrect data_feed');
-				}
-			}, function (err) {
-				return cb(err, formula, _params);
-			});
-		} else {
-			cb(null, formula);
-		}
-	}
-	
-	function getDataFeed(params, objValidationState, cb) {
-		var arrAddresses = params.oracles.value.split(':');
-		var feed_name = params.feed_name.value;
-		var value = null;
-		var relation = '';
-		var mci_relation = '<=';
-		var min_mci = 0;
-		if (params.feed_value) {
-			value = params.feed_value.value;
-			relation = params.feed_value.operator;
-		}
-		if (params.mci) {
-			min_mci = params.mci.value;
-			mci_relation = params.mci.operator;
-		}
-		var ifseveral = 'ORDER BY main_chain_index DESC';
-		var abortIfSeveral = false;
-		if (params.ifseveral) {
-			if (params.ifseveral.value === 'first') {
-				ifseveral = 'ORDER BY main_chain_index ASC';
-			} else if (params.ifseveral.value === 'abort') {
-				ifseveral = '';
-				abortIfSeveral = true;
-			}
-		}
-		var ifnone =  false;
-		if(params.ifnone && params.ifnone.value !== 'abort') {
-			var isNumber2 = /^-?\d+\.?\d*$/.test(params.ifnone.value);
-			if (isNumber2) {
-				ifnone = parseFloat(params.ifnone.value);
-			} else {
-				ifnone = params.ifnone.value;
-			}
-		}
-		
-		
-		var value_condition = '';
-		var queryParams = [arrAddresses, feed_name];
-		if (value) {
-			var isNumber = /^-?\d+\.?\d*$/.test(value);
-			if (isNumber) {
-				var bForceNumericComparison = (['>', '>=', '<', '<='].indexOf(relation) >= 0);
-				var plus_0 = bForceNumericComparison ? '+0' : '';
-				value_condition = '(value' + plus_0 + relation + value + ' OR int_value' + relation + value + ')';
-			}
-			else {
-				value_condition = 'value' + relation + '?';
-				queryParams.push(value);
-			}
-		}
-		queryParams.push(objValidationState.last_ball_mci, min_mci);
-		conn.query(
-			"SELECT value, int_value FROM data_feeds CROSS JOIN units USING(unit) CROSS JOIN unit_authors USING(unit) \n\
-					WHERE address IN(?) AND feed_name=? " + (value_condition ? ' AND ' + value_condition : '') + " \n\
-						AND main_chain_index<=? AND main_chain_index" + mci_relation + "? AND sequence='good' AND is_stable=1 " + ifseveral + " LIMIT " + (abortIfSeveral ? "2" : "1"),
-			queryParams,
-			function (rows) {
-				if (rows.length) {
-					if (abortIfSeveral && rows.length > 1) {
-						cb('abort');
-					} else {
-						if (rows[0].value === null) {
-							cb(null, rows[0].int_value);
-						} else {
-							cb(null, rows[0].value);
-						}
-					}
-				} else {
-					if (ifnone === false) {
-						cb('not found');
-					} else {
-						cb(null, ifnone);
-					}
-				}
-			}
-		);
-	}
-	
-	function parseAndReplaceInputsOrOutputsInFormula(formula, type, messages, cb) {
-		var _params = {};
-		var incName = 0;
-		
-		
-		function findOutputOrInputAndReturnName(objParams) {
-			var asset = objParams.asset ? objParams.asset.value : null;
-			var operator = objParams.asset ? objParams.asset.operator : null;
-			var puts = [];
-			messages.forEach(function (message) {
-				if (message.payload) {
-					if (!asset) {
-						puts = puts.concat(message.payload[type]);
-					} else if (operator === '=' && asset === 'base' && !message.payload.asset) {
-						puts = puts.concat(message.payload[type]);
-					} else if (operator === '!=' && asset === 'base' && message.payload.asset) {
-						puts = puts.concat(message.payload[type]);
-					} else if (operator === '=' && asset === message.payload.asset && message.payload.asset) {
-						puts = puts.concat(message.payload[type]);
-					} else if (operator === '!=' && asset !== message.payload.asset && message.payload.asset) {
-						puts = puts.concat(message.payload[type]);
-					}
-				}
-			});
-			if (puts.length === 0) return '';
-			if (objParams.address) {
-				if (objParams.address.value === 'this address')
-					objParams.address.value = address;
-				
-				if (objParams.address.value === 'other address') {
-					objParams.address.value = address;
-					if (objParams.address.operator === '=') {
-						objParams.address.operator = '!=';
-					} else {
-						objParams.address.operator = '=';
-					}
-				}
-				
-				puts = puts.filter(function (put) {
-					if (objParams.address.operator === '=') {
-						return put.address === objParams.address.value;
-					} else {
-						return put.address !== objParams.address.value;
-					}
-				});
-			}
-			if (objParams.amount) {
-				objParams.amount.value = parseInt(objParams.amount.value);
-				puts = puts.filter(function (put) {
-					if (objParams.amount.operator === '=') {
-						return put.amount === objParams.amount.value;
-					} else if (objParams.amount.operator === '>') {
-						return put.amount > objParams.amount.value;
-					} else if (objParams.amount.operator === '<') {
-						return put.amount < objParams.amount.value;
-					} else if (objParams.amount.operator === '<=') {
-						return put.amount <= objParams.amount.value;
-					} else if (objParams.amount.operator === '>=') {
-						return put.amount >= objParams.amount.value;
-					} else {
-						return put.amount !== objParams.amount.value;
-					}
-				});
-			}
-			if (puts.length) {
-				if (puts.length > 1) return '';
-				var name = type + '_x' + (incName++);
-				_params[name] = puts[0];
-				return name;
-			} else {
-				return '';
-			}
-		}
-		var nameForMatch = type === 'inputs' ? 'input' : 'output';
-		var arrInputOrOutputExpressions = formula.match(new RegExp(nameForMatch + '\\[[a-zA-Z0-9=!:><\\-,_ ]+\\]', 'g'));
-		if (arrInputOrOutputExpressions) {
-			for (var i = 0; i < arrInputOrOutputExpressions.length; i++) {
-				var params = arrInputOrOutputExpressions[i].match(new RegExp(nameForMatch + '\\[([a-zA-Z0-9=!:><\\-,_ ]+)'))[1];
-				var mParams = params.match(/[a-zA-Z_]+ *(>=|<=|!=|=|>|<) *[\w\-.: ]+/g);
-				
-				var objParams = {};
-				mParams.forEach(arg => {
-					var operator = arg.match(/ *(>=|<=|!=|=|>|<) */)[1];
-					var split = arg.split(/>=|<=|!=|=|>|</);
-					objParams[split[0].trim()] = {value: split[1].trim(), operator: operator.trim()};
-				});
-				var name = findOutputOrInputAndReturnName(objParams);
-				if (name === '') {
-					return cb('not found');
-				}
-				formula = formula.split(arrInputOrOutputExpressions[i]).join(name);
-			}
-			
-			cb(null, formula, _params);
-		} else {
-			cb(null, formula, {});
 		}
 	}
 	
@@ -1703,4 +1330,3 @@ exports.evaluateAssetCondition = evaluateAssetCondition;
 exports.validateAuthentifiers = validateAuthentifiers;
 exports.hasReferences = hasReferences;
 exports.replaceInTemplate = replaceInTemplate;
-exports.validate_formula = validate_formula;
