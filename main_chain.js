@@ -420,7 +420,8 @@ function updateMainChain(conn, from_unit, last_added_unit, onDone){
 		});
 	}
 
-	function findMinMcWitnessedLevel(tip_unit, first_unstable_mc_level, arrWitnesses, handleMinMcWl){
+	function findMinMcWitnessedLevel(tip_unit, first_unstable_mc_level, first_unstable_mc_index, arrWitnesses, handleMinMcWl){
+		var _arrWitnesses = arrWitnesses;
 		var arrCollectedWitnesses = [];
 		var min_mc_wl = Number.POSITIVE_INFINITY;
 
@@ -437,7 +438,7 @@ function updateMainChain(conn, from_unit, last_added_unit, onDone){
 				storage.readUnitAuthors(conn, start_unit, function(arrAuthors){
 					for (var i=0; i<arrAuthors.length; i++){
 						var address = arrAuthors[i];
-						if (arrWitnesses.indexOf(address) !== -1 && arrCollectedWitnesses.indexOf(address) === -1) {
+						if (_arrWitnesses.indexOf(address) !== -1 && arrCollectedWitnesses.indexOf(address) === -1) {
 							arrCollectedWitnesses.push(address);
 							var witnessed_level = props.witnessed_level;
 							if (min_mc_wl > witnessed_level)
@@ -450,7 +451,13 @@ function updateMainChain(conn, from_unit, last_added_unit, onDone){
 			});
 		}
 
-		addWitnessesAndGoUp(tip_unit);
+		if (first_unstable_mc_index > constants.lastBallStableInParentsUpgradeMci)
+			return addWitnessesAndGoUp(tip_unit);
+		// use old algo for old units
+		storage.readWitnesses(conn, tip_unit, function(arrTipUnitWitnesses){
+			_arrWitnesses = arrTipUnitWitnesses;
+			addWitnessesAndGoUp(tip_unit);
+		});
 	}
 	
 	function updateStableMcFlag(){
@@ -484,7 +491,7 @@ function updateMainChain(conn, from_unit, last_added_unit, onDone){
 							throw Error("not a single mc tip");
 						// this is the level when we colect 7 witnesses if walking up the MC from its end
 						var tip_unit = tip_rows[0].unit;
-						findMinMcWitnessedLevel(tip_unit, first_unstable_mc_level, arrWitnesses,
+						findMinMcWitnessedLevel(tip_unit, first_unstable_mc_level, first_unstable_mc_index, arrWitnesses,
 							function(min_mc_wl){
 								console.log("minimum witnessed level "+min_mc_wl);
 								if (min_mc_wl == -1)
@@ -691,6 +698,8 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 		return handleResult(true);
 	// hack to workaround past validation error
 	if (earlier_unit === 'LGFzduLJNQNzEqJqUXdkXr58wDYx77V8WurDF3+GIws=' && arrLaterUnits.join(',') === '6O4t3j8kW0/Lo7n2nuS8ITDv2UbOhlL9fF1M6j/PrJ4=')
+		return handleResult(true);
+	if (earlier_unit === 'VLdMzBDVpwqu+3OcZrBrmkT0aUb/mZ0O1IveDmGqIP0=' && arrLaterUnits.join(',') === 'pAfErVAA5CSPeh1KoLidDTgdt5Blu7k2rINtxVTMq4k=')
 		return handleResult(true);
 	var start_time = Date.now();
 	storage.readPropsOfUnits(conn, earlier_unit, arrLaterUnits, function(objEarlierUnitProps, arrLaterUnitProps){

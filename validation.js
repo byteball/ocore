@@ -484,7 +484,7 @@ function validateParents(conn, objJoint, objValidationState, callback){
 							// if it were not stable, we wouldn't have had the ball at all
 							if (objLastBallUnitProps.ball !== last_ball)
 								return callback("stable: last_ball "+last_ball+" and last_ball_unit "+last_ball_unit+" do not match");
-							if (objValidationState.last_ball_mci <= 1300000 || max_parent_last_ball_mci === objValidationState.last_ball_mci)
+							if (objValidationState.last_ball_mci <= constants.lastBallStableInParentsUpgradeMci || max_parent_last_ball_mci === objValidationState.last_ball_mci)
 								return checkNoSameAddressInDifferentParents();
 						}
 						// Last ball is not stable yet in our view. Check if it is stable in view of the parents
