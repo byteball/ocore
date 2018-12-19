@@ -142,8 +142,8 @@ test('formula - validate calculation bignumber 2 - ok', t => {
 
 test('formula - incorrect mci - error', t => {
 	evalFormulaBB.validate("data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name=\"Test\", mci=\"-1\", abra=\"te\"] == 10", 0, function (result) {
-		t.not(result.error.match(/Incorrect data_feed/), null);
-		t.deepEqual(result.complexity, 2);
+		t.not(result.error.match(/Incorrect formula/), null);
+		t.deepEqual(result.complexity, 1);
 	});
 });
 
@@ -208,32 +208,32 @@ test('formula - without parameters in data_feed - error', t => {
 test('formula - incorrect address in input - error', t => {
 	evalFormulaBB.validate("data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name = \"test\"] * input[address=TEST].amount == 20 / output[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].amount", 0,
 		(result) => {
-			t.not(result.error.match(/Incorrect input/), null);
-			t.deepEqual(result.complexity, 2);
+			t.not(result.error.match(/Incorrect formula/), null);
+			t.deepEqual(result.complexity, 1);
 		});
 });
 
 test('formula - incorrect address in output - error', t => {
 	evalFormulaBB.validate("data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name = \"test\"] * input[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].amount == 20 / output[address=TEST].amount", 0,
 		(result) => {
-			t.not(result.error.match(/Incorrect output/), null);
-			t.deepEqual(result.complexity, 2);
+			t.not(result.error.match(/Incorrect formula/), null);
+			t.deepEqual(result.complexity, 1);
 		});
 });
 
 test('formula - without parameters in output - error', t => {
 	evalFormulaBB.validate("data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name = \"test\"] == 20 / output[].amount", 0,
 		(result) => {
-			t.not(result.error.match(/Incorrect output/), null);
-			t.deepEqual(result.complexity, 2);
+			t.not(result.error.match(/Incorrect formula/), null);
+			t.deepEqual(result.complexity, 1);
 		});
 });
 
 test('formula - without parameters in input - error', t => {
 	evalFormulaBB.validate("data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name = \"test\"] == 20 / input[].amount", 0,
 		(result) => {
-			t.not(result.error.match(/Incorrect input/), null);
-			t.deepEqual(result.complexity, 2);
+			t.not(result.error.match(/Incorrect formula/), null);
+			t.deepEqual(result.complexity, 1);
 		});
 });
 
@@ -278,7 +278,7 @@ test('formula - incorrect param in data_feed - error', t => {
 	evalFormulaBB.validate("data_feed[feed_name=\"test\", oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", hi=\"kyky\"] == 20", 0,
 		(result) => {
 			t.not(result.error.match(/Incorrect data_feed/, null));
-			t.deepEqual(result.complexity, 2);
+			t.deepEqual(result.complexity, 1);
 		});
 });
 
