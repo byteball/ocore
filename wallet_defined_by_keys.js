@@ -411,6 +411,18 @@ function readCosigners(wallet, handleCosigners){
 	);
 }
 
+function readCosignersForAddress(my_address, handleCosigners){
+	db.query(
+		"SELECT wallet FROM my_addresses WHERE address=?", 
+		[my_address], 
+		function(rows){
+			if (rows.length !== 1)
+				throw Error("not my address supplied to readCosignersForAddress");
+			readCosigners(rows[0].wallet, handleCosigners);
+		}
+	);
+}
+
 // silently adds new address upon receiving a network message
 function addNewAddress(wallet, is_change, address_index, address, handleError){
 	breadcrumbs.add('addNewAddress is_change='+is_change+', index='+address_index+', address='+address);
@@ -826,6 +838,7 @@ exports.forwardPrivateChainsToOtherMembersOfWallets = forwardPrivateChainsToOthe
 exports.readDeviceAddressesControllingPaymentAddresses = readDeviceAddressesControllingPaymentAddresses;
 
 exports.readCosigners = readCosigners;
+exports.readCosignersForAddress = readCosignersForAddress;
 
 exports.derivePubkey = derivePubkey;
 exports.issueAddress = issueAddress;

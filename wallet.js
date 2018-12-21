@@ -449,34 +449,81 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			});
 			break;
 		
-		case 'offer_prosaic_contract':
-			var text_hash = objectHash.getBase64Hash(body.text);
-			eventBus.once("prosaic-contract-response" + text_hash, function(accepted){
-				composer.retrieveAuthorsAndMciForAddresses(db, [body.address], getSigner(), function(authors) {
-					device.sendMessageToDevice(from_address, "prosaic_contract_response", {text: body.text, accepted: accepted, hmac: body.hmac, authors: authors});
-				});
-				callbacks.ifOk();
-			});
-			eventBus.emit("prosaic-contract-request", body.text, from_address);
-			break;
+		/*case 'offer_prosaic_contract':
+			walletGeneral.readMyAddresses(function(arrAddresses){
+				var my_address = body.address;
+				if (arrAddresses.indexOf(my_address) == -1)
+					return; // not my address
+				message_counter++;
+				var offerObj = {
+        			peer_device_address: from_address,
+        			peer_address: body.peer_address,
+        			text: body.text,
+        			creation_date: body.creation_date,
+        			hash: body.hash,
+        			ttl: body.ttl,
+        			address: body.address
+        		};
+				var chat_message = "(prosaic-contract:" + Buffer(JSON.stringify(offerObj), 'utf8').toString('base64') + ")";
+				eventBus.emit("text", from_address, chat_message, message_counter);
+				var handleCosigners = function(arrCosignerInfos){
+					
+	            	eventBus.emit("prosaic-contract-request", offerObj);
+	            	eventBus.once("prosaic-contract-response" + offerObj.hash, function(accepted, signedMessageBase64){
+	            		composer.retrieveAuthorsAndMciForAddresses(db, [my_address], getSigner(), function(authors) {
+							device.sendMessageToDevice(from_address, "prosaic_contract_response", {hash: offerObj.hash, accepted: accepted, signature: signedMessageBase64, authors: authors});
+						});
+						callbacks.ifOk();
+	            	});
+	            };
+	            /*db.query("SELECT 'shared' AS `type` \n\
+	            	FROM shared_addresses WHERE shared_address=? \n\
+	            	UNION SELECT 'private' AS `type` \n\
+	            	FROM my_addresses WHERE address=?", [my_address, my_address], function(rows) {
+	            	if (!rows.length)
+	            		return; // not my address
+	            	if (rows[0].type === 'shared')
+	            		walletDefinedByAddresses.readSharedAddressCosigners(my_address, handleCosigners);
+	            	else if (rows[0].type === 'private')
+	            		walletDefinedByKeys.readCosignersForAddress(my_address, handleCosigners);
+	            });
+			});*/
 
 		case 'prosaic_contract_response':
-			var text_hash = objectHash.getBase64Hash(body.text);
-			if (device.calculateHMAC(text_hash) !== body.hmac)
-					return callbacks.ifError("bad HMAC");
-			if (body.authors && body.authors.length) {
-				if (body.authors.length !== 1)
-					return callbacks.ifError("wrong number of authors recieved");
-				var author = body.authors[0];
-				if (author.definition && (author.address !== objectHash.getChash160(author.definition)))
-					return callbacks.ifError("incorrect definition recieved");
-				if (!ValidationUtils.isValidAddress(author.address))
-					return callbacks.ifError("incorrect author address");
-				db.query("INSERT "+db.getIgnore()+" INTO peer_addresses (address, device_address, signing_paths, definition) VALUES (?, ?, ?, ?)",
-						[author.address, from_address, JSON.stringify(Object.keys(author.authentifiers)), JSON.stringify(author.definition)]);
-			}
-			eventBus.emit("prosaic-contract-response-recieved" + text_hash + from_address, body.accepted, body.authors);
-			callbacks.ifOk();
+			var prosaic_contract = require('./prosaic_contract.js');
+			var validation = require('./validation.js');
+
+			prosaic_contract.getByHash(body.hash, function(objContract){
+				if (!objContract || !body.signed_message)
+					return callbacks.ifError("wrong contract hash or signature");
+				var signedMessageJson = Buffer(body.signed_message, 'base64').toString('utf8');
+				try{
+					var objSignedMessage = JSON.parse(signedMessageJson);
+				}
+				catch(e){
+					return callbacks.ifError("wrong signed message");
+				}
+				validation.validateSignedMessage(objSignedMessage, function(err) {
+					if (err || objSignedMessage.authors[0].address !== objContract.peer_address || objSignedMessage.signed_message != objContract.hash)
+						return callbacks.ifError("wrong contract signature");
+					if (body.authors && body.authors.length) {
+						if (body.authors.length !== 1)
+							return callbacks.ifError("wrong number of authors recieved");
+						var author = body.authors[0];
+						if (author.definition && (author.address !== objectHash.getChash160(author.definition)))
+							return callbacks.ifError("incorrect definition recieved");
+						if (!ValidationUtils.isValidAddress(author.address))
+							return callbacks.ifError("incorrect author address");
+						db.query("INSERT "+db.getIgnore()+" INTO peer_addresses (address, device_address, signing_paths, definition) VALUES (?, ?, ?, ?)",
+								[author.address, from_address, JSON.stringify(Object.keys(author.authentifiers)), JSON.stringify(author.definition)]);
+					}
+					prosaic_contract.setStatus(objContract.hash, body.status);
+					eventBus.emit("text", from_address, "contract " + body.status, ++message_counter);
+					if (body.status === "accepted")
+						eventBus.emit("prosaic-contract-response-recieved" + body.hash, (body.status === "accepted"), body.authors);
+					callbacks.ifOk();
+				});
+			});
 			break;
 			
 		default:

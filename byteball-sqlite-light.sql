@@ -758,4 +758,17 @@ CREATE TABLE IF NOT EXISTS peer_addresses (
 	PRIMARY KEY (address)
 );
 
-PRAGMA user_version=22;
+CREATE TABLE IF NOT EXISTS prosaic_contracts (
+	hash CHAR(32) NOT NULL PRIMARY KEY,
+	peer_address CHAR(32) NOT NULL,
+	peer_device_address CHAR(33) NOT NULL,
+	my_address  CHAR(32) NOT NULL,
+	is_incoming TINYINT NOT NULL,
+	creation_date TIMESTAMP NOT NULL,
+	ttl INT NOT NULL DEFAULT 168, -- 168 hours = 24 * 7 = 1 week
+	status TEXT CHECK (status IN('active', 'revoked', 'accepted', 'declined')) NOT NULL DEFAULT 'active',
+	`text` TEXT NOT NULL,
+	shared_address CHAR(32)
+);
+
+PRAGMA user_version=23;
