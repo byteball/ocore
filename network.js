@@ -153,6 +153,7 @@ function sendErrorResponse(ws, tag, error) {
 	sendResponse(ws, tag, {error: error});
 }
 
+
 // if a 2nd identical request is issued before we receive a response to the 1st request, then:
 // 1. its responseHandler will be called too but no second request will be sent to the wire
 // 2. bReroutable flag must be the same
@@ -213,7 +214,34 @@ function sendRequest(ws, command, params, bReroutable, responseHandler){
 		};
 		sendMessage(ws, 'request', content);
 	}
+	return tag;
 }
+
+
+function deletePendingRequest(ws, tag){
+	if (ws && ws.assocPendingRequests && ws.assocPendingRequests[tag]){
+		var pendingRequest = ws.assocPendingRequests[tag];
+		clearTimeout(pendingRequest.reroute_timer);
+		clearTimeout(pendingRequest.cancel_timer);
+		delete ws.assocPendingRequests[tag];
+
+		// if the request was rerouted, cancel all other pending requests
+		if (assocReroutedConnectionsByTag[tag]){
+			assocReroutedConnectionsByTag[tag].forEach(function(client){
+				if (client.assocPendingRequests[tag]){
+					clearTimeout(client.assocPendingRequests[tag].reroute_timer);
+					clearTimeout(client.assocPendingRequests[tag].cancel_timer);
+					delete client.assocPendingRequests[tag];
+				}
+			});
+			delete assocReroutedConnectionsByTag[tag];
+		}
+		return true;
+	}else{
+		return false;
+	}
+}
+
 
 function handleResponse(ws, tag, response){
 	var pendingRequest = ws.assocPendingRequests[tag];
@@ -225,22 +253,8 @@ function handleResponse(ws, tag, response){
 			responseHandler(ws, pendingRequest.request, response);
 		});
 	});
-	
-	clearTimeout(pendingRequest.reroute_timer);
-	clearTimeout(pendingRequest.cancel_timer);
-	delete ws.assocPendingRequests[tag];
-	
-	// if the request was rerouted, cancel all other pending requests
-	if (assocReroutedConnectionsByTag[tag]){
-		assocReroutedConnectionsByTag[tag].forEach(function(client){
-			if (client.assocPendingRequests[tag]){
-				clearTimeout(client.assocPendingRequests[tag].reroute_timer);
-				clearTimeout(client.assocPendingRequests[tag].cancel_timer);
-				delete client.assocPendingRequests[tag];
-			}
-		});
-		delete assocReroutedConnectionsByTag[tag];
-	}
+
+	deletePendingRequest(ws, tag);
 }
 
 function cancelRequestsOnClosedConnection(ws){
@@ -502,6 +516,16 @@ function getPeerWebSocket(peer){
 			return wss.clients[i];
 	return null;
 }
+
+function getInboundDeviceWebSocket(device_address){
+	for (var i=0; i<wss.clients.length; i++){
+		if (wss.clients[i].device_address === device_address)
+			return wss.clients[i];
+	}
+	return null;
+}
+
+
 
 function findOutboundPeerOrConnect(url, onOpen){
 	if (!url)
@@ -1317,10 +1341,12 @@ function notifyLocalWatchedAddressesAboutStableJoints(mci){
 	}
 	if (arrWatchedAddresses.length > 0)
 		db.query(
-			"SELECT unit FROM units CROSS JOIN unit_authors USING(unit) WHERE main_chain_index=? AND address IN(?) AND sequence='good' \n\
+			"SELECT unit FROM units CROSS JOIN unit_authors USING(unit) \n\
+			WHERE main_chain_index=? AND address IN("+arrWatchedAddresses.map(db.escape).join(', ')+") AND sequence='good' \n\
 			UNION \n\
-			SELECT unit FROM units CROSS JOIN outputs USING(unit) WHERE main_chain_index=? AND address IN(?) AND sequence='good'",
-			[mci, arrWatchedAddresses, mci, arrWatchedAddresses],
+			SELECT unit FROM units CROSS JOIN outputs USING(unit) \n\
+			WHERE main_chain_index=? AND address IN("+arrWatchedAddresses.map(db.escape).join(', ')+") AND sequence='good'",
+			[mci, mci],
 			handleRows
 		);
 	db.query(
@@ -1544,7 +1570,7 @@ function handleCatchupChain(ws, request, response){
 	}
 	var catchupChain = response;
 	console.log('received catchup chain from '+ws.peer);
-	catchup.processCatchupChain(catchupChain, ws.peer, {
+	catchup.processCatchupChain(catchupChain, ws.peer, request.params.witnesses, {
 		ifError: function(error){
 			bWaitingForCatchupChain = false;
 			sendError(ws, error);
@@ -1851,7 +1877,7 @@ function requestHistoryFor(arrUnits, arrAddresses, onDone){
 				console.log(response.error);
 				return onDone(response.error);
 			}
-			light.processHistory(response, {
+			light.processHistory(response, arrWitnesses, {
 				ifError: function(err){
 					sendError(ws, err);
 					onDone(err);
@@ -2097,7 +2123,7 @@ function handleJustsaying(ws, subject, body){
 			break;
 			
 		case 'my_url':
-			if (!body)
+			if (!ValidationUtils.isNonemptyString(body))
 				return;
 			var url = body;
 			if (ws.bOutbound) // ignore: if you are outbound, I already know your url
@@ -2302,6 +2328,10 @@ function handleJustsaying(ws, subject, body){
 			ws.close(1000, "my core is old");
 			throw Error("Mandatory upgrade required, please check the release notes at https://github.com/byteball/byteball/releases and upgrade.");
 			break;
+			
+		case 'custom':
+			eventBus.emit('custom_justsaying', ws, body);
+			break;
 	}
 }
 
@@ -2473,7 +2503,7 @@ function handleRequest(ws, tag, command, params){
 					[message_hash, message_string, objDeviceMessage.to],
 					function(){
 						// if the addressee is connected, deliver immediately
-						wss.clients.forEach(function(client){
+						wss.clients.concat(arrOutboundPeers).forEach(function(client){
 							if (client.device_address === objDeviceMessage.to && (!client.max_message_length || message_string.length <= client.max_message_length)) {
 								sendJustsaying(client, 'hub/message', {
 									message_hash: message_hash,
@@ -2808,6 +2838,10 @@ function handleRequest(ws, tag, command, params){
 				sendResponse(ws, tag, rows[0]);
 			});
 			break;
+			
+		case 'custom':
+			eventBus.emit('custom_request', ws, params,tag);
+		break;
 	}
 }
 
@@ -2816,7 +2850,7 @@ function onWebsocketMessage(message) {
 	var ws = this;
 	
 	if (ws.readyState !== ws.OPEN)
-		return;
+		return console.log("received a message on socket with ready state "+ws.readyState);
 	
 	console.log('RECEIVED '+(message.length > 1000 ? message.substr(0,1000)+'... ('+message.length+' chars)' : message)+' from '+ws.peer);
 	ws.last_ts = Date.now();
@@ -2996,6 +3030,7 @@ exports.sendJustsaying = sendJustsaying;
 exports.sendAllInboundJustsaying = sendAllInboundJustsaying;
 exports.sendError = sendError;
 exports.sendRequest = sendRequest;
+exports.sendResponse = sendResponse;
 exports.findOutboundPeerOrConnect = findOutboundPeerOrConnect;
 exports.handleOnlineJoint = handleOnlineJoint;
 
@@ -3020,3 +3055,5 @@ exports.isConnected = isConnected;
 exports.isCatchingUp = isCatchingUp;
 exports.requestHistoryFor = requestHistoryFor;
 exports.exchangeRates = exchangeRates;
+exports.getInboundDeviceWebSocket = getInboundDeviceWebSocket;
+exports.deletePendingRequest = deletePendingRequest;

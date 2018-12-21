@@ -32,6 +32,7 @@ var isNonemptyArray = ValidationUtils.isNonemptyArray;
 var isValidAddress = ValidationUtils.isValidAddress;
 var isValidBase64 = ValidationUtils.isValidBase64;
 
+var assocWitnessListMci = {};
 
 function hasValidHashes(objJoint){
 	var objUnit = objJoint.unit;
@@ -483,7 +484,7 @@ function validateParents(conn, objJoint, objValidationState, callback){
 							// if it were not stable, we wouldn't have had the ball at all
 							if (objLastBallUnitProps.ball !== last_ball)
 								return callback("stable: last_ball "+last_ball+" and last_ball_unit "+last_ball_unit+" do not match");
-							if (objValidationState.last_ball_mci <= 1300000 || max_parent_last_ball_mci === objValidationState.last_ball_mci)
+							if (objValidationState.last_ball_mci <= constants.lastBallStableInParentsUpgradeMci || max_parent_last_ball_mci === objValidationState.last_ball_mci)
 								return checkNoSameAddressInDifferentParents();
 						}
 						// Last ball is not stable yet in our view. Check if it is stable in view of the parents
@@ -573,23 +574,26 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 	profiler.start();
 	var last_ball_unit = objUnit.last_ball_unit;
 	if (typeof objUnit.witness_list_unit === "string"){
-		conn.query("SELECT sequence, is_stable, main_chain_index FROM units WHERE unit=?", [objUnit.witness_list_unit], function(unit_rows){
-			if (unit_rows.length === 0)
-				return callback("witness list unit "+objUnit.witness_list_unit+" not found");
-			var objWitnessListUnitProps = unit_rows[0];
-			if (objWitnessListUnitProps.sequence !== 'good')
-				return callback("witness list unit "+objUnit.witness_list_unit+" is not serial");
-			if (objWitnessListUnitProps.is_stable !== 1)
-				return callback("witness list unit "+objUnit.witness_list_unit+" is not stable");
-			if (objWitnessListUnitProps.main_chain_index > objValidationState.last_ball_mci)
-				return callback("witness list unit "+objUnit.witness_list_unit+" must come before last ball");
-			storage.readWitnessList(conn, objUnit.witness_list_unit, function(arrWitnesses){
-				if (arrWitnesses.length === 0)
-					return callback("referenced witness list unit "+objUnit.witness_list_unit+" has no witnesses");
+		storage.readWitnessList(conn, objUnit.witness_list_unit, function(arrWitnesses){
+			if (arrWitnesses.length === 0)
+				return callback("referenced witness list unit "+objUnit.witness_list_unit+" has no witnesses");
+			if (typeof assocWitnessListMci[objUnit.witness_list_unit] === 'number' && assocWitnessListMci[objUnit.witness_list_unit] <= objValidationState.last_ball_mci)
+				return validateWitnessListMutations(arrWitnesses);
+			conn.query("SELECT sequence, is_stable, main_chain_index FROM units WHERE unit=?", [objUnit.witness_list_unit], function(unit_rows){
+				if (unit_rows.length === 0)
+					return callback("witness list unit "+objUnit.witness_list_unit+" not found");
+				var objWitnessListUnitProps = unit_rows[0];
+				if (objWitnessListUnitProps.sequence !== 'good')
+					return callback("witness list unit "+objUnit.witness_list_unit+" is not serial");
+				if (objWitnessListUnitProps.is_stable !== 1)
+					return callback("witness list unit "+objUnit.witness_list_unit+" is not stable");
+				if (objWitnessListUnitProps.main_chain_index > objValidationState.last_ball_mci)
+					return callback("witness list unit "+objUnit.witness_list_unit+" must come before last ball");
+				assocWitnessListMci[objUnit.witness_list_unit] = objWitnessListUnitProps.main_chain_index;
 				profiler.stop('validation-witnesses-read-list');
 				validateWitnessListMutations(arrWitnesses);
-			}, true);
-		});
+			});
+		}, true);
 	}
 	else if (Array.isArray(objUnit.witnesses) && objUnit.witnesses.length === constants.COUNT_WITNESSES){
 		var prev_witness = objUnit.witnesses[0];
@@ -1288,7 +1292,7 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 			if (objValidationState.assocHasAssetAttestors[payload.asset])
 				return callback("can be only one asset attestor list update per asset");
 			objValidationState.assocHasAssetAttestors[payload.asset] = true;
-			validateAssetorListUpdate(conn, payload, objUnit, objValidationState, callback);
+			validateAttestorListUpdate(conn, payload, objUnit, objValidationState, callback);
 			break;
 
 		case "payment":
@@ -1994,7 +1998,7 @@ function validateAssetDefinition(conn, payload, objUnit, objValidationState, cal
 	], callback);
 }
 
-function validateAssetorListUpdate(conn, payload, objUnit, objValidationState, callback){
+function validateAttestorListUpdate(conn, payload, objUnit, objValidationState, callback){
 	if (objUnit.authors.length !== 1)
 		return callback("attestor list must be single-authored");
 	if (!isStringOfLength(payload.asset, constants.HASH_LENGTH))

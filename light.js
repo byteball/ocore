@@ -270,7 +270,7 @@ function prepareHistory(historyRequest, callbacks){
 }
 
 
-function processHistory(objResponse, callbacks){
+function processHistory(objResponse, arrWitnesses, callbacks){
 	if (!("joints" in objResponse)) // nothing found
 		return callbacks.ifOk(false);
 	if (!ValidationUtils.isNonemptyArray(objResponse.unstable_mc_joints))
@@ -285,7 +285,7 @@ function processHistory(objResponse, callbacks){
 		objResponse.proofchain_balls = [];
 
 	witnessProof.processWitnessProof(
-		objResponse.unstable_mc_joints, objResponse.witness_change_and_definition_joints, false, 
+		objResponse.unstable_mc_joints, objResponse.witness_change_and_definition_joints, false, arrWitnesses,
 		function(err, arrLastBallUnits, assocLastBallByLastBallUnit){
 			
 			if (err)
@@ -657,7 +657,7 @@ function buildPath(objLaterJoint, objEarlierJoint, arrChain, onDone){
 			throw Error("mci undefined? unit="+objJoint.unit.unit+", mci="+objJoint.unit.main_chain_index+", earlier="+objEarlierJoint.unit.unit+", later="+objLaterJoint.unit.unit);
 		db.query(
 			"SELECT unit FROM parenthoods JOIN units ON parent_unit=unit \n\
-			WHERE child_unit=? AND main_chain_index"+(objJoint.unit.main_chain_index === null ? ' IS NULL' : '='+objJoint.unit.main_chain_index), 
+			WHERE child_unit=?",// AND main_chain_index"+(objJoint.unit.main_chain_index === null ? ' IS NULL' : '='+objJoint.unit.main_chain_index), 
 			[objJoint.unit.unit],
 			function(rows){
 				if (rows.length === 0)

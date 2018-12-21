@@ -334,16 +334,23 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 						return callbacks.ifError("no such payload hash in the messages");
 				}
 			}
-			var arrMessages = objUnit.messages;
-			if (!Array.isArray(arrMessages))
-				return callbacks.ifError("bad message type");
-			for (var i=0; i<arrMessages.length; i++){
-				if (arrMessages[i].payload === undefined)
-					continue;
-				var calculated_payload_hash = objectHash.getBase64Hash(arrMessages[i].payload);
-				if (arrMessages[i].payload_hash !== calculated_payload_hash)
-					return callbacks.ifError("payload hash does not match");
+			if (objUnit.messages){
+				var arrMessages = objUnit.messages;
+				if (!Array.isArray(arrMessages))
+					return callbacks.ifError("bad type of messages");
+				for (var i=0; i<arrMessages.length; i++){
+					if (arrMessages[i].payload === undefined)
+						continue;
+					var calculated_payload_hash = objectHash.getBase64Hash(arrMessages[i].payload);
+					if (arrMessages[i].payload_hash !== calculated_payload_hash)
+						return callbacks.ifError("payload hash does not match");
+				}
 			}
+			else if (objUnit.signed_message){
+				// ok
+			}
+			else
+				return callbacks.ifError("neither messages nor signed_message");
 			// findAddress handles both types of addresses
 			findAddress(body.address, body.signing_path, {
 				ifError: callbacks.ifError,
@@ -1923,8 +1930,8 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 	// check stability of payingAddresses
 	function checkStability() {
 		db.query(
-			"SELECT is_stable, asset, is_spent, SUM(amount) as `amount` \n\
-			FROM outputs JOIN units USING(unit) WHERE address=? AND sequence='good' GROUP BY asset ORDER BY asset DESC, is_spent ASC LIMIT 1", 
+			"SELECT is_stable, asset, SUM(amount) AS `amount` \n\
+			FROM outputs JOIN units USING(unit) WHERE address=? AND sequence='good' AND is_spent=0 GROUP BY asset ORDER BY asset DESC LIMIT 1", 
 			[addrInfo.address],
 			function(rows){
 				if (rows.length === 0) {

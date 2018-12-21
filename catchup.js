@@ -88,7 +88,7 @@ function prepareCatchupChain(catchupRequest, callbacks){
 
 
 
-function processCatchupChain(catchupChain, peer, callbacks){
+function processCatchupChain(catchupChain, peer, arrWitnesses, callbacks){
 	if (catchupChain.status === "current")
 		return callbacks.ifCurrent();
 	if (!Array.isArray(catchupChain.unstable_mc_joints))
@@ -103,7 +103,7 @@ function processCatchupChain(catchupChain, peer, callbacks){
 		return callbacks.ifError("witness_change_and_definition_joints must be array");
 	
 	witnessProof.processWitnessProof(
-		catchupChain.unstable_mc_joints, catchupChain.witness_change_and_definition_joints, true, 
+		catchupChain.unstable_mc_joints, catchupChain.witness_change_and_definition_joints, true, arrWitnesses,
 		function(err, arrLastBallUnits, assocLastBallByLastBallUnit){
 			
 			if (err)
@@ -210,6 +210,7 @@ function readHashTree(hashTreeRequest, callbacks){
 		return callbacks.ifError("no from_ball");
 	if (typeof to_ball !== 'string')
 		return callbacks.ifError("no to_ball");
+	var start_ts = Date.now();
 	var from_mci;
 	var to_mci;
 	db.query(
@@ -270,6 +271,7 @@ function readHashTree(hashTreeRequest, callbacks){
 							);
 						},
 						function(){
+							console.log("readHashTree for "+JSON.stringify(hashTreeRequest)+" took "+(Date.now()-start_ts)+'ms');
 							callbacks.ifOk(arrBalls);
 						}
 					);

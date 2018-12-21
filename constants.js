@@ -47,9 +47,11 @@ exports.TEXTCOIN_PRIVATE_ASSET_CLAIM_MESSAGE_FEE = 99;
 
 exports.minCoreVersion = exports.bTestnet ? '0.2.89' : '0.2.92';
 
+exports.lastBallStableInParentsUpgradeMci = 1300000;
 exports.witnessedLevelMustNotRetreatUpgradeMci = exports.bTestnet ? 684000 : 1400000;
 exports.spendUnconfirmedUpgradeMci = exports.bTestnet ? 589000 : 2909000;
 exports.branchedMinMcWlUpgradeMci = exports.bTestnet ? 593000 : 2909000;
 exports.otherAddressInDefinitionUpgradeMci = exports.bTestnet ? 602000 : 2909000;
 exports.attestedInDefinitionUpgradeMci = exports.bTestnet ? 616000 : 2909000;
 exports.altBranchByBestParentUpgradeMci = exports.bTestnet ? 642000 : 3009824;
+exports.anyDefinitionChangeUpgradeMci = exports.bTestnet ? Infinity : Infinity;
