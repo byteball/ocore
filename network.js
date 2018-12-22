@@ -874,9 +874,7 @@ function havePendingJointRequest(unit){
 function purgeJunkUnhandledJoints(){
 	if (bCatchingUp || Date.now() - coming_online_time < 3600*1000 || wss.clients.length === 0 && arrOutboundPeers.length === 0)
 		return;
-	db.query("DELETE FROM unhandled_joints WHERE creation_date < "+db.addTime("-1 HOUR"), function(){
-		db.query("DELETE FROM dependencies WHERE NOT EXISTS (SELECT * FROM unhandled_joints WHERE unhandled_joints.unit=dependencies.unit)");
-	});
+	joint_storage.purgeOldUnhandledJoints();
 }
 
 function purgeJointAndDependenciesAndNotifyPeers(objJoint, error, onDone){
@@ -945,13 +943,9 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 					callbacks.ifJointError(error);
 				//	throw Error(error);
 					unlock();
-					db.query(
-						"INSERT INTO known_bad_joints (joint, json, error) VALUES (?,?,?)", 
-						[objectHash.getJointHash(objJoint), JSON.stringify(objJoint), error],
-						function(){
-							delete assocUnitsInWork[unit];
-						}
-					);
+					joint_storage.saveKnownBadJoint(objJoint, error, function(){
+						delete assocUnitsInWork[unit];
+					});
 					if (ws)
 						writeEvent('invalid', ws.host);
 					if (objJoint.unsigned)
@@ -2973,6 +2967,7 @@ function startRelay(){
 		startAcceptingConnections();
 	
 	storage.initCaches();
+	joint_storage.initUnhandledAndKnownBad();
 	checkCatchupLeftovers();
 
 	if (conf.bWantNewPeers){
