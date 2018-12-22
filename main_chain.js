@@ -209,7 +209,9 @@ function updateMainChain(conn, from_unit, last_added_unit, onDone){
 								if (err)
 									throw Error("goDownAndUpdateMainChainIndex eachSeries failed");
 								conn.query(
-									"UPDATE unit_authors SET _mci=NULL WHERE unit IN(SELECT unit FROM units WHERE main_chain_index IS NULL)", 
+									(conf.storage === 'mysql')
+										? "UPDATE units LEFT JOIN unit_authors USING(unit) SET _mci=NULL WHERE main_chain_index IS NULL"
+										: "UPDATE unit_authors SET _mci=NULL WHERE unit IN(SELECT unit FROM units WHERE main_chain_index IS NULL)", 
 									function(){
 										profiler.stop('mc-goDown');
 										updateLatestIncludedMcIndex(last_main_chain_index, true);
