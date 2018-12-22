@@ -50,6 +50,7 @@ var peer_events_buffer = [];
 var assocKnownPeers = {};
 var assocBlockedPeers = {};
 var exchangeRates = {};
+var bWatchingForLight = false;
 
 if (process.browser){ // browser
 	console.log("defining .on() on ws");
@@ -1269,6 +1270,8 @@ function notifyWatchers(objJoint, source_ws){
 		return;
 	if (objJoint.ball) // already stable, light clients will require a proof
 		return;
+	if (!bWatchingForLight)
+		return;
 	// this is a new unstable joint, light clients will accept it without proof
 	db.query("SELECT peer FROM watched_light_addresses WHERE address IN(?)", [arrAddresses], function(rows){
 		if (rows.length === 0)
@@ -1292,7 +1295,7 @@ function notifyWatchersAboutStableJoints(mci){
 		unlock(); // we don't need to block writes, we requested the lock just to wait that the current write completes
 		notifyLocalWatchedAddressesAboutStableJoints(mci);
 		console.log("notifyWatchersAboutStableJoints "+mci);
-		if (mci <= 1)
+		if (mci <= 1 || !bWatchingForLight)
 			return;
 		storage.findLastBallMciOfMci(db, mci, function(last_ball_mci){
 			storage.findLastBallMciOfMci(db, mci-1, function(prev_last_ball_mci){
@@ -2284,6 +2287,7 @@ function handleJustsaying(ws, subject, body){
 			var address = body;
 			if (!ValidationUtils.isValidAddress(address))
 				return sendError(ws, "address not valid");
+			bWatchingForLight = true;
 			db.query("INSERT "+db.getIgnore()+" INTO watched_light_addresses (peer, address) VALUES (?,?)", [ws.peer, address], function(){
 				sendInfo(ws, "now watching "+address);
 				// check if we already have something on this address
@@ -2581,6 +2585,7 @@ function handleRequest(ws, tag, command, params){
 					},
 					ifOk: function(objResponse){
 						sendResponse(ws, tag, objResponse);
+						bWatchingForLight = true;
 						if (params.addresses)
 							db.query(
 								"INSERT "+db.getIgnore()+" INTO watched_light_addresses (peer, address) VALUES "+
@@ -2944,9 +2949,11 @@ function startAcceptingConnections(){
 			tryHandleMessage();
 		});
 		ws.on('close', function(){
-			db.query("DELETE FROM watched_light_addresses WHERE peer=?", [ws.peer]);
-			db.query("DELETE FROM watched_light_units WHERE peer=?", [ws.peer]);
-			//db.query("DELETE FROM light_peer_witnesses WHERE peer=?", [ws.peer]);
+			if (bWatchingForLight){
+				db.query("DELETE FROM watched_light_addresses WHERE peer=?", [ws.peer]);
+				db.query("DELETE FROM watched_light_units WHERE peer=?", [ws.peer]);
+				//db.query("DELETE FROM light_peer_witnesses WHERE peer=?", [ws.peer]);
+			}
 			console.log("client "+ws.peer+" disconnected");
 			cancelRequestsOnClosedConnection(ws);
 		});
