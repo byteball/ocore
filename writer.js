@@ -215,12 +215,22 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 							break;
 						case "data_feed":
 							var data = message.payload;
+							var arrValues = [];
 							for (var feed_name in data){
 								var value = data[feed_name];
-								var field_name = (typeof value === 'string') ? "`value`" : "int_value";
-								conn.addQuery(arrQueries, "INSERT INTO data_feeds (unit, message_index, feed_name, "+field_name+") VALUES(?,?,?,?)", 
-									[objUnit.unit, i, feed_name, value]);
+								var sql_value = 'NULL';
+								var sql_int_value = 'NULL';
+								if (typeof value === 'string')
+									sql_value = db.escape(value);
+								else
+									sql_int_value = value;
+								arrValues.push("("+db.escape(objUnit.unit)+", "+i+", "+db.escape(feed_name)+", "+sql_value+", "+sql_int_value+")");
+							//	var field_name = (typeof value === 'string') ? "`value`" : "int_value";
+							//	conn.addQuery(arrQueries, "INSERT INTO data_feeds (unit, message_index, feed_name, "+field_name+") VALUES(?,?,?,?)", 
+							//		[objUnit.unit, i, feed_name, value]);
 							}
+							conn.addQuery(arrQueries, 
+								"INSERT INTO data_feeds (unit, message_index, feed_name, `value`, int_value) VALUES "+arrValues.join(', '));
 							break;
 							
 						case "payment":
