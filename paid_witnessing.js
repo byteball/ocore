@@ -231,6 +231,7 @@ function buildPaidWitnesses(conn, objUnitProps, arrWitnesses, onDone){
 	graph.readDescendantUnitsByAuthorsBeforeMcIndex(conn, objUnitProps, arrWitnesses, to_main_chain_index, function(arrUnits){
 		rt+=Date.now()-t;
 		t=Date.now();
+		var force_index = (conf.storage === 'mysql') ? 'FORCE INDEX (PRIMARY)' : ''; // force mysql to use primary key on unit_authors
 		var strUnitsList = (arrUnits.length === 0) ? 'NULL' : arrUnits.map(function(unit){ return conn.escape(unit); }).join(', ');
 			//throw "no witnesses before mc "+to_main_chain_index+" for unit "+objUnitProps.unit;
 		profiler.start();
@@ -239,7 +240,7 @@ function buildPaidWitnesses(conn, objUnitProps, arrWitnesses, onDone){
 			// can't get rid of filtering by address because units can be co-authored by witness with somebody else
 			"SELECT address \n\
 			FROM units \n\
-			LEFT JOIN unit_authors USING(unit) \n\
+			LEFT JOIN unit_authors "+ force_index +" USING(unit) \n\
 			WHERE unit IN("+strUnitsList+") AND address IN(?) AND +sequence='good' \n\
 			GROUP BY address",
 			[arrWitnesses],
