@@ -4,7 +4,7 @@ var eventBus = require('./event_bus.js');
 var constants = require("./constants.js");
 var conf = require("./conf.js");
 
-var VERSION = 23;
+var VERSION = 24;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -230,6 +230,10 @@ function migrateDb(connection, onDone){
 						`text` TEXT NOT NULL, \n\
 						shared_address CHAR(32) \n\
 					)");
+				if (version < 24) {
+					connection.addQuery(arrQueries, "ALTER TABLE prosaic_contracts ADD COLUMN unit CHAR(44)");
+					connection.addQuery(arrQueries, "ALTER TABLE prosaic_contracts ADD COLUMN cosigners VARCHAR(1500)");
+				}
 				cb();
 			}
 		], function(){

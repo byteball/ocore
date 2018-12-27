@@ -526,8 +526,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					}
 					prosaic_contract.setStatus(objContract.hash, body.status);
 					eventBus.emit("text", from_address, "contract " + body.status, ++message_counter);
-					if (body.status === "accepted")
-						eventBus.emit("prosaic-contract-response-recieved" + body.hash, (body.status === "accepted"), body.authors);
+					eventBus.emit("prosaic-contract-response-recieved" + body.hash, (body.status === "accepted"), body.authors);
 					callbacks.ifOk();
 				});
 			});
