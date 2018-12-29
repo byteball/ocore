@@ -10,7 +10,7 @@ var ecdsaSig = require('./signature.js');
 var merkle = require('./merkle.js');
 var ValidationUtils = require("./validation_utils.js");
 var objectHash = require("./object_hash.js");
-var evalFormulaBB = require('eval-formula-for-bb');
+var evalFormulaBB = require('./formula/index');
 var BigNumber = require('bignumber.js');
 
 var hasFieldsExcept = ValidationUtils.hasFieldsExcept;

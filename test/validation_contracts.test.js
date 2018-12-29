@@ -1,7 +1,7 @@
 var test = require('ava');
 
 var definition = require("../definition");
-var evalFormulaBB = require("eval-formula-for-bb");
+var evalFormulaBB = require("../formula/index");
 
 var objValidationState = {
 	last_ball_mci: 0,
