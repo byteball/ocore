@@ -11,6 +11,7 @@ var merkle = require('./merkle.js');
 var ValidationUtils = require("./validation_utils.js");
 var objectHash = require("./object_hash.js");
 var evalFormulaBB = require('eval-formula-for-bb');
+var BigNumber = require('bignumber.js');
 
 var hasFieldsExcept = ValidationUtils.hasFieldsExcept;
 var isStringOfLength = ValidationUtils.isStringOfLength;
@@ -1025,8 +1026,18 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				var formula = args;
 				augmentMessagesOrIgnore(formula, function (messages) {
 					try {
-						evalFormulaBB.evaluate(formula, conn, messages, objValidationState, address, function (result) {
-							cb2(!!result);
+						evalFormulaBB.evaluate(conn, formula, messages, objValidationState, address, function (result) {
+							if(typeof result === 'boolean') {
+								cb2(result);
+							} else if(typeof result === 'string'){
+								cb2(!!result);
+							} else if(result.type && result.type === 'string'){
+								cb2(!!result.value.slice(1, -1))
+							}else if(BigNumber.isBigNumber(result)) {
+								cb2(!result.eq(0))
+							}else{
+								cb(false);
+							}
 						});
 					} catch (e) {
 						cb2(false);

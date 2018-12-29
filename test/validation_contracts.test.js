@@ -29,7 +29,7 @@ var objValidationState = {
 
 test('formula - validate formula - ok', t => {
 	evalFormulaBB.validate("10 + 10 == 20", 0, (result) => {
-		t.is(result.error, null);
+		t.is(result.error, false);
 		t.deepEqual(result.complexity, 1);
 	});
 });
@@ -42,14 +42,14 @@ test('formula - validate authentifiers in formula - ok ', t => {
 
 test('formula - validate formula (data_feed, input, output) - ok', t => {
 	evalFormulaBB.validate("data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name=\"Test\", mci=\"1\"] * input[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].amount == 20 / output[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].amount", 0, (result) => {
-		t.is(result.error, null);
+		t.is(result.error, false);
 		t.deepEqual(result.complexity, 2);
 	});
 });
 
 test('formula - validate formula (data_feed, input, output) 2 oracles - ok', t => {
 	evalFormulaBB.validate("data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:this address\", feed_name=\"Test\", mci=\"1\"] * input[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].amount == 20 / output[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].amount", 0, (result) => {
-		t.is(result.error, null);
+		t.is(result.error, false);
 		t.deepEqual(result.complexity, 3);
 	});
 });
@@ -192,7 +192,7 @@ test('formula - round - 3 - ok', t => {
 test('formula - Incorrect data_feed(no parameter feed_name) - error', t => {
 	evalFormulaBB.validate("data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\"] * input[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].amount == 20 / output[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].amount", 0,
 		(result) => {
-			t.not(result.error.match(/Incorrect data_feed/), null);
+			t.is(result.error, true);
 			t.deepEqual(result.complexity, 1);
 		});
 });
@@ -200,7 +200,7 @@ test('formula - Incorrect data_feed(no parameter feed_name) - error', t => {
 test('formula - without parameters in data_feed - error', t => {
 	evalFormulaBB.validate("data_feed[] * input[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].amount == 20 / output[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].amount", 0,
 		(result) => {
-			t.not(result.error.match(/Incorrect data_feed/), null);
+			t.is(result.error, true);
 			t.deepEqual(result.complexity, 1);
 		});
 });
@@ -208,7 +208,7 @@ test('formula - without parameters in data_feed - error', t => {
 test('formula - incorrect address in input - error', t => {
 	evalFormulaBB.validate("data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name = \"test\"] * input[address=TEST].amount == 20 / output[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].amount", 0,
 		(result) => {
-			t.not(result.error.match(/Incorrect input/), null);
+			t.is(result.error, true);
 			t.deepEqual(result.complexity, 2);
 		});
 });
@@ -216,7 +216,7 @@ test('formula - incorrect address in input - error', t => {
 test('formula - incorrect address in output - error', t => {
 	evalFormulaBB.validate("data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name = \"test\"] * input[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].amount == 20 / output[address=TEST].amount", 0,
 		(result) => {
-			t.not(result.error.match(/Incorrect output/), null);
+			t.is(result.error, true);
 			t.deepEqual(result.complexity, 2);
 		});
 });
@@ -224,7 +224,7 @@ test('formula - incorrect address in output - error', t => {
 test('formula - without parameters in output - error', t => {
 	evalFormulaBB.validate("data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name = \"test\"] == 20 / output[].amount", 0,
 		(result) => {
-			t.not(result.error.match(/Incorrect output/), null);
+			t.is(result.error, true);
 			t.deepEqual(result.complexity, 2);
 		});
 });
@@ -232,7 +232,7 @@ test('formula - without parameters in output - error', t => {
 test('formula - without parameters in input - error', t => {
 	evalFormulaBB.validate("data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name = \"test\"] == 20 / input[].amount", 0,
 		(result) => {
-			t.not(result.error.match(/Incorrect input/), null);
+			t.is(result.error, true);
 			t.deepEqual(result.complexity, 2);
 		});
 });
@@ -248,7 +248,7 @@ test('formula - input_x0 - error', t => {
 
 test('formula - invalid operator in feed_name - error', t => {
 	evalFormulaBB.validate("data_feed[feed_name>\"test\", oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\"] == 20", 0, (result) => {
-		t.not(result.error.match(/Incorrect data_feed/, null));
+		t.is(result.error, true);
 		t.deepEqual(result.complexity, 1);
 	});
 });
@@ -262,14 +262,14 @@ test('formula - =name=name in feed_name - error', t => {
 
 test('formula - empty value in feed_name - error', t => {
 	evalFormulaBB.validate("data_feed[feed_name=\"\", oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\"] == 20", 0, (result) => {
-		t.not(result.error.match(/Incorrect data_feed/, null));
+		t.is(result.error, true);
 		t.deepEqual(result.complexity, 1);
 	});
 });
 
 test('formula - incorrect operator in oracles - error', t => {
 	evalFormulaBB.validate("data_feed[feed_name=\"t\", oracles>\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\"] == 20", 0, (result) => {
-		t.not(result.error.match(/Incorrect data_feed/, null));
+		t.is(result.error, true);
 		t.deepEqual(result.complexity, 1);
 	});
 });
@@ -285,70 +285,70 @@ test('formula - incorrect param in data_feed - error', t => {
 test('formula - identical data_feed - ok', t => {
 	evalFormulaBB.validate("data_feed[feed_name=\"test\", oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\"] == data_feed[feed_name=\"test\", oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\"]", 0,
 		(result) => {
-			t.is(result.error, null);
+			t.is(result.error, false);
 			t.deepEqual(result.complexity, 3);
 		});
 });
 test('formula - identical data_feed - error', t => {
 	evalFormulaBB.validate("data_feed[feed_name=\"test\", oracles>\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\"] == data_feed[feed_name=\"test\", oracles>\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\"]", 0,
 		(result) => {
-			t.not(result.error.match(/Incorrect data_feed/), null);
+			t.is(result.error, true);
 			t.deepEqual(result.complexity, 1);
 		});
 });
 
 test('formula - correct operator in address in input - ok', t => {
 	evalFormulaBB.validate("input[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].amount == 20", 0, (result) => {
-		t.is(result.error, null);
+		t.is(result.error, false);
 		t.deepEqual(result.complexity, 1);
 	});
 });
 
 test('formula - correct operator in address in input - ok - 2', t => {
 	evalFormulaBB.validate("input[address!=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].amount == 20", 0, (result) => {
-		t.is(result.error, null);
+		t.is(result.error, false);
 		t.deepEqual(result.complexity, 1);
 	});
 });
 
 test('formula - correct operator in asset in input - ok - 1', t => {
 	evalFormulaBB.validate("input[asset=p+U9OB+JOCW5/7hXiRpVw65HwzFprNfj68PCy/7BR6A=].amount == 20", 0, (result) => {
-		t.is(result.error, null);
+		t.is(result.error, false);
 		t.deepEqual(result.complexity, 1);
 	});
 });
 
 test('formula - incorrect value in asset in input - error - 1', t => {
 	evalFormulaBB.validate("input[asset=test].amount == 20", 0, (result) => {
-		t.not(result.error.match(/Incorrect input/, null));
+		t.is(result.error, true);
 		t.deepEqual(result.complexity, 1);
 	});
 });
 
 test('formula - != operator in asset in input - ok', t => {
 	evalFormulaBB.validate("input[asset!=p+U9OB+JOCW5/7hXiRpVw65HwzFprNfj68PCy/7BR6A=].amount == 20", 0, (result) => {
-		t.is(result.error, null);
+		t.is(result.error, false);
 		t.deepEqual(result.complexity, 1);
 	});
 });
 
 test('formula - incorrect operator in address in input - error', t => {
 	evalFormulaBB.validate("input[address>MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].amount == 20", 0, (result) => {
-		t.not(result.error.match(/Incorrect input/, null));
+		t.is(result.error, true);
 		t.deepEqual(result.complexity, 1);
 	});
 });
 
 test('formula - incorrect operator in address in input - error - 2', t => {
 	evalFormulaBB.validate("input[address<=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].amount == 20", 0, (result) => {
-		t.not(result.error.match(/Incorrect input/, null));
+		t.is(result.error, true);
 		t.deepEqual(result.complexity, 1);
 	});
 });
 
 test('formula - incorrect operator in address in input - error - 3', t => {
 	evalFormulaBB.validate("input[address>=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].amount == 20", 0, (result) => {
-		t.not(result.error.match(/Incorrect input/, null));
+		t.is(result.error, true);
 		t.deepEqual(result.complexity, 1);
 	});
 });
@@ -362,63 +362,63 @@ test('formula - incorrect param in input - error', t => {
 
 test('formula - correct operator in address in output - ok', t => {
 	evalFormulaBB.validate("output[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].amount == 20", 0, (result) => {
-		t.is(result.error, null);
+		t.is(result.error, false);
 		t.deepEqual(result.complexity, 1);
 	});
 });
 
 test('formula - correct operator in address in output - ok - 2', t => {
 	evalFormulaBB.validate("output[address!=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].amount == 20", 0, (result) => {
-		t.is(result.error, null);
+		t.is(result.error, false);
 		t.deepEqual(result.complexity, 1);
 	});
 });
 
 test('formula - correct operator in asset in output - ok - 1', t => {
 	evalFormulaBB.validate("output[asset=p+U9OB+JOCW5/7hXiRpVw65HwzFprNfj68PCy/7BR6A=].amount == 20", 0, (result) => {
-		t.is(result.error, null);
+		t.is(result.error, false);
 		t.deepEqual(result.complexity, 1);
 	});
 });
 
 test('formula - != operator in asset in output - ok', t => {
 	evalFormulaBB.validate("output[asset!=p+U9OB+JOCW5/7hXiRpVw65HwzFprNfj68PCy/7BR6A=].amount == 20", 0, (result) => {
-		t.is(result.error, null);
+		t.is(result.error, false);
 		t.deepEqual(result.complexity, 1);
 	});
 });
 
 test('formula - incorrect operator in address in output - error', t => {
 	evalFormulaBB.validate("output[address>MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].amount == 20", 0, (result) => {
-		t.not(result.error.match(/Incorrect output/), null);
+		t.is(result.error, true);
 		t.deepEqual(result.complexity, 1);
 	});
 });
 
 test('formula - incorrect operator in address in output - error - 2', t => {
 	evalFormulaBB.validate("output[address<=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].amount == 20", 0, (result) => {
-		t.not(result.error.match(/Incorrect output/), null);
+		t.is(result.error, true);
 		t.deepEqual(result.complexity, 1);
 	});
 });
 
 test('formula - incorrect operator in address in output - error - 3', t => {
 	evalFormulaBB.validate("output[address>=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].amount == 20", 0, (result) => {
-		t.not(result.error.match(/Incorrect output/), null);
+		t.is(result.error, true);
 		t.deepEqual(result.complexity, 1);
 	});
 });
 
 test('formula - this address in input - ok', t => {
 	evalFormulaBB.validate("input[address=this address].amount == 20", 0, (result) => {
-		t.is(result.error, null);
+		t.is(result.error, false);
 		t.deepEqual(result.complexity, 1);
 	});
 });
 
 test('formula - other address in input - ok', t => {
 	evalFormulaBB.validate("input[address=other address].amount == 20", 0, (result) => {
-		t.is(result.error, null);
+		t.is(result.error, false);
 		t.deepEqual(result.complexity, 1);
 	});
 });
@@ -431,7 +431,7 @@ test('formula - this address in output - error', t => {
 });
 test('formula - this address in output - ok', t => {
 	evalFormulaBB.validate("output[address=this address].amount == 20", 0, (result) => {
-		t.is(result.error, null);
+		t.is(result.error, false);
 		t.deepEqual(result.complexity, 1);
 	});
 });
@@ -443,14 +443,14 @@ test('formula - this address in input - error', t => {
 });
 test('formula - this address in input - ok', t => {
 	evalFormulaBB.validate("input[address=this address].address == \"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\"", 0, (result) => {
-		t.is(result.error, null);
+		t.is(result.error, false);
 		t.deepEqual(result.complexity, 1);
 	});
 });
 
 test('formula - other address in output - ok', t => {
 	evalFormulaBB.validate("output[address=other address].amount == 20", 0, (result) => {
-		t.is(result.error, null);
+		t.is(result.error, false);
 		t.deepEqual(result.complexity, 1);
 	});
 });
@@ -557,8 +557,9 @@ test('formula - if ifnone 10', t => {
 		cb(rows);
 	};
 	definition.validateAuthentifiers(db, null, 'base',
-		['formula', "data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name=\"test\", ifnone=\"10\"] == 10"], null, objValidationState, null,
+		['formula', "data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name=\"test\", ifnone=10] == 10"], null, objValidationState, null,
 		function (err, res) {
+		console.error(err, res);
 			t.is(res, true);
 		});
 });
@@ -619,21 +620,21 @@ test('formula - if ifseveral last', t => {
 test('formula - ifseveral=last', t => {
 	evalFormulaBB.validate("data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name=\"test\", ifseveral=\"last\"] == 10", 0,
 		(result) => {
-		t.is(result.error, null);
+		t.is(result.error, false);
 		t.deepEqual(result.complexity, 2);
 	});
 });
 test('formula - ifseveral=first', t => {
 	evalFormulaBB.validate("data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name=\"test\", ifseveral=\"first\"] == 10", 0,
 		(result) => {
-		t.is(result.error, null);
+		t.is(result.error, false);
 		t.deepEqual(result.complexity, 2);
 	});
 });
 test('formula - ifseveral=abort', t => {
 	evalFormulaBB.validate("data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name=\"test\", ifseveral=\"abort\"] == 10", 0,
 		(result) => {
-		t.is(result.error, null);
+		t.is(result.error, false);
 		t.deepEqual(result.complexity, 2);
 	});
 });
