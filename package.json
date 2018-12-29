@@ -38,7 +38,8 @@
     "ws": "^1.0.1"
   },
   "scripts": {
-    "test": "yarn ava"
+    "test": "yarn ava",
+    "compileGrammar": "nearleyc ./formula/grammar.ne -o ./formula/grammar.js"
   },
   "devDependencies": {
     "ava": "^0.22.0",
