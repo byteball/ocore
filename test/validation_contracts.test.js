@@ -23,8 +23,23 @@ var objValidationState = {
 				"address": "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU"
 			}]
 		}
+	}],
+	messages: [{
+		"app": "payment",
+		"payload_hash": "vHTdyhuQI1jnlAAyc6EGzwVCH0BGFT+dIYrsjTeRV8k=",
+		"payload_location": "inline",
+		"payload": {
+			"inputs": [{
+				"unit": "W/6iS75IT8mKJzKyyjz5dKCp9Ux6F7+AUUNq8VLiZ6o=",
+				"message_index": 0,
+				"output_index": 0
+			}],
+			"outputs": [
+				{"address": "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", "amount": 19088},
+				{"address": "GFK3RDAPQLLNCMQEVGGD2KCPZTLSG3HN", "amount": 1}
+			]
+		}
 	}]
-	
 };
 
 test('formula - validate formula - ok', t => {
@@ -559,7 +574,7 @@ test('formula - if ifnone 10', t => {
 	definition.validateAuthentifiers(db, null, 'base',
 		['formula', "data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name=\"test\", ifnone=10] == 10"], null, objValidationState, null,
 		function (err, res) {
-		console.error(err, res);
+			console.error(err, res);
 			t.is(res, true);
 		});
 });
@@ -620,28 +635,28 @@ test('formula - if ifseveral last', t => {
 test('formula - ifseveral=last', t => {
 	evalFormulaBB.validate("data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name=\"test\", ifseveral=\"last\"] == 10", 0,
 		(result) => {
-		t.is(result.error, false);
-		t.deepEqual(result.complexity, 2);
-	});
+			t.is(result.error, false);
+			t.deepEqual(result.complexity, 2);
+		});
 });
 test('formula - ifseveral=first', t => {
 	evalFormulaBB.validate("data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name=\"test\", ifseveral=\"first\"] == 10", 0,
 		(result) => {
-		t.is(result.error, false);
-		t.deepEqual(result.complexity, 2);
-	});
+			t.is(result.error, false);
+			t.deepEqual(result.complexity, 2);
+		});
 });
 test('formula - ifseveral=abort', t => {
 	evalFormulaBB.validate("data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name=\"test\", ifseveral=\"abort\"] == 10", 0,
 		(result) => {
-		t.is(result.error, false);
-		t.deepEqual(result.complexity, 2);
-	});
+			t.is(result.error, false);
+			t.deepEqual(result.complexity, 2);
+		});
 });
 test('formula - ifseveral=test', t => {
 	evalFormulaBB.validate("data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name=\"test\", ifseveral=\"test\"] == 10", 0,
 		(result) => {
-		t.not(result.error, null);
-		t.deepEqual(result.complexity, 2);
-	});
+			t.not(result.error, null);
+			t.deepEqual(result.complexity, 2);
+		});
 });

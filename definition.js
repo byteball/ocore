@@ -1025,30 +1025,24 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 			case 'formula':
 				var formula = args;
 				augmentMessagesOrIgnore(formula, function (messages) {
-					try {
-						evalFormulaBB.evaluate(conn, formula, messages, objValidationState, address, function (result) {
-							if(typeof result === 'boolean') {
-								cb2(result);
-							} else if(typeof result === 'string'){
-								cb2(!!result);
-							} else if(result.type && result.type === 'string'){
-								cb2(!!result.value.slice(1, -1))
-							}else if(BigNumber.isBigNumber(result)) {
-								cb2(!result.eq(0))
-							}else{
-								cb(false);
-							}
-						});
-					} catch (e) {
-						cb2(false);
-					}
+					evalFormulaBB.evaluate(conn, formula, messages, objValidationState, address, function (result) {
+						if (typeof result === 'boolean') {
+							cb2(result);
+						} else if (typeof result === 'string') {
+							cb2(!!result);
+						} else if (BigNumber.isBigNumber(result)) {
+							cb2(!result.eq(0))
+						} else {
+							cb(false);
+						}
+					});
 				});
 				break;
 		}
 	}
 	
 	function augmentMessagesOrIgnore(formula, cb){
-		if (objValidationState.arrAugmentedMessages || /(input|output)/.test(formula)){
+		if (objValidationState.arrAugmentedMessages || /input/.test(formula)){
 			augmentMessagesAndContinue(function () {
 				cb(objValidationState.arrAugmentedMessages);
 			});
