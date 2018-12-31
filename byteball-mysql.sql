@@ -27,7 +27,7 @@ CREATE TABLE units (
 	CONSTRAINT unitsByLastBallUnit FOREIGN KEY (last_ball_unit) REFERENCES units(unit),
 	FOREIGN KEY (best_parent_unit) REFERENCES units(unit),
 	CONSTRAINT unitsByWitnessListUnit FOREIGN KEY (witness_list_unit) REFERENCES units(unit)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE balls (
 	ball CHAR(44) BINARY NOT NULL PRIMARY KEY, -- sha256 in base64
@@ -37,7 +37,7 @@ CREATE TABLE balls (
 	count_paid_witnesses TINYINT NULL,
 	KEY byCountPaidWitnesses(count_paid_witnesses),
 	FOREIGN KEY (unit) REFERENCES units(unit)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE skiplist_units (
 	unit CHAR(44) BINARY NOT NULL,
@@ -45,7 +45,7 @@ CREATE TABLE skiplist_units (
 	PRIMARY KEY (unit, skiplist_unit),
 	FOREIGN KEY (unit) REFERENCES units(unit),
 	FOREIGN KEY (skiplist_unit) REFERENCES units(unit)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 
 
@@ -57,7 +57,7 @@ CREATE TABLE parenthoods (
 	PRIMARY KEY (parent_unit, child_unit),
 	CONSTRAINT parenthoodsByChild FOREIGN KEY (child_unit) REFERENCES units(unit),
 	CONSTRAINT parenthoodsByParent FOREIGN KEY (parent_unit) REFERENCES units(unit)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 
 
@@ -65,14 +65,14 @@ CREATE TABLE definitions (
 	definition_chash CHAR(32) NOT NULL PRIMARY KEY,
 	definition TEXT NOT NULL,
 	has_references TINYINT NOT NULL
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 
 -- current list of all known from-addresses
 CREATE TABLE addresses (
 	address CHAR(32) NOT NULL PRIMARY KEY,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 
 -- must be sorted by address
@@ -87,7 +87,7 @@ CREATE TABLE unit_authors (
 	KEY unitAuthorsIndexByAddressDefinitionChash (address, definition_chash),
 	KEY unitAuthorsIndexByAddressMci (address, _mci),
 	FOREIGN KEY (definition_chash) REFERENCES definitions(definition_chash)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 
 CREATE TABLE authentifiers (
@@ -98,7 +98,7 @@ CREATE TABLE authentifiers (
 	PRIMARY KEY (unit, address, path),
 	FOREIGN KEY (unit) REFERENCES units(unit),
 	CONSTRAINT authentifiersByAddress FOREIGN KEY (address) REFERENCES addresses(address)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 -- must be sorted by address
 CREATE TABLE unit_witnesses (
@@ -107,14 +107,14 @@ CREATE TABLE unit_witnesses (
 	PRIMARY KEY (unit, address),
 	KEY byAddress(address), -- no foreign key as the address might not be used yet
 	FOREIGN KEY (unit) REFERENCES units(unit)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE witness_list_hashes (
 	witness_list_unit CHAR(44) BINARY NOT NULL PRIMARY KEY,
 	witness_list_hash CHAR(44) NOT NULL UNIQUE,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	FOREIGN KEY (witness_list_unit) REFERENCES units(unit)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 
 -- if this ball wins headers commission from at least one of the included balls, how it is distributed
@@ -127,7 +127,7 @@ CREATE TABLE earned_headers_commission_recipients (
 	PRIMARY KEY (unit, address),
 	KEY byAddress(address), -- no foreign key as the address might not be used yet
 	FOREIGN KEY (unit) REFERENCES units(unit)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 
 CREATE TABLE messages (
@@ -141,7 +141,7 @@ CREATE TABLE messages (
 	payload_uri VARCHAR(500) NULL,
 	PRIMARY KEY (unit, message_index),
 	FOREIGN KEY (unit) REFERENCES units(unit)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 -- must be sorted by spend_proof
 CREATE TABLE spend_proofs (
@@ -154,7 +154,7 @@ CREATE TABLE spend_proofs (
 	UNIQUE KEY bySpendProof(spend_proof, unit),
 	FOREIGN KEY (unit) REFERENCES units(unit),
 	CONSTRAINT spendProofsByAddress FOREIGN KEY (address) REFERENCES addresses(address)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 
 -- -------------------------
@@ -170,7 +170,7 @@ CREATE TABLE address_definition_changes (
 	UNIQUE KEY byAddressUnit(address, unit),
 	FOREIGN KEY (unit) REFERENCES units(unit),
 	CONSTRAINT addressDefinitionChangesByAddress FOREIGN KEY (address) REFERENCES addresses(address)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 
 CREATE TABLE data_feeds (
@@ -184,14 +184,14 @@ CREATE TABLE data_feeds (
 	KEY byNameStringValue(feed_name, `value`),
 	KEY byNameIntValue(feed_name, `int_value`),
 	FOREIGN KEY (unit) REFERENCES units(unit)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE polls (
 	unit CHAR(44) BINARY NOT NULL PRIMARY KEY,
 	message_index TINYINT NOT NULL,
 	question VARCHAR(4096) NOT NULL,
 	FOREIGN KEY (unit) REFERENCES units(unit)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE poll_choices (
 	unit CHAR(44) BINARY NOT NULL,
@@ -200,7 +200,7 @@ CREATE TABLE poll_choices (
 	PRIMARY KEY (unit, choice_index),
 	UNIQUE KEY (unit, choice),
 	FOREIGN KEY (unit) REFERENCES polls(unit)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE votes (
 	unit CHAR(44) BINARY NOT NULL,
@@ -211,7 +211,7 @@ CREATE TABLE votes (
 	UNIQUE KEY (unit, choice),
 	CONSTRAINT votesByChoice FOREIGN KEY (poll_unit, choice) REFERENCES poll_choices(unit, choice),
 	FOREIGN KEY (unit) REFERENCES units(unit)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE attestations (
 	unit CHAR(44) BINARY NOT NULL,
@@ -223,7 +223,7 @@ CREATE TABLE attestations (
 	KEY byAddress(address),
 	CONSTRAINT attestationsByAttestorAddress FOREIGN KEY (attestor_address) REFERENCES addresses(address),
 	FOREIGN KEY (unit) REFERENCES units(unit)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 
 CREATE TABLE assets (
@@ -240,7 +240,7 @@ CREATE TABLE assets (
 	issue_condition TEXT NULL,
 	transfer_condition TEXT NULL,
 	FOREIGN KEY (unit) REFERENCES units(unit)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE asset_denominations (
 	asset CHAR(44) BINARY NOT NULL,
@@ -249,7 +249,7 @@ CREATE TABLE asset_denominations (
 	max_issued_serial_number BIGINT NOT NULL DEFAULT 0,
 	PRIMARY KEY (asset, denomination),
 	FOREIGN KEY (asset) REFERENCES assets(unit)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE asset_attestors (
 	unit CHAR(44) BINARY NOT NULL,
@@ -260,7 +260,7 @@ CREATE TABLE asset_attestors (
 	UNIQUE KEY byAssetAttestorUnit(asset, attestor_address, unit),
 	FOREIGN KEY (unit) REFERENCES units(unit),
 	CONSTRAINT assetAttestorsByAsset FOREIGN KEY (asset) REFERENCES assets(unit)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 
 -- -------------------------
@@ -292,7 +292,7 @@ CREATE TABLE inputs (
 	CONSTRAINT inputsBySrcUnit FOREIGN KEY (src_unit) REFERENCES units(unit),
 	CONSTRAINT inputsByAddress FOREIGN KEY (address) REFERENCES addresses(address),
 	CONSTRAINT inputsByAsset FOREIGN KEY (asset) REFERENCES assets(unit)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE outputs (
 	output_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -312,7 +312,7 @@ CREATE TABLE outputs (
 	KEY bySerial(is_serial),
 	FOREIGN KEY (unit) REFERENCES units(unit),
 	CONSTRAINT outputsByAsset FOREIGN KEY (asset) REFERENCES assets(unit)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 -- ------------
 -- Commissions
@@ -326,7 +326,7 @@ CREATE TABLE headers_commission_contributions (
 	PRIMARY KEY (unit, address),
 	KEY byAddress(address),
 	FOREIGN KEY (unit) REFERENCES units(unit)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE headers_commission_outputs (
 	main_chain_index INT NOT NULL,
@@ -338,7 +338,7 @@ CREATE TABLE headers_commission_outputs (
 	UNIQUE (address, main_chain_index),
 	UNIQUE (address, is_spent, main_chain_index)
 	-- KEY byAddressSpent(address, is_spent)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE paid_witness_events (
 	unit CHAR(44) BINARY NOT NULL,
@@ -348,7 +348,7 @@ CREATE TABLE paid_witness_events (
 	PRIMARY KEY (unit, address),
 	FOREIGN KEY (unit) REFERENCES units(unit),
 	FOREIGN KEY (address) REFERENCES addresses(address)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE witnessing_outputs (
 	main_chain_index INT NOT NULL,
@@ -361,7 +361,7 @@ CREATE TABLE witnessing_outputs (
 	UNIQUE (address, is_spent, main_chain_index),
 	-- KEY byWitnessAddressSpent(address, is_spent),
 	FOREIGN KEY (address) REFERENCES addresses(address)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 
 
@@ -374,14 +374,14 @@ CREATE TABLE dependencies (
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	UNIQUE KEY (depends_on_unit, unit),
 	KEY byUnit(unit)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE unhandled_joints (
 	unit CHAR(44) BINARY NOT NULL PRIMARY KEY,
 	peer VARCHAR(100) NOT NULL,
 	json LONGTEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE archived_joints (
 	unit CHAR(44) BINARY NOT NULL PRIMARY KEY,
@@ -389,7 +389,7 @@ CREATE TABLE archived_joints (
 	-- is_retrievable TINYINT NOT NULL,
 	json LONGTEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 
 CREATE TABLE known_bad_joints (
@@ -398,13 +398,13 @@ CREATE TABLE known_bad_joints (
 	json LONGTEXT NOT NULL,
 	error TEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE joints (
 	unit CHAR(44) BINARY NOT NULL PRIMARY KEY,
 	json LONGTEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE unhandled_private_payments (
 	unit CHAR(44) BINARY NOT NULL,
@@ -415,7 +415,7 @@ CREATE TABLE unhandled_private_payments (
 	linked TINYINT NOT NULL DEFAULT 0,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (unit, message_index, output_index)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 -- ------------------
 -- Catching up
@@ -424,12 +424,12 @@ CREATE TABLE hash_tree_balls (
 	ball_index INT NOT NULL PRIMARY KEY AUTO_INCREMENT, -- in increasing level order
 	ball CHAR(44) BINARY NOT NULL UNIQUE,
 	unit CHAR(44) BINARY NOT NULL UNIQUE
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE catchup_chain_balls (
 	member_index INT NOT NULL PRIMARY KEY AUTO_INCREMENT, -- in increasing level order
 	ball CHAR(44) BINARY NOT NULL UNIQUE
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 
 -- ------------------------
@@ -441,7 +441,7 @@ CREATE TABLE peer_hosts (
 	count_new_good_joints INT NOT NULL DEFAULT 0,
 	count_invalid_joints INT NOT NULL DEFAULT 0,
 	count_nonserial_joints INT NOT NULL DEFAULT 0
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE peers (
 	peer VARCHAR(100) NOT NULL PRIMARY KEY, -- wss:// address
@@ -451,7 +451,7 @@ CREATE TABLE peers (
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	FOREIGN KEY (learnt_from_peer_host) REFERENCES peer_hosts(peer_host),
 	FOREIGN KEY (peer_host) REFERENCES peer_hosts(peer_host)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 -- INSERT INTO peer_hosts SET peer_host='127.0.0.1';
 -- INSERT INTO peers SET peer_host='127.0.0.1', peer='ws://127.0.0.1:8081';
@@ -461,7 +461,7 @@ CREATE TABLE peer_events (
 	event_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	event ENUM('new_good', 'invalid', 'nonserial', 'known_good', 'known_bad') NOT NULL,
 	FOREIGN KEY (peer_host) REFERENCES peer_hosts(peer_host)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 -- self advertised urls
 -- only inbound peers can advertise their urls
@@ -473,7 +473,7 @@ CREATE TABLE peer_host_urls (
 	revocation_date TIMESTAMP NULL,
 	UNIQUE KEY byHostActive(peer_host, is_active),
 	FOREIGN KEY (peer_host) REFERENCES peer_hosts(peer_host)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 
 
@@ -491,7 +491,7 @@ CREATE TABLE wallets (
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	full_approval_date TIMESTAMP NULL, -- when received xpubkeys from all members
 	ready_date TIMESTAMP NULL -- when all members notified me that they saw the wallet fully approved
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 -- BIP44 addresses. Coin type and account are fixed and stored in credentials in localstorage.
 -- derivation path is m/44'/0'/account'/is_change/address_index
@@ -504,11 +504,11 @@ CREATE TABLE my_addresses (
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	UNIQUE KEY byWalletPath(wallet, is_change, address_index),
 	FOREIGN KEY (wallet) REFERENCES wallets(wallet)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE my_witnesses (
 	address CHAR(32) NOT NULL PRIMARY KEY
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 
 -- --------------------
@@ -519,7 +519,7 @@ CREATE TABLE devices (
 	pubkey CHAR(44) NOT NULL,
 	temp_pubkey_package TEXT NULL, -- temporary pubkey signed by the permanent pubkey
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE device_messages (
 	message_hash CHAR(44) NOT NULL PRIMARY KEY,
@@ -527,7 +527,7 @@ CREATE TABLE device_messages (
 	message LONGTEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	FOREIGN KEY (device_address) REFERENCES devices(device_address)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 
 -- --------------------
@@ -541,14 +541,14 @@ CREATE TABLE correspondent_devices (
 	is_confirmed TINYINT NOT NULL DEFAULT 0,
 	is_indirect TINYINT NOT NULL DEFAULT 0,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE pairing_secrets (
 	pairing_secret VARCHAR(40) NOT NULL PRIMARY KEY,
 	is_permanent TINYINT NOT NULL DEFAULT 0,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	expiry_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP  -- DEFAULT for newer mysql versions (never used)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE extended_pubkeys (
 	wallet CHAR(44) NOT NULL, -- no FK because xpubkey may arrive earlier than the wallet is approved by the user and written to the db
@@ -560,18 +560,18 @@ CREATE TABLE extended_pubkeys (
 	PRIMARY KEY (wallet, device_address)
 	-- own address is not present in correspondents
 	-- FOREIGN KEY (device_address) REFERENCES correspondent_devices(device_address)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE wallet_signing_paths (
 	wallet CHAR(44) NOT NULL, -- no FK because xpubkey may arrive earlier than the wallet is approved by the user and written to the db
-	signing_path VARCHAR(255) NULL, -- NULL if xpubkey arrived earlier than the wallet was approved by the user
+	signing_path VARCHAR(255) CHARACTER SET latin1 COLLATE latin1_general_cs NULL, -- NULL if xpubkey arrived earlier than the wallet was approved by the user
 	device_address CHAR(33) NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	UNIQUE KEY byWalletSigningPath(wallet, signing_path),
 	FOREIGN KEY (wallet) REFERENCES wallets(wallet)
 	-- own address is not present in correspondents
 	-- FOREIGN KEY (device_address) REFERENCES correspondent_devices(device_address)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 -- addresses composed of several other addresses (such as ["and", [["address", "ADDRESS1"], ["address", "ADDRESS2"]]]),
 -- member addresses live on different devices, member addresses themselves may be composed of several keys
@@ -579,18 +579,18 @@ CREATE TABLE shared_addresses (
 	shared_address CHAR(32) NOT NULL PRIMARY KEY,
 	definition TEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE pending_shared_addresses (
 	definition_template_chash CHAR(32) NOT NULL PRIMARY KEY,
 	definition_template TEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE pending_shared_address_signing_paths (
 	definition_template_chash CHAR(32) NOT NULL,
 	device_address CHAR(33) NOT NULL,
-	signing_path VARCHAR(255) NOT NULL, -- path from root to member address
+	signing_path VARCHAR(255) CHARACTER SET latin1 COLLATE latin1_general_cs NOT NULL, -- path from root to member address
 	address CHAR(32) NULL, -- member address
 	device_addresses_by_relative_signing_paths TEXT NULL, -- json
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -599,20 +599,20 @@ CREATE TABLE pending_shared_address_signing_paths (
 	-- own address is not present in correspondents
 	-- FOREIGN KEY (device_address) REFERENCES correspondent_devices(device_address),
 	FOREIGN KEY (definition_template_chash) REFERENCES pending_shared_addresses(definition_template_chash)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE shared_address_signing_paths (
 	shared_address CHAR(32) NOT NULL,
-	signing_path VARCHAR(255) NULL, -- full path to signing key which is a member of the member address
+	signing_path VARCHAR(255) CHARACTER SET latin1 COLLATE latin1_general_cs NULL, -- full path to signing key which is a member of the member address
 	address CHAR(32) NOT NULL, -- member address
-	member_signing_path VARCHAR(255) NULL, -- path to signing key from root of the member address
+	member_signing_path VARCHAR(255) CHARACTER SET latin1 COLLATE latin1_general_cs NULL, -- path to signing key from root of the member address
 	device_address CHAR(33) NOT NULL, -- where this signing key lives or is reachable through
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	UNIQUE KEY bySharedAddressSigningPath(shared_address, signing_path),
 	FOREIGN KEY (shared_address) REFERENCES shared_addresses(shared_address)
 	-- own address is not present in correspondents
 	-- FOREIGN KEY (device_address) REFERENCES correspondent_devices(device_address)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 
 CREATE TABLE outbox (
@@ -621,7 +621,7 @@ CREATE TABLE outbox (
 	message LONGTEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	last_error TEXT NULL
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 
 -- light clients
@@ -632,7 +632,7 @@ CREATE TABLE watched_light_addresses (
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (peer, address),
 	KEY byAddress(address)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 
 ALTER TABLE `units` ADD INDEX `bySequence` (`sequence`);
@@ -644,7 +644,7 @@ CREATE TABLE IF NOT EXISTS push_registrations (
 	device_address CHAR(33) NOT NULL,
 	platform VARCHAR(20) NOT NULL,
 	PRIMARY KEY (device_address)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE chat_messages (
 	id INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,
@@ -654,7 +654,7 @@ CREATE TABLE chat_messages (
 	is_incoming TINYINT NOT NULL,
 	type CHAR(15) NOT NULL DEFAULT 'text',
 	FOREIGN KEY (correspondent_address) REFERENCES correspondent_devices(device_address) ON DELETE CASCADE
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 CREATE INDEX chatMessagesIndexByDeviceAddress ON chat_messages(correspondent_address, id);
 ALTER TABLE correspondent_devices ADD COLUMN my_record_pref INTEGER DEFAULT 1;
 ALTER TABLE correspondent_devices ADD COLUMN peer_record_pref INTEGER DEFAULT 1;
@@ -664,16 +664,16 @@ CREATE TABLE watched_light_units (
 	unit CHAR(44) BINARY NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (peer, unit)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 CREATE INDEX wlabyUnit ON watched_light_units(unit);
 
 CREATE TABLE bots (
 	id INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,
 	rank INTEGER NOT NULL DEFAULT 0,
 	name VARCHAR(100) NOT NULL UNIQUE,
-	pairing_code VARCHAR(200) NOT NULL,
+	pairing_code VARCHAR(200) CHARACTER SET latin1 COLLATE latin1_general_cs NOT NULL,
 	description LONGTEXT NOT NULL
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE asset_metadata (
 	asset CHAR(44) BINARY NOT NULL PRIMARY KEY,
@@ -687,7 +687,7 @@ CREATE TABLE asset_metadata (
 	FOREIGN KEY (asset) REFERENCES assets(unit),
 	FOREIGN KEY (metadata_unit) REFERENCES units(unit)
 	-- FOREIGN KEY (registry_address) REFERENCES addresses(address) -- addresses is not always filled on light
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE sent_mnemonics (
 	unit CHAR(44) BINARY NOT NULL,
@@ -696,7 +696,7 @@ CREATE TABLE sent_mnemonics (
 	textAddress VARCHAR(120) NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	FOREIGN KEY (unit) REFERENCES units(unit)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 CREATE INDEX sentByAddress ON sent_mnemonics(address);
 
 CREATE TABLE private_profiles (
@@ -708,7 +708,7 @@ CREATE TABLE private_profiles (
 	src_profile TEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	FOREIGN KEY (unit) REFERENCES units(unit)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE private_profile_fields (
 	private_profile_id INTEGER NOT NULL ,
@@ -718,7 +718,7 @@ CREATE TABLE private_profile_fields (
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	UNIQUE byProfileIdField(private_profile_id, `field`),
 	FOREIGN KEY (private_profile_id) REFERENCES private_profiles(private_profile_id)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 CREATE INDEX ppfByField ON private_profile_fields(`field`);
 
 
@@ -732,7 +732,7 @@ CREATE TABLE attested_fields (
 	PRIMARY KEY (unit, message_index, `field`),
 	CONSTRAINT attestedFieldsByAttestorAddress FOREIGN KEY (attestor_address) REFERENCES addresses(address),
 	FOREIGN KEY (unit) REFERENCES units(unit)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 CREATE INDEX attestedFieldsByAttestorFieldValue ON attested_fields(attestor_address, `field`, `value`);
 CREATE INDEX attestedFieldsByAddressField ON attested_fields(address, `field`);
 
@@ -744,4 +744,4 @@ CREATE TABLE original_addresses (
 	original_address VARCHAR(100) NOT NULL, -- email
 	PRIMARY KEY (unit, address),
 	FOREIGN KEY (unit) REFERENCES units(unit)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
