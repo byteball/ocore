@@ -10,7 +10,8 @@ var ecdsaSig = require('./signature.js');
 var merkle = require('./merkle.js');
 var ValidationUtils = require("./validation_utils.js");
 var objectHash = require("./object_hash.js");
-
+var evalFormulaBB = require('./formula/index');
+var BigNumber = require('bignumber.js');
 
 var hasFieldsExcept = ValidationUtils.hasFieldsExcept;
 var isStringOfLength = ValidationUtils.isStringOfLength;
@@ -21,6 +22,7 @@ var isPositiveInteger = ValidationUtils.isPositiveInteger;
 var isNonemptyArray = ValidationUtils.isNonemptyArray;
 var isArrayOfLength = ValidationUtils.isArrayOfLength;
 var isValidAddress = ValidationUtils.isValidAddress;
+var isValidBase64 = ValidationUtils.isValidBase64;
 
 // validate definition of address or asset spending conditions
 function validateDefinition(conn, arrDefinition, objUnit, objValidationState, arrAuthentifierPaths, bAssetCondition, handleResult){
@@ -283,8 +285,8 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 						return cb("each param must be string or number");
 				conn.query(
 					"SELECT payload FROM messages JOIN units USING(unit) \n\
-					WHERE unit=? AND app='definition_template' AND main_chain_index<=? AND +sequence='good' AND is_stable=1", 
-					[unit, objValidationState.last_ball_mci], 
+					WHERE unit=? AND app='definition_template' AND main_chain_index<=? AND +sequence='good' AND is_stable=1",
+					[unit, objValidationState.last_ball_mci],
 					function(rows){
 						if (rows.length !== 1)
 							return cb("template not found or too many");
@@ -538,7 +540,12 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 					bPrivate ? cb("asset must be public") : cb();
 				});
 				break;
-				
+			case 'formula':
+				evalFormulaBB.validate(args, complexity, function (result) {
+					complexity = result.complexity;
+					cb(result.error);
+				});
+				break;
 			default:
 				return cb("unknown op: "+op);
 		}
@@ -708,8 +715,8 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				var params = args[1];
 				conn.query(
 					"SELECT payload FROM messages JOIN units USING(unit) \n\
-					WHERE unit=? AND app='definition_template' AND main_chain_index<=? AND +sequence='good' AND is_stable=1", 
-					[unit, objValidationState.last_ball_mci], 
+					WHERE unit=? AND app='definition_template' AND main_chain_index<=? AND +sequence='good' AND is_stable=1",
+					[unit, objValidationState.last_ball_mci],
 					function(rows){
 						if (rows.length !== 1)
 							throw Error("not 1 template");
@@ -1017,10 +1024,35 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 					return (payload_address === changed_address);
 				}));
 				break;
-				
+			
+			case 'formula':
+				var formula = args;
+				augmentMessagesOrIgnore(formula, function (messages) {
+					evalFormulaBB.evaluate(conn, formula, messages, objValidationState, address, function (result) {
+						if (typeof result === 'boolean') {
+							cb2(result);
+						} else if (typeof result === 'string') {
+							cb2(!!result);
+						} else if (BigNumber.isBigNumber(result)) {
+							cb2(!result.eq(0))
+						} else {
+							cb(false);
+						}
+					});
+				});
+				break;
 		}
 	}
 	
+	function augmentMessagesOrIgnore(formula, cb){
+		if (objValidationState.arrAugmentedMessages || /input/.test(formula)){
+			augmentMessagesAndContinue(function () {
+				cb(objValidationState.arrAugmentedMessages);
+			});
+		}else{
+			cb(objUnit.messages);
+		}
+	}
 	
 	function augmentMessagesAndContinue(next){
 		if (!objValidationState.arrAugmentedMessages)
@@ -1158,7 +1190,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 						else if (!input.type){
 							input.type = "transfer";
 							conn.query(
-								"SELECT amount, address FROM outputs WHERE unit=? AND message_index=? AND output_index=?", 
+								"SELECT amount, address FROM outputs WHERE unit=? AND message_index=? AND output_index=?",
 								[input.unit, input.message_index, input.output_index],
 								function(rows){
 									if (rows.length === 1){
@@ -1192,7 +1224,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 	// we need to re-validate the definition every time, not just the first time we see it, because:
 	// 1. in case a referenced address was redefined, complexity might change and exceed the limit
 	// 2. redefinition of a referenced address might introduce loops that will drive complexity to infinity
-	// 3. if an inner address was redefined by keychange but the definition for the new keyset not supplied before last ball, the address 
+	// 3. if an inner address was redefined by keychange but the definition for the new keyset not supplied before last ball, the address
 	// becomes temporarily unusable
 	validateDefinition(conn, arrDefinition, objUnit, objValidationState, arrAuthentifierPaths, bAssetCondition, function(err){
 		if (err)
@@ -1211,8 +1243,8 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 function replaceInTemplate(arrTemplate, params){
 	function replaceInVar(x){
 		switch (typeof x){
-			case 'number': 
-			case 'boolean': 
+			case 'number':
+			case 'boolean':
 				return x;
 			case 'string':
 				// searching for pattern "$name"
@@ -1306,4 +1338,3 @@ exports.evaluateAssetCondition = evaluateAssetCondition;
 exports.validateAuthentifiers = validateAuthentifiers;
 exports.hasReferences = hasReferences;
 exports.replaceInTemplate = replaceInTemplate;
-
