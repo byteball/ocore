@@ -126,13 +126,13 @@ exports.validate = function (formula, complexity, callback) {
 				});
 				break;
 			case 'data_feed':
-				var result = validDataFeed(arr[1]);
+				var result = validateDataFeed(arr[1]);
 				complexity += result.complexity;
 				cb(!result.error);
 				break;
 			case 'input':
 			case 'output':
-				cb(validInputAndOutput(arr[1]));
+				cb(inputOrOutputIsValid(arr[1]));
 				break;
 			case 'concat':
 				async.eachSeries(arr.slice(1), function (param, cb2) {
@@ -164,7 +164,7 @@ exports.validate = function (formula, complexity, callback) {
 	}
 };
 
-function validInputAndOutput(params) {
+function inputOrOutputIsValid(params) {
 	if (!Object.keys(params).length) return false;
 	for (var k in params) {
 		var operator = params[k].operator;
@@ -190,7 +190,7 @@ function validInputAndOutput(params) {
 	return true;
 }
 
-function validDataFeed(arr) {
+function validateDataFeed(arr) {
 	var complexity = 0;
 	if (arr['oracles'] && arr['feed_name']) {
 		for (var k in arr) {
