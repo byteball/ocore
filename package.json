@@ -5,6 +5,11 @@
   "version": "0.2.93",
   "keywords": [
     "byteball",
+    "DAG",
+    "DLT",
+    "cryptocurrency",
+    "blockchain",
+    "smart contract",
     "multisignature"
   ],
   "homepage": "https://github.com/byteball/byteballcore",
