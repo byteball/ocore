@@ -541,6 +541,8 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 				});
 				break;
 			case 'formula':
+				if (objValidationState.last_ball_mci < constants.formulaUpgradeMci)
+					return cb("formulas not allowed at this mci yet");
 				evalFormulaBB.validate(args, complexity, function (result) {
 					complexity = result.complexity;
 					cb(result.error);
