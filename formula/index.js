@@ -91,6 +91,7 @@ exports.validate = function (formula, complexity, callback) {
 				});
 				break;
 			case 'pi':
+			case 'e':
 				cb(true);
 				break;
 			case 'and':
@@ -124,25 +125,14 @@ exports.validate = function (formula, complexity, callback) {
 					cb(!error);
 				});
 				break;
-			case 'e':
-				cb(true);
-				break;
 			case 'data_feed':
 				var result = validDataFeed(arr[1]);
 				complexity += result.complexity;
-				if (!result.error) {
-					cb(true);
-				} else {
-					cb(false);
-				}
+				cb(!result.error);
 				break;
 			case 'input':
 			case 'output':
-				if (validInputAndOutput(arr[1])) {
-					cb(true);
-				} else {
-					cb(false);
-				}
+				cb(validInputAndOutput(arr[1]));
 				break;
 			case 'concat':
 				async.eachSeries(arr.slice(1), function (param, cb2) {
