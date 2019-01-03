@@ -190,6 +190,13 @@ function validate(objJoint, callbacks) {
 					profiler.start();
 					!objUnit.parent_units
 						? cb()
+						: validateParentsExistAndOrdered(conn, objUnit, cb);
+				},
+				function(cb){
+					profiler.stop('validation-parents-exist');
+					profiler.start();
+					!objUnit.parent_units
+						? cb()
 						: validateHashTree(conn, objJoint, objValidationState, cb);
 				},
 				function(cb){
@@ -361,6 +368,41 @@ function validateSkiplist(conn, arrSkiplistUnits, callback){
 	);
 }
 
+function validateParentsExistAndOrdered(conn, objUnit, callback){
+	var prev = "";
+	var arrMissingParentUnits = [];
+	if (objUnit.parent_units.length > constants.MAX_PARENTS_PER_UNIT) // anti-spam
+		return callback("too many parents: "+objUnit.parent_units.length);
+	async.eachSeries(
+		objUnit.parent_units,
+		function(parent_unit, cb){
+			if (parent_unit <= prev)
+				return cb("parent units not ordered");
+			prev = parent_unit;
+			if (storage.assocUnstableUnits[parent_unit] || storage.assocStableUnits[parent_unit])
+				return cb();
+			storage.readStaticUnitProps(conn, parent_unit, function(objUnitProps){
+				if (!objUnitProps)
+					arrMissingParentUnits.push(parent_unit);
+				cb();
+			}, true);
+		},
+		function(err){
+			if (err)
+				return callback(err);
+			if (arrMissingParentUnits.length > 0){
+				conn.query("SELECT error FROM known_bad_joints WHERE unit IN(?)", [arrMissingParentUnits], function(rows){
+					(rows.length > 0)
+						? callback("some of the unit's parents are known bad: "+rows[0].error)
+						: callback({error_code: "unresolved_dependency", arrMissingUnits: arrMissingParentUnits});
+				});
+				return;
+			}
+			callback();
+		}
+	);
+}
+
 function validateParents(conn, objJoint, objValidationState, callback){
 	
 	// avoid merging the obvious nonserials
@@ -405,17 +447,12 @@ function validateParents(conn, objJoint, objValidationState, callback){
 	}
 	
 	var objUnit = objJoint.unit;
-	if (objUnit.parent_units.length > constants.MAX_PARENTS_PER_UNIT) // anti-spam
-		return callback("too many parents: "+objUnit.parent_units.length);
 	// obsolete: when handling a ball, we can't trust parent list before we verify ball hash
 	// obsolete: when handling a fresh unit, we can begin trusting parent list earlier, after we verify parents_hash
-	var createError = objJoint.ball ? createJointError : function(err){ return err; };
 	// after this point, we can trust parent list as it either agrees with parents_hash or agrees with hash tree
 	// hence, there are no more joint errors, except unordered parents or skiplist units
 	var last_ball = objUnit.last_ball;
 	var last_ball_unit = objUnit.last_ball_unit;
-	var prev = "";
-	var arrMissingParentUnits = [];
 	var arrPrevParentUnitProps = [];
 	objValidationState.max_parent_limci = 0;
 	var join = objJoint.ball ? 'LEFT JOIN balls USING(unit) LEFT JOIN hash_tree_balls ON units.unit=hash_tree_balls.unit' : '';
@@ -423,14 +460,9 @@ function validateParents(conn, objJoint, objValidationState, callback){
 	async.eachSeries(
 		objUnit.parent_units, 
 		function(parent_unit, cb){
-			if (parent_unit <= prev)
-				return cb(createError("parent units not ordered"));
-			prev = parent_unit;
 			conn.query("SELECT units.*"+field+" FROM units "+join+" WHERE units.unit=?", [parent_unit], function(rows){
-				if (rows.length === 0){
-					arrMissingParentUnits.push(parent_unit);
-					return cb();
-				}
+				if (rows.length === 0)
+					throw Error("parent "+parent_unit+" not found");
 				var objParentUnitProps = rows[0];
 				// already checked in validateHashTree that the parent ball is known, that's why we throw
 				if (objJoint.ball && objParentUnitProps.ball === null)
@@ -456,14 +488,6 @@ function validateParents(conn, objJoint, objValidationState, callback){
 		function(err){
 			if (err)
 				return callback(err);
-			if (arrMissingParentUnits.length > 0){
-				conn.query("SELECT error FROM known_bad_joints WHERE unit IN(?)", [arrMissingParentUnits], function(rows){
-					(rows.length > 0)
-						? callback("some of the unit's parents are known bad: "+rows[0].error)
-						: callback({error_code: "unresolved_dependency", arrMissingUnits: arrMissingParentUnits});
-				});
-				return;
-			}
 			// this is redundant check, already checked in validateHashTree()
 			if (objJoint.ball){
 				var arrParentBalls = arrPrevParentUnitProps.map(function(objParentUnitProps){ return objParentUnitProps.ball; }).sort();

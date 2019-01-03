@@ -1212,13 +1212,16 @@ function buildListOfMcUnitsWithPotentiallyDifferentWitnesslists(conn, objUnit, l
 }
 
 
-function readStaticUnitProps(conn, unit, handleProps){
+function readStaticUnitProps(conn, unit, handleProps, bReturnNullIfNotFound){
 	var props = assocCachedUnits[unit];
 	if (props)
 		return handleProps(props);
 	conn.query("SELECT level, witnessed_level, best_parent_unit, witness_list_unit FROM units WHERE unit=?", [unit], function(rows){
-		if (rows.length !== 1)
+		if (rows.length !== 1){
+			if (bReturnNullIfNotFound)
+				return handleProps(null);
 			throw Error("not 1 unit");
+		}
 		props = rows[0];
 		assocCachedUnits[unit] = props;
 		handleProps(props);
