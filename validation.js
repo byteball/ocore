@@ -367,11 +367,26 @@ function validateParents(conn, objJoint, objValidationState, callback){
 	function checkNoSameAddressInDifferentParents(){
 		if (objUnit.parent_units.length === 1)
 			return callback();
-		conn.query("SELECT address, COUNT(*) AS c FROM unit_authors WHERE unit IN(?) GROUP BY address HAVING c>1", [objUnit.parent_units], function(rows){
-			if (rows.length > 0)
-				return callback("some addresses found more than once in parents, e.g. "+rows[0].address);
-			return callback();
-		});
+		var assocAuthors = {};
+		var found_address;
+		async.eachSeries(
+			objUnit.parent_units,
+			function(parent_unit, cb){
+				storage.readUnitAuthors(conn, parent_unit, function(arrAuthors){
+					arrAuthors.forEach(function(address){
+						if (assocAuthors[address])
+							found_address = address;
+						assocAuthors[address] = true;
+					});
+					cb(found_address);
+				});
+			},
+			function(){
+				if (found_address)
+					return callback("some addresses found more than once in parents, e.g. "+found_address);
+				return callback();
+			}
+		);
 	}
 	
 	function readMaxParentLastBallMci(handleResult){
