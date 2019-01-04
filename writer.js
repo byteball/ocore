@@ -606,6 +606,7 @@ function readCountOfAnalyzedUnits(handleCount){
 
 var start_time = 0;
 var prev_time = 0;
+var bDbTooBig = false;
 // update stats for query planner
 function updateSqliteStats(unit){
 	if (count_writes === 1){
@@ -622,12 +623,14 @@ function updateSqliteStats(unit){
 		prev_time = Date.now();
 	//	console.error(count_writes+" units done in "+total_time+" s, recent "+recent_tps+" tps, avg "+avg_tps+" tps, unit "+unit);
 	}
-	if (conf.storage !== 'sqlite')
+	if (conf.storage !== 'sqlite' || bDbTooBig)
 		return;
 	db.query("SELECT MAX(rowid) AS count_units FROM units", function(rows){
 		var count_units = rows[0].count_units;
-		if (count_units > 500000) // the db is too big
+		if (count_units > 500000){ // the db is too big
+			bDbTooBig = true;
 			return;
+		}
 		readCountOfAnalyzedUnits(function(count_analyzed_units){
 			console.log('count analyzed units: '+count_analyzed_units);
 			if (count_units < 2*count_analyzed_units)
