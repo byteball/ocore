@@ -615,10 +615,11 @@ function updateSqliteStats(unit){
 	}
 	if (count_writes % 100 !== 0)
 		return;
-	if (count_writes % 1000 === 0){
+	var STATS_CHUNK_SIZE = 1000;
+	if (count_writes % STATS_CHUNK_SIZE === 0){
 		var total_time = (Date.now() - start_time)/1000;
 		var recent_time = (Date.now() - prev_time)/1000;
-		var recent_tps = 1000/recent_time;
+		var recent_tps = STATS_CHUNK_SIZE/recent_time;
 		var avg_tps = count_writes/total_time;
 		prev_time = Date.now();
 	//	console.error(count_writes+" units done in "+total_time+" s, recent "+recent_tps+" tps, avg "+avg_tps+" tps, unit "+unit);
