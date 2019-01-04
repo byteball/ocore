@@ -299,6 +299,7 @@ function validateHashTree(conn, objJoint, objValidationState, callback){
 			return callback({error_code: "need_hash_tree", message: "ball "+objJoint.ball+" is not known in hash tree"});
 		if (rows[0].unit !== objUnit.unit)
 			return callback(createJointError("ball "+objJoint.ball+" unit "+objUnit.unit+" contradicts hash tree"));
+		// we have to check in hash_tree_balls too because if we were synced, went offline, and start to catch up, our parents will have no ball yet
 		conn.query(
 			"SELECT ball FROM hash_tree_balls WHERE unit IN(?) \n\
 			UNION \n\
@@ -455,18 +456,10 @@ function validateParents(conn, objJoint, objValidationState, callback){
 	var last_ball_unit = objUnit.last_ball_unit;
 	var arrPrevParentUnitProps = [];
 	objValidationState.max_parent_limci = 0;
-	var join = objJoint.ball ? 'LEFT JOIN balls USING(unit) LEFT JOIN hash_tree_balls ON units.unit=hash_tree_balls.unit' : '';
-	var field = objJoint.ball ? ', IFNULL(balls.ball, hash_tree_balls.ball) AS ball' : '';
 	async.eachSeries(
 		objUnit.parent_units, 
 		function(parent_unit, cb){
-			conn.query("SELECT units.*"+field+" FROM units "+join+" WHERE units.unit=?", [parent_unit], function(rows){
-				if (rows.length === 0)
-					throw Error("parent "+parent_unit+" not found");
-				var objParentUnitProps = rows[0];
-				// already checked in validateHashTree that the parent ball is known, that's why we throw
-				if (objJoint.ball && objParentUnitProps.ball === null)
-					throw Error("no ball corresponding to parent unit "+parent_unit);
+			storage.readUnitProps(conn, parent_unit, function(objParentUnitProps){
 				if (objParentUnitProps.latest_included_mc_index > objValidationState.max_parent_limci)
 					objValidationState.max_parent_limci = objParentUnitProps.latest_included_mc_index;
 				async.eachSeries(
@@ -488,15 +481,6 @@ function validateParents(conn, objJoint, objValidationState, callback){
 		function(err){
 			if (err)
 				return callback(err);
-			// this is redundant check, already checked in validateHashTree()
-			if (objJoint.ball){
-				var arrParentBalls = arrPrevParentUnitProps.map(function(objParentUnitProps){ return objParentUnitProps.ball; }).sort();
-				//if (arrParentBalls.indexOf(null) === -1){
-					var hash = objectHash.getBallHash(objUnit.unit, arrParentBalls, objValidationState.arrSkiplistBalls, !!objUnit.content_hash);
-					if (hash !== objJoint.ball)
-						throw Error("ball hash is wrong"); // shouldn't happen, already validated in validateHashTree()
-				//}
-			}
 			conn.query(
 				"SELECT is_stable, is_on_main_chain, main_chain_index, ball, (SELECT MAX(main_chain_index) FROM units) AS max_known_mci \n\
 				FROM units LEFT JOIN balls USING(unit) WHERE unit=?", 
