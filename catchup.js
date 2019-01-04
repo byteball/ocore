@@ -388,7 +388,7 @@ function processHashTree(arrBalls, callbacks){
 								//		return finish("max mci doesn't match first chain element: max mci = "+max_mci+", first mci = "+rows[0].main_chain_index);
 									if (rows[1].ball !== arrBalls[arrBalls.length-1].ball)
 										return finish("tree root doesn't match second chain element");
-									// remove the last chain element, we now have hash tree instead
+									// remove the oldest chain element, we now have hash tree instead
 									conn.query("DELETE FROM catchup_chain_balls WHERE ball=?", [rows[0].ball], function(){
 										
 										purgeHandledBallsFromHashTree(conn, finish);
