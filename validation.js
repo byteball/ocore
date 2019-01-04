@@ -301,13 +301,14 @@ function validateHashTreeBall(conn, objJoint, callback){
 	if (!objJoint.ball)
 		return callback();
 	var objUnit = objJoint.unit;
-	conn.query("SELECT unit FROM hash_tree_balls WHERE ball=?", [objJoint.ball], function(rows){
-		if (rows.length === 0) 
+	var unit_by_hash_tree_ball = storage.assocHashTreeUnitsByBall[objJoint.ball];
+//	conn.query("SELECT unit FROM hash_tree_balls WHERE ball=?", [objJoint.ball], function(rows){
+		if (!unit_by_hash_tree_ball) 
 			return callback({error_code: "need_hash_tree", message: "ball "+objJoint.ball+" is not known in hash tree"});
-		if (rows[0].unit !== objUnit.unit)
+		if (unit_by_hash_tree_ball !== objUnit.unit)
 			return callback(createJointError("ball "+objJoint.ball+" unit "+objUnit.unit+" contradicts hash tree"));
 		callback();
-	});
+//	});
 }
 
 function validateHashTreeParentsAndSkiplist(conn, objJoint, callback){

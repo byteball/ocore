@@ -1320,6 +1320,7 @@ function markMcIndexStable(conn, mci, onDone){
 									}
 									conn.query("INSERT INTO balls (ball, unit) VALUES(?,?)", [ball, unit], function(){
 										conn.query("DELETE FROM hash_tree_balls WHERE ball=?", [ball], function(){
+											delete storage.assocHashTreeUnitsByBall[ball];
 											if (arrSkiplistUnits.length === 0)
 												return cb();
 											conn.query(

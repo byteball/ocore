@@ -65,6 +65,7 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 		if (objJoint.ball && !conf.bLight){
 			conn.addQuery(arrQueries, "INSERT INTO balls (ball, unit) VALUES(?,?)", [objJoint.ball, objUnit.unit]);
 			conn.addQuery(arrQueries, "DELETE FROM hash_tree_balls WHERE ball=? AND unit=?", [objJoint.ball, objUnit.unit]);
+			delete storage.assocHashTreeUnitsByBall[objJoint.ball];
 			if (objJoint.skiplist_units)
 				for (var i=0; i<objJoint.skiplist_units.length; i++)
 					conn.addQuery(arrQueries, "INSERT INTO skiplist_units (unit, skiplist_unit) VALUES (?,?)", [objUnit.unit, objJoint.skiplist_units[i]]);

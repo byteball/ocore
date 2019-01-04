@@ -1637,16 +1637,17 @@ function handleHashTree(ws, request, response){
 
 function waitTillHashTreeFullyProcessedAndRequestNext(ws){
 	setTimeout(function(){
-		db.query("SELECT COUNT(*) AS count FROM hash_tree_balls LEFT JOIN units USING(unit) WHERE units.unit IS NULL", function(rows){
-			if (rows[0].count <= 30){
+	//	db.query("SELECT COUNT(*) AS count FROM hash_tree_balls LEFT JOIN units USING(unit) WHERE units.unit IS NULL", function(rows){
+			var count = Object.keys(storage.assocHashTreeUnitsByBall).length;
+			if (count <= 30){
 				findNextPeer(ws, function(next_ws){
 					requestNextHashTree(next_ws);
 				});
 			}
 			else
 				waitTillHashTreeFullyProcessedAndRequestNext(ws);
-		});
-	}, 1000);
+	//	});
+	}, 100);
 }
 
 

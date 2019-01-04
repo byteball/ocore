@@ -312,6 +312,7 @@ function processHashTree(arrBalls, callbacks){
 								return cb("wrong ball hash, ball "+objBall.ball+", unit "+objBall.unit);
 
 							function addBall(){
+								storage.assocHashTreeUnitsByBall[objBall.ball] = objBall.unit;
 								// insert even if it already exists in balls, because we need to define max_mci by looking outside this hash tree
 								conn.query("INSERT "+conn.getIgnore()+" INTO hash_tree_balls (ball, unit) VALUES(?,?)", [objBall.ball, objBall.unit], function(){
 									cb();
@@ -408,6 +409,9 @@ function purgeHandledBallsFromHashTree(conn, onDone){
 		if (rows.length === 0)
 			return onDone();
 		var arrHandledBalls = rows.map(function(row){ return row.ball; });
+		arrHandledBalls.forEach(function(ball){
+			delete storage.assocHashTreeUnitsByBall[ball];
+		});
 		conn.query("DELETE FROM hash_tree_balls WHERE ball IN(?)", [arrHandledBalls], function(){
 			onDone();
 		});
