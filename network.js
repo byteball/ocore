@@ -1161,7 +1161,11 @@ function handleSavedJoint(objJoint, creation_ts, peer){
 				sendErrorResult(ws, unit, error);
 		},
 		ifNeedHashTree: function(){
-			throw Error("handleSavedJoint: need hash tree");
+			console.log("handleSavedJoint "+objJoint.unit.unit+": need hash tree, will retry later");
+			setTimeout(function(){
+				handleSavedJoint(objJoint, creation_ts, peer);
+			}, 1000);
+		//	throw Error("handleSavedJoint "+objJoint.unit.unit+": need hash tree");
 		},
 		ifNeedParentUnits: function(arrMissingUnits){
 			db.query("SELECT 1 FROM archived_joints WHERE unit IN(?) LIMIT 1", [arrMissingUnits], function(rows){
