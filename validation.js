@@ -315,42 +315,41 @@ function validateHashTreeParentsAndSkiplist(conn, objJoint, callback){
 	if (!objJoint.ball)
 		return callback();
 	var objUnit = objJoint.unit;
-	var arrSkiplistBalls;
-	// we have to check in hash_tree_balls too because if we were synced, went offline, and now starting to catch up, our parents will have no ball yet
-	conn.query(
-		"SELECT ball FROM hash_tree_balls WHERE unit IN(?) \n\
-		UNION \n\
-		SELECT ball FROM balls WHERE unit IN(?) \n\
-		ORDER BY ball",
-		[objUnit.parent_units, objUnit.parent_units],
-		function(prows){
-			if (prows.length !== objUnit.parent_units.length)
-				return callback(createJointError("some parents not found in balls nor in hash tree")); // while the child is found in hash tree
-			var arrParentBalls = prows.map(function(prow){ return prow.ball; });
-			if (!objJoint.skiplist_units)
-				return validateBallHash();
-			conn.query(
-				"SELECT ball FROM hash_tree_balls WHERE unit IN(?) \n\
-				UNION \n\
-				SELECT ball FROM balls WHERE unit IN(?) \n\
-				ORDER BY ball", 
-				[objJoint.skiplist_units, objJoint.skiplist_units], 
-				function(srows){
-					if (srows.length !== objJoint.skiplist_units.length)
-						return callback(createJointError("some skiplist balls not found"));
-					arrSkiplistBalls = srows.map(function(srow){ return srow.ball; });
-					validateBallHash();
-				}
-			);
-
-			function validateBallHash(){
-				var hash = objectHash.getBallHash(objUnit.unit, arrParentBalls, arrSkiplistBalls, !!objUnit.content_hash);
-				if (hash !== objJoint.ball)
-					return callback(createJointError("ball hash is wrong"));
-				callback();
+	
+	function validateBallHash(arrParentBalls, arrSkiplistBalls){
+		var hash = objectHash.getBallHash(objUnit.unit, arrParentBalls, arrSkiplistBalls, !!objUnit.content_hash);
+		if (hash !== objJoint.ball)
+			return callback(createJointError("ball hash is wrong"));
+		callback();
+	}
+	
+	function readBallsByUnits(arrUnits, handleList){
+		conn.query("SELECT ball FROM balls WHERE unit IN(?) ORDER BY ball", [arrUnits], function(rows){
+			var arrBalls = rows.map(function(row){ return row.ball; });
+			if (arrBalls.length === arrUnits.length)
+				return handleList(arrBalls);
+			// we have to check in hash_tree_balls too because if we were synced, went offline, and now starting to catch up, our parents will have no ball yet
+			for (var ball in storage.assocHashTreeUnitsByBall){
+				var unit = storage.assocHashTreeUnitsByBall[ball];
+				if (arrUnits.indexOf(unit) >= 0 && arrBalls.indexOf(ball) === -1)
+					arrBalls.push(ball);
 			}
-		}
-	);
+			arrBalls.sort();
+			handleList(arrBalls);
+		});
+	}
+	
+	readBallsByUnits(objUnit.parent_units, function(arrParentBalls){
+		if (arrParentBalls.length !== objUnit.parent_units.length)
+			return callback(createJointError("some parents not found in balls nor in hash tree")); // while the child is found in hash tree
+		if (!objJoint.skiplist_units)
+			return validateBallHash(arrParentBalls, []);
+		readBallsByUnits(objJoint.skiplist_units, function(arrSkiplistBalls){
+			if (arrSkiplistBalls.length !== objJoint.skiplist_units.length)
+				return callback(createJointError("some skiplist balls not found"));
+			validateBallHash(arrParentBalls, arrSkiplistBalls);
+		});
+	});
 }
 
 // we cannot verify that skiplist units lie on MC if they are unstable yet, 
