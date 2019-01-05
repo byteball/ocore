@@ -526,25 +526,28 @@ function prepareParentsAndLastBallAndWitnessListUnit(arrWitnesses, callbacks){
 	storage.determineIfWitnessAddressDefinitionsHaveReferences(db, arrWitnesses, function(bWithReferences){
 		if (bWithReferences)
 			return callbacks.ifError("some witnesses have references in their addresses");
-		parentComposer.pickParentUnitsAndLastBall(
-			db, 
-			arrWitnesses, 
-			function(err, arrParentUnits, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
-				if (err)
-					return callbacks.ifError("unable to find parents: "+err);
-				var objResponse = {
-					parent_units: arrParentUnits,
-					last_stable_mc_ball: last_stable_mc_ball,
-					last_stable_mc_ball_unit: last_stable_mc_ball_unit,
-					last_stable_mc_ball_mci: last_stable_mc_ball_mci
-				};
-				storage.findWitnessListUnit(db, arrWitnesses, last_stable_mc_ball_mci, function(witness_list_unit){
-					if (witness_list_unit)
-						objResponse.witness_list_unit = witness_list_unit;
-					callbacks.ifOk(objResponse);
-				});
-			}
-		);
+		db.takeConnectionFromPool(function(conn){
+			parentComposer.pickParentUnitsAndLastBall(
+				conn,
+				arrWitnesses,
+				function(err, arrParentUnits, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
+					conn.release();
+					if (err)
+						return callbacks.ifError("unable to find parents: "+err);
+					var objResponse = {
+						parent_units: arrParentUnits,
+						last_stable_mc_ball: last_stable_mc_ball,
+						last_stable_mc_ball_unit: last_stable_mc_ball_unit,
+						last_stable_mc_ball_mci: last_stable_mc_ball_mci
+					};
+					storage.findWitnessListUnit(db, arrWitnesses, last_stable_mc_ball_mci, function(witness_list_unit){
+						if (witness_list_unit)
+							objResponse.witness_list_unit = witness_list_unit;
+						callbacks.ifOk(objResponse);
+					});
+				}
+			);
+		});
 	});
 }
 
