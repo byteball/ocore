@@ -331,11 +331,11 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 			case 'atan':
 			case 'log':
 				if (BigNumber.isBigNumber(arr[1])) {
-					cb(new BigNumber(Math[op](arr[1].toNumber())));
+					cb(new BigNumber(Math[op](arr[1].toNumber()).toPrecision(15)));
 				} else {
 					evaluate(arr[1], function (res) {
 						if (BigNumber.isBigNumber(res)) {
-							cb(new BigNumber(Math[op](res.toNumber())));
+							cb(new BigNumber(Math[op](res.toNumber()).toPrecision(15)));
 						} else {
 							fatal_error = true;
 							cb(false);

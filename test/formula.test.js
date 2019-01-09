@@ -98,25 +98,25 @@ test('e + 2', t => {
 
 test('sin(2)', t => {
 	evalFormula(0, "sin(2)", 0, 0, 0, res => {
-		t.deepEqual(res.eq(0.9092974268256817), true);
+		t.deepEqual(res.eq(0.909297426825682), true);
 	});
 });
 
 test('cos(2)', t => {
 	evalFormula(0, "cos(2)", 0, 0, 0, res => {
-		t.deepEqual(res.eq(-0.4161468365471424), true);
+		t.deepEqual(res.eq(-0.416146836547142), true);
 	});
 });
 
 test('tan(2)', t => {
 	evalFormula(0, "tan(2)", 0, 0, 0, res => {
-		t.deepEqual(res.eq(-2.185039863261519), true);
+		t.deepEqual(res.eq(-2.18503986326152), true);
 	});
 });
 
 test('asin(1)', t => {
 	evalFormula(0, "asin(1)", 0, 0, 0, res => {
-		t.deepEqual(res.eq(1.5707963267948966), true);
+		t.deepEqual(res.eq(1.5707963267949), true);
 	});
 });
 
@@ -128,7 +128,7 @@ test('acos(1)', t => {
 
 test('atan(2)', t => {
 	evalFormula(0, "atan(2)", 0, 0, 0, res => {
-		t.deepEqual(res.eq(1.1071487177940904), true);
+		t.deepEqual(res.eq(1.10714871779409), true);
 	});
 });
 
@@ -140,7 +140,7 @@ test('sqrt(2)', t => {
 
 test('ln(2)', t => {
 	evalFormula(0, "ln(2)", 0, 0, 0, res => {
-		t.deepEqual(res.eq(0.6931471805599453), true);
+		t.deepEqual(res.eq(0.693147180559945), true);
 	});
 });
 
