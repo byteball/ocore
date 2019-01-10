@@ -196,7 +196,7 @@ CREATE TABLE polls (
 CREATE TABLE poll_choices (
 	unit CHAR(44) BINARY NOT NULL,
 	choice_index TINYINT NOT NULL,
-	choice VARCHAR(32) BINARY NOT NULL,
+	choice VARCHAR(64) BINARY NOT NULL,
 	PRIMARY KEY (unit, choice_index),
 	UNIQUE KEY (unit, choice),
 	FOREIGN KEY (unit) REFERENCES polls(unit)
@@ -206,7 +206,7 @@ CREATE TABLE votes (
 	unit CHAR(44) BINARY NOT NULL,
 	message_index TINYINT NOT NULL,
 	poll_unit CHAR(44) BINARY NOT NULL,
-	choice VARCHAR(32) BINARY NOT NULL,
+	choice VARCHAR(64) BINARY NOT NULL,
 	PRIMARY KEY (unit, message_index),
 	UNIQUE KEY (unit, choice),
 	CONSTRAINT votesByChoice FOREIGN KEY (poll_unit, choice) REFERENCES poll_choices(unit, choice),
