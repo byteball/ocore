@@ -1234,9 +1234,9 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 			for (var i=0; i<payload.choices.length; i++) {
 				if (typeof payload.choices[i] !== 'string')
 					return callback("all choices must be strings");
-				if (typeof payload.choices[i].length === 0)
+				if (payload.choices[i].trim().length === 0)
 					return callback("all choices must be longer than 0 chars");
-				if (typeof payload.choices[i].length > constants.MAX_CHOICE_LENGTH)
+				if (payload.choices[i].length > constants.MAX_CHOICE_LENGTH)
 					return callback("all choices must be "+ constants.MAX_CHOICE_LENGTH + " chars or less");
 			}
 			return callback();
