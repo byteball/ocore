@@ -219,14 +219,14 @@ function migrateDb(connection, onDone){
 					)");
 				if (version < 23)
 					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS prosaic_contracts ( \n\
-						hash CHAR(32) NOT NULL PRIMARY KEY, \n\
+						hash CHAR(44) NOT NULL PRIMARY KEY, \n\
 						peer_address CHAR(32) NOT NULL, \n\
 						peer_device_address CHAR(33) NOT NULL, \n\
 						my_address  CHAR(32) NOT NULL, \n\
 						is_incoming TINYINT NOT NULL, \n\
 						creation_date TIMESTAMP NOT NULL, \n\
 						ttl INT NOT NULL DEFAULT 168, -- 168 hours = 24 * 7 = 1 week \n\
-						status TEXT CHECK (status IN('active', 'revoked', 'accepted', 'declined')) NOT NULL DEFAULT 'active', \n\
+						status TEXT CHECK (status IN('pending', 'revoked', 'accepted', 'declined')) NOT NULL DEFAULT 'active', \n\
 						`text` TEXT NOT NULL, \n\
 						shared_address CHAR(32) \n\
 					)");

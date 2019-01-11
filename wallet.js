@@ -25,6 +25,7 @@ var breadcrumbs = require('./breadcrumbs.js');
 var balances = require('./balances');
 var Mnemonic = require('bitcore-mnemonic');
 var inputs = require('./inputs.js');
+var prosaic_contract = require('./prosaic_contract.js');
 
 var message_counter = 0;
 var assocLastFailedAssetMetadataTimestamps = {};
@@ -456,48 +457,15 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			});
 			break;
 		
-		/*case 'offer_prosaic_contract':
-			walletGeneral.readMyAddresses(function(arrAddresses){
-				var my_address = body.address;
-				if (arrAddresses.indexOf(my_address) == -1)
-					return; // not my address
-				message_counter++;
-				var offerObj = {
-        			peer_device_address: from_address,
-        			peer_address: body.peer_address,
-        			text: body.text,
-        			creation_date: body.creation_date,
-        			hash: body.hash,
-        			ttl: body.ttl,
-        			address: body.address
-        		};
-				var chat_message = "(prosaic-contract:" + Buffer(JSON.stringify(offerObj), 'utf8').toString('base64') + ")";
-				eventBus.emit("text", from_address, chat_message, message_counter);
-				var handleCosigners = function(arrCosignerInfos){
-					
-	            	eventBus.emit("prosaic-contract-request", offerObj);
-	            	eventBus.once("prosaic-contract-response" + offerObj.hash, function(accepted, signedMessageBase64){
-	            		composer.retrieveAuthorsAndMciForAddresses(db, [my_address], getSigner(), function(authors) {
-							device.sendMessageToDevice(from_address, "prosaic_contract_response", {hash: offerObj.hash, accepted: accepted, signature: signedMessageBase64, authors: authors});
-						});
-						callbacks.ifOk();
-	            	});
-	            };
-	            /*db.query("SELECT 'shared' AS `type` \n\
-	            	FROM shared_addresses WHERE shared_address=? \n\
-	            	UNION SELECT 'private' AS `type` \n\
-	            	FROM my_addresses WHERE address=?", [my_address, my_address], function(rows) {
-	            	if (!rows.length)
-	            		return; // not my address
-	            	if (rows[0].type === 'shared')
-	            		walletDefinedByAddresses.readSharedAddressCosigners(my_address, handleCosigners);
-	            	else if (rows[0].type === 'private')
-	            		walletDefinedByKeys.readCosignersForAddress(my_address, handleCosigners);
-	            });
-			});*/
+		case 'prosaic_contract_offer':
+			body.peer_device_address = from_address;
+			prosaic_contract.store(body);
+			var chat_message = "(prosaic-contract:" + Buffer(JSON.stringify(body), 'utf8').toString('base64') + ")";
+			eventBus.emit("text", from_address, chat_message, ++message_counter);
+			callbacks.ifOk();
+			break;
 
 		case 'prosaic_contract_response':
-			var prosaic_contract = require('./prosaic_contract.js');
 			var validation = require('./validation.js');
 
 			prosaic_contract.getByHash(body.hash, function(objContract){
@@ -524,11 +492,25 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 						db.query("INSERT "+db.getIgnore()+" INTO peer_addresses (address, device_address, signing_paths, definition) VALUES (?, ?, ?, ?)",
 								[author.address, from_address, JSON.stringify(Object.keys(author.authentifiers)), JSON.stringify(author.definition)]);
 					}
-					prosaic_contract.setStatus(objContract.hash, body.status);
+					if (objContract.status !== 'pending')
+						return callbacks.ifError("contract is not active, current status: " + objContract.status);
+					var created_dt = Date.parse(objContract.creation_date.replace(' ', 'T'));
+					if (created_dt + objContract.ttl * 60 * 60 * 1000 < Date.now())
+						return callbacks.ifError("contract already expired");
+					prosaic_contract.setField("status", objContract.hash, body.status);
 					eventBus.emit("text", from_address, "contract " + body.status, ++message_counter);
 					eventBus.emit("prosaic-contract-response-recieved" + body.hash, (body.status === "accepted"), body.authors);
 					callbacks.ifOk();
 				});
+			});
+			break;
+
+		case 'prosaic_contract_update':
+			prosaic_contract.getByHash(body.hash, function(objContract){
+				if (!objContract || objContract.peer_device_address !== from_address)
+					return callbacks.ifError("wrong contract hash or not an owner");
+				prosaic_contract.setField(body.field, objContract.hash, body.value);
+				callbacks.ifOk();
 			});
 			break;
 			

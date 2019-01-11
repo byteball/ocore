@@ -113,9 +113,20 @@ function savePrivateProfile(objPrivateProfile, address, attestor_address, onDone
 	);
 }
 
+function getFieldsForAddress(address, cb) {
+	db.query("SELECT field, value FROM private_profile_fields JOIN private_profiles USING (private_profile_id) WHERE address=?", [address], function(rows){
+			var result = {};
+			rows.forEach(function(row) {
+				result[row.field] = row.value;
+			});
+			cb(result);
+	});
+}
+
 exports.getPrivateProfileFromJsonBase64 = getPrivateProfileFromJsonBase64;
 exports.parseAndValidatePrivateProfile = parseAndValidatePrivateProfile;
 exports.parseSrcProfile = parseSrcProfile;
 exports.savePrivateProfile = savePrivateProfile;
+exports.getFieldsForAddress = getFieldsForAddress;
 
 
