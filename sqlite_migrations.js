@@ -23,8 +23,10 @@ function migrateDb(connection, onDone){
 		if (version === VERSION)
 			return onDone();
 		eventBus.emit('started_db_upgrade');
-		if (typeof window === 'undefined')
+		if (typeof window === 'undefined'){
 			console.error("=== will upgrade the database, it can take some time");
+			console.log("=== will upgrade the database, it can take some time");
+		}
 		var arrQueries = [];
 		async.series([
 			function(cb){
@@ -222,8 +224,10 @@ function migrateDb(connection, onDone){
 			connection.addQuery(arrQueries, "PRAGMA user_version="+VERSION);
 			async.series(arrQueries, function(){
 				eventBus.emit('finished_db_upgrade');
-				if (typeof window === 'undefined')
+				if (typeof window === 'undefined'){
 					console.error("=== db upgrade finished");
+					console.log("=== db upgrade finished");
+				}
 				onDone();
 			});
 		});
