@@ -4,7 +4,7 @@ var eventBus = require('./event_bus.js');
 var constants = require("./constants.js");
 var conf = require("./conf.js");
 
-var VERSION = 21;
+var VERSION = 22;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -22,6 +22,9 @@ function migrateDb(connection, onDone){
 			throw Error("user version "+version+" > "+VERSION+": looks like you are using a new database with an old client");
 		if (version === VERSION)
 			return onDone();
+		eventBus.emit('started_db_upgrade');
+		if (typeof window === 'undefined')
+			console.error("=== will upgrade the database, it can take some time");
 		var arrQueries = [];
 		async.series([
 			function(cb){
@@ -209,12 +212,14 @@ function migrateDb(connection, onDone){
 				if (version < 21)
 					connection.addQuery(arrQueries, "ALTER TABLE push_registrations ADD COLUMN platform TEXT NOT NULL DEFAULT 'android'");
 				cb();
+			},
+			function(cb){
+				if (version < 22){
+					require('./migrate_to_kv.js')(connection, cb);
+				}
 			}
 		], function(){
 			connection.addQuery(arrQueries, "PRAGMA user_version="+VERSION);
-			eventBus.emit('started_db_upgrade');
-			if (typeof window === 'undefined')
-				console.error("=== will upgrade the database, it can take some time");
 			async.series(arrQueries, function(){
 				eventBus.emit('finished_db_upgrade');
 				if (typeof window === 'undefined')

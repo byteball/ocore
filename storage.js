@@ -9,6 +9,7 @@ var constants = require("./constants.js");
 var mutex = require('./mutex.js');
 var archiving = require('./archiving.js');
 var profiler = require('./profiler.js');
+var kvstore = require('./kvstore.js');
 
 var MAX_INT32 = Math.pow(2, 31) - 1;
 
@@ -27,12 +28,31 @@ var assocStableUnitsByMci = {};
 var assocBestChildren = {};
 
 var assocHashTreeUnitsByBall = {};
+var assocUnstableDataFeeds = {};
 
 var min_retrievable_mci = null;
 initializeMinRetrievableMci();
 
 
-function readJoint(conn, unit, callbacks) {
+function readJoint(conn, unit, callbacks, bSql) {
+	if (bSql)
+		return readJointDirectly(conn, unit, callbacks);
+	kvstore.get('j\n'+unit, function(strJoint){
+		if (!strJoint)
+			return callbacks.ifNotFound();
+		var objJoint = JSON.parse(strJoint);
+		if (!isCorrectHash(objJoint.unit, unit))
+			throw Error("wrong hash of unit "+unit);
+		conn.query("SELECT main_chain_index, "+conn.getUnixTimestamp("creation_date")+" AS timestamp FROM units WHERE unit=?", [unit], function(rows){
+			if (rows.length === 0)
+				throw Error("unit found in kv but not in sql: "+unit);
+			var row = rows[0];
+			objJoint.unit.timestamp = row.timestamp;
+			objJoint.unit.main_chain_index = row.main_chain_index;
+			callbacks.ifFound(objJoint);
+		});
+	});
+	/*
 	if (!conf.bSaveJointJson)
 		return readJointDirectly(conn, unit, callbacks);
 	conn.query("SELECT json FROM joints WHERE unit=?", [unit], function(rows){
@@ -45,10 +65,11 @@ function readJoint(conn, unit, callbacks) {
 		}
 		callbacks.ifFound(objJoint);
 	});
+	*/
 }
 
 function readJointDirectly(conn, unit, callbacks, bRetrying) {
-	console.log("\nreading unit "+unit);
+//	console.log("\nreading unit "+unit);
 	if (min_retrievable_mci === null){
 		console.log("min_retrievable_mci not known yet");
 		setTimeout(function(){
@@ -857,7 +878,7 @@ function getMinRetrievableMci(){
 	return min_retrievable_mci;
 }
 
-function updateMinRetrievableMciAfterStabilizingMci(conn, last_stable_mci, handleMinRetrievableMci){
+function updateMinRetrievableMciAfterStabilizingMci(conn, batch, last_stable_mci, handleMinRetrievableMci){
 	console.log("updateMinRetrievableMciAfterStabilizingMci "+last_stable_mci);
 	findLastBallMciOfMci(conn, last_stable_mci, function(last_ball_mci){
 		if (last_ball_mci <= min_retrievable_mci) // nothing new
@@ -885,6 +906,23 @@ function updateMinRetrievableMciAfterStabilizingMci(conn, last_stable_mci, handl
 								throw Error("bad unit not found: "+unit);
 							},
 							ifFound: function(objJoint){
+								var objUnit = objJoint.unit;
+								var objStrippedUnit = {
+									unit: unit,
+									content_hash: unit_row.content_hash,
+									version: objUnit.version,
+									alt: objUnit.alt,
+									parent_units: objUnit.parent_units,
+									last_ball: objUnit.last_ball,
+									last_ball_unit: objUnit.last_ball_unit,
+									authors: objUnit.authors.map(function(author){ return {address: author.address}; }) // already sorted
+								};
+								if (objUnit.witness_list_unit)
+									objStrippedUnit.witness_list_unit = objUnit.witness_list_unit;
+								else
+									objStrippedUnit.witnesses = objUnit.witnesses;
+								var objStrippedJoint = {unit: objStrippedUnit, ball: objJoint.ball};
+								batch.put('j\n'+unit, JSON.stringify(objStrippedJoint));
 								archiving.generateQueriesToArchiveJoint(conn, objJoint, 'voided', arrQueries, cb);
 							}
 						});
@@ -1425,6 +1463,34 @@ function initHashTreeBalls(conn, onDone){
 	});
 }
 
+function initUnstableDataFeeds(conn, onDone){
+	var conn = conn || db;
+	conn.query("SELECT unit FROM units CROSS JOIN messages USING(unit) WHERE is_stable=0 AND app='data_feed'", function(rows){
+		async.eachSeries(
+			rows,
+			function(row, cb){
+				readJoint(conn, row.unit, {
+					ifNotFound: function(){
+						throw Error("unit not found: "+row.unit);
+					},
+					ifFound: function(objJoint){
+						objJoint.unit.messages.forEach(function(message){
+							if (message.app === 'data_feed')
+								assocUnstableDataFeeds[row.unit] = message.payload;
+						});
+						cb();
+					}
+				});
+			},
+			function(){
+				console.log('initUnstableDataFeeds done, '+Object.keys(assocUnstableDataFeeds).length+' data feeds found');
+				if (onDone)
+					onDone();
+			}
+		);
+	});
+}
+
 function resetUnstableUnits(conn, onDone){
 	Object.keys(assocBestChildren).forEach(function(unit){
 		delete assocBestChildren[unit];
@@ -1458,11 +1524,11 @@ function initCaches(){
 	console.log('initCaches');
 	db.executeInTransaction(function(conn, onDone){
 		mutex.lock(['write'], function(unlock) {
-			initUnstableUnits(conn, initStableUnits.bind(this, conn, initHashTreeBalls.bind(this, conn, function(){
+			initUnstableUnits(conn, initStableUnits.bind(this, conn, initUnstableDataFeeds.bind(this, conn, initHashTreeBalls.bind(this, conn, function(){
 				console.log('initCaches done');
 				unlock();
 				onDone();
-			})));
+			}))));
 		});
 	});
 }
@@ -1526,5 +1592,7 @@ exports.assocStableUnits = assocStableUnits;
 exports.assocStableUnitsByMci = assocStableUnitsByMci;
 exports.assocBestChildren = assocBestChildren;
 exports.assocHashTreeUnitsByBall = assocHashTreeUnitsByBall;
+exports.assocUnstableDataFeeds = assocUnstableDataFeeds;
 exports.initCaches = initCaches;
 exports.resetMemory = resetMemory;
+exports.initializeMinRetrievableMci = initializeMinRetrievableMci;

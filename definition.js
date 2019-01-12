@@ -10,8 +10,9 @@ var ecdsaSig = require('./signature.js');
 var merkle = require('./merkle.js');
 var ValidationUtils = require("./validation_utils.js");
 var objectHash = require("./object_hash.js");
-var evalFormulaBB = require('./formula/index');
+var formulaParser = require('./formula/index');
 var BigNumber = require('bignumber.js');
+var dataFeeds = require('./data_feeds.js');
 
 var hasFieldsExcept = ValidationUtils.hasFieldsExcept;
 var isStringOfLength = ValidationUtils.isStringOfLength;
@@ -543,7 +544,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 			case 'formula':
 				if (objValidationState.last_ball_mci < constants.formulaUpgradeMci)
 					return cb("formulas not allowed at this mci yet");
-				evalFormulaBB.validate(args, complexity, function (result) {
+				formulaParser.validate(args, complexity, function (result) {
 					complexity = result.complexity;
 					cb(result.error);
 				});
@@ -843,6 +844,8 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				var relation = args[2];
 				var value = args[3];
 				var min_mci = args[4] || 0;
+				dataFeeds.dataFeedExists(arrAddresses, feed_name, relation, value, min_mci, objValidationState.last_ball_mci, cb2);
+				/*
 				var value_condition;
 				var index;
 				var params = [arrAddresses, feed_name];
@@ -876,6 +879,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 						cb2(rows.length > 0);
 					}
 				);
+				*/
 				break;
 				
 			case 'in merkle':
@@ -889,10 +893,13 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				var min_mci = args[3] || 0;
 				var serialized_proof = assocAuthentifiers[path];
 				var proof = merkle.deserializeMerkleProof(serialized_proof);
+				console.error('merkle root '+proof.root);
 				if (!merkle.verifyMerkleProof(element, proof)){
 					fatal_error = "bad merkle proof at path "+path;
 					return cb2(false);
 				}
+				dataFeeds.dataFeedExists(arrAddresses, feed_name, '=', proof.root, min_mci, cb2);
+				/*
 				conn.query(
 					"SELECT 1 FROM data_feeds CROSS JOIN units USING(unit) JOIN unit_authors USING(unit) \n\
 					WHERE address IN(?) AND feed_name=? AND value=? AND main_chain_index<=? AND main_chain_index>=? AND sequence='good' AND is_stable=1 \n\
@@ -904,6 +911,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 						cb2(rows.length > 0);
 					}
 				);
+				*/
 				break;
 				
 			case 'mci':
@@ -1030,7 +1038,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 			case 'formula':
 				var formula = args;
 				augmentMessagesOrIgnore(formula, function (messages) {
-					evalFormulaBB.evaluate(conn, formula, messages, objValidationState, address, function (result) {
+					formulaParser.evaluate(conn, formula, messages, objValidationState, address, function (result) {
 						if (typeof result === 'boolean') {
 							cb2(result);
 						} else if (typeof result === 'string') {

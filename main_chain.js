@@ -14,6 +14,8 @@ var eventBus = require('./event_bus.js');
 var profiler = require('./profiler.js');
 var breadcrumbs = require('./breadcrumbs.js');
 var conf = require('./conf.js');
+var kvstore = require('./kvstore.js');
+var string_utils = require('./string_utils.js');
 
 // override when adding units which caused witnessed level to significantly retreat
 var arrRetreatingUnits = [
@@ -26,7 +28,7 @@ var arrRetreatingUnits = [
 ];
 
 
-function updateMainChain(conn, from_unit, last_added_unit, onDone){
+function updateMainChain(conn, batch, from_unit, last_added_unit, onDone){
 	
 	var arrAllParents = [];
 	var arrNewMcUnits = [];
@@ -485,7 +487,7 @@ function updateMainChain(conn, from_unit, last_added_unit, onDone){
 					
 					function advanceLastStableMcUnitAndTryNext(){
 						profiler.stop('mc-stableFlag');
-						markMcIndexStable(conn, first_unstable_mc_index, updateStableMcFlag);
+						markMcIndexStable(conn, batch, first_unstable_mc_index, updateStableMcFlag);
 					}
 				
 					conn.query("SELECT unit FROM units WHERE is_free=1 AND is_on_main_chain=1", function(tip_rows){
@@ -1087,15 +1089,20 @@ function determineIfStableInLaterUnitsAndUpdateStableMcFlag(conn, earlier_unit, 
 					if (new_last_stable_mci <= last_stable_mci) // fix: it could've been changed by parallel tasks - No, our SQL transaction doesn't see the changes
 						throw Error("new last stable mci expected to be higher than existing");
 					var mci = last_stable_mci;
+					var batch = kvstore.batch();
 					advanceLastStableMcUnitAndStepForward();
 
 					function advanceLastStableMcUnitAndStepForward(){
 						mci++;
 						if (mci <= new_last_stable_mci)
-							markMcIndexStable(conn, mci, advanceLastStableMcUnitAndStepForward);
+							markMcIndexStable(conn, batch, mci, advanceLastStableMcUnitAndStepForward);
 						else{
-							unlock();
-							handleResult(bStable, true);
+							batch.write(function(err){
+								if (err)
+									throw Error("determineIfStableInLaterUnitsAndUpdateStableMcFlag: batch write failed: "+err);
+								unlock();
+								handleResult(bStable, true);
+							});
 						}
 					}            
 				});
@@ -1116,7 +1123,7 @@ function readBestParentAndItsWitnesses(conn, unit, handleBestParentAndItsWitness
 }
 
 
-function markMcIndexStable(conn, mci, onDone){
+function markMcIndexStable(conn, batch, mci, onDone){
 	profiler.start();
 	var arrStabilizedUnits = [];
 	storage.assocStableUnitsByMci[mci] = [];
@@ -1316,22 +1323,71 @@ function markMcIndexStable(conn, mci, onDone){
 									if (objUnitProps.ball){ // already inserted
 										if (objUnitProps.ball !== ball)
 											throw Error("stored and calculated ball hashes do not match, ball="+ball+", objUnitProps="+JSON.stringify(objUnitProps));
-										return cb();
+										return addDataFeeds();
 									}
 									conn.query("INSERT INTO balls (ball, unit) VALUES(?,?)", [ball, unit], function(){
 										conn.query("DELETE FROM hash_tree_balls WHERE ball=?", [ball], function(){
 											delete storage.assocHashTreeUnitsByBall[ball];
-											if (arrSkiplistUnits.length === 0)
-												return cb();
-											conn.query(
-												"INSERT INTO skiplist_units (unit, skiplist_unit) VALUES "
-												+arrSkiplistUnits.map(function(skiplist_unit){
-													return "("+conn.escape(unit)+", "+conn.escape(skiplist_unit)+")"; 
-												}), 
-												function(){ cb(); }
-											);
+											var key = 'j\n'+unit;
+											kvstore.get(key, function(old_joint){
+												if (!old_joint)
+													throw Error("unit not found in kv store: "+unit);
+												var objJoint = JSON.parse(old_joint);
+												if (objJoint.ball)
+													throw Error("ball already set in kv store of unit "+unit);
+												objJoint.ball = ball;
+												batch.put(key, JSON.stringify(objJoint));
+												if (arrSkiplistUnits.length === 0)
+													return addDataFeeds();
+												conn.query(
+													"INSERT INTO skiplist_units (unit, skiplist_unit) VALUES "
+													+arrSkiplistUnits.map(function(skiplist_unit){
+														return "("+conn.escape(unit)+", "+conn.escape(skiplist_unit)+")"; 
+													}), 
+													function(){ addDataFeeds(); }
+												);
+											});
 										});
 									});
+								}
+								
+								function addDataFeeds(){
+									if (!storage.assocUnstableDataFeeds[unit])
+										return cb();
+									if (objUnitProps.sequence === 'final-bad'){
+										delete storage.assocUnstableDataFeeds[unit];
+										return cb();
+									}
+									if (!storage.assocStableUnits[unit])
+										throw Error("no stable unit "+unit);
+									var arrAuthorAddresses = storage.assocStableUnits[unit].author_addresses;
+									if (!arrAuthorAddresses)
+										throw Error("no author addresses in "+unit);
+									var strMci = string_utils.encodeMci(mci);
+									for (var feed_name in storage.assocUnstableDataFeeds[unit]){
+										var value = storage.assocUnstableDataFeeds[unit][feed_name];
+										var strValue = null;
+										var numValue = null;
+										if (typeof value === 'string'){
+											strValue = value;
+											var float = string_utils.getNumericFeedValue(value);
+											if (float !== null)
+												numValue = string_utils.encodeDoubleInLexicograpicOrder(float);
+										}
+										else
+											numValue = string_utils.encodeDoubleInLexicograpicOrder(value);
+										arrAuthorAddresses.forEach(function(address){
+											// duplicates will be overwritten, that's ok for data feed search
+											if (strValue !== null)
+												batch.put('df\n'+address+'\n'+feed_name+'\ns\n'+strValue+'\n'+strMci, unit);
+											if (numValue !== null)
+												batch.put('df\n'+address+'\n'+feed_name+'\nn\n'+numValue+'\n'+strMci, unit);
+											// if several values posted on the same mci, the latest one wins
+											batch.put('dfv\n'+address+'\n'+feed_name+'\n'+strMci, value+'\n'+unit);
+										});
+									}
+									delete storage.assocUnstableDataFeeds[unit];
+									cb();
 								}
 							}
 						);
@@ -1346,7 +1402,7 @@ function markMcIndexStable(conn, mci, onDone){
 	}
 
 	function updateRetrievable(){
-		storage.updateMinRetrievableMciAfterStabilizingMci(conn, mci, function(min_retrievable_mci){
+		storage.updateMinRetrievableMciAfterStabilizingMci(conn, batch, mci, function(min_retrievable_mci){
 			profiler.stop('mc-mark-stable');
 			calcCommissions();
 		});

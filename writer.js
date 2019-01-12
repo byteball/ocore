@@ -13,6 +13,7 @@ var Definition = require("./definition.js");
 var eventBus = require('./event_bus.js');
 var profiler = require('./profiler.js');
 var breadcrumbs = require('./breadcrumbs.js');
+var kvstore = require('./kvstore.js');
 
 var count_writes = 0;
 var count_units_in_prev_analyze = 0;
@@ -125,11 +126,11 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 				[objUnit.unit, author.address, definition_chash]);
 			if (bGenesis)
 				conn.addQuery(arrQueries, "UPDATE unit_authors SET _mci=0 WHERE unit=?", [objUnit.unit]);
-			if (!objUnit.content_hash){
+		/*	if (!objUnit.content_hash){
 				for (var path in author.authentifiers)
 					conn.addQuery(arrQueries, "INSERT INTO authentifiers (unit, address, path, authentifier) VALUES(?,?,?,?)", 
 						[objUnit.unit, author.address, path, author.authentifiers[path]]);
-			}
+			}*/
 		}
 		
 		if (!objUnit.content_hash){
@@ -214,7 +215,7 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 									[objUnit.unit, i, asset_attestors.asset, asset_attestors.attestors[j]]);
 							}
 							break;
-						case "data_feed":
+					/*	case "data_feed":
 							var data = message.payload;
 							var arrValues = [];
 							for (var feed_name in data){
@@ -232,7 +233,7 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 							}
 							conn.addQuery(arrQueries, 
 								"INSERT INTO data_feeds (unit, message_index, feed_name, `value`, int_value) VALUES "+arrValues.join(', '));
-							break;
+							break;*/
 							
 						case "payment":
 							// we'll add inputs/outputs later because we need to read the payer address
@@ -519,6 +520,7 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 		// without this locking, we get frequent deadlocks from mysql
 		mutex.lock(["write"], function(unlock){
 			console.log("got lock to write "+objUnit.unit);
+			var batch = kvstore.batch();
 			if (bGenesis){
 				storage.assocStableUnits[objUnit.unit] = objNewUnitProps;
 				storage.assocStableUnitsByMci[0] = [objNewUnitProps];
@@ -539,7 +541,7 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 								arrOps.push(updateWitnessedLevel);
 							arrOps.push(function(cb){
 								console.log("updating MC after adding "+objUnit.unit);
-								main_chain.updateMainChain(conn, null, objUnit.unit, cb);
+								main_chain.updateMainChain(conn, batch, null, objUnit.unit, cb);
 							});
 						}
 						if (preCommitCallback)
@@ -550,36 +552,60 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 					}
 					async.series(arrOps, function(err){
 						profiler.start();
-						conn.query(err ? "ROLLBACK" : "COMMIT", function(){
-							var consumed_time = Date.now()-start_time;
-							profiler.add_result('write', consumed_time);
-							console.log((err ? (err+", therefore rolled back unit ") : "committed unit ")+objUnit.unit+", write took "+consumed_time+"ms");
-							profiler.stop('write-commit');
-							profiler.increment();
-							if (err) {
-								var headers_commission = require("./headers_commission.js");
-								headers_commission.resetMaxSpendableMci();
-								storage.resetMemory(conn, function(){
-									unlock();
-									conn.release();
+						
+						function saveToKvStore(cb){
+							if (err)
+								return cb();
+							if (objUnit.messages){
+								objUnit.messages.forEach(function(message){
+									if (message.app === 'data_feed')
+										storage.assocUnstableDataFeeds[objUnit.unit] = message.payload;
 								});
 							}
-							else{
-								if (!bGenesis && storage.assocUnstableUnits[my_best_parent_unit]){
-									if (!storage.assocBestChildren[my_best_parent_unit])
-										storage.assocBestChildren[my_best_parent_unit] = [];
-									storage.assocBestChildren[my_best_parent_unit].push(objNewUnitProps);
-								}
-								unlock();
-								conn.release();
+							if (!conf.bLight){
+								delete objUnit.timestamp;
+								delete objUnit.main_chain_index;
 							}
-							if (!err)
-								eventBus.emit('saved_unit-'+objUnit.unit, objJoint);
-							if (onDone)
-								onDone(err);
-							count_writes++;
-							if (conf.storage === 'sqlite')
-								updateSqliteStats(objUnit.unit);
+							batch.put('j\n'+objUnit.unit, JSON.stringify(objJoint));
+							batch.write(function(err){
+								if (err)
+									throw Error("writer: batch write failed: "+err);
+								cb();
+							});
+						}
+						
+						saveToKvStore(function(){
+							conn.query(err ? "ROLLBACK" : "COMMIT", function(){
+								var consumed_time = Date.now()-start_time;
+								profiler.add_result('write', consumed_time);
+								console.log((err ? (err+", therefore rolled back unit ") : "committed unit ")+objUnit.unit+", write took "+consumed_time+"ms");
+								profiler.stop('write-commit');
+								profiler.increment();
+								if (err) {
+									var headers_commission = require("./headers_commission.js");
+									headers_commission.resetMaxSpendableMci();
+									storage.resetMemory(conn, function(){
+										unlock();
+										conn.release();
+									});
+								}
+								else{
+									if (!bGenesis && storage.assocUnstableUnits[my_best_parent_unit]){
+										if (!storage.assocBestChildren[my_best_parent_unit])
+											storage.assocBestChildren[my_best_parent_unit] = [];
+										storage.assocBestChildren[my_best_parent_unit].push(objNewUnitProps);
+									}
+									unlock();
+									conn.release();
+								}
+								if (!err)
+									eventBus.emit('saved_unit-'+objUnit.unit, objJoint);
+								if (onDone)
+									onDone(err);
+								count_writes++;
+								if (conf.storage === 'sqlite')
+									updateSqliteStats(objUnit.unit);
+							});
 						});
 					});
 				});

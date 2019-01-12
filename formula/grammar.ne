@@ -14,18 +14,19 @@
 		WS: {match: /[\s]+/, lineBreaks: true},
 		digits: /-?(?:[0-9]|[1-9][0-9]+)(?:\.[0-9]+)?(?:[eE][-+]?[0-9]+)?\b/,
 		op: ["+", "-", "/", "*", '^'],
-		name: ['sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round'],
 		concat: '||',
 		l: '(',
 		r: ')',
 		sl:'[',
 		sr: ']',
 		io: ['input', 'output'],
-		data_feed: 'data_feed',
+		data_feed: ['data_feed', 'in_data_feed'],
 		comparisonOperators: ["==", ">=", "<=", "!=", ">", "<", "="],
-		dfParamsName: ['oracles', 'feed_name', 'mci', 'feed_value', 'ifseveral', 'ifnone'],
+		dfParamsName: ['oracles', 'feed_name', 'min_mci', 'feed_value', 'ifseveral', 'ifnone', 'what'],
+		name: ['sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round'],
 		and: ['and', 'AND'],
 		or: ['or', 'OR'],
+		not: ['not', 'NOT', '!'],
 		ioParamsName: ['address', 'amount', 'asset'],
 		quote: '"',
 		ternary: ['?', ':'],
@@ -54,39 +55,40 @@
 main -> expr {% id %}
 
 
-ternary -> expr "?" expr ":" expr {% function(d) {return ['ternary', d[0], d[2], d[4]];}%}
+ternary_expr -> or_expr "?" expr ":" ternary_expr {% function(d) {return ['ternary', d[0], d[2], d[4]];}%}
+	| or_expr {% id %}
 
-OR -> expr2 %or expr {% function(d) {return ['or', d[0], d[2]];}%}
+or_expr -> or_expr %or and_expr {% function(d) {return ['or', d[0], d[2]];}%}
+	| and_expr {% id %}
 
-AND -> expr2 %and expr {% function(d) {return ['and', d[0], d[2]];}%}
+and_expr -> and_expr %and comp_expr {% function(d) {return ['and', d[0], d[2]];}%}
+	| comp_expr {% id %}
 
-expr -> (string|AS) %concat expr {% function(d) {return ['concat', d[0][0], d[2]];}%}
-	| (AS|string) comparisonOperator (AS|string) {% function(d) {return ['comparison', d[1], d[0][0], d[2][0]];}%}
-	| AND {% id %}
-	| OR {% id %}
-	| ternary {% id %}
+expr -> ternary_expr {% id %}
+
+
+comp_expr -> AS comparisonOperator AS {% function(d) {return ['comparison', d[1], d[0], d[2]];}%}
 	| AS {% id %}
-	| string {% id %}
-
-
-expr2 -> AS comparisonOperator AS {% function(d) {return ['comparison', d[1], d[0], d[2]];}%}
-	| AS {% id %}
-	| string {% id %}
 
 comparisonOperator -> %comparisonOperators {% function(d) { return d[0].value } %}
 
 P -> %l expr %r {% function(d) {return d[1]; } %}
     | N      {% id %}
+	| string {% id %}
 
 E -> P "^" E    {% function(d) {return ['^', d[0], d[2]]; } %}
     | P             {% id %}
 
-MD -> MD "*" E  {% function(d) {return ['*', d[0], d[2]]; } %}
-    | MD "/" E  {% function(d) {return ['/', d[0], d[2]]; } %}
-    | E             {% id %}
+unary_expr -> E {% id %}
+	| %not E {% function(d) {return ['not', d[1]];}%}
+
+MD -> MD "*" unary_expr  {% function(d) {return ['*', d[0], d[2]]; } %}
+    | MD "/" unary_expr  {% function(d) {return ['/', d[0], d[2]]; } %}
+    | unary_expr             {% id %}
 
 AS -> AS "+" MD {% function(d) {return ['+', d[0], d[2]]; } %}
     | AS "-" MD {% function(d) {return ['-', d[0], d[2]]; } %}
+    | AS %concat MD {% function(d) {return ['concat', d[0], d[2]]; } %}
     | MD            {% id %}
 
 N -> float          {% id %}
@@ -119,7 +121,7 @@ N -> float          {% id %}
 			params[name]['operator'] = operator;
 			params[name]['value'] = value;
 		}
-		return ['data_feed', params]
+		return [d[0][0].value, params]
 	}%}
     | (%io %sl ( %comma:* %ioParamsName %comparisonOperators (%ioParamValue|float)):* %sr ) %dot %ioParamsName {% function (d, i, reject){
 		var params = {};

@@ -4,6 +4,7 @@ var BigNumber = require('bignumber.js');
 var async = require('async');
 var ValidationUtils = require("../validation_utils.js");
 var constants = require('../constants');
+var dataFeeds = require('../data_feeds.js');
 
 BigNumber.config({EXPONENTIAL_AT: [-30, 30], POW_PRECISION: 100, RANGE: 100});
 
@@ -28,14 +29,15 @@ exports.validate = function (formula, complexity, callback) {
 			cache[formula] = parser.results;
 		}
 	} catch (e) {
+	//	console.log('==== parse error', e)
 		return callback({error: 'Incorrect formula', complexity});
 	}
 	
 	function evaluate(arr, cb) {
-		if(typeof arr !== 'object' || BigNumber.isBigNumber(arr)){
-			if (BigNumber.isBigNumber(arr)) return cb(arr);
-			if (typeof arr === 'boolean') return cb(arr);
-			if (typeof arr === 'string') return cb(arr);
+		if (BigNumber.isBigNumber(arr)) return cb(true);
+		if(typeof arr !== 'object'){
+			if (typeof arr === 'boolean') return cb(true);
+			if (typeof arr === 'string') return cb(true);
 			return cb(false);
 		}
 		var op = arr[0];
@@ -94,6 +96,9 @@ exports.validate = function (formula, complexity, callback) {
 			case 'e':
 				cb(true);
 				break;
+			case 'not':
+				evaluate(arr[1], cb);
+				break;
 			case 'and':
 			case 'or':
 			case 'comparison':
@@ -130,6 +135,11 @@ exports.validate = function (formula, complexity, callback) {
 				complexity += result.complexity;
 				cb(!result.error);
 				break;
+			case 'in_data_feed':
+				var result = validateDataFeedExists(arr[1]);
+				complexity += result.complexity;
+				cb(!result.error);
+				break;
 			case 'input':
 			case 'output':
 				cb(inputOrOutputIsValid(arr[1]));
@@ -160,6 +170,8 @@ exports.validate = function (formula, complexity, callback) {
 			callback({complexity, error: !res});
 		});
 	} else {
+		if (parser.results.length > 1)
+			console.log('validation: ambiguous grammar', parser.results);
 		callback({complexity, error: true});
 	}
 };
@@ -190,18 +202,17 @@ function inputOrOutputIsValid(params) {
 	return true;
 }
 
-function validateDataFeed(arr) {
+function validateDataFeed(params) {
 	var complexity = 0;
-	if (arr['oracles'] && arr['feed_name']) {
-		for (var k in arr) {
-			var operator = arr[k].operator;
-			var value = arr[k].value;
+	if (params.oracles && params.feed_name) {
+		for (var k in params) {
+			var operator = params[k].operator;
+			var value = params[k].value;
 			if (BigNumber.isBigNumber(value)) value = value.toString();
-			if (operator === '==') return false;
+			if (operator !== '=') return {error: true, complexity};
 			switch (k) {
 				case 'oracles':
 					if (value.trim() === '') return {error: true, complexity};
-					if (operator !== '=') return {error: true, complexity};
 					var addresses = value.split(':');
 					if (addresses.length === 0) return {error: true, complexity};
 					complexity += addresses.length;
@@ -211,11 +222,10 @@ function validateDataFeed(arr) {
 					break;
 				
 				case 'feed_name':
-					if (!(operator === '=')) return {error: true, complexity};
 					if (value.trim() === '') return {error: true, complexity};
 					break;
 				
-				case 'mci':
+				case 'min_mci':
 					if (!(/^\d+$/.test(value) && ValidationUtils.isNonnegativeInteger(parseInt(value)))) return {
 						error: true,
 						complexity
@@ -225,11 +235,12 @@ function validateDataFeed(arr) {
 				case 'feed_value':
 					break;
 				case 'ifseveral':
-					if (!(value === 'first' || value === 'last' || value === 'abort')) return {error: true, complexity};
-					if (!(operator === '=')) return {error: true, complexity};
+					if (!(value === 'last' || value === 'abort')) return {error: true, complexity};
 					break;
 				case 'ifnone':
-					if (!(operator === '=')) return {error: true, complexity};
+					break;
+				case 'what':
+					if (!(value === 'value' || value === 'unit')) return {error: true, complexity};
 					break;
 				default:
 					return {error: true, complexity};
@@ -239,6 +250,47 @@ function validateDataFeed(arr) {
 	} else {
 		return {error: true, complexity};
 	}
+}
+
+function validateDataFeedExists(params) {
+	var complexity = 0;
+	if (!params.oracles || !params.feed_name || !params.feed_value)
+		return {error: true, complexity};
+	for (var k in params) {
+		var operator = params[k].operator;
+		var value = params[k].value;
+		if (BigNumber.isBigNumber(value)) value = value.toString();
+		if (operator === '==') return {error: true, complexity};
+		switch (k) {
+			case 'oracles':
+				if (value.trim() === '') return {error: true, complexity};
+				if (operator !== '=') return {error: true, complexity};
+				var addresses = value.split(':');
+				if (addresses.length === 0) return {error: true, complexity};
+				complexity += addresses.length;
+				if (!addresses.every(function (address) {
+					return ValidationUtils.isValidAddress(address) || address === 'this address';
+				})) return {error: true, complexity};
+				break;
+
+			case 'feed_name':
+				if (operator !== '=') return {error: true, complexity};
+				if (value.trim() === '') return {error: true, complexity};
+				break;
+
+			case 'min_mci':
+				if (operator !== '=') return {error: true, complexity};
+				if (!(/^\d+$/.test(value) && ValidationUtils.isNonnegativeInteger(parseInt(value))))
+					return {error: true, complexity};
+				break;
+
+			case 'feed_value':
+				break;
+			default:
+				return {error: true, complexity};
+		}
+	}
+	return {error: false, complexity};
 }
 
 exports.evaluate = function (conn, formula, messages, objValidationState, address, callback) {
@@ -256,14 +308,15 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 				delete cache[f];
 			}
 		}catch (e) {
+			console.log('exception from parser', e);
 			callback(false);
 		}
 	}
 	var fatal_error = false;
 	
 	function evaluate(arr, cb) {
-		if (typeof arr !== 'object' || BigNumber.isBigNumber(arr)) {
-			if (BigNumber.isBigNumber(arr)) return cb(arr);
+		if (BigNumber.isBigNumber(arr)) return cb(arr);
+		if (typeof arr !== 'object') {
 			if (typeof arr === 'boolean') return cb(arr);
 			if (typeof arr === 'string') return cb(arr);
 			fatal_error = true;
@@ -314,6 +367,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 								cb2();
 							} else {
 								fatal_error = true;
+								console.log('not a bignumber in '+op);
 								cb2('incorrect res')
 							}
 							
@@ -338,6 +392,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 							cb(new BigNumber(Math[op](res.toNumber())));
 						} else {
 							fatal_error = true;
+							console.log('not a bignumber in '+op);
 							cb(false);
 						}
 					});
@@ -352,6 +407,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 							cb(res.sqrt());
 						} else {
 							fatal_error = true;
+							console.log('not a bignumber in '+op);
 							cb(false);
 						}
 					});
@@ -380,6 +436,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 							cb(res.dp(0, roundingMode));
 						} else {
 							fatal_error = true;
+							console.log('not a bignumber in '+op);
 							cb(false);
 						}
 					});
@@ -399,6 +456,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 								cb2();
 							} else {
 								fatal_error = true;
+								console.log('not a bignumber in '+op);
 								cb2('Incorrect ' + op);
 							}
 						});
@@ -413,6 +471,11 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 					} else {
 						return cb(BigNumber.max.apply(null, vals))
 					}
+				});
+				break;
+			case 'not':
+				evaluate(arr[1], function(res){
+					cb(!res);
 				});
 				break;
 			case 'and':
@@ -440,6 +503,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 								cb2();
 							} else {
 								fatal_error = true;
+								console.log('unrecognized type in '+op);
 								cb2('Incorrect and');
 							}
 						});
@@ -473,6 +537,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 								cb2();
 							} else {
 								fatal_error = true;
+								console.log('unrecognized type in '+op);
 								cb2('Incorrect or');
 							}
 						});
@@ -511,6 +576,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 								val1 = !!val1;
 							} else {
 								fatal_error = true;
+								console.log('unrecognized type of val1 in '+op);
 								return cb(false);
 							}
 						}
@@ -521,6 +587,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 								val2 = !!val2;
 							} else {
 								fatal_error = true;
+								console.log('unrecognized type of val2 in '+op);
 								return cb(false);
 							}
 						}
@@ -576,6 +643,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 						}
 					} else {
 						fatal_error = true;
+						console.log('unrecognized combination of types in '+op);
 						return cb(false);
 					}
 				});
@@ -602,6 +670,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 								cb2();
 							} else {
 								fatal_error = true;
+								console.log('unrecognized type in '+op);
 								cb2('Incorrect res');
 							}
 						});
@@ -628,6 +697,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 								cb(res);
 							} else {
 								fatal_error = true;
+								console.log('unrecognized type of res in '+op);
 								cb(false);
 							}
 						});
@@ -643,20 +713,43 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 			case 'data_feed':
 			
 			function getDataFeed(params, cb) {
-				var arrAddresses = params.oracles.value.split(':');
+				var arrAddresses = params.oracles.value.split(':').map(function(addr){
+					return (addr === 'this address') ? address : addr;
+				});
 				var feed_name = params.feed_name.value;
 				var value = null;
 				var relation = '';
-				var mci_relation = '';
 				var min_mci = 0;
 				if (params.feed_value) {
 					value = params.feed_value.value;
 					relation = params.feed_value.operator;
 				}
-				if (params.mci) {
-					min_mci = params.mci.value.toString();
-					mci_relation = params.mci.operator;
+				if (params.min_mci) {
+					min_mci = params.min_mci.value.toString();
 				}
+				var ifseveral = 'last';
+				if (params.ifseveral)
+					ifseveral = params.ifseveral.value;
+				var what = 'value';
+				if (params.what)
+					what = params.what.value;
+				dataFeeds.readDataFeedValue(arrAddresses, feed_name, value, min_mci, objValidationState.last_ball_mci, ifseveral, function(objResult){
+				//	console.log(arrAddresses, feed_name, value, min_mci, ifseveral);
+				//	console.log('---- objResult', objResult);
+					if (objResult.bAbortedBecauseOfSeveral)
+						return cb("several values found");
+					if (objResult.value !== undefined){
+						if (what === 'unit')
+							return cb(null, objResult.unit);
+						return cb(null, (typeof objResult.value === 'string') ? objResult.value : new BigNumber(objResult.value));
+					}
+					if (params.ifnone && params.ifnone.value !== 'abort'){
+					//	console.log('===== ifnone=', params.ifnone.value, typeof params.ifnone.value);
+						return cb(null, params.ifnone.value); // the type of ifnone (string, bignumber) is preserved
+					}
+					cb("data feed not found");
+				});
+				/*
 				var ifseveral = 'ORDER BY main_chain_index DESC';
 				var abortIfSeveral = false;
 				if (params.ifseveral) {
@@ -714,17 +807,33 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 							}
 						}
 					}
-				);
+				);*/
 			}
 				
 				getDataFeed(arr[1], function (err, result) {
 					if (err) {
 						fatal_error = true;
+						console.log('error from data feed: '+err);
 						return cb(false);
 					}
 					cb(result);
 				});
 				break;
+				
+			case 'in_data_feed':
+				var params = arr[1];
+				var arrAddresses = params.oracles.value.split(':').map(function(addr){
+					return (addr === 'this address') ? address : addr;
+				});
+				var feed_name = params.feed_name.value;
+				var value = params.feed_value.value;
+				var relation = params.feed_value.operator;
+				var min_mci = 0;
+				if (params.min_mci)
+					min_mci = params.min_mci.value.toString();
+				dataFeeds.dataFeedExists(arrAddresses, feed_name, relation, value, min_mci, objValidationState.last_ball_mci, cb);
+				break;
+				
 			case 'input':
 			case 'output':
 				var type = op + 's';
@@ -798,6 +907,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 				
 				var result = findOutputOrInputAndReturnName(arr[1]);
 				if (result === '') {
+					console.log('not found in '+op);
 					fatal_error = true;
 					return cb(false);
 				}
@@ -828,8 +938,12 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 							} else if (typeof res === 'string') {
 								result += res;
 								cb2();
+							} else if (typeof res === 'boolean') {
+								result += res.toString();
+								cb2();
 							} else {
 								fatal_error = true;
+								console.log('unrecognized type in '+op);
 								cb2('Incorrect res');
 							}
 						});
@@ -840,11 +954,14 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 				break;
 			default:
 				fatal_error = true;
+				console.log('unrecognized op '+op);
 				cb(false);
 				break;
 		}
 		
 	}
+	
+	
 	
 	if (parser.results.length === 1 && parser.results[0]) {
 		evaluate(parser.results[0], res => {
@@ -855,6 +972,8 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 			}
 		});
 	} else {
+		if (parser.results.length > 1)
+			console.log('ambiguous grammar', parser.results);
 		callback(false);
 	}
 };
