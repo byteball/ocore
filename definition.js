@@ -898,7 +898,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 					fatal_error = "bad merkle proof at path "+path;
 					return cb2(false);
 				}
-				dataFeeds.dataFeedExists(arrAddresses, feed_name, '=', proof.root, min_mci, cb2);
+				dataFeeds.dataFeedExists(arrAddresses, feed_name, '=', proof.root, min_mci, objValidationState.last_ball_mci, cb2);
 				/*
 				conn.query(
 					"SELECT 1 FROM data_feeds CROSS JOIN units USING(unit) JOIN unit_authors USING(unit) \n\
