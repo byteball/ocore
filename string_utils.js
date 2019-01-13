@@ -55,14 +55,14 @@ function getSourceString(obj) {
 
 
 function encodeMci(mci){
-	return (mci ^ 0xFFFF).toString(16).padStart(8, '0'); // reverse order for more efficient sorting as we always need the latest
+	return (mci ^ 0xFFFFFFFF).toString(16).padStart(8, '0'); // reverse order for more efficient sorting as we always need the latest
 }
 
 function getMciFromDataFeedKey(key){
 	var arrParts = key.split('\n');
 	var strReversedMci = arrParts[arrParts.length-1];
 	var reversed_mci = parseInt(strReversedMci, 16);
-	var mci = reversed_mci ^ 0xFFFF;
+	var mci = reversed_mci ^ 0xFFFFFFFF;
 	return mci;
 }
 
