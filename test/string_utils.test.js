@@ -166,8 +166,23 @@ test('encode/decode double 0', t => {
 test('encoded mci order', t => {
     t.true(encodeMci(12345) > encodeMci(12346));
 });
+test('encoded mci order big', t => {
+    t.true(encodeMci(1e9-1) > encodeMci(1e9));
+});
+test('encoded mci order first bit set', t => {
+    t.true(encodeMci(3e9-1) > encodeMci(3e9));
+});
+test('encoded mci order mixed', t => {
+    t.true(encodeMci(1e9) > encodeMci(3e9));
+});
 
 test('encode/decode mci', t => {
     t.true(getMciFromDataFeedKey('aaa\nbbbbbb\n'+encodeMci(12345)) === 12345);
+});
+test('encode/decode mci big', t => {
+    t.true(getMciFromDataFeedKey('aaa\nbbbbbb\n'+encodeMci(1e9)) === 1e9);
+});
+test('encode/decode mci first bit set', t => {
+    t.true(getMciFromDataFeedKey('aaa\nbbbbbb\n'+encodeMci(3e9)) === 3e9);
 });
 
