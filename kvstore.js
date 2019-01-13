@@ -48,4 +48,8 @@ module.exports = {
 	createKeyStream: function(options){
 		return db.createKeyStream(options);
 	},
+	
+	close: function(cb){
+		db.close(cb);
+	}
 };
