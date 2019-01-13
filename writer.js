@@ -566,8 +566,10 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 								delete objUnit.timestamp;
 								delete objUnit.main_chain_index;
 							}
+							var batch_start_time = Date.now();
 							batch.put('j\n'+objUnit.unit, JSON.stringify(objJoint));
 							batch.write(function(err){
+								console.log("batch write took "+(Date.now()-batch_start_time)+'ms');
 								if (err)
 									throw Error("writer: batch write failed: "+err);
 								cb();
