@@ -28,15 +28,22 @@ function dataFeedByAddressExists(address, feed_name, relation, value, min_mci, m
 		});
 	}
 	var prefixed_value;
+	var type;
 	if (typeof value === 'string'){
 		var float = string_utils.getNumericFeedValue(value);
-		if (float !== null)
+		if (float !== null){
 			prefixed_value = 'n\n'+string_utils.encodeDoubleInLexicograpicOrder(float);
-		else
+			type = 'n';
+		}
+		else{
 			prefixed_value = 's\n'+value;
+			type = 's';
+		}
 	}
-	else
+	else{
 		prefixed_value = 'n\n'+string_utils.encodeDoubleInLexicograpicOrder(value);
+		type= 'n';
+	}
 	var strMinMci = string_utils.encodeMci(min_mci);
 	var strMaxMci = string_utils.encodeMci(max_mci);
 	var key_prefix = 'df\n'+address+'\n'+feed_name+'\n'+prefixed_value;
@@ -48,26 +55,38 @@ function dataFeedByAddressExists(address, feed_name, relation, value, min_mci, m
 			options.lte = key_prefix+'\n'+strMinMci;
 			options.limit = 1;
 			break;
-		case '>':
 		case '>=':
-			options[(relation === '>') ? 'gt' : 'gte'] = key_prefix;
-			options.lt = 'df\n'+address+'\n'+feed_name+'\r';  // \r is next after \n
+			options.gte = key_prefix;
+			options.lt = 'df\n'+address+'\n'+feed_name+'\n'+type+'\r';  // \r is next after \n
+			break;
+		case '>':
+			options.gt = key_prefix+'\nffffffff';
+			options.lt = 'df\n'+address+'\n'+feed_name+'\n'+type+'\r';  // \r is next after \n
+			break;
+		case '<=':
+			options.lte = key_prefix+'\nffffffff';
+			options.gt = 'df\n'+address+'\n'+feed_name+'\n'+type+'\n';
 			break;
 		case '<':
-		case '<=':
-			options[(relation === '<') ? 'lt' : 'lte'] = key_prefix;
-			options.gt = 'df\n'+address+'\n'+feed_name+'\n';
+			options.lt = key_prefix;
+			options.gt = 'df\n'+address+'\n'+feed_name+'\n'+type+'\n';
 			break;
 	}
+	var count = 0;
+	var count_before_found = 0;
 	var handleData;
 	if (relation === '=')
 		handleData = function(data){
+			count++;
+			count_before_found++;
 			bFound = true;
 		};
 	else
 		handleData = function(data){
+			count++;
 			if (bFound)
 				return;
+			count_before_found++;
 			var mci = string_utils.getMciFromDataFeedKey(data);
 			if (mci >= min_mci && mci <= max_mci){
 				bFound = true;
@@ -76,6 +95,7 @@ function dataFeedByAddressExists(address, feed_name, relation, value, min_mci, m
 	kvstore.createKeyStream(options)
 	.on('data', handleData)
 	.on('end', function(){
+		console.log('data feed by '+address+' '+feed_name+relation+value+': '+bFound+', '+count_before_found+' / '+count+' records inspected');
 		handleResult(bFound);
 	})
 	.on('error', function(error){
