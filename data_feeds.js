@@ -6,13 +6,14 @@ var string_utils = require('./string_utils.js');
 
 
 function dataFeedExists(arrAddresses, feed_name, relation, value, min_mci, max_mci, handleResult){
+	var start_time = Date.now();
 	async.eachSeries(
 		arrAddresses,
 		function(address, cb){
 			dataFeedByAddressExists(address, feed_name, relation, value, min_mci, max_mci, cb);
 		},
 		function(bFound){
-			console.log('data feed by '+arrAddresses+' '+feed_name+relation+value+': '+bFound);
+			console.log('data feed by '+arrAddresses+' '+feed_name+relation+value+': '+bFound+', df took '+(Date.now()-start_time)+'ms');
 			handleResult(!!bFound);
 		}
 	);
@@ -84,6 +85,7 @@ function dataFeedByAddressExists(address, feed_name, relation, value, min_mci, m
 
 
 function readDataFeedValue(arrAddresses, feed_name, value, min_mci, max_mci, ifseveral, handleResult){
+	var start_time = Date.now();
 	var objResult = {bAbortedBecauseOfSeveral: false, value: undefined, unit: undefined, mci: undefined};
 	async.eachSeries(
 		arrAddresses,
@@ -91,7 +93,7 @@ function readDataFeedValue(arrAddresses, feed_name, value, min_mci, max_mci, ifs
 			readDataFeedByAddress(address, feed_name, value, min_mci, max_mci, ifseveral, objResult, cb);
 		},
 		function(err){ // err passed here if aborted because of several
-			console.log('data feed by '+arrAddresses+' '+feed_name+', val='+value+': '+objResult.value);
+			console.log('data feed by '+arrAddresses+' '+feed_name+', val='+value+': '+objResult.value+', dfv took '+(Date.now()-start_time)+'ms');
 			handleResult(objResult);
 		}
 	);
