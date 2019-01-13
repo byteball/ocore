@@ -74,7 +74,7 @@ function migrateDataFeeds(conn, onDone){
 				FROM data_feeds CROSS JOIN units USING(unit) CROSS JOIN unit_authors USING(unit) \n\
 				WHERE data_feeds.rowid>=? AND data_feeds.rowid<? \n\
 				ORDER BY data_feeds.rowid",
-				[offset, offset + CHUNK_SIZE]
+				[offset, offset + CHUNK_SIZE],
 				function(rows){
 					if (rows.length === 0)
 						return next('done');
@@ -95,7 +95,7 @@ function migrateDataFeeds(conn, onDone){
 									numValue = string_utils.encodeDoubleInLexicograpicOrder(float);
 							}
 							else{
-								value = int_value;
+								value = row.int_value;
 								numValue = string_utils.encodeDoubleInLexicograpicOrder(row.int_value);
 							}
 							// duplicates will be overwritten, that's ok for data feed search
