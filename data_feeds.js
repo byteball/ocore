@@ -90,14 +90,22 @@ function dataFeedByAddressExists(address, feed_name, relation, value, min_mci, m
 			var mci = string_utils.getMciFromDataFeedKey(data);
 			if (mci >= min_mci && mci <= max_mci){
 				bFound = true;
+				console.log('destroying stream prematurely');
+				stream.destroy();
+				onEnd();
 			}
 		};
-	kvstore.createKeyStream(options)
-	.on('data', handleData)
-	.on('end', function(){
+	var bOnEndCalled = false;
+	function onEnd(){
+		if (bOnEndCalled)
+			throw Error("second call of onEnd");
+		bOnEndCalled = true;
 		console.log('data feed by '+address+' '+feed_name+relation+value+': '+bFound+', '+count_before_found+' / '+count+' records inspected');
 		handleResult(bFound);
-	})
+	}
+	var stream = kvstore.createKeyStream(options);
+	stream.on('data', handleData)
+	.on('end', onEnd)
 	.on('error', function(error){
 		throw Error('error from data stream: '+error);
 	});
