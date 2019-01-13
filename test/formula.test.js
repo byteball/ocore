@@ -584,6 +584,20 @@ test.cb('formula - in datafeed', t => {
 	});
 });
 
+test.cb.only('formula - in datafeed large mci', t => {
+	evalFormula({}, "in_data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:this address\", feed_name='test', feed_value > 5, min_mci = 10000] ? 'yes' : 'no'", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
+		t.deepEqual(res, 'no');
+		t.end();
+	});
+});
+
+test.cb.only('formula - in datafeed !=', t => {
+	evalFormula({}, "in_data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:this address\", feed_name='te\"st', feed_value != 11, min_mci = 10] ? 'yes' : 'no'", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
+		t.deepEqual(res, 'no');
+		t.end();
+	});
+});
+
 test.cb('formula - not in datafeed', t => {
 	evalFormula({}, "in_data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:this address\", feed_name='test', feed_value < 5, min_mci = 10]", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
 		t.deepEqual(res, false);
