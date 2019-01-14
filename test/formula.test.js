@@ -1,3 +1,7 @@
+var path = require('path');
+var desktop_app = require('../desktop_app.js');
+desktop_app.getAppDataDir = function() { return __dirname + '/.testdata-' + path.basename(__filename); }
+
 var BigNumber = require('bignumber.js');
 var formulaParser = require('../formula/index');
 var validateFormula = formulaParser.validate;

@@ -43,7 +43,7 @@
     "ws": "^1.0.1"
   },
   "scripts": {
-    "test": "yarn ava --concurrency=1",
+    "test": "yarn ava",
     "compileGrammar": "nearleyc ./formula/grammar.ne -o ./formula/grammar.js"
   },
   "devDependencies": {
