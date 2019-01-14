@@ -32,6 +32,7 @@ var isNonemptyArray = ValidationUtils.isNonemptyArray;
 var isValidAddress = ValidationUtils.isValidAddress;
 var isValidBase64 = ValidationUtils.isValidBase64;
 
+var assocWitnessListMci = {};
 
 function hasValidHashes(objJoint){
 	var objUnit = objJoint.unit;
@@ -189,10 +190,24 @@ function validate(objJoint, callbacks) {
 					profiler.start();
 					!objUnit.parent_units
 						? cb()
-						: validateHashTree(conn, objJoint, objValidationState, cb);
+						: validateHashTreeBall(conn, objJoint, cb);
 				},
 				function(cb){
-					profiler.stop('validation-hash-tree');
+					profiler.stop('validation-hash-tree-ball');
+					profiler.start();
+					!objUnit.parent_units
+						? cb()
+						: validateParentsExistAndOrdered(conn, objUnit, cb);
+				},
+				function(cb){
+					profiler.stop('validation-parents-exist');
+					profiler.start();
+					!objUnit.parent_units
+						? cb()
+						: validateHashTreeParentsAndSkiplist(conn, objJoint, cb);
+				},
+				function(cb){
+					profiler.stop('validation-hash-tree-parents');
 					profiler.start();
 					!objUnit.parent_units
 						? cb()
@@ -282,49 +297,58 @@ function checkDuplicate(conn, unit, cb){
 	});
 }
 
-function validateHashTree(conn, objJoint, objValidationState, callback){
+function validateHashTreeBall(conn, objJoint, callback){
 	if (!objJoint.ball)
 		return callback();
 	var objUnit = objJoint.unit;
-	conn.query("SELECT unit FROM hash_tree_balls WHERE ball=?", [objJoint.ball], function(rows){
-		if (rows.length === 0) 
+	var unit_by_hash_tree_ball = storage.assocHashTreeUnitsByBall[objJoint.ball];
+//	conn.query("SELECT unit FROM hash_tree_balls WHERE ball=?", [objJoint.ball], function(rows){
+		if (!unit_by_hash_tree_ball) 
 			return callback({error_code: "need_hash_tree", message: "ball "+objJoint.ball+" is not known in hash tree"});
-		if (rows[0].unit !== objUnit.unit)
+		if (unit_by_hash_tree_ball !== objUnit.unit)
 			return callback(createJointError("ball "+objJoint.ball+" unit "+objUnit.unit+" contradicts hash tree"));
-		conn.query(
-			"SELECT ball FROM hash_tree_balls WHERE unit IN(?) \n\
-			UNION \n\
-			SELECT ball FROM balls WHERE unit IN(?) \n\
-			ORDER BY ball",
-			[objUnit.parent_units, objUnit.parent_units],
-			function(prows){
-				if (prows.length !== objUnit.parent_units.length)
-					return callback(createJointError("some parents not found in balls nor in hash tree")); // while the child is found in hash tree
-				var arrParentBalls = prows.map(function(prow){ return prow.ball; });
-				if (!objJoint.skiplist_units)
-					return validateBallHash();
-				conn.query(
-					"SELECT ball FROM hash_tree_balls WHERE unit IN(?) \n\
-					UNION \n\
-					SELECT ball FROM balls WHERE unit IN(?) \n\
-					ORDER BY ball", 
-					[objJoint.skiplist_units, objJoint.skiplist_units], 
-					function(srows){
-						if (srows.length !== objJoint.skiplist_units.length)
-							return callback(createJointError("some skiplist balls not found"));
-						objValidationState.arrSkiplistBalls = srows.map(function(srow){ return srow.ball; });
-						validateBallHash();
-					}
-				);
-			
-				function validateBallHash(){
-					var hash = objectHash.getBallHash(objUnit.unit, arrParentBalls, objValidationState.arrSkiplistBalls, !!objUnit.content_hash);
-					if (hash !== objJoint.ball)
-						return callback(createJointError("ball hash is wrong"));
-					callback();
-				}
+		callback();
+//	});
+}
+
+function validateHashTreeParentsAndSkiplist(conn, objJoint, callback){
+	if (!objJoint.ball)
+		return callback();
+	var objUnit = objJoint.unit;
+	
+	function validateBallHash(arrParentBalls, arrSkiplistBalls){
+		var hash = objectHash.getBallHash(objUnit.unit, arrParentBalls, arrSkiplistBalls, !!objUnit.content_hash);
+		if (hash !== objJoint.ball)
+			return callback(createJointError("ball hash is wrong"));
+		callback();
+	}
+	
+	function readBallsByUnits(arrUnits, handleList){
+		conn.query("SELECT ball FROM balls WHERE unit IN(?) ORDER BY ball", [arrUnits], function(rows){
+			var arrBalls = rows.map(function(row){ return row.ball; });
+			if (arrBalls.length === arrUnits.length)
+				return handleList(arrBalls);
+			// we have to check in hash_tree_balls too because if we were synced, went offline, and now starting to catch up, our parents will have no ball yet
+			for (var ball in storage.assocHashTreeUnitsByBall){
+				var unit = storage.assocHashTreeUnitsByBall[ball];
+				if (arrUnits.indexOf(unit) >= 0 && arrBalls.indexOf(ball) === -1)
+					arrBalls.push(ball);
 			}
-		);
+			arrBalls.sort();
+			handleList(arrBalls);
+		});
+	}
+	
+	readBallsByUnits(objUnit.parent_units, function(arrParentBalls){
+		if (arrParentBalls.length !== objUnit.parent_units.length)
+			return callback(createJointError("some parents not found in balls nor in hash tree")); // while the child is found in hash tree
+		if (!objJoint.skiplist_units)
+			return validateBallHash(arrParentBalls, []);
+		readBallsByUnits(objJoint.skiplist_units, function(arrSkiplistBalls){
+			if (arrSkiplistBalls.length !== objJoint.skiplist_units.length)
+				return callback(createJointError("some skiplist balls not found"));
+			validateBallHash(arrParentBalls, arrSkiplistBalls);
+		});
 	});
 }
 
@@ -360,17 +384,67 @@ function validateSkiplist(conn, arrSkiplistUnits, callback){
 	);
 }
 
+function validateParentsExistAndOrdered(conn, objUnit, callback){
+	var prev = "";
+	var arrMissingParentUnits = [];
+	if (objUnit.parent_units.length > constants.MAX_PARENTS_PER_UNIT) // anti-spam
+		return callback("too many parents: "+objUnit.parent_units.length);
+	async.eachSeries(
+		objUnit.parent_units,
+		function(parent_unit, cb){
+			if (parent_unit <= prev)
+				return cb("parent units not ordered");
+			prev = parent_unit;
+			if (storage.assocUnstableUnits[parent_unit] || storage.assocStableUnits[parent_unit])
+				return cb();
+			storage.readStaticUnitProps(conn, parent_unit, function(objUnitProps){
+				if (!objUnitProps)
+					arrMissingParentUnits.push(parent_unit);
+				cb();
+			}, true);
+		},
+		function(err){
+			if (err)
+				return callback(err);
+			if (arrMissingParentUnits.length > 0){
+				conn.query("SELECT error FROM known_bad_joints WHERE unit IN(?)", [arrMissingParentUnits], function(rows){
+					(rows.length > 0)
+						? callback("some of the unit's parents are known bad: "+rows[0].error)
+						: callback({error_code: "unresolved_dependency", arrMissingUnits: arrMissingParentUnits});
+				});
+				return;
+			}
+			callback();
+		}
+	);
+}
+
 function validateParents(conn, objJoint, objValidationState, callback){
 	
 	// avoid merging the obvious nonserials
 	function checkNoSameAddressInDifferentParents(){
 		if (objUnit.parent_units.length === 1)
 			return callback();
-		conn.query("SELECT address, COUNT(*) AS c FROM unit_authors WHERE unit IN(?) GROUP BY address HAVING c>1", [objUnit.parent_units], function(rows){
-			if (rows.length > 0)
-				return callback("some addresses found more than once in parents, e.g. "+rows[0].address);
-			return callback();
-		});
+		var assocAuthors = {};
+		var found_address;
+		async.eachSeries(
+			objUnit.parent_units,
+			function(parent_unit, cb){
+				storage.readUnitAuthors(conn, parent_unit, function(arrAuthors){
+					arrAuthors.forEach(function(address){
+						if (assocAuthors[address])
+							found_address = address;
+						assocAuthors[address] = true;
+					});
+					cb(found_address);
+				});
+			},
+			function(){
+				if (found_address)
+					return callback("some addresses found more than once in parents, e.g. "+found_address);
+				return callback();
+			}
+		);
 	}
 	
 	function readMaxParentLastBallMci(handleResult){
@@ -389,36 +463,18 @@ function validateParents(conn, objJoint, objValidationState, callback){
 	}
 	
 	var objUnit = objJoint.unit;
-	if (objUnit.parent_units.length > constants.MAX_PARENTS_PER_UNIT) // anti-spam
-		return callback("too many parents: "+objUnit.parent_units.length);
 	// obsolete: when handling a ball, we can't trust parent list before we verify ball hash
 	// obsolete: when handling a fresh unit, we can begin trusting parent list earlier, after we verify parents_hash
-	var createError = objJoint.ball ? createJointError : function(err){ return err; };
 	// after this point, we can trust parent list as it either agrees with parents_hash or agrees with hash tree
 	// hence, there are no more joint errors, except unordered parents or skiplist units
 	var last_ball = objUnit.last_ball;
 	var last_ball_unit = objUnit.last_ball_unit;
-	var prev = "";
-	var arrMissingParentUnits = [];
 	var arrPrevParentUnitProps = [];
 	objValidationState.max_parent_limci = 0;
-	var join = objJoint.ball ? 'LEFT JOIN balls USING(unit) LEFT JOIN hash_tree_balls ON units.unit=hash_tree_balls.unit' : '';
-	var field = objJoint.ball ? ', IFNULL(balls.ball, hash_tree_balls.ball) AS ball' : '';
 	async.eachSeries(
 		objUnit.parent_units, 
 		function(parent_unit, cb){
-			if (parent_unit <= prev)
-				return cb(createError("parent units not ordered"));
-			prev = parent_unit;
-			conn.query("SELECT units.*"+field+" FROM units "+join+" WHERE units.unit=?", [parent_unit], function(rows){
-				if (rows.length === 0){
-					arrMissingParentUnits.push(parent_unit);
-					return cb();
-				}
-				var objParentUnitProps = rows[0];
-				// already checked in validateHashTree that the parent ball is known, that's why we throw
-				if (objJoint.ball && objParentUnitProps.ball === null)
-					throw Error("no ball corresponding to parent unit "+parent_unit);
+			storage.readUnitProps(conn, parent_unit, function(objParentUnitProps){
 				if (objParentUnitProps.latest_included_mc_index > objValidationState.max_parent_limci)
 					objValidationState.max_parent_limci = objParentUnitProps.latest_included_mc_index;
 				async.eachSeries(
@@ -440,23 +496,6 @@ function validateParents(conn, objJoint, objValidationState, callback){
 		function(err){
 			if (err)
 				return callback(err);
-			if (arrMissingParentUnits.length > 0){
-				conn.query("SELECT error FROM known_bad_joints WHERE unit IN(?)", [arrMissingParentUnits], function(rows){
-					(rows.length > 0)
-						? callback("some of the unit's parents are known bad: "+rows[0].error)
-						: callback({error_code: "unresolved_dependency", arrMissingUnits: arrMissingParentUnits});
-				});
-				return;
-			}
-			// this is redundant check, already checked in validateHashTree()
-			if (objJoint.ball){
-				var arrParentBalls = arrPrevParentUnitProps.map(function(objParentUnitProps){ return objParentUnitProps.ball; }).sort();
-				//if (arrParentBalls.indexOf(null) === -1){
-					var hash = objectHash.getBallHash(objUnit.unit, arrParentBalls, objValidationState.arrSkiplistBalls, !!objUnit.content_hash);
-					if (hash !== objJoint.ball)
-						throw Error("ball hash is wrong"); // shouldn't happen, already validated in validateHashTree()
-				//}
-			}
 			conn.query(
 				"SELECT is_stable, is_on_main_chain, main_chain_index, ball, (SELECT MAX(main_chain_index) FROM units) AS max_known_mci \n\
 				FROM units LEFT JOIN balls USING(unit) WHERE unit=?", 
@@ -483,7 +522,7 @@ function validateParents(conn, objJoint, objValidationState, callback){
 							// if it were not stable, we wouldn't have had the ball at all
 							if (objLastBallUnitProps.ball !== last_ball)
 								return callback("stable: last_ball "+last_ball+" and last_ball_unit "+last_ball_unit+" do not match");
-							if (objValidationState.last_ball_mci <= 1300000 || max_parent_last_ball_mci === objValidationState.last_ball_mci)
+							if (objValidationState.last_ball_mci <= constants.lastBallStableInParentsUpgradeMci || max_parent_last_ball_mci === objValidationState.last_ball_mci)
 								return checkNoSameAddressInDifferentParents();
 						}
 						// Last ball is not stable yet in our view. Check if it is stable in view of the parents
@@ -573,23 +612,26 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 	profiler.start();
 	var last_ball_unit = objUnit.last_ball_unit;
 	if (typeof objUnit.witness_list_unit === "string"){
-		conn.query("SELECT sequence, is_stable, main_chain_index FROM units WHERE unit=?", [objUnit.witness_list_unit], function(unit_rows){
-			if (unit_rows.length === 0)
-				return callback("witness list unit "+objUnit.witness_list_unit+" not found");
-			var objWitnessListUnitProps = unit_rows[0];
-			if (objWitnessListUnitProps.sequence !== 'good')
-				return callback("witness list unit "+objUnit.witness_list_unit+" is not serial");
-			if (objWitnessListUnitProps.is_stable !== 1)
-				return callback("witness list unit "+objUnit.witness_list_unit+" is not stable");
-			if (objWitnessListUnitProps.main_chain_index > objValidationState.last_ball_mci)
-				return callback("witness list unit "+objUnit.witness_list_unit+" must come before last ball");
-			storage.readWitnessList(conn, objUnit.witness_list_unit, function(arrWitnesses){
-				if (arrWitnesses.length === 0)
-					return callback("referenced witness list unit "+objUnit.witness_list_unit+" has no witnesses");
+		storage.readWitnessList(conn, objUnit.witness_list_unit, function(arrWitnesses){
+			if (arrWitnesses.length === 0)
+				return callback("referenced witness list unit "+objUnit.witness_list_unit+" has no witnesses");
+			if (typeof assocWitnessListMci[objUnit.witness_list_unit] === 'number' && assocWitnessListMci[objUnit.witness_list_unit] <= objValidationState.last_ball_mci)
+				return validateWitnessListMutations(arrWitnesses);
+			conn.query("SELECT sequence, is_stable, main_chain_index FROM units WHERE unit=?", [objUnit.witness_list_unit], function(unit_rows){
+				if (unit_rows.length === 0)
+					return callback("witness list unit "+objUnit.witness_list_unit+" not found");
+				var objWitnessListUnitProps = unit_rows[0];
+				if (objWitnessListUnitProps.sequence !== 'good')
+					return callback("witness list unit "+objUnit.witness_list_unit+" is not serial");
+				if (objWitnessListUnitProps.is_stable !== 1)
+					return callback("witness list unit "+objUnit.witness_list_unit+" is not stable");
+				if (objWitnessListUnitProps.main_chain_index > objValidationState.last_ball_mci)
+					return callback("witness list unit "+objUnit.witness_list_unit+" must come before last ball");
+				assocWitnessListMci[objUnit.witness_list_unit] = objWitnessListUnitProps.main_chain_index;
 				profiler.stop('validation-witnesses-read-list');
 				validateWitnessListMutations(arrWitnesses);
-			}, true);
-		});
+			});
+		}, true);
 	}
 	else if (Array.isArray(objUnit.witnesses) && objUnit.witnesses.length === constants.COUNT_WITNESSES){
 		var prev_witness = objUnit.witnesses[0];
@@ -1189,9 +1231,14 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 				return callback("no choices in poll");
 			if (payload.choices.length > constants.MAX_CHOICES_PER_POLL)
 				return callback("too many choices in poll");
-			for (var i=0; i<payload.choices.length; i++)
+			for (var i=0; i<payload.choices.length; i++) {
 				if (typeof payload.choices[i] !== 'string')
 					return callback("all choices must be strings");
+				if (payload.choices[i].trim().length === 0)
+					return callback("all choices must be longer than 0 chars");
+				if (payload.choices[i].length > constants.MAX_CHOICE_LENGTH)
+					return callback("all choices must be "+ constants.MAX_CHOICE_LENGTH + " chars or less");
+			}
 			return callback();
 			
 		case "vote":

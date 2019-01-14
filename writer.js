@@ -65,6 +65,7 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 		if (objJoint.ball && !conf.bLight){
 			conn.addQuery(arrQueries, "INSERT INTO balls (ball, unit) VALUES(?,?)", [objJoint.ball, objUnit.unit]);
 			conn.addQuery(arrQueries, "DELETE FROM hash_tree_balls WHERE ball=? AND unit=?", [objJoint.ball, objUnit.unit]);
+			delete storage.assocHashTreeUnitsByBall[objJoint.ball];
 			if (objJoint.skiplist_units)
 				for (var i=0; i<objJoint.skiplist_units.length; i++)
 					conn.addQuery(arrQueries, "INSERT INTO skiplist_units (unit, skiplist_unit) VALUES (?,?)", [objUnit.unit, objJoint.skiplist_units[i]]);
@@ -215,12 +216,22 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 							break;
 						case "data_feed":
 							var data = message.payload;
+							var arrValues = [];
 							for (var feed_name in data){
 								var value = data[feed_name];
-								var field_name = (typeof value === 'string') ? "`value`" : "int_value";
-								conn.addQuery(arrQueries, "INSERT INTO data_feeds (unit, message_index, feed_name, "+field_name+") VALUES(?,?,?,?)", 
-									[objUnit.unit, i, feed_name, value]);
+								var sql_value = 'NULL';
+								var sql_int_value = 'NULL';
+								if (typeof value === 'string')
+									sql_value = db.escape(value);
+								else
+									sql_int_value = value;
+								arrValues.push("("+db.escape(objUnit.unit)+", "+i+", "+db.escape(feed_name)+", "+sql_value+", "+sql_int_value+")");
+							//	var field_name = (typeof value === 'string') ? "`value`" : "int_value";
+							//	conn.addQuery(arrQueries, "INSERT INTO data_feeds (unit, message_index, feed_name, "+field_name+") VALUES(?,?,?,?)", 
+							//		[objUnit.unit, i, feed_name, value]);
 							}
+							conn.addQuery(arrQueries, 
+								"INSERT INTO data_feeds (unit, message_index, feed_name, `value`, int_value) VALUES "+arrValues.join(', '));
 							break;
 							
 						case "payment":
@@ -596,6 +607,7 @@ function readCountOfAnalyzedUnits(handleCount){
 
 var start_time = 0;
 var prev_time = 0;
+var bDbTooBig = false;
 // update stats for query planner
 function updateSqliteStats(unit){
 	if (count_writes === 1){
@@ -604,20 +616,23 @@ function updateSqliteStats(unit){
 	}
 	if (count_writes % 100 !== 0)
 		return;
-	if (count_writes % 1000 === 0){
+	var STATS_CHUNK_SIZE = 1000;
+	if (count_writes % STATS_CHUNK_SIZE === 0){
 		var total_time = (Date.now() - start_time)/1000;
 		var recent_time = (Date.now() - prev_time)/1000;
-		var recent_tps = 1000/recent_time;
+		var recent_tps = STATS_CHUNK_SIZE/recent_time;
 		var avg_tps = count_writes/total_time;
 		prev_time = Date.now();
 	//	console.error(count_writes+" units done in "+total_time+" s, recent "+recent_tps+" tps, avg "+avg_tps+" tps, unit "+unit);
 	}
-	if (conf.storage !== 'sqlite')
+	if (conf.storage !== 'sqlite' || bDbTooBig)
 		return;
 	db.query("SELECT MAX(rowid) AS count_units FROM units", function(rows){
 		var count_units = rows[0].count_units;
-		if (count_units > 500000) // the db is too big
+		if (count_units > 500000){ // the db is too big
+			bDbTooBig = true;
 			return;
+		}
 		readCountOfAnalyzedUnits(function(count_analyzed_units){
 			console.log('count analyzed units: '+count_analyzed_units);
 			if (count_units < 2*count_analyzed_units)

@@ -88,7 +88,7 @@ function prepareCatchupChain(catchupRequest, callbacks){
 
 
 
-function processCatchupChain(catchupChain, peer, callbacks){
+function processCatchupChain(catchupChain, peer, arrWitnesses, callbacks){
 	if (catchupChain.status === "current")
 		return callbacks.ifCurrent();
 	if (!Array.isArray(catchupChain.unstable_mc_joints))
@@ -103,7 +103,7 @@ function processCatchupChain(catchupChain, peer, callbacks){
 		return callbacks.ifError("witness_change_and_definition_joints must be array");
 	
 	witnessProof.processWitnessProof(
-		catchupChain.unstable_mc_joints, catchupChain.witness_change_and_definition_joints, true, 
+		catchupChain.unstable_mc_joints, catchupChain.witness_change_and_definition_joints, true, arrWitnesses,
 		function(err, arrLastBallUnits, assocLastBallByLastBallUnit){
 			
 			if (err)
@@ -210,6 +210,7 @@ function readHashTree(hashTreeRequest, callbacks){
 		return callbacks.ifError("no from_ball");
 	if (typeof to_ball !== 'string')
 		return callbacks.ifError("no to_ball");
+	var start_ts = Date.now();
 	var from_mci;
 	var to_mci;
 	db.query(
@@ -270,6 +271,7 @@ function readHashTree(hashTreeRequest, callbacks){
 							);
 						},
 						function(){
+							console.log("readHashTree for "+JSON.stringify(hashTreeRequest)+" took "+(Date.now()-start_ts)+'ms');
 							callbacks.ifOk(arrBalls);
 						}
 					);
@@ -310,6 +312,7 @@ function processHashTree(arrBalls, callbacks){
 								return cb("wrong ball hash, ball "+objBall.ball+", unit "+objBall.unit);
 
 							function addBall(){
+								storage.assocHashTreeUnitsByBall[objBall.ball] = objBall.unit;
 								// insert even if it already exists in balls, because we need to define max_mci by looking outside this hash tree
 								conn.query("INSERT "+conn.getIgnore()+" INTO hash_tree_balls (ball, unit) VALUES(?,?)", [objBall.ball, objBall.unit], function(){
 									cb();
@@ -386,7 +389,7 @@ function processHashTree(arrBalls, callbacks){
 								//		return finish("max mci doesn't match first chain element: max mci = "+max_mci+", first mci = "+rows[0].main_chain_index);
 									if (rows[1].ball !== arrBalls[arrBalls.length-1].ball)
 										return finish("tree root doesn't match second chain element");
-									// remove the last chain element, we now have hash tree instead
+									// remove the oldest chain element, we now have hash tree instead
 									conn.query("DELETE FROM catchup_chain_balls WHERE ball=?", [rows[0].ball], function(){
 										
 										purgeHandledBallsFromHashTree(conn, finish);
@@ -406,6 +409,9 @@ function purgeHandledBallsFromHashTree(conn, onDone){
 		if (rows.length === 0)
 			return onDone();
 		var arrHandledBalls = rows.map(function(row){ return row.ball; });
+		arrHandledBalls.forEach(function(ball){
+			delete storage.assocHashTreeUnitsByBall[ball];
+		});
 		conn.query("DELETE FROM hash_tree_balls WHERE ball IN(?)", [arrHandledBalls], function(){
 			onDone();
 		});

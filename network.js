@@ -50,6 +50,7 @@ var peer_events_buffer = [];
 var assocKnownPeers = {};
 var assocBlockedPeers = {};
 var exchangeRates = {};
+var bWatchingForLight = false;
 
 if (process.browser){ // browser
 	console.log("defining .on() on ws");
@@ -873,9 +874,7 @@ function havePendingJointRequest(unit){
 function purgeJunkUnhandledJoints(){
 	if (bCatchingUp || Date.now() - coming_online_time < 3600*1000 || wss.clients.length === 0 && arrOutboundPeers.length === 0)
 		return;
-	db.query("DELETE FROM unhandled_joints WHERE creation_date < "+db.addTime("-1 HOUR"), function(){
-		db.query("DELETE FROM dependencies WHERE NOT EXISTS (SELECT * FROM unhandled_joints WHERE unhandled_joints.unit=dependencies.unit)");
-	});
+	joint_storage.purgeOldUnhandledJoints();
 }
 
 function purgeJointAndDependenciesAndNotifyPeers(objJoint, error, onDone){
@@ -944,13 +943,9 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 					callbacks.ifJointError(error);
 				//	throw Error(error);
 					unlock();
-					db.query(
-						"INSERT INTO known_bad_joints (joint, json, error) VALUES (?,?,?)", 
-						[objectHash.getJointHash(objJoint), JSON.stringify(objJoint), error],
-						function(){
-							delete assocUnitsInWork[unit];
-						}
-					);
+					joint_storage.saveKnownBadJoint(objJoint, error, function(){
+						delete assocUnitsInWork[unit];
+					});
 					if (ws)
 						writeEvent('invalid', ws.host);
 					if (objJoint.unsigned)
@@ -1166,7 +1161,11 @@ function handleSavedJoint(objJoint, creation_ts, peer){
 				sendErrorResult(ws, unit, error);
 		},
 		ifNeedHashTree: function(){
-			throw Error("handleSavedJoint: need hash tree");
+			console.log("handleSavedJoint "+objJoint.unit.unit+": need hash tree, will retry later");
+			setTimeout(function(){
+				handleSavedJoint(objJoint, creation_ts, peer);
+			}, 1000);
+		//	throw Error("handleSavedJoint "+objJoint.unit.unit+": need hash tree");
 		},
 		ifNeedParentUnits: function(arrMissingUnits){
 			db.query("SELECT 1 FROM archived_joints WHERE unit IN(?) LIMIT 1", [arrMissingUnits], function(rows){
@@ -1269,6 +1268,8 @@ function notifyWatchers(objJoint, source_ws){
 		return;
 	if (objJoint.ball) // already stable, light clients will require a proof
 		return;
+	if (!bWatchingForLight)
+		return;
 	// this is a new unstable joint, light clients will accept it without proof
 	db.query("SELECT peer FROM watched_light_addresses WHERE address IN(?)", [arrAddresses], function(rows){
 		if (rows.length === 0)
@@ -1292,7 +1293,7 @@ function notifyWatchersAboutStableJoints(mci){
 		unlock(); // we don't need to block writes, we requested the lock just to wait that the current write completes
 		notifyLocalWatchedAddressesAboutStableJoints(mci);
 		console.log("notifyWatchersAboutStableJoints "+mci);
-		if (mci <= 1)
+		if (mci <= 1 || !bWatchingForLight)
 			return;
 		storage.findLastBallMciOfMci(db, mci, function(last_ball_mci){
 			storage.findLastBallMciOfMci(db, mci-1, function(prev_last_ball_mci){
@@ -1341,10 +1342,12 @@ function notifyLocalWatchedAddressesAboutStableJoints(mci){
 	}
 	if (arrWatchedAddresses.length > 0)
 		db.query(
-			"SELECT unit FROM units CROSS JOIN unit_authors USING(unit) WHERE main_chain_index=? AND address IN(?) AND sequence='good' \n\
+			"SELECT unit FROM units CROSS JOIN unit_authors USING(unit) \n\
+			WHERE main_chain_index=? AND address IN("+arrWatchedAddresses.map(db.escape).join(', ')+") AND sequence='good' \n\
 			UNION \n\
-			SELECT unit FROM units CROSS JOIN outputs USING(unit) WHERE main_chain_index=? AND address IN(?) AND sequence='good'",
-			[mci, arrWatchedAddresses, mci, arrWatchedAddresses],
+			SELECT unit FROM units CROSS JOIN outputs USING(unit) \n\
+			WHERE main_chain_index=? AND address IN("+arrWatchedAddresses.map(db.escape).join(', ')+") AND sequence='good'",
+			[mci, mci],
 			handleRows
 		);
 	db.query(
@@ -1568,7 +1571,7 @@ function handleCatchupChain(ws, request, response){
 	}
 	var catchupChain = response;
 	console.log('received catchup chain from '+ws.peer);
-	catchup.processCatchupChain(catchupChain, ws.peer, {
+	catchup.processCatchupChain(catchupChain, ws.peer, request.params.witnesses, {
 		ifError: function(error){
 			bWaitingForCatchupChain = false;
 			sendError(ws, error);
@@ -1634,16 +1637,17 @@ function handleHashTree(ws, request, response){
 
 function waitTillHashTreeFullyProcessedAndRequestNext(ws){
 	setTimeout(function(){
-		db.query("SELECT COUNT(*) AS count FROM hash_tree_balls LEFT JOIN units USING(unit) WHERE units.unit IS NULL", function(rows){
-			if (rows[0].count <= 30){
+	//	db.query("SELECT COUNT(*) AS count FROM hash_tree_balls LEFT JOIN units USING(unit) WHERE units.unit IS NULL", function(rows){
+			var count = Object.keys(storage.assocHashTreeUnitsByBall).length;
+			if (count <= 30){
 				findNextPeer(ws, function(next_ws){
 					requestNextHashTree(next_ws);
 				});
 			}
 			else
 				waitTillHashTreeFullyProcessedAndRequestNext(ws);
-		});
-	}, 1000);
+	//	});
+	}, 100);
 }
 
 
@@ -1875,7 +1879,7 @@ function requestHistoryFor(arrUnits, arrAddresses, onDone){
 				console.log(response.error);
 				return onDone(response.error);
 			}
-			light.processHistory(response, {
+			light.processHistory(response, arrWitnesses, {
 				ifError: function(err){
 					sendError(ws, err);
 					onDone(err);
@@ -2282,6 +2286,7 @@ function handleJustsaying(ws, subject, body){
 			var address = body;
 			if (!ValidationUtils.isValidAddress(address))
 				return sendError(ws, "address not valid");
+			bWatchingForLight = true;
 			db.query("INSERT "+db.getIgnore()+" INTO watched_light_addresses (peer, address) VALUES (?,?)", [ws.peer, address], function(){
 				sendInfo(ws, "now watching "+address);
 				// check if we already have something on this address
@@ -2579,6 +2584,7 @@ function handleRequest(ws, tag, command, params){
 					},
 					ifOk: function(objResponse){
 						sendResponse(ws, tag, objResponse);
+						bWatchingForLight = true;
 						if (params.addresses)
 							db.query(
 								"INSERT "+db.getIgnore()+" INTO watched_light_addresses (peer, address) VALUES "+
@@ -2942,9 +2948,11 @@ function startAcceptingConnections(){
 			tryHandleMessage();
 		});
 		ws.on('close', function(){
-			db.query("DELETE FROM watched_light_addresses WHERE peer=?", [ws.peer]);
-			db.query("DELETE FROM watched_light_units WHERE peer=?", [ws.peer]);
-			//db.query("DELETE FROM light_peer_witnesses WHERE peer=?", [ws.peer]);
+			if (bWatchingForLight){
+				db.query("DELETE FROM watched_light_addresses WHERE peer=?", [ws.peer]);
+				db.query("DELETE FROM watched_light_units WHERE peer=?", [ws.peer]);
+				//db.query("DELETE FROM light_peer_witnesses WHERE peer=?", [ws.peer]);
+			}
 			console.log("client "+ws.peer+" disconnected");
 			cancelRequestsOnClosedConnection(ws);
 		});
@@ -2964,6 +2972,7 @@ function startRelay(){
 		startAcceptingConnections();
 	
 	storage.initCaches();
+	joint_storage.initUnhandledAndKnownBad();
 	checkCatchupLeftovers();
 
 	if (conf.bWantNewPeers){

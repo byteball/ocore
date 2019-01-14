@@ -719,6 +719,7 @@ function composeIndivisibleAssetPaymentJoint(params){
 		signing_addresses: params.signing_addresses,
 		minimal: params.minimal,
 		outputs: arrBaseOutputs,
+		spend_unconfirmed: params.spend_unconfirmed || 'own',
 		
 		// function that creates additional messages to be added to the joint
 		retrieveMessages: function createAdditionalMessages(conn, last_ball_mci, bMultiAuthored, arrPayingAddresses, onDone){

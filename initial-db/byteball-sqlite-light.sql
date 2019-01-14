@@ -17,9 +17,7 @@ CREATE TABLE units (
 	is_stable TINYINT NOT NULL DEFAULT 0,
 	sequence TEXT CHECK (sequence IN('good','temp-bad','final-bad')) NOT NULL DEFAULT 'good',
 	best_parent_unit CHAR(44) NULL,
-	CONSTRAINT unitsByLastBallUnit FOREIGN KEY (last_ball_unit) REFERENCES units(unit),
-	FOREIGN KEY (best_parent_unit) REFERENCES units(unit),
-	CONSTRAINT unitsByWitnessListUnit FOREIGN KEY (witness_list_unit) REFERENCES units(unit)
+	FOREIGN KEY (best_parent_unit) REFERENCES units(unit)
 );
 CREATE INDEX byLB ON units(last_ball_unit);
 CREATE INDEX byBestParent ON units(best_parent_unit);
@@ -57,12 +55,9 @@ CREATE INDEX bySkiplistUnit ON skiplist_units(skiplist_unit);
 CREATE TABLE parenthoods (
 	child_unit CHAR(44) NOT NULL,
 	parent_unit CHAR(44) NOT NULL,
-	PRIMARY KEY (parent_unit, child_unit),
-	CONSTRAINT parenthoodsByChild FOREIGN KEY (child_unit) REFERENCES units(unit),
-	CONSTRAINT parenthoodsByParent FOREIGN KEY (parent_unit) REFERENCES units(unit)
+	PRIMARY KEY (parent_unit, child_unit)
 );
 CREATE INDEX byChildUnit ON parenthoods(child_unit);
-
 
 
 CREATE TABLE definitions (
@@ -87,12 +82,10 @@ CREATE TABLE unit_authors (
 	_mci INT NULL,
 	PRIMARY KEY (unit, address),
 	FOREIGN KEY (unit) REFERENCES units(unit),
-	CONSTRAINT unitAuthorsByAddress FOREIGN KEY (address) REFERENCES addresses(address),
 	FOREIGN KEY (definition_chash) REFERENCES definitions(definition_chash)
 );
 CREATE INDEX byDefinitionChash ON unit_authors(definition_chash);
 CREATE INDEX unitAuthorsIndexByAddress ON unit_authors(address);
-CREATE INDEX unitAuthorsIndexByAddressDefinitionChash ON unit_authors(address, definition_chash);
 CREATE INDEX unitAuthorsIndexByAddressMci ON unit_authors(address, _mci);
 
 
@@ -102,8 +95,7 @@ CREATE TABLE authentifiers (
 	path VARCHAR(40) NOT NULL,
 	authentifier VARCHAR(4096) NOT NULL,
 	PRIMARY KEY (unit, address, path),
-	FOREIGN KEY (unit) REFERENCES units(unit),
-	CONSTRAINT authentifiersByAddress FOREIGN KEY (address) REFERENCES addresses(address)
+	FOREIGN KEY (unit) REFERENCES units(unit)
 );
 CREATE INDEX authentifiersIndexByAddress ON authentifiers(address);
 
@@ -159,8 +151,7 @@ CREATE TABLE spend_proofs (
 	address CHAR(32) NOT NULL,
 	PRIMARY KEY (unit, message_index, spend_proof_index),
 	UNIQUE  (spend_proof, unit),
-	FOREIGN KEY (unit) REFERENCES units(unit),
-	CONSTRAINT spendProofsByAddress FOREIGN KEY (address) REFERENCES addresses(address)
+	FOREIGN KEY (unit) REFERENCES units(unit)
 );
 CREATE INDEX spendProofsIndexByAddress ON spend_proofs(address);
 
@@ -176,8 +167,7 @@ CREATE TABLE address_definition_changes (
 	definition_chash CHAR(32) NOT NULL, -- might not be defined in definitions yet (almost always, it is not defined)
 	PRIMARY KEY (unit, message_index),
 	UNIQUE  (address, unit),
-	FOREIGN KEY (unit) REFERENCES units(unit),
-	CONSTRAINT addressDefinitionChangesByAddress FOREIGN KEY (address) REFERENCES addresses(address)
+	FOREIGN KEY (unit) REFERENCES units(unit)
 );
 
 
@@ -204,7 +194,7 @@ CREATE TABLE polls (
 CREATE TABLE poll_choices (
 	unit CHAR(44) NOT NULL,
 	choice_index TINYINT NOT NULL,
-	choice VARCHAR(32) NOT NULL,
+	choice VARCHAR(64) NOT NULL,
 	PRIMARY KEY (unit, choice_index),
 	UNIQUE  (unit, choice),
 	FOREIGN KEY (unit) REFERENCES polls(unit)
@@ -214,10 +204,9 @@ CREATE TABLE votes (
 	unit CHAR(44) NOT NULL,
 	message_index TINYINT NOT NULL,
 	poll_unit CHAR(44) NOT NULL,
-	choice VARCHAR(32) NOT NULL,
+	choice VARCHAR(64) NOT NULL,
 	PRIMARY KEY (unit, message_index),
 	UNIQUE  (unit, choice),
-	CONSTRAINT votesByChoice FOREIGN KEY (poll_unit, choice) REFERENCES poll_choices(unit, choice),
 	FOREIGN KEY (unit) REFERENCES units(unit)
 );
 CREATE INDEX votesIndexByPollUnitChoice ON votes(poll_unit, choice);
@@ -230,7 +219,6 @@ CREATE TABLE attestations (
 	address CHAR(32) NOT NULL,
 --	name VARCHAR(44) NOT NULL,
 	PRIMARY KEY (unit, message_index),
-	CONSTRAINT attestationsByAttestorAddress FOREIGN KEY (attestor_address) REFERENCES addresses(address),
 	FOREIGN KEY (unit) REFERENCES units(unit)
 );
 CREATE INDEX attestationsByAddress ON attestations(address);
@@ -268,8 +256,7 @@ CREATE TABLE asset_attestors (
 	attestor_address CHAR(32) NOT NULL,
 	PRIMARY KEY (unit, message_index),
 	UNIQUE (asset, attestor_address, unit),
-	FOREIGN KEY (unit) REFERENCES units(unit),
-	CONSTRAINT assetAttestorsByAsset FOREIGN KEY (asset) REFERENCES assets(unit)
+	FOREIGN KEY (unit) REFERENCES units(unit)
 );
 
 
@@ -291,15 +278,12 @@ CREATE TABLE inputs (
 	to_main_chain_index INT NULL, -- witnessing/hc
 	serial_number BIGINT NULL, -- issue
 	amount BIGINT NULL, -- issue
-	address CHAR(32) NOT NULL,
+	address CHAR(32)  NULL, -- in light we allow NULL because address is copied from previous output which might not be known to light client
 	PRIMARY KEY (unit, message_index, input_index),
 	UNIQUE  (src_unit, src_message_index, src_output_index, is_unique), -- UNIQUE guarantees there'll be no double spend for type=transfer
 	UNIQUE  (type, from_main_chain_index, address, is_unique), -- UNIQUE guarantees there'll be no double spend for type=hc/witnessing
 	UNIQUE  (asset, denomination, serial_number, address, is_unique), -- UNIQUE guarantees there'll be no double issue
-	FOREIGN KEY (unit) REFERENCES units(unit),
-	CONSTRAINT inputsBySrcUnit FOREIGN KEY (src_unit) REFERENCES units(unit),
-	CONSTRAINT inputsByAddress FOREIGN KEY (address) REFERENCES addresses(address),
-	CONSTRAINT inputsByAsset FOREIGN KEY (asset) REFERENCES assets(unit)
+	FOREIGN KEY (unit) REFERENCES units(unit)
 );
 CREATE INDEX inputsIndexByAddress ON inputs(address);
 CREATE INDEX inputsIndexByAddressTypeToMci ON inputs(address, type, to_main_chain_index);
@@ -320,19 +304,19 @@ CREATE TABLE outputs (
 	is_serial TINYINT NULL, -- NULL if not stable yet
 	is_spent TINYINT NOT NULL DEFAULT 0,
 	UNIQUE (unit, message_index, output_index),
-	FOREIGN KEY (unit) REFERENCES units(unit),
-	CONSTRAINT outputsByAsset FOREIGN KEY (asset) REFERENCES assets(unit)
+	FOREIGN KEY (unit) REFERENCES units(unit)
 );
-CREATE INDEX outputsByAddressSpent ON outputs(address, is_spent);
+CREATE INDEX dobyAddressSpent ON outputs(address, is_spent);
 CREATE INDEX outputsIndexByAsset ON outputs(asset);
 CREATE INDEX outputsIsSerial ON outputs(is_serial);
+
 
 -- ------------
 -- Commissions
 
 -- updated immediately after main chain is updated
 CREATE TABLE headers_commission_contributions (
-	unit CHAR(44) NOT NULL, -- parent unit that pays commission
+	unit CHAR(44) NOT NULL, -- child unit that receives (and optionally redistributes) commission from parent units
 	address CHAR(32) NOT NULL, -- address of the commission receiver: author of child unit or address named in earned_headers_commission_recipients
 	amount BIGINT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -342,7 +326,7 @@ CREATE TABLE headers_commission_contributions (
 CREATE INDEX hccbyAddress ON headers_commission_contributions(address);
 
 CREATE TABLE headers_commission_outputs (
-	main_chain_index INT NOT NULL, -- mci of the sponsoring (paying) unit
+	main_chain_index INT NOT NULL,
 	address CHAR(32) NOT NULL, -- address of the commission receiver
 	amount BIGINT NOT NULL,
 	is_spent TINYINT NOT NULL DEFAULT 0,
@@ -419,7 +403,6 @@ CREATE TABLE joints (
 	json TEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-
 
 CREATE TABLE unhandled_private_payments (
 	unit CHAR(44) NOT NULL,
@@ -658,7 +641,6 @@ CREATE INDEX "bySequence" ON "units" ("sequence");
 
 DROP TABLE IF EXISTS paid_witness_events;
 
-
 CREATE TABLE IF NOT EXISTS push_registrations (
     registrationId TEXT, 
     device_address TEXT NOT NULL,
@@ -751,7 +733,6 @@ CREATE TABLE attested_fields (
 	`field` VARCHAR(50) NOT NULL,
 	`value` VARCHAR(100) NOT NULL,
 	PRIMARY KEY (unit, message_index, `field`),
-	CONSTRAINT attestationsByAttestorAddress FOREIGN KEY (attestor_address) REFERENCES addresses(address),
 	FOREIGN KEY (unit) REFERENCES units(unit)
 );
 CREATE INDEX attestedFieldsByAttestorFieldValue ON attested_fields(attestor_address, `field`, `value`);

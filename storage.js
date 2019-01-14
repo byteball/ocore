@@ -26,6 +26,8 @@ var assocStableUnits = {};
 var assocStableUnitsByMci = {};
 var assocBestChildren = {};
 
+var assocHashTreeUnitsByBall = {};
+
 var min_retrievable_mci = null;
 initializeMinRetrievableMci();
 
@@ -1212,13 +1214,16 @@ function buildListOfMcUnitsWithPotentiallyDifferentWitnesslists(conn, objUnit, l
 }
 
 
-function readStaticUnitProps(conn, unit, handleProps){
+function readStaticUnitProps(conn, unit, handleProps, bReturnNullIfNotFound){
 	var props = assocCachedUnits[unit];
 	if (props)
 		return handleProps(props);
 	conn.query("SELECT level, witnessed_level, best_parent_unit, witness_list_unit FROM units WHERE unit=?", [unit], function(rows){
-		if (rows.length !== 1)
+		if (rows.length !== 1){
+			if (bReturnNullIfNotFound)
+				return handleProps(null);
 			throw Error("not 1 unit");
+		}
 		props = rows[0];
 		assocCachedUnits[unit] = props;
 		handleProps(props);
@@ -1408,6 +1413,18 @@ function initParenthoodAndHeadersComissionShareForUnits(conn, assocUnits, onDone
 	);
 }
 
+function initHashTreeBalls(conn, onDone){
+	var conn = conn || db;
+	conn.query("SELECT * FROM hash_tree_balls", function(rows){
+		rows.forEach(function(row){
+			assocHashTreeUnitsByBall[row.ball] = row.unit;
+		});
+		console.log('initHashTreeBalls done');
+		if (onDone)
+			onDone();
+	});
+}
+
 function resetUnstableUnits(conn, onDone){
 	Object.keys(assocBestChildren).forEach(function(unit){
 		delete assocBestChildren[unit];
@@ -1441,11 +1458,11 @@ function initCaches(){
 	console.log('initCaches');
 	db.executeInTransaction(function(conn, onDone){
 		mutex.lock(['write'], function(unlock) {
-			initUnstableUnits(conn, initStableUnits.bind(this, conn, function(){
+			initUnstableUnits(conn, initStableUnits.bind(this, conn, initHashTreeBalls.bind(this, conn, function(){
 				console.log('initCaches done');
 				unlock();
 				onDone();
-			}));
+			})));
 		});
 	});
 }
@@ -1508,5 +1525,6 @@ exports.assocUnstableUnits = assocUnstableUnits;
 exports.assocStableUnits = assocStableUnits;
 exports.assocStableUnitsByMci = assocStableUnitsByMci;
 exports.assocBestChildren = assocBestChildren;
+exports.assocHashTreeUnitsByBall = assocHashTreeUnitsByBall;
 exports.initCaches = initCaches;
 exports.resetMemory = resetMemory;

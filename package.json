@@ -5,6 +5,11 @@
   "version": "0.2.93",
   "keywords": [
     "byteball",
+    "DAG",
+    "DLT",
+    "cryptocurrency",
+    "blockchain",
+    "smart contract",
     "multisignature"
   ],
   "homepage": "https://github.com/byteball/byteballcore",
@@ -21,21 +26,24 @@
     "secp256k1": "secp256k1/js"
   },
   "dependencies": {
-    "async": "^1.5.2",
+    "async": "^2.6.1",
+    "bignumber.js": "^8.0.1",
     "bitcore-mnemonic": "~1.0.0",
+    "jszip": "^3.1.3",
     "lodash": "^4.6.1",
-    "longjohn": "^0.2.11",
+    "moo": "^0.5.0",
     "mysql": "^2.10.2",
+    "nearley": "^2.16.0",
     "node4mailer": "git+https://github.com/edemaine/node4mailer.git",
     "secp256k1": "^3.1.0",
     "socks": "1.1.10",
-    "sqlite3": "3.1.4",
+    "sqlite3": "^4.0.0",
     "thirty-two": "^1.0.1",
-    "ws": "^1.0.1",
-    "jszip": "^3.1.3"
+    "ws": "^1.0.1"
   },
   "scripts": {
-    "test": "yarn ava"
+    "test": "yarn ava",
+    "compileGrammar": "nearleyc ./formula/grammar.ne -o ./formula/grammar.js"
   },
   "devDependencies": {
     "ava": "^0.22.0",
