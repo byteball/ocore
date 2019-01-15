@@ -48,8 +48,56 @@ function sendNewSharedAddress(device_address, address, arrDefinition, assocSigne
 	});
 }
 
+// when a peer has lost shared address definitions after a wallet recovery, we can resend them
+function sendToPeerAllSharedAddressesHavingUnspentOutputs(device_address, asset, callbacks){
+	const asset_filter = !asset || asset == "base" ? " AND outputs.asset IS NULL " : " AND outputs.asset='"+asset+"'";
+	db.query(
+		"SELECT DISTINCT shared_address FROM shared_address_signing_paths CROSS JOIN outputs ON shared_address_signing_paths.shared_address=outputs.address\n\
+		 WHERE device_address=? AND outputs.is_spent=0" + asset_filter, [device_address], function(rows){
+			if (rows.length === 0)
+				return callbacks.ifNoFundedSharedAddress();
+			rows.forEach(function(row){
+				sendSharedAddressToPeer(device_address, row.shared_address, function(err){
+					if (err)
+						return console.log(err)
+					console.log("Definition for " + row.shared_address + " will be sent to " + device_address);
+				});
+			});
+				return callbacks.ifFundedSharedAddress(rows.length);
+	});
+}
 
-
+// read shared address definition and signing paths then send them to peer
+function sendSharedAddressToPeer(device_address, shared_address, handle){
+	var arrDefinition;
+	var assocSignersByPath={};
+	async.series([
+		function(cb){
+			db.query("SELECT definition FROM shared_addresses WHERE shared_address=?", [shared_address], function(rows){
+				if (!rows[0])
+					return cb("Definition not found for " + shared_address);
+				arrDefinition = JSON.parse(rows[0].definition);
+				return cb(null);
+			});
+		},
+		function(cb){
+			db.query("SELECT signing_path,address,member_signing_path,device_address FROM shared_address_signing_paths WHERE shared_address=?", [shared_address], function(rows){
+				if (rows.length<2)
+					return cb("Less than 2 signing paths found for " + shared_address);
+				rows.forEach(function(row){
+					assocSignersByPath[row.signing_path] = {address: row.address, member_signing_path: row.member_signing_path, device_address: row.device_address};
+				});
+				return cb(null);
+			});
+		}
+	],
+	function(err){
+		if (err)
+			return handle(err);
+		sendNewSharedAddress(device_address, shared_address, arrDefinition, assocSignersByPath);
+		return handle(null);
+	});
+}
 
 
 // called from UI (unused)
@@ -546,3 +594,5 @@ exports.determineIfHasMerkle = determineIfHasMerkle;
 exports.createNewSharedAddress = createNewSharedAddress;
 exports.createNewSharedAddressByTemplate = createNewSharedAddressByTemplate;
 exports.readAllControlAddresses = readAllControlAddresses;
+exports.sendToPeerAllSharedAddressesHavingUnspentOutputs = sendToPeerAllSharedAddressesHavingUnspentOutputs;
+exports.sendSharedAddressToPeer = sendSharedAddressToPeer;
