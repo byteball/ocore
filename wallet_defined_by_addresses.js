@@ -50,7 +50,7 @@ function sendNewSharedAddress(device_address, address, arrDefinition, assocSigne
 
 // when a peer has lost shared address definitions after a wallet recovery, we can resend them
 function sendToPeerAllSharedAddressesHavingUnspentOutputs(device_address, asset, callbacks){
-	const asset_filter = !asset || asset == "base" ? " AND outputs.asset IS NULL " : " AND outputs.asset='"+asset+"'";
+	var asset_filter = !asset || asset == "base" ? " AND outputs.asset IS NULL " : " AND outputs.asset='"+asset+"'";
 	db.query(
 		"SELECT DISTINCT shared_address FROM shared_address_signing_paths CROSS JOIN outputs ON shared_address_signing_paths.shared_address=outputs.address\n\
 		 WHERE device_address=? AND outputs.is_spent=0" + asset_filter, [device_address], function(rows){
