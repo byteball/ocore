@@ -4,7 +4,7 @@ var eventBus = require('./event_bus.js');
 var constants = require("./constants.js");
 var conf = require("./conf.js");
 
-var VERSION = 21;
+var VERSION = 22;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -208,6 +208,8 @@ function migrateDb(connection, onDone){
 					connection.addQuery(arrQueries, "DELETE FROM known_bad_joints");
 				if (version < 21)
 					connection.addQuery(arrQueries, "ALTER TABLE push_registrations ADD COLUMN platform TEXT NOT NULL DEFAULT 'android'");
+				if (version < 22)
+					connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS sharedAddressSigningPathsByDeviceAddress ON shared_address_signing_paths(device_address);");
 				cb();
 			}
 		], function(){
