@@ -335,7 +335,7 @@ function composeJoint(params){
 			);
 		},
 		function(cb){ // authors
-			retrieveAuthorsForAddresses(conn, arrFromAddresses, last_ball_mci, signer, function(authors) {
+			composeAuthorsForAddresses(conn, arrFromAddresses, last_ball_mci, signer, function(authors) {
 				objUnit.authors = authors;
 				cb();
 			});
@@ -735,7 +735,7 @@ function generateBlinding(){
 	return crypto.randomBytes(12).toString("base64");
 }
 
-function retrieveAuthorsAndMciForAddresses(conn, arrFromAddresses, signer, cb) {
+function composeAuthorsAndMciForAddresses(conn, arrFromAddresses, signer, cb) {
 	myWitnesses.readMyWitnesses(function(arrWitnesses){
 		if (conf.bLight)
 			require('./network.js').requestFromLightVendor(
@@ -746,7 +746,7 @@ function retrieveAuthorsAndMciForAddresses(conn, arrFromAddresses, signer, cb) {
 						return cb(response.error);
 					if (!response.parent_units || !response.last_stable_mc_ball || !response.last_stable_mc_ball_unit || typeof response.last_stable_mc_ball_mci !== 'number')
 						return cb("invalid parents from light vendor");
-					retrieveAuthorsForAddresses(conn, arrFromAddresses, response.last_stable_mc_ball_mci, signer, cb);
+					composeAuthorsForAddresses(conn, arrFromAddresses, response.last_stable_mc_ball_mci, signer, cb);
 				}
 			);
 		else
@@ -756,13 +756,13 @@ function retrieveAuthorsAndMciForAddresses(conn, arrFromAddresses, signer, cb) {
 				function(err, arrParentUnits, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
 					if (err)
 						return cb("unable to find parents: "+err);
-					retrieveAuthorsForAddresses(conn, arrFromAddresses, last_stable_mc_ball_mci, signer, cb);
+					composeAuthorsForAddresses(conn, arrFromAddresses, last_stable_mc_ball_mci, signer, cb);
 				}
 			);
 	});
 }
 
-function retrieveAuthorsForAddresses(conn, arrFromAddresses, last_ball_mci, signer, cb) {
+function composeAuthorsForAddresses(conn, arrFromAddresses, last_ball_mci, signer, cb) {
 	var authors = [];
 	async.eachSeries(arrFromAddresses, function(from_address, cb2){
 		function setDefinition(){
@@ -843,4 +843,4 @@ exports.composeAndSavePaymentJoint = composeAndSavePaymentJoint;
 
 exports.generateBlinding = generateBlinding;
 exports.getMessageIndexByPayloadHash = getMessageIndexByPayloadHash;
-exports.retrieveAuthorsAndMciForAddresses = retrieveAuthorsAndMciForAddresses;
+exports.composeAuthorsAndMciForAddresses = composeAuthorsAndMciForAddresses;

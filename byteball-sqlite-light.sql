@@ -755,7 +755,8 @@ CREATE TABLE IF NOT EXISTS peer_addresses (
 	device_address CHAR(33) NOT NULL, -- where this signing key lives or is reachable through
 	definition TEXT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	PRIMARY KEY (address)
+	PRIMARY KEY (address),
+	FOREIGN KEY (device_address) REFERENCES correspondent_devices(device_address)
 );
 
 CREATE TABLE IF NOT EXISTS prosaic_contracts (
@@ -770,7 +771,10 @@ CREATE TABLE IF NOT EXISTS prosaic_contracts (
 	`text` TEXT NOT NULL,
 	shared_address CHAR(32),
 	unit CHAR(44),
-	cosigners VARCHAR(1500)
+	cosigners VARCHAR(1500),
+	FOREIGN KEY (peer_device_address) REFERENCES correspondent_devices(device_address),
+	FOREIGN KEY (peer_address) REFERENCES peer_addresses(address),
+	FOREIGN KEY (my_address) REFERENCES my_addresses(address)
 );
 
 PRAGMA user_version=24;
