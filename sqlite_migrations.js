@@ -4,7 +4,7 @@ var eventBus = require('./event_bus.js');
 var constants = require("./constants.js");
 var conf = require("./conf.js");
 
-var VERSION = 24;
+var VERSION = 23;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -209,6 +209,8 @@ function migrateDb(connection, onDone){
 				if (version < 21)
 					connection.addQuery(arrQueries, "ALTER TABLE push_registrations ADD COLUMN platform TEXT NOT NULL DEFAULT 'android'");
 				if (version < 22)
+					connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS sharedAddressSigningPathsByDeviceAddress ON shared_address_signing_paths(device_address);");
+				if (version < 23)
 					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS peer_addresses ( \n\
 						address CHAR(32) NOT NULL, \n\
 						signing_paths VARCHAR(255) NULL, \n\
@@ -218,7 +220,6 @@ function migrateDb(connection, onDone){
 						PRIMARY KEY (address), \n\
 						FOREIGN KEY (device_address) REFERENCES correspondent_devices(device_address) \n\
 					)");
-				if (version < 23)
 					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS prosaic_contracts ( \n\
 						hash CHAR(44) NOT NULL PRIMARY KEY, \n\
 						peer_address CHAR(32) NOT NULL, \n\
@@ -236,10 +237,6 @@ function migrateDb(connection, onDone){
 						FOREIGN KEY (peer_address) REFERENCES peer_addresses(address), \n\
 						FOREIGN KEY (my_address) REFERENCES my_addresses(address) \n\
 					)");
-				if (version < 24) {
-					connection.addQuery(arrQueries, "ALTER TABLE prosaic_contracts ADD COLUMN unit CHAR(44)");
-					connection.addQuery(arrQueries, "ALTER TABLE prosaic_contracts ADD COLUMN cosigners VARCHAR(1500)");
-				}
 				cb();
 			}
 		], function(){

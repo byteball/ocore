@@ -194,7 +194,7 @@ CREATE TABLE polls (
 CREATE TABLE poll_choices (
 	unit CHAR(44) NOT NULL,
 	choice_index TINYINT NOT NULL,
-	choice VARCHAR(32) NOT NULL,
+	choice VARCHAR(64) NOT NULL,
 	PRIMARY KEY (unit, choice_index),
 	UNIQUE  (unit, choice),
 	FOREIGN KEY (unit) REFERENCES polls(unit)
@@ -204,7 +204,7 @@ CREATE TABLE votes (
 	unit CHAR(44) NOT NULL,
 	message_index TINYINT NOT NULL,
 	poll_unit CHAR(44) NOT NULL,
-	choice VARCHAR(32) NOT NULL,
+	choice VARCHAR(64) NOT NULL,
 	PRIMARY KEY (unit, message_index),
 	UNIQUE  (unit, choice),
 	FOREIGN KEY (unit) REFERENCES units(unit)
@@ -616,6 +616,7 @@ CREATE TABLE shared_address_signing_paths (
 	-- own address is not present in correspondents
 --    FOREIGN KEY byDeviceAddress(device_address) REFERENCES correspondent_devices(device_address)
 );
+CREATE INDEX sharedAddressSigningPathsByDeviceAddress ON shared_address_signing_paths(device_address);
 
 
 CREATE TABLE outbox (
@@ -748,7 +749,6 @@ CREATE TABLE original_addresses (
 	FOREIGN KEY (unit) REFERENCES units(unit)
 );
 
-
 CREATE TABLE IF NOT EXISTS peer_addresses (
 	address CHAR(32) NOT NULL,
 	signing_paths VARCHAR(255) NULL, -- array of local signing paths (JSON)
@@ -777,4 +777,4 @@ CREATE TABLE IF NOT EXISTS prosaic_contracts (
 	FOREIGN KEY (my_address) REFERENCES my_addresses(address)
 );
 
-PRAGMA user_version=24;
+PRAGMA user_version=23;

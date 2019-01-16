@@ -12,22 +12,25 @@ var conf = require('./conf.js');
 var breadcrumbs = require('./breadcrumbs.js');
 
 
+var assocKnownBadJoints = {};
+var assocKnownBadUnits = {};
+var assocUnhandledUnits = {};
+
 
 function checkIfNewUnit(unit, callbacks) {
 	if (storage.isKnownUnit(unit))
 		return callbacks.ifKnown();
+	if (assocUnhandledUnits[unit])
+		return callbacks.ifKnownUnverified();
+	var error = assocKnownBadUnits[unit];
+	if (error)
+		return callbacks.ifKnownBad(error);
 	db.query("SELECT 1 FROM units WHERE unit=?", [unit], function(rows){
 		if (rows.length > 0){
 			storage.setUnitIsKnown(unit);
 			return callbacks.ifKnown();
 		}
-		db.query("SELECT 1 FROM unhandled_joints WHERE unit=?", [unit], function(unhandled_rows){
-			if (unhandled_rows.length > 0)
-				return callbacks.ifKnownUnverified();
-			db.query("SELECT error FROM known_bad_joints WHERE unit=?", [unit], function(bad_rows){
-				(bad_rows.length === 0) ? callbacks.ifNew() : callbacks.ifKnownBad(bad_rows[0].error);
-			});
-		});
+		callbacks.ifNew();
 	});
 }
 
@@ -37,9 +40,8 @@ function checkIfNewJoint(objJoint, callbacks) {
 		ifKnownUnverified: callbacks.ifKnownUnverified,
 		ifKnownBad: callbacks.ifKnownBad,
 		ifNew: function(){
-			db.query("SELECT error FROM known_bad_joints WHERE joint=?", [objectHash.getJointHash(objJoint)], function(bad_rows){
-				(bad_rows.length === 0) ? callbacks.ifNew() : callbacks.ifKnownBad(bad_rows[0].error);
-			});
+			var error = assocKnownBadJoints[objectHash.getJointHash(objJoint)];
+			error ? callbacks.ifKnownBad(error) : callbacks.ifNew();
 		}
 	});
 }
@@ -53,6 +55,7 @@ function removeUnhandledJointAndDependencies(unit, onDone){
 		conn.addQuery(arrQueries, "DELETE FROM dependencies WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "COMMIT");
 		async.series(arrQueries, function(){
+			delete assocUnhandledUnits[unit];
 			conn.release();
 			if (onDone)
 				onDone();
@@ -61,20 +64,21 @@ function removeUnhandledJointAndDependencies(unit, onDone){
 }
 
 function saveUnhandledJointAndDependencies(objJoint, arrMissingParentUnits, peer, onDone){
+	var unit = objJoint.unit.unit;
+	assocUnhandledUnits[unit] = true;
 	db.takeConnectionFromPool(function(conn){
-		var unit = objJoint.unit.unit;
 		var sql = "INSERT "+conn.getIgnore()+" INTO dependencies (unit, depends_on_unit) VALUES " + arrMissingParentUnits.map(function(missing_unit){
 			return "("+conn.escape(unit)+", "+conn.escape(missing_unit)+")";
 		}).join(", ");
 		var arrQueries = [];
 		conn.addQuery(arrQueries, "BEGIN");
-		conn.addQuery(arrQueries, "INSERT INTO unhandled_joints (unit, json, peer) VALUES (?, ?, ?)", [unit, JSON.stringify(objJoint), peer]);
+		conn.addQuery(arrQueries, "INSERT "+conn.getIgnore()+" INTO unhandled_joints (unit, json, peer) VALUES (?, ?, ?)", [unit, JSON.stringify(objJoint), peer]);
 		conn.addQuery(arrQueries, sql);
 		conn.addQuery(arrQueries, "COMMIT");
 		async.series(arrQueries, function(){
 			conn.release();
 			if (onDone)
-				onDone(); 
+				onDone();
 		});
 	});
 }
@@ -133,16 +137,18 @@ function findLostJoints(handleLostJoints){
 
 // onPurgedDependentJoint called for each purged dependent unit
 function purgeJointAndDependencies(objJoint, error, onPurgedDependentJoint, onDone){
+	var unit = objJoint.unit.unit;
+	assocKnownBadUnits[unit] = error;
 	db.takeConnectionFromPool(function(conn){
-		var unit = objJoint.unit.unit;
 		var arrQueries = [];
 		conn.addQuery(arrQueries, "BEGIN");
-		conn.addQuery(arrQueries, "INSERT INTO known_bad_joints (unit, json, error) VALUES (?,?,?)", [unit, JSON.stringify(objJoint), error]);
+		conn.addQuery(arrQueries, "INSERT "+conn.getIgnore()+" INTO known_bad_joints (unit, json, error) VALUES (?,?,?)", [unit, JSON.stringify(objJoint), error]);
 		conn.addQuery(arrQueries, "DELETE FROM unhandled_joints WHERE unit=?", [unit]); // if any
 		conn.addQuery(arrQueries, "DELETE FROM dependencies WHERE unit=?", [unit]);
 		collectQueriesToPurgeDependentJoints(conn, arrQueries, unit, error, onPurgedDependentJoint, function(){
 			conn.addQuery(arrQueries, "COMMIT");
 			async.series(arrQueries, function(){
+				delete assocUnhandledUnits[unit];
 				conn.release();
 				if (onDone)
 					onDone();
@@ -174,6 +180,10 @@ function collectQueriesToPurgeDependentJoints(conn, arrQueries, unit, error, onP
 			return onDone();
 		//conn.addQuery(arrQueries, "DELETE FROM dependencies WHERE depends_on_unit=?", [unit]);
 		var arrUnits = rows.map(function(row) { return row.unit; });
+		arrUnits.forEach(function(dep_unit){
+			assocKnownBadUnits[dep_unit] = error;
+			delete assocUnhandledUnits[dep_unit];
+		});
 		conn.addQuery(arrQueries, "INSERT "+conn.getIgnore()+" INTO known_bad_joints (unit, json, error) \n\
 			SELECT unit, json, ? FROM unhandled_joints WHERE unit IN(?)", [error, arrUnits]);
 		conn.addQuery(arrQueries, "DELETE FROM unhandled_joints WHERE unit IN(?)", [arrUnits]);
@@ -310,10 +320,51 @@ function readJointsSinceMci(mci, handleJoint, onDone){
 	);
 }
 
+function saveKnownBadJoint(objJoint, error, onDone){
+	var joint_hash = objectHash.getJointHash(objJoint);
+	assocKnownBadJoints[joint_hash] = error;
+	db.query(
+		"INSERT "+db.getIgnore()+" INTO known_bad_joints (joint, json, error) VALUES (?,?,?)",
+		[joint_hash, JSON.stringify(objJoint), error],
+		function(){
+			onDone();
+		}
+	);
+}
+
+function purgeOldUnhandledJoints(){
+	db.query("SELECT unit FROM unhandled_joints WHERE creation_date < "+db.addTime("-1 HOUR"), function(rows){
+		if (rows.length === 0)
+			return;
+		var arrUnits = rows.map(function(row){ return row.unit; });
+		arrUnits.forEach(function(unit){
+			delete assocUnhandledUnits[unit];
+		});
+		var strUnitsList = arrUnits.map(db.escape).join(', ');
+		db.query("DELETE FROM dependencies WHERE unit IN("+strUnitsList+")");
+		db.query("DELETE FROM unhandled_joints WHERE unit IN("+strUnitsList+")");
+	});
+}
+
+function initUnhandledAndKnownBad(){
+	db.query("SELECT unit FROM unhandled_joints", function(rows){
+		rows.forEach(function(row){
+			assocUnhandledUnits[row.unit] = true;
+		});
+		db.query("SELECT unit, joint, error FROM known_bad_joints ORDER BY creation_date DESC LIMIT 1000", function(rows){
+			rows.forEach(function(row){
+				if (row.unit)
+					assocKnownBadUnits[row.unit] = row.error;
+				if (row.joint)
+					assocKnownBadJoints[row.joint] = row.error;
+			});
+		});
+	});
+}
 
 
-
-
+exports.saveKnownBadJoint = saveKnownBadJoint;
+exports.initUnhandledAndKnownBad = initUnhandledAndKnownBad;
 
 exports.checkIfNewUnit = checkIfNewUnit;
 exports.checkIfNewJoint = checkIfNewJoint;
@@ -325,4 +376,5 @@ exports.findLostJoints = findLostJoints;
 exports.purgeJointAndDependencies = purgeJointAndDependencies;
 exports.purgeDependencies = purgeDependencies;
 exports.purgeUncoveredNonserialJointsUnderLock = purgeUncoveredNonserialJointsUnderLock;
+exports.purgeOldUnhandledJoints = purgeOldUnhandledJoints;
 exports.readJointsSinceMci = readJointsSinceMci;

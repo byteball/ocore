@@ -440,7 +440,7 @@ function createDatabaseIfNecessary(db_name, onDbReady){
 				console.log('mkdir '+parent_dir+': '+err);
 				fs.mkdir(path, mode, function(err){
 					console.log('mkdir '+path+': '+err);
-					fs.createReadStream(__dirname + '/' + initial_db_filename).pipe(fs.createWriteStream(path + db_name)).on('finish', onDbReady);
+					fs.createReadStream(__dirname + '/initial-db/' + initial_db_filename).pipe(fs.createWriteStream(path + db_name)).on('finish', onDbReady);
 				});
 			});
 		});
