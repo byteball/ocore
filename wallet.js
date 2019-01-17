@@ -2119,11 +2119,12 @@ function handlePrivatePaymentFile(fullPath, content, cb) {
 	}
 }
 
-function readDeviceAddressesUsedInSigningPaths(onDone){
+function readNonRemovableDevices(onDone){
 
 	var sql = "SELECT DISTINCT device_address FROM shared_address_signing_paths ";
 	sql += "UNION SELECT DISTINCT device_address FROM wallet_signing_paths ";
-	sql += "UNION SELECT DISTINCT device_address FROM pending_shared_address_signing_paths";
+	sql += "UNION SELECT DISTINCT device_address FROM pending_shared_address_signing_paths ";
+	sql += "UNION SELECT DISTINCT peer_device_address AS device_address FROM prosaic_contracts";
 	
 	db.query(
 		sql, 
@@ -2140,7 +2141,7 @@ function determineIfDeviceCanBeRemoved(device_address, handleResult) {
 	device.readCorrespondent(device_address, function(correspondent){
 		if (!correspondent)
 			return handleResult(false);
-		readDeviceAddressesUsedInSigningPaths(function(arrDeviceAddresses){
+		readNonRemovableDevices(function(arrDeviceAddresses){
 			handleResult(arrDeviceAddresses.indexOf(device_address) === -1);
 		});
 	});
@@ -2173,7 +2174,7 @@ exports.readAssetMetadata = readAssetMetadata;
 exports.readTransactionHistory = readTransactionHistory;
 exports.sendPaymentFromWallet = sendPaymentFromWallet;
 exports.sendMultiPayment = sendMultiPayment;
-exports.readDeviceAddressesUsedInSigningPaths = readDeviceAddressesUsedInSigningPaths;
+exports.readNonRemovableDevices = readNonRemovableDevices;
 exports.determineIfDeviceCanBeRemoved = determineIfDeviceCanBeRemoved;
 exports.receiveTextCoin = receiveTextCoin;
 exports.claimBackOldTextcoins = claimBackOldTextcoins;

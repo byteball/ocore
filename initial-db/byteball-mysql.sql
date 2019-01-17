@@ -770,6 +770,5 @@ CREATE TABLE IF NOT EXISTS prosaic_contracts (
 	unit CHAR(44),
 	cosigners VARCHAR(1500),
 	FOREIGN KEY (peer_device_address) REFERENCES correspondent_devices(device_address),
-	FOREIGN KEY (peer_address) REFERENCES peer_addresses(address),
 	FOREIGN KEY (my_address) REFERENCES my_addresses(address)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;

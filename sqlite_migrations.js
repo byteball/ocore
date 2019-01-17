@@ -234,7 +234,6 @@ function migrateDb(connection, onDone){
 						unit CHAR(44), \n\
 						cosigners VARCHAR(1500), \n\
 						FOREIGN KEY (peer_device_address) REFERENCES correspondent_devices(device_address), \n\
-						FOREIGN KEY (peer_address) REFERENCES peer_addresses(address), \n\
 						FOREIGN KEY (my_address) REFERENCES my_addresses(address) \n\
 					)");
 				cb();
