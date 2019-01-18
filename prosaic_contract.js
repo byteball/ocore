@@ -28,7 +28,7 @@ function getBySharedAddress(address, cb) {
 }
 
 function getAllActive(cb) {
-	db.query("SELECT hash, my_address, peer_address, peer_device_address, cosigners FROM prosaic_contracts WHERE status='active'", [], function(rows){
+	db.query("SELECT hash, my_address, peer_address, peer_device_address, cosigners FROM prosaic_contracts WHERE status='pending'", [], function(rows){
 		cb(rows);
 	});
 }
