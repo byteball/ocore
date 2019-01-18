@@ -519,7 +519,8 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					case "shared_address":
 						if (objContract.shared_address)
 							return callbacks.ifError("shared_address was already provided for this contract");
-						
+						if (!ValidationUtils.isValidAddress(body.value))
+							return callbacks.ifError("invalid address provided");
 						prosaic_contract.setField(body.field, objContract.hash, body.value);
 						callbacks.ifOk();
 						break;
