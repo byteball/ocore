@@ -335,7 +335,7 @@ function composeJoint(params){
 			);
 		},
 		function(cb){ // authors
-			composeAuthorsForAddresses(conn, arrFromAddresses, last_ball_mci, signer, function(authors) {
+			composeAuthorsForAddresses(conn, arrFromAddresses, last_ball_mci, signer, function(err, authors) {
 				objUnit.authors = authors;
 				cb();
 			});
@@ -809,7 +809,7 @@ function composeAuthorsForAddresses(conn, arrFromAddresses, last_ball_mci, signe
 			);
 		});
 	}, function(err) {
-		cb(err || authors);
+		cb(err, authors);
 	});
 }
 

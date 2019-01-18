@@ -49,7 +49,7 @@ function store(objContract, cb) {
 }
 
 function respond(objContract, status, signedMessageBase64, authors, cb) {
-	composer.composeAuthorsAndMciForAddresses(db, [objContract.address], wallet.getSigner(), function(authors) {
+	composer.composeAuthorsAndMciForAddresses(db, [objContract.address], wallet.getSigner(), function(err, authors) {
 		device.sendMessageToDevice(objContract.peer_device_address, "prosaic_contract_response", {hash: objContract.hash, status: status, signed_message: signedMessageBase64, authors: authors});
 		if (cb)
 			cb();

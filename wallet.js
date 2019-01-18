@@ -510,7 +510,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				if (!objContract || objContract.peer_device_address !== from_address)
 					return callbacks.ifError("wrong contract hash or not an owner");
 				switch (body.field) {
-					case "status":
+					case "status": // no breaks here, intentionally, all 3 are successful scenarios
 						if (body.value !== "revoked" || objContract.status !== "pending")
 							return callbacks.ifError("wrong status for contract supplied");
 					case "unit":
@@ -519,6 +519,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					case "shared_address":
 						if (objContract.shared_address)
 							return callbacks.ifError("shared_address was already provided for this contract");
+						
 						prosaic_contract.setField(body.field, objContract.hash, body.value);
 						callbacks.ifOk();
 						break;
