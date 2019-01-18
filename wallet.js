@@ -813,7 +813,7 @@ function findAddress(address, signing_path, callbacks, fallback_remote_device_ad
 								});
 							}
 							if (candidate_addresses.length > 1)
-								throw Error("more than 1 member address found for shared address "+address+" and signing path "+signing_path);
+								throw Error("more than 1 member address found for peer address "+address+" and signing path "+signing_path);
 							if (candidate_addresses.length == 1)
 								return callbacks.ifRemote(candidate_addresses[0]);
 							if (fallback_remote_device_address)
