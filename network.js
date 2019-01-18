@@ -3026,7 +3026,9 @@ function isCatchingUp(){
 	return bCatchingUp;
 }
 
-start();
+if (!conf.explicitStart) {
+	start();
+}
 
 exports.start = start;
 exports.postJointToLightVendor = postJointToLightVendor;
