@@ -13,6 +13,10 @@ function mergeExports(anotherModule){
 exports.port = null;
 //exports.port = 6611;
 
+// enable this will make websocket server doesn't spawn on new port
+// this is usefull if you already have SocketServer running and want to reuse the port
+//exports.portReuse = true;
+
 // how peers connect to me
 //exports.myUrl = 'wss://example.org/bb';
 
