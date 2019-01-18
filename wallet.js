@@ -509,8 +509,23 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			prosaic_contract.getByHash(body.hash, function(objContract){
 				if (!objContract || objContract.peer_device_address !== from_address)
 					return callbacks.ifError("wrong contract hash or not an owner");
-				prosaic_contract.setField(body.field, objContract.hash, body.value);
-				callbacks.ifOk();
+				switch (body.field) {
+					case "status":
+						if (body.value !== "revoked" || objContract.status !== "pending")
+							return callbacks.ifError("wrong status for contract supplied");
+					case "unit":
+						if (objContract.unit)
+							return callbacks.ifError("unit was already provided for this contract");
+					case "shared_address":
+						if (objContract.shared_address)
+							return callbacks.ifError("shared_address was already provided for this contract");
+						prosaic_contract.setField(body.field, objContract.hash, body.value);
+						callbacks.ifOk();
+						break;
+					default:
+						return callbacks.ifError("wrong field");
+						break;
+				}
 			});
 			break;
 			
