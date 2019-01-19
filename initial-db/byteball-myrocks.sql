@@ -181,7 +181,7 @@ CREATE TABLE polls (
 CREATE TABLE poll_choices (
 	unit CHAR(44) BINARY NOT NULL,
 	choice_index TINYINT NOT NULL,
-	choice VARCHAR(32) BINARY NOT NULL,
+	choice VARCHAR(64) BINARY NOT NULL,
 	PRIMARY KEY (unit, choice_index),
 	UNIQUE KEY (unit, choice)
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
@@ -190,7 +190,7 @@ CREATE TABLE votes (
 	unit CHAR(44) BINARY NOT NULL,
 	message_index TINYINT NOT NULL,
 	poll_unit CHAR(44) BINARY NOT NULL,
-	choice VARCHAR(32) BINARY NOT NULL,
+	choice VARCHAR(64) BINARY NOT NULL,
 	PRIMARY KEY (unit, message_index),
 	UNIQUE KEY (unit, choice),
 	KEY (poll_unit, choice)
@@ -581,7 +581,7 @@ CREATE TABLE shared_address_signing_paths (
 	-- own address is not present in correspondents
 	-- FOREIGN KEY (device_address) REFERENCES correspondent_devices(device_address)
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
-
+CREATE INDEX sharedAddressSigningPathsByDeviceAddress ON shared_address_signing_paths(device_address);
 
 CREATE TABLE outbox (
 	message_hash CHAR(44) BINARY NOT NULL PRIMARY KEY,

@@ -9,7 +9,9 @@ This is a library used in [Byteball](https://byteball.org) clients.  Never used 
 
 ## Developer guides
 
-See the [wiki](https://github.com/byteball/byteballcore/wiki/Byteball-Developer-Guides).  Many of the features are not documented yet, see other [byteball repositories](https://github.com/byteball) as samples, for APIs see the `exports` of node.js modules.
+See the [Developer resources site](https://developer.byteball.org).  Also, you'll find loads of examples in other [byteball repositories](https://github.com/byteball). For internal APIs, see the `exports` of node.js modules.
+
+This repo is normally used as a library and not installed on its own, but if you are contributing to this project then fork, `git pull`, `npm install`, and `npm test` to run the tests.
 
 ## Configuring
 
