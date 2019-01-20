@@ -633,7 +633,7 @@ CREATE TABLE shared_address_signing_paths (
 	-- own address is not present in correspondents
 --    FOREIGN KEY byDeviceAddress(device_address) REFERENCES correspondent_devices(device_address)
 );
-
+CREATE INDEX sharedAddressSigningPathsByDeviceAddress ON shared_address_signing_paths(device_address);
 
 CREATE TABLE outbox (
 	message_hash CHAR(44) NOT NULL PRIMARY KEY,
@@ -768,4 +768,4 @@ CREATE TABLE original_addresses (
 );
 
 
-PRAGMA user_version=21;
+PRAGMA user_version=22;

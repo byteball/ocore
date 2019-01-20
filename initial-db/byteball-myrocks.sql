@@ -581,7 +581,7 @@ CREATE TABLE shared_address_signing_paths (
 	-- own address is not present in correspondents
 	-- FOREIGN KEY (device_address) REFERENCES correspondent_devices(device_address)
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
-
+CREATE INDEX sharedAddressSigningPathsByDeviceAddress ON shared_address_signing_paths(device_address);
 
 CREATE TABLE outbox (
 	message_hash CHAR(44) BINARY NOT NULL PRIMARY KEY,

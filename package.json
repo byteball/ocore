@@ -1,9 +1,10 @@
 {
-  "name": "byteballcore",
-  "description": "Byteball Core",
-  "author": "Byteball",
+  "name": "ocore",
+  "description": "Obyte Core",
+  "author": "Obyte",
   "version": "0.2.93",
   "keywords": [
+    "obyte",
     "byteball",
     "DAG",
     "DLT",
@@ -12,14 +13,14 @@
     "smart contract",
     "multisignature"
   ],
-  "homepage": "https://github.com/byteball/byteballcore",
+  "homepage": "https://github.com/byteball/ocore",
   "license": "MIT",
   "repository": {
-    "url": "git://github.com/byteball/byteballcore.git",
+    "url": "git://github.com/byteball/ocore.git",
     "type": "git"
   },
   "bugs": {
-    "url": "https://github.com/byteball/byteballcore/issues"
+    "url": "https://github.com/byteball/ocore/issues"
   },
   "browser": {
     "request": "browser-request",
