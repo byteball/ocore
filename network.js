@@ -1635,11 +1635,24 @@ function handleHashTree(ws, request, response){
 	});
 }
 
+function haveManyUnhandledHashTreeBalls(){
+	var count = 0;
+	for (var ball in storage.assocHashTreeUnitsByBall){
+		var unit = storage.assocHashTreeUnitsByBall[ball];
+		if (!storage.assocUnstableUnits[unit]){
+			count++;
+			if (count > 30)
+				return true;
+		}
+	}
+	return false;
+}
+
 function waitTillHashTreeFullyProcessedAndRequestNext(ws){
 	setTimeout(function(){
 	//	db.query("SELECT COUNT(*) AS count FROM hash_tree_balls LEFT JOIN units USING(unit) WHERE units.unit IS NULL", function(rows){
-			var count = Object.keys(storage.assocHashTreeUnitsByBall).length;
-			if (count <= 30){
+		//	var count = Object.keys(storage.assocHashTreeUnitsByBall).length;
+			if (!haveManyUnhandledHashTreeBalls()){
 				findNextPeer(ws, function(next_ws){
 					requestNextHashTree(next_ws);
 				});
