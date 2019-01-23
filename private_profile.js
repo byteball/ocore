@@ -113,8 +113,11 @@ function savePrivateProfile(objPrivateProfile, address, attestor_address, onDone
 	);
 }
 
-function getFieldsForAddress(address, cb) {
-	db.query("SELECT field, value, attestor_address, unit FROM private_profile_fields JOIN private_profiles USING (private_profile_id) WHERE address=?", [address], function(rows){
+function getFieldsForAddress(address, arrTrustedAttestorAddresses, cb) {
+
+	db.query("SELECT field, value, attestor_address, attestor_address IN (?) AS trusted, unit, private_profiles.creation_date \n\
+		FROM private_profile_fields JOIN private_profiles USING (private_profile_id) WHERE address=? \n\
+		ORDER BY trusted ASC, private_profiles.creation_date ASC", [arrTrustedAttestorAddresses, address], function(rows){
 			var result = {};
 			rows.forEach(function(row) {
 				result[row.field] = row.value;
