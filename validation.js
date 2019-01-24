@@ -1275,10 +1275,14 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 			for (var feed_name in payload){
 				if (feed_name.length > constants.MAX_DATA_FEED_NAME_LENGTH)
 					return callback("feed name "+feed_name+" too long");
+				if (feed_name.indexOf('\n') >=0 )
+					return callback("feed name "+feed_name+" contains \\n");
 				var value = payload[feed_name];
 				if (typeof value === 'string'){
 					if (value.length > constants.MAX_DATA_FEED_VALUE_LENGTH)
 						return callback("value "+value+" too long");
+					if (value.indexOf('\n') >=0 )
+						return callback("value "+value+" of feed name "+feed_name+" contains \\n");
 				}
 				else if (typeof value === 'number'){
 					if (!isInteger(value))
