@@ -2905,6 +2905,23 @@ function onWebsocketMessage(message) {
 	}
 }
 
+// @see https://www.npmjs.com/package/ws#multiple-servers-sharing-a-single-https-server
+function handleUpgradeConnection(incomingRequest, socket, head) {
+	if (!(wss instanceof WebSocketServer)) throw new Error('reuse port and upgrade connection in light node is not supported')
+
+	if (incomingRequest instanceof require('net').Server && !socket && !head) {
+		incomingRequest.on('upgrade', function(_request, _socket, _head) {
+			upgrade(_request, _socket, _head)
+		})
+	} else upgrade(incomingRequest, socket, head)
+
+	function upgrade($request, $socket, $head) {
+		wss.handleUpgrade($request, $socket, $head, function(ws) {
+			wss.emit('connection', ws, request);
+		})
+	}
+}
+
 function startAcceptingConnections(){
 	db.query("DELETE FROM watched_light_addresses");
 	db.query("DELETE FROM watched_light_units");
@@ -2912,7 +2929,7 @@ function startAcceptingConnections(){
 	setInterval(unblockPeers, 10*60*1000);
 	initBlockedPeers();
 	// listen for new connections
-	wss = new WebSocketServer({ port: conf.port });
+	wss = new WebSocketServer(conf.portReuse ? { noServer: true } : { port: conf.port });
 	wss.on('connection', function(ws) {
 		var ip = ws.upgradeReq.connection.remoteAddress;
 		if (!ip){
@@ -3059,6 +3076,7 @@ exports.sendRequest = sendRequest;
 exports.sendResponse = sendResponse;
 exports.findOutboundPeerOrConnect = findOutboundPeerOrConnect;
 exports.handleOnlineJoint = handleOnlineJoint;
+exports.handleUpgradeConnection = handleUpgradeConnection
 
 exports.handleOnlinePrivatePayment = handleOnlinePrivatePayment;
 exports.requestUnfinishedPastUnitsOfPrivateChains = requestUnfinishedPastUnitsOfPrivateChains;
