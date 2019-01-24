@@ -113,11 +113,24 @@ function savePrivateProfile(objPrivateProfile, address, attestor_address, onDone
 	);
 }
 
-function getFieldsForAddress(address, arrTrustedAttestorAddresses, cb) {
-
-	db.query("SELECT field, value, attestor_address, attestor_address IN (?) AS trusted, unit, private_profiles.creation_date \n\
-		FROM private_profile_fields JOIN private_profiles USING (private_profile_id) WHERE address=? \n\
-		ORDER BY trusted ASC, private_profiles.creation_date ASC", [arrTrustedAttestorAddresses, address], function(rows){
+function getFieldsForAddress(address, fields, arrTrustedAttestorAddresses, cb) {
+	// selects LAST attestation, preferrably from trusted attestor that has full set of requested fields
+	db.query("SELECT \n\
+				field, value, \n\
+				attestor_address, \n\
+				attestor_address IN (?) AS trusted, \n\
+				unit \n\
+			FROM private_profile_fields \n\
+			JOIN private_profiles USING (private_profile_id) \n\
+			JOIN units USING(unit) \n\
+			JOIN (SELECT private_profile_id \n\
+				FROM private_profile_fields \n\
+				WHERE field IN (?) \n\
+				GROUP BY private_profile_id \n\
+				HAVING COUNT(1) = ?) AS full_set \n\
+			USING(private_profile_id) \n\
+			WHERE address=? AND field IN (?) \n\
+			ORDER BY trusted DESC, units.main_chain_index DESC LIMIT ?", [arrTrustedAttestorAddresses, fields, fields.length, address, fields, fields.length], function(rows){
 			var result = {};
 			rows.forEach(function(row) {
 				result[row.field] = row.value;
