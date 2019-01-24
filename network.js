@@ -1449,9 +1449,6 @@ function initBlockedPeers(){
 	);
 }
 
-if (!conf.bLight)
-	setInterval(function(){flushEvents(true)}, 1000 * 60);
-
 
 function findAndHandleJointsThatAreReady(unit){
 	joint_storage.readDependentJointsThatAreReady(unit, handleSavedJoint);
@@ -3021,6 +3018,7 @@ function startRelay(){
 	}
 	// purge peer_events every 6 hours, removing those older than 0.5 days ago.
 	setInterval(purgePeerEvents, 6*60*60*1000);
+	setInterval(function(){flushEvents(true)}, 1000 * 60);
 	
 	// request needed joints that were not received during the previous session
 	rerequestLostJoints();
