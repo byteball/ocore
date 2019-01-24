@@ -497,7 +497,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					var created_dt = Date.parse(objContract.creation_date.replace(' ', 'T'));
 					if (created_dt + objContract.ttl * 60 * 60 * 1000 < Date.now())
 						return callbacks.ifError("contract already expired");
-					prosaic_contract.setField("status", objContract.hash, body.status);
+					prosaic_contract.setField(objContract.hash, "status", body.status);
 					eventBus.emit("text", from_address, "contract " + body.status, ++message_counter);
 					eventBus.emit("prosaic-contract-response-recieved" + body.hash, (body.status === "accepted"), body.authors);
 					callbacks.ifOk();
@@ -521,7 +521,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 							return callbacks.ifError("shared_address was already provided for this contract");
 						if (!ValidationUtils.isValidAddress(body.value))
 							return callbacks.ifError("invalid address provided");
-						prosaic_contract.setField(body.field, objContract.hash, body.value);
+						prosaic_contract.setField(objContract.hash, body.field, body.value);
 						callbacks.ifOk();
 						break;
 					default:
@@ -813,7 +813,7 @@ function findAddress(address, signing_path, callbacks, fallback_remote_device_ad
 								});
 							}
 							if (candidate_addresses.length > 1)
-								throw Error("more than 1 member address found for peer address "+address+" and signing path "+signing_path);
+								throw Error("more than 1 candidate device address found for peer address "+address+" and signing path "+signing_path);
 							if (candidate_addresses.length == 1)
 								return callbacks.ifRemote(candidate_addresses[0]);
 							if (fallback_remote_device_address)

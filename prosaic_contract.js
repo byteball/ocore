@@ -33,7 +33,7 @@ function getAllActive(cb) {
 	});
 }
 
-function setField(field, hash, value, cb) {
+function setField(hash, field, value, cb) {
 	db.query("UPDATE prosaic_contracts SET " + db.escape(field) + "=? WHERE hash=?", [value, hash], function(err, res) {
 		if (cb)
 			cb(err, res);
