@@ -767,7 +767,7 @@ CREATE TABLE original_addresses (
 	FOREIGN KEY (unit) REFERENCES units(unit)
 );
 
-CREATE TABLE IF NOT EXISTS peer_addresses (
+CREATE TABLE peer_addresses (
 	address CHAR(32) NOT NULL,
 	signing_paths VARCHAR(255) NULL,
 	device_address CHAR(33) NOT NULL,
@@ -777,14 +777,14 @@ CREATE TABLE IF NOT EXISTS peer_addresses (
 	FOREIGN KEY (device_address) REFERENCES correspondent_devices(device_address)
 );
 
-CREATE TABLE IF NOT EXISTS prosaic_contracts (
+CREATE TABLE prosaic_contracts (
 	hash CHAR(44) NOT NULL PRIMARY KEY,
 	peer_address CHAR(32) NOT NULL,
 	peer_device_address CHAR(33) NOT NULL,
 	my_address  CHAR(32) NOT NULL,
 	is_incoming TINYINT NOT NULL,
 	creation_date TIMESTAMP NOT NULL,
-	ttl INT NOT NULL DEFAULT 168, -- 168 hours = 24 * 7 = 1 week
+	ttl REAL NOT NULL DEFAULT 168, -- 168 hours = 24 * 7 = 1 week
 	status TEXT CHECK (status IN('pending', 'revoked', 'accepted', 'declined')) NOT NULL DEFAULT 'active',
 	`text` TEXT NOT NULL,
 	shared_address CHAR(32),

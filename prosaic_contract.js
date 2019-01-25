@@ -9,7 +9,7 @@ var status_PENDING = 'pending';
 
 function createAndSend(hash, peer_address, peer_device_address, my_address, creation_date, ttl, text, cosigners, cb) {
 	db.query("INSERT INTO prosaic_contracts (hash, peer_address, peer_device_address, my_address, is_incoming, creation_date, ttl, status, text, cosigners) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [hash, peer_address, peer_device_address, my_address, false, creation_date, ttl, status_PENDING, text, JSON.stringify(cosigners)], function() {
-		var objContract = {text: text, creation_date: creation_date, hash: hash, peer_address: my_address, ttl: ttl, status: status_PENDING, address: peer_address};
+		var objContract = {text: text, creation_date: creation_date, hash: hash, peer_address: my_address, ttl: ttl, address: peer_address};
 		device.sendMessageToDevice(peer_device_address, "prosaic_contract_offer", objContract);
 		if (cb)
 			cb(objContract);
@@ -27,7 +27,7 @@ function getBySharedAddress(address, cb) {
 	});
 }
 
-function getAllActive(cb) {
+function getAllPending(cb) {
 	db.query("SELECT hash, my_address, peer_address, peer_device_address, cosigners FROM prosaic_contracts WHERE status='pending'", [], function(rows){
 		cb(rows);
 	});
@@ -60,6 +60,6 @@ exports.createAndSend = createAndSend;
 exports.getByHash = getByHash;
 exports.getBySharedAddress = getBySharedAddress;
 exports.respond = respond;
-exports.getAllActive = getAllActive;
+exports.getAllPending = getAllPending;
 exports.setField = setField;
 exports.store = store;

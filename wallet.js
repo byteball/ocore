@@ -483,11 +483,11 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 						return callbacks.ifError("wrong contract signature");
 					if (body.authors && body.authors.length) {
 						if (body.authors.length !== 1)
-							return callbacks.ifError("wrong number of authors recieved");
+							return callbacks.ifError("wrong number of authors received");
 						var author = body.authors[0];
 						if (author.definition && (author.address !== objectHash.getChash160(author.definition)))
-							return callbacks.ifError("incorrect definition recieved");
-						if (!ValidationUtils.isValidAddress(author.address))
+							return callbacks.ifError("incorrect definition received");
+						if (!ValidationUtils.isValidAddress(author.address) || author.address !== objContract.peer_address)
 							return callbacks.ifError("incorrect author address");
 						db.query("INSERT "+db.getIgnore()+" INTO peer_addresses (address, device_address, signing_paths, definition) VALUES (?, ?, ?, ?)",
 								[author.address, from_address, JSON.stringify(Object.keys(author.authentifiers)), JSON.stringify(author.definition)]);
@@ -499,7 +499,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 						return callbacks.ifError("contract already expired");
 					prosaic_contract.setField(objContract.hash, "status", body.status);
 					eventBus.emit("text", from_address, "contract " + body.status, ++message_counter);
-					eventBus.emit("prosaic-contract-response-recieved" + body.hash, (body.status === "accepted"), body.authors);
+					eventBus.emit("prosaic_contract_response_received" + body.hash, (body.status === "accepted"), body.authors);
 					callbacks.ifOk();
 				});
 			});

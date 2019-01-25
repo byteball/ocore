@@ -766,7 +766,7 @@ CREATE TABLE IF NOT EXISTS prosaic_contracts (
 	my_address  CHAR(32) NOT NULL,
 	is_incoming TINYINT NOT NULL,
 	creation_date TIMESTAMP NOT NULL,
-	ttl INT NOT NULL DEFAULT 168, -- 168 hours = 24 * 7 = 1 week
+	ttl REAL NOT NULL DEFAULT 168, -- 168 hours = 24 * 7 = 1 week
 	status TEXT CHECK (status IN('pending', 'revoked', 'accepted', 'declined')) NOT NULL DEFAULT 'active',
 	`text` TEXT NOT NULL,
 	shared_address CHAR(32),

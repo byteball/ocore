@@ -336,6 +336,8 @@ function composeJoint(params){
 		},
 		function(cb){ // authors
 			composeAuthorsForAddresses(conn, arrFromAddresses, last_ball_mci, signer, function(err, authors) {
+				if (err)
+					return cb(err);
 				objUnit.authors = authors;
 				cb();
 			});
