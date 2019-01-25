@@ -2787,17 +2787,18 @@ function handleRequest(ws, tag, command, params){
 			if (addresses.length > 100)
 				return sendErrorResponse(ws, tag, "too many addresses");
 			db.query(
-				"SELECT address, asset, is_stable, SUM(amount) AS balance \n\
+				"SELECT address, asset, is_stable, SUM(amount) AS balance, COUNT(*) AS outputs_count \n\
 				FROM outputs JOIN units USING(unit) \n\
 				WHERE is_spent=0 AND address IN(?) AND sequence='good' \n\
 				GROUP BY address, asset, is_stable", [addresses], function(rows) {
 					var balances = {};
 					rows.forEach(function(row) {
 						if (!balances[row.address])
-							balances[row.address] = { base: { stable: 0, pending: 0 }};
+							balances[row.address] = { base: { stable: 0, pending: 0, stable_outputs_count: 0, pending_outputs_count: 0}};
 						if (row.asset && !balances[row.address][row.asset])
-							balances[row.address][row.asset] = { stable: 0, pending: 0 };
+							balances[row.address][row.asset] = { stable: 0, pending: 0, outputs_count: 0, stable_outputs_count: 0, pending_outputs_count: 0};
 						balances[row.address][row.asset || 'base'][row.is_stable ? 'stable' : 'pending'] = row.balance;
+						balances[row.address][row.asset || 'base'][row.is_stable ? 'stable_outputs_count' : 'pending_outputs_count'] = row.outputs_count;
 					});
 					sendResponse(ws, tag, balances);
 				}
