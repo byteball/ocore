@@ -36,10 +36,14 @@ var assocWitnessListMci = {};
 
 function hasValidHashes(objJoint){
 	var objUnit = objJoint.unit;
-	
-	if (objectHash.getUnitHash(objUnit) !== objUnit.unit)
+	try {
+		if (objectHash.getUnitHash(objUnit) !== objUnit.unit)
+			return false;
+	}
+	catch(e){
+		console.log("failed to calc unit hash: "+e);
 		return false;
-	
+	}
 	return true;
 }
 
@@ -1078,7 +1082,7 @@ function validateMessage(conn, objMessage, message_index, objUnit, objValidation
 		if (!isStringOfLength(objMessage.payload_uri_hash, constants.HASH_LENGTH))
 			return callback("wrong length of payload uri hash");
 		if (objMessage.payload_uri.length > 500)
-			return callback("payload_uri too long");
+			return callback("payload_uri too long");	
 		if (objectHash.getBase64Hash(objMessage.payload_uri) !== objMessage.payload_uri_hash)
 			return callback("wrong payload_uri hash");
 	}
@@ -1181,8 +1185,13 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 	var payload = objMessage.payload;
 	if (typeof payload === "undefined")
 		return callback("no inline payload");
-	if (objectHash.getBase64Hash(payload) !== objMessage.payload_hash)
-		return callback("wrong payload hash: expected "+objectHash.getBase64Hash(payload)+", got "+objMessage.payload_hash);
+	try{
+		if (objectHash.getBase64Hash(payload) !== objMessage.payload_hash)
+			return callback("wrong payload hash: expected "+objectHash.getBase64Hash(payload)+", got "+objMessage.payload_hash);
+	}
+	catch(e){
+		return callback("failed to calc payload hash: "+e);
+	}
 
 	switch (objMessage.app){
 
@@ -1940,8 +1949,13 @@ function initPrivatePaymentValidationState(conn, unit, message_index, payload, o
 			var bStable = (row.is_stable === 1); // it's ok if the unit is not stable yet
 			if (row.app !== "payment")
 				return onError("invalid app");
-			if (objectHash.getBase64Hash(payload) !== row.payload_hash)
-				return onError("payload hash does not match");
+			try{
+				if (objectHash.getBase64Hash(payload) !== row.payload_hash)
+					return onError("payload hash does not match");
+			}
+			catch(e){
+				return onError("failed to calc payload hash: "+e);
+			}
 			var objValidationState = {
 				last_ball_mci: row.last_ball_mci,
 				arrDoubleSpendInputs: [],
@@ -2136,15 +2150,24 @@ function validateSignedMessage(objSignedMessage, handleResult){
 	if (typeof objAuthor.authentifiers !== 'object')
 		return handleResult("not valid authentifiers");
 	var arrAddressDefinition = objAuthor.definition;
-	if (objectHash.getChash160(arrAddressDefinition) !== objAuthor.address)
-		return handleResult("wrong definition: "+objectHash.getChash160(arrAddressDefinition) +"!=="+ objAuthor.address);
+	try{
+		if (objectHash.getChash160(arrAddressDefinition) !== objAuthor.address)
+			return handleResult("wrong definition: "+objectHash.getChash160(arrAddressDefinition) +"!=="+ objAuthor.address);
+	} catch(e) {
+		return handleResult("failed to calc address definition hash: " +e);
+	}
 	var objUnit = _.clone(objSignedMessage);
 	objUnit.messages = []; // some ops need it
-	var objValidationState = {
-		unit_hash_to_sign: objectHash.getUnitHashToSign(objSignedMessage),
-		last_ball_mci: -1,
-		bNoReferences: true
-	};
+	try{
+		var objValidationState = {
+			unit_hash_to_sign: objectHash.getUnitHashToSign(objSignedMessage),
+			last_ball_mci: -1,
+			bNoReferences: true
+		};
+	}
+	catch(e) {
+		return handleResult("failed to calc unit_hash_to_sign: " +e);
+	}
 	// passing db as null
 	Definition.validateAuthentifiers(
 		null, objAuthor.address, null, arrAddressDefinition, objUnit, objValidationState, objAuthor.authentifiers, 
