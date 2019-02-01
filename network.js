@@ -368,7 +368,7 @@ function connectToPeer(url, onOpen) {
 		options.agent = new SocksProxyAgent({
 			hostname: conf.socksHost,
 			port: conf.socksPort,
-			protocol: 'socks5'
+			protocol: 'socks5h'
 		});
 		console.log('Using proxy: ' + conf.socksHost + ':' + conf.socksPort);
 	}
