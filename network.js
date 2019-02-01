@@ -1,7 +1,7 @@
 /*jslint node: true */
 "use strict";
 var WebSocket = process.browser ? global.WebSocket : require('ws');
-var socks = process.browser ? null : require('socks'+'');
+var SocksProxyAgent = process.browser ? null : require('socks-proxy-agent'+'');
 var WebSocketServer = WebSocket.Server;
 var crypto = require('crypto');
 var _ = require('lodash');
@@ -364,14 +364,12 @@ function checkIfHaveEnoughOutboundPeersAndAdd(){
 function connectToPeer(url, onOpen) {
 	addPeer(url);
 	var options = {};
-	if (socks && conf.socksHost && conf.socksPort) {
-		options.agent = new socks.Agent({
-			proxy: {
-				ipaddress: conf.socksHost,
-				port: conf.socksPort,
-				type: 5
-			}
-		}, /^wss/i.test(url));
+	if (SocksProxyAgent && conf.socksHost && conf.socksPort) {
+		options.agent = new SocksProxyAgent({
+			hostname: conf.socksHost,
+			port: conf.socksPort,
+			protocol: 'socks5'
+		});
 		console.log('Using proxy: ' + conf.socksHost + ':' + conf.socksPort);
 	}
 	var ws = options.agent ? new WebSocket(url,options) : new WebSocket(url);
