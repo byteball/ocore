@@ -229,6 +229,7 @@ function migrateDb(connection, onDone){
 						creation_date TIMESTAMP NOT NULL, \n\
 						ttl INT NOT NULL DEFAULT 168, -- 168 hours = 24 * 7 = 1 week \n\
 						status TEXT CHECK (status IN('pending', 'revoked', 'accepted', 'declined')) NOT NULL DEFAULT 'active', \n\
+						title VARCHAR(1000) NOT NULL, \n\
 						`text` TEXT NOT NULL, \n\
 						shared_address CHAR(32), \n\
 						unit CHAR(44), \n\
