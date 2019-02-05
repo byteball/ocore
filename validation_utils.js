@@ -78,7 +78,7 @@ function isNonemptyObject(obj){
 }
 
 function isValidBase64(b64, len){
-	return (typeof b64 === "string" && b64.length === len && b64 === (new Buffer(b64, "base64")).toString("base64"));
+	return (typeof b64 === "string" && (!len || b64.length === len) && b64 === (new Buffer(b64, "base64")).toString("base64"));
 }
 
 function isValidEmail(str) {

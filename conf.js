@@ -7,11 +7,18 @@ function mergeExports(anotherModule){
 		exports[key] = anotherModule[key];
 }
 
+// start node explicitly by `require('ocore/network').start()`
+//exports.explicitStart = true
+
 // port we are listening on.  Set to null to disable accepting connections
 // recommended port for livenet: 6611
 // recommended port for testnet: 16611
 exports.port = null;
 //exports.port = 6611;
+
+// enable this will make websocket server doesn't spawn on new port
+// this is usefull if you already have SocketServer running and want to reuse the port
+//exports.portReuse = true;
 
 // how peers connect to me
 //exports.myUrl = 'wss://example.org/bb';

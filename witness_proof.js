@@ -191,8 +191,13 @@ function processWitnessProof(arrUnstableMcJoints, arrWitnessChangeAndDefinitionJ
 				if (!definition_chash)
 					throw Error("definition chash not known for address "+address+", unit "+objUnit.unit);
 				if (author.definition){
-					if (objectHash.getChash160(author.definition) !== definition_chash)
-						return cb3("definition doesn't hash to the expected value");
+					try{
+						if (objectHash.getChash160(author.definition) !== definition_chash)
+							return cb3("definition doesn't hash to the expected value");
+					}
+					catch(e){
+						return cb3("failed to calc definition chash: " +e);
+					}
 					assocDefinitions[definition_chash] = author.definition;
 					bFound = true;
 				}
