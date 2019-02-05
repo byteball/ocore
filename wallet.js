@@ -56,8 +56,13 @@ function handleJustsaying(ws, subject, body){
 				return network.sendError(ws, "not mine");
 			if (message_hash !== objectHash.getBase64Hash(objDeviceMessage))
 				return network.sendError(ws, "wrong hash");
-			if (!ecdsaSig.verify(objectHash.getDeviceMessageHashToSign(objDeviceMessage), objDeviceMessage.signature, objDeviceMessage.pubkey))
-				return respondWithError("wrong message signature");
+			try{
+				if (!ecdsaSig.verify(objectHash.getDeviceMessageHashToSign(objDeviceMessage), objDeviceMessage.signature, objDeviceMessage.pubkey))
+					return respondWithError("wrong message signature");
+			}
+			catch(e){
+				return respondWithError("failed to caculate message hash to sign:" + e);
+			}
 			// end of checks on the open (unencrypted) part of the message. These checks should've been made by the hub before accepting the message
 			
 			// decrypt the message
