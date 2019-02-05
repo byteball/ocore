@@ -8,7 +8,9 @@ var db = require('./db.js');
 var mutex = require('./mutex.js');
 var validation = require('./validation.js');
 var witnessProof = require('./witness_proof.js');
+var proofChain = require('./proof_chain.js');
 
+var MAX_CATCHUP_CHAIN_LENGTH = 1000000; // how many MCIs long
 
 
 function prepareCatchupChain(catchupRequest, callbacks){
@@ -35,6 +37,9 @@ function prepareCatchupChain(catchupRequest, callbacks){
 			witness_change_and_definition_joints: []
 		};
 		var last_ball_unit = null;
+		var last_ball_mci = null;
+		var last_chain_unit = null;
+		var bTooLong;
 		async.series([
 			function(cb){ // check if the peer really needs hash trees
 				db.query("SELECT is_stable FROM units WHERE is_on_main_chain=1 AND main_chain_index=?", [last_known_mci], function(rows){
@@ -55,14 +60,27 @@ function prepareCatchupChain(catchupRequest, callbacks){
 						if (arrWitnessChangeAndDefinitionJoints.length > 0)
 							objCatchupChain.witness_change_and_definition_joints = arrWitnessChangeAndDefinitionJoints;
 						last_ball_unit = _last_ball_unit;
+						last_ball_mci = _last_ball_mci;
+						bTooLong = (last_ball_mci - last_stable_mci > MAX_CATCHUP_CHAIN_LENGTH);
 						cb();
 					}
 				);
 			},
+			function(cb){
+				if (!bTooLong){ // short chain, no need for proof chain
+					last_chain_unit = last_ball_unit;
+					return cb();
+				}
+				objCatchupChain.proofchain_balls = [];
+				proofChain.buildProofChainOnMc(last_ball_mci, last_stable_mci + MAX_CATCHUP_CHAIN_LENGTH, objCatchupChain.proofchain_balls, function(){
+					last_chain_unit = objCatchupChain.proofchain_balls[objCatchupChain.proofchain_balls.length - 1].unit;
+					cb();
+				});
+			},
 			function(cb){ // jump by last_ball references until we land on or behind last_stable_mci
 				if (!last_ball_unit)
 					return cb();
-				goUp(last_ball_unit);
+				goUp(last_chain_unit);
 
 				function goUp(unit){
 					storage.readJointWithBall(db, unit, function(objJoint){
@@ -101,6 +119,10 @@ function processCatchupChain(catchupChain, peer, arrWitnesses, callbacks){
 		catchupChain.witness_change_and_definition_joints = [];
 	if (!Array.isArray(catchupChain.witness_change_and_definition_joints))
 		return callbacks.ifError("witness_change_and_definition_joints must be array");
+	if (!catchupChain.proofchain_balls)
+		catchupChain.proofchain_balls = [];
+	if (!Array.isArray(catchupChain.proofchain_balls))
+		return callbacks.ifError("proofchain_balls must be array");
 	
 	witnessProof.processWitnessProof(
 		catchupChain.unstable_mc_joints, catchupChain.witness_change_and_definition_joints, true, arrWitnesses,
@@ -109,15 +131,44 @@ function processCatchupChain(catchupChain, peer, arrWitnesses, callbacks){
 			if (err)
 				return callbacks.ifError(err);
 		
-			var objFirstStableJoint = catchupChain.stable_last_ball_joints[0];
-			var objFirstStableUnit = objFirstStableJoint.unit;
-			if (arrLastBallUnits.indexOf(objFirstStableUnit.unit) === -1)
-				return callbacks.ifError("first stable unit is not last ball unit of any unstable unit");
-			var last_ball_unit = objFirstStableUnit.unit;
-			var last_ball = assocLastBallByLastBallUnit[last_ball_unit];
-			if (objFirstStableJoint.ball !== last_ball)
-				return callbacks.ifError("last ball and last ball unit do not match: "+objFirstStableJoint.ball+"!=="+last_ball);
+			if (catchupChain.proofchain_balls.length > 0){
+				var assocKnownBalls = {};
+				for (var unit in assocLastBallByLastBallUnit){
+					var ball = assocLastBallByLastBallUnit[unit];
+					assocKnownBalls[ball] = true;
+				}
 
+				// proofchain
+				for (var i=0; i<catchupChain.proofchain_balls.length; i++){
+					var objBall = catchupChain.proofchain_balls[i];
+					if (objBall.ball !== objectHash.getBallHash(objBall.unit, objBall.parent_balls, objBall.skiplist_balls, objBall.is_nonserial))
+						return callbacks.ifError("wrong ball hash: unit "+objBall.unit+", ball "+objBall.ball);
+					if (!assocKnownBalls[objBall.ball])
+						return callbacks.ifError("ball not known: "+objBall.ball);
+					objBall.parent_balls.forEach(function(parent_ball){
+						assocKnownBalls[parent_ball] = true;
+					});
+					if (objBall.skiplist_balls)
+						objBall.skiplist_balls.forEach(function(skiplist_ball){
+							assocKnownBalls[skiplist_ball] = true;
+						});
+				}
+				assocKnownBalls = null; // free memory
+				var objEarliestProofchainBall = catchupChain.proofchain_balls[catchupChain.proofchain_balls.length - 1];
+				var last_ball_unit = objEarliestProofchainBall.unit;
+				var last_ball = objEarliestProofchainBall.ball;
+			}
+			else{
+				var objFirstStableJoint = catchupChain.stable_last_ball_joints[0];
+				var objFirstStableUnit = objFirstStableJoint.unit;
+				if (arrLastBallUnits.indexOf(objFirstStableUnit.unit) === -1)
+					return callbacks.ifError("first stable unit is not last ball unit of any unstable unit");
+				var last_ball_unit = objFirstStableUnit.unit;
+				var last_ball = assocLastBallByLastBallUnit[last_ball_unit];
+				if (objFirstStableJoint.ball !== last_ball)
+					return callbacks.ifError("last ball and last ball unit do not match: "+objFirstStableJoint.ball+"!=="+last_ball);
+			}
+			
 			// stable joints
 			var arrChainBalls = [];
 			for (var i=0; i<catchupChain.stable_last_ball_joints.length; i++){
