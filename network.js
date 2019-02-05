@@ -918,7 +918,6 @@ function forwardJoint(ws, objJoint){
 
 function handleJoint(ws, objJoint, bSaved, callbacks){
 	var unit = objJoint.unit.unit;
-
 	if (assocUnitsInWork[unit])
 		return callbacks.ifUnitInWork();
 	assocUnitsInWork[unit] = true;
@@ -2796,7 +2795,7 @@ function handleRequest(ws, tag, command, params){
 						if (!balances[row.address])
 							balances[row.address] = { base: { stable: 0, pending: 0, stable_outputs_count: 0, pending_outputs_count: 0}};
 						if (row.asset && !balances[row.address][row.asset])
-							balances[row.address][row.asset] = { stable: 0, pending: 0, outputs_count: 0, stable_outputs_count: 0, pending_outputs_count: 0};
+							balances[row.address][row.asset] = { stable: 0, pending: 0, stable_outputs_count: 0, pending_outputs_count: 0};
 						balances[row.address][row.asset || 'base'][row.is_stable ? 'stable' : 'pending'] = row.balance;
 						balances[row.address][row.asset || 'base'][row.is_stable ? 'stable_outputs_count' : 'pending_outputs_count'] = row.outputs_count;
 					});
