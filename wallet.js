@@ -1722,7 +1722,7 @@ function sendTextcoinEmail(email, subject, amount, asset, mnemonic){
 		mail.sendmail({
 			to: email,
 			from: conf.from_email || "noreply@obyte.org",
-			subject: subject || "Byteball user beamed you money",
+			subject: subject || "Obyte user beamed you money",
 			body: text,
 			htmlBody: html
 		});
