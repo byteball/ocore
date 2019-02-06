@@ -2338,7 +2338,7 @@ function handleJustsaying(ws, subject, body){
 			if (!ws.bLoggingIn && !ws.bLoggedIn) // accept from hub only
 				return;
 			ws.close(1000, "my core is old");
-			throw Error("Mandatory upgrade required, please check the release notes at https://github.com/byteball/byteball/releases and upgrade.");
+			throw Error("Mandatory upgrade required, please check the release notes at https://github.com/byteball/obyte-gui-wallet/releases and upgrade.");
 			break;
 			
 		case 'custom':
