@@ -1417,7 +1417,7 @@ function sendMultiPayment(opts, handleResult)
 
 			var signer = getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey);
 
-			// if we have any output with text addresses / not byteball addresses (e.g. email) - generate new addresses and return them
+			// if we have any output with text addresses / not obyte addresses (e.g. email) - generate new addresses and return them
 			var assocMnemonics = {}; // return all generated wallet mnemonics to caller in callback
 			var assocPaymentsByEmail = {}; // wallet mnemonics to send by emails
 			var assocAddresses = {};
