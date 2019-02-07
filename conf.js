@@ -66,7 +66,7 @@ exports.database = {};
 
 
 /*
-There are 3 ways to customize conf in modules that use byteballcore lib:
+There are 3 ways to customize conf in modules that use ocore lib:
 1. drop a custom conf.js into the project root.  The code below will find it and merge.  Will not work under browserify.
 2. drop a custom conf.json into the app's data dir inside the user's home dir.  The code below will find it and merge.  Will not work under browserify.
 3. require() this conf and modify it:
