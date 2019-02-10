@@ -101,6 +101,24 @@ test('2 + 2 * 2', t => {
 	});
 });
 
+test('10 - 5 + 1', t => {
+	evalFormula(0, "10 - 5 + 1", 0, 0, 0, res => {
+		t.deepEqual(res.eq(6), true);
+	});
+});
+
+test('15 - 5 + 2*3', t => {
+	evalFormula(0, "15 - 5 + 2*3", 0, 0, 0, res => {
+		t.deepEqual(res.eq(16), true);
+	});
+});
+
+test('5 - 3*4 + 2*3', t => {
+	evalFormula(0, "5 - 3*4 + 2*3", 0, 0, 0, res => {
+		t.deepEqual(res.eq(-1), true);
+	});
+});
+
 test('pi + 2', t => {
 	evalFormula(0, "pi + 2", 0, 0, 0, res => {
 		t.deepEqual(res.eq(Math.PI + 2), true);
