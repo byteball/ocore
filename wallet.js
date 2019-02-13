@@ -514,25 +514,24 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			prosaic_contract.getByHash(body.hash, function(objContract){
 				if (!objContract || objContract.peer_device_address !== from_address)
 					return callbacks.ifError("wrong contract hash or not an owner");
-				switch (body.field) {
-					case "status": // no breaks here, intentionally, all 3 are successful scenarios
-						if (body.value !== "revoked" || objContract.status !== "pending")
+				if (body.field == "status") {
+					if (body.value !== "revoked" || objContract.status !== "pending")
 							return callbacks.ifError("wrong status for contract supplied");
-					case "unit":
-						if (objContract.unit)
+				} else 
+				if (body.field == "unit") {
+					if (objContract.unit)
 							return callbacks.ifError("unit was already provided for this contract");
-					case "shared_address":
-						if (objContract.shared_address)
+				} else
+				if (body.field == "shared_address") {
+					if (objContract.shared_address)
 							return callbacks.ifError("shared_address was already provided for this contract");
 						if (!ValidationUtils.isValidAddress(body.value))
 							return callbacks.ifError("invalid address provided");
-						prosaic_contract.setField(objContract.hash, body.field, body.value);
-						callbacks.ifOk();
-						break;
-					default:
-						return callbacks.ifError("wrong field");
-						break;
+				} else {
+					return callbacks.ifError("wrong field");
 				}
+				prosaic_contract.setField(objContract.hash, body.field, body.value);
+				callbacks.ifOk();
 			});
 			break;
 			
@@ -1450,10 +1449,14 @@ function getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey) {
 							eventBus.emit('refused_to_sign', device_address);
 					});
 					walletGeneral.sendOfferToSign(device_address, address, signing_path, objUnsignedUnit, assocPrivatePayloads);
-					if (!bRequestedConfirmation) {
-						eventBus.emit("confirm_on_other_devices");
-						bRequestedConfirmation = true;
-					}
+					db.query("SELECT peer_device_address FROM prosaic_contracts WHERE shared_address=?", [address], function(rows) {
+						if (rows.length && rows[0].peer_device_address === device_address) // do not show alert for peer address in prosaic contracts
+							return;
+						if (!bRequestedConfirmation) {
+							eventBus.emit("confirm_on_other_devices");
+							bRequestedConfirmation = true;
+						}
+					});
 				},
 				ifMerkle: function (bLocal) {
 					if (!bLocal)
