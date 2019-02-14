@@ -59,13 +59,6 @@ exports.validate = function (formula, complexity, callback) {
 					cb(!error);
 				});
 				break;
-			case 'sin':
-			case 'cos':
-			case 'tan':
-			case 'asin':
-			case 'acos':
-			case 'atan':
-			case 'log':
 			case 'sqrt':
 			case 'ceil':
 			case 'floor':
@@ -376,27 +369,6 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 				}, function (err) {
 					cb(err ? false : prevV);
 				});
-				break;
-			case 'sin':
-			case 'cos':
-			case 'tan':
-			case 'asin':
-			case 'acos':
-			case 'atan':
-			case 'log':
-				if (BigNumber.isBigNumber(arr[1])) {
-					cb(new BigNumber(Math[op](arr[1].toNumber())));
-				} else {
-					evaluate(arr[1], function (res) {
-						if (BigNumber.isBigNumber(res)) {
-							cb(new BigNumber(Math[op](res.toNumber())));
-						} else {
-							fatal_error = true;
-							console.log('not a bignumber in '+op);
-							cb(false);
-						}
-					});
-				}
 				break;
 			case 'sqrt':
 				if (BigNumber.isBigNumber(arr[1])) {

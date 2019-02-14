@@ -23,7 +23,7 @@
 		data_feed: ['data_feed', 'in_data_feed'],
 		comparisonOperators: ["==", ">=", "<=", "!=", ">", "<", "="],
 		dfParamsName: ['oracles', 'feed_name', 'min_mci', 'feed_value', 'ifseveral', 'ifnone', 'what'],
-		name: ['sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round'],
+		name: ['min', 'max', 'pi', 'e', 'sqrt', 'ceil', 'floor', 'round'],
 		and: ['and', 'AND'],
 		or: ['or', 'OR'],
 		not: ['not', 'NOT', '!'],
@@ -92,18 +92,9 @@ AS -> AS "+" MD {% function(d) {return ['+', d[0], d[2]]; } %}
     | MD            {% id %}
 
 N -> float          {% id %}
-    | "sin" P     {% function(d) {return ['sin', d[1]]; } %}
-    | "cos" P     {% function(d) {return ['cos', d[1]]; } %}
-    | "tan" P     {% function(d) {return ['tan', d[1]]; } %}
-
-    | "asin" P    {% function(d) {return ['asin', d[1]]; } %}
-    | "acos" P    {% function(d) {return ['acos', d[1]]; } %}
-    | "atan" P    {% function(d) {return ['atan', d[1]]; } %}
-
     | "pi"          {% function(d) {return ['pi']; } %}
     | "e"           {% function(d) {return ['e']; } %}
     | "sqrt" P    {% function(d) {return ['sqrt', d[1]]; } %}
-    | "ln" P      {% function(d) {return ['log', d[1]]; }  %}
     | "min" %l (AS %comma:*):+ %r  {% function(d) {var params = d[2].map(function(v){return v[0]});return ['min', params]; }  %}
     | "max" %l (AS %comma:*):+ %r  {% function(d) {var params = d[2].map(function(v){return v[0]});return ['max', params]; }  %}
     | "ceil" P    {% function(d) {return ['ceil', d[1]]; } %}
