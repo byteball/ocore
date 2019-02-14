@@ -519,10 +519,14 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 							return callbacks.ifError("wrong status for contract supplied");
 				} else 
 				if (body.field == "unit") {
+					if (objContract.status !== "accepted")
+						return callbacks.ifError("contract was not accepted");
 					if (objContract.unit)
 							return callbacks.ifError("unit was already provided for this contract");
 				} else
 				if (body.field == "shared_address") {
+					if (objContract.status !== "accepted")
+						return callbacks.ifError("contract was not accepted");
 					if (objContract.shared_address)
 							return callbacks.ifError("shared_address was already provided for this contract");
 						if (!ValidationUtils.isValidAddress(body.value))

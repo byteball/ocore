@@ -115,6 +115,8 @@ function savePrivateProfile(objPrivateProfile, address, attestor_address, onDone
 
 function getFieldsForAddress(address, fields, arrTrustedAttestorAddresses, cb) {
 	// selects LAST attestation, preferrably from trusted attestor that has full set of requested fields
+	if (!arrTrustedAttestorAddresses.length)
+		arrTrustedAttestorAddresses = [null];
 	db.query("SELECT \n\
 				field, value, \n\
 				attestor_address, \n\
