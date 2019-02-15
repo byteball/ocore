@@ -2,8 +2,8 @@
 "use strict";
 var db = require('./db.js');
 var device = require('./device.js');
-var wallet = require('./wallet.js');
 var composer = require('./composer.js');
+var objectHash = require('./object_hash.js');
 
 var status_PENDING = 'pending';
 exports.CHARGE_AMOUNT = 2000;
@@ -19,23 +19,34 @@ function createAndSend(hash, peer_address, peer_device_address, my_address, crea
 
 function getByHash(hash, cb) {
 	db.query("SELECT * FROM prosaic_contracts WHERE hash=?", [hash], function(rows){
-		cb(rows.length ? rows[0] : null);			
+		if (!rows.length)
+			return cb(null);
+		var contract = rows[0];
+		cb(decodeRow(contract));			
 	});
 }
 function getBySharedAddress(address, cb) {
 	db.query("SELECT * FROM prosaic_contracts WHERE shared_address=?", [address], function(rows){
-		cb(rows.length ? rows[0] : null);			
+		if (!rows.length)
+			return cb(null);
+		var contract = rows[0];
+		cb(decodeRow(contract));
 	});
 }
 
 function getAllByStatus(status, cb) {
-	db.query("SELECT hash, title, my_address, peer_address, peer_device_address, cosigners, creation_date FROM prosaic_contracts WHERE status=?", [status], function(rows){
+	db.query("SELECT hash, title, my_address, peer_address, peer_device_address, cosigners, creation_date FROM prosaic_contracts WHERE status=? ORDER BY creation_date DESC", [status], function(rows){
+		rows.forEach(function(row) {
+			row = decodeRow(row);
+		});
 		cb(rows);
 	});
 }
 
 function setField(hash, field, value, cb) {
-	db.query("UPDATE prosaic_contracts SET " + db.escape(field) + "=? WHERE hash=?", [value, hash], function(err, res) {
+	if (!["status", "shared_address", "unit"].includes(field))
+		throw new Error("wrong field for setField method");
+	db.query("UPDATE prosaic_contracts SET " + field + "=? WHERE hash=?", [value, hash], function(err, res) {
 		if (cb)
 			cb(err, res);
 	});
@@ -49,12 +60,25 @@ function store(objContract, cb) {
 	});
 }
 
-function respond(objContract, status, signedMessageBase64, authors, cb) {
-	composer.composeAuthorsAndMciForAddresses(db, [objContract.address], wallet.getSigner(), function(err, authors) {
+function respond(objContract, status, signedMessageBase64, signer, cb) {
+	if (!cb)
+		cb = function(){};
+	composer.composeAuthorsAndMciForAddresses(db, [objContract.address], signer, function(err, authors) {
+		if (err)
+			return cb(err);
 		device.sendMessageToDevice(objContract.peer_device_address, "prosaic_contract_response", {hash: objContract.hash, status: status, signed_message: signedMessageBase64, authors: authors});
-		if (cb)
-			cb();
+		cb();
 	});
+}
+
+function getHash(contract) {
+	return objectHash.getBase64Hash(contract.title + contract.text + contract.creation_date);
+}
+
+function decodeRow(row) {
+	if (row.cosigners)
+		row.cosigners = JSON.parse(row.cosigners);
+	return row;
 }
 
 exports.createAndSend = createAndSend;
@@ -64,3 +88,4 @@ exports.respond = respond;
 exports.getAllByStatus = getAllByStatus;
 exports.setField = setField;
 exports.store = store;
+exports.getHash = getHash;

@@ -464,8 +464,14 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 		
 		case 'prosaic_contract_offer':
 			body.peer_device_address = from_address;
+			if (!body.title || !body.text || !body.creation_date)
+				return callbacks.ifError("not all contract fields submitted");
+			if (!ValidationUtils.isValidAddress(body.peer_address) || !ValidationUtils.isValidAddress(body.address))
+				return callbacks.ifError("either peer_address or address is not valid in contract");
+			if (body.hash !== prosaic_contract.getHash(body))
+				return callbacks.ifError("wrong contract hash");
 			prosaic_contract.store(body);
-			var chat_message = "(prosaic-contract:" + Buffer(JSON.stringify(body), 'utf8').toString('base64') + ")";
+			var chat_message = "(prosaic-contract:" + Buffer.from(JSON.stringify(body), 'utf8').toString('base64') + ")";
 			eventBus.emit("text", from_address, chat_message, ++message_counter);
 			callbacks.ifOk();
 			break;
@@ -473,10 +479,13 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 		case 'prosaic_contract_response':
 			var validation = require('./validation.js');
 
+			if (body.status !== "accepted" && body.status !== "declined")
+				return callbacks.ifError("wrong status supplied");
+
 			prosaic_contract.getByHash(body.hash, function(objContract){
 				if (!objContract || !body.signed_message)
 					return callbacks.ifError("wrong contract hash or signature");
-				var signedMessageJson = Buffer(body.signed_message, 'base64').toString('utf8');
+				var signedMessageJson = Buffer.from(body.signed_message, 'base64').toString('utf8');
 				try{
 					var objSignedMessage = JSON.parse(signedMessageJson);
 				}
