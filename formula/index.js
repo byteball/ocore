@@ -45,7 +45,7 @@ exports.validate = function (formula, complexity, callback) {
 	}
 	
 	function evaluate(arr, cb) {
-		if (Decimal.isDecimal(arr)) return cb(true);
+		if (Decimal.isDecimal(arr) && arr.isFinite()) return cb(true);
 		if(typeof arr !== 'object'){
 			if (typeof arr === 'boolean') return cb(true);
 			if (typeof arr === 'string') return cb(true);
@@ -59,7 +59,7 @@ exports.validate = function (formula, complexity, callback) {
 			case '/':
 			case '^':
 				async.eachSeries(arr.slice(1), function (param, cb2) {
-					if (Decimal.isDecimal(param)) {
+					if (Decimal.isDecimal(param) && param.isFinite()) {
 						cb2();
 					} else {
 						evaluate(param, function (res) {
@@ -74,7 +74,7 @@ exports.validate = function (formula, complexity, callback) {
 			case 'ceil':
 			case 'floor':
 			case 'round':
-				if (Decimal.isDecimal(arr[1])) {
+				if (Decimal.isDecimal(arr[1]) && arr[1].isFinite()) {
 					cb(true);
 				} else {
 					evaluate(arr[1], function (res) {
@@ -85,7 +85,7 @@ exports.validate = function (formula, complexity, callback) {
 			case 'min':
 			case 'max':
 				async.eachSeries(arr[1], function (param, cb2) {
-					if (Decimal.isDecimal(param)) {
+					if (Decimal.isDecimal(param) && param.isFinite()) {
 						cb2();
 					} else {
 						evaluate(param, function (res) {
@@ -108,7 +108,7 @@ exports.validate = function (formula, complexity, callback) {
 			case 'comparison':
 				if (arr[1] === '=') return cb(false);
 				async.eachSeries(arr.slice(2), function (param, cb2) {
-					if (Decimal.isDecimal(param)) {
+					if (Decimal.isDecimal(param) && param.isFinite()) {
 						cb2();
 					} else {
 						evaluate(param, function (res) {
@@ -121,7 +121,7 @@ exports.validate = function (formula, complexity, callback) {
 				break;
 			case 'ternary':
 				async.eachSeries(arr.slice(1), function (param, cb2) {
-					if (Decimal.isDecimal(param)) {
+					if (Decimal.isDecimal(param) && param.isFinite()) {
 						cb2();
 					} else if (typeof param === 'string') {
 						cb2();
@@ -150,7 +150,7 @@ exports.validate = function (formula, complexity, callback) {
 				break;
 			case 'concat':
 				async.eachSeries(arr.slice(1), function (param, cb2) {
-					if (Decimal.isDecimal(param)) {
+					if (Decimal.isDecimal(param) && param.isFinite()) {
 						cb2();
 					} else if (typeof param === 'string') {
 						cb2();
@@ -185,7 +185,11 @@ function inputOrOutputIsValid(params) {
 	for (var k in params) {
 		var operator = params[k].operator;
 		var value = params[k].value;
-		if (Decimal.isDecimal(value)) value = value.toString();
+		if (Decimal.isDecimal(value)){
+			if (!value.isFinite())
+				return false;
+			value = value.toString();
+		}
 		if (operator === '==') return false;
 		switch (k) {
 			case 'address':
@@ -212,7 +216,11 @@ function validateDataFeed(params) {
 		for (var k in params) {
 			var operator = params[k].operator;
 			var value = params[k].value;
-			if (Decimal.isDecimal(value)) value = value.toString();
+			if (Decimal.isDecimal(value)){
+				if (!value.isFinite())
+					return {error: true, complexity};
+				value = value.toString();
+			}
 			if (operator !== '=') return {error: true, complexity};
 			switch (k) {
 				case 'oracles':
@@ -263,7 +271,11 @@ function validateDataFeedExists(params) {
 	for (var k in params) {
 		var operator = params[k].operator;
 		var value = params[k].value;
-		if (Decimal.isDecimal(value)) value = value.toString();
+		if (Decimal.isDecimal(value)){
+			if (!value.isFinite())
+				return {error: true, complexity};
+			value = value.toString();
+		}
 		if (operator === '==') return {error: true, complexity};
 		switch (k) {
 			case 'oracles':
@@ -319,7 +331,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 	var fatal_error = false;
 	
 	function evaluate(arr, cb) {
-		if (Decimal.isDecimal(arr)) return cb(arr);
+		if (Decimal.isDecimal(arr) && arr.isFinite()) return cb(arr);
 		if (typeof arr !== 'object') {
 			if (typeof arr === 'boolean') return cb(arr);
 			if (typeof arr === 'string') return cb(arr);
@@ -353,58 +365,47 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 				}
 				var prevV;
 				async.eachSeries(arr.slice(1), function (param, cb2) {
-					if (Decimal.isDecimal(param)) {
-						if (prevV === undefined) {
-							prevV = param;
-						} else {
-							if (f === 'pow' && (!param.isInteger() || param.abs().gte(Number.MAX_SAFE_INTEGER))){
-								fatal_error = true;
-								console.log('non-integer or large exponent '+param);
-								return cb2('non-integer or large exponent');
-							}
-							prevV = prevV[f](param);
-						}
-						cb2();
-					} else {
-						evaluate(param, function (res) {
-							if (Decimal.isDecimal(res)) {
-								if (prevV === undefined) {
-									prevV = res;
-								} else {
-									if (f === 'pow' && (!res.isInteger() || res.abs().gte(Number.MAX_SAFE_INTEGER))){
-										fatal_error = true;
-										console.log('non-integer or large exponent '+res);
-										return cb2('non-integer or large exponent');
-									}
-									prevV = prevV[f](res);
-								}
-								cb2();
+					evaluate(param, function (res) {
+						if (Decimal.isDecimal(res) && res.isFinite()) {
+							if (prevV === undefined) {
+								prevV = res;
 							} else {
-								fatal_error = true;
-								console.log('not a decimal in '+op);
-								cb2('incorrect res')
+								if (f === 'pow' && (!res.isInteger() || res.abs().gte(Number.MAX_SAFE_INTEGER))){
+									fatal_error = true;
+									console.log('non-integer or large exponent '+res);
+									return cb2('non-integer or large exponent');
+								}
+								prevV = prevV[f](res);
 							}
-							
-						});
-					}
-				}, function (err) {
-					cb(err ? false : prevV);
-				});
-				break;
-			case 'sqrt':
-				if (Decimal.isDecimal(arr[1])) {
-					cb(arr[1].sqrt());
-				} else {
-					evaluate(arr[1], function (res) {
-						if (Decimal.isDecimal(res)) {
-							cb(res.sqrt());
+							cb2();
 						} else {
 							fatal_error = true;
 							console.log('not a decimal in '+op);
-							cb(false);
+							cb2('incorrect res')
 						}
+
 					});
-				}
+				}, function (err) {
+					if (err)
+						return cb(false);
+					if (!prevV.isFinite()){
+						fatal_error = true;
+						console.log('not finite in '+op);
+						return cb(false);
+					}
+					cb(prevV);
+				});
+				break;
+			case 'sqrt':
+				evaluate(arr[1], function (res) {
+					if (Decimal.isDecimal(res) && !res.isNegative() && res.isFinite()) {
+						cb(res.sqrt());
+					} else {
+						fatal_error = true;
+						console.log('not a decimal in '+op);
+						cb(false);
+					}
+				});
 				break;
 			case 'ceil':
 			case 'floor':
@@ -433,7 +434,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 							break;
 					}
 					evaluate(arr[1], function (res) {
-						if (Decimal.isDecimal(res)) {
+						if (Decimal.isDecimal(res) && res.isFinite()) {
 							cb(res.toDecimalPlaces(dp.toNumber(), roundingMode));
 						} else {
 							fatal_error = true;
@@ -447,21 +448,16 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 			case 'max':
 				var vals = [];
 				async.eachSeries(arr[1], function (param, cb2) {
-					if (Decimal.isDecimal(param)) {
-						vals.push(param);
-						cb2();
-					} else {
-						evaluate(param, function (res) {
-							if (Decimal.isDecimal(res)) {
-								vals.push(res);
-								cb2();
-							} else {
-								fatal_error = true;
-								console.log('not a decimal in '+op);
-								cb2('Incorrect ' + op);
-							}
-						});
-					}
+					evaluate(param, function (res) {
+						if (Decimal.isDecimal(res) && res.isFinite()) {
+							vals.push(res);
+							cb2();
+						} else {
+							fatal_error = true;
+							console.log('not a decimal in '+op);
+							cb2('Incorrect ' + op);
+						}
+					});
 				}, function (err) {
 					if (err) {
 						fatal_error = true;
@@ -485,7 +481,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 					if (typeof param === 'boolean') {
 						prevV = prevV && param;
 						cb2();
-					} else if (Decimal.isDecimal(param)) {
+					} else if (Decimal.isDecimal(param) && param.isFinite()) {
 						prevV = prevV && !(param.eq(0));
 						cb2();
 					} else if (typeof param === 'string') {
@@ -496,7 +492,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 							if (typeof res === 'boolean') {
 								prevV = prevV && res;
 								cb2();
-							} else if (Decimal.isDecimal(res)) {
+							} else if (Decimal.isDecimal(res) && res.isFinite()) {
 								prevV = prevV && !(res.eq(0));
 								cb2();
 							} else if (typeof res === 'string') {
@@ -519,7 +515,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 					if (typeof param === 'boolean') {
 						prevV = prevV && param;
 						cb2();
-					} else if (Decimal.isDecimal(param)) {
+					} else if (Decimal.isDecimal(param) && param.isFinite()) {
 						prevV = prevV || !(param.eq(0));
 						cb2();
 					} else if (typeof param === 'string') {
@@ -530,7 +526,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 							if (typeof res === 'boolean') {
 								prevV = prevV || res;
 								cb2();
-							} else if (Decimal.isDecimal(res)) {
+							} else if (Decimal.isDecimal(res) && res.isFinite()) {
 								prevV = prevV || !(res.eq(0));
 								cb2();
 							} else if (typeof res === 'string') {
@@ -557,7 +553,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 				var param1 = arr[2];
 				var param2 = arr[3];
 				async.forEachOfSeries([param1, param2], function (param, index, cb2) {
-					if (Decimal.isDecimal(param) || typeof param === 'string') {
+					if (Decimal.isDecimal(param) && param.isFinite() || typeof param === 'string') {
 						vals[index] = param;
 						cb2();
 					} else {
@@ -571,7 +567,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 					var val2 = vals[1];
 					if (typeof val1 === 'boolean' || typeof val2 === 'boolean') {
 						if (typeof val1 !== 'boolean') {
-							if (Decimal.isDecimal(val1)) {
+							if (Decimal.isDecimal(val1) && val1.isFinite()) {
 								val1 = !(val1.eq(0));
 							} else if (typeof val1 === "string") {
 								val1 = !!val1;
@@ -582,7 +578,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 							}
 						}
 						if (typeof val2 !== 'boolean') {
-							if (Decimal.isDecimal(val2)) {
+							if (Decimal.isDecimal(val2) && val2.isFinite()) {
 								val2 = !(val2.eq(0));
 							} else if (typeof val2 === "string") {
 								val2 = !!val2;
@@ -607,10 +603,10 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 								return cb(val1 < val2);
 						}
 					} else if (typeof val1 === 'string' || typeof val2 === 'string') {
-						if (Decimal.isDecimal(val1)) {
+						if (Decimal.isDecimal(val1) && val1.isFinite()) {
 							val1 = val1.toString();
 						}
-						if (Decimal.isDecimal(val2)) {
+						if (Decimal.isDecimal(val2) && val2.isFinite()) {
 							val2 = val2.toString();
 						}
 						switch (operator) {
@@ -627,7 +623,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 							case '<':
 								return cb(val1 < val2);
 						}
-					} else if (Decimal.isDecimal(val1) && Decimal.isDecimal(val2)) {
+					} else if (Decimal.isDecimal(val1) && Decimal.isDecimal(val2) && val1.isFinite() && val2.isFinite()) {
 						switch (operator) {
 							case '==':
 								return cb(val1.eq(val2));
@@ -652,7 +648,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 			case 'ternary':
 				var conditionResult;
 				async.eachSeries([arr[1]], function (param, cb2) {
-					if (Decimal.isDecimal(param)) {
+					if (Decimal.isDecimal(param) && param.isFinite()) {
 						conditionResult = !param.eq(0);
 						cb2();
 					} else if (typeof param === 'boolean') {
@@ -663,7 +659,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 							if (typeof res === 'boolean') {
 								conditionResult = res;
 								cb2();
-							} else if (Decimal.isDecimal(res)) {
+							} else if (Decimal.isDecimal(res) && res.isFinite()) {
 								conditionResult = !(res.eq(0));
 								cb2();
 							} else if (typeof res === 'string') {
@@ -682,7 +678,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 						return cb(false);
 					}
 					var param2 = conditionResult ? arr[2] : arr[3];
-					if (Decimal.isDecimal(param2)) {
+					if (Decimal.isDecimal(param2) && param2.isFinite()) {
 						cb(param2);
 					} else if (typeof param2 === 'boolean') {
 						cb(param2);
@@ -690,7 +686,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 						cb(param2);
 					} else {
 						evaluate(param2, function (res) {
-							if (Decimal.isDecimal(res)) {
+							if (Decimal.isDecimal(res) && res.isFinite()) {
 								cb(res);
 							} else if (typeof res === 'boolean') {
 								cb(res);
@@ -932,7 +928,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 			case 'concat':
 				var result = '';
 				async.eachSeries(arr.slice(1), function (param, cb2) {
-					if (Decimal.isDecimal(param)) {
+					if (Decimal.isDecimal(param) && param.isFinite()) {
 						result += param.toString();
 						cb2();
 					} else if (typeof param === 'string') {
@@ -940,7 +936,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 						cb2();
 					} else {
 						evaluate(param, function (res) {
-							if (Decimal.isDecimal(res)) {
+							if (Decimal.isDecimal(res) && res.isFinite()) {
 								result += res.toString();
 								cb2();
 							} else if (typeof res === 'string') {

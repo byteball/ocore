@@ -83,9 +83,21 @@ test('2 / 2', t => {
 	});
 });
 
+test('2 / 0 infinity', t => {
+	evalFormula(0, "2 / 0", 0, 0, 0, res => {
+		t.deepEqual(res, null);
+	});
+});
+
 test('2 ^ 4', t => {
 	evalFormula(0, "2 ^ 4", 0, 0, 0, res => {
 		t.deepEqual(res.eq(16), true);
+	});
+});
+
+test('2 ^ -2', t => {
+	evalFormula(0, "2 ^ -2", 0, 0, 0, res => {
+		t.deepEqual(res.eq(0.25), true);
 	});
 });
 
@@ -98,6 +110,18 @@ test('2 ^ 9007199254740992', t => {
 test('2 ^ 1.5', t => {
 	evalFormula(0, "2 ^ 1.5", 0, 0, 0, res => {
 		t.deepEqual(res, null);
+	});
+});
+
+test('222222222 ^ 222222222 infinity', t => {
+	evalFormula(0, "222222222 ^ 222222222", 0, 0, 0, res => {
+		t.deepEqual(res, null);
+	});
+});
+
+test('222222222 ^ -222222222 0', t => {
+	evalFormula(0, "222222222 ^ -222222222", 0, 0, 0, res => {
+		t.deepEqual(res.eq(0), true);
 	});
 });
 
