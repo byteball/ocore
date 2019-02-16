@@ -6,6 +6,10 @@ var ValidationUtils = require("../validation_utils.js");
 var constants = require('../constants');
 var dataFeeds = require('../data_feeds.js');
 
+if (!Number.MAX_SAFE_INTEGER)
+	Number.MAX_SAFE_INTEGER = Math.pow(2, 53) - 1; // 9007199254740991
+
+
 Decimal.set({
 	precision: 15,
 	rounding: Decimal.ROUND_HALF_EVEN,
@@ -353,6 +357,11 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 						if (prevV === undefined) {
 							prevV = param;
 						} else {
+							if (f === 'pow' && (!param.isInteger() || param.abs().gte(Number.MAX_SAFE_INTEGER))){
+								fatal_error = true;
+								console.log('non-integer or large exponent '+param);
+								return cb2('non-integer or large exponent');
+							}
 							prevV = prevV[f](param);
 						}
 						cb2();
@@ -362,6 +371,11 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 								if (prevV === undefined) {
 									prevV = res;
 								} else {
+									if (f === 'pow' && (!res.isInteger() || res.abs().gte(Number.MAX_SAFE_INTEGER))){
+										fatal_error = true;
+										console.log('non-integer or large exponent '+res);
+										return cb2('non-integer or large exponent');
+									}
 									prevV = prevV[f](res);
 								}
 								cb2();

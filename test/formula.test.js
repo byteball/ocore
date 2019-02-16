@@ -89,6 +89,18 @@ test('2 ^ 4', t => {
 	});
 });
 
+test('2 ^ 9007199254740992', t => {
+	evalFormula(0, "2 ^ 9007199254740992", 0, 0, 0, res => {
+		t.deepEqual(res, false);
+	});
+});
+
+test('2 ^ 1.5', t => {
+	evalFormula(0, "2 ^ 1.5", 0, 0, 0, res => {
+		t.deepEqual(res, false);
+	});
+});
+
 test('(2 + 2) * 2', t => {
 	evalFormula(0, "(2 + 2) * 2", 0, 0, 0, res => {
 		t.deepEqual(res.eq(8), true);
