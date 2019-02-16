@@ -313,7 +313,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 			}
 		}catch (e) {
 			console.log('exception from parser', e);
-			callback(false);
+			callback(null);
 		}
 	}
 	var fatal_error = false;
@@ -858,7 +858,10 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 						}
 					}
 				});
-				if (puts.length === 0) return '';
+				if (puts.length === 0){
+					console.log('no matching puts after filtering by asset');
+					return '';
+				}
 				if (objParams.address) {
 					if (objParams.address.value === 'this address')
 						objParams.address.value = address;
@@ -899,16 +902,20 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 					});
 				}
 				if (puts.length) {
-					if (puts.length > 1) return '';
+					if (puts.length > 1){
+						console.log(puts.length+' matching puts');
+						return '';
+					}
 					return puts[0];
 				} else {
+					console.log('no matching puts');
 					return '';
 				}
 			}
 				
 				var result = findOutputOrInputAndReturnName(arr[1]);
 				if (result === '') {
-					console.log('not found in '+op);
+					console.log('not found or ambiguous in '+op);
 					fatal_error = true;
 					return cb(false);
 				}
@@ -967,7 +974,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 	if (parser.results.length === 1 && parser.results[0]) {
 		evaluate(parser.results[0], res => {
 			if (fatal_error) {
-				callback(false);
+				callback(null);
 			} else {
 				callback(res);
 			}
@@ -975,6 +982,6 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 	} else {
 		if (parser.results.length > 1)
 			console.log('ambiguous grammar', parser.results);
-		callback(false);
+		callback(null);
 	}
 };

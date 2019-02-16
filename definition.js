@@ -1046,7 +1046,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 						} else if (Decimal.isDecimal(result)) {
 							cb2(!result.eq(0))
 						} else {
-							cb(false);
+							cb2(false);
 						}
 					});
 				});

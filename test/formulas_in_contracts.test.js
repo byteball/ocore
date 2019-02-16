@@ -127,20 +127,29 @@ test('formula - amount = 1', t => {
 	});
 });
 
-test('formula - amount > 0 - error', t => {
+test('formula - invalid formula', t => {
+	definition.validateAuthentifiers({}, null, 'base', ['formula', "out77put[asset=base, amount=1].amount == 1"], null, objValidationState, null, function (err, res) {
+		t.is(err, 'Incorrect formula');
+	});
+});
+
+test('formula - amount != 2 - ambiguous', t => {
 	definition.validateAuthentifiers({}, null, 'base', ['formula', "output[asset=base, amount!=2].amount == 1"], null, objValidationState, null, function (err, res) {
+		t.is(err, null);
 		t.is(res, false);
 	});
 });
 
-test('formula - asset - asset !=', t => {
+test('formula - asset - asset ambiguous', t => {
 	definition.validateAuthentifiers({}, null, 'base', ['formula', "input[asset=base].asset != output[asset=base].asset"], null, objValidationState, null, function (err, res) {
+		t.is(err, null);
 		t.is(res, false);
 	});
 });
 
 test('formula - address - amount !=', t => {
 	definition.validateAuthentifiers({}, null, 'base', ['formula', "input[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].asset != output[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU].asset"], null, objValidationState, null, function (err, res) {
+		t.is(err, null);
 		t.is(res, false);
 	});
 });
@@ -532,6 +541,7 @@ test.cb('formula - not found', t => {
 	definition.validateAuthentifiers(db, null, 'base',
 		['formula', "data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name=\"test2\"] == 10"], null, objValidationState, null,
 		function (err, res) {
+			t.is(err, null);
 			t.is(res, false);
 			t.end();
 		});
@@ -560,6 +570,7 @@ test.cb('formula - not found with min_mci', t => {
 	definition.validateAuthentifiers(db, null, 'base',
 		['formula', "data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name=\"test2\", min_mci=1] == 10"], null, objValidationState, null,
 		function (err, res) {
+			t.is(err, null);
 			t.is(res, false);
 			t.end();
 		});
@@ -618,6 +629,7 @@ test.cb('formula - ifnone abort', t => {
 	definition.validateAuthentifiers(db, null, 'base',
 		['formula', "data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name=\"test2\", ifnone=\"abort\"] == 10"], null, objValidationState,
 		null, function (err, res) {
+			t.is(err, null);
 			t.is(res, false);
 			t.end();
 		});
@@ -632,6 +644,7 @@ test.cb('formula - ifseveral abort', t => {
 	definition.validateAuthentifiers(db, null, 'base',
 		['formula', "data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name=\"test\", ifseveral=\"abort\"] == 10"], null, objValidationState, null,
 		function (err, res) {
+			t.is(err, null);
 			t.is(res, false);
 			t.end();
 		});

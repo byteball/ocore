@@ -11,9 +11,9 @@ require('./_init_datafeeds.js');
 function evalFormula(conn, formula, messages, objValidationState, address, callback){
 	formulaParser.validate(formula, 1, function(res){
 		if (res.error)
-			return callback(false);
+			return callback(null);
 		if (res.complexity > 100)
-			return callback(false);
+			return callback(null);
 		formulaParser.evaluate(conn, formula, messages, objValidationState, address, callback);
 	});
 }
@@ -91,13 +91,13 @@ test('2 ^ 4', t => {
 
 test('2 ^ 9007199254740992', t => {
 	evalFormula(0, "2 ^ 9007199254740992", 0, 0, 0, res => {
-		t.deepEqual(res, false);
+		t.deepEqual(res, null);
 	});
 });
 
 test('2 ^ 1.5', t => {
 	evalFormula(0, "2 ^ 1.5", 0, 0, 0, res => {
-		t.deepEqual(res, false);
+		t.deepEqual(res, null);
 	});
 });
 
@@ -487,7 +487,7 @@ test.cb('formula - datafeed not found', t => {
 		cb(rows);
 	};
 	evalFormula(db, "data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name=\"test2\", ifseveral=\"last\"] + 10", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
-		t.deepEqual(res, false);
+		t.deepEqual(res, null);
 		t.end();
 	});
 });
@@ -661,7 +661,7 @@ test.cb('formula - what unit', t => {
 
 test.cb('formula - invalid what', t => {
 	evalFormula({}, "data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:this address\", feed_name='test', what='bbb'] || 'aaa'", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
-		t.deepEqual(res, false);
+		t.deepEqual(res, null);
 		t.end();
 	});
 });
