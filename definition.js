@@ -11,7 +11,7 @@ var merkle = require('./merkle.js');
 var ValidationUtils = require("./validation_utils.js");
 var objectHash = require("./object_hash.js");
 var formulaParser = require('./formula/index');
-var BigNumber = require('bignumber.js');
+var Decimal = require('decimal.js');
 var dataFeeds = require('./data_feeds.js');
 
 var hasFieldsExcept = ValidationUtils.hasFieldsExcept;
@@ -1043,7 +1043,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 							cb2(result);
 						} else if (typeof result === 'string') {
 							cb2(!!result);
-						} else if (BigNumber.isBigNumber(result)) {
+						} else if (Decimal.isDecimal(result)) {
 							cb2(!result.eq(0))
 						} else {
 							cb(false);

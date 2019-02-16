@@ -3,7 +3,7 @@
 (function () {
 function id(x) { return x[0]; }
 
-	var BigNumber = require('bignumber.js');
+	var Decimal = require('decimal.js');
 	var moo = require("moo");
 
 	var lexer = moo.compile({
@@ -27,7 +27,7 @@ function id(x) { return x[0]; }
 		data_feed: ['data_feed', 'in_data_feed'],
 		comparisonOperators: ["==", ">=", "<=", "!=", ">", "<", "="],
 		dfParamsName: ['oracles', 'feed_name', 'min_mci', 'feed_value', 'ifseveral', 'ifnone', 'what'],
-		name: ['sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round'],
+		name: ['min', 'max', 'pi', 'e', 'sqrt', 'ceil', 'floor', 'round'],
 		and: ['and', 'AND'],
 		or: ['or', 'OR'],
 		not: ['not', 'NOT', '!'],
@@ -62,7 +62,6 @@ var grammar = {
     {"name": "or_expr", "symbols": ["and_expr"], "postprocess": id},
     {"name": "and_expr", "symbols": ["and_expr", (lexer.has("and") ? {type: "and"} : and), "comp_expr"], "postprocess": function(d) {return ['and', d[0], d[2]];}},
     {"name": "and_expr", "symbols": ["comp_expr"], "postprocess": id},
-    {"name": "NOT", "symbols": [(lexer.has("not") ? {type: "not"} : not), "E"], "postprocess": function(d) {return ['not', d[1]];}},
     {"name": "expr", "symbols": ["ternary_expr"], "postprocess": id},
     {"name": "comp_expr", "symbols": ["AS", "comparisonOperator", "AS"], "postprocess": function(d) {return ['comparison', d[1], d[0], d[2]];}},
     {"name": "comp_expr", "symbols": ["AS"], "postprocess": id},
@@ -73,7 +72,7 @@ var grammar = {
     {"name": "E", "symbols": ["P", {"literal":"^"}, "E"], "postprocess": function(d) {return ['^', d[0], d[2]]; }},
     {"name": "E", "symbols": ["P"], "postprocess": id},
     {"name": "unary_expr", "symbols": ["E"], "postprocess": id},
-    {"name": "unary_expr", "symbols": ["NOT"], "postprocess": id},
+    {"name": "unary_expr", "symbols": [(lexer.has("not") ? {type: "not"} : not), "E"], "postprocess": function(d) {return ['not', d[1]];}},
     {"name": "MD", "symbols": ["MD", {"literal":"*"}, "unary_expr"], "postprocess": function(d) {return ['*', d[0], d[2]]; }},
     {"name": "MD", "symbols": ["MD", {"literal":"/"}, "unary_expr"], "postprocess": function(d) {return ['/', d[0], d[2]]; }},
     {"name": "MD", "symbols": ["unary_expr"], "postprocess": id},
@@ -82,16 +81,9 @@ var grammar = {
     {"name": "AS", "symbols": ["AS", (lexer.has("concat") ? {type: "concat"} : concat), "MD"], "postprocess": function(d) {return ['concat', d[0], d[2]]; }},
     {"name": "AS", "symbols": ["MD"], "postprocess": id},
     {"name": "N", "symbols": ["float"], "postprocess": id},
-    {"name": "N", "symbols": [{"literal":"sin"}, "P"], "postprocess": function(d) {return ['sin', d[1]]; }},
-    {"name": "N", "symbols": [{"literal":"cos"}, "P"], "postprocess": function(d) {return ['cos', d[1]]; }},
-    {"name": "N", "symbols": [{"literal":"tan"}, "P"], "postprocess": function(d) {return ['tan', d[1]]; }},
-    {"name": "N", "symbols": [{"literal":"asin"}, "P"], "postprocess": function(d) {return ['asin', d[1]]; }},
-    {"name": "N", "symbols": [{"literal":"acos"}, "P"], "postprocess": function(d) {return ['acos', d[1]]; }},
-    {"name": "N", "symbols": [{"literal":"atan"}, "P"], "postprocess": function(d) {return ['atan', d[1]]; }},
     {"name": "N", "symbols": [{"literal":"pi"}], "postprocess": function(d) {return ['pi']; }},
     {"name": "N", "symbols": [{"literal":"e"}], "postprocess": function(d) {return ['e']; }},
     {"name": "N", "symbols": [{"literal":"sqrt"}, "P"], "postprocess": function(d) {return ['sqrt', d[1]]; }},
-    {"name": "N", "symbols": [{"literal":"ln"}, "P"], "postprocess": function(d) {return ['log', d[1]]; }},
     {"name": "N$ebnf$1$subexpression$1$ebnf$1", "symbols": []},
     {"name": "N$ebnf$1$subexpression$1$ebnf$1", "symbols": ["N$ebnf$1$subexpression$1$ebnf$1", (lexer.has("comma") ? {type: "comma"} : comma)], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
     {"name": "N$ebnf$1$subexpression$1", "symbols": ["AS", "N$ebnf$1$subexpression$1$ebnf$1"]},
@@ -153,7 +145,7 @@ var grammar = {
         		if(params[name]) return reject;
         		params[name] = {};
         		params[name]['operator'] = operator;
-        		if(BigNumber.isBigNumber(value)){
+        		if(Decimal.isDecimal(value)){
         			params[name]['value'] = value;
         		}else{
         			params[name]['value'] = value.value;
@@ -161,7 +153,7 @@ var grammar = {
         	}
         	return [d[0][0].value, params, d[2].value]
         }},
-    {"name": "float", "symbols": [(lexer.has("digits") ? {type: "digits"} : digits)], "postprocess": function(d,l, reject) { return new BigNumber(d[0]); }},
+    {"name": "float", "symbols": [(lexer.has("digits") ? {type: "digits"} : digits)], "postprocess": function(d,l, reject) { debugger; return new Decimal(d[0].value); }},
     {"name": "string", "symbols": [(lexer.has("string") ? {type: "string"} : string)], "postprocess": function(d) {return d[0].value; }}
 ]
   , ParserStart: "main"

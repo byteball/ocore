@@ -1,5 +1,5 @@
 @{%
-	var BigNumber = require('bignumber.js');
+	var Decimal = require('decimal.js');
 	var moo = require("moo");
 
 	var lexer = moo.compile({
@@ -124,7 +124,7 @@ N -> float          {% id %}
 			if(params[name]) return reject;
 			params[name] = {};
 			params[name]['operator'] = operator;
-			if(BigNumber.isBigNumber(value)){
+			if(Decimal.isDecimal(value)){
 				params[name]['value'] = value;
 			}else{
 				params[name]['value'] = value.value;
@@ -133,6 +133,6 @@ N -> float          {% id %}
 		return [d[0][0].value, params, d[2].value]
 	}%}
 
-float -> %digits           {% function(d,l, reject) { return new BigNumber(d[0]); }%}
+float -> %digits           {% function(d,l, reject) { debugger; return new Decimal(d[0].value); }%}
 
 string -> %string        {% function(d) {return d[0].value; } %}

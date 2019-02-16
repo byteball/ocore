@@ -2,7 +2,7 @@ var path = require('path');
 var desktop_app = require('../desktop_app.js');
 desktop_app.getAppDataDir = function() { return __dirname + '/.testdata-' + path.basename(__filename); }
 
-var BigNumber = require('bignumber.js');
+var Decimal = require('decimal.js');
 var formulaParser = require('../formula/index');
 var validateFormula = formulaParser.validate;
 var test = require('ava');
@@ -121,20 +121,23 @@ test('5 - 3*4 + 2*3', t => {
 
 test('pi + 2', t => {
 	evalFormula(0, "pi + 2", 0, 0, 0, res => {
-		t.deepEqual(res.eq(Math.PI + 2), true);
+		console.log(res.toString());
+		t.deepEqual(res.eq('5.14159265358979'), true);
 	});
 });
 
 test('e + 2', t => {
 	evalFormula(0, "e + 2", 0, 0, 0, res => {
-		t.deepEqual(res.eq(Math.E + 2), true);
+		console.log(res.toString());
+		t.deepEqual(res.eq('4.71828182845904'), true);
 	});
 });
 
 
 test('sqrt(2)', t => {
 	evalFormula(0, "sqrt(2)", 0, 0, 0, res => {
-		t.deepEqual(res.eq('1.4142135623730950488'), true);
+		console.log(res.toString());
+		t.deepEqual(res.eq('1.4142135623731'), true);
 	});
 });
 
@@ -540,7 +543,7 @@ test.cb('formula - datafeed +', t => {
 		cb(rows);
 	};
 	evalFormula(db, "1 + data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:this address\", feed_name='t,e(s)[],\\'t', ifseveral=\"last\", min_mci = 10]", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
-		t.deepEqual(BigNumber.isBigNumber(res), true);
+		t.deepEqual(Decimal.isDecimal(res), true);
 		t.deepEqual(res.eq(21), true);
 		t.end();
 	});
@@ -677,7 +680,7 @@ test('validate round ok', t => {
 
 test('validate min ok', t => {
 	evalFormula(0, "min(1 + (1 + 1) - 1, 2)", 0, 0, 0, res => {
-		t.deepEqual(BigNumber.isBigNumber(res), true);
+		t.deepEqual(Decimal.isDecimal(res), true);
 		t.deepEqual(res.eq(2), true);
 	})
 });

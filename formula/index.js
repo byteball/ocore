@@ -1,12 +1,19 @@
 var nearley = require("nearley");
 var grammar = require("./grammar.js");
-var BigNumber = require('bignumber.js');
+var Decimal = require('decimal.js');
 var async = require('async');
 var ValidationUtils = require("../validation_utils.js");
 var constants = require('../constants');
 var dataFeeds = require('../data_feeds.js');
 
-BigNumber.config({EXPONENTIAL_AT: [-30, 30], POW_PRECISION: 100, RANGE: 100});
+Decimal.set({
+	precision: 15,
+	rounding: Decimal.ROUND_HALF_EVEN,
+	maxE: 308,
+	minE: -324,
+	toExpNeg: -400,
+	toExpPos: 400,
+});
 
 var cacheLimit = 100;
 var formulasInCache = [];
@@ -29,12 +36,12 @@ exports.validate = function (formula, complexity, callback) {
 			cache[formula] = parser.results;
 		}
 	} catch (e) {
-	//	console.log('==== parse error', e)
+	//	console.log('==== parse error', e, e.stack)
 		return callback({error: 'Incorrect formula', complexity});
 	}
 	
 	function evaluate(arr, cb) {
-		if (BigNumber.isBigNumber(arr)) return cb(true);
+		if (Decimal.isDecimal(arr)) return cb(true);
 		if(typeof arr !== 'object'){
 			if (typeof arr === 'boolean') return cb(true);
 			if (typeof arr === 'string') return cb(true);
@@ -48,7 +55,7 @@ exports.validate = function (formula, complexity, callback) {
 			case '/':
 			case '^':
 				async.eachSeries(arr.slice(1), function (param, cb2) {
-					if (BigNumber.isBigNumber(param)) {
+					if (Decimal.isDecimal(param)) {
 						cb2();
 					} else {
 						evaluate(param, function (res) {
@@ -63,7 +70,7 @@ exports.validate = function (formula, complexity, callback) {
 			case 'ceil':
 			case 'floor':
 			case 'round':
-				if (BigNumber.isBigNumber(arr[1])) {
+				if (Decimal.isDecimal(arr[1])) {
 					cb(true);
 				} else {
 					evaluate(arr[1], function (res) {
@@ -74,7 +81,7 @@ exports.validate = function (formula, complexity, callback) {
 			case 'min':
 			case 'max':
 				async.eachSeries(arr[1], function (param, cb2) {
-					if (BigNumber.isBigNumber(param)) {
+					if (Decimal.isDecimal(param)) {
 						cb2();
 					} else {
 						evaluate(param, function (res) {
@@ -97,7 +104,7 @@ exports.validate = function (formula, complexity, callback) {
 			case 'comparison':
 				if (arr[1] === '=') return cb(false);
 				async.eachSeries(arr.slice(2), function (param, cb2) {
-					if (BigNumber.isBigNumber(param)) {
+					if (Decimal.isDecimal(param)) {
 						cb2();
 					} else {
 						evaluate(param, function (res) {
@@ -110,7 +117,7 @@ exports.validate = function (formula, complexity, callback) {
 				break;
 			case 'ternary':
 				async.eachSeries(arr.slice(1), function (param, cb2) {
-					if (BigNumber.isBigNumber(param)) {
+					if (Decimal.isDecimal(param)) {
 						cb2();
 					} else if (typeof param === 'string') {
 						cb2();
@@ -139,7 +146,7 @@ exports.validate = function (formula, complexity, callback) {
 				break;
 			case 'concat':
 				async.eachSeries(arr.slice(1), function (param, cb2) {
-					if (BigNumber.isBigNumber(param)) {
+					if (Decimal.isDecimal(param)) {
 						cb2();
 					} else if (typeof param === 'string') {
 						cb2();
@@ -174,7 +181,7 @@ function inputOrOutputIsValid(params) {
 	for (var k in params) {
 		var operator = params[k].operator;
 		var value = params[k].value;
-		if (BigNumber.isBigNumber(value)) value = value.toString();
+		if (Decimal.isDecimal(value)) value = value.toString();
 		if (operator === '==') return false;
 		switch (k) {
 			case 'address':
@@ -201,7 +208,7 @@ function validateDataFeed(params) {
 		for (var k in params) {
 			var operator = params[k].operator;
 			var value = params[k].value;
-			if (BigNumber.isBigNumber(value)) value = value.toString();
+			if (Decimal.isDecimal(value)) value = value.toString();
 			if (operator !== '=') return {error: true, complexity};
 			switch (k) {
 				case 'oracles':
@@ -252,7 +259,7 @@ function validateDataFeedExists(params) {
 	for (var k in params) {
 		var operator = params[k].operator;
 		var value = params[k].value;
-		if (BigNumber.isBigNumber(value)) value = value.toString();
+		if (Decimal.isDecimal(value)) value = value.toString();
 		if (operator === '==') return {error: true, complexity};
 		switch (k) {
 			case 'oracles':
@@ -308,7 +315,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 	var fatal_error = false;
 	
 	function evaluate(arr, cb) {
-		if (BigNumber.isBigNumber(arr)) return cb(arr);
+		if (Decimal.isDecimal(arr)) return cb(arr);
 		if (typeof arr !== 'object') {
 			if (typeof arr === 'boolean') return cb(arr);
 			if (typeof arr === 'string') return cb(arr);
@@ -342,7 +349,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 				}
 				var prevV;
 				async.eachSeries(arr.slice(1), function (param, cb2) {
-					if (BigNumber.isBigNumber(param)) {
+					if (Decimal.isDecimal(param)) {
 						if (prevV === undefined) {
 							prevV = param;
 						} else {
@@ -351,7 +358,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 						cb2();
 					} else {
 						evaluate(param, function (res) {
-							if (BigNumber.isBigNumber(res)) {
+							if (Decimal.isDecimal(res)) {
 								if (prevV === undefined) {
 									prevV = res;
 								} else {
@@ -360,7 +367,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 								cb2();
 							} else {
 								fatal_error = true;
-								console.log('not a bignumber in '+op);
+								console.log('not a decimal in '+op);
 								cb2('incorrect res')
 							}
 							
@@ -371,15 +378,15 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 				});
 				break;
 			case 'sqrt':
-				if (BigNumber.isBigNumber(arr[1])) {
+				if (Decimal.isDecimal(arr[1])) {
 					cb(arr[1].sqrt());
 				} else {
 					evaluate(arr[1], function (res) {
-						if (BigNumber.isBigNumber(res)) {
+						if (Decimal.isDecimal(res)) {
 							cb(res.sqrt());
 						} else {
 							fatal_error = true;
-							console.log('not a bignumber in '+op);
+							console.log('not a decimal in '+op);
 							cb(false);
 						}
 					});
@@ -391,24 +398,24 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 				var roundingMode;
 				switch (op) {
 					case 'ceil':
-						roundingMode = BigNumber.ROUND_CEIL;
+						roundingMode = Decimal.ROUND_CEIL;
 						break;
 					case 'floor':
-						roundingMode = BigNumber.ROUND_FLOOR;
+						roundingMode = Decimal.ROUND_FLOOR;
 						break;
 					case 'round':
-						roundingMode = BigNumber.ROUND_HALF_EVEN;
+						roundingMode = Decimal.ROUND_HALF_EVEN;
 						break;
 				}
-				if (BigNumber.isBigNumber(arr[1])) {
-					cb(arr[1].dp(0, roundingMode));
+				if (Decimal.isDecimal(arr[1])) {
+					cb(arr[1].toDecimalPlaces(0, roundingMode));
 				} else {
 					evaluate(arr[1], function (res) {
-						if (BigNumber.isBigNumber(res)) {
-							cb(res.dp(0, roundingMode));
+						if (Decimal.isDecimal(res)) {
+							cb(res.toDecimalPlaces(0, roundingMode));
 						} else {
 							fatal_error = true;
-							console.log('not a bignumber in '+op);
+							console.log('not a decimal in '+op);
 							cb(false);
 						}
 					});
@@ -418,17 +425,17 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 			case 'max':
 				var vals = [];
 				async.eachSeries(arr[1], function (param, cb2) {
-					if (BigNumber.isBigNumber(param)) {
+					if (Decimal.isDecimal(param)) {
 						vals.push(param);
 						cb2();
 					} else {
 						evaluate(param, function (res) {
-							if (BigNumber.isBigNumber(res)) {
+							if (Decimal.isDecimal(res)) {
 								vals.push(res);
 								cb2();
 							} else {
 								fatal_error = true;
-								console.log('not a bignumber in '+op);
+								console.log('not a decimal in '+op);
 								cb2('Incorrect ' + op);
 							}
 						});
@@ -439,9 +446,9 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 						return cb(false);
 					}
 					if (op === 'min') {
-						return cb(BigNumber.min.apply(null, vals));
+						return cb(Decimal.min.apply(Decimal, vals));
 					} else {
-						return cb(BigNumber.max.apply(null, vals))
+						return cb(Decimal.max.apply(Decimal, vals))
 					}
 				});
 				break;
@@ -456,7 +463,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 					if (typeof param === 'boolean') {
 						prevV = prevV && param;
 						cb2();
-					} else if (BigNumber.isBigNumber(param)) {
+					} else if (Decimal.isDecimal(param)) {
 						prevV = prevV && !(param.eq(0));
 						cb2();
 					} else if (typeof param === 'string') {
@@ -467,7 +474,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 							if (typeof res === 'boolean') {
 								prevV = prevV && res;
 								cb2();
-							} else if (BigNumber.isBigNumber(res)) {
+							} else if (Decimal.isDecimal(res)) {
 								prevV = prevV && !(res.eq(0));
 								cb2();
 							} else if (typeof res === 'string') {
@@ -490,7 +497,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 					if (typeof param === 'boolean') {
 						prevV = prevV && param;
 						cb2();
-					} else if (BigNumber.isBigNumber(param)) {
+					} else if (Decimal.isDecimal(param)) {
 						prevV = prevV || !(param.eq(0));
 						cb2();
 					} else if (typeof param === 'string') {
@@ -501,7 +508,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 							if (typeof res === 'boolean') {
 								prevV = prevV || res;
 								cb2();
-							} else if (BigNumber.isBigNumber(res)) {
+							} else if (Decimal.isDecimal(res)) {
 								prevV = prevV || !(res.eq(0));
 								cb2();
 							} else if (typeof res === 'string') {
@@ -528,7 +535,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 				var param1 = arr[2];
 				var param2 = arr[3];
 				async.forEachOfSeries([param1, param2], function (param, index, cb2) {
-					if (BigNumber.isBigNumber(param) || typeof param === 'string') {
+					if (Decimal.isDecimal(param) || typeof param === 'string') {
 						vals[index] = param;
 						cb2();
 					} else {
@@ -542,7 +549,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 					var val2 = vals[1];
 					if (typeof val1 === 'boolean' || typeof val2 === 'boolean') {
 						if (typeof val1 !== 'boolean') {
-							if (BigNumber.isBigNumber(val1)) {
+							if (Decimal.isDecimal(val1)) {
 								val1 = !(val1.eq(0));
 							} else if (typeof val1 === "string") {
 								val1 = !!val1;
@@ -553,7 +560,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 							}
 						}
 						if (typeof val2 !== 'boolean') {
-							if (BigNumber.isBigNumber(val2)) {
+							if (Decimal.isDecimal(val2)) {
 								val2 = !(val2.eq(0));
 							} else if (typeof val2 === "string") {
 								val2 = !!val2;
@@ -578,10 +585,10 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 								return cb(val1 < val2);
 						}
 					} else if (typeof val1 === 'string' || typeof val2 === 'string') {
-						if (BigNumber.isBigNumber(val1)) {
+						if (Decimal.isDecimal(val1)) {
 							val1 = val1.toString();
 						}
-						if (BigNumber.isBigNumber(val2)) {
+						if (Decimal.isDecimal(val2)) {
 							val2 = val2.toString();
 						}
 						switch (operator) {
@@ -598,7 +605,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 							case '<':
 								return cb(val1 < val2);
 						}
-					} else if (BigNumber.isBigNumber(val1) && BigNumber.isBigNumber(val2)) {
+					} else if (Decimal.isDecimal(val1) && Decimal.isDecimal(val2)) {
 						switch (operator) {
 							case '==':
 								return cb(val1.eq(val2));
@@ -623,7 +630,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 			case 'ternary':
 				var conditionResult;
 				async.eachSeries([arr[1]], function (param, cb2) {
-					if (BigNumber.isBigNumber(param)) {
+					if (Decimal.isDecimal(param)) {
 						conditionResult = !param.eq(0);
 						cb2();
 					} else if (typeof param === 'boolean') {
@@ -634,7 +641,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 							if (typeof res === 'boolean') {
 								conditionResult = res;
 								cb2();
-							} else if (BigNumber.isBigNumber(res)) {
+							} else if (Decimal.isDecimal(res)) {
 								conditionResult = !(res.eq(0));
 								cb2();
 							} else if (typeof res === 'string') {
@@ -653,7 +660,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 						return cb(false);
 					}
 					var param2 = conditionResult ? arr[2] : arr[3];
-					if (BigNumber.isBigNumber(param2)) {
+					if (Decimal.isDecimal(param2)) {
 						cb(param2);
 					} else if (typeof param2 === 'boolean') {
 						cb(param2);
@@ -661,7 +668,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 						cb(param2);
 					} else {
 						evaluate(param2, function (res) {
-							if (BigNumber.isBigNumber(res)) {
+							if (Decimal.isDecimal(res)) {
 								cb(res);
 							} else if (typeof res === 'boolean') {
 								cb(res);
@@ -677,10 +684,10 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 				});
 				break;
 			case 'pi':
-				cb(new BigNumber(Math.PI));
+				cb(new Decimal(Math.PI));
 				break;
 			case 'e':
-				cb(new BigNumber(Math.E));
+				cb(new Decimal(Math.E));
 				break;
 			case 'data_feed':
 			
@@ -713,11 +720,11 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 					if (objResult.value !== undefined){
 						if (what === 'unit')
 							return cb(null, objResult.unit);
-						return cb(null, (typeof objResult.value === 'string') ? objResult.value : new BigNumber(objResult.value));
+						return cb(null, (typeof objResult.value === 'string') ? objResult.value : new Decimal(objResult.value));
 					}
 					if (params.ifnone && params.ifnone.value !== 'abort'){
 					//	console.log('===== ifnone=', params.ifnone.value, typeof params.ifnone.value);
-						return cb(null, params.ifnone.value); // the type of ifnone (string, bignumber) is preserved
+						return cb(null, params.ifnone.value); // the type of ifnone (string, decimal) is preserved
 					}
 					cb("data feed not found");
 				});
@@ -740,7 +747,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 				var value_condition = '';
 				var queryParams = [arrAddresses, feed_name];
 				if (value) {
-					if (BigNumber.isBigNumber(value)) {
+					if (Decimal.isDecimal(value)) {
 						var bForceNumericComparison = (['>', '>=', '<', '<='].indexOf(relation) >= 0);
 						var plus_0 = bForceNumericComparison ? '+0' : '';
 						value_condition = '(value' + plus_0 + relation + value.toString() +
@@ -766,7 +773,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 								cb('abort');
 							} else {
 								if (rows[0].value === null) {
-									cb(null, new BigNumber(rows[0].int_value));
+									cb(null, new Decimal(rows[0].int_value));
 								} else {
 									cb(null, rows[0].value);
 								}
@@ -853,7 +860,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 				}
 				if (objParams.amount) {
 					puts = puts.filter(function (put) {
-						put.amount = new BigNumber(put.amount);
+						put.amount = new Decimal(put.amount);
 						if (objParams.amount.operator === '=') {
 							return put.amount.eq(objParams.amount.value);
 						} else if (objParams.amount.operator === '>') {
@@ -884,7 +891,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 					return cb(false);
 				}
 				if (arr[2] === 'amount') {
-					cb(new BigNumber(result['amount']));
+					cb(new Decimal(result['amount']));
 				} else if (arr[2] === 'asset') {
 					if (!result['asset']) result['asset'] = 'base';
 					cb(result['asset'])
@@ -896,7 +903,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 			case 'concat':
 				var result = '';
 				async.eachSeries(arr.slice(1), function (param, cb2) {
-					if (BigNumber.isBigNumber(param)) {
+					if (Decimal.isDecimal(param)) {
 						result += param.toString();
 						cb2();
 					} else if (typeof param === 'string') {
@@ -904,7 +911,7 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 						cb2();
 					} else {
 						evaluate(param, function (res) {
-							if (BigNumber.isBigNumber(res)) {
+							if (Decimal.isDecimal(res)) {
 								result += res.toString();
 								cb2();
 							} else if (typeof res === 'string') {

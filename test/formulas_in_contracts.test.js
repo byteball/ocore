@@ -109,7 +109,7 @@ test('formula - validate calculation 2 - ok', t => {
 	});
 });
 
-test('formula - validate calculation bignumber 1 - ok', t => {
+test('formula - validate calculation decimal 1 - ok', t => {
 	definition.validateAuthentifiers({}, null, 'base', ['formula', "10 == 10"], null, objValidationState, null, function (err, res) {
 		t.is(res, true);
 	});
@@ -157,7 +157,7 @@ test('formula - address ==', t => {
 	});
 });
 
-test('formula - validate calculation bignumber 2 - ok', t => {
+test('formula - validate calculation decimal 2 - ok', t => {
 	definition.validateAuthentifiers({}, null, 'base', ['formula', "0.1 + 0.2 == 0.3"], null, objValidationState, null, function (err, res) {
 		t.is(res, true);
 	});
