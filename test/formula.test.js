@@ -121,22 +121,19 @@ test('5 - 3*4 + 2*3', t => {
 
 test('pi + 2', t => {
 	evalFormula(0, "pi + 2", 0, 0, 0, res => {
-		console.log(res.toString());
 		t.deepEqual(res.eq('5.14159265358979'), true);
 	});
 });
 
 test('e + 2', t => {
 	evalFormula(0, "e + 2", 0, 0, 0, res => {
-		console.log(res.toString());
 		t.deepEqual(res.eq('4.71828182845904'), true);
 	});
 });
 
 
 test('sqrt(2)', t => {
-	evalFormula(0, "sqrt(2)", 0, 0, 0, res => {
-		console.log(res.toString());
+	evalFormula(0, "sqrt ( max ( 1 , sqrt(4) ) )", 0, 0, 0, res => {
 		t.deepEqual(res.eq('1.4142135623731'), true);
 	});
 });
@@ -366,6 +363,25 @@ test('round 2.5', t => {
 		t.deepEqual(res.eq(3), true);
 	});
 });
+
+test('ceil(2.12345, 3)', t => {
+	evalFormula(0, "ceil(2.12345, 3)", 0, 0, 0, res => {
+		t.deepEqual(res.eq('2.124'), true);
+	});
+});
+
+test('floor(2.12345, 3)', t => {
+	evalFormula(0, "floor(2.12345, 3)", 0, 0, 0, res => {
+		t.deepEqual(res.eq('2.123'), true);
+	});
+});
+
+test('round(2.12345, 3)', t => {
+	evalFormula(0, "round(2.12345, min(5, 23, 3, 77))", 0, 0, 0, res => {
+		t.deepEqual(res.eq('2.123'), true);
+	});
+});
+
 
 test("0.1 + 0.2 == 0.3", t => {
 	evalFormula(0, "0.1 + 0.2 == 0.3", 0, 0, 0, res => {

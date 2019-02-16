@@ -395,31 +395,39 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 			case 'ceil':
 			case 'floor':
 			case 'round':
-				var roundingMode;
-				switch (op) {
-					case 'ceil':
-						roundingMode = Decimal.ROUND_CEIL;
-						break;
-					case 'floor':
-						roundingMode = Decimal.ROUND_FLOOR;
-						break;
-					case 'round':
-						roundingMode = Decimal.ROUND_HALF_EVEN;
-						break;
-				}
-				if (Decimal.isDecimal(arr[1])) {
-					cb(arr[1].toDecimalPlaces(0, roundingMode));
-				} else {
+				var dp = arr[2];
+				if (!dp)
+					dp = new Decimal(0);
+				evaluate(dp, function(dp_res){
+					if (Decimal.isDecimal(dp_res) && dp_res.isInteger() && !dp_res.isNegative() && dp_res.lte(15))
+						dp = dp_res;
+					else{
+						fatal_error = true;
+						console.log('bad dp in '+op, dp, dp_res);
+						return cb(false);
+					}
+					var roundingMode;
+					switch (op) {
+						case 'ceil':
+							roundingMode = Decimal.ROUND_CEIL;
+							break;
+						case 'floor':
+							roundingMode = Decimal.ROUND_FLOOR;
+							break;
+						case 'round':
+							roundingMode = Decimal.ROUND_HALF_EVEN;
+							break;
+					}
 					evaluate(arr[1], function (res) {
 						if (Decimal.isDecimal(res)) {
-							cb(res.toDecimalPlaces(0, roundingMode));
+							cb(res.toDecimalPlaces(dp.toNumber(), roundingMode));
 						} else {
 							fatal_error = true;
 							console.log('not a decimal in '+op);
 							cb(false);
 						}
 					});
-				}
+				});
 				break;
 			case 'min':
 			case 'max':

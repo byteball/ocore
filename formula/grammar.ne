@@ -94,12 +94,12 @@ AS -> AS "+" MD {% function(d) {return ['+', d[0], d[2]]; } %}
 N -> float          {% id %}
     | "pi"          {% function(d) {return ['pi']; } %}
     | "e"           {% function(d) {return ['e']; } %}
-    | "sqrt" P    {% function(d) {return ['sqrt', d[1]]; } %}
+    | "sqrt" %l AS %r    {% function(d) {return ['sqrt', d[2]]; } %}
     | "min" %l (AS %comma:*):+ %r  {% function(d) {var params = d[2].map(function(v){return v[0]});return ['min', params]; }  %}
     | "max" %l (AS %comma:*):+ %r  {% function(d) {var params = d[2].map(function(v){return v[0]});return ['max', params]; }  %}
-    | "ceil" P    {% function(d) {return ['ceil', d[1]]; } %}
-    | "floor" P    {% function(d) {return ['floor', d[1]]; } %}
-    | "round" P    {% function(d) {return ['round', d[1]]; } %}
+    | "ceil" %l AS (%comma AS):? %r    {% function(d) {return ['ceil', d[2], d[3] ? d[3][1] : null]; } %}
+    | "floor" %l AS (%comma AS):? %r    {% function(d) {return ['floor', d[2], d[3] ? d[3][1] : null]; } %}
+    | "round" %l AS (%comma AS):? %r    {% function(d) {return ['round', d[2], d[3] ? d[3][1] : null]; } %}
     | (%data_feed %sl ( %comma:* %dfParamsName %comparisonOperators (string|float)):* %sr) {% function (d, i, reject){
 		var params = {};
 		var arrParams = d[0][2];
