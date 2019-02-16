@@ -71,15 +71,27 @@ test('1 - 1', t => {
 	});
 });
 
+test('1-1', t => {
+	evalFormula(0, "1-1", 0, 0, 0, res => {
+		t.deepEqual(res.eq(0), true);
+	});
+});
+
+test('-3 + 1', t => {
+	evalFormula(0, "-3 + 1", 0, 0, 0, res => {
+		t.deepEqual(res.eq(-2), true);
+	});
+});
+
 test('2 * 2', t => {
 	evalFormula(0, "2 * 2", 0, 0, 0, res => {
 		t.deepEqual(res.eq(4), true);
 	});
 });
 
-test('2 / 2', t => {
-	evalFormula(0, "2 / 2", 0, 0, 0, res => {
-		t.deepEqual(res.eq(1), true);
+test('-2 / 2', t => {
+	evalFormula(0, "-2 / 2", 0, 0, 0, res => {
+		t.deepEqual(res.eq(-1), true);
 	});
 });
 
@@ -95,9 +107,21 @@ test('2 ^ 4', t => {
 	});
 });
 
+test('-2 ^ 4', t => {
+	evalFormula(0, "-2 ^ 4", 0, 0, 0, res => {
+		t.deepEqual(res.eq(-16), true);
+	});
+});
+
 test('2 ^ -2', t => {
 	evalFormula(0, "2 ^ -2", 0, 0, 0, res => {
-		t.deepEqual(res.eq(0.25), true);
+		t.deepEqual(res, null);
+	});
+});
+
+test('-2 ^ (-2)', t => {
+	evalFormula(0, "-2 ^ (-2)", 0, 0, 0, res => {
+		t.deepEqual(res.eq(-0.25), true);
 	});
 });
 
@@ -119,8 +143,8 @@ test('222222222 ^ 222222222 infinity', t => {
 	});
 });
 
-test('222222222 ^ -222222222 0', t => {
-	evalFormula(0, "222222222 ^ -222222222", 0, 0, 0, res => {
+test('222222222 ^ (-222222222) 0', t => {
+	evalFormula(0, "222222222 ^ (-222222222)", 0, 0, 0, res => {
 		t.deepEqual(res.eq(0), true);
 	});
 });
@@ -731,9 +755,16 @@ test('validate round ok', t => {
 });
 
 test('validate min ok', t => {
-	evalFormula(0, "min(1 + (1 + 1) - 1, 2)", 0, 0, 0, res => {
+	evalFormula(0, "min(1 + (1 + 1) - 1 - (2+3), 2)", 0, 0, 0, res => {
 		t.deepEqual(Decimal.isDecimal(res), true);
-		t.deepEqual(res.eq(2), true);
+		t.deepEqual(res.eq(-3), true);
+	})
+});
+
+test('max ternary', t => {
+	evalFormula(0, "max(2>1 ? 5 : 6, 2)", 0, 0, 0, res => {
+		t.deepEqual(Decimal.isDecimal(res), true);
+		t.deepEqual(res.eq(5), true);
 	})
 });
 
@@ -765,5 +796,12 @@ test('inp', t => {
 test('inp', t => {
 	validateFormula("input[address=this address].amount == 20000", 0, res => {
 		t.deepEqual(res.error, false);
+	})
+});
+
+test('max ternary input', t => {
+	evalFormula(0, "max(2>1 ? 5 : 6, input[address=this address].amount > 10000 ? input[address=this address].amount + 1 : -1, 2)", objValidationState.arrAugmentedMessages, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
+		t.deepEqual(Decimal.isDecimal(res), true);
+		t.deepEqual(res.eq(20001), true);
 	})
 });

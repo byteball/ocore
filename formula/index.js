@@ -175,7 +175,7 @@ exports.validate = function (formula, complexity, callback) {
 		});
 	} else {
 		if (parser.results.length > 1)
-			console.log('validation: ambiguous grammar', parser.results);
+			console.log('validation: ambiguous grammar', JSON.stringify(parser.results));
 		callback({complexity, error: true});
 	}
 };

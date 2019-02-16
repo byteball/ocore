@@ -12,7 +12,7 @@
 			}}
 		],
 		WS: {match: /[\s]+/, lineBreaks: true},
-		digits: /-?(?:[0-9]|[1-9][0-9]+)(?:\.[0-9]+)?(?:[eE][-+]?[0-9]+)?\b/,
+		digits: /(?:[0-9]|[1-9][0-9]+)(?:\.[0-9]+)?(?:[eE][-+]?[0-9]+)?\b/,
 		op: ["+", "-", "/", "*", '^'],
 		concat: '||',
 		l: '(',
@@ -66,6 +66,8 @@ and_expr -> and_expr %and comp_expr {% function(d) {return ['and', d[0], d[2]];}
 
 expr -> ternary_expr {% id %}
 
+expr_list -> expr ("," expr):*  {% function(d) { return [d[0]].concat(d[1].map(function (item) {return item[1];}));   } %}
+
 
 comp_expr -> AS comparisonOperator AS {% function(d) {return ['comparison', d[1], d[0], d[2]];}%}
 	| AS {% id %}
@@ -76,11 +78,11 @@ P -> %l expr %r {% function(d) {return d[1]; } %}
     | N      {% id %}
 	| string {% id %}
 
-E -> P "^" E    {% function(d) {return ['^', d[0], d[2]]; } %}
+Exp -> P "^" Exp    {% function(d) {return ['^', d[0], d[2]]; } %}
     | P             {% id %}
 
-unary_expr -> E {% id %}
-	| %not E {% function(d) {return ['not', d[1]];}%}
+unary_expr -> Exp {% id %}
+	| %not Exp {% function(d) {return ['not', d[1]];}%}
 
 MD -> MD "*" unary_expr  {% function(d) {return ['*', d[0], d[2]]; } %}
     | MD "/" unary_expr  {% function(d) {return ['/', d[0], d[2]]; } %}
@@ -88,6 +90,7 @@ MD -> MD "*" unary_expr  {% function(d) {return ['*', d[0], d[2]]; } %}
 
 AS -> AS "+" MD {% function(d) {return ['+', d[0], d[2]]; } %}
     | AS "-" MD {% function(d) {return ['-', d[0], d[2]]; } %}
+    | "-" MD {% function(d) {return ['-', new Decimal(0), d[1]]; } %}
     | AS %concat MD {% function(d) {return ['concat', d[0], d[2]]; } %}
     | MD            {% id %}
 
@@ -95,8 +98,9 @@ N -> float          {% id %}
     | "pi"          {% function(d) {return ['pi']; } %}
     | "e"           {% function(d) {return ['e']; } %}
     | "sqrt" %l AS %r    {% function(d) {return ['sqrt', d[2]]; } %}
-    | "min" %l (AS %comma:*):+ %r  {% function(d) {var params = d[2].map(function(v){return v[0]});return ['min', params]; }  %}
-    | "max" %l (AS %comma:*):+ %r  {% function(d) {var params = d[2].map(function(v){return v[0]});return ['max', params]; }  %}
+    | "min" %l expr_list %r  {% function(d) {return ['min', d[2]]; }  %}
+    | "max" %l expr_list %r  {% function(d) {return ['max', d[2]]; }  %}
+#    | "max" %l (AS %comma:*):+ %r  {% function(d) {var params = d[2].map(function(v){return v[0]});return ['max', params]; }  %}
     | "ceil" %l AS (%comma AS):? %r    {% function(d) {return ['ceil', d[2], d[3] ? d[3][1] : null]; } %}
     | "floor" %l AS (%comma AS):? %r    {% function(d) {return ['floor', d[2], d[3] ? d[3][1] : null]; } %}
     | "round" %l AS (%comma AS):? %r    {% function(d) {return ['round', d[2], d[3] ? d[3][1] : null]; } %}
