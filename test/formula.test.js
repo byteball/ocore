@@ -474,6 +474,12 @@ test("'test' || 1 and 'test'", t => {
 	});
 });
 
+test("'test' || 1 and 'test'", t => {
+	evalFormula(0, "'test' || (1>2 ? 55 : -3+1) || 'test'", 0, 0, 0, res => {
+		t.deepEqual(res, "test-2test");
+	});
+});
+
 test("1 == 1", t => {
 	evalFormula(0, "1 == 1", 0, 0, 0, res => {
 		t.deepEqual(res, true);
