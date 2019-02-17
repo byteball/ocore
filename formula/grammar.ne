@@ -12,7 +12,7 @@
 			}}
 		],
 		WS: {match: /[\s]+/, lineBreaks: true},
-		digits: /(?:[0-9]|[1-9][0-9]+)(?:\.[0-9]+)?(?:[eE][-+]?[0-9]+)?\b/,
+		number: /(?:[0-9]|[1-9][0-9]+)(?:\.[0-9]+)?(?:[eE][-+]?[0-9]+)?\b/,
 		op: ["+", "-", "/", "*", '^'],
 		concat: '||',
 		l: '(',
@@ -100,7 +100,6 @@ N -> float          {% id %}
     | "sqrt" %l AS %r    {% function(d) {return ['sqrt', d[2]]; } %}
     | "min" %l expr_list %r  {% function(d) {return ['min', d[2]]; }  %}
     | "max" %l expr_list %r  {% function(d) {return ['max', d[2]]; }  %}
-#    | "max" %l (AS %comma:*):+ %r  {% function(d) {var params = d[2].map(function(v){return v[0]});return ['max', params]; }  %}
     | "ceil" %l AS (%comma AS):? %r    {% function(d) {return ['ceil', d[2], d[3] ? d[3][1] : null]; } %}
     | "floor" %l AS (%comma AS):? %r    {% function(d) {return ['floor', d[2], d[3] ? d[3][1] : null]; } %}
     | "round" %l AS (%comma AS):? %r    {% function(d) {return ['round', d[2], d[3] ? d[3][1] : null]; } %}
@@ -137,6 +136,6 @@ N -> float          {% id %}
 		return [d[0][0].value, params, d[2].value]
 	}%}
 
-float -> %digits           {% function(d,l, reject) { debugger; return new Decimal(d[0].value); }%}
+float -> %number           {% function(d,l, reject) { debugger; return new Decimal(d[0].value); }%}
 
 string -> %string        {% function(d) {return d[0].value; } %}

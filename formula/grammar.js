@@ -16,7 +16,7 @@ function id(x) { return x[0]; }
 			}}
 		],
 		WS: {match: /[\s]+/, lineBreaks: true},
-		digits: /(?:[0-9]|[1-9][0-9]+)(?:\.[0-9]+)?(?:[eE][-+]?[0-9]+)?\b/,
+		number: /(?:[0-9]|[1-9][0-9]+)(?:\.[0-9]+)?(?:[eE][-+]?[0-9]+)?\b/,
 		op: ["+", "-", "/", "*", '^'],
 		concat: '||',
 		l: '(',
@@ -151,7 +151,7 @@ var grammar = {
         	}
         	return [d[0][0].value, params, d[2].value]
         }},
-    {"name": "float", "symbols": [(lexer.has("digits") ? {type: "digits"} : digits)], "postprocess": function(d,l, reject) { debugger; return new Decimal(d[0].value); }},
+    {"name": "float", "symbols": [(lexer.has("number") ? {type: "number"} : number)], "postprocess": function(d,l, reject) { debugger; return new Decimal(d[0].value); }},
     {"name": "string", "symbols": [(lexer.has("string") ? {type: "string"} : string)], "postprocess": function(d) {return d[0].value; }}
 ]
   , ParserStart: "main"
