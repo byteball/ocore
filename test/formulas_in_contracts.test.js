@@ -519,12 +519,7 @@ test('formula - y == x', t => {
 
 
 test.cb('formula - data_feed == 10', t => {
-	let db = {};
-	db.query = function (query, params, cb) {
-		let rows = [{value: null, int_value: 10}];
-		cb(rows);
-	};
-	definition.validateAuthentifiers(db, null, 'base',
+	definition.validateAuthentifiers({}, null, 'base',
 		['formula', "data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name=\"test\"] == 10"], null, objValidationState, null,
 		function (err, res) {
 			t.is(res, true);
@@ -533,12 +528,7 @@ test.cb('formula - data_feed == 10', t => {
 });
 
 test.cb('formula - not found', t => {
-	let db = {};
-	db.query = function (query, params, cb) {
-		let rows = [];
-		cb(rows);
-	};
-	definition.validateAuthentifiers(db, null, 'base',
+	definition.validateAuthentifiers({}, null, 'base',
 		['formula', "data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name=\"test2\"] == 10"], null, objValidationState, null,
 		function (err, res) {
 			t.is(err, null);
@@ -548,12 +538,7 @@ test.cb('formula - not found', t => {
 });
 
 test.cb('formula - data_feed == 10', t => {
-	let db = {};
-	db.query = function (query, params, cb) {
-		let rows = [{value: null, int_value: 10}];
-		cb(rows);
-	};
-	definition.validateAuthentifiers(db, null, 'base',
+	definition.validateAuthentifiers({}, null, 'base',
 		['formula', "data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name=\"test\", min_mci=1] == 10"], null, objValidationState, null,
 		function (err, res) {
 			t.is(res, true);
@@ -562,12 +547,7 @@ test.cb('formula - data_feed == 10', t => {
 });
 
 test.cb('formula - not found with min_mci', t => {
-	let db = {};
-	db.query = function (query, params, cb) {
-		let rows = [];
-		cb(rows);
-	};
-	definition.validateAuthentifiers(db, null, 'base',
+	definition.validateAuthentifiers({}, null, 'base',
 		['formula', "data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name=\"test2\", min_mci=1] == 10"], null, objValidationState, null,
 		function (err, res) {
 			t.is(err, null);
@@ -577,12 +557,7 @@ test.cb('formula - not found with min_mci', t => {
 });
 
 test.cb('formula - 2 rows, take last', t => {
-	let db = {};
-	db.query = function (query, params, cb) {
-		let rows = [{value: null, int_value: 12}, {value: null, int_value: 9}];
-		cb(rows);
-	};
-	definition.validateAuthentifiers(db, null, 'base',
+	definition.validateAuthentifiers({}, null, 'base',
 		['formula', "data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name=\"test\", min_mci=1] == 10"], null, objValidationState, null,
 		function (err, res) {
 			t.is(res, true);
@@ -591,12 +566,7 @@ test.cb('formula - 2 rows, take last', t => {
 });
 
 test.cb('formula - ifnone 100', t => {
-	let db = {};
-	db.query = function (query, params, cb) {
-		let rows = [];
-		cb(rows);
-	};
-	definition.validateAuthentifiers(db, null, 'base',
+	definition.validateAuthentifiers({}, null, 'base',
 		['formula', "data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name=\"test2\", ifnone=100] == 100"], null, objValidationState, null,
 		function (err, res) {
 			console.error(err, res);
@@ -606,12 +576,7 @@ test.cb('formula - ifnone 100', t => {
 });
 
 test.cb('formula - ifnone "100"', t => {
-	let db = {};
-	db.query = function (query, params, cb) {
-		let rows = [];
-		cb(rows);
-	};
-	definition.validateAuthentifiers(db, null, 'base',
+	definition.validateAuthentifiers({}, null, 'base',
 		['formula', "data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name=\"test2\", ifnone=\"100\"] == 100"], null, objValidationState, null,
 		function (err, res) {
 			console.error(err, res);
@@ -621,12 +586,7 @@ test.cb('formula - ifnone "100"', t => {
 });
 
 test.cb('formula - ifnone abort', t => {
-	let db = {};
-	db.query = function (query, params, cb) {
-		let rows = [];
-		cb(rows);
-	};
-	definition.validateAuthentifiers(db, null, 'base',
+	definition.validateAuthentifiers({}, null, 'base',
 		['formula', "data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name=\"test2\", ifnone=\"abort\"] == 10"], null, objValidationState,
 		null, function (err, res) {
 			t.is(err, null);
@@ -636,12 +596,7 @@ test.cb('formula - ifnone abort', t => {
 });
 
 test.cb('formula - ifseveral abort', t => {
-	let db = {};
-	db.query = function (query, params, cb) {
-		let rows = [{value: 'test'}, {value: 'test2'}];
-		cb(rows);
-	};
-	definition.validateAuthentifiers(db, null, 'base',
+	definition.validateAuthentifiers({}, null, 'base',
 		['formula', "data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name=\"test\", ifseveral=\"abort\"] == 10"], null, objValidationState, null,
 		function (err, res) {
 			t.is(err, null);
@@ -664,12 +619,7 @@ test('formula - if ifseveral first', t => {
 });*/
 
 test.cb('formula - ifseveral last', t => {
-	let db = {};
-	db.query = function (query, params, cb) {
-		let rows = [{value: null, int_value: 11}, {value: null, int_value: 9}];
-		cb(rows);
-	};
-	definition.validateAuthentifiers(db, null, 'base',
+	definition.validateAuthentifiers({}, null, 'base',
 		['formula', "data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name=\"test\", ifseveral=\"last\"] == 10"], null,
 		objValidationState, null,
 		function (err, res) {
