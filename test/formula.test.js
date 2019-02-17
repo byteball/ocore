@@ -137,6 +137,12 @@ test('2 ^ 1.5', t => {
 	});
 });
 
+test('e ^ (4-2.5)', t => {
+	evalFormula(0, "e^(4-2.5)", 0, 0, 0, res => {
+		t.deepEqual(res.eq('4.48168907033806'), true);
+	});
+});
+
 test('222222222 ^ 222222222 infinity', t => {
 	evalFormula(0, "222222222 ^ 222222222", 0, 0, 0, res => {
 		t.deepEqual(res, null);

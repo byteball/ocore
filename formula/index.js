@@ -19,6 +19,9 @@ Decimal.set({
 	toExpPos: 400,
 });
 
+var decimalE = new Decimal(Math.E);
+var decimalPi = new Decimal(Math.PI);
+
 var cacheLimit = 100;
 var formulasInCache = [];
 var cache = {};
@@ -370,10 +373,17 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 							if (prevV === undefined) {
 								prevV = res;
 							} else {
-								if (f === 'pow' && (!res.isInteger() || res.abs().gte(Number.MAX_SAFE_INTEGER))){
-									fatal_error = true;
-									console.log('non-integer or large exponent '+res);
-									return cb2('non-integer or large exponent');
+								if (f === 'pow'){
+									if (prevV.eq(decimalE)){ // natural exponential
+										console.log('e^x');
+										prevV = res.exp();
+										return cb2();
+									}
+									else if (!res.isInteger() || res.abs().gte(Number.MAX_SAFE_INTEGER)){
+										fatal_error = true;
+										console.log('non-integer or large exponent '+res);
+										return cb2('non-integer or large exponent');
+									}
 								}
 								prevV = prevV[f](res);
 							}
@@ -702,10 +712,10 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 				});
 				break;
 			case 'pi':
-				cb(new Decimal(Math.PI));
+				cb(decimalPi);
 				break;
 			case 'e':
-				cb(new Decimal(Math.E));
+				cb(decimalE);
 				break;
 			case 'data_feed':
 			
