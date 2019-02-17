@@ -26,6 +26,10 @@ var cacheLimit = 100;
 var formulasInCache = [];
 var cache = {};
 
+function isValidValue(val){
+	return (typeof val === 'string' || typeof val === 'boolean' || Decimal.isDecimal(val) && val.isFinite());
+}
+
 exports.validate = function (formula, complexity, callback) {
 	complexity++;
 	var parser = {};
@@ -44,7 +48,7 @@ exports.validate = function (formula, complexity, callback) {
 		}
 	} catch (e) {
 	//	console.log('==== parse error', e, e.stack)
-		return callback({error: 'Incorrect formula', complexity});
+		return callback({error: 'parse error', complexity});
 	}
 	
 	function evaluate(arr, cb) {
@@ -138,18 +142,41 @@ exports.validate = function (formula, complexity, callback) {
 				});
 				break;
 			case 'data_feed':
-				var result = validateDataFeed(arr[1]);
-				complexity += result.complexity;
-				cb(!result.error);
-				break;
 			case 'in_data_feed':
-				var result = validateDataFeedExists(arr[1]);
+				var params = arr[1];
+				var result = (op === 'data_feed') ? validateDataFeed(params) : validateDataFeedExists(params);
 				complexity += result.complexity;
-				cb(!result.error);
+				if (result.error)
+					return cb(false);
+				async.eachSeries(
+					Object.keys(params),
+					function(param_name, cb2){
+						evaluate(params[param_name].value, function(res){
+							cb2(!res);
+						});
+					},
+					function(err){
+						cb(!err);
+					}
+				);
 				break;
 			case 'input':
 			case 'output':
-				cb(inputOrOutputIsValid(arr[1]));
+				var params = arr[1];
+				var bIoValid = inputOrOutputIsValid(params);
+				if (!bIoValid)
+					return cb(false);
+				async.eachSeries(
+					Object.keys(params),
+					function(param_name, cb2){
+						evaluate(params[param_name].value, function(res){
+							cb2(!res);
+						});
+					},
+					function(err){
+						cb(!err);
+					}
+				);
 				break;
 			case 'concat':
 				async.eachSeries(arr.slice(1), function (param, cb2) {
@@ -185,52 +212,60 @@ exports.validate = function (formula, complexity, callback) {
 
 function inputOrOutputIsValid(params) {
 	if (!Object.keys(params).length) return false;
-	for (var k in params) {
-		var operator = params[k].operator;
-		var value = params[k].value;
+	for (var name in params) {
+		var operator = params[name].operator;
+		var value = params[name].value;
 		if (Decimal.isDecimal(value)){
 			if (!value.isFinite())
 				return false;
 			value = value.toString();
 		}
 		if (operator === '==') return false;
-		switch (k) {
+		if (['address', 'amount', 'asset'].indexOf(name) === -1)
+			return false;
+		if ((name === 'address' || name === 'asset') && operator !== '=' && operator !== '!=')
+			return false;
+		if (typeof value !== 'string') // a nested expression
+			return true;
+		switch (name) {
 			case 'address':
-				if (operator !== '=' && operator !== '!=') return false;
 				if (!(value === 'this address' || value === 'other address' || ValidationUtils.isValidAddress(value))) return false;
 				break;
 			case 'amount':
 				if (!(/^\d+$/.test(value) && ValidationUtils.isPositiveInteger(parseInt(value)))) return false;
 				break;
 			case 'asset':
-				if (operator !== '=' && operator !== '!=') return false;
 				if (!(value === 'base' || ValidationUtils.isValidBase64(value, constants.HASH_LENGTH))) return false;
 				break;
 			default:
-				return false;
+				throw Error("unrec name after check: "+name);
 		}
 	}
 	return true;
 }
 
 function validateDataFeed(params) {
-	var complexity = 0;
+	var complexity = 1;
 	if (params.oracles && params.feed_name) {
-		for (var k in params) {
-			var operator = params[k].operator;
-			var value = params[k].value;
+		for (var name in params) {
+			var operator = params[name].operator;
+			var value = params[name].value;
 			if (Decimal.isDecimal(value)){
 				if (!value.isFinite())
 					return {error: true, complexity};
 				value = value.toString();
 			}
 			if (operator !== '=') return {error: true, complexity};
-			switch (k) {
+			if (['oracles', 'feed_name', 'min_mci', 'feed_value', 'ifseveral', 'ifnone', 'what'].indexOf(name) === -1)
+				return {error: true, complexity};
+			if (typeof value !== 'string')
+				continue;
+			switch (name) {
 				case 'oracles':
 					if (value.trim() === '') return {error: true, complexity};
 					var addresses = value.split(':');
 					if (addresses.length === 0) return {error: true, complexity};
-					complexity += addresses.length;
+				//	complexity += addresses.length;
 					if (!addresses.every(function (address) {
 						return ValidationUtils.isValidAddress(address) || address === 'this address';
 					})) return {error: true, complexity};
@@ -258,7 +293,7 @@ function validateDataFeed(params) {
 					if (!(value === 'value' || value === 'unit')) return {error: true, complexity};
 					break;
 				default:
-					return {error: true, complexity};
+					throw Error("unrecognized name after checking: "+name);
 			}
 		}
 		return {error: false, complexity};
@@ -268,37 +303,40 @@ function validateDataFeed(params) {
 }
 
 function validateDataFeedExists(params) {
-	var complexity = 0;
+	var complexity = 1;
 	if (!params.oracles || !params.feed_name || !params.feed_value)
 		return {error: true, complexity};
-	for (var k in params) {
-		var operator = params[k].operator;
-		var value = params[k].value;
+	for (var name in params) {
+		var operator = params[name].operator;
+		var value = params[name].value;
 		if (Decimal.isDecimal(value)){
 			if (!value.isFinite())
 				return {error: true, complexity};
 			value = value.toString();
 		}
 		if (operator === '==') return {error: true, complexity};
-		switch (k) {
+		if (['oracles', 'feed_name', 'min_mci', 'feed_value'].indexOf(name) === -1)
+			return {error: true, complexity};
+		if ((name === 'oracles' || name === 'feed_name' || name === 'min_mci') && operator !== '=')
+			return {error: true, complexity};
+		if (typeof value !== 'string')
+			continue;
+		switch (name) {
 			case 'oracles':
 				if (value.trim() === '') return {error: true, complexity};
-				if (operator !== '=') return {error: true, complexity};
 				var addresses = value.split(':');
 				if (addresses.length === 0) return {error: true, complexity};
-				complexity += addresses.length;
+			//	complexity += addresses.length;
 				if (!addresses.every(function (address) {
 					return ValidationUtils.isValidAddress(address) || address === 'this address';
 				})) return {error: true, complexity};
 				break;
 
 			case 'feed_name':
-				if (operator !== '=') return {error: true, complexity};
 				if (value.trim() === '') return {error: true, complexity};
 				break;
 
 			case 'min_mci':
-				if (operator !== '=') return {error: true, complexity};
 				if (!(/^\d+$/.test(value) && ValidationUtils.isNonnegativeInteger(parseInt(value))))
 					return {error: true, complexity};
 				break;
@@ -306,7 +344,7 @@ function validateDataFeedExists(params) {
 			case 'feed_value':
 				break;
 			default:
-				return {error: true, complexity};
+				throw Error("unrecognized name after checking: "+name);
 		}
 	}
 	return {error: false, complexity};
@@ -334,6 +372,8 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 	var fatal_error = false;
 	
 	function evaluate(arr, cb) {
+		if (fatal_error)
+			return cb(false);
 		if (Decimal.isDecimal(arr) && arr.isFinite()) return cb(arr);
 		if (typeof arr !== 'object') {
 			if (typeof arr === 'boolean') return cb(arr);
@@ -720,26 +760,44 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 			case 'data_feed':
 			
 			function getDataFeed(params, cb) {
+				if (typeof params.oracles.value !== 'string')
+					return cb("oracles not a string "+params.oracles.value);
 				var arrAddresses = params.oracles.value.split(':').map(function(addr){
 					return (addr === 'this address') ? address : addr;
 				});
+				if (!arrAddresses.every(ValidationUtils.isValidAddress))
+					return cb("bad oracles "+arrAddresses);
 				var feed_name = params.feed_name.value;
+				if (!feed_name || typeof feed_name !== 'string')
+					return cb("empty feed_name or not a string");
 				var value = null;
 				var relation = '';
 				var min_mci = 0;
 				if (params.feed_value) {
 					value = params.feed_value.value;
 					relation = params.feed_value.operator;
+					if (!isValidValue(value))
+						return cb("bad feed_value: "+value);
 				}
 				if (params.min_mci) {
 					min_mci = params.min_mci.value.toString();
+					if (!(/^\d+$/.test(min_mci) && ValidationUtils.isNonnegativeInteger(parseInt(min_mci))))
+						return cb("bad min_mci: "+min_mci);
 				}
 				var ifseveral = 'last';
-				if (params.ifseveral)
+				if (params.ifseveral){
 					ifseveral = params.ifseveral.value;
+					if (ifseveral !== 'abort' && ifseveral !== 'last')
+						return cb("bad ifseveral: "+ifseveral);
+				}
 				var what = 'value';
-				if (params.what)
+				if (params.what){
 					what = params.what.value;
+					if (what !== 'unit' && what !== 'value')
+						return cb("bad what: "+what);
+				}
+				if (params.ifnone && !isValidValue(params.ifnone.value))
+					return cb("bad ifnone: "+params.ifnone.value);
 				dataFeeds.readDataFeedValue(arrAddresses, feed_name, value, min_mci, objValidationState.last_ball_mci, ifseveral, function(objResult){
 				//	console.log(arrAddresses, feed_name, value, min_mci, ifseveral);
 				//	console.log('---- objResult', objResult);
@@ -817,28 +875,84 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 				);*/
 			}
 				
-				getDataFeed(arr[1], function (err, result) {
-					if (err) {
-						fatal_error = true;
-						console.log('error from data feed: '+err);
-						return cb(false);
+				var params = arr[1];
+				var evaluated_params = {};
+				async.eachSeries(
+					Object.keys(params),
+					function(param_name, cb2){
+						evaluate(params[param_name].value, function(res){
+							if (!isValidValue(res)){
+								fatal_error = true;
+								console.log('bad value '+res);
+								return cb2('bad res');
+							}
+							evaluated_params[param_name] = {
+								operator: params[param_name].operator,
+								value: res
+							};
+							cb2();
+						});
+					},
+					function(err){
+						if (err)
+							return cb(false);
+						getDataFeed(evaluated_params, function (err, result) {
+							if (err) {
+								fatal_error = true;
+								console.log('error from data feed: '+err);
+								return cb(false);
+							}
+							cb(result);
+						});
 					}
-					cb(result);
-				});
+				);
 				break;
 				
 			case 'in_data_feed':
 				var params = arr[1];
-				var arrAddresses = params.oracles.value.split(':').map(function(addr){
-					return (addr === 'this address') ? address : addr;
-				});
-				var feed_name = params.feed_name.value;
-				var value = params.feed_value.value;
-				var relation = params.feed_value.operator;
-				var min_mci = 0;
-				if (params.min_mci)
-					min_mci = params.min_mci.value.toString();
-				dataFeeds.dataFeedExists(arrAddresses, feed_name, relation, value, min_mci, objValidationState.last_ball_mci, cb);
+				var evaluated_params = {};
+				async.eachSeries(
+					Object.keys(params),
+					function(param_name, cb2){
+						evaluate(params[param_name].value, function(res){
+							if (!isValidValue(res)){
+								fatal_error = true;
+								console.log('bad value '+res);
+								return cb2('bad res');
+							}
+							evaluated_params[param_name] = {
+								operator: params[param_name].operator,
+								value: res
+							};
+							cb2();
+						});
+					},
+					function(err){
+						if (err)
+							return cb(false);
+						if (typeof evaluated_params.oracles.value !== 'string')
+							return setFatalError('oracles is not a string', cb, false);
+						var arrAddresses = evaluated_params.oracles.value.split(':').map(function(addr){
+							return (addr === 'this address') ? address : addr;
+						});
+						if (!arrAddresses.every(ValidationUtils.isValidAddress)) // even if some addresses are ok
+							return setFatalError('bad oracles', cb, false);
+						var feed_name = evaluated_params.feed_name.value;
+						if (!feed_name || typeof feed_name !== 'string')
+							return setFatalError('bad feed name', cb, false);
+						var value = evaluated_params.feed_value.value;
+						var relation = evaluated_params.feed_value.operator;
+						if (!isValidValue(value))
+							return setFatalError("bad feed_value: "+value, cb, false);
+						var min_mci = 0;
+						if (evaluated_params.min_mci){
+							min_mci = evaluated_params.min_mci.value.toString();
+							if (!(/^\d+$/.test(min_mci) && ValidationUtils.isNonnegativeInteger(parseInt(min_mci))))
+								return setFatalError('bad min_mci', cb, false);
+						}
+						dataFeeds.dataFeedExists(arrAddresses, feed_name, relation, value, min_mci, objValidationState.last_ball_mci, cb);
+					}
+				);
 				break;
 				
 			case 'input':
@@ -919,20 +1033,57 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 				}
 			}
 				
-				var result = findOutputOrInputAndReturnName(arr[1]);
-				if (result === '') {
-					console.log('not found or ambiguous in '+op);
-					fatal_error = true;
-					return cb(false);
-				}
-				if (arr[2] === 'amount') {
-					cb(new Decimal(result['amount']));
-				} else if (arr[2] === 'asset') {
-					if (!result['asset']) result['asset'] = 'base';
-					cb(result['asset'])
-				} else {
-					cb(result[arr[2]]);
-				}
+				
+				var params = arr[1];
+				var evaluated_params = {};
+				async.eachSeries(
+					Object.keys(params),
+					function(param_name, cb2){
+						evaluate(params[param_name].value, function(res){
+							if (!isValidValue(res))
+								return setFatalError('bad value '+res, cb2);
+							evaluated_params[param_name] = {
+								operator: params[param_name].operator,
+								value: res
+							};
+							cb2();
+						});
+					},
+					function(err){
+						if (err)
+							return cb(false);
+						if (evaluated_params.address){
+							var v = evaluated_params.address.value;
+							if (!ValidationUtils.isValidAddress(v) && v !== 'this address' && v !== 'other address')
+								return setFatalError('bad address '+v, cb, false);
+						}
+						if (evaluated_params.asset){
+							var v = evaluated_params.asset.value;
+							if (!ValidationUtils.isValidBase64(v, constants.HASH_LENGTH) && v !== 'base')
+								return setFatalError('bad asset', cb, false);
+						}
+						if (evaluated_params.amount){
+							var v = evaluated_params.amount.value;
+							if(!(Decimal.isDecimal(v) && v.isFinite()))
+								return setFatalError('bad amount', cb, false);
+						}
+						var result = findOutputOrInputAndReturnName(evaluated_params);
+						if (result === '') {
+							console.log('not found or ambiguous in '+op);
+							fatal_error = true;
+							return cb(false);
+						}
+						if (arr[2] === 'amount') {
+							cb(new Decimal(result.amount));
+						} else if (arr[2] === 'asset') {
+							cb(result.asset || 'base')
+						} else if (arr[2] === 'address') {
+							cb(result.address);
+						}
+						else
+							throw Error("unknown field requested: "+arr[2]);
+					}
+				);
 				break;
 			
 			case 'concat':
@@ -967,14 +1118,16 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 				});
 				break;
 			default:
-				fatal_error = true;
-				console.log('unrecognized op '+op);
-				cb(false);
-				break;
+				throw Error('unrecognized op '+op);
 		}
 		
 	}
 	
+	function setFatalError(err, cb, cb_arg){
+		fatal_error = true;
+		console.log(err);
+		(cb_arg !== undefined) ? cb(cb_arg) : cb(err);
+	}
 	
 	
 	if (parser.results.length === 1 && parser.results[0]) {

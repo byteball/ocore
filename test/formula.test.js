@@ -517,7 +517,7 @@ test("\"bb\" > \"ba\"", t => {
 });
 
 test('formula - amount !=', t => {
-	evalFormula(0, 'input[asset=base].amount != output[asset=base, address=GFK3RDAPQLLNCMQEVGGD2KCPZTLSG3HN].amount', objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
+	evalFormula(0, 'input[asset="base" ].amount != output[ asset = base , address=GFK3RDAPQLLNCMQEVGGD2KCPZTLSG3HN].amount', objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
 		t.deepEqual(res, true);
 	});
 });
@@ -531,6 +531,27 @@ test('formula - amount = 1', t => {
 test.cb('formula - datafeed', t => {
 	evalFormula({}, "data_feed[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name=\"test\", ifseveral=\"last\"] == 10", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
 		t.deepEqual(res, true);
+		t.end();
+	});
+});
+
+test.cb('formula - datafeed: formula in feed_name', t => {
+	evalFormula({}, "data_feed[oracles=\"MXMEKGN37H5QO2AWH\"||\"T7XRG6LHJVVTAWU\", feed_name = 1 == 1+1*5 ? \"test2\" : \"tes\" || \"t\", ifseveral=\"last\"] == 10", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
+		t.deepEqual(res, true);
+		t.end();
+	});
+});
+
+test.cb('formula - datafeed: oracle address from input', t => {
+	evalFormula({}, "data_feed[oracles=input[asset=base].address, feed_name=\"test\", ifseveral=\"last\"] == 10", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
+		t.deepEqual(res, true);
+		t.end();
+	});
+});
+
+test.cb('formula - datafeed: input amount instead of oracle address', t => {
+	evalFormula({}, "data_feed[oracles=input[asset=base].amount, feed_name=\"test\", ifseveral=\"last\"] == 10", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
+		t.deepEqual(res, null);
 		t.end();
 	});
 });
@@ -765,5 +786,33 @@ test('max ternary input', t => {
 	evalFormula(0, "max(2>1 ? 5 : 6, input[address=this address].amount > 10000 ? input[address=this address].amount + 1 : -1, 2)", objValidationState.arrAugmentedMessages, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
 		t.deepEqual(Decimal.isDecimal(res), true);
 		t.deepEqual(res.eq(20001), true);
+	})
+});
+
+test('formula in input', t => {
+	evalFormula(0, "input[address='this '||'address', amount=3*10*1000-10000].amount - 5000", objValidationState.arrAugmentedMessages, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
+		t.deepEqual(Decimal.isDecimal(res), true);
+		t.deepEqual(res.eq(15000), true);
+	})
+});
+
+test('nested output in input', t => {
+	evalFormula(0, "input[address=output[amount>10*2-6].address, amount=3*10*1000-10000].amount - 5000", objValidationState.arrAugmentedMessages, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
+		t.deepEqual(Decimal.isDecimal(res), true);
+		t.deepEqual(res.eq(15000), true);
+	})
+});
+
+test('bad address evaluated from nested output in input', t => {
+	evalFormula(0, "input[address=output[amount>10*2-6].amount, amount=3*10*1000-10000].amount * 5000", objValidationState.arrAugmentedMessages, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
+		t.deepEqual(res, null);
+	})
+});
+
+test.cb('nested data feed in input', t => {
+	evalFormula(0, "input[address=data_feed[oracles=\"this address\", feed_name='test']==10 ? 'this address' : 'bad address', amount=3*10*1000-10000].amount - 5000", objValidationState.arrAugmentedMessages, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
+		t.deepEqual(Decimal.isDecimal(res), true);
+		t.deepEqual(res.eq(15000), true);
+		t.end();
 	})
 });

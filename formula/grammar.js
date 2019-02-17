@@ -34,7 +34,7 @@ function id(x) { return x[0]; }
 		ioParamsName: ['address', 'amount', 'asset'],
 		quote: '"',
 		ternary: ['?', ':'],
-		ioParamValue: /[\w\ \/=+]+/,
+		ioParamValue: ['base', 'this address', 'other address', /\b[2-7A-Z]{32}\b/],
 		comma: ',',
 		dot: '.',
 	});
@@ -70,6 +70,23 @@ var grammar = {
     {"name": "comp_expr", "symbols": ["AS", "comparisonOperator", "AS"], "postprocess": function(d) {return ['comparison', d[1], d[0], d[2]];}},
     {"name": "comp_expr", "symbols": ["AS"], "postprocess": id},
     {"name": "comparisonOperator", "symbols": [(lexer.has("comparisonOperators") ? {type: "comparisonOperators"} : comparisonOperators)], "postprocess": function(d) { return d[0].value }},
+    {"name": "df_param", "symbols": [(lexer.has("dfParamsName") ? {type: "dfParamsName"} : dfParamsName), "comparisonOperator", "expr"], "postprocess": function(d) { return [d[0].value, d[1], d[2]]; }},
+    {"name": "df_param_list$ebnf$1", "symbols": []},
+    {"name": "df_param_list$ebnf$1$subexpression$1", "symbols": [{"literal":","}, "df_param"]},
+    {"name": "df_param_list$ebnf$1", "symbols": ["df_param_list$ebnf$1", "df_param_list$ebnf$1$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
+    {"name": "df_param_list", "symbols": ["df_param", "df_param_list$ebnf$1"], "postprocess": function(d) { return [d[0]].concat(d[1].map(function (item) {return item[1];}));   }},
+    {"name": "io_param$subexpression$1", "symbols": ["expr"]},
+    {"name": "io_param$subexpression$1", "symbols": [(lexer.has("ioParamValue") ? {type: "ioParamValue"} : ioParamValue)]},
+    {"name": "io_param", "symbols": [(lexer.has("ioParamsName") ? {type: "ioParamsName"} : ioParamsName), "comparisonOperator", "io_param$subexpression$1"], "postprocess":  function(d) {
+        	var value = d[2][0];
+        	if (value.type === 'ioParamValue')
+        		value = value.value;
+        	return [d[0].value, d[1], value];
+        } },
+    {"name": "io_param_list$ebnf$1", "symbols": []},
+    {"name": "io_param_list$ebnf$1$subexpression$1", "symbols": [{"literal":","}, "io_param"]},
+    {"name": "io_param_list$ebnf$1", "symbols": ["io_param_list$ebnf$1", "io_param_list$ebnf$1$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
+    {"name": "io_param_list", "symbols": ["io_param", "io_param_list$ebnf$1"], "postprocess": function(d) { return [d[0]].concat(d[1].map(function (item) {return item[1];}));   }},
     {"name": "P", "symbols": [(lexer.has("l") ? {type: "l"} : l), "expr", (lexer.has("r") ? {type: "r"} : r)], "postprocess": function(d) {return d[1]; }},
     {"name": "P", "symbols": ["N"], "postprocess": id},
     {"name": "P", "symbols": ["string"], "postprocess": id},
@@ -103,55 +120,32 @@ var grammar = {
     {"name": "N$ebnf$3", "symbols": ["N$ebnf$3$subexpression$1"], "postprocess": id},
     {"name": "N$ebnf$3", "symbols": [], "postprocess": function(d) {return null;}},
     {"name": "N", "symbols": [{"literal":"round"}, (lexer.has("l") ? {type: "l"} : l), "AS", "N$ebnf$3", (lexer.has("r") ? {type: "r"} : r)], "postprocess": function(d) {return ['round', d[2], d[3] ? d[3][1] : null]; }},
-    {"name": "N$subexpression$1$ebnf$1", "symbols": []},
-    {"name": "N$subexpression$1$ebnf$1$subexpression$1$ebnf$1", "symbols": []},
-    {"name": "N$subexpression$1$ebnf$1$subexpression$1$ebnf$1", "symbols": ["N$subexpression$1$ebnf$1$subexpression$1$ebnf$1", (lexer.has("comma") ? {type: "comma"} : comma)], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
-    {"name": "N$subexpression$1$ebnf$1$subexpression$1$subexpression$1", "symbols": ["string"]},
-    {"name": "N$subexpression$1$ebnf$1$subexpression$1$subexpression$1", "symbols": ["float"]},
-    {"name": "N$subexpression$1$ebnf$1$subexpression$1", "symbols": ["N$subexpression$1$ebnf$1$subexpression$1$ebnf$1", (lexer.has("dfParamsName") ? {type: "dfParamsName"} : dfParamsName), (lexer.has("comparisonOperators") ? {type: "comparisonOperators"} : comparisonOperators), "N$subexpression$1$ebnf$1$subexpression$1$subexpression$1"]},
-    {"name": "N$subexpression$1$ebnf$1", "symbols": ["N$subexpression$1$ebnf$1", "N$subexpression$1$ebnf$1$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
-    {"name": "N$subexpression$1", "symbols": [(lexer.has("data_feed") ? {type: "data_feed"} : data_feed), (lexer.has("sl") ? {type: "sl"} : sl), "N$subexpression$1$ebnf$1", (lexer.has("sr") ? {type: "sr"} : sr)]},
-    {"name": "N", "symbols": ["N$subexpression$1"], "postprocess":  function (d, i, reject){
+    {"name": "N", "symbols": [(lexer.has("data_feed") ? {type: "data_feed"} : data_feed), (lexer.has("sl") ? {type: "sl"} : sl), "df_param_list", (lexer.has("sr") ? {type: "sr"} : sr)], "postprocess":  function (d, location, reject){
         	var params = {};
-        	var arrParams = d[0][2];
+        	var arrParams = d[2];
         	for(var i = 0; i < arrParams.length; i++){
-        		var name = arrParams[i][1].value;
-        		var operator = arrParams[i][2].value
-        		var value = arrParams[i][3][0];
+        		var name = arrParams[i][0];
+        		var operator = arrParams[i][1];
+        		var value = arrParams[i][2];
         		if(params[name]) return reject;
-        		params[name] = {};
-        		params[name]['operator'] = operator;
-        		params[name]['value'] = value;
+        		params[name] = {operator: operator, value: value};
         	}
-        	return [d[0][0].value, params]
+        	return [d[0].value, params]
         }},
-    {"name": "N$subexpression$2$ebnf$1", "symbols": []},
-    {"name": "N$subexpression$2$ebnf$1$subexpression$1$ebnf$1", "symbols": []},
-    {"name": "N$subexpression$2$ebnf$1$subexpression$1$ebnf$1", "symbols": ["N$subexpression$2$ebnf$1$subexpression$1$ebnf$1", (lexer.has("comma") ? {type: "comma"} : comma)], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
-    {"name": "N$subexpression$2$ebnf$1$subexpression$1$subexpression$1", "symbols": [(lexer.has("ioParamValue") ? {type: "ioParamValue"} : ioParamValue)]},
-    {"name": "N$subexpression$2$ebnf$1$subexpression$1$subexpression$1", "symbols": ["float"]},
-    {"name": "N$subexpression$2$ebnf$1$subexpression$1", "symbols": ["N$subexpression$2$ebnf$1$subexpression$1$ebnf$1", (lexer.has("ioParamsName") ? {type: "ioParamsName"} : ioParamsName), (lexer.has("comparisonOperators") ? {type: "comparisonOperators"} : comparisonOperators), "N$subexpression$2$ebnf$1$subexpression$1$subexpression$1"]},
-    {"name": "N$subexpression$2$ebnf$1", "symbols": ["N$subexpression$2$ebnf$1", "N$subexpression$2$ebnf$1$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
-    {"name": "N$subexpression$2", "symbols": [(lexer.has("io") ? {type: "io"} : io), (lexer.has("sl") ? {type: "sl"} : sl), "N$subexpression$2$ebnf$1", (lexer.has("sr") ? {type: "sr"} : sr)]},
-    {"name": "N", "symbols": ["N$subexpression$2", (lexer.has("dot") ? {type: "dot"} : dot), (lexer.has("ioParamsName") ? {type: "ioParamsName"} : ioParamsName)], "postprocess":  function (d, i, reject){
+    {"name": "N$subexpression$1", "symbols": [(lexer.has("io") ? {type: "io"} : io), (lexer.has("sl") ? {type: "sl"} : sl), "io_param_list", (lexer.has("sr") ? {type: "sr"} : sr)]},
+    {"name": "N", "symbols": ["N$subexpression$1", (lexer.has("dot") ? {type: "dot"} : dot), (lexer.has("ioParamsName") ? {type: "ioParamsName"} : ioParamsName)], "postprocess":  function (d, location, reject){
         	var params = {};
         	var arrParams = d[0][2];
         	for(var i = 0; i < arrParams.length; i++){
-        		var name = arrParams[i][1].value;
-        		var operator = arrParams[i][2].value
-        		var value = arrParams[i][3][0];
+        		var name = arrParams[i][0];
+        		var operator = arrParams[i][1];
+        		var value = arrParams[i][2];
         		if(params[name]) return reject;
-        		params[name] = {};
-        		params[name]['operator'] = operator;
-        		if(Decimal.isDecimal(value)){
-        			params[name]['value'] = value;
-        		}else{
-        			params[name]['value'] = value.value;
-        		}
+        		params[name] = {operator: operator, value: value};
         	}
         	return [d[0][0].value, params, d[2].value]
         }},
-    {"name": "float", "symbols": [(lexer.has("number") ? {type: "number"} : number)], "postprocess": function(d,l, reject) { debugger; return new Decimal(d[0].value); }},
+    {"name": "float", "symbols": [(lexer.has("number") ? {type: "number"} : number)], "postprocess": function(d) { debugger; return new Decimal(d[0].value); }},
     {"name": "string", "symbols": [(lexer.has("string") ? {type: "string"} : string)], "postprocess": function(d) {return d[0].value; }}
 ]
   , ParserStart: "main"

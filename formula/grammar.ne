@@ -30,7 +30,7 @@
 		ioParamsName: ['address', 'amount', 'asset'],
 		quote: '"',
 		ternary: ['?', ':'],
-		ioParamValue: /[\w\ \/=+]+/,
+		ioParamValue: ['base', 'this address', 'other address', /\b[2-7A-Z]{32}\b/],
 		comma: ',',
 		dot: '.',
 	});
@@ -74,6 +74,19 @@ comp_expr -> AS comparisonOperator AS {% function(d) {return ['comparison', d[1]
 
 comparisonOperator -> %comparisonOperators {% function(d) { return d[0].value } %}
 
+
+df_param ->  %dfParamsName comparisonOperator expr  {% function(d) { return [d[0].value, d[1], d[2]]; } %}
+df_param_list -> df_param ("," df_param):*  {% function(d) { return [d[0]].concat(d[1].map(function (item) {return item[1];}));   } %}
+
+io_param ->  %ioParamsName comparisonOperator (expr|%ioParamValue)  {% function(d) {
+		var value = d[2][0];
+		if (value.type === 'ioParamValue')
+			value = value.value;
+		return [d[0].value, d[1], value];
+	} %}
+io_param_list -> io_param ("," io_param):*  {% function(d) { return [d[0]].concat(d[1].map(function (item) {return item[1];}));   } %}
+
+
 P -> %l expr %r {% function(d) {return d[1]; } %}
     | N      {% id %}
 	| string {% id %}
@@ -103,39 +116,31 @@ N -> float          {% id %}
     | "ceil" %l AS (%comma AS):? %r    {% function(d) {return ['ceil', d[2], d[3] ? d[3][1] : null]; } %}
     | "floor" %l AS (%comma AS):? %r    {% function(d) {return ['floor', d[2], d[3] ? d[3][1] : null]; } %}
     | "round" %l AS (%comma AS):? %r    {% function(d) {return ['round', d[2], d[3] ? d[3][1] : null]; } %}
-    | (%data_feed %sl ( %comma:* %dfParamsName %comparisonOperators (string|float)):* %sr) {% function (d, i, reject){
+    | %data_feed %sl df_param_list %sr {% function (d, location, reject){
 		var params = {};
-		var arrParams = d[0][2];
+		var arrParams = d[2];
 		for(var i = 0; i < arrParams.length; i++){
-			var name = arrParams[i][1].value;
-			var operator = arrParams[i][2].value
-			var value = arrParams[i][3][0];
+			var name = arrParams[i][0];
+			var operator = arrParams[i][1];
+			var value = arrParams[i][2];
 			if(params[name]) return reject;
-			params[name] = {};
-			params[name]['operator'] = operator;
-			params[name]['value'] = value;
+			params[name] = {operator: operator, value: value};
 		}
-		return [d[0][0].value, params]
+		return [d[0].value, params]
 	}%}
-    | (%io %sl ( %comma:* %ioParamsName %comparisonOperators (%ioParamValue|float)):* %sr ) %dot %ioParamsName {% function (d, i, reject){
+    | (%io %sl io_param_list %sr ) %dot %ioParamsName {% function (d, location, reject){
 		var params = {};
 		var arrParams = d[0][2];
 		for(var i = 0; i < arrParams.length; i++){
-			var name = arrParams[i][1].value;
-			var operator = arrParams[i][2].value
-			var value = arrParams[i][3][0];
+			var name = arrParams[i][0];
+			var operator = arrParams[i][1];
+			var value = arrParams[i][2];
 			if(params[name]) return reject;
-			params[name] = {};
-			params[name]['operator'] = operator;
-			if(Decimal.isDecimal(value)){
-				params[name]['value'] = value;
-			}else{
-				params[name]['value'] = value.value;
-			}
+			params[name] = {operator: operator, value: value};
 		}
 		return [d[0][0].value, params, d[2].value]
 	}%}
 
-float -> %number           {% function(d,l, reject) { debugger; return new Decimal(d[0].value); }%}
+float -> %number           {% function(d) { debugger; return new Decimal(d[0].value); }%}
 
 string -> %string        {% function(d) {return d[0].value; } %}
