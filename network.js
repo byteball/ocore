@@ -369,7 +369,11 @@ function connectToPeer(url, onOpen) {
 			proxy: {
 				ipaddress: conf.socksHost,
 				port: conf.socksPort,
-				type: 5
+				type: 5,
+				authentication: {
+					username: "dummy",
+					password: "dummy"
+				}
 			}
 		}, /^wss/i.test(url));
 		console.log('Using proxy: ' + conf.socksHost + ':' + conf.socksPort);
