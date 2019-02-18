@@ -464,6 +464,7 @@ function addOutboundPeers(multiplier){
 			OR count_new_good_joints=0 AND count_nonserial_joints=0 AND count_invalid_joints=0) \n\
 			"+((arrOutboundPeerUrls.length > 0) ? "AND peer NOT IN("+db.escape(arrOutboundPeerUrls)+") \n" : "")+"\n\
 			"+((arrInboundHosts.length > 0) ? "AND (peer_host_urls.peer_host IS NULL OR peer_host_urls.peer_host NOT IN("+db.escape(arrInboundHosts)+")) \n": "")+"\n\
+			AND peer_hosts.peer_host != 'byteball.org' \n\
 			AND is_self=0 \n\
 		ORDER BY "+order_by+" LIMIT ?", 
 		[conf.MAX_TOLERATED_INVALID_RATIO*multiplier, max_new_outbound_peers], 
@@ -628,6 +629,8 @@ function handleNewPeers(ws, request, arrPeerUrls){
 			continue;
 		}
 		var host = getHostByPeer(url);
+		if (host === 'byteball.org')
+			continue;
 		db.addQuery(arrQueries, "INSERT "+db.getIgnore()+" INTO peer_hosts (peer_host) VALUES (?)", [host]);
 		db.addQuery(arrQueries, "INSERT "+db.getIgnore()+" INTO peers (peer_host, peer, learnt_from_peer_host) VALUES(?,?,?)", [host, url, ws.host]);
 	}
@@ -2467,7 +2470,7 @@ function handleRequest(ws, tag, command, params){
 			break;
 			
 		case 'get_peers':
-			var arrPeerUrls = arrOutboundPeers.map(function(ws){ return ws.peer; });
+			var arrPeerUrls = arrOutboundPeers.filter(function(ws){ return (ws.host !== 'byteball.org'); }).map(function(ws){ return ws.peer; });
 			// empty array is ok
 			sendResponse(ws, tag, arrPeerUrls);
 			break;
