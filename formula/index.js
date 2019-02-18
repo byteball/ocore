@@ -51,7 +51,12 @@ exports.validate = function (formula, complexity, callback) {
 		return callback({error: 'parse error', complexity});
 	}
 	
+	var count = 0;
+	
 	function evaluate(arr, cb) {
+		count++;
+		if (count % 100 === 0) // avoid extra long call stacks to prevent Maximum call stack size exceeded
+			return setImmediate(evaluate, arr, cb);
 		if (Decimal.isDecimal(arr) && arr.isFinite()) return cb(true);
 		if(typeof arr !== 'object'){
 			if (typeof arr === 'boolean') return cb(true);
@@ -370,8 +375,12 @@ exports.evaluate = function (conn, formula, messages, objValidationState, addres
 		}
 	}
 	var fatal_error = false;
+	var count = 0;
 	
 	function evaluate(arr, cb) {
+		count++;
+		if (count % 100 === 0) // avoid extra long call stacks to prevent Maximum call stack size exceeded
+			return setImmediate(evaluate, arr, cb);
 		if (fatal_error)
 			return cb(false);
 		if (Decimal.isDecimal(arr) && arr.isFinite()) return cb(arr);
