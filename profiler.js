@@ -31,7 +31,8 @@ function mark_end(tag, id) {
 }
 
 function add_result(tag, consumed_time){
-	return;
+	if (!bOn)
+		return;
 	if (!timers_results[tag])
 		timers_results[tag] = [];
 	timers_results[tag].push(consumed_time);
@@ -53,6 +54,8 @@ function stop(tag){
 }
 
 function print(){
+	if (count === 0)
+		return;
 	console.log("\nProfiling results:");
 	var total = 0;
 	for (var tag in times)
@@ -108,13 +111,15 @@ function increment(){
 	count++;
 }
 
-process.on('SIGINT', function(){
-	console.log = clog;
-	console.log("received sigint");
-	print();
-	print_results();
-	process.exit();
-});
+if (bOn){
+	process.on('SIGINT', function(){
+		console.log = clog;
+		console.log("received sigint");
+		print();
+		print_results();
+		process.exit();
+	});
+}
 
 String.prototype.padding = function(n, c)
 {
