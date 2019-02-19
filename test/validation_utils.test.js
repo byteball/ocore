@@ -104,7 +104,7 @@ test('isNonnegativeInteger true for posInts', t => {
 test('isNonnegativeInteger false for negInts', t => {
   const result = check(
     property(
-      // https://github.com/byteball/byteballcore/issues/47
+      // https://github.com/byteball/ocore/issues/47
       gen.sNegInt,
       e => !ValidationUtils.isNonnegativeInteger(e)
     )

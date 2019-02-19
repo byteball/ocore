@@ -339,7 +339,8 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, onDone){
 		}
 		
 		console.log("updateLatestIncludedMcIndex "+last_main_chain_index);
-		profiler.start();
+		if (!conf.bFaster)
+			profiler.start();
 		var assocChangedUnits = {};
 		var assocLimcisByUnit = {};
 		var assocDbLimcisByUnit = {};

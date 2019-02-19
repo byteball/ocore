@@ -543,15 +543,26 @@ function readSharedAddressCosigners(shared_address, handleCosigners){
 
 // returns list of payment addresses of peers
 function readSharedAddressPeerAddresses(shared_address, handlePeerAddresses){
+	readSharedAddressPeers(shared_address, function(assocNamesByAddress){
+		handlePeerAddresses(Object.keys(assocNamesByAddress));
+	});
+}
+
+// returns assoc array: peer name by address
+function readSharedAddressPeers(shared_address, handlePeers){
 	db.query(
-		"SELECT DISTINCT address FROM shared_address_signing_paths WHERE shared_address=? AND device_address!=?",
+		"SELECT DISTINCT address, name FROM shared_address_signing_paths LEFT JOIN correspondent_devices USING(device_address) \n\
+		WHERE shared_address=? AND shared_address_signing_paths.device_address!=?",
 		[shared_address, device.getMyDeviceAddress()],
 		function(rows){
 			// no problem if no peers found: the peer can be part of our multisig address and his device address will be rewritten to ours
 		//	if (rows.length === 0)
 		//		throw Error("no peers found for shared address "+shared_address);
-			var arrPeerAddresses = rows.map(function(row){ return row.address; });
-			handlePeerAddresses(arrPeerAddresses);
+			var assocNamesByAddress = {};
+			rows.forEach(function(row){
+				assocNamesByAddress[row.address] = row.name || 'unknown peer';
+			});
+			handlePeers(assocNamesByAddress);
 		}
 	);
 }
@@ -588,6 +599,7 @@ exports.handleNewSharedAddress = handleNewSharedAddress;
 exports.forwardPrivateChainsToOtherMembersOfAddresses = forwardPrivateChainsToOtherMembersOfAddresses;
 exports.readSharedAddressCosigners = readSharedAddressCosigners;
 exports.readSharedAddressPeerAddresses = readSharedAddressPeerAddresses;
+exports.readSharedAddressPeers = readSharedAddressPeers;
 exports.getPeerAddressesFromSigners = getPeerAddressesFromSigners;
 exports.readSharedAddressDefinition = readSharedAddressDefinition;
 exports.determineIfHasMerkle = determineIfHasMerkle;

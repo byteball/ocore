@@ -7,11 +7,18 @@ function mergeExports(anotherModule){
 		exports[key] = anotherModule[key];
 }
 
+// start node explicitly by `require('ocore/network').start()`
+//exports.explicitStart = true
+
 // port we are listening on.  Set to null to disable accepting connections
 // recommended port for livenet: 6611
 // recommended port for testnet: 16611
 exports.port = null;
 //exports.port = 6611;
+
+// enable this will make websocket server doesn't spawn on new port
+// this is usefull if you already have SocketServer running and want to reuse the port
+//exports.portReuse = true;
 
 // how peers connect to me
 //exports.myUrl = 'wss://example.org/bb';
@@ -59,11 +66,11 @@ exports.database = {};
 
 
 /*
-There are 3 ways to customize conf in modules that use byteballcore lib:
+There are 3 ways to customize conf in modules that use ocore lib:
 1. drop a custom conf.js into the project root.  The code below will find it and merge.  Will not work under browserify.
 2. drop a custom conf.json into the app's data dir inside the user's home dir.  The code below will find it and merge.  Will not work under browserify.
 3. require() this conf and modify it:
-var conf = require('byteballcore/conf.js');
+var conf = require('ocore/conf.js');
 conf.custom_property = 'custom value';
 You should do it as early as possible during your app's startup.
 The later require()s of this conf will see the modified version.
