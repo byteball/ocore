@@ -1,6 +1,8 @@
 /*jslint node: true */
 "use strict";
 
+var bOn = false;
+
 var count = 0;
 var times = {};
 var start_ts = 0;
@@ -109,7 +111,7 @@ function increment(){
 process.on('SIGINT', function(){
 	console.log = clog;
 	console.log("received sigint");
-	//print();
+	print();
 	print_results();
 	process.exit();
 });
@@ -130,16 +132,20 @@ String.prototype.padding = function(n, c)
 var clog = console.log;
 //console.log = function(){};
 
-//exports.start = start;
-//exports.stop = stop;
-//exports.increment = increment;
+if (bOn){
+	exports.start = start;
+	exports.stop = stop;
+	exports.increment = increment;
+}
 exports.print = print;
 exports.mark_start = mark_start;
 exports.mark_end = mark_end;
 exports.add_result = add_result;
 exports.time_in_db = 0;
 
-exports.start = function(){};
-exports.stop = function(){};
-exports.increment = function(){};
+if (!bOn){
+	exports.start = function(){};
+	exports.stop = function(){};
+	exports.increment = function(){};
+}
 //exports.print = function(){};
