@@ -212,13 +212,13 @@ function validate(objJoint, callbacks) {
 				},
 				function(cb){
 					profiler.stop('validation-hash-tree-parents');
-					profiler.start();
+				//	profiler.start(); // conflicting with profiling in determineIfStableInLaterUnitsAndUpdateStableMcFlag
 					!objUnit.parent_units
 						? cb()
 						: validateParents(conn, objJoint, objValidationState, cb);
 				},
 				function(cb){
-					profiler.stop('validation-parents');
+				//	profiler.stop('validation-parents');
 					profiler.start();
 					!objJoint.skiplist_units
 						? cb()
@@ -239,8 +239,8 @@ function validate(objJoint, callbacks) {
 				}
 			], 
 			function(err){
-				profiler.stop('validation-messages');
 				if(err){
+					profiler.stop('validation-advanced-stability');
 					// We might have advanced the stability point and have to commit the changes as the caches are already updated.
 					// There are no other updates/inserts/deletes during validation
 					conn.query("COMMIT", function(){
@@ -266,6 +266,7 @@ function validate(objJoint, callbacks) {
 					});
 				}
 				else{
+					profiler.stop('validation-messages');
 					profiler.start();
 					conn.query("COMMIT", function(){
 						var consumed_time = Date.now()-start_time;
@@ -613,15 +614,20 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 		});
 	}
 	
-	profiler.start();
 	var last_ball_unit = objUnit.last_ball_unit;
 	if (typeof objUnit.witness_list_unit === "string"){
+		profiler.start();
 		storage.readWitnessList(conn, objUnit.witness_list_unit, function(arrWitnesses){
-			if (arrWitnesses.length === 0)
+			if (arrWitnesses.length === 0){
+				profiler.stop('validation-witnesses-read-list');
 				return callback("referenced witness list unit "+objUnit.witness_list_unit+" has no witnesses");
-			if (typeof assocWitnessListMci[objUnit.witness_list_unit] === 'number' && assocWitnessListMci[objUnit.witness_list_unit] <= objValidationState.last_ball_mci)
+			}
+			if (typeof assocWitnessListMci[objUnit.witness_list_unit] === 'number' && assocWitnessListMci[objUnit.witness_list_unit] <= objValidationState.last_ball_mci){
+				profiler.stop('validation-witnesses-read-list');
 				return validateWitnessListMutations(arrWitnesses);
+			}
 			conn.query("SELECT sequence, is_stable, main_chain_index FROM units WHERE unit=?", [objUnit.witness_list_unit], function(unit_rows){
+				profiler.stop('validation-witnesses-read-list');
 				if (unit_rows.length === 0)
 					return callback("witness list unit "+objUnit.witness_list_unit+" not found");
 				var objWitnessListUnitProps = unit_rows[0];
@@ -632,7 +638,6 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 				if (objWitnessListUnitProps.main_chain_index > objValidationState.last_ball_mci)
 					return callback("witness list unit "+objUnit.witness_list_unit+" must come before last ball");
 				assocWitnessListMci[objUnit.witness_list_unit] = objWitnessListUnitProps.main_chain_index;
-				profiler.stop('validation-witnesses-read-list');
 				validateWitnessListMutations(arrWitnesses);
 			});
 		}, true);
@@ -654,6 +659,7 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 			validateWitnessListMutations(objUnit.witnesses);
 			return;
 		}
+		profiler.start();
 		// check that all witnesses are already known and their units are good and stable
 		conn.query(
 			// address=definition_chash is true in the first appearence of the address
