@@ -470,6 +470,8 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				return callbacks.ifError("either peer_address or address is not valid in contract");
 			if (body.hash !== prosaic_contract.getHash(body))
 				return callbacks.ifError("wrong contract hash");
+			if (!/^\d{4}\-\d{2}\-\d{2} \d{2}:\d{2}:\d{2}$/.test(body.creation_date))
+				return callbacks.ifError("wrong contract creation date");
 			prosaic_contract.store(body);
 			var chat_message = "(prosaic-contract:" + Buffer.from(JSON.stringify(body), 'utf8').toString('base64') + ")";
 			eventBus.emit("text", from_address, chat_message, ++message_counter);
@@ -483,18 +485,11 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				return callbacks.ifError("wrong status supplied");
 
 			prosaic_contract.getByHash(body.hash, function(objContract){
-				if (!objContract || !body.signed_message)
-					return callbacks.ifError("wrong contract hash or signature");
-				var signedMessageJson = Buffer.from(body.signed_message, 'base64').toString('utf8');
-				try{
-					var objSignedMessage = JSON.parse(signedMessageJson);
-				}
-				catch(e){
-					return callbacks.ifError("wrong signed message");
-				}
-				validation.validateSignedMessage(objSignedMessage, function(err) {
-					if (err || objSignedMessage.authors[0].address !== objContract.peer_address || objSignedMessage.signed_message != objContract.hash)
-						return callbacks.ifError("wrong contract signature");
+				if (!objContract)
+					return callbacks.ifError("wrong contract hash");
+				if (body.status !== "accepted" && !body.signed_message)
+					return callbacks.ifError("response is not signed");
+				var processResponse = function(objSignedMessage) {
 					if (body.authors && body.authors.length) {
 						if (body.authors.length !== 1)
 							return callbacks.ifError("wrong number of authors received");
@@ -504,7 +499,11 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 						if (!ValidationUtils.isValidAddress(author.address) || author.address !== objContract.peer_address)
 							return callbacks.ifError("incorrect author address");
 						db.query("INSERT "+db.getIgnore()+" INTO peer_addresses (address, device_address, signing_paths, definition) VALUES (?, ?, ?, ?)",
-								[author.address, from_address, JSON.stringify(Object.keys(author.authentifiers)), JSON.stringify(author.definition)]);
+								[author.address, from_address, JSON.stringify(Object.keys(objSignedMessage.authors[0].authentifiers)), JSON.stringify(author.definition)],
+								function(res) {
+									if (res.affectedRows == 0)
+										db.query("UPDATE peer_addresses SET signing_paths=? WHERE address=?", [JSON.stringify(Object.keys(objSignedMessage.authors[0].authentifiers)), author.address]);
+								});
 					}
 					if (objContract.status !== 'pending')
 						return callbacks.ifError("contract is not active, current status: " + objContract.status);
@@ -515,7 +514,22 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					eventBus.emit("text", from_address, "contract " + body.status, ++message_counter);
 					eventBus.emit("prosaic_contract_response_received" + body.hash, (body.status === "accepted"), body.authors);
 					callbacks.ifOk();
-				});
+				};
+				if (body.signed_message) {
+					var signedMessageJson = Buffer.from(body.signed_message, 'base64').toString('utf8');
+					try{
+						var objSignedMessage = JSON.parse(signedMessageJson);
+					}
+					catch(e){
+						return callbacks.ifError("wrong signed message");
+					}
+					validation.validateSignedMessage(objSignedMessage, function(err) {
+						if (err || objSignedMessage.authors[0].address !== objContract.peer_address || objSignedMessage.signed_message != objContract.hash)
+							return callbacks.ifError("wrong contract signature");
+						processResponse(objSignedMessage);
+					});
+				} else
+					processResponse();
 			});
 			break;
 
@@ -1312,7 +1326,7 @@ function readAdditionalSigningAddresses(arrPayingAddresses, arrSigningAddresses,
 				OR \n\
 				EXISTS (SELECT 1 FROM shared_addresses WHERE shared_addresses.shared_address=shared_address_signing_paths.address) \n\
 				OR \n\
-				EXISTS (SELECT 1 FROM peer_addresses WHERE peer_addresses.address=shared_address_signing_paths.address) \n\
+				EXISTS (SELECT 1 FROM peer_addresses WHERE peer_addresses.address=shared_address_signing_paths.address AND peer_addresses.definition IS NOT NULL) \n\
 			) \n\
 			AND ( \n\
 				NOT EXISTS (SELECT 1 FROM addresses WHERE addresses.address=shared_address_signing_paths.address) \n\
