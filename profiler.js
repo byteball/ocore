@@ -1,6 +1,8 @@
 /*jslint node: true */
 "use strict";
 
+var bOn = false;
+
 var count = 0;
 var times = {};
 var start_ts = 0;
@@ -29,7 +31,8 @@ function mark_end(tag, id) {
 }
 
 function add_result(tag, consumed_time){
-	return;
+	if (!bOn)
+		return;
 	if (!timers_results[tag])
 		timers_results[tag] = [];
 	timers_results[tag].push(consumed_time);
@@ -51,6 +54,8 @@ function stop(tag){
 }
 
 function print(){
+	if (count === 0)
+		return;
 	console.log("\nProfiling results:");
 	var total = 0;
 	for (var tag in times)
@@ -106,13 +111,15 @@ function increment(){
 	count++;
 }
 
-process.on('SIGINT', function(){
-	console.log = clog;
-	console.log("received sigint");
-	//print();
-	print_results();
-	process.exit();
-});
+if (bOn){
+	process.on('SIGINT', function(){
+		console.log = clog;
+		console.log("received sigint");
+		print();
+		print_results();
+		process.exit();
+	});
+}
 
 String.prototype.padding = function(n, c)
 {
@@ -130,16 +137,20 @@ String.prototype.padding = function(n, c)
 var clog = console.log;
 //console.log = function(){};
 
-//exports.start = start;
-//exports.stop = stop;
-//exports.increment = increment;
+if (bOn){
+	exports.start = start;
+	exports.stop = stop;
+	exports.increment = increment;
+}
 exports.print = print;
 exports.mark_start = mark_start;
 exports.mark_end = mark_end;
 exports.add_result = add_result;
 exports.time_in_db = 0;
 
-exports.start = function(){};
-exports.stop = function(){};
-exports.increment = function(){};
+if (!bOn){
+	exports.start = function(){};
+	exports.stop = function(){};
+	exports.increment = function(){};
+}
 //exports.print = function(){};
