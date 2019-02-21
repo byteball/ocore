@@ -487,7 +487,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			prosaic_contract.getByHash(body.hash, function(objContract){
 				if (!objContract)
 					return callbacks.ifError("wrong contract hash");
-				if (body.status !== "accepted" && !body.signed_message)
+				if (body.status === "accepted" && !body.signed_message)
 					return callbacks.ifError("response is not signed");
 				var processResponse = function(objSignedMessage) {
 					if (body.authors && body.authors.length) {
