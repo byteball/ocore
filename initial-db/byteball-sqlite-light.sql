@@ -749,5 +749,32 @@ CREATE TABLE original_addresses (
 	FOREIGN KEY (unit) REFERENCES units(unit)
 );
 
+CREATE TABLE IF NOT EXISTS peer_addresses (
+	address CHAR(32) NOT NULL,
+	signing_paths VARCHAR(255) NULL, -- array of local signing paths (JSON)
+	device_address CHAR(33) NOT NULL, -- where this signing key lives or is reachable through
+	definition TEXT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	PRIMARY KEY (address),
+	FOREIGN KEY (device_address) REFERENCES correspondent_devices(device_address)
+);
 
-PRAGMA user_version=22;
+CREATE TABLE IF NOT EXISTS prosaic_contracts (
+	hash CHAR(44) NOT NULL PRIMARY KEY,
+	peer_address CHAR(32) NOT NULL,
+	peer_device_address CHAR(33) NOT NULL,
+	my_address  CHAR(32) NOT NULL,
+	is_incoming TINYINT NOT NULL,
+	creation_date TIMESTAMP NOT NULL,
+	ttl REAL NOT NULL DEFAULT 168, -- 168 hours = 24 * 7 = 1 week
+	status TEXT CHECK (status IN('pending', 'revoked', 'accepted', 'declined')) NOT NULL DEFAULT 'active',
+	title VARCHAR(1000) NOT NULL,
+	`text` TEXT NOT NULL,
+	shared_address CHAR(32),
+	unit CHAR(44),
+	cosigners VARCHAR(1500),
+	FOREIGN KEY (peer_device_address) REFERENCES correspondent_devices(device_address),
+	FOREIGN KEY (my_address) REFERENCES my_addresses(address)
+);
+
+PRAGMA user_version=23;
