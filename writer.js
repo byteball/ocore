@@ -437,6 +437,7 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 		
 		
 		function updateWitnessedLevel(cb){
+			profiler.start();
 			if (objUnit.witnesses)
 				updateWitnessedLevelByWitnesslist(objUnit.witnesses, cb);
 			else
@@ -528,7 +529,6 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 			addInlinePaymentQueries(function(){
 				async.series(arrQueries, function(){
 					profiler.stop('write-raw');
-					profiler.start();
 					var arrOps = [];
 					if (objUnit.parent_units){
 						if (!conf.bLight){

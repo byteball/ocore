@@ -1560,7 +1560,7 @@ function sendMultiPayment(opts, handleResult)
 
 			var signer = getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey);
 
-			// if we have any output with text addresses / not byteball addresses (e.g. email) - generate new addresses and return them
+			// if we have any output with text addresses / not obyte addresses (e.g. email) - generate new addresses and return them
 			var assocMnemonics = {}; // return all generated wallet mnemonics to caller in callback
 			var assocPaymentsByEmail = {}; // wallet mnemonics to send by emails
 			var assocAddresses = {};
@@ -1864,8 +1864,8 @@ function sendTextcoinEmail(email, subject, amount, asset, mnemonic){
 	replaceInTextcoinTemplate({amount: amount, asset: asset, mnemonic: mnemonic, usd_amount_str: usd_amount_str}, function(html, text){
 		mail.sendmail({
 			to: email,
-			from: conf.from_email || "noreply@byteball.org",
-			subject: subject || "Byteball user beamed you money",
+			from: conf.from_email || "noreply@obyte.org",
+			subject: subject || "Obyte user beamed you money",
 			body: text,
 			htmlBody: html
 		});
@@ -1883,7 +1883,7 @@ function replaceInTextcoinTemplate(params, handleText){
 		});
 		template = template.replace(/\{\{\w*\}\}/g, '');
 
-		var text = "Here is your link to receive " + params.amount + " " + params.asset + params.usd_amount_str + ": https://byteball.org/#textcoin?" + params.mnemonic;
+		var text = "Here is your link to receive " + params.amount + " " + params.asset + params.usd_amount_str + ": https://obyte.org/#textcoin?" + params.mnemonic;
 		handleText(template, text);
 	});
 }

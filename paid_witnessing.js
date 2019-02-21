@@ -152,6 +152,7 @@ function buildPaidWitnessesForMainChainIndex(conn, main_chain_index, cb){
 									if (err) // impossible
 										throw Error(err);
 									//var t=Date.now();
+									profiler.start();
 									var countPaidWitnesses = _.countBy(paidWitnessEvents, function(v){return v.unit});
 									var assocPaidAmountsByAddress = _.reduce(paidWitnessEvents, function(amountsByAddress, v) {
 										var objUnit = storage.assocStableUnits[v.unit];
@@ -162,9 +163,10 @@ function buildPaidWitnessesForMainChainIndex(conn, main_chain_index, cb){
 										return amountsByAddress;
 									}, {});
 									var arrPaidAmounts2 = _.map(assocPaidAmountsByAddress, function(amount, address) {return {address: address, amount: amount}});
-									if (conf.bFaster)
-										return conn.query("INSERT INTO witnessing_outputs (main_chain_index, address, amount) VALUES " + arrPaidAmounts2.map(function(o){ return "("+main_chain_index+", "+db.escape(o.address)+", "+o.amount+")" }).join(', '), function(){ cb(); });
+									profiler.stop('mc-wc-js-aggregate-events');
 									profiler.start();
+									if (conf.bFaster)
+										return conn.query("INSERT INTO witnessing_outputs (main_chain_index, address, amount) VALUES " + arrPaidAmounts2.map(function(o){ return "("+main_chain_index+", "+db.escape(o.address)+", "+o.amount+")" }).join(', '), function(){ profiler.stop('mc-wc-aggregate-events'); cb(); });
 									conn.query(
 										"INSERT INTO witnessing_outputs (main_chain_index, address, amount) \n\
 										SELECT main_chain_index, address, \n\
