@@ -254,7 +254,7 @@ CREATE TABLE asset_attestors (
 	message_index TINYINT NOT NULL,
 	asset CHAR(44) NOT NULL, -- in the initial attestor list: same as unit 
 	attestor_address CHAR(32) NOT NULL,
-	PRIMARY KEY (unit, message_index),
+	PRIMARY KEY (unit, message_index, attestor_address),
 	UNIQUE (asset, attestor_address, unit),
 	FOREIGN KEY (unit) REFERENCES units(unit)
 );
@@ -777,4 +777,4 @@ CREATE TABLE IF NOT EXISTS prosaic_contracts (
 	FOREIGN KEY (my_address) REFERENCES my_addresses(address)
 );
 
-PRAGMA user_version=23;
+PRAGMA user_version=24;

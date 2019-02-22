@@ -4,7 +4,7 @@ var eventBus = require('./event_bus.js');
 var constants = require("./constants.js");
 var conf = require("./conf.js");
 
-var VERSION = 23;
+var VERSION = 24;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -237,6 +237,23 @@ function migrateDb(connection, onDone){
 						FOREIGN KEY (peer_device_address) REFERENCES correspondent_devices(device_address), \n\
 						FOREIGN KEY (my_address) REFERENCES my_addresses(address) \n\
 					)");
+				}
+				if (version < 24){
+					connection.addQuery(arrQueries, "BEGIN TRANSACTION");
+					connection.addQuery(arrQueries, "CREATE TABLE asset_attestors_new ( \n\
+						unit CHAR(44) NOT NULL, \n\
+						message_index TINYINT NOT NULL, \n\
+						asset CHAR(44) NOT NULL, -- in the initial attestor list: same as unit  \n\
+						attestor_address CHAR(32) NOT NULL, \n\
+						PRIMARY KEY (unit, message_index, attestor_address), \n\
+						UNIQUE (asset, attestor_address, unit), \n\
+						FOREIGN KEY (unit) REFERENCES units(unit), \n\
+						CONSTRAINT assetAttestorsByAsset FOREIGN KEY (asset) REFERENCES assets(unit) \n\
+					)");
+					connection.addQuery(arrQueries, "INSERT INTO asset_attestors_new SELECT * FROM asset_attestors");
+					connection.addQuery(arrQueries, "DROP TABLE asset_attestors");
+					connection.addQuery(arrQueries, "ALTER TABLE asset_attestors_new RENAME TO asset_attestors");
+					connection.addQuery(arrQueries, "COMMIT");
 				}
 				cb();
 			}

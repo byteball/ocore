@@ -236,7 +236,7 @@ CREATE TABLE asset_attestors (
 	message_index TINYINT NOT NULL,
 	asset CHAR(44) BINARY NOT NULL, -- in the initial attestor list: same as unit
 	attestor_address CHAR(32) BINARY NOT NULL,
-	PRIMARY KEY (unit, message_index),
+	PRIMARY KEY (unit, message_index, attestor_address),
 	UNIQUE KEY byAssetAttestorUnit(asset, attestor_address, unit)
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
