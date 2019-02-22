@@ -116,6 +116,8 @@ function validate(objJoint, callbacks) {
 			return callbacks.ifJointError("wrong headers commission, expected "+objectLength.getHeadersSize(objUnit));
 		if (objectLength.getTotalPayloadSize(objUnit) !== objUnit.payload_commission)
 			return callbacks.ifJointError("wrong payload commission, unit "+objUnit.unit+", calculated "+objectLength.getTotalPayloadSize(objUnit)+", expected "+objUnit.payload_commission);
+		if (objUnit.headers_commission + objUnit.payload_commission > constants.MAX_UNIT_LENGTH)
+			return callbacks.ifUnitError("unit too large");
 	}
 	
 	if (!isNonemptyArray(objUnit.authors))
