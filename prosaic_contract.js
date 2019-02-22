@@ -63,12 +63,21 @@ function store(objContract, cb) {
 function respond(objContract, status, signedMessageBase64, signer, cb) {
 	if (!cb)
 		cb = function(){};
-	composer.composeAuthorsAndMciForAddresses(db, [objContract.address], signer, function(err, authors) {
-		if (err)
-			return cb(err);
-		device.sendMessageToDevice(objContract.peer_device_address, "prosaic_contract_response", {hash: objContract.hash, status: status, signed_message: signedMessageBase64, authors: authors});
+	var send = function(authors) {
+		var response = {hash: objContract.hash, status: status, signed_message: signedMessageBase64};
+		if (authors)
+			response.authors = authors;
+		device.sendMessageToDevice(objContract.peer_device_address, "prosaic_contract_response", response);
 		cb();
-	});
+	}
+	if (status === "accepted") {
+		composer.composeAuthorsAndMciForAddresses(db, [objContract.address], signer, function(err, authors) {
+			if (err)
+				return cb(err);
+			send(authors);
+		});
+	} else
+		send();
 }
 
 function getHash(contract) {

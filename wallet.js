@@ -502,7 +502,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 								[author.address, from_address, JSON.stringify(Object.keys(objSignedMessage.authors[0].authentifiers)), JSON.stringify(author.definition)],
 								function(res) {
 									if (res.affectedRows == 0)
-										db.query("UPDATE peer_addresses SET signing_paths=? WHERE address=?", [JSON.stringify(Object.keys(objSignedMessage.authors[0].authentifiers)), author.address]);
+										db.query("UPDATE peer_addresses SET signing_paths=?, definition=? WHERE address=?", [JSON.stringify(Object.keys(objSignedMessage.authors[0].authentifiers)), JSON.stringify(author.definition), author.address]);
 								});
 					}
 					if (objContract.status !== 'pending')
