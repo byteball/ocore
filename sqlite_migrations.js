@@ -210,7 +210,7 @@ function migrateDb(connection, onDone){
 					connection.addQuery(arrQueries, "ALTER TABLE push_registrations ADD COLUMN platform TEXT NOT NULL DEFAULT 'android'");
 				if (version < 22)
 					connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS sharedAddressSigningPathsByDeviceAddress ON shared_address_signing_paths(device_address);");
-				if (version < 23)
+				if (version < 23){
 					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS peer_addresses ( \n\
 						address CHAR(32) NOT NULL, \n\
 						signing_paths VARCHAR(255) NULL, \n\
@@ -237,6 +237,7 @@ function migrateDb(connection, onDone){
 						FOREIGN KEY (peer_device_address) REFERENCES correspondent_devices(device_address), \n\
 						FOREIGN KEY (my_address) REFERENCES my_addresses(address) \n\
 					)");
+				}
 				cb();
 			}
 		], function(){
