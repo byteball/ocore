@@ -4,7 +4,7 @@ var eventBus = require('./event_bus.js');
 var constants = require("./constants.js");
 var conf = require("./conf.js");
 
-var VERSION = 22;
+var VERSION = 23;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -210,6 +210,33 @@ function migrateDb(connection, onDone){
 					connection.addQuery(arrQueries, "ALTER TABLE push_registrations ADD COLUMN platform TEXT NOT NULL DEFAULT 'android'");
 				if (version < 22)
 					connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS sharedAddressSigningPathsByDeviceAddress ON shared_address_signing_paths(device_address);");
+				if (version < 23)
+					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS peer_addresses ( \n\
+						address CHAR(32) NOT NULL, \n\
+						signing_paths VARCHAR(255) NULL, \n\
+						device_address CHAR(33) NOT NULL, \n\
+						definition TEXT NULL, \n\
+						creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, \n\
+						PRIMARY KEY (address), \n\
+						FOREIGN KEY (device_address) REFERENCES correspondent_devices(device_address) \n\
+					)");
+					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS prosaic_contracts ( \n\
+						hash CHAR(44) NOT NULL PRIMARY KEY, \n\
+						peer_address CHAR(32) NOT NULL, \n\
+						peer_device_address CHAR(33) NOT NULL, \n\
+						my_address  CHAR(32) NOT NULL, \n\
+						is_incoming TINYINT NOT NULL, \n\
+						creation_date TIMESTAMP NOT NULL, \n\
+						ttl INT NOT NULL DEFAULT 168, -- 168 hours = 24 * 7 = 1 week \n\
+						status TEXT CHECK (status IN('pending', 'revoked', 'accepted', 'declined')) NOT NULL DEFAULT 'active', \n\
+						title VARCHAR(1000) NOT NULL, \n\
+						`text` TEXT NOT NULL, \n\
+						shared_address CHAR(32), \n\
+						unit CHAR(44), \n\
+						cosigners VARCHAR(1500), \n\
+						FOREIGN KEY (peer_device_address) REFERENCES correspondent_devices(device_address), \n\
+						FOREIGN KEY (my_address) REFERENCES my_addresses(address) \n\
+					)");
 				cb();
 			}
 		], function(){

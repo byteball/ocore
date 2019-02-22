@@ -743,7 +743,6 @@ function requestFromHub(command, params, responseHandler){
 	});
 }
 
-
 exports.getMyDevicePubKey = getMyDevicePubKey;
 exports.getMyDeviceAddress = getMyDeviceAddress;
 exports.isValidPubKey = isValidPubKey;
