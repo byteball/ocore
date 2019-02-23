@@ -4,7 +4,7 @@ var eventBus = require('./event_bus.js');
 var constants = require("./constants.js");
 var conf = require("./conf.js");
 
-var VERSION = 24;
+var VERSION = 25;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -255,6 +255,8 @@ function migrateDb(connection, onDone){
 					connection.addQuery(arrQueries, "ALTER TABLE asset_attestors_new RENAME TO asset_attestors");
 					connection.addQuery(arrQueries, "COMMIT");
 				}
+				if (version < 25)
+					connection.addQuery(arrQueries, "ALTER TABLE correspondent_devices ADD COLUMN is_blackhole TINYINT NOT NULL DEFAULT 0");
 				cb();
 			}
 		], function(){

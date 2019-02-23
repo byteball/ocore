@@ -542,6 +542,7 @@ CREATE TABLE correspondent_devices (
 	hub VARCHAR(100) NOT NULL, -- domain name of the hub this address is subscribed to
 	is_confirmed TINYINT NOT NULL DEFAULT 0,
 	is_indirect TINYINT NOT NULL DEFAULT 0,
+	is_blackhole TINYINT NOT NULL DEFAULT 0,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -777,4 +778,4 @@ CREATE TABLE IF NOT EXISTS prosaic_contracts (
 	FOREIGN KEY (my_address) REFERENCES my_addresses(address)
 );
 
-PRAGMA user_version=24;
+PRAGMA user_version=25;

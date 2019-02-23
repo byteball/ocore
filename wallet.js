@@ -181,19 +181,20 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			break;
 
 		case "removed_paired_device":
-			if(conf.bIgnoreUnpairRequests) {
-				// unpairing is ignored
-				callbacks.ifError("removed_paired_device ignored: "+from_address);
-			} else {
+		//	if(conf.bIgnoreUnpairRequests) {
+		//		// unpairing is ignored
+		//		callbacks.ifError("removed_paired_device ignored: "+from_address);
+		//	} else {
 				determineIfDeviceCanBeRemoved(from_address, function(bRemovable){
 					if (!bRemovable)
 						return callbacks.ifError("device "+from_address+" is not removable");
 					device.removeCorrespondentDevice(from_address, function(){
-						eventBus.emit("removed_paired_device", from_address);
+						if (!conf.bIgnoreUnpairRequests)
+							eventBus.emit("removed_paired_device", from_address);
 						callbacks.ifOk();
 					});
 				});
-			}
+		//	}
 			break;
 
 		case "chat_recording_pref":

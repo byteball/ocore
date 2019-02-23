@@ -511,6 +511,7 @@ CREATE TABLE correspondent_devices (
 	hub VARCHAR(100) BINARY NOT NULL, -- domain name of the hub this address is subscribed to
 	is_confirmed TINYINT NOT NULL DEFAULT 0,
 	is_indirect TINYINT NOT NULL DEFAULT 0,
+	is_blackhole TINYINT NOT NULL DEFAULT 0,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 

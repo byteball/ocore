@@ -554,9 +554,16 @@ function sendMessageToHub(ws, recipient_device_pubkey, subject, body, callbacks,
 
 function sendMessageToDevice(device_address, subject, body, callbacks, conn){
 	conn = conn || db;
-	conn.query("SELECT hub, pubkey FROM correspondent_devices WHERE device_address=?", [device_address], function(rows){
+	conn.query("SELECT hub, pubkey, is_blackhole FROM correspondent_devices WHERE device_address=?", [device_address], function(rows){
 		if (rows.length !== 1)
 			throw Error("correspondent not found");
+		if (rows[0].is_blackhole){
+			if (callbacks && callbacks.onSaved)
+				callbacks.onSaved();
+			if (callbacks && callbacks.ifOk)
+				callbacks.ifOk();
+			return;
+		}
 		sendMessageToHub(rows[0].hub, rows[0].pubkey, subject, body, callbacks, conn);
 	});
 }
@@ -623,6 +630,7 @@ function handlePairingMessage(json, device_pubkey, callbacks){
 							}
 							if (body.reverse_pairing_secret)
 								sendPairingMessage(json.device_hub, device_pubkey, body.reverse_pairing_secret, null);
+							db.query("UPDATE correspondent_devices SET is_blackhole=0 WHERE device_address=?", [from_address]);
 							callbacks.ifOk();
 						}
 					);
@@ -700,7 +708,10 @@ function removeCorrespondentDevice(device_address, onDone){
 	breadcrumbs.add('correspondent removed: '+device_address);
 	var arrQueries = [];
 	db.addQuery(arrQueries, "DELETE FROM outbox WHERE `to`=?", [device_address]);
-	db.addQuery(arrQueries, "DELETE FROM correspondent_devices WHERE device_address=?", [device_address]);
+	if (conf.bIgnoreUnpairRequests)
+		db.addQuery(arrQueries, "UPDATE correspondent_devices SET is_blackhole=1 WHERE device_address=?", [device_address]);
+	else
+		db.addQuery(arrQueries, "DELETE FROM correspondent_devices WHERE device_address=?", [device_address]);
 	async.series(arrQueries, onDone);
 }
 
