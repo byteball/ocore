@@ -543,6 +543,7 @@ CREATE TABLE correspondent_devices (
 	is_confirmed TINYINT NOT NULL DEFAULT 0,
 	is_indirect TINYINT NOT NULL DEFAULT 0,
 	is_blackhole TINYINT NOT NULL DEFAULT 0,
+	push_enabled TINYINT NOT NULL DEFAULT 1,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -778,4 +779,13 @@ CREATE TABLE IF NOT EXISTS prosaic_contracts (
 	FOREIGN KEY (my_address) REFERENCES my_addresses(address)
 );
 
-PRAGMA user_version=25;
+-- hub table
+CREATE TABLE correspondent_settings (
+	device_address CHAR(33) NOT NULL,
+	correspondent_address CHAR(33) NOT NULL,
+	push_enabled TINYINT NOT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	PRIMARY KEY (device_address, correspondent_address)
+);
+
+PRAGMA user_version=26;

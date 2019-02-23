@@ -188,9 +188,12 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				determineIfDeviceCanBeRemoved(from_address, function(bRemovable){
 					if (!bRemovable)
 						return callbacks.ifError("device "+from_address+" is not removable");
+					if (conf.bIgnoreUnpairRequests){
+						db.query("UPDATE correspondent_devices SET is_blackhole=1 WHERE device_address=?", [from_address]);
+						return callbacks.ifOk();
+					}
 					device.removeCorrespondentDevice(from_address, function(){
-						if (!conf.bIgnoreUnpairRequests)
-							eventBus.emit("removed_paired_device", from_address);
+						eventBus.emit("removed_paired_device", from_address);
 						callbacks.ifOk();
 					});
 				});

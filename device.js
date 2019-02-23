@@ -28,6 +28,7 @@ var objMyPrevTempDeviceKey;
 var saveTempKeys; // function that saves temp keys
 var bScheduledTempDeviceKeyRotation = false;
 
+var bCordova = (typeof window !== 'undefined' && window && window.cordova);
 
 function getMyDevicePubKey(){
 	if (!objMyPermanentDeviceKey || !objMyPermanentDeviceKey.pub_b64)
@@ -38,7 +39,7 @@ function getMyDevicePubKey(){
 function getMyDeviceAddress(){
 	if (!my_device_address)
 		throw Error('my_device_address not defined');
-	if (typeof window !== 'undefined' && window && window.cordova)
+	if (bCordova)
 		checkDeviceAddress();
 	return my_device_address;
 }
@@ -375,7 +376,6 @@ function resendStalledMessages(delay){
 	if (!objMyPermanentDeviceKey)
 		return console.log("objMyPermanentDeviceKey not set yet, can't resend stalled messages");
 	mutex.lockOrSkip(['stalled'], function(unlock){
-		var bCordova = (typeof window !== 'undefined' && window && window.cordova);
 		db.query(
 			"SELECT "+(bCordova ? "LENGTH(message) AS len" : "message")+", message_hash, `to`, pubkey, hub \n\
 			FROM outbox JOIN correspondent_devices ON `to`=device_address \n\
@@ -708,11 +708,20 @@ function removeCorrespondentDevice(device_address, onDone){
 	breadcrumbs.add('correspondent removed: '+device_address);
 	var arrQueries = [];
 	db.addQuery(arrQueries, "DELETE FROM outbox WHERE `to`=?", [device_address]);
-	if (conf.bIgnoreUnpairRequests)
-		db.addQuery(arrQueries, "UPDATE correspondent_devices SET is_blackhole=1 WHERE device_address=?", [device_address]);
-	else
-		db.addQuery(arrQueries, "DELETE FROM correspondent_devices WHERE device_address=?", [device_address]);
+	db.addQuery(arrQueries, "DELETE FROM correspondent_devices WHERE device_address=?", [device_address]);
 	async.series(arrQueries, onDone);
+	if (bCordova)
+		updateCorrespondentSettings(device_address, {push_enabled: 0});
+}
+
+function updateCorrespondentSettings(correspondent_address, settings, cb){
+	getHubWs(function(err, ws){
+		if (err)
+			return cb ? cb(err) : null;
+		network.sendJustsaying(ws, 'hub/update_correspondent_settings', Object.assign({correspondent_address: correspondent_address}, settings));
+		if (cb)
+			cb();
+	});
 }
 
 // -------------------------------
@@ -787,6 +796,7 @@ exports.readCorrespondent = readCorrespondent;
 exports.readCorrespondentsByDeviceAddresses = readCorrespondentsByDeviceAddresses;
 exports.updateCorrespondentProps = updateCorrespondentProps;
 exports.removeCorrespondentDevice = removeCorrespondentDevice;
+exports.updateCorrespondentSettings = updateCorrespondentSettings;
 exports.addIndirectCorrespondents = addIndirectCorrespondents;
 exports.getWitnessesFromHub = getWitnessesFromHub;
 exports.requestFromHub = requestFromHub;

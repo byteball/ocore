@@ -4,7 +4,7 @@ var eventBus = require('./event_bus.js');
 var constants = require("./constants.js");
 var conf = require("./conf.js");
 
-var VERSION = 25;
+var VERSION = 26;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -257,6 +257,16 @@ function migrateDb(connection, onDone){
 				}
 				if (version < 25)
 					connection.addQuery(arrQueries, "ALTER TABLE correspondent_devices ADD COLUMN is_blackhole TINYINT NOT NULL DEFAULT 0");
+				if (version < 26){
+					connection.addQuery(arrQueries, "ALTER TABLE correspondent_devices ADD COLUMN push_enabled TINYINT NOT NULL DEFAULT 1");
+					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS correspondent_settings ( \n\
+						device_address CHAR(33) NOT NULL, \n\
+						correspondent_address CHAR(33) NOT NULL, \n\
+						push_enabled TINYINT NOT NULL, \n\
+						creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, \n\
+						PRIMARY KEY (device_address, correspondent_address) \n\
+					)");
+				}
 				cb();
 			}
 		], function(){

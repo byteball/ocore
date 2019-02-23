@@ -774,3 +774,12 @@ CREATE TABLE prosaic_contracts (
 	FOREIGN KEY (peer_device_address) REFERENCES correspondent_devices(device_address),
 	FOREIGN KEY (my_address) REFERENCES my_addresses(address)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
+
+-- hub table
+CREATE TABLE correspondent_settings (
+	device_address CHAR(33) NOT NULL,
+	correspondent_address CHAR(33) NOT NULL,
+	push_enabled TINYINT NOT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	PRIMARY KEY (device_address, correspondent_address)
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;

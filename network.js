@@ -2275,6 +2275,27 @@ function handleJustsaying(ws, subject, body){
 			});
 			break;
 			
+		// I'm a hub, the peer wants update settings for a correspondent device
+		case 'hub/update_correspondent_settings':
+			if (!conf.bServeAsHub)
+				return sendError(ws, "I'm not a hub");
+			if (!ws.device_address)
+				return sendError(ws, "please log in first");
+			if (body.push_enabled !== 0 && body.push_enabled !== 1)
+				return sendError(ws, "invalid push_enabled");
+			if (!ValidationUtils.isValidDeviceAddress(body.correspondent_address))
+				return sendError(ws, "invalid correspondent_address");
+			db.query(
+				"INSERT "+db.getIgnore()+" INTO correspondent_settings (device_address, correspondent_address, push_enabled) VALUES(?,?,?)",
+				[ws.device_address, body.correspondent_address, body.push_enabled],
+				function(res){
+					if (res.affectedRows === 0)
+						db.query("UPDATE correspondent_settings SET push_enabled=? WHERE device_address=? AND correspondent_address=?", [body.push_enabled, ws.device_address, body.correspondent_address]);
+					sendInfo(ws, "updated push "+body.push_enabled);
+				}
+			);
+			break;
+			
 		// I'm connected to a hub
 		case 'hub/challenge':
 		case 'hub/message':
@@ -2531,7 +2552,15 @@ function handleRequest(ws, tag, command, params){
 							}
 						});
 						sendResponse(ws, tag, "accepted");
-						eventBus.emit('peer_sent_new_message', ws, objDeviceMessage);
+						var sender_device_address = objectHash.getDeviceAddress(objDeviceMessage.pubkey);
+						db.query(
+							"SELECT push_enabled FROM correspondent_settings WHERE device_address=? AND correspondent_address=?",
+							[objDeviceMessage.to, sender_device_address],
+							function(rows){
+								if (rows.length === 0 || rows[0].push_enabled === 1)
+									eventBus.emit('peer_sent_new_message', ws, objDeviceMessage);
+							}
+						);
 					}
 				);
 			});
