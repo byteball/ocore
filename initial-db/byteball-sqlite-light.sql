@@ -788,4 +788,4 @@ CREATE TABLE correspondent_settings (
 	PRIMARY KEY (device_address, correspondent_address)
 );
 
-PRAGMA user_version=26;
+PRAGMA user_version=27;
