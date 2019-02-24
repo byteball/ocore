@@ -236,7 +236,7 @@ CREATE TABLE asset_attestors (
 	message_index TINYINT NOT NULL,
 	asset CHAR(44) BINARY NOT NULL, -- in the initial attestor list: same as unit
 	attestor_address CHAR(32) BINARY NOT NULL,
-	PRIMARY KEY (unit, message_index),
+	PRIMARY KEY (unit, message_index, attestor_address),
 	UNIQUE KEY byAssetAttestorUnit(asset, attestor_address, unit)
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
@@ -511,6 +511,7 @@ CREATE TABLE correspondent_devices (
 	hub VARCHAR(100) BINARY NOT NULL, -- domain name of the hub this address is subscribed to
 	is_confirmed TINYINT NOT NULL DEFAULT 0,
 	is_indirect TINYINT NOT NULL DEFAULT 0,
+	is_blackhole TINYINT NOT NULL DEFAULT 0,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
@@ -708,4 +709,41 @@ CREATE TABLE original_addresses (
 	address CHAR(32) BINARY NOT NULL,
 	original_address VARCHAR(100) BINARY NOT NULL, -- email
 	PRIMARY KEY (unit, address)
+) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
+
+CREATE TABLE peer_addresses (
+	address CHAR(32) NOT NULL,
+	signing_paths VARCHAR(255) NULL,
+	device_address CHAR(33) NOT NULL,
+	definition TEXT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	PRIMARY KEY (address),
+	FOREIGN KEY (device_address) REFERENCES correspondent_devices(device_address)
+) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
+
+CREATE TABLE prosaic_contracts (
+	hash CHAR(32) NOT NULL PRIMARY KEY,
+	peer_address CHAR(32) NOT NULL,
+	peer_device_address CHAR(33) NOT NULL,
+	my_address  CHAR(32) NOT NULL,
+	is_incoming TINYINT NOT NULL,
+	creation_date TIMESTAMP NOT NULL,
+	ttl REAL NOT NULL DEFAULT 168, -- 168 hours = 24 * 7 = 1 week
+	status TEXT CHECK (status IN('pending', 'revoked', 'accepted', 'declined')) NOT NULL DEFAULT 'active',
+	title VARCHAR(1000) NOT NULL,
+	`text` TEXT NOT NULL,
+	shared_address CHAR(32),
+	unit CHAR(44),
+	cosigners VARCHAR(1500),
+	FOREIGN KEY (peer_device_address) REFERENCES correspondent_devices(device_address),
+	FOREIGN KEY (my_address) REFERENCES my_addresses(address)
+) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
+
+-- hub table
+CREATE TABLE correspondent_settings (
+	device_address CHAR(33) NOT NULL,
+	correspondent_address CHAR(33) NOT NULL,
+	push_enabled TINYINT NOT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	PRIMARY KEY (device_address, correspondent_address)
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;

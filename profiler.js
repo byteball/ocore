@@ -1,15 +1,24 @@
 /*jslint node: true */
 "use strict";
 
-var bOn = false;
+var bPrintOnExit = false;
+var printOnScreenPeriodInSeconds = 0;
+
+var bOn = bPrintOnExit || printOnScreenPeriodInSeconds > 0;
 
 var count = 0;
 var times = {};
 var start_ts = 0;
 
+var times_sl1 = {};
+var start_ts_sl1 = 0;
+
 var timers = {};
 var timers_results = {};
 var profiler_start_ts = Date.now();
+
+if (printOnScreenPeriodInSeconds > 0)
+	setInterval(print_on_screen, printOnScreenPeriodInSeconds * 1000);
 
 function mark_start(tag, id) {
 	return;
@@ -31,7 +40,8 @@ function mark_end(tag, id) {
 }
 
 function add_result(tag, consumed_time){
-	return;
+	if (!bOn)
+		return;
 	if (!timers_results[tag])
 		timers_results[tag] = [];
 	timers_results[tag].push(consumed_time);
@@ -52,24 +62,65 @@ function stop(tag){
 	start_ts = 0;
 }
 
-function print(){
-	console.log("\nProfiling results:");
+function start_sl1(){
+	if (start_ts_sl1)
+		throw Error("profiler already started");
+	start_ts_sl1 = Date.now();
+}
+
+function stop_sl1(tag){
+	if (!start_ts_sl1)
+		throw Error("profiler not started");
+	if (!times_sl1[tag])
+		times_sl1[tag] = 0;
+	times_sl1[tag] += Date.now() - start_ts_sl1;
+	start_ts_sl1 = 0;
+}
+
+function print_on_screen(){
+	console.error("\n" + getFormattedResults());
+}
+
+function print_on_log(){
+	console.log(getFormattedResults());
+}
+
+
+function getFormattedResults(){
+	var formattedResults = "";
+	if (count === 0)
+		return "No profiling result yet.";;
+	
+	var format_line = function(times_for_tag, tag){
+		formattedResults += "\n" +
+			pad_right(tag+": ", 33) + 
+			pad_left(times_for_tag, 5) + ', ' + 
+			pad_left((times_for_tag/count).toFixed(2), 5) + ' per unit' + 
+			(total > 0 ? ', ' + pad_left((100*times_for_tag/total).toFixed(2), 5) + '%' : '');
+	}
+	
+	formattedResults += "---------- Profiling results ----------\n-> Main level:";
 	var total = 0;
 	for (var tag in times)
 		total += times[tag];
 	for (var tag in times){
-		console.log(
-			pad_right(tag+": ", 33) + 
-			pad_left(times[tag], 5) + ', ' + 
-			pad_left((times[tag]/count).toFixed(2), 5) + ' per unit, ' + 
-			pad_left((100*times[tag]/total).toFixed(2), 5) + '%'
-		);
+		format_line(times[tag], tag);
 	}
-	console.log('total: '+total);
-	console.log(total/count+' per unit');
+	formattedResults +='\ntotal: '+total;
+	formattedResults += "\n" + total/count+' per unit';
+	
+	if(Object.keys(times_sl1).length > 0){
+		formattedResults += "\n\n-> Sub level 1:";
+		total = 0;
+		for (var tag in times_sl1){
+			format_line(times_sl1[tag], tag);
+		}
+	}
+
+	return formattedResults;
 }
 
-function print_results() {
+function print_results_on_log() {
 	console.log("\nBenchmarking results:");
 	for (var tag in timers_results) {
 		var results = timers_results[tag];
@@ -108,13 +159,15 @@ function increment(){
 	count++;
 }
 
-process.on('SIGINT', function(){
-	console.log = clog;
-	console.log("received sigint");
-	print();
-	print_results();
-	process.exit();
-});
+if (bPrintOnExit){
+	process.on('SIGINT', function(){
+		console.log = clog;
+		console.log("received sigint");
+		print_on_log();
+		print_results_on_log();
+		process.exit();
+	});
+}
 
 String.prototype.padding = function(n, c)
 {
@@ -135,9 +188,11 @@ var clog = console.log;
 if (bOn){
 	exports.start = start;
 	exports.stop = stop;
+	exports.start_sl1 = start_sl1;
+	exports.stop_sl1 = stop_sl1;
 	exports.increment = increment;
 }
-exports.print = print;
+exports.print = print_on_log;
 exports.mark_start = mark_start;
 exports.mark_end = mark_end;
 exports.add_result = add_result;
@@ -146,6 +201,8 @@ exports.time_in_db = 0;
 if (!bOn){
 	exports.start = function(){};
 	exports.stop = function(){};
+	exports.start_sl1 = function(){};
+	exports.stop_sl1 = function(){};
 	exports.increment = function(){};
 }
 //exports.print = function(){};

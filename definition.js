@@ -10,7 +10,7 @@ var ecdsaSig = require('./signature.js');
 var merkle = require('./merkle.js');
 var ValidationUtils = require("./validation_utils.js");
 var objectHash = require("./object_hash.js");
-var formulaParser = require('./formula/index');
+var formulaParser = process.browser ? null : require('./formula/index'+'');
 var Decimal = require('decimal.js');
 var dataFeeds = require('./data_feeds.js');
 

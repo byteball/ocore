@@ -25,6 +25,7 @@ var breadcrumbs = require('./breadcrumbs.js');
 var balances = require('./balances');
 var Mnemonic = require('bitcore-mnemonic');
 var inputs = require('./inputs.js');
+var prosaic_contract = require('./prosaic_contract.js');
 
 var message_counter = 0;
 var assocLastFailedAssetMetadataTimestamps = {};
@@ -180,19 +181,23 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			break;
 
 		case "removed_paired_device":
-			if(conf.bIgnoreUnpairRequests) {
-				// unpairing is ignored
-				callbacks.ifError("removed_paired_device ignored: "+from_address);
-			} else {
+		//	if(conf.bIgnoreUnpairRequests) {
+		//		// unpairing is ignored
+		//		callbacks.ifError("removed_paired_device ignored: "+from_address);
+		//	} else {
 				determineIfDeviceCanBeRemoved(from_address, function(bRemovable){
 					if (!bRemovable)
 						return callbacks.ifError("device "+from_address+" is not removable");
+					if (conf.bIgnoreUnpairRequests){
+						db.query("UPDATE correspondent_devices SET is_blackhole=1 WHERE device_address=?", [from_address]);
+						return callbacks.ifOk();
+					}
 					device.removeCorrespondentDevice(from_address, function(){
 						eventBus.emit("removed_paired_device", from_address);
 						callbacks.ifOk();
 					});
 				});
-			}
+		//	}
 			break;
 
 		case "chat_recording_pref":
@@ -460,6 +465,106 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				}
 			});
 			break;
+		
+		case 'prosaic_contract_offer':
+			body.peer_device_address = from_address;
+			if (!body.title || !body.text || !body.creation_date)
+				return callbacks.ifError("not all contract fields submitted");
+			if (!ValidationUtils.isValidAddress(body.peer_address) || !ValidationUtils.isValidAddress(body.address))
+				return callbacks.ifError("either peer_address or address is not valid in contract");
+			if (body.hash !== prosaic_contract.getHash(body))
+				return callbacks.ifError("wrong contract hash");
+			if (!/^\d{4}\-\d{2}\-\d{2} \d{2}:\d{2}:\d{2}$/.test(body.creation_date))
+				return callbacks.ifError("wrong contract creation date");
+			prosaic_contract.store(body);
+			var chat_message = "(prosaic-contract:" + Buffer.from(JSON.stringify(body), 'utf8').toString('base64') + ")";
+			eventBus.emit("text", from_address, chat_message, ++message_counter);
+			callbacks.ifOk();
+			break;
+
+		case 'prosaic_contract_response':
+			var validation = require('./validation.js');
+
+			if (body.status !== "accepted" && body.status !== "declined")
+				return callbacks.ifError("wrong status supplied");
+
+			prosaic_contract.getByHash(body.hash, function(objContract){
+				if (!objContract)
+					return callbacks.ifError("wrong contract hash");
+				if (body.status === "accepted" && !body.signed_message)
+					return callbacks.ifError("response is not signed");
+				var processResponse = function(objSignedMessage) {
+					if (body.authors && body.authors.length) {
+						if (body.authors.length !== 1)
+							return callbacks.ifError("wrong number of authors received");
+						var author = body.authors[0];
+						if (author.definition && (author.address !== objectHash.getChash160(author.definition)))
+							return callbacks.ifError("incorrect definition received");
+						if (!ValidationUtils.isValidAddress(author.address) || author.address !== objContract.peer_address)
+							return callbacks.ifError("incorrect author address");
+						db.query("INSERT "+db.getIgnore()+" INTO peer_addresses (address, device_address, signing_paths, definition) VALUES (?, ?, ?, ?)",
+								[author.address, from_address, JSON.stringify(Object.keys(objSignedMessage.authors[0].authentifiers)), JSON.stringify(author.definition)],
+								function(res) {
+									if (res.affectedRows == 0)
+										db.query("UPDATE peer_addresses SET signing_paths=?, definition=? WHERE address=?", [JSON.stringify(Object.keys(objSignedMessage.authors[0].authentifiers)), JSON.stringify(author.definition), author.address]);
+								});
+					}
+					if (objContract.status !== 'pending')
+						return callbacks.ifError("contract is not active, current status: " + objContract.status);
+					var created_dt = Date.parse(objContract.creation_date.replace(' ', 'T'));
+					if (created_dt + objContract.ttl * 60 * 60 * 1000 < Date.now())
+						return callbacks.ifError("contract already expired");
+					prosaic_contract.setField(objContract.hash, "status", body.status);
+					eventBus.emit("text", from_address, "contract " + body.status, ++message_counter);
+					eventBus.emit("prosaic_contract_response_received" + body.hash, (body.status === "accepted"), body.authors);
+					callbacks.ifOk();
+				};
+				if (body.signed_message) {
+					var signedMessageJson = Buffer.from(body.signed_message, 'base64').toString('utf8');
+					try{
+						var objSignedMessage = JSON.parse(signedMessageJson);
+					}
+					catch(e){
+						return callbacks.ifError("wrong signed message");
+					}
+					validation.validateSignedMessage(objSignedMessage, function(err) {
+						if (err || objSignedMessage.authors[0].address !== objContract.peer_address || objSignedMessage.signed_message != objContract.hash)
+							return callbacks.ifError("wrong contract signature");
+						processResponse(objSignedMessage);
+					});
+				} else
+					processResponse();
+			});
+			break;
+
+		case 'prosaic_contract_update':
+			prosaic_contract.getByHash(body.hash, function(objContract){
+				if (!objContract || objContract.peer_device_address !== from_address)
+					return callbacks.ifError("wrong contract hash or not an owner");
+				if (body.field == "status") {
+					if (body.value !== "revoked" || objContract.status !== "pending")
+							return callbacks.ifError("wrong status for contract supplied");
+				} else 
+				if (body.field == "unit") {
+					if (objContract.status !== "accepted")
+						return callbacks.ifError("contract was not accepted");
+					if (objContract.unit)
+							return callbacks.ifError("unit was already provided for this contract");
+				} else
+				if (body.field == "shared_address") {
+					if (objContract.status !== "accepted")
+						return callbacks.ifError("contract was not accepted");
+					if (objContract.shared_address)
+							return callbacks.ifError("shared_address was already provided for this contract");
+						if (!ValidationUtils.isValidAddress(body.value))
+							return callbacks.ifError("invalid address provided");
+				} else {
+					return callbacks.ifError("wrong field");
+				}
+				prosaic_contract.setField(objContract.hash, body.field, body.value);
+				callbacks.ifOk();
+			});
+			break;
 			
 		default:
 			callbacks.ifError("unknnown subject: "+subject);
@@ -717,22 +822,40 @@ function findAddress(address, signing_path, callbacks, fallback_remote_device_ad
 				WHERE shared_address=? AND signing_path=SUBSTR(?, 1, LENGTH(signing_path))", 
 				[address, signing_path],
 				function(sa_rows){
-					if (rows.length > 1)
+					if (sa_rows.length > 1)
 						throw Error("more than 1 member address found for shared address "+address+" and signing path "+signing_path);
-					if (sa_rows.length === 0){
-						if (fallback_remote_device_address)
-							return callbacks.ifRemote(fallback_remote_device_address);
-						return callbacks.ifUnknownAddress();
+					if (sa_rows.length === 1) {
+						var objSharedAddress = sa_rows[0];
+						var relative_signing_path = 'r' + signing_path.substr(objSharedAddress.signing_path.length);
+						var bLocal = (objSharedAddress.device_address === device.getMyDeviceAddress()); // local keys
+						if (objSharedAddress.address === '') {
+							return callbacks.ifMerkle(bLocal);
+						} else if(objSharedAddress.address === 'secret') {
+							return callbacks.ifSecret();
+						}
+						return findAddress(objSharedAddress.address, relative_signing_path, callbacks, bLocal ? null : objSharedAddress.device_address);
 					}
-					var objSharedAddress = sa_rows[0];
-					var relative_signing_path = 'r' + signing_path.substr(objSharedAddress.signing_path.length);
-					var bLocal = (objSharedAddress.device_address === device.getMyDeviceAddress()); // local keys
-					if (objSharedAddress.address === '') {
-						return callbacks.ifMerkle(bLocal);
-					} else if(objSharedAddress.address === 'secret') {
-						return callbacks.ifSecret();
-					}
-					findAddress(objSharedAddress.address, relative_signing_path, callbacks, bLocal ? null : objSharedAddress.device_address);
+					db.query(
+						"SELECT device_address, signing_paths FROM peer_addresses WHERE address=?", 
+						[address],
+						function(pa_rows) {
+							var candidate_addresses = [];
+							for (var i = 0; i < pa_rows.length; i++) {
+								var row = pa_rows[i];
+								JSON.parse(row.signing_paths).forEach(function(signing_path_candidate){
+									if (signing_path_candidate === signing_path)
+										candidate_addresses.push(row.device_address);
+								});
+							}
+							if (candidate_addresses.length > 1)
+								throw Error("more than 1 candidate device address found for peer address "+address+" and signing path "+signing_path);
+							if (candidate_addresses.length == 1)
+								return callbacks.ifRemote(candidate_addresses[0]);
+							if (fallback_remote_device_address)
+								return callbacks.ifRemote(fallback_remote_device_address);
+							return callbacks.ifUnknownAddress();
+						}
+					);
 				}
 			);
 		}
@@ -1116,8 +1239,22 @@ function readFullSigningPaths(conn, address, arrSigningDeviceAddresses, handleSi
 						onDone
 					);
 				} else {
-					assocSigningPaths[path_prefix] = 'key';
-					onDone();
+					sql = "SELECT signing_paths FROM peer_addresses WHERE address=?";
+					arrParams = [member_address];
+					if (arrSigningDeviceAddresses && arrSigningDeviceAddresses.length > 0){
+						sql += " AND device_address IN(?)";
+						arrParams.push(arrSigningDeviceAddresses);
+					}
+					conn.query(sql, arrParams, function(rows){
+						if (!rows.length) {
+							assocSigningPaths[path_prefix] = 'key';
+							return onDone();
+						}
+						JSON.parse(rows[0].signing_paths).forEach(function(signing_path){
+							assocSigningPaths[path_prefix + signing_path.substr(1)] = 'key';
+						});
+						return onDone();
+					});
 				}
 			});
 		});
@@ -1192,15 +1329,17 @@ function readAdditionalSigningAddresses(arrPayingAddresses, arrSigningAddresses,
 				EXISTS (SELECT 1 FROM my_addresses WHERE my_addresses.address=shared_address_signing_paths.address) \n\
 				OR \n\
 				EXISTS (SELECT 1 FROM shared_addresses WHERE shared_addresses.shared_address=shared_address_signing_paths.address) \n\
+				OR \n\
+				EXISTS (SELECT 1 FROM peer_addresses WHERE peer_addresses.address=shared_address_signing_paths.address AND peer_addresses.definition IS NOT NULL) \n\
 			) \n\
 			AND ( \n\
 				NOT EXISTS (SELECT 1 FROM addresses WHERE addresses.address=shared_address_signing_paths.address) \n\
 				OR ( \n\
-					SELECT definition \n\
+					SELECT definition IS NULL \n\
 					FROM address_definition_changes CROSS JOIN units USING(unit) LEFT JOIN definitions USING(definition_chash) \n\
 					WHERE address_definition_changes.address=shared_address_signing_paths.address AND is_stable=1 AND sequence='good' \n\
 					ORDER BY level DESC LIMIT 1 \n\
-				) IS NULL \n\
+				) = 1 \n\
 			)";
 	var arrParams = [arrFromAddresses];
 	if (arrSigningAddresses.length > 0){
@@ -1306,8 +1445,12 @@ function getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey) {
 		},
 		readDefinition: function (conn, address, handleDefinition) {
 			conn.query(
-				"SELECT definition FROM my_addresses WHERE address=? UNION SELECT definition FROM shared_addresses WHERE shared_address=?",
-				[address, address],
+				"SELECT definition FROM my_addresses WHERE address=? \n\
+				UNION \n\
+				SELECT definition FROM shared_addresses WHERE shared_address=? \n\
+				UNION \n\
+				SELECT definition FROM peer_addresses WHERE address=?",
+				[address, address, address],
 				function (rows) {
 					if (rows.length !== 1)
 						throw Error("definition not found");
@@ -1337,10 +1480,14 @@ function getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey) {
 							eventBus.emit('refused_to_sign', device_address);
 					});
 					walletGeneral.sendOfferToSign(device_address, address, signing_path, objUnsignedUnit, assocPrivatePayloads);
-					if (!bRequestedConfirmation) {
-						eventBus.emit("confirm_on_other_devices");
-						bRequestedConfirmation = true;
-					}
+					db.query("SELECT peer_device_address FROM prosaic_contracts WHERE shared_address=?", [address], function(rows) {
+						if (rows.length && rows[0].peer_device_address === device_address) // do not show alert for peer address in prosaic contracts
+							return;
+						if (!bRequestedConfirmation) {
+							eventBus.emit("confirm_on_other_devices");
+							bRequestedConfirmation = true;
+						}
+					});
 				},
 				ifMerkle: function (bLocal) {
 					if (!bLocal)
@@ -2028,11 +2175,12 @@ function handlePrivatePaymentFile(fullPath, content, cb) {
 	}
 }
 
-function readDeviceAddressesUsedInSigningPaths(onDone){
+function readNonRemovableDevices(onDone){
 
 	var sql = "SELECT DISTINCT device_address FROM shared_address_signing_paths ";
 	sql += "UNION SELECT DISTINCT device_address FROM wallet_signing_paths ";
-	sql += "UNION SELECT DISTINCT device_address FROM pending_shared_address_signing_paths";
+	sql += "UNION SELECT DISTINCT device_address FROM pending_shared_address_signing_paths ";
+	sql += "UNION SELECT DISTINCT peer_device_address AS device_address FROM prosaic_contracts";
 	
 	db.query(
 		sql, 
@@ -2049,7 +2197,7 @@ function determineIfDeviceCanBeRemoved(device_address, handleResult) {
 	device.readCorrespondent(device_address, function(correspondent){
 		if (!correspondent)
 			return handleResult(false);
-		readDeviceAddressesUsedInSigningPaths(function(arrDeviceAddresses){
+		readNonRemovableDevices(function(arrDeviceAddresses){
 			handleResult(arrDeviceAddresses.indexOf(device_address) === -1);
 		});
 	});
@@ -2065,7 +2213,6 @@ function signMessage(from_address, message, arrSigningDeviceAddresses, signWithL
 function signAuthRequest(wallet, objRequest, handleResult){
 	
 }
-
 
 /*
 walletGeneral.readMyAddresses(function(arrAddresses){
@@ -2083,7 +2230,7 @@ exports.readAssetMetadata = readAssetMetadata;
 exports.readTransactionHistory = readTransactionHistory;
 exports.sendPaymentFromWallet = sendPaymentFromWallet;
 exports.sendMultiPayment = sendMultiPayment;
-exports.readDeviceAddressesUsedInSigningPaths = readDeviceAddressesUsedInSigningPaths;
+exports.readNonRemovableDevices = readNonRemovableDevices;
 exports.determineIfDeviceCanBeRemoved = determineIfDeviceCanBeRemoved;
 exports.receiveTextCoin = receiveTextCoin;
 exports.claimBackOldTextcoins = claimBackOldTextcoins;
