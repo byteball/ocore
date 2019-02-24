@@ -37,6 +37,15 @@ module.exports = {
 		});
 	},
 	
+	del: function(key, cb){
+		db.del(key, function(err){
+			if (err)
+				throw Error("del " + key + " failed: " + err);
+			if (cb)
+				cb();
+		});
+	},
+	
 	batch: function(){
 		return db.batch();
 	},

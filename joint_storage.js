@@ -3,6 +3,7 @@
 var _ = require('lodash');
 var async = require('async');
 var storage = require('./storage.js');
+var kvstore = require('./kvstore.js');
 var archiving = require('./archiving.js');
 var db = require('./db.js');
 var constants = require("./constants.js");
@@ -247,6 +248,7 @@ function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 									archiving.generateQueriesToArchiveJoint(conn, objJoint, 'uncovered', arrQueries, function(){
 										conn.addQuery(arrQueries, "COMMIT");
 										async.series(arrQueries, function(){
+											kvstore.del('j\n'+row.unit);
 											breadcrumbs.add("------- done archiving "+row.unit);
 											var parent_units = storage.assocUnstableUnits[row.unit].parent_units;
 											storage.forgetUnit(row.unit);
