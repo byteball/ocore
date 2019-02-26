@@ -507,7 +507,8 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					}
 					if (objContract.status !== 'pending')
 						return callbacks.ifError("contract is not active, current status: " + objContract.status);
-					if (objContract.creation_date.setHours(objContract.creation_date.getHours() + objContract.ttl) < Date.now())
+					var objDateCopy = new Date(objContract.creation_date_obj);
+					if (objDateCopy.setHours(objDateCopy.getHours() + objContract.ttl) < Date.now())
 						return callbacks.ifError("contract already expired");
 					prosaic_contract.setField(objContract.hash, "status", body.status);
 					eventBus.emit("text", from_address, "contract \""+objContract.title+"\" " + body.status, ++message_counter);
