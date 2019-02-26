@@ -511,11 +511,11 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					}
 					if (objContract.status !== 'pending')
 						return callbacks.ifError("contract is not active, current status: " + objContract.status);
-					var created_dt = Date.parse(objContract.creation_date.replace(' ', 'T'));
-					if (created_dt + objContract.ttl * 60 * 60 * 1000 < Date.now())
+					var objDateCopy = new Date(objContract.creation_date_obj);
+					if (objDateCopy.setHours(objDateCopy.getHours() + objContract.ttl) < Date.now())
 						return callbacks.ifError("contract already expired");
 					prosaic_contract.setField(objContract.hash, "status", body.status);
-					eventBus.emit("text", from_address, "contract " + body.status, ++message_counter);
+					eventBus.emit("text", from_address, "contract \""+objContract.title+"\" " + body.status, ++message_counter);
 					eventBus.emit("prosaic_contract_response_received" + body.hash, (body.status === "accepted"), body.authors);
 					callbacks.ifOk();
 				};
