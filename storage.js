@@ -28,7 +28,7 @@ var assocStableUnitsByMci = {};
 var assocBestChildren = {};
 
 var assocHashTreeUnitsByBall = {};
-var assocUnstableDataFeeds = {};
+var assocUnstableMessages = {};
 
 var min_retrievable_mci = null;
 initializeMinRetrievableMci();
@@ -1312,6 +1312,7 @@ function forgetUnit(unit){
 	if (!conf.bLight && assocStableUnits[unit])
 		throw Error("trying to forget stable unit "+unit);
 	delete assocStableUnits[unit];
+	delete assocUnstableMessages[unit];
 }
 
 function shrinkCache(){
@@ -1463,9 +1464,9 @@ function initHashTreeBalls(conn, onDone){
 	});
 }
 
-function initUnstableDataFeeds(conn, onDone){
+function initUnstableMessages(conn, onDone){
 	var conn = conn || db;
-	conn.query("SELECT unit FROM units CROSS JOIN messages USING(unit) WHERE is_stable=0 AND app='data_feed'", function(rows){
+	conn.query("SELECT unit FROM units CROSS JOIN messages USING(unit) WHERE is_stable=0 AND app IN('data_feed', 'definition')", function(rows){
 		async.eachSeries(
 			rows,
 			function(row, cb){
@@ -1475,15 +1476,18 @@ function initUnstableDataFeeds(conn, onDone){
 					},
 					ifFound: function(objJoint){
 						objJoint.unit.messages.forEach(function(message){
-							if (message.app === 'data_feed')
-								assocUnstableDataFeeds[row.unit] = message.payload;
+							if (message.app === 'data_feed' || message.app === 'definition') {
+								if (!storage.assocUnstableMessages[row.unit])
+									storage.assocUnstableMessages[row.unit] = [];
+								storage.assocUnstableMessages[row.unit].push(message);
+							}
 						});
 						cb();
 					}
 				});
 			},
 			function(){
-				console.log('initUnstableDataFeeds done, '+Object.keys(assocUnstableDataFeeds).length+' data feeds found');
+				console.log('initUnstableMessages done, '+Object.keys(assocUnstableMessages).length+' messages found');
 				if (onDone)
 					onDone();
 			}
@@ -1524,7 +1528,7 @@ function initCaches(){
 	console.log('initCaches');
 	db.executeInTransaction(function(conn, onDone){
 		mutex.lock(['write'], function(unlock) {
-			initUnstableUnits(conn, initStableUnits.bind(this, conn, initUnstableDataFeeds.bind(this, conn, initHashTreeBalls.bind(this, conn, function(){
+			initUnstableUnits(conn, initStableUnits.bind(this, conn, initUnstableMessages.bind(this, conn, initHashTreeBalls.bind(this, conn, function(){
 				console.log('initCaches done');
 				unlock();
 				onDone();
@@ -1592,7 +1596,7 @@ exports.assocStableUnits = assocStableUnits;
 exports.assocStableUnitsByMci = assocStableUnitsByMci;
 exports.assocBestChildren = assocBestChildren;
 exports.assocHashTreeUnitsByBall = assocHashTreeUnitsByBall;
-exports.assocUnstableDataFeeds = assocUnstableDataFeeds;
+exports.assocUnstableMessages = assocUnstableMessages;
 exports.initCaches = initCaches;
 exports.resetMemory = resetMemory;
 exports.initializeMinRetrievableMci = initializeMinRetrievableMci;

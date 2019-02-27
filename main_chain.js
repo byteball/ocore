@@ -1324,7 +1324,7 @@ function markMcIndexStable(conn, batch, mci, onDone){
 									if (objUnitProps.ball){ // already inserted
 										if (objUnitProps.ball !== ball)
 											throw Error("stored and calculated ball hashes do not match, ball="+ball+", objUnitProps="+JSON.stringify(objUnitProps));
-										return addDataFeeds();
+										return saveUnstablePayloads();
 									}
 									conn.query("INSERT INTO balls (ball, unit) VALUES(?,?)", [ball, unit], function(){
 										conn.query("DELETE FROM hash_tree_balls WHERE ball=?", [ball], function(){
@@ -1339,34 +1339,47 @@ function markMcIndexStable(conn, batch, mci, onDone){
 												objJoint.ball = ball;
 												batch.put(key, JSON.stringify(objJoint));
 												if (arrSkiplistUnits.length === 0)
-													return addDataFeeds();
+													return saveUnstablePayloads();
 												conn.query(
 													"INSERT INTO skiplist_units (unit, skiplist_unit) VALUES "
 													+arrSkiplistUnits.map(function(skiplist_unit){
 														return "("+conn.escape(unit)+", "+conn.escape(skiplist_unit)+")"; 
 													}), 
-													function(){ addDataFeeds(); }
+													function(){ saveUnstablePayloads(); }
 												);
 											});
 										});
 									});
 								}
-								
-								function addDataFeeds(){
-									if (!storage.assocUnstableDataFeeds[unit])
+
+								function saveUnstablePayloads() {
+									if (!storage.assocUnstableMessages[unit])
 										return cb();
 									if (objUnitProps.sequence === 'final-bad'){
-										delete storage.assocUnstableDataFeeds[unit];
+										delete storage.assocUnstableMessages[unit];
 										return cb();
 									}
+									storage.assocUnstableMessages[unit].forEach(function (message) {
+										if (message.app === 'data_feed')
+											addDataFeeds(message.payload);
+										else if (message.app === 'definition')
+											batch.put('d\n' + message.payload.address, JSON.stringify(message.payload.definition));
+										else
+											throw Error("unrecognized app in unstable message: " + message.app);
+									});
+									delete storage.assocUnstableMessages[unit];
+									cb();
+								}
+								
+								function addDataFeeds(payload){
 									if (!storage.assocStableUnits[unit])
 										throw Error("no stable unit "+unit);
 									var arrAuthorAddresses = storage.assocStableUnits[unit].author_addresses;
 									if (!arrAuthorAddresses)
 										throw Error("no author addresses in "+unit);
 									var strMci = string_utils.encodeMci(mci);
-									for (var feed_name in storage.assocUnstableDataFeeds[unit]){
-										var value = storage.assocUnstableDataFeeds[unit][feed_name];
+									for (var feed_name in payload){
+										var value = payload[feed_name];
 										var strValue = null;
 										var numValue = null;
 										if (typeof value === 'string'){
@@ -1387,8 +1400,6 @@ function markMcIndexStable(conn, batch, mci, onDone){
 											batch.put('dfv\n'+address+'\n'+feed_name+'\n'+strMci, value+'\n'+unit);
 										});
 									}
-									delete storage.assocUnstableDataFeeds[unit];
-									cb();
 								}
 							}
 						);

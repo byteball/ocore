@@ -558,8 +558,11 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 								return cb();
 							if (objUnit.messages){
 								objUnit.messages.forEach(function(message){
-									if (message.app === 'data_feed')
-										storage.assocUnstableDataFeeds[objUnit.unit] = message.payload;
+									if (message.app === 'data_feed' || message.app === 'definition') {
+										if (!storage.assocUnstableMessages[objUnit.unit])
+											storage.assocUnstableMessages[objUnit.unit] = [];
+										storage.assocUnstableMessages[objUnit.unit].push(message);
+									}
 								});
 							}
 							if (!conf.bLight){

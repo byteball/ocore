@@ -21,6 +21,7 @@ var isInteger = ValidationUtils.isInteger;
 var isNonnegativeInteger = ValidationUtils.isNonnegativeInteger;
 var isPositiveInteger = ValidationUtils.isPositiveInteger;
 var isNonemptyArray = ValidationUtils.isNonemptyArray;
+var isNonemptyObject = ValidationUtils.isNonemptyObject;
 var isArrayOfLength = ValidationUtils.isArrayOfLength;
 var isValidAddress = ValidationUtils.isValidAddress;
 var isValidBase64 = ValidationUtils.isValidBase64;

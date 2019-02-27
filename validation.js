@@ -16,6 +16,7 @@ var mutex = require('./mutex.js');
 var constants = require("./constants.js");
 var ValidationUtils = require("./validation_utils.js");
 var Definition = require("./definition.js");
+var aa = require("./aa.js");
 var conf = require('./conf.js');
 var profiler = require('./profiler.js');
 var breadcrumbs = require('./breadcrumbs.js');
@@ -1234,6 +1235,18 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 				return callback("bad new definition_chash");
 			return callback();
 
+		case "definition": // for AAs only
+			if (hasFieldsExcept(payload, ["address", "definition"])) // AA definition cannot be changed and its address is also its definition_chash
+				return callback("unknown fields in app definition");
+			try{
+				if (payload.address !== objectHash.getChash160(payload.definition))
+					return callback("definition doesn't match the chash");
+			}
+			catch(e){
+				return callback("bad definition");
+			}
+			return aa.validateAADefinition(payload.definition, callback);
+
 		case "poll":
 			if (objValidationState.bHasPoll)
 				return callback("can be only one poll");
@@ -2003,6 +2016,8 @@ function validateAssetDefinition(conn, payload, objUnit, objValidationState, cal
 	// denominations
 	if (payload.fixed_denominations && !isNonemptyArray(payload.denominations))
 		return callback("denominations not defined");
+	if (!payload.fixed_denominations && "denominations" in payload)
+		return callback("denominations should not be defined when fixed");
 	if (payload.denominations){
 		if (payload.denominations.length > constants.MAX_DENOMINATIONS_PER_ASSET_DEFINITION)
 			return callback("too many denominations");
@@ -2070,6 +2085,8 @@ function validateAssetDefinition(conn, payload, objUnit, objValidationState, cal
 function validateAttestorListUpdate(conn, payload, objUnit, objValidationState, callback){
 	if (objUnit.authors.length !== 1)
 		return callback("attestor list must be single-authored");
+	if (hasFieldsExcept(payload, ['asset', 'attestors']))
+		return callback("foreign fields in attestor list update");
 	if (!isStringOfLength(payload.asset, constants.HASH_LENGTH))
 		return callback("invalid asset in attestor list update");
 	storage.readAsset(conn, payload.asset, objValidationState.last_ball_mci, function(err, objAsset){
