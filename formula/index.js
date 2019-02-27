@@ -31,7 +31,7 @@ function isValidValue(val){
 }
 
 exports.validate = function (formula, complexity, callback) {
-	complexity++;
+//	complexity++;
 	var parser = {};
 	try {
 		if(cache[formula]){
