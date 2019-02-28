@@ -785,6 +785,7 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 	
 	function findConflictingUnits(handleConflictingUnits){
 	//	var cross = (objValidationState.max_known_mci - objValidationState.max_parent_limci < 1000) ? 'CROSS' : '';
+		var indexMySQL = conf.storage == "mysql" ? "USE INDEX(unitAuthorsIndexByAddressMci)" : "";
 		conn.query( // _left_ join forces use of indexes in units
 		/*	"SELECT unit, is_stable \n\
 			FROM units \n\
@@ -792,13 +793,13 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 			WHERE address=? AND (main_chain_index>? OR main_chain_index IS NULL) AND unit != ?",
 			[objAuthor.address, objValidationState.max_parent_limci, objUnit.unit],*/
 			"SELECT unit, is_stable, sequence, level \n\
-			FROM unit_authors \n\
-			CROSS JOIN units USING(unit) \n\
+			FROM unit_authors "+indexMySQL+"\n\
+			CROSS JOIN units USING(unit)\n\
 			WHERE address=? AND _mci>? AND unit != ? \n\
 			UNION \n\
 			SELECT unit, is_stable, sequence, level \n\
-			FROM unit_authors \n\
-			CROSS JOIN units USING(unit) \n\
+			FROM unit_authors "+indexMySQL+"\n\
+			CROSS JOIN units USING(unit)\n\
 			WHERE address=? AND _mci IS NULL AND unit != ? \n\
 			ORDER BY level DESC",
 			[objAuthor.address, objValidationState.max_parent_limci, objUnit.unit, objAuthor.address, objUnit.unit],
@@ -1129,8 +1130,9 @@ function validateMessage(conn, objMessage, message_index, objUnit, objValidation
 			return "spend_proof="+conn.escape(objSpendProof.spend_proof)+
 				" AND address="+conn.escape(objSpendProof.address ? objSpendProof.address : objUnit.authors[0].address);
 		});
+		var doubleSpendIndexMySQL = conf.storage == "mysql" ? "USE INDEX(bySpendProof)" : "";
 		checkForDoublespends(conn, "spend proof", 
-			"SELECT address, unit, main_chain_index, sequence FROM spend_proofs JOIN units USING(unit) WHERE unit != ? AND ("+arrEqs.join(" OR ")+")",
+			"SELECT address, unit, main_chain_index, sequence FROM spend_proofs "+ doubleSpendIndexMySQL+" JOIN units USING(unit) WHERE unit != ? AND ("+arrEqs.join(" OR ")+")",
 			[objUnit.unit], 
 			objUnit, objValidationState, function(cb2){ cb2(); }, cb);
 	}
@@ -1553,7 +1555,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 			var doubleSpendFields = "unit, address, message_index, input_index, main_chain_index, sequence, is_stable";
 			var doubleSpendWhere;
 			var doubleSpendVars = [];
-
+			var doubleSpendIndexMySQL = "";
 			function checkInputDoubleSpend(cb2){
 			//	if (objAsset)
 			//		profiler2.start();
@@ -1564,7 +1566,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 				}
 				else
 					doubleSpendWhere += " AND asset IS NULL";
-				var doubleSpendQuery = "SELECT "+doubleSpendFields+" FROM inputs JOIN units USING(unit) WHERE "+doubleSpendWhere;
+				var doubleSpendQuery = "SELECT "+doubleSpendFields+" FROM inputs " + doubleSpendIndexMySQL + " JOIN units USING(unit) WHERE "+doubleSpendWhere;
 				checkForDoublespends(
 					conn, "divisible input", 
 					doubleSpendQuery, doubleSpendVars, 
@@ -1702,7 +1704,9 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 					
 					doubleSpendWhere = "type=? AND src_unit=? AND src_message_index=? AND src_output_index=?";
 					doubleSpendVars = [type, input.unit, input.message_index, input.output_index];
-					
+					if (conf.storage == "mysql")
+						doubleSpendIndexMySQL = " FORCE INDEX(bySrcOutput) ";
+
 					// for private fixed denominations assets, we can't look up src output in the database 
 					// because we validate the entire chain before saving anything.
 					// Instead we prepopulate objValidationState with denomination and src_output 
@@ -1844,6 +1848,8 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 					
 					doubleSpendWhere = "type=? AND from_main_chain_index=? AND address=? AND asset IS NULL";
 					doubleSpendVars = [type, input.from_main_chain_index, address];
+					if (conf.storage == "mysql")
+						doubleSpendIndexMySQL = " USE INDEX (byIndexAddress) ";
 
 					mc_outputs.readNextSpendableMcIndex(conn, type, address, objValidationState.arrConflictingUnits, function(next_spendable_mc_index){
 						if (input.from_main_chain_index < next_spendable_mc_index)
