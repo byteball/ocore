@@ -32,7 +32,7 @@ function calcHeadersCommissions(conn, onDone){
 					"INSERT INTO headers_commission_contributions (unit, address, amount) \n\
 					SELECT punits.unit, address, punits.headers_commission AS hc \n\
 					FROM units AS chunits \n\
-					JOIN unit_authors USE INDEX(PRIMARY) USING(unit) \n\
+					JOIN unit_authors USING(unit) \n\
 					JOIN parenthoods ON chunits.unit=parenthoods.child_unit \n\
 					JOIN units AS punits ON parenthoods.parent_unit=punits.unit \n\
 					JOIN units AS next_mc_units ON next_mc_units.is_on_main_chain=1 AND next_mc_units.main_chain_index=punits.main_chain_index+1 \n\
@@ -282,4 +282,3 @@ function throwError(msg){
 exports.resetMaxSpendableMci = resetMaxSpendableMci;
 exports.calcHeadersCommissions = calcHeadersCommissions;
 exports.getMaxSpendableMciForLastBallMci = getMaxSpendableMciForLastBallMci;
-
