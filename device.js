@@ -28,6 +28,7 @@ var objMyPrevTempDeviceKey;
 var saveTempKeys; // function that saves temp keys
 var bScheduledTempDeviceKeyRotation = false;
 
+var bCordova = (typeof window !== 'undefined' && window && window.cordova);
 
 function getMyDevicePubKey(){
 	if (!objMyPermanentDeviceKey || !objMyPermanentDeviceKey.pub_b64)
@@ -38,7 +39,7 @@ function getMyDevicePubKey(){
 function getMyDeviceAddress(){
 	if (!my_device_address)
 		throw Error('my_device_address not defined');
-	if (typeof window !== 'undefined' && window && window.cordova)
+	if (bCordova)
 		checkDeviceAddress();
 	return my_device_address;
 }
@@ -375,7 +376,6 @@ function resendStalledMessages(delay){
 	if (!objMyPermanentDeviceKey)
 		return console.log("objMyPermanentDeviceKey not set yet, can't resend stalled messages");
 	mutex.lockOrSkip(['stalled'], function(unlock){
-		var bCordova = (typeof window !== 'undefined' && window && window.cordova);
 		db.query(
 			"SELECT "+(bCordova ? "LENGTH(message) AS len" : "message")+", message_hash, `to`, pubkey, hub \n\
 			FROM outbox JOIN correspondent_devices ON `to`=device_address \n\
@@ -554,9 +554,16 @@ function sendMessageToHub(ws, recipient_device_pubkey, subject, body, callbacks,
 
 function sendMessageToDevice(device_address, subject, body, callbacks, conn){
 	conn = conn || db;
-	conn.query("SELECT hub, pubkey FROM correspondent_devices WHERE device_address=?", [device_address], function(rows){
+	conn.query("SELECT hub, pubkey, is_blackhole FROM correspondent_devices WHERE device_address=?", [device_address], function(rows){
 		if (rows.length !== 1)
 			throw Error("correspondent not found");
+		if (rows[0].is_blackhole){
+			if (callbacks && callbacks.onSaved)
+				callbacks.onSaved();
+			if (callbacks && callbacks.ifOk)
+				callbacks.ifOk();
+			return;
+		}
 		sendMessageToHub(rows[0].hub, rows[0].pubkey, subject, body, callbacks, conn);
 	});
 }
@@ -623,6 +630,7 @@ function handlePairingMessage(json, device_pubkey, callbacks){
 							}
 							if (body.reverse_pairing_secret)
 								sendPairingMessage(json.device_hub, device_pubkey, body.reverse_pairing_secret, null);
+							db.query("UPDATE correspondent_devices SET is_blackhole=0 WHERE device_address=?", [from_address]);
 							callbacks.ifOk();
 						}
 					);
@@ -702,6 +710,18 @@ function removeCorrespondentDevice(device_address, onDone){
 	db.addQuery(arrQueries, "DELETE FROM outbox WHERE `to`=?", [device_address]);
 	db.addQuery(arrQueries, "DELETE FROM correspondent_devices WHERE device_address=?", [device_address]);
 	async.series(arrQueries, onDone);
+	if (bCordova)
+		updateCorrespondentSettings(device_address, {push_enabled: 0});
+}
+
+function updateCorrespondentSettings(correspondent_address, settings, cb){
+	getHubWs(function(err, ws){
+		if (err)
+			return cb ? cb(err) : null;
+		network.sendJustsaying(ws, 'hub/update_correspondent_settings', Object.assign({correspondent_address: correspondent_address}, settings));
+		if (cb)
+			cb();
+	});
 }
 
 // -------------------------------
@@ -743,7 +763,6 @@ function requestFromHub(command, params, responseHandler){
 	});
 }
 
-
 exports.getMyDevicePubKey = getMyDevicePubKey;
 exports.getMyDeviceAddress = getMyDeviceAddress;
 exports.isValidPubKey = isValidPubKey;
@@ -777,6 +796,7 @@ exports.readCorrespondent = readCorrespondent;
 exports.readCorrespondentsByDeviceAddresses = readCorrespondentsByDeviceAddresses;
 exports.updateCorrespondentProps = updateCorrespondentProps;
 exports.removeCorrespondentDevice = removeCorrespondentDevice;
+exports.updateCorrespondentSettings = updateCorrespondentSettings;
 exports.addIndirectCorrespondents = addIndirectCorrespondents;
 exports.getWitnessesFromHub = getWitnessesFromHub;
 exports.requestFromHub = requestFromHub;

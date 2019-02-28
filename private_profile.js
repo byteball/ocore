@@ -113,9 +113,40 @@ function savePrivateProfile(objPrivateProfile, address, attestor_address, onDone
 	);
 }
 
+function getFieldsForAddress(address, fields, arrTrustedAttestorAddresses, cb) {
+	// selects LAST attestation, preferrably from trusted attestor that has full set of requested fields
+	if (!arrTrustedAttestorAddresses.length)
+		arrTrustedAttestorAddresses = [null];
+	db.query("SELECT \n\
+				field, value, \n\
+				attestor_address, \n\
+				attestor_address IN (?) AS trusted, \n\
+				unit \n\
+			FROM private_profile_fields \n\
+			JOIN private_profiles USING (private_profile_id) \n\
+			JOIN units USING(unit) \n\
+			JOIN (SELECT private_profile_id \n\
+				FROM private_profile_fields \n\
+				WHERE field IN (?) \n\
+				GROUP BY private_profile_id \n\
+				HAVING COUNT(1) = ?) AS full_set \n\
+			USING(private_profile_id) \n\
+			WHERE address=? AND field IN (?) \n\
+			ORDER BY trusted DESC, units.main_chain_index DESC LIMIT ?", [arrTrustedAttestorAddresses, fields, fields.length, address, fields, fields.length], function(rows){
+			var result = {};
+			rows.forEach(function(row) {
+				result[row.field] = row.value;
+				result.attestor_address = row.attestor_address;
+				result.attestation_unit = row.unit;
+			});
+			cb(result);
+	});
+}
+
 exports.getPrivateProfileFromJsonBase64 = getPrivateProfileFromJsonBase64;
 exports.parseAndValidatePrivateProfile = parseAndValidatePrivateProfile;
 exports.parseSrcProfile = parseSrcProfile;
 exports.savePrivateProfile = savePrivateProfile;
+exports.getFieldsForAddress = getFieldsForAddress;
 
 

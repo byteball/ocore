@@ -244,7 +244,6 @@ function composeJoint(params){
 	
 	var total_input;
 	var last_ball_mci;
-	var assocSigningPaths = {};
 	var unlock_callback;
 	var conn;
 	var lightProps;
@@ -336,53 +335,12 @@ function composeJoint(params){
 			);
 		},
 		function(cb){ // authors
-			async.eachSeries(arrFromAddresses, function(from_address, cb2){
-				
-				function setDefinition(){
-					signer.readDefinition(conn, from_address, function(err, arrDefinition){
-						if (err)
-							return cb2(err);
-						objAuthor.definition = arrDefinition;
-						cb2();
-					});
-				}
-				
-				var objAuthor = {
-					address: from_address,
-					authentifiers: {}
-				};
-				signer.readSigningPaths(conn, from_address, function(assocLengthsBySigningPaths){
-					var arrSigningPaths = Object.keys(assocLengthsBySigningPaths);
-					assocSigningPaths[from_address] = arrSigningPaths;
-					for (var j=0; j<arrSigningPaths.length; j++)
-						objAuthor.authentifiers[arrSigningPaths[j]] = repeatString("-", assocLengthsBySigningPaths[arrSigningPaths[j]]);
-					objUnit.authors.push(objAuthor);
-					conn.query(
-						"SELECT 1 FROM unit_authors CROSS JOIN units USING(unit) \n\
-						WHERE address=? AND is_stable=1 AND sequence='good' AND main_chain_index<=? \n\
-						LIMIT 1", 
-						[from_address, last_ball_mci], 
-						function(rows){
-							if (rows.length === 0) // first message from this address
-								return setDefinition();
-							// try to find last stable change of definition, then check if the definition was already disclosed
-							conn.query(
-								"SELECT definition \n\
-								FROM address_definition_changes CROSS JOIN units USING(unit) LEFT JOIN definitions USING(definition_chash) \n\
-								WHERE address=? AND is_stable=1 AND sequence='good' AND main_chain_index<=? \n\
-								ORDER BY level DESC LIMIT 1", 
-								[from_address, last_ball_mci],
-								function(rows){
-									if (rows.length === 0) // no definition changes at all
-										return cb2();
-									var row = rows[0];
-									row.definition ? cb2() : setDefinition(); // if definition not found in the db, add it into the json
-								}
-							);
-						}
-					);
-				});
-			}, cb);
+			composeAuthorsForAddresses(conn, arrFromAddresses, last_ball_mci, signer, function(err, authors) {
+				if (err)
+					return cb(err);
+				objUnit.authors = authors;
+				cb();
+			});
 		},
 		function(cb){ // witnesses
 			if (bGenesis){
@@ -493,7 +451,7 @@ function composeJoint(params){
 				function(author, cb2){
 					var address = author.address;
 					async.each( // different keys sign in parallel (if multisig)
-						assocSigningPaths[address],
+						Object.keys(author.authentifiers),
 						function(path, cb3){
 							if (signer.sign){
 								signer.sign(objUnit, assocPrivatePayloads, address, path, function(err, signature){
@@ -779,6 +737,84 @@ function generateBlinding(){
 	return crypto.randomBytes(12).toString("base64");
 }
 
+function composeAuthorsAndMciForAddresses(conn, arrFromAddresses, signer, cb) {
+	myWitnesses.readMyWitnesses(function(arrWitnesses){
+		if (conf.bLight)
+			require('./network.js').requestFromLightVendor(
+				'light/get_parents_and_last_ball_and_witness_list_unit', 
+				{witnesses: arrWitnesses}, 
+				function(ws, request, response){
+					if (response.error)
+						return cb(response.error);
+					if (!response.parent_units || !response.last_stable_mc_ball || !response.last_stable_mc_ball_unit || typeof response.last_stable_mc_ball_mci !== 'number')
+						return cb("invalid parents from light vendor");
+					composeAuthorsForAddresses(conn, arrFromAddresses, response.last_stable_mc_ball_mci, signer, cb);
+				}
+			);
+		else
+			parentComposer.pickParentUnitsAndLastBall(
+				db,
+				arrWitnesses,
+				function(err, arrParentUnits, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
+					if (err)
+						return cb("unable to find parents: "+err);
+					composeAuthorsForAddresses(conn, arrFromAddresses, last_stable_mc_ball_mci, signer, cb);
+				}
+			);
+	});
+}
+
+function composeAuthorsForAddresses(conn, arrFromAddresses, last_ball_mci, signer, cb) {
+	var authors = [];
+	async.eachSeries(arrFromAddresses, function(from_address, cb2){
+		function setDefinition(){
+			signer.readDefinition(conn, from_address, function(err, arrDefinition){
+				if (err)
+					return cb2(err);
+				objAuthor.definition = arrDefinition;
+				cb2();
+			});
+		}
+		
+		var objAuthor = {
+			address: from_address,
+			authentifiers: {}
+		};
+		signer.readSigningPaths(conn, from_address, function(assocLengthsBySigningPaths){
+			var arrSigningPaths = Object.keys(assocLengthsBySigningPaths);
+			for (var j=0; j<arrSigningPaths.length; j++)
+				objAuthor.authentifiers[arrSigningPaths[j]] = repeatString("-", assocLengthsBySigningPaths[arrSigningPaths[j]]);
+			authors.push(objAuthor);
+			conn.query(
+				"SELECT 1 FROM unit_authors CROSS JOIN units USING(unit) \n\
+				WHERE address=? AND is_stable=1 AND sequence='good' AND main_chain_index<=? \n\
+				LIMIT 1", 
+				[from_address, last_ball_mci], 
+				function(rows){
+					if (rows.length === 0) // first message from this address
+						return setDefinition();
+					// try to find last stable change of definition, then check if the definition was already disclosed
+					conn.query(
+						"SELECT definition \n\
+						FROM address_definition_changes CROSS JOIN units USING(unit) LEFT JOIN definitions USING(definition_chash) \n\
+						WHERE address=? AND is_stable=1 AND sequence='good' AND main_chain_index<=? \n\
+						ORDER BY level DESC LIMIT 1", 
+						[from_address, last_ball_mci],
+						function(rows){
+							if (rows.length === 0) // no definition changes at all
+								return cb2();
+							var row = rows[0];
+							row.definition ? cb2() : setDefinition(); // if definition not found in the db, add it into the json
+						}
+					);
+				}
+			);
+		});
+	}, function(err) {
+		cb(err, authors);
+	});
+}
+
 
 exports.composePaymentAndTextJoint = composePaymentAndTextJoint;
 exports.composeTextJoint = composeTextJoint;
@@ -809,3 +845,4 @@ exports.composeAndSavePaymentJoint = composeAndSavePaymentJoint;
 
 exports.generateBlinding = generateBlinding;
 exports.getMessageIndexByPayloadHash = getMessageIndexByPayloadHash;
+exports.composeAuthorsAndMciForAddresses = composeAuthorsAndMciForAddresses;
