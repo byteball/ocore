@@ -87,8 +87,7 @@ function getHash(contract) {
 function decodeRow(row) {
 	if (row.cosigners)
 		row.cosigners = JSON.parse(row.cosigners);
-	var dt_tokens = row.creation_date.split(/[^0-9]/);
-	row.creation_date_obj = new Date(row.creation_date.replace(' ', 'T'));
+	row.creation_date_obj = new Date(row.creation_date.replace(' ', 'T')+'.000Z');
 	return row;
 }
 
