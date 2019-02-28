@@ -11,9 +11,12 @@ var times = {};
 var start_ts = 0;
 
 var times_sl1 = {};
-var start_ts_sl1 = 0;
+var counters_sl1 = {};
 
+var start_ts_sl1 = 0;
+	
 var timers = {};
+var counters = {};
 var timers_results = {};
 var profiler_start_ts = Date.now();
 
@@ -59,6 +62,9 @@ function stop(tag){
 	if (!times[tag])
 		times[tag] = 0;
 	times[tag] += Date.now() - start_ts;
+	if (!counters[tag])
+		counters[tag]=0;
+	counters[tag]++;
 	start_ts = 0;
 }
 
@@ -74,6 +80,9 @@ function stop_sl1(tag){
 	if (!times_sl1[tag])
 		times_sl1[tag] = 0;
 	times_sl1[tag] += Date.now() - start_ts_sl1;
+	if (!counters_sl1[tag])
+		counters_sl1[tag]=0;
+	counters_sl1[tag]++;
 	start_ts_sl1 = 0;
 }
 
@@ -91,11 +100,12 @@ function getFormattedResults(){
 	if (count === 0)
 		return "No profiling result yet.";;
 	
-	var format_line = function(times_for_tag, tag){
+	var format_line = function(times_for_tag, counter_for_tag, tag){
 		formattedResults += "\n" +
 			pad_right(tag+": ", 33) + 
 			pad_left(times_for_tag, 5) + ', ' + 
-			pad_left((times_for_tag/count).toFixed(2), 5) + ' per unit' + 
+			pad_left((times_for_tag/counter_for_tag).toFixed(2), 5) + ' ms per op, ' + 
+			pad_left((times_for_tag/count).toFixed(2), 5) + ' ms per unit' + 
 			(total > 0 ? ', ' + pad_left((100*times_for_tag/total).toFixed(2), 5) + '%' : '');
 	}
 	
@@ -104,16 +114,16 @@ function getFormattedResults(){
 	for (var tag in times)
 		total += times[tag];
 	for (var tag in times){
-		format_line(times[tag], tag);
+		format_line(times[tag], counters[tag], tag);
 	}
 	formattedResults +='\ntotal: '+total;
-	formattedResults += "\n" + total/count+' per unit';
+	formattedResults += "\n" + total/count+' ms per unit';
 	
 	if(Object.keys(times_sl1).length > 0){
 		formattedResults += "\n\n-> Sub level 1:";
 		total = 0;
 		for (var tag in times_sl1){
-			format_line(times_sl1[tag], tag);
+			format_line(times_sl1[tag], counters_sl1[tag], tag);
 		}
 	}
 
