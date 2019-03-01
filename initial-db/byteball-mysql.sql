@@ -765,7 +765,7 @@ CREATE TABLE prosaic_contracts (
 	is_incoming TINYINT NOT NULL,
 	creation_date TIMESTAMP NOT NULL,
 	ttl REAL NOT NULL DEFAULT 168, -- 168 hours = 24 * 7 = 1 week
-	status TEXT CHECK (status IN('pending', 'revoked', 'accepted', 'declined')) NOT NULL DEFAULT 'active',
+	status VARCHAR(10) NOT NULL DEFAULT 'active' CHECK (status IN('pending', 'revoked', 'accepted', 'declined')),
 	title VARCHAR(1000) NOT NULL,
 	`text` TEXT NOT NULL,
 	shared_address CHAR(32),
