@@ -1453,7 +1453,7 @@ function getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey) {
 				[address, address, address],
 				function (rows) {
 					if (rows.length !== 1)
-						return handleDefinition("definition not found");
+						throw Error("definition not found for address " + address);
 					handleDefinition(null, JSON.parse(rows[0].definition));
 				}
 			);
