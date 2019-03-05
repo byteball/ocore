@@ -71,7 +71,7 @@ function respond(objContract, status, signedMessageBase64, signer, cb) {
 		cb();
 	}
 	if (status === "accepted") {
-		composer.composeAuthorsAndMciForAddresses(db, [objContract.address], signer, function(err, authors) {
+		composer.composeAuthorsAndMciForAddresses(db, [objContract.my_address], signer, function(err, authors) {
 			if (err)
 				return cb(err);
 			send(authors);

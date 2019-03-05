@@ -715,6 +715,7 @@ CREATE TABLE private_profiles (
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	FOREIGN KEY (unit) REFERENCES units(unit)
 );
+CREATE UNIQUE INDEX IF NOT EXISTS unqPayloadHash ON private_profiles(payload_hash);
 
 CREATE TABLE private_profile_fields (
 	private_profile_id INTEGER NOT NULL ,
@@ -788,4 +789,4 @@ CREATE TABLE correspondent_settings (
 	PRIMARY KEY (device_address, correspondent_address)
 );
 
-PRAGMA user_version=26;
+PRAGMA user_version=27;

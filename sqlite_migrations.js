@@ -4,7 +4,7 @@ var eventBus = require('./event_bus.js');
 var constants = require("./constants.js");
 var conf = require("./conf.js");
 
-var VERSION = 26;
+var VERSION = 27;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -266,6 +266,9 @@ function migrateDb(connection, onDone){
 						creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, \n\
 						PRIMARY KEY (device_address, correspondent_address) \n\
 					)");
+				}
+				if (version < 27){
+					connection.addQuery(arrQueries, "CREATE UNIQUE INDEX IF NOT EXISTS unqPayloadHash ON private_profiles(payload_hash)");
 				}
 				cb();
 			}
