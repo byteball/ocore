@@ -266,6 +266,7 @@ function migrateDb(connection, onDone){
 						creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, \n\
 						PRIMARY KEY (device_address, correspondent_address) \n\
 					)");
+					connection.addQuery(arrQueries, "PRAGMA user_version=26");
 				}
 				if (version < 27){
 					connection.addQuery(arrQueries, "CREATE UNIQUE INDEX IF NOT EXISTS unqPayloadHash ON private_profiles(payload_hash)");
@@ -287,8 +288,5 @@ function migrateDb(connection, onDone){
 	});
 }
 
-function rescanAttestations(arrQueries, cb){
-	
-}
 
 exports.migrateDb = migrateDb;
