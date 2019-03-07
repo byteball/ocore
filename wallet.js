@@ -528,7 +528,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 						return callbacks.ifError("wrong signed message");
 					}
 					validation.validateSignedMessage(objSignedMessage, function(err) {
-						if (err || objSignedMessage.authors[0].address !== objContract.peer_address || objSignedMessage.signed_message != objContract.hash)
+						if (err || objSignedMessage.authors[0].address !== objContract.peer_address || objSignedMessage.signed_message != objContract.title)
 							return callbacks.ifError("wrong contract signature");
 						processResponse(objSignedMessage);
 					});
