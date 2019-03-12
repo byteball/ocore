@@ -1,6 +1,7 @@
 /*jslint node: true */
 "use strict";
 require('./enforce_singleton.js');
+require('./constants.js'); // in order to force loading .env before app-root's conf.js
 
 function mergeExports(anotherModule){
 	for (var key in anotherModule)

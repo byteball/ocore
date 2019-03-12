@@ -1,16 +1,25 @@
 /*jslint node: true */
 "use strict";
 
+if (typeof window === 'undefined' || !window.cordova){ // desktop
+	var desktopApp = require('./desktop_app.js'+'');
+	var appRootDir = desktopApp.getAppRootDir();
+	require('dotenv'+'').config({path: appRootDir + '/.env'});
+}
+
 exports.COUNT_WITNESSES = 12;
 exports.MAX_WITNESS_LIST_MUTATIONS = 1;
 exports.TOTAL_WHITEBYTES = 1e15;
 exports.MAJORITY_OF_WITNESSES = (exports.COUNT_WITNESSES%2===0) ? (exports.COUNT_WITNESSES/2+1) : Math.ceil(exports.COUNT_WITNESSES/2);
 exports.COUNT_MC_BALLS_FOR_PAID_WITNESSING = 100;
 
-exports.version = '1.0';
-exports.alt = '1';
+exports.bTestnet = !!process.env.testnet;
+console.log('===== testnet = ' + exports.bTestnet);
 
-exports.bTestnet = (exports.alt === '2' && exports.version === '1.0t');
+exports.version = exports.bTestnet ? '1.0t' : '1.0';
+exports.alt = exports.bTestnet ? '2' : '1';
+
+//exports.bTestnet = (exports.alt === '2' && exports.version === '1.0t');
 
 exports.GENESIS_UNIT = exports.bTestnet ? 'TvqutGPz3T4Cs6oiChxFlclY92M2MvCvfXR5/FETato=' : 'oj8yEksX9Ubq7lLc+p6F2uyHUuynugeVq4+ikT67X6E=';
 exports.BLACKBYTES_ASSET = exports.bTestnet ? 'LUQu5ik4WLfCrr8OwXezqBa+i3IlZLqxj2itQZQm8WY=' : 'qO2JsiuDMh/j+pqJYZw3u82O71WjCDf0vTNvsnntr8o=';
