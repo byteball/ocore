@@ -470,7 +470,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			body.peer_device_address = from_address;
 			if (!body.title || !body.text || !body.creation_date)
 				return callbacks.ifError("not all contract fields submitted");
-			if (!ValidationUtils.isValidAddress(body.peer_address) || !ValidationUtils.isValidAddress(body.address))
+			if (!ValidationUtils.isValidAddress(body.peer_address) || !ValidationUtils.isValidAddress(body.my_address))
 				return callbacks.ifError("either peer_address or address is not valid in contract");
 			if (body.hash !== prosaic_contract.getHash(body))
 				return callbacks.ifError("wrong contract hash");
@@ -480,6 +480,27 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			var chat_message = "(prosaic-contract:" + Buffer.from(JSON.stringify(body), 'utf8').toString('base64') + ")";
 			eventBus.emit("text", from_address, chat_message, ++message_counter);
 			callbacks.ifOk();
+			break;
+
+		case 'prosaic_contract_shared':
+			if (!body.title || !body.text || !body.creation_date)
+				return callbacks.ifError("not all contract fields submitted");
+			if (!ValidationUtils.isValidAddress(body.peer_address) || !ValidationUtils.isValidAddress(body.my_address))
+				return callbacks.ifError("either peer_address or address is not valid in contract");
+			if (body.hash !== prosaic_contract.getHash(body))
+				return callbacks.ifError("wrong contract hash");
+			if (!/^\d{4}\-\d{2}\-\d{2} \d{2}:\d{2}:\d{2}$/.test(body.creation_date))
+				return callbacks.ifError("wrong contract creation date");
+			db.query("SELECT 1 FROM my_addresses \n\
+					JOIN wallet_signing_paths USING(wallet)\n\
+					WHERE my_addresses.address=? AND wallet_signing_paths.device_address=?",[body.my_address, from_address],
+				function(rows) {
+					if (!rows.length)
+						return callbacks.ifError("contract does not contain my address");
+					prosaic_contract.store(body);
+					callbacks.ifOk();
+				}
+			);
 			break;
 
 		case 'prosaic_contract_response':
@@ -1480,14 +1501,42 @@ function getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey) {
 							eventBus.emit('refused_to_sign', device_address);
 					});
 					walletGeneral.sendOfferToSign(device_address, address, signing_path, objUnsignedUnit, assocPrivatePayloads);
-					db.query("SELECT peer_device_address FROM prosaic_contracts WHERE shared_address=?", [address], function(rows) {
-						if (rows.length && rows[0].peer_device_address === device_address) // do not show alert for peer address in prosaic contracts
-							return;
-						if (!bRequestedConfirmation) {
-							eventBus.emit("confirm_on_other_devices");
-							bRequestedConfirmation = true;
-						}
-					});
+					// filter out prosaic contract txs to change/suppress popup messages
+					// step 1: prosaic contract shared address deposit
+					var payment_msg = _.find(objUnsignedUnit.messages, function(m){return m.app=="payment"});
+					var possible_contract_output;
+					if (payment_msg) {
+						possible_contract_output = _.find(payment_msg.payload.outputs, function(o){return o.amount==prosaic_contract.CHARGE_AMOUNT});
+						if (possible_contract_output) {
+							db.query("SELECT 1 FROM prosaic_contracts WHERE shared_address=?", [possible_contract_output.address], function(rows) {
+								if (!rows.length)
+									return;
+								if (!bRequestedConfirmation) {
+									eventBus.emit("confirm_prosaic_contract_deposit");
+									bRequestedConfirmation = true;
+								}
+							});
+						} 
+					}
+					if (!payment_msg || !possible_contract_output) { // step 2: posting unit with contract hash (or not a prosaic contract / not a tx at all)
+						db.query("SELECT peer_device_address FROM prosaic_contracts WHERE shared_address=?", [address], function(rows) {
+							if (rows.length) {
+								// do not show alert for peer address in prosaic contracts
+								if (rows[0].peer_device_address === device_address)
+									return;
+								// co-signers on our side
+								if (!bRequestedConfirmation) {
+									eventBus.emit("confirm_prosaic_contract_post");
+									bRequestedConfirmation = true;
+								}
+								return;
+							}
+							if (!bRequestedConfirmation) {
+								eventBus.emit("confirm_on_other_devices");
+								bRequestedConfirmation = true;
+							}
+						});
+					}
 				},
 				ifMerkle: function (bLocal) {
 					if (!bLocal)

@@ -772,7 +772,6 @@ CREATE TABLE prosaic_contracts (
 	shared_address CHAR(32),
 	unit CHAR(44),
 	cosigners VARCHAR(1500),
-	FOREIGN KEY (peer_device_address) REFERENCES correspondent_devices(device_address),
 	FOREIGN KEY (my_address) REFERENCES my_addresses(address)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 

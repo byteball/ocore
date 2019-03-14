@@ -10,7 +10,7 @@ exports.CHARGE_AMOUNT = 2000;
 
 function createAndSend(hash, peer_address, peer_device_address, my_address, creation_date, ttl, title, text, cosigners, cb) {
 	db.query("INSERT INTO prosaic_contracts (hash, peer_address, peer_device_address, my_address, is_incoming, creation_date, ttl, status, title, text, cosigners) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [hash, peer_address, peer_device_address, my_address, false, creation_date, ttl, status_PENDING, title, text, JSON.stringify(cosigners)], function() {
-		var objContract = {title: title, text: text, creation_date: creation_date, hash: hash, peer_address: my_address, ttl: ttl, address: peer_address};
+		var objContract = {title: title, text: text, creation_date: creation_date, hash: hash, peer_address: my_address, ttl: ttl, my_address: peer_address};
 		device.sendMessageToDevice(peer_device_address, "prosaic_contract_offer", objContract);
 		if (cb)
 			cb(objContract);
@@ -53,8 +53,8 @@ function setField(hash, field, value, cb) {
 }
 
 function store(objContract, cb) {
-	db.query("INSERT INTO prosaic_contracts (hash, peer_address, peer_device_address, my_address, is_incoming, creation_date, ttl, status, title, text) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-		[objContract.hash, objContract.peer_address, objContract.peer_device_address, objContract.address, true, objContract.creation_date, objContract.ttl, status_PENDING, objContract.title, objContract.text], function(err, res) {
+	db.query("INSERT "+db.getIgnore()+" INTO prosaic_contracts (hash, peer_address, peer_device_address, my_address, is_incoming, creation_date, ttl, status, title, text) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		[objContract.hash, objContract.peer_address, objContract.peer_device_address, objContract.my_address, true, objContract.creation_date, objContract.ttl, objContract.status || status_PENDING, objContract.title, objContract.text], function(err, res) {
 		if (cb)
 			cb(err, res);
 	});
@@ -80,6 +80,12 @@ function respond(objContract, status, signedMessageBase64, signer, cb) {
 		send();
 }
 
+function share(hash, device_address) {
+	getByHash(hash, function(objContract){
+		device.sendMessageToDevice(device_address, "prosaic_contract_shared", objContract);
+	})
+}
+
 function getHash(contract) {
 	return objectHash.getBase64Hash(contract.title + contract.text + contract.creation_date);
 }
@@ -99,3 +105,4 @@ exports.getAllByStatus = getAllByStatus;
 exports.setField = setField;
 exports.store = store;
 exports.getHash = getHash;
+exports.share = share;
