@@ -20,31 +20,6 @@ function migrateDb(connection, onDone){
 		console.log("db version "+version+", software version "+VERSION);
 		if (version > VERSION)
 			throw Error("user version "+version+" > "+VERSION+": looks like you are using a new database with an old client");
-		if (false) {
-			var arrQueries = [];
-			connection.addQuery(arrQueries, "BEGIN TRANSACTION");
-			connection.addQuery(arrQueries, "ALTER TABLE prosaic_contracts RENAME TO prosaic_contracts_old");
-			connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS prosaic_contracts ( \n\
-				hash CHAR(44) NOT NULL PRIMARY KEY, \n\
-				peer_address CHAR(32) NOT NULL, \n\
-				peer_device_address CHAR(33) NOT NULL, \n\
-				my_address  CHAR(32) NOT NULL, \n\
-				is_incoming TINYINT NOT NULL, \n\
-				creation_date TIMESTAMP NOT NULL, \n\
-				ttl INT NOT NULL DEFAULT 168, -- 168 hours = 24 * 7 = 1 week \n\
-				status TEXT CHECK (status IN('pending', 'revoked', 'accepted', 'declined')) NOT NULL DEFAULT 'active', \n\
-				title VARCHAR(1000) NOT NULL, \n\
-				`text` TEXT NOT NULL, \n\
-				shared_address CHAR(32), \n\
-				unit CHAR(44), \n\
-				cosigners VARCHAR(1500), \n\
-				FOREIGN KEY (my_address) REFERENCES my_addresses(address) \n\
-			)");
-			connection.addQuery(arrQueries, "INSERT INTO prosaic_contracts SELECT * FROM prosaic_contracts_old");
-			connection.addQuery(arrQueries, "DROP TABLE prosaic_contracts_old");
-			connection.addQuery(arrQueries, "COMMIT");
-			async.series(arrQueries, function(){onDone();});
-		} else
 		if (version === VERSION)
 			return onDone();
 		var arrQueries = [];
