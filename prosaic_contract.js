@@ -53,8 +53,8 @@ function setField(hash, field, value, cb) {
 }
 
 function store(objContract, cb) {
-	db.query("INSERT "+db.getIgnore()+" INTO prosaic_contracts (hash, peer_address, peer_device_address, my_address, is_incoming, creation_date, ttl, status, title, text) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-		[objContract.hash, objContract.peer_address, objContract.peer_device_address, objContract.my_address, true, objContract.creation_date, objContract.ttl, objContract.status || status_PENDING, objContract.title, objContract.text], function(err, res) {
+	db.query("INSERT "+db.getIgnore()+" INTO prosaic_contracts (hash, peer_address, peer_device_address, my_address, is_incoming, creation_date, ttl, status, title, text, shared_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		[objContract.hash, objContract.peer_address, objContract.peer_device_address, objContract.my_address, true, objContract.creation_date, objContract.ttl, objContract.status || status_PENDING, objContract.title, objContract.text, objContract.shared_address], function(err, res) {
 		if (cb)
 			cb(err, res);
 	});
