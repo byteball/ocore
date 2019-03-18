@@ -1528,7 +1528,7 @@ function getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey) {
 							return cb(true);
 						});
 					}, function(cb) { // step 2: posting unit with contract hash (or not a prosaic contract / not a tx at all)
-						db.query("SELECT peer_device_address FROM prosaic_contracts WHERE shared_address=?", [address], function(rows) {
+						db.query("SELECT peer_device_address FROM prosaic_contracts WHERE shared_address=? OR peer_address=?", [address, address], function(rows) {
 							if (!rows.length) 
 								return cb();
 							// do not show alert for peer address in prosaic contracts
