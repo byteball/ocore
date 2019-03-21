@@ -1326,6 +1326,9 @@ function hasReferences(arrDefinition){
 			case 'has equal':
 			case 'has one equal':
 			case 'sum':
+			case 'attested':
+			case 'seen definition change':
+			case 'formula':
 				return true;
 				
 			default:
