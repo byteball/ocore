@@ -798,7 +798,7 @@ function composeAuthorsForAddresses(conn, arrFromAddresses, last_ball_mci, signe
 						"SELECT definition \n\
 						FROM address_definition_changes CROSS JOIN units USING(unit) LEFT JOIN definitions USING(definition_chash) \n\
 						WHERE address=? AND is_stable=1 AND sequence='good' AND main_chain_index<=? \n\
-						ORDER BY level DESC LIMIT 1", 
+						ORDER BY main_chain_index DESC LIMIT 1", 
 						[from_address, last_ball_mci],
 						function(rows){
 							if (rows.length === 0) // no definition changes at all
