@@ -1307,6 +1307,7 @@ function hasReferences(arrDefinition){
 			case 'sig':
 			case 'hash':
 			case 'cosigned by':
+			case 'has definition change':
 				return false;
 				
 			case 'not':
@@ -1325,6 +1326,9 @@ function hasReferences(arrDefinition){
 			case 'has equal':
 			case 'has one equal':
 			case 'sum':
+			case 'attested':
+			case 'seen definition change':
+			case 'formula':
 				return true;
 				
 			default:

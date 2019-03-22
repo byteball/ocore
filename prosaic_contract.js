@@ -10,7 +10,7 @@ exports.CHARGE_AMOUNT = 2000;
 
 function createAndSend(hash, peer_address, peer_device_address, my_address, creation_date, ttl, title, text, cosigners, cb) {
 	db.query("INSERT INTO prosaic_contracts (hash, peer_address, peer_device_address, my_address, is_incoming, creation_date, ttl, status, title, text, cosigners) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [hash, peer_address, peer_device_address, my_address, false, creation_date, ttl, status_PENDING, title, text, JSON.stringify(cosigners)], function() {
-		var objContract = {title: title, text: text, creation_date: creation_date, hash: hash, peer_address: my_address, ttl: ttl, address: peer_address};
+		var objContract = {title: title, text: text, creation_date: creation_date, hash: hash, peer_address: my_address, ttl: ttl, my_address: peer_address};
 		device.sendMessageToDevice(peer_device_address, "prosaic_contract_offer", objContract);
 		if (cb)
 			cb(objContract);
@@ -46,17 +46,26 @@ function getAllByStatus(status, cb) {
 function setField(hash, field, value, cb) {
 	if (!["status", "shared_address", "unit"].includes(field))
 		throw new Error("wrong field for setField method");
-	db.query("UPDATE prosaic_contracts SET " + field + "=? WHERE hash=?", [value, hash], function(err, res) {
+	db.query("UPDATE prosaic_contracts SET " + field + "=? WHERE hash=?", [value, hash], function(res) {
 		if (cb)
-			cb(err, res);
+			cb(res);
 	});
 }
 
 function store(objContract, cb) {
-	db.query("INSERT INTO prosaic_contracts (hash, peer_address, peer_device_address, my_address, is_incoming, creation_date, ttl, status, title, text) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-		[objContract.hash, objContract.peer_address, objContract.peer_device_address, objContract.address, true, objContract.creation_date, objContract.ttl, status_PENDING, objContract.title, objContract.text], function(err, res) {
+	var fields = '(hash, peer_address, peer_device_address, my_address, is_incoming, creation_date, ttl, status, title, text';
+	var placeholders = '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?';
+	var values = [objContract.hash, objContract.peer_address, objContract.peer_device_address, objContract.my_address, true, objContract.creation_date, objContract.ttl, objContract.status || status_PENDING, objContract.title, objContract.text];
+	if (objContract.shared_address) {
+		fields += ', shared_address';
+		placeholders += ', ?';
+		values.push(objContract.shared_address);
+	}
+	fields += ')';
+	placeholders += ')';
+	db.query("INSERT "+db.getIgnore()+" INTO prosaic_contracts "+fields+" VALUES "+placeholders, values, function(res) {
 		if (cb)
-			cb(err, res);
+			cb(res);
 	});
 }
 
@@ -71,13 +80,19 @@ function respond(objContract, status, signedMessageBase64, signer, cb) {
 		cb();
 	}
 	if (status === "accepted") {
-		composer.composeAuthorsAndMciForAddresses(db, [objContract.address], signer, function(err, authors) {
+		composer.composeAuthorsAndMciForAddresses(db, [objContract.my_address], signer, function(err, authors) {
 			if (err)
 				return cb(err);
 			send(authors);
 		});
 	} else
 		send();
+}
+
+function share(hash, device_address) {
+	getByHash(hash, function(objContract){
+		device.sendMessageToDevice(device_address, "prosaic_contract_shared", objContract);
+	})
 }
 
 function getHash(contract) {
@@ -99,3 +114,4 @@ exports.getAllByStatus = getAllByStatus;
 exports.setField = setField;
 exports.store = store;
 exports.getHash = getHash;
+exports.share = share;

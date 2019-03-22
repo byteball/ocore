@@ -97,18 +97,42 @@ function savePrivateProfile(objPrivateProfile, address, attestor_address, onDone
 	db.query(
 		"INSERT "+db.getIgnore()+" INTO private_profiles (unit, payload_hash, attestor_address, address, src_profile) VALUES(?,?,?,?,?)", 
 		[objPrivateProfile.unit, objPrivateProfile.payload_hash, attestor_address, address, JSON.stringify(objPrivateProfile.src_profile)], 
-		function(res){
-			var private_profile_id = res.insertId;
-			if (!private_profile_id)
-				throw Error("no insert id after inserting private profile "+JSON.stringify(objPrivateProfile));
-			var arrQueries = [];
-			for (var field in objPrivateProfile.src_profile){
-				var arrValueAndBlinding = objPrivateProfile.src_profile[field];
-				if (ValidationUtils.isArrayOfLength(arrValueAndBlinding, 2))
-					db.addQuery(arrQueries, "INSERT INTO private_profile_fields (private_profile_id, field, value, blinding) VALUES(?,?,?,?)", 
-						[private_profile_id, field, arrValueAndBlinding[0], arrValueAndBlinding[1] ]);
+		function (res) {
+			var private_profile_id = (res.insertId && res.affectedRows) ? res.insertId : 0;
+
+			var insert_fields = function(current_src_profile) {
+				var arrQueries = [];
+				var isSrcProfileUpdated = false;
+				for (var field in objPrivateProfile.src_profile){
+					var arrValueAndBlinding = objPrivateProfile.src_profile[field];
+					if (ValidationUtils.isArrayOfLength(arrValueAndBlinding, 2)) {
+						if (!current_src_profile || !current_src_profile[field] || !ValidationUtils.isArrayOfLength(current_src_profile[field], 2)) {
+							if (current_src_profile) {
+								isSrcProfileUpdated = true;
+								current_src_profile[field] = arrValueAndBlinding;
+							}
+							db.addQuery(arrQueries, "INSERT INTO private_profile_fields (private_profile_id, field, value, blinding) VALUES(?,?,?,?)", 
+							[private_profile_id, field, arrValueAndBlinding[0], arrValueAndBlinding[1] ]);
+						}
+					}
+				}
+				if (isSrcProfileUpdated)
+					db.addQuery(arrQueries, "UPDATE private_profiles SET src_profile=? WHERE private_profile_id=?", [JSON.stringify(current_src_profile), private_profile_id]);
+				async.series(arrQueries, onDone);
 			}
-			async.series(arrQueries, onDone);
+
+			if (!private_profile_id) { // already saved profile but with new fields being revealed
+				db.query("SELECT private_profile_id, src_profile FROM private_profiles WHERE payload_hash=?", [objPrivateProfile.payload_hash], function(rows) {
+					if (!rows.length)
+						throw Error("can't insert private profile "+JSON.stringify(objPrivateProfile));
+					private_profile_id = rows[0].private_profile_id;
+					var src_profile = JSON.parse(rows[0].src_profile);
+					insert_fields(src_profile);
+				});
+			}
+			else
+				insert_fields();
+
 		}
 	);
 }

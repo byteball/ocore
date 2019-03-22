@@ -4,7 +4,7 @@ var eventBus = require('./event_bus.js');
 var constants = require("./constants.js");
 var conf = require("./conf.js");
 
-var VERSION = 26;
+var VERSION = 27;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -234,7 +234,6 @@ function migrateDb(connection, onDone){
 						shared_address CHAR(32), \n\
 						unit CHAR(44), \n\
 						cosigners VARCHAR(1500), \n\
-						FOREIGN KEY (peer_device_address) REFERENCES correspondent_devices(device_address), \n\
 						FOREIGN KEY (my_address) REFERENCES my_addresses(address) \n\
 					)");
 				}
@@ -266,6 +265,10 @@ function migrateDb(connection, onDone){
 						creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, \n\
 						PRIMARY KEY (device_address, correspondent_address) \n\
 					)");
+					connection.addQuery(arrQueries, "PRAGMA user_version=26");
+				}
+				if (version < 27){
+					connection.addQuery(arrQueries, "CREATE UNIQUE INDEX IF NOT EXISTS unqPayloadHash ON private_profiles(payload_hash)");
 				}
 				cb();
 			}
@@ -284,8 +287,5 @@ function migrateDb(connection, onDone){
 	});
 }
 
-function rescanAttestations(arrQueries, cb){
-	
-}
 
 exports.migrateDb = migrateDb;

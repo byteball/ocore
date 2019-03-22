@@ -710,6 +710,7 @@ CREATE TABLE private_profiles (
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	FOREIGN KEY (unit) REFERENCES units(unit)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
+CREATE UNIQUE INDEX IF NOT EXISTS unqPayloadHash ON private_profiles(payload_hash);
 
 CREATE TABLE private_profile_fields (
 	private_profile_id INTEGER NOT NULL ,
@@ -771,7 +772,6 @@ CREATE TABLE prosaic_contracts (
 	shared_address CHAR(32),
 	unit CHAR(44),
 	cosigners VARCHAR(1500),
-	FOREIGN KEY (peer_device_address) REFERENCES correspondent_devices(device_address),
 	FOREIGN KEY (my_address) REFERENCES my_addresses(address)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
