@@ -638,7 +638,7 @@ function readWitnessesOnMcUnit(conn, main_chain_index, handleWitnesses){
 
 
 function readDefinitionChashByAddress(conn, address, max_mci, handle){
-	if (!max_mci)
+	if (max_mci == null || max_mci == undefined)
 		max_mci = MAX_INT32;
 	// try to find last definition change, otherwise definition_chash=address
 	conn.query(
