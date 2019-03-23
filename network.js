@@ -2790,6 +2790,22 @@ function handleRequest(ws, tag, command, params){
 			});
 			break;
 
+		case 'light/get_definition_chash':
+			if (conf.bLight)
+				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
+			if (ws.bOutbound)
+				return sendErrorResponse(ws, tag, "light clients have to be inbound");
+			if (!params)
+				return sendErrorResponse(ws, tag, "no params in light/get_definition_chash");
+			if (!ValidationUtils.isValidAddress(params.address))
+				return sendErrorResponse(ws, tag, "address not valid");
+			if (params.max_mci && !ValidationUtils.isPositiveInteger(params.max_mci))
+				return sendErrorResponse(ws, tag, "max_mci not a positive integer");
+			storage.readDefinitionChashByAddress(db, params.address, params.max_mci, function(definition_chash){
+				sendResponse(ws, tag, definition_chash);
+			});
+			break;
+		
 		case 'light/get_definition':
 			if (conf.bLight)
 				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
