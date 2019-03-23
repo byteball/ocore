@@ -637,20 +637,26 @@ function readWitnessesOnMcUnit(conn, main_chain_index, handleWitnesses){
 }*/
 
 
-// max_mci must be stable
-function readDefinitionByAddress(conn, address, max_mci, callbacks){
-	if (max_mci === null)
+function readDefinitionChashByAddress(conn, address, max_mci, handle){
+	if (!max_mci)
 		max_mci = MAX_INT32;
 	// try to find last definition change, otherwise definition_chash=address
 	conn.query(
 		"SELECT definition_chash FROM address_definition_changes CROSS JOIN units USING(unit) \n\
-		WHERE address=? AND is_stable=1 AND sequence='good' AND main_chain_index<=? ORDER BY level DESC LIMIT 1", 
+		WHERE address=? AND is_stable=1 AND sequence='good' AND main_chain_index<=? ORDER BY main_chain_index DESC LIMIT 1", 
 		[address, max_mci], 
 		function(rows){
 			var definition_chash = (rows.length > 0) ? rows[0].definition_chash : address;
+			handle(definition_chash);
+	});
+}
+
+
+// max_mci must be stable
+function readDefinitionByAddress(conn, address, max_mci, callbacks){
+	readDefinitionChashByAddress(conn, address, max_mci, function(definition_chash){
 			readDefinitionAtMci(conn, definition_chash, max_mci, callbacks);
-		}
-	);
+	});
 }
 
 // max_mci must be stable
@@ -1486,6 +1492,7 @@ exports.readJoint = readJoint;
 exports.readJointWithBall = readJointWithBall;
 exports.readFreeJoints = readFreeJoints;
 
+exports.readDefinitionChashByAddress = readDefinitionChashByAddress;
 exports.readDefinitionByAddress = readDefinitionByAddress;
 exports.readDefinition = readDefinition;
 
