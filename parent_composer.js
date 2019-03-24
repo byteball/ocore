@@ -57,10 +57,11 @@ function adjustParentsToNotRetreatWitnessedLevel(conn, arrWitnesses, arrParentUn
 			var arrCandidateReplacements = rows.map(function(row){ return row.parent_unit; });
 			console.log('candidate replacements: '+arrCandidateReplacements.join(', '));
 			conn.query(
-				"SELECT DISTINCT parent_unit FROM parenthoods \n\
-				WHERE parent_unit IN(?) AND child_unit NOT IN("+arrExcludedUnits.map(db.escape).join(', ')+")", 
+				"SELECT DISTINCT parent_unit FROM parenthoods CROSS JOIN units ON child_unit=unit \n\
+				WHERE parent_unit IN(?) AND child_unit NOT IN("+arrExcludedUnits.map(db.escape).join(', ')+") AND (is_free=0 OR sequence='good')", 
 				[arrCandidateReplacements], 
 				function(rows){
+					// other children can lead to some of the non-excluded parents
 					var arrCandidatesWithOtherChildren = rows.map(function(row){ return row.parent_unit; });
 					console.log('candidates with other children: '+arrCandidatesWithOtherChildren.join(', '));
 					var arrReplacementParents = _.difference(arrCandidateReplacements, arrCandidatesWithOtherChildren);
