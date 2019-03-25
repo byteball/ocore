@@ -753,7 +753,7 @@ function composeAuthorsAndMciForAddresses(conn, arrFromAddresses, signer, cb) {
 			);
 		else
 			parentComposer.pickParentUnitsAndLastBall(
-				db,
+				conn,
 				arrWitnesses,
 				function(err, arrParentUnits, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
 					if (err)
