@@ -680,9 +680,33 @@ function requestFromLightVendor(command, params, responseHandler){
 	});
 }
 
+function requestFromHub(command, params, bRetry, responseHandler){
+	if (!conf.hub){
+		console.log("hub not set yet");
+		if (bRetry)
+			return setTimeout(function(){
+				requestFromHub(command, params, bRetry, responseHandler);
+			}, 1000);
+	}
+	findOutboundPeerOrConnect(conf.WS_PROTOCOL+conf.hub, function onLocatedHubForLogin(err, ws){
+		if (err)
+			return responseHandler(null, null, {error: "[connect to hub failed]: "+err});
+		sendRequest(ws, command, params, false, responseHandler);
+	});
+}
+
+function getConnectionStatus(){
+	return {
+		incoming: wss.clients.length,
+		outgoing: arrOutboundPeers.length,
+		outgoing_being_opened: Object.keys(assocConnectingOutboundWebsockets).length
+	}
+}
+
 function printConnectionStatus(){
-	console.log(wss.clients.length+" incoming connections, "+arrOutboundPeers.length+" outgoing connections, "+
-		Object.keys(assocConnectingOutboundWebsockets).length+" outgoing connections being opened");
+	var objConnectionStatus = getConnectionStatus();
+	console.log(objConnectionStatus.incoming+" incoming connections, "+objConnectionStatus.outgoing+" outgoing connections, "+
+	objConnectionStatus.outgoing_being_opened+" outgoing connections being opened");
 }
 
 function subscribe(ws){
@@ -3135,6 +3159,7 @@ exports.requestUnfinishedPastUnitsOfPrivateChains = requestUnfinishedPastUnitsOf
 exports.requestProofsOfJointsIfNewOrUnstable = requestProofsOfJointsIfNewOrUnstable;
 
 exports.requestFromLightVendor = requestFromLightVendor;
+exports.requestFromHub = requestFromHub;
 
 exports.addPeer = addPeer;
 
@@ -3146,6 +3171,7 @@ exports.setWatchedAddresses = setWatchedAddresses;
 exports.addWatchedAddress = addWatchedAddress;
 exports.addLightWatchedAddress = addLightWatchedAddress;
 
+exports.getConnectionStatus = getConnectionStatus;
 exports.closeAllWsConnections = closeAllWsConnections;
 exports.isConnected = isConnected;
 exports.isCatchingUp = isCatchingUp;
