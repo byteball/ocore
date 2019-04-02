@@ -680,20 +680,6 @@ function requestFromLightVendor(command, params, responseHandler){
 	});
 }
 
-function requestFromHub(command, params, bRetry, responseHandler){
-	if (!conf.hub){
-		console.log("hub not set yet");
-		if (bRetry)
-			return setTimeout(function(){
-				requestFromHub(command, params, bRetry, responseHandler);
-			}, 1000);
-	}
-	findOutboundPeerOrConnect(conf.WS_PROTOCOL+conf.hub, function onLocatedHubForLogin(err, ws){
-		if (err)
-			return responseHandler(null, null, {error: "[connect to hub failed]: "+err});
-		sendRequest(ws, command, params, false, responseHandler);
-	});
-}
 
 function getConnectionStatus(){
 	return {
@@ -3159,7 +3145,6 @@ exports.requestUnfinishedPastUnitsOfPrivateChains = requestUnfinishedPastUnitsOf
 exports.requestProofsOfJointsIfNewOrUnstable = requestProofsOfJointsIfNewOrUnstable;
 
 exports.requestFromLightVendor = requestFromLightVendor;
-exports.requestFromHub = requestFromHub;
 
 exports.addPeer = addPeer;
 
