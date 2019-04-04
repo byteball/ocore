@@ -2033,7 +2033,7 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 			[addrInfo.address],
 			function(rows){
 				if (rows.length === 0) {
-					cb("This payment doesn't exist in the network");
+					cb("This textcoin either was already claimed or never existed in the network");
 				} else {
 					var row = rows[0];
 					if (false && !row.is_stable) {
