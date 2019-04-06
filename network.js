@@ -680,9 +680,19 @@ function requestFromLightVendor(command, params, responseHandler){
 	});
 }
 
+
+function getConnectionStatus(){
+	return {
+		incoming: wss.clients.length,
+		outgoing: arrOutboundPeers.length,
+		outgoing_being_opened: Object.keys(assocConnectingOutboundWebsockets).length
+	}
+}
+
 function printConnectionStatus(){
-	console.log(wss.clients.length+" incoming connections, "+arrOutboundPeers.length+" outgoing connections, "+
-		Object.keys(assocConnectingOutboundWebsockets).length+" outgoing connections being opened");
+	var objConnectionStatus = getConnectionStatus();
+	console.log(objConnectionStatus.incoming+" incoming connections, "+objConnectionStatus.outgoing+" outgoing connections, "+
+	objConnectionStatus.outgoing_being_opened+" outgoing connections being opened");
 }
 
 function subscribe(ws){
@@ -3146,6 +3156,7 @@ exports.setWatchedAddresses = setWatchedAddresses;
 exports.addWatchedAddress = addWatchedAddress;
 exports.addLightWatchedAddress = addLightWatchedAddress;
 
+exports.getConnectionStatus = getConnectionStatus;
 exports.closeAllWsConnections = closeAllWsConnections;
 exports.isConnected = isConnected;
 exports.isCatchingUp = isCatchingUp;
