@@ -2833,7 +2833,7 @@ function handleRequest(ws, tag, command, params){
 			});
 			break;
 
-			case 'light/get_definition_for_address':
+		case 'light/get_definition_for_address':
 			if (conf.bLight)
 				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
 			if (ws.bOutbound)
@@ -2863,7 +2863,7 @@ function handleRequest(ws, tag, command, params){
 			});
 			break;
 
-			case 'light/get_balances':
+		case 'light/get_balances':
 			var addresses = params;
 			if (conf.bLight)
 				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
@@ -2895,8 +2895,8 @@ function handleRequest(ws, tag, command, params){
 				}
 			);
 			break;
-      
-    	case 'light/get_profile_units':
+
+		case 'light/get_profile_units':
 			var addresses = params;
 			if (conf.bLight)
 				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
