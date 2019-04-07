@@ -2833,7 +2833,37 @@ function handleRequest(ws, tag, command, params){
 			});
 			break;
 
-    	case 'light/get_balances':
+			case 'light/get_definition_for_address':
+			if (conf.bLight)
+				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
+			if (ws.bOutbound)
+				return sendErrorResponse(ws, tag, "light clients have to be inbound");
+			if (!params)
+				return sendErrorResponse(ws, tag, "no params in light/get_definition_for_address");
+			if (!ValidationUtils.isValidAddress(params.address))
+				return sendErrorResponse(ws, tag, "address not valid");
+			if (params.max_mci && !ValidationUtils.isPositiveInteger(params.max_mci))
+				return sendErrorResponse(ws, tag, "max_mci not a positive integer");
+			storage.readDefinitionByAddress(db, params.address, params.max_mci, {
+				ifFound: function(arrDefinition){
+					sendResponse(ws, tag, {
+							definition: arrDefinition, 
+							is_stable:true
+						});
+				},
+				ifFoundNotStable: function(arrDefinition){
+					sendResponse(ws, tag, {
+						definition: arrDefinition, 
+						is_stable:false
+					});
+				},
+				ifDefinitionNotFound: function(definition_chash){
+					sendResponse(ws, tag, null);
+				}
+			});
+			break;
+
+			case 'light/get_balances':
 			var addresses = params;
 			if (conf.bLight)
 				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");

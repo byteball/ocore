@@ -654,6 +654,8 @@ function readDefinitionChashByAddress(conn, address, max_mci, handle){
 
 // max_mci must be stable
 function readDefinitionByAddress(conn, address, max_mci, callbacks){
+	if (max_mci == null || max_mci == undefined)
+		max_mci = MAX_INT32;
 	readDefinitionChashByAddress(conn, address, max_mci, function(definition_chash){
 			readDefinitionAtMci(conn, definition_chash, max_mci, callbacks);
 	});
@@ -661,13 +663,18 @@ function readDefinitionByAddress(conn, address, max_mci, callbacks){
 
 // max_mci must be stable
 function readDefinitionAtMci(conn, definition_chash, max_mci, callbacks){
-	var sql = "SELECT definition FROM definitions CROSS JOIN unit_authors USING(definition_chash) CROSS JOIN units USING(unit) \n\
-		WHERE definition_chash=? AND is_stable=1 AND sequence='good' AND main_chain_index<=?";
+	var sql = "SELECT definition,is_stable FROM definitions CROSS JOIN unit_authors USING(definition_chash) CROSS JOIN units USING(unit) \n\
+		WHERE definition_chash=? AND sequence='good' AND main_chain_index<=?";
 	var params = [definition_chash, max_mci];
 	conn.query(sql, params, function(rows){
 		if (rows.length === 0)
 			return callbacks.ifDefinitionNotFound(definition_chash);
-		callbacks.ifFound(JSON.parse(rows[0].definition));
+		if (rows[0].is_stable === 1)
+			return callbacks.ifFound(JSON.parse(rows[0].definition));
+		else if (callbacks.ifFoundNotStable)
+			return callbacks.ifFoundNotStable(JSON.parse(rows[0].definition));
+		else
+			return callbacks.ifDefinitionNotFound(definition_chash);
 	});
 }
 
