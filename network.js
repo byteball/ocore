@@ -2857,7 +2857,7 @@ function handleRequest(ws, tag, command, params){
 						if (definitions[0]){
 							return sendResponse(ws, tag, {
 								definition_chash: definition_chash,
-								definition: definitions[0].definition,
+								definition: JSON.parse(definitions[0].definition),
 								is_stable: definitions[0].is_stable === 1
 							});
 						} else {
