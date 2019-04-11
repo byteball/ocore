@@ -127,7 +127,7 @@ CREATE TABLE messages (
 	app VARCHAR(30) BINARY NOT NULL,
 	payload_location ENUM('inline','uri','none') NOT NULL,
 	payload_hash CHAR(44) BINARY NOT NULL,
-	payload TEXT NULL,
+	payload LONGTEXT NULL,
 	payload_uri_hash CHAR(44) BINARY NULL,
 	payload_uri VARCHAR(500) BINARY NULL,
 	PRIMARY KEY (unit, message_index)
