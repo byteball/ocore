@@ -88,7 +88,10 @@ function readOutputsBalance(wallet, handleBalance){
 }
 
 function readSharedAddressesOnWallet(wallet, handleSharedAddresses){
-	db.query("SELECT DISTINCT shared_address FROM my_addresses JOIN shared_address_signing_paths USING(address) WHERE wallet=?", [wallet], function(rows){
+	db.query("SELECT DISTINCT shared_address_signing_paths.shared_address FROM my_addresses \n\
+			JOIN shared_address_signing_paths USING(address) \n\
+			LEFT JOIN prosaic_contracts ON prosaic_contracts.shared_address = shared_address_signing_paths.shared_address \n\
+			WHERE wallet=? AND prosaic_contracts.hash IS NULL", [wallet], function(rows){
 		var arrSharedAddresses = rows.map(function(row){ return row.shared_address; });
 		if (arrSharedAddresses.length === 0)
 			return handleSharedAddresses([]);
