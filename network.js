@@ -1069,7 +1069,7 @@ function handlePostedJoint(ws, objJoint, onDone){
 		},
 		ifKnown: function(){
 			if (objJoint.unsigned)
-				throw Error("known unsigned");
+				return onDone("you can't send unsigned units");
 			onDone("known");
 			writeEvent('known_good', ws.host);
 		},
@@ -1134,7 +1134,7 @@ function handleOnlineJoint(ws, objJoint, onDone){
 		},
 		ifKnown: function(){
 			if (objJoint.unsigned)
-				throw Error("known unsigned");
+				return onDone();
 			sendResult(ws, {unit: unit, result: 'known'});
 			writeEvent('known_good', ws.host);
 			onDone();
