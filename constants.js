@@ -65,5 +65,5 @@ exports.branchedMinMcWlUpgradeMci = exports.bTestnet ? 593000 : 2909000;
 exports.otherAddressInDefinitionUpgradeMci = exports.bTestnet ? 602000 : 2909000;
 exports.attestedInDefinitionUpgradeMci = exports.bTestnet ? 616000 : 2909000;
 exports.altBranchByBestParentUpgradeMci = exports.bTestnet ? 642000 : 3009824;
-exports.anyDefinitionChangeUpgradeMci = exports.bTestnet ? 855000 : Infinity;
+exports.anyDefinitionChangeUpgradeMci = exports.bTestnet ? 855000 : 4229100;
 exports.formulaUpgradeMci = exports.bTestnet ? Infinity : Infinity;
