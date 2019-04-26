@@ -81,8 +81,8 @@ function adjustParentsToNotRetreatWitnessedLevel(conn, arrWitnesses, arrParentUn
 		if (iterations > 0 && arrExcludedUnits.length === 0)
 			throw Error("infinite cycle");
 		iterations++;
-		determineWitnessedLevels(conn, arrWitnesses, arrCurrentParentUnits, function(child_witnessed_level, best_parent_witnessed_level, best_parent_unit){
-			if (child_witnessed_level >= best_parent_witnessed_level){
+		determineWitnessedLevels(conn, arrWitnesses, arrCurrentParentUnits, function(child_witnessed_level, max_parent_wl, parent_with_max_wl, best_parent_unit){
+			if (child_witnessed_level >= max_parent_wl){
 				if (arrCurrentParentUnits.length <= constants.MAX_PARENTS_PER_UNIT)
 					return handleAdjustedParents(arrCurrentParentUnits.sort());
 				var bp_index = arrCurrentParentUnits.indexOf(best_parent_unit);
@@ -92,8 +92,8 @@ function adjustParentsToNotRetreatWitnessedLevel(conn, arrWitnesses, arrParentUn
 				arrCurrentParentUnits.unshift(best_parent_unit); // moves best_parent_unit to the 1st position to make sure it is not sliced off
 				return handleAdjustedParents(arrCurrentParentUnits.slice(0, constants.MAX_PARENTS_PER_UNIT).sort());
 			}
-			console.log('wl would retreat from '+best_parent_witnessed_level+' to '+child_witnessed_level+', parents '+arrCurrentParentUnits.join(', '));
-			replaceExcludedParent(arrCurrentParentUnits, best_parent_unit);
+			console.log('wl would retreat from '+max_parent_wl+' to '+child_witnessed_level+', parents '+arrCurrentParentUnits.join(', '));
+			replaceExcludedParent(arrCurrentParentUnits, parent_with_max_wl);
 		});
 	}
 	
@@ -152,20 +152,29 @@ function pickDeepParentUnits(conn, arrWitnesses, max_wl, onDone){
 
 function determineWitnessedLevels(conn, arrWitnesses, arrParentUnits, handleResult){
 	storage.determineWitnessedLevelAndBestParent(conn, arrParentUnits, arrWitnesses, function(witnessed_level, best_parent_unit){
-		storage.readStaticUnitProps(conn, best_parent_unit, function(bestParentProps){
-			handleResult(witnessed_level, bestParentProps.witnessed_level, best_parent_unit);
-		});
+		conn.query(
+			"SELECT unit, witnessed_level FROM units WHERE unit IN(?) ORDER BY witnessed_level DESC LIMIT 1",
+			[arrParentUnits],
+			function (rows) {
+				var max_parent_wl = rows[0].witnessed_level;
+				var parent_with_max_wl = rows[0].unit;
+				handleResult(witnessed_level, max_parent_wl, parent_with_max_wl, best_parent_unit);
+			}
+		);
+	//	storage.readStaticUnitProps(conn, best_parent_unit, function(bestParentProps){
+	//		handleResult(witnessed_level, bestParentProps.witnessed_level, best_parent_unit);
+	//	});
 	});
 }
 
 function checkWitnessedLevelNotRetreatingAndLookLower(conn, arrWitnesses, arrParentUnits, bRetryDeeper, onDone){
-	determineWitnessedLevels(conn, arrWitnesses, arrParentUnits, function(child_witnessed_level, best_parent_witnessed_level){
-		if (child_witnessed_level >= best_parent_witnessed_level)
+	determineWitnessedLevels(conn, arrWitnesses, arrParentUnits, function(child_witnessed_level, max_parent_wl){
+		if (child_witnessed_level >= max_parent_wl)
 			return onDone(null, arrParentUnits);
-		console.log("witness level would retreat from "+best_parent_witnessed_level+" to "+child_witnessed_level+" if parents = "+arrParentUnits.join(', ')+", will look for older parents");
+		console.log("witness level would retreat from "+max_parent_wl+" to "+child_witnessed_level+" if parents = "+arrParentUnits.join(', ')+", will look for older parents");
 		bRetryDeeper
-			? pickDeepParentUnits(conn, arrWitnesses, best_parent_witnessed_level, onDone)
-			: pickParentUnitsUnderWitnessedLevel(conn, arrWitnesses, best_parent_witnessed_level, onDone);
+			? pickDeepParentUnits(conn, arrWitnesses, max_parent_wl, onDone)
+			: pickParentUnitsUnderWitnessedLevel(conn, arrWitnesses, max_parent_wl, onDone);
 	});
 }
 
