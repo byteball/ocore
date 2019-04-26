@@ -886,7 +886,7 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 									else if (
 										row.is_free === 1
 										|| row.level >= max_later_level
-										|| row.witnessed_level > max_later_witnessed_level && first_unstable_mc_index >= constants.witnessedLevelMustNotRetreatUpgradeMci
+									//	|| row.witnessed_level > max_later_witnessed_level && first_unstable_mc_index >= constants.witnessedLevelMustNotRetreatUpgradeMci
 										|| row.latest_included_mc_index > max_later_limci
 										|| row.is_on_main_chain && row.main_chain_index > max_later_limci
 									){
