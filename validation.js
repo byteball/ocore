@@ -478,12 +478,15 @@ function validateParents(conn, objJoint, objValidationState, callback){
 	var last_ball_unit = objUnit.last_ball_unit;
 	var arrPrevParentUnitProps = [];
 	objValidationState.max_parent_limci = 0;
+	objValidationState.max_parent_wl = 0;
 	async.eachSeries(
 		objUnit.parent_units, 
 		function(parent_unit, cb){
 			storage.readUnitProps(conn, parent_unit, function(objParentUnitProps){
 				if (objParentUnitProps.latest_included_mc_index > objValidationState.max_parent_limci)
 					objValidationState.max_parent_limci = objParentUnitProps.latest_included_mc_index;
+				if (objParentUnitProps.witnessed_level > objValidationState.max_parent_wl)
+					objValidationState.max_parent_wl = objParentUnitProps.witnessed_level;
 				async.eachSeries(
 					arrPrevParentUnitProps, 
 					function(objPrevParentUnitProps, cb2){
@@ -608,6 +611,10 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 			objValidationState.best_parent_unit = best_parent_unit;
 			if (objValidationState.last_ball_mci < constants.witnessedLevelMustNotRetreatUpgradeMci) // not enforced
 				return callback();
+			if (typeof objValidationState.max_parent_wl === 'undefined')
+				throw Error('no max_parent_wl');
+			if (objValidationState.last_ball_mci >= constants.witnessedLevelMustNotRetreatFromAllParentsUpgradeMci)
+				return (witnessed_level >= objValidationState.max_parent_wl) ? callback() : callback("witnessed level retreats from parent's "+objValidationState.max_parent_wl+" to "+witnessed_level);
 			storage.readStaticUnitProps(conn, best_parent_unit, function(props){
 				(witnessed_level >= props.witnessed_level) 
 					? callback() 
