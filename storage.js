@@ -59,7 +59,7 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 	//profiler.start();
 	conn.query(
 		"SELECT units.unit, version, alt, witness_list_unit, last_ball_unit, balls.ball AS last_ball, is_stable, \n\
-			content_hash, headers_commission, payload_commission, main_chain_index, "+conn.getUnixTimestamp("units.creation_date")+" AS timestamp \n\
+			content_hash, headers_commission, payload_commission, main_chain_index, timestamp, "+conn.getUnixTimestamp("units.creation_date")+" AS received_timestamp \n\
 		FROM units LEFT JOIN balls ON last_ball_unit=balls.unit WHERE units.unit=?", 
 		[unit], 
 		function(unit_rows){
@@ -71,7 +71,8 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 			var objJoint = {unit: objUnit};
 			var main_chain_index = objUnit.main_chain_index;
 			//delete objUnit.main_chain_index;
-			objUnit.timestamp = parseInt(objUnit.timestamp);
+			objUnit.timestamp = parseInt((objUnit.version === constants.versionWithoutTimestamp) ? objUnit.received_timestamp : objUnit.timestamp);
+			delete objUnit.received_timestamp;
 			var bFinalBad = !!objUnit.content_hash;
 			var bStable = objUnit.is_stable;
 			delete objUnit.is_stable;
@@ -715,7 +716,7 @@ function readUnitProps(conn, unit, handleProps){
 		return handleProps(assocUnstableUnits[unit]);
 	var stack = new Error().stack;
 	conn.query(
-		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit\n\
+		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, timestamp, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit\n\
 			FROM units \n\
 			JOIN unit_authors USING(unit) \n\
 			WHERE unit=? \n\
@@ -755,7 +756,7 @@ function readPropsOfUnits(conn, earlier_unit, arrLaterUnits, handleProps){
 	
 	var bEarlierInLaterUnits = (arrLaterUnits.indexOf(earlier_unit) !== -1);
 	conn.query(
-		"SELECT unit, level, witnessed_level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free FROM units WHERE unit IN(?, ?)", 
+		"SELECT unit, level, witnessed_level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, timestamp FROM units WHERE unit IN(?, ?)", 
 		[earlier_unit, arrLaterUnits], 
 		function(rows){
 			if (rows.length !== arrLaterUnits.length + (bEarlierInLaterUnits ? 0 : 1))
@@ -1330,7 +1331,7 @@ setInterval(shrinkCache, 300*1000);
 function initUnstableUnits(conn, onDone){
 	var conn = conn || db;
 	conn.query(
-		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit, best_parent_unit \n\
+		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, timestamp, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit, best_parent_unit \n\
 			FROM units \n\
 			JOIN unit_authors USING(unit) \n\
 			WHERE is_stable=0 \n\
@@ -1361,7 +1362,7 @@ function initStableUnits(conn, onDone){
 	var conn = conn || db;
 	readLastStableMcIndex(conn, function(last_stable_mci){
 		conn.query(
-			"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit \n\
+			"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, timestamp, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit \n\
 			FROM units \n\
 			JOIN unit_authors USING(unit) \n\
 			WHERE is_stable=1 AND main_chain_index>=? \n\

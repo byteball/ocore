@@ -8,13 +8,15 @@ var storage = require("./storage.js");
 var main_chain = require("./main_chain.js");
 
 
-function pickParentUnits(conn, arrWitnesses, onDone){
+function pickParentUnits(conn, arrWitnesses, timestamp, onDone){
 	// don't exclude units derived from unwitnessed potentially bad units! It is not their blame and can cause a split.
 	
 	// test creating bad units
 	//var cond = bDeep ? "is_on_main_chain=1" : "is_free=0 AND main_chain_index=1420";
 	//var order_and_limit = bDeep ? "ORDER BY main_chain_index DESC LIMIT 1" : "ORDER BY unit LIMIT 1";
 	
+	var bWithTimestamp = (storage.getMinRetrievableMci() >= constants.timestampUpgradeMci);
+	var ts_cond = bWithTimestamp ? "AND timestamp<=" + timestamp : '';
 	conn.query(
 		"SELECT \n\
 			unit, version, alt, ( \n\
@@ -24,11 +26,11 @@ function pickParentUnits(conn, arrWitnesses, onDone){
 			) AS count_matching_witnesses \n\
 		FROM units "+(conf.storage === 'sqlite' ? "INDEXED BY byFree" : "")+" \n\
 		LEFT JOIN archived_joints USING(unit) \n\
-		WHERE +sequence='good' AND is_free=1 AND archived_joints.unit IS NULL ORDER BY unit", 
+		WHERE +sequence='good' AND is_free=1 AND archived_joints.unit IS NULL "+ts_cond+" ORDER BY unit", 
 		// exclude potential parents that were archived and then received again
 		[arrWitnesses], 
 		function(rows){
-			if (rows.some(function(row){ return (row.version !== constants.version || row.alt !== constants.alt); }))
+			if (rows.some(function(row){ return (constants.supported_versions.indexOf(row.version) == -1 || row.alt !== constants.alt); }))
 				throw Error('wrong network');
 			var count_required_matches = constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS;
 			// we need at least one compatible parent, otherwise go deep
@@ -237,8 +239,8 @@ function trimParentList(conn, arrParentUnits, arrWitnesses, handleTrimmedList){
 	);
 }
 
-function pickParentUnitsAndLastBall(conn, arrWitnesses, onDone){
-	pickParentUnits(conn, arrWitnesses, function(err, arrParentUnits){
+function pickParentUnitsAndLastBall(conn, arrWitnesses, timestamp, onDone){
+	pickParentUnits(conn, arrWitnesses, timestamp, function(err, arrParentUnits){
 		if (err)
 			return onDone(err);
 		findLastStableMcBall(conn, arrWitnesses, function(err, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){

@@ -16,8 +16,11 @@ exports.COUNT_MC_BALLS_FOR_PAID_WITNESSING = 100;
 exports.bTestnet = !!process.env.testnet;
 console.log('===== testnet = ' + exports.bTestnet);
 
-exports.version = exports.bTestnet ? '1.0t' : '1.0';
+exports.version = exports.bTestnet ? '2.0t' : '2.0';
 exports.alt = exports.bTestnet ? '2' : '1';
+
+exports.supported_versions = exports.bTestnet ? ['1.0t', '2.0t'] : ['1.0', '2.0'];
+exports.versionWithoutTimestamp = exports.bTestnet ? '1.0t' : '1.0';
 
 //exports.bTestnet = (exports.alt === '2' && exports.version === '1.0t');
 
@@ -68,3 +71,4 @@ exports.altBranchByBestParentUpgradeMci = exports.bTestnet ? 642000 : 3009824;
 exports.anyDefinitionChangeUpgradeMci = exports.bTestnet ? 855000 : 4229100;
 exports.formulaUpgradeMci = exports.bTestnet ? Infinity : Infinity;
 exports.witnessedLevelMustNotRetreatFromAllParentsUpgradeMci = exports.bTestnet ? Infinity : Infinity;
+exports.timestampUpgradeMci = exports.bTestnet ? Infinity : Infinity;

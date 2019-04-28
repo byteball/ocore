@@ -5,6 +5,7 @@ CREATE TABLE units (
 	alt VARCHAR(3) NOT NULL DEFAULT '1',
 	witness_list_unit CHAR(44) BINARY NULL,
 	last_ball_unit CHAR(44) BINARY NULL,
+	timestamp INT NOT NULL DEFAULT 0,
 	content_hash CHAR(44) NULL,
 	headers_commission INT NOT NULL,
 	payload_commission INT NOT NULL,

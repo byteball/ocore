@@ -440,6 +440,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 				
 			case 'mci':
 			case 'age':
+			case 'timestamp':
 				var relation = args[0];
 				var value = args[1];
 				if (!isNonemptyString(relation))
@@ -448,6 +449,8 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 					return cb("invalid relation: "+relation);
 				if (!isNonnegativeInteger(value))
 					return cb(op+" must be a non-neg number");
+				if (op === 'timestamp' && objValidationState.last_ball_mci < constants.timestampUpgradeMci)
+					return cb('timestamp op not allowed yet');
 				return cb();
 				
 			case 'has':
@@ -906,6 +909,20 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				);
 				break;
 				
+			case 'timestamp':
+				var relation = args[0];
+				var timestamp = args[1];
+				switch(relation){
+					case '>': return cb2(objValidationState.last_ball_timestamp > timestamp);
+					case '>=': return cb2(objValidationState.last_ball_timestamp >= timestamp);
+					case '<': return cb2(objValidationState.last_ball_timestamp < timestamp);
+					case '<=': return cb2(objValidationState.last_ball_timestamp <= timestamp);
+					case '=': return cb2(objValidationState.last_ball_timestamp === timestamp);
+					case '!=': return cb2(objValidationState.last_ball_timestamp !== timestamp);
+					default: throw Error('unknown relation in mci: '+relation);
+				}
+				break;
+				
 			case 'mci':
 				var relation = args[0];
 				var mci = args[1];
@@ -915,6 +932,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 					case '<': return cb2(objValidationState.last_ball_mci < mci);
 					case '<=': return cb2(objValidationState.last_ball_mci <= mci);
 					case '=': return cb2(objValidationState.last_ball_mci === mci);
+					case '!=': return cb2(objValidationState.last_ball_mci !== mci);
 					default: throw Error('unknown relation in mci: '+relation);
 				}
 				break;

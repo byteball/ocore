@@ -55,7 +55,8 @@ function handleJustsaying(ws, subject, body){
 				return network.sendError(ws, "missing fields");
 			if (objDeviceMessage.to !== device.getMyDeviceAddress())
 				return network.sendError(ws, "not mine");
-			if (message_hash !== objectHash.getBase64Hash(objDeviceMessage))
+			var bOldHashIsCorrect = (message_hash === objectHash.getBase64Hash(objDeviceMessage));
+			if (!bOldHashIsCorrect && message_hash !== objectHash.getBase64Hash(objDeviceMessage, true))
 				return network.sendError(ws, "wrong hash");
 			try{
 				if (!ecdsaSig.verify(objectHash.getDeviceMessageHashToSign(objDeviceMessage), objDeviceMessage.signature, objDeviceMessage.pubkey))
@@ -316,6 +317,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			var objUnit = body.unsigned_unit;
 			if (typeof objUnit !== "object")
 				return callbacks.ifError("no unsigned unit");
+			var bJsonBased = (objUnit.version !== constants.versionWithoutTimestamp);
 			// replace all existing signatures with placeholders so that signing requests sent to us on different stages of signing become identical,
 			// hence the hashes of such unsigned units are also identical
 			objUnit.authors.forEach(function(author){
@@ -335,7 +337,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 							delete o.address;
 							delete o.blinding;
 						});
-					var calculated_payload_hash = objectHash.getBase64Hash(hidden_payload);
+					var calculated_payload_hash = objectHash.getBase64Hash(hidden_payload, bJsonBased);
 					if (payload_hash !== calculated_payload_hash)
 						return callbacks.ifError("private payload hash does not match");
 					if (!ValidationUtils.isNonemptyArray(objUnit.messages))
@@ -351,7 +353,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				for (var i=0; i<arrMessages.length; i++){
 					if (arrMessages[i].payload === undefined)
 						continue;
-					var calculated_payload_hash = objectHash.getBase64Hash(arrMessages[i].payload);
+					var calculated_payload_hash = objectHash.getBase64Hash(arrMessages[i].payload, bJsonBased);
 					if (arrMessages[i].payload_hash !== calculated_payload_hash)
 						return callbacks.ifError("payload hash does not match");
 				}
@@ -371,7 +373,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					//        return callbacks.ifError("sender is not cosigner of this address");
 						callbacks.ifOk();
 						if (objUnit.signed_message && !ValidationUtils.hasFieldsExcept(objUnit, ["signed_message", "authors"])){
-							objUnit.unit = objectHash.getBase64Hash(objUnit);
+							objUnit.unit = objectHash.getBase64Hash(objUnit); // exact value doesn't matter, it just needs to be there
 							return eventBus.emit("signing_request", objAddress, body.address, objUnit, assocPrivatePayloads, from_address, body.signing_path);
 						}
 						objUnit.unit = objectHash.getUnitHash(objUnit);
@@ -647,8 +649,8 @@ function handlePrivatePaymentChains(ws, body, from_address, callbacks){
 			if (!!objHeadPrivateElement.payload.denomination !== ValidationUtils.isNonnegativeInteger(objHeadPrivateElement.output_index))
 				return cb("divisibility doesn't match presence of output_index");
 			var output_index = objHeadPrivateElement.payload.denomination ? objHeadPrivateElement.output_index : -1;
-			var payload_hash = objectHash.getBase64Hash(objHeadPrivateElement.payload);
-			var key = 'private_payment_validated-'+objHeadPrivateElement.unit+'-'+payload_hash+'-'+output_index;
+			var json_payload_hash = objectHash.getBase64Hash(objHeadPrivateElement.payload, true);
+			var key = 'private_payment_validated-'+objHeadPrivateElement.unit+'-'+json_payload_hash+'-'+output_index;
 			assocValidatedByKey[key] = false;
 			network.handleOnlinePrivatePayment(ws, arrPrivateElements, true, {
 				ifError: function(error){

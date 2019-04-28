@@ -136,7 +136,7 @@ function sendErrorResult(ws, unit, error) {
 
 function sendVersion(ws){
 	sendJustsaying(ws, 'version', {
-		protocol_version: constants.version, 
+		protocol_version: constants.versionWithoutTimestamp, 
 		alt: constants.alt, 
 		library: libraryPackageJson.name, 
 		library_version: libraryPackageJson.version, 
@@ -163,7 +163,7 @@ function sendRequest(ws, command, params, bReroutable, responseHandler){
 	if (params)
 		request.params = params;
 	var content = _.clone(request);
-	var tag = objectHash.getBase64Hash(request);
+	var tag = objectHash.getBase64Hash(request, true);
 	//if (ws.assocPendingRequests[tag]) // ignore duplicate requests while still waiting for response from the same peer
 	//    return console.log("will not send identical "+command+" request");
 	if (ws.assocPendingRequests[tag]){
@@ -1786,8 +1786,8 @@ function handleSavedPrivatePayments(unit){
 					
 					var validateAndSave = function(){
 						var objHeadPrivateElement = arrPrivateElements[0];
-						var payload_hash = objectHash.getBase64Hash(objHeadPrivateElement.payload);
-						var key = 'private_payment_validated-'+objHeadPrivateElement.unit+'-'+payload_hash+'-'+row.output_index;
+						var json_payload_hash = objectHash.getBase64Hash(objHeadPrivateElement.payload, true);
+						var key = 'private_payment_validated-'+objHeadPrivateElement.unit+'-'+json_payload_hash+'-'+row.output_index;
 						privatePayment.validateAndSavePrivatePaymentChain(arrPrivateElements, {
 							ifOk: function(){
 								if (ws)
@@ -2064,8 +2064,8 @@ function handleJustsaying(ws, subject, body){
 		case 'version':
 			if (!body)
 				return;
-			if (body.protocol_version !== constants.version){
-				sendError(ws, 'Incompatible versions, mine '+constants.version+', yours '+body.protocol_version);
+			if (constants.supported_versions.indexOf(body.protocol_version) === -1){
+				sendError(ws, 'Incompatible versions, I support '+constants.supported_versions.join(', ')+', yours '+body.protocol_version);
 				ws.close(1000, 'incompatible versions');
 				return;
 			}

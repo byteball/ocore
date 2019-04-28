@@ -41,7 +41,7 @@ function createTextMessage(text){
 	return {
 		app: "text",
 		payload_location: "inline",
-		payload_hash: objectHash.getBase64Hash(text),
+		payload_hash: objectHash.getBase64Hash(text, storage.getMinRetrievableMci() >= constants.timestampUpgradeMci),
 		payload: text
 	};
 }
@@ -70,7 +70,7 @@ function composeContentJoint(from_address, app, payload, signer, callbacks){
 	var objMessage = {
 		app: app,
 		payload_location: "inline",
-		payload_hash: objectHash.getBase64Hash(payload),
+		payload_hash: objectHash.getBase64Hash(payload, storage.getMinRetrievableMci() >= constants.timestampUpgradeMci),
 		payload: payload
 	};
 	composeJoint({
@@ -318,11 +318,14 @@ function composeJoint(params){
 				objUnit.last_ball = lightProps.last_stable_mc_ball;
 				objUnit.last_ball_unit = lightProps.last_stable_mc_ball_unit;
 				last_ball_mci = lightProps.last_stable_mc_ball_mci;
+				objUnit.timestamp = lightProps.timestamp || Math.round(Date.now() / 1000);
 				return checkForUnstablePredecessors();
 			}
+			objUnit.timestamp = Math.round(Date.now() / 1000);
 			parentComposer.pickParentUnitsAndLastBall(
 				conn, 
 				arrWitnesses, 
+				objUnit.timestamp,
 				function(err, arrParentUnits, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
 					if (err)
 						return cb("unable to find parents: "+err);
@@ -333,6 +336,17 @@ function composeJoint(params){
 					checkForUnstablePredecessors();
 				}
 			);
+		},
+		function (cb) { // version
+			var bVersion2 = (last_ball_mci >= constants.timestampUpgradeMci);
+			if (!bVersion2)
+				objUnit.version = constants.versionWithoutTimestamp;
+			// calc or fix payload_hash of non-payment messages
+			objUnit.messages.forEach(function (message) {
+				if (message.app !== 'payment' && message.payload_location === 'inline')
+					message.payload_hash = objectHash.getBase64Hash(message.payload, bVersion2);
+			});
+			cb();
 		},
 		function(cb){ // authors
 			composeAuthorsForAddresses(conn, arrFromAddresses, last_ball_mci, signer, function(err, authors) {
@@ -444,7 +458,7 @@ function composeJoint(params){
 			}
 			objPaymentMessage.payload.outputs[0].amount = change;
 			objPaymentMessage.payload.outputs.sort(sortOutputs);
-			objPaymentMessage.payload_hash = objectHash.getBase64Hash(objPaymentMessage.payload);
+			objPaymentMessage.payload_hash = objectHash.getBase64Hash(objPaymentMessage.payload, objUnit.version !== constants.versionWithoutTimestamp);
 			var text_to_sign = objectHash.getUnitHashToSign(objUnit);
 			async.each(
 				objUnit.authors,
@@ -485,7 +499,7 @@ function composeJoint(params){
 					if (bGenesis)
 						objJoint.ball = objectHash.getBallHash(objUnit.unit);
 					console.log(require('util').inspect(objJoint, {depth:null}));
-					objJoint.unit.timestamp = Math.round(Date.now()/1000); // light clients need timestamp
+				//	objJoint.unit.timestamp = Math.round(Date.now()/1000); // light clients need timestamp
 					if (Object.keys(assocPrivatePayloads).length === 0)
 						assocPrivatePayloads = null;
 					//profiler.stop('compose');
@@ -755,6 +769,7 @@ function composeAuthorsAndMciForAddresses(conn, arrFromAddresses, signer, cb) {
 			parentComposer.pickParentUnitsAndLastBall(
 				conn,
 				arrWitnesses,
+				Math.round(Date.now()/1000),
 				function(err, arrParentUnits, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
 					if (err)
 						return cb("unable to find parents: "+err);
