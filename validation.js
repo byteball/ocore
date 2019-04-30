@@ -124,12 +124,20 @@ function validate(objJoint, callbacks) {
 		return callbacks.ifUnitError("missing or empty authors array");
 	
 
-	if (objUnit.version !== constants.version)
+	if (constants.supported_versions.indexOf(objUnit.version) === -1)
 		return callbacks.ifUnitError("wrong version");
 	if (objUnit.alt !== constants.alt)
 		return callbacks.ifUnitError("wrong alt");
 
-	
+	if (objUnit.version !== constants.versionWithoutTimestamp) {
+		if (!isPositiveInteger(objUnit.timestamp))
+			return callbacks.ifUnitError("timestamp required in version " + objUnit.version);
+		var current_ts = Math.round(Date.now() / 1000);
+		var max_seconds_into_the_future_to_accept = conf.max_seconds_into_the_future_to_accept || 3600;
+		if (objUnit.timestamp > current_ts + max_seconds_into_the_future_to_accept)
+			return callbacks.ifTransientError("timestamp is too far into the future");
+	}
+
 	if (!storage.isGenesisUnit(objUnit.unit)){
 		if (!isNonemptyArray(objUnit.parent_units))
 			return callbacks.ifUnitError("missing or empty parent units array");
@@ -478,12 +486,17 @@ function validateParents(conn, objJoint, objValidationState, callback){
 	var last_ball_unit = objUnit.last_ball_unit;
 	var arrPrevParentUnitProps = [];
 	objValidationState.max_parent_limci = 0;
+	objValidationState.max_parent_wl = 0;
 	async.eachSeries(
 		objUnit.parent_units, 
 		function(parent_unit, cb){
 			storage.readUnitProps(conn, parent_unit, function(objParentUnitProps){
+				if (objUnit.version !== constants.versionWithoutTimestamp && objUnit.timestamp < objParentUnitProps.timestamp)
+					return cb("timestamp decreased from parent " + parent_unit);
 				if (objParentUnitProps.latest_included_mc_index > objValidationState.max_parent_limci)
 					objValidationState.max_parent_limci = objParentUnitProps.latest_included_mc_index;
+				if (objParentUnitProps.witnessed_level > objValidationState.max_parent_wl)
+					objValidationState.max_parent_wl = objParentUnitProps.witnessed_level;
 				async.eachSeries(
 					arrPrevParentUnitProps, 
 					function(objPrevParentUnitProps, cb2){
@@ -504,7 +517,7 @@ function validateParents(conn, objJoint, objValidationState, callback){
 			if (err)
 				return callback(err);
 			conn.query(
-				"SELECT is_stable, is_on_main_chain, main_chain_index, ball, (SELECT MAX(main_chain_index) FROM units) AS max_known_mci \n\
+				"SELECT is_stable, is_on_main_chain, main_chain_index, ball, timestamp, (SELECT MAX(main_chain_index) FROM units) AS max_known_mci \n\
 				FROM units LEFT JOIN balls USING(unit) WHERE unit=?", 
 				[last_ball_unit], 
 				function(rows){
@@ -521,9 +534,15 @@ function validateParents(conn, objJoint, objValidationState, callback){
 					if (objLastBallUnitProps.ball && objLastBallUnitProps.ball !== last_ball)
 						return callback("last_ball "+last_ball+" and last_ball_unit "+last_ball_unit+" do not match");
 					objValidationState.last_ball_mci = objLastBallUnitProps.main_chain_index;
+					objValidationState.last_ball_timestamp = objLastBallUnitProps.timestamp;
 					objValidationState.max_known_mci = objLastBallUnitProps.max_known_mci;
 					if (objValidationState.max_parent_limci < objValidationState.last_ball_mci)
 						return callback("last ball unit "+last_ball_unit+" is not included in parents, unit "+objUnit.unit);
+					var bRequiresTimestamp = (objValidationState.last_ball_mci >= constants.timestampUpgradeMci);
+					if (bRequiresTimestamp && objUnit.version === constants.versionWithoutTimestamp)
+						return callback("should be higher version at this mci");
+					if (!bRequiresTimestamp && objUnit.version !== constants.versionWithoutTimestamp)
+						return callback("should be version " + constants.versionWithoutTimestamp + " at this mci");
 					readMaxParentLastBallMci(function(max_parent_last_ball_mci){
 						if (objLastBallUnitProps.is_stable === 1){
 							// if it were not stable, we wouldn't have had the ball at all
@@ -608,6 +627,10 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 			objValidationState.best_parent_unit = best_parent_unit;
 			if (objValidationState.last_ball_mci < constants.witnessedLevelMustNotRetreatUpgradeMci) // not enforced
 				return callback();
+			if (typeof objValidationState.max_parent_wl === 'undefined')
+				throw Error('no max_parent_wl');
+			if (objValidationState.last_ball_mci >= constants.witnessedLevelMustNotRetreatFromAllParentsUpgradeMci)
+				return (witnessed_level >= objValidationState.max_parent_wl) ? callback() : callback("witnessed level retreats from parent's "+objValidationState.max_parent_wl+" to "+witnessed_level);
 			storage.readStaticUnitProps(conn, best_parent_unit, function(props){
 				(witnessed_level >= props.witnessed_level) 
 					? callback() 
@@ -1196,8 +1219,9 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 	if (typeof payload === "undefined")
 		return callback("no inline payload");
 	try{
-		if (objectHash.getBase64Hash(payload) !== objMessage.payload_hash)
-			return callback("wrong payload hash: expected "+objectHash.getBase64Hash(payload)+", got "+objMessage.payload_hash);
+		var expected_payload_hash = objectHash.getBase64Hash(payload, objUnit.version !== constants.versionWithoutTimestamp);
+		if (expected_payload_hash !== objMessage.payload_hash)
+			return callback("wrong payload hash: expected "+expected_payload_hash+", got "+objMessage.payload_hash);
 	}
 	catch(e){
 		return callback("failed to calc payload hash: "+e);
@@ -1947,7 +1971,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 
 function initPrivatePaymentValidationState(conn, unit, message_index, payload, onError, onDone){
 	conn.query(
-		"SELECT payload_hash, app, units.sequence, units.is_stable, lb_units.main_chain_index AS last_ball_mci \n\
+		"SELECT payload_hash, app, units.sequence, units.version, units.is_stable, lb_units.main_chain_index AS last_ball_mci \n\
 		FROM messages JOIN units USING(unit) \n\
 		LEFT JOIN units AS lb_units ON units.last_ball_unit=lb_units.unit \n\
 		WHERE messages.unit=? AND message_index=?", 
@@ -1964,7 +1988,7 @@ function initPrivatePaymentValidationState(conn, unit, message_index, payload, o
 			if (row.app !== "payment")
 				return onError("invalid app");
 			try{
-				if (objectHash.getBase64Hash(payload) !== row.payload_hash)
+				if (objectHash.getBase64Hash(payload, row.version !== constants.versionWithoutTimestamp) !== row.payload_hash)
 					return onError("payload hash does not match");
 			}
 			catch(e){

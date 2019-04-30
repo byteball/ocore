@@ -5,6 +5,7 @@ CREATE TABLE units (
 	alt VARCHAR(3) NOT NULL DEFAULT '1',
 	witness_list_unit CHAR(44) NULL,
 	last_ball_unit CHAR(44) NULL,
+	timestamp INT NOT NULL DEFAULT 0,
 	content_hash CHAR(44) NULL,
 	headers_commission INT NOT NULL,
 	payload_commission INT NOT NULL,
@@ -806,4 +807,4 @@ CREATE TABLE correspondent_settings (
 	PRIMARY KEY (device_address, correspondent_address)
 );
 
-PRAGMA user_version=27;
+PRAGMA user_version=28;

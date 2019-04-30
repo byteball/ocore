@@ -45,10 +45,12 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 			}
 		}
 		
-		var fields = "unit, version, alt, witness_list_unit, last_ball_unit, headers_commission, payload_commission, sequence, content_hash";
-		var values = "?,?,?,?,?,?,?,?,?";
+		var timestamp = (objUnit.version === constants.versionWithoutTimestamp) ? 0 : objUnit.timestamp;
+		var fields = "unit, version, alt, witness_list_unit, last_ball_unit, headers_commission, payload_commission, sequence, content_hash, timestamp";
+		var values = "?,?,?,?,?,?,?,?,?,?";
 		var params = [objUnit.unit, objUnit.version, objUnit.alt, objUnit.witness_list_unit, objUnit.last_ball_unit,
-			objUnit.headers_commission || 0, objUnit.payload_commission || 0, objValidationState.sequence, objUnit.content_hash];
+			objUnit.headers_commission || 0, objUnit.payload_commission || 0, objValidationState.sequence, objUnit.content_hash,
+			timestamp];
 		if (conf.bLight){
 			fields += ", main_chain_index, creation_date";
 			values += ",?,"+conn.getFromUnixTime("?");
@@ -495,6 +497,7 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 		
 		var objNewUnitProps = {
 			unit: objUnit.unit,
+			timestamp: timestamp,
 			level: bGenesis ? 0 : null,
 			latest_included_mc_index: null,
 			main_chain_index: bGenesis ? 0 : null,
