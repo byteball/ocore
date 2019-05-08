@@ -160,7 +160,11 @@ function determineWitnessedLevels(conn, arrWitnesses, arrParentUnits, handleResu
 			function (rows) {
 				var max_parent_wl = rows[0].witnessed_level;
 				var parent_with_max_wl = rows[0].unit;
-				handleResult(witnessed_level, max_parent_wl, parent_with_max_wl, best_parent_unit);
+				storage.readStaticUnitProps(conn, best_parent_unit, function(bestParentProps){
+					if (bestParentProps.witnessed_level === max_parent_wl)
+						parent_with_max_wl = best_parent_unit;
+					handleResult(witnessed_level, max_parent_wl, parent_with_max_wl, best_parent_unit);
+				});
 			}
 		);
 	//	storage.readStaticUnitProps(conn, best_parent_unit, function(bestParentProps){
