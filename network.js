@@ -2075,13 +2075,24 @@ function handleJustsaying(ws, subject, body){
 				return;
 			}
 			ws.library_version = body.library_version;
-			if (typeof ws.library_version === 'string' && version2int(ws.library_version) < version2int(constants.minCoreVersion)){
+			if (typeof ws.library_version !== 'string') {
+				sendError(ws, "invalid library_version: " + ws.library_version);
+				return ws.close(1000, "invalid library_version");
+			}
+			if (version2int(ws.library_version) < version2int(constants.minCoreVersion)){
+				ws.old_core = true;
+				ws.bSubscribed = false;
+				sendJustsaying(ws, 'upgrade_required');
+				sendJustsaying(ws, "old core");
+				return ws.close(1000, "old core");
+			}
+			if (version2int(ws.library_version) < version2int(constants.minCoreVersionForFullNodes)){
 				ws.old_core = true;
 				if (ws.bSubscribed){
 					ws.bSubscribed = false;
 					sendJustsaying(ws, 'upgrade_required');
-					sendJustsaying(ws, "old core");
-					ws.close(1000, "old core");
+					sendJustsaying(ws, "old core (full)");
+					return ws.close(1000, "old core (full)");
 				}
 			}
 			eventBus.emit('peer_version', ws, body); // handled elsewhere
@@ -2419,12 +2430,16 @@ function handleRequest(ws, tag, command, params){
 				//    sendFreeJoints(ws);
 				return sendErrorResponse(ws, tag, "I'm light, cannot subscribe you to updates");
 			}
-			if (typeof params.library_version === 'string' && version2int(params.library_version) < version2int(constants.minCoreVersion))
+			if (typeof params.library_version !== 'string') {
+				sendErrorResponse(ws, tag, "invalid library_version: " + params.library_version);
+				return ws.close(1000, "invalid library_version");
+			}
+			if (version2int(params.library_version) < version2int(constants.minCoreVersionForFullNodes))
 				ws.old_core = true;
 			if (ws.old_core){ // can be also set in 'version'
 				sendJustsaying(ws, 'upgrade_required');
-				sendErrorResponse(ws, tag, "old core");
-				return ws.close(1000, "old core");
+				sendErrorResponse(ws, tag, "old core (full)");
+				return ws.close(1000, "old core (full)");
 			}
 			ws.bSubscribed = true;
 			sendResponse(ws, tag, "subscribed");
