@@ -308,7 +308,7 @@ function checkDuplicate(conn, unit, cb){
 	conn.query("SELECT 1 FROM units WHERE unit=?", [unit], function(rows){
 		if (rows.length === 0) 
 			return cb();
-		cb("unit "+unit+" already exists");
+		cb(createTransientError("unit "+unit+" already exists"));
 	});
 }
 
