@@ -19,7 +19,7 @@ function getPackageJsonDir(start_dir){
 	}
 	catch(e){
 		var parent_dir = path.dirname(start_dir);
-		if (parent_dir === '/' || process.platform === 'win32' && parent_dir.match(/^\w:[\/\\]/))
+		if (parent_dir === '/' || process.platform === 'win32' && parent_dir.match(/^\w:[\/\\]$/))
 			throw Error('no package.json found');
 		return getPackageJsonDir(parent_dir);
 	}
