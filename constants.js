@@ -59,8 +59,8 @@ exports.TEXTCOIN_ASSET_CLAIM_MESSAGE_FEE = 209;
 exports.TEXTCOIN_ASSET_CLAIM_BASE_MSG_FEE = 158;
 exports.TEXTCOIN_PRIVATE_ASSET_CLAIM_MESSAGE_FEE = 99;
 
-exports.minCoreVersion = exports.bTestnet ? '0.2.0' : '0.2.0';
-exports.minCoreVersionForFullNodes = exports.bTestnet ? '0.2.94' : '0.2.94';
+exports.minCoreVersion = exports.bTestnet ? '0.2.95' : '0.2.0';
+exports.minCoreVersionForFullNodes = exports.bTestnet ? '0.2.95' : '0.2.94';
 
 exports.lastBallStableInParentsUpgradeMci = 1300000;
 exports.witnessedLevelMustNotRetreatUpgradeMci = exports.bTestnet ? 684000 : 1400000;
@@ -71,5 +71,5 @@ exports.attestedInDefinitionUpgradeMci = exports.bTestnet ? 616000 : 2909000;
 exports.altBranchByBestParentUpgradeMci = exports.bTestnet ? 642000 : 3009824;
 exports.anyDefinitionChangeUpgradeMci = exports.bTestnet ? 855000 : 4229100;
 exports.formulaUpgradeMci = exports.bTestnet ? Infinity : Infinity;
-exports.witnessedLevelMustNotRetreatFromAllParentsUpgradeMci = exports.bTestnet ? Infinity : Infinity;
-exports.timestampUpgradeMci = exports.bTestnet ? Infinity : Infinity;
+exports.witnessedLevelMustNotRetreatFromAllParentsUpgradeMci = exports.bTestnet ? 909000 : Infinity;
+exports.timestampUpgradeMci = exports.bTestnet ? 909000 : Infinity;
