@@ -1438,11 +1438,8 @@ function writeEvent(event, host){
 }
 
 function determineIfPeerIsBlocked(host, handleResult){
-	/*	"SELECT \n\
-			SUM(CASE WHEN event='invalid' THEN 1 ELSE 0 END) AS count_invalid, \n\
-			SUM(CASE WHEN event='new_good' THEN 1 ELSE 0 END) AS count_new_good \n\
-			FROM peer_events WHERE peer_host=? AND event_date>"+db.addTime("-1 HOUR"),*/
-	/*	"SELECT 1 FROM peer_events WHERE peer_host=? AND event_date>"+db.addTime("-1 HOUR")+" AND event='invalid' LIMIT 1",*/
+	if (constants.bTestnet)
+		return handleResult(false);
 	handleResult(!!assocBlockedPeers[host]);
 }
 
