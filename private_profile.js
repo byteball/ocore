@@ -41,13 +41,14 @@ function parseAndValidatePrivateProfile(objPrivateProfile, onDone){
 		});
 		if (!payload)
 			return onDone("no such payload hash in this unit");
+		var bJsonBased = (objJoint.unit.version !== constants.versionWithoutTimestamp);
 		var hidden_profile = {};
 		var bHasHiddenFields = false;
 		for (var field in objPrivateProfile.src_profile){
 			var value = objPrivateProfile.src_profile[field];
 			// the value of each field is either array [plain_text_value, blinding] (if the field is disclosed) or a hash (if it is not disclosed)
 			if (ValidationUtils.isArrayOfLength(value, 2))
-				hidden_profile[field] = objectHash.getBase64Hash(value);
+				hidden_profile[field] = objectHash.getBase64Hash(value, bJsonBased);
 			else if (ValidationUtils.isStringOfLength(value, constants.HASH_LENGTH)){
 				hidden_profile[field] = value;
 				bHasHiddenFields = true;
@@ -55,7 +56,7 @@ function parseAndValidatePrivateProfile(objPrivateProfile, onDone){
 			else
 				return onDone("invalid src profile");
 		}
-		if (objectHash.getBase64Hash(hidden_profile) !== payload.profile.profile_hash)
+		if (objectHash.getBase64Hash(hidden_profile, bJsonBased) !== payload.profile.profile_hash)
 			return onDone("wrong profile hash");
 		db.query(
 			"SELECT 1 FROM my_addresses WHERE address=? UNION SELECT 1 FROM shared_addresses WHERE shared_address=?", 

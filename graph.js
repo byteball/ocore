@@ -153,7 +153,7 @@ function determineIfIncluded(conn, earlier_unit, arrLaterUnits, handleResult){
 		
 		var max_later_wl = Math.max.apply(
 			null, arrLaterUnitProps.map(function(objLaterUnitProps){ return objLaterUnitProps.witnessed_level; }));
-		if (max_later_wl < objEarlierUnitProps.witnessed_level && objEarlierUnitProps.main_chain_index > constants.witnessedLevelMustNotRetreatUpgradeMci)
+		if (max_later_wl < objEarlierUnitProps.witnessed_level && objEarlierUnitProps.main_chain_index > constants.witnessedLevelMustNotRetreatFromAllParentsUpgradeMci)
 			return handleResult(false);
 		
 		var bAllLaterUnitsAreWithMci = !arrLaterUnitProps.find(function(objLaterUnitProps){ return (objLaterUnitProps.main_chain_index === null); });
@@ -217,7 +217,7 @@ function determineIfIncluded(conn, earlier_unit, arrLaterUnits, handleResult){
 						continue;
 					if (objUnitProps.latest_included_mc_index < objEarlierUnitProps.latest_included_mc_index)
 						continue;
-					if (objUnitProps.witnessed_level < objEarlierUnitProps.witnessed_level && objEarlierUnitProps.main_chain_index > constants.witnessedLevelMustNotRetreatUpgradeMci)
+					if (objUnitProps.witnessed_level < objEarlierUnitProps.witnessed_level && objEarlierUnitProps.main_chain_index > constants.witnessedLevelMustNotRetreatFromAllParentsUpgradeMci)
 						continue;
 					if (objUnitProps.is_on_main_chain === 0 && objUnitProps.level > objEarlierUnitProps.level)
 						arrNewStartUnits.push(objUnitProps.unit);

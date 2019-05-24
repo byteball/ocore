@@ -4,7 +4,7 @@ var eventBus = require('./event_bus.js');
 var constants = require("./constants.js");
 var conf = require("./conf.js");
 
-var VERSION = 27;
+var VERSION = 29;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -270,6 +270,11 @@ function migrateDb(connection, onDone){
 				if (version < 27){
 					connection.addQuery(arrQueries, "CREATE UNIQUE INDEX IF NOT EXISTS unqPayloadHash ON private_profiles(payload_hash)");
 				}
+				if (version < 28){
+					connection.addQuery(arrQueries, "ALTER TABLE units ADD COLUMN timestamp INT NOT NULL DEFAULT 0");
+				}
+				if (version < 29)
+					connection.addQuery(arrQueries, "DELETE FROM known_bad_joints");
 				cb();
 			}
 		], function(){

@@ -136,7 +136,7 @@ function sendErrorResult(ws, unit, error) {
 
 function sendVersion(ws){
 	sendJustsaying(ws, 'version', {
-		protocol_version: constants.version, 
+		protocol_version: constants.versionWithoutTimestamp, 
 		alt: constants.alt, 
 		library: libraryPackageJson.name, 
 		library_version: libraryPackageJson.version, 
@@ -163,7 +163,7 @@ function sendRequest(ws, command, params, bReroutable, responseHandler){
 	if (params)
 		request.params = params;
 	var content = _.clone(request);
-	var tag = objectHash.getBase64Hash(request);
+	var tag = objectHash.getBase64Hash(request, true);
 	//if (ws.assocPendingRequests[tag]) // ignore duplicate requests while still waiting for response from the same peer
 	//    return console.log("will not send identical "+command+" request");
 	if (ws.assocPendingRequests[tag]){
@@ -1069,7 +1069,7 @@ function handlePostedJoint(ws, objJoint, onDone){
 		},
 		ifKnown: function(){
 			if (objJoint.unsigned)
-				throw Error("known unsigned");
+				return onDone("you can't send unsigned units");
 			onDone("known");
 			writeEvent('known_good', ws.host);
 		},
@@ -1134,7 +1134,7 @@ function handleOnlineJoint(ws, objJoint, onDone){
 		},
 		ifKnown: function(){
 			if (objJoint.unsigned)
-				throw Error("known unsigned");
+				return onDone();
 			sendResult(ws, {unit: unit, result: 'known'});
 			writeEvent('known_good', ws.host);
 			onDone();
@@ -1438,11 +1438,8 @@ function writeEvent(event, host){
 }
 
 function determineIfPeerIsBlocked(host, handleResult){
-	/*	"SELECT \n\
-			SUM(CASE WHEN event='invalid' THEN 1 ELSE 0 END) AS count_invalid, \n\
-			SUM(CASE WHEN event='new_good' THEN 1 ELSE 0 END) AS count_new_good \n\
-			FROM peer_events WHERE peer_host=? AND event_date>"+db.addTime("-1 HOUR"),*/
-	/*	"SELECT 1 FROM peer_events WHERE peer_host=? AND event_date>"+db.addTime("-1 HOUR")+" AND event='invalid' LIMIT 1",*/
+	if (constants.bTestnet)
+		return handleResult(false);
 	handleResult(!!assocBlockedPeers[host]);
 }
 
@@ -1786,8 +1783,8 @@ function handleSavedPrivatePayments(unit){
 					
 					var validateAndSave = function(){
 						var objHeadPrivateElement = arrPrivateElements[0];
-						var payload_hash = objectHash.getBase64Hash(objHeadPrivateElement.payload);
-						var key = 'private_payment_validated-'+objHeadPrivateElement.unit+'-'+payload_hash+'-'+row.output_index;
+						var json_payload_hash = objectHash.getBase64Hash(objHeadPrivateElement.payload, true);
+						var key = 'private_payment_validated-'+objHeadPrivateElement.unit+'-'+json_payload_hash+'-'+row.output_index;
 						privatePayment.validateAndSavePrivatePaymentChain(arrPrivateElements, {
 							ifOk: function(){
 								if (ws)
@@ -2064,8 +2061,8 @@ function handleJustsaying(ws, subject, body){
 		case 'version':
 			if (!body)
 				return;
-			if (body.protocol_version !== constants.version){
-				sendError(ws, 'Incompatible versions, mine '+constants.version+', yours '+body.protocol_version);
+			if (constants.supported_versions.indexOf(body.protocol_version) === -1){
+				sendError(ws, 'Incompatible versions, I support '+constants.supported_versions.join(', ')+', yours '+body.protocol_version);
 				ws.close(1000, 'incompatible versions');
 				return;
 			}
@@ -2075,13 +2072,24 @@ function handleJustsaying(ws, subject, body){
 				return;
 			}
 			ws.library_version = body.library_version;
-			if (typeof ws.library_version === 'string' && version2int(ws.library_version) < version2int(constants.minCoreVersion)){
+			if (typeof ws.library_version !== 'string') {
+				sendError(ws, "invalid library_version: " + ws.library_version);
+				return ws.close(1000, "invalid library_version");
+			}
+			if (version2int(ws.library_version) < version2int(constants.minCoreVersion)){
+				ws.old_core = true;
+				ws.bSubscribed = false;
+				sendJustsaying(ws, 'upgrade_required');
+				sendJustsaying(ws, "old core");
+				return ws.close(1000, "old core");
+			}
+			if (version2int(ws.library_version) < version2int(constants.minCoreVersionForFullNodes)){
 				ws.old_core = true;
 				if (ws.bSubscribed){
 					ws.bSubscribed = false;
 					sendJustsaying(ws, 'upgrade_required');
-					sendJustsaying(ws, "old core");
-					ws.close(1000, "old core");
+					sendJustsaying(ws, "old core (full)");
+					return ws.close(1000, "old core (full)");
 				}
 			}
 			eventBus.emit('peer_version', ws, body); // handled elsewhere
@@ -2419,12 +2427,16 @@ function handleRequest(ws, tag, command, params){
 				//    sendFreeJoints(ws);
 				return sendErrorResponse(ws, tag, "I'm light, cannot subscribe you to updates");
 			}
-			if (typeof params.library_version === 'string' && version2int(params.library_version) < version2int(constants.minCoreVersion))
+			if (typeof params.library_version !== 'string') {
+				sendErrorResponse(ws, tag, "invalid library_version: " + params.library_version);
+				return ws.close(1000, "invalid library_version");
+			}
+			if (version2int(params.library_version) < version2int(constants.minCoreVersionForFullNodes))
 				ws.old_core = true;
 			if (ws.old_core){ // can be also set in 'version'
 				sendJustsaying(ws, 'upgrade_required');
-				sendErrorResponse(ws, tag, "old core");
-				return ws.close(1000, "old core");
+				sendErrorResponse(ws, tag, "old core (full)");
+				return ws.close(1000, "old core (full)");
 			}
 			ws.bSubscribed = true;
 			sendResponse(ws, tag, "subscribed");

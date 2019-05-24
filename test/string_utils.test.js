@@ -4,6 +4,7 @@ const StringUtils = require('../string_utils');
 
 const STRING_JOIN_CHAR = StringUtils.STRING_JOIN_CHAR;
 const getSourceString = StringUtils.getSourceString;
+const getJsonSourceString = StringUtils.getJsonSourceString;
 
 /**
  * getSourceString
@@ -51,3 +52,17 @@ test('Test an object', t => {
 });
 
 
+/**
+ * getJsonSourceString
+ */
+
+test('ordered object', t => {
+    const obj = {aa: ['x', "v'n", "{\"bb"], b: 8, ccc: false, "s'x": 55};
+    t.true(getJsonSourceString(obj) === JSON.stringify(obj));
+});
+
+test('unordered object', t => {
+    const unordered = { ccc: ['s', {d: 'c', a: 'nn'}], aa: 'j', b: 8};
+    const ordered = { aa: 'j', b: 8, ccc: ['s', {a: 'nn', d: 'c', }], };
+    t.true(getJsonSourceString(unordered) === JSON.stringify(ordered));
+});

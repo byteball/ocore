@@ -53,7 +53,39 @@ function getSourceString(obj) {
     return arrComponents.join(STRING_JOIN_CHAR);
 }
 
+function getJsonSourceString(obj) {
+	function stringify(variable){
+		if (variable === null)
+			throw Error("null value in "+JSON.stringify(obj));
+		switch (typeof variable){
+			case "string":
+				return JSON.stringify(variable);
+			case "number":
+			case "boolean":
+				return variable.toString();
+			case "object":
+				if (Array.isArray(variable)){
+					if (variable.length === 0)
+						throw Error("empty array in "+JSON.stringify(obj));
+					return '[' + variable.map(stringify).join(',') + ']';
+				}
+				else{
+					var keys = Object.keys(variable).sort();
+					if (keys.length === 0)
+						throw Error("empty object in "+JSON.stringify(obj));
+					return '{' + keys.map(function(key){ return JSON.stringify(key)+':'+stringify(variable[key]) }).join(',') + '}';
+				}
+				break;
+			default:
+				throw Error("hash: unknown type="+(typeof variable)+" of "+variable+", object: "+JSON.stringify(obj));
+		}
+	}
+
+	return stringify(obj);
+}
+
 exports.STRING_JOIN_CHAR = STRING_JOIN_CHAR; // for tests
 exports.getSourceString = getSourceString;
+exports.getJsonSourceString = getJsonSourceString;
 
 

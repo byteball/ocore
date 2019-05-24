@@ -1,6 +1,7 @@
 /*jslint node: true */
 "use strict";
 var _ = require('lodash');
+var constants = require('./constants.js');
 
 var PARENT_UNITS_SIZE = 2*44;
 
@@ -41,7 +42,8 @@ function getHeadersSize(objUnit) {
 	delete objHeader.headers_commission;
 	delete objHeader.payload_commission;
 	delete objHeader.main_chain_index;
-	delete objHeader.timestamp;
+	if (objUnit.version === constants.versionWithoutTimestamp)
+		delete objHeader.timestamp;
 	delete objHeader.messages;
 	delete objHeader.parent_units; // replaced with PARENT_UNITS_SIZE
 	return getLength(objHeader) + PARENT_UNITS_SIZE;
