@@ -472,8 +472,11 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				return callbacks.ifError("not all contract fields submitted");
 			if (!ValidationUtils.isValidAddress(body.peer_address) || !ValidationUtils.isValidAddress(body.my_address))
 				return callbacks.ifError("either peer_address or address is not valid in contract");
-			if (body.hash !== prosaic_contract.getHash(body))
+			if (body.hash !== prosaic_contract.getHash(body)) {
+				if (body.hash === prosaic_contract.getHashV1(body))
+					return callbacks.ifError("received prosaic contract offer with V1 hash");	
 				return callbacks.ifError("wrong contract hash");
+			}
 			if (!/^\d{4}\-\d{2}\-\d{2} \d{2}:\d{2}:\d{2}$/.test(body.creation_date))
 				return callbacks.ifError("wrong contract creation date");
 			prosaic_contract.store(body);
