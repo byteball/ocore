@@ -968,10 +968,13 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 						eventBus.emit("validated-"+unit, false);
 				},
 				ifTransientError: function(error){
-					throw Error(error);
+				//	throw Error(error);
+					callbacks.ifUnitError(error);
 					unlock();
 					console.log("############################## transient error "+error);
-					delete assocUnitsInWork[unit];
+					joint_storage.removeUnhandledJointAndDependencies(unit, function(){
+						delete assocUnitsInWork[unit];
+					});
 				},
 				ifNeedHashTree: function(){
 					console.log('need hash tree for unit '+unit);
