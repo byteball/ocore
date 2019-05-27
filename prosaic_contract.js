@@ -4,6 +4,7 @@ var db = require('./db.js');
 var device = require('./device.js');
 var composer = require('./composer.js');
 var objectHash = require('./object_hash.js');
+var crypto = require('crypto');
 
 var status_PENDING = 'pending';
 exports.CHARGE_AMOUNT = 2000;
@@ -96,6 +97,10 @@ function share(hash, device_address) {
 }
 
 function getHash(contract) {
+	return crypto.createHash("sha256").update(contract.title + contract.text + contract.creation_date, "utf8").digest("base64");
+}
+
+function getHashV1(contract) {
 	return objectHash.getBase64Hash(contract.title + contract.text + contract.creation_date);
 }
 
@@ -114,4 +119,5 @@ exports.getAllByStatus = getAllByStatus;
 exports.setField = setField;
 exports.store = store;
 exports.getHash = getHash;
+exports.getHashV1 = getHashV1;
 exports.share = share;
