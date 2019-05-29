@@ -248,7 +248,7 @@ function pickParentUnitsAndLastBall(conn, arrWitnesses, timestamp, onDone){
 	pickParentUnits(conn, arrWitnesses, timestamp, function(err, arrParentUnits, max_parent_wl){
 		if (err)
 			return onDone(err);
-		checkParentUnitsAndDetermineLastBall(conn, arrWitnesses, arrParentUnits, function(err,arrTrimmedParentUnits, last_stable_ball, last_stable_unit, last_stable_mci){
+		findLastBallAndAdjust(conn, arrWitnesses, arrParentUnits, function(err,arrTrimmedParentUnits, last_stable_ball, last_stable_unit, last_stable_mci){
 			if (err)
 				return pickParentsDeeper(max_parent_wl)
 			onDone(null, arrTrimmedParentUnits, last_stable_ball, last_stable_unit, last_stable_mci);
@@ -261,7 +261,7 @@ function pickParentUnitsAndLastBall(conn, arrWitnesses, timestamp, onDone){
 		pickDeepParentUnits(conn, arrWitnesses, max_parent_wl, function(err, arrParentUnits, max_parent_wl){
 			if (err)
 				return onDone(err);
-				checkParentUnitsAndDetermineLastBall(conn, arrWitnesses, arrParentUnits, function(err,arrTrimmedParentUnits, last_stable_ball, last_stable_unit, last_stable_mci){
+				findLastBallAndAdjust(conn, arrWitnesses, arrParentUnits, function(err,arrTrimmedParentUnits, last_stable_ball, last_stable_unit, last_stable_mci){
 					if (err)
 						return pickParentsDeeper(max_parent_wl);
 					onDone(null, arrTrimmedParentUnits, last_stable_ball, last_stable_unit, last_stable_mci);
@@ -270,7 +270,7 @@ function pickParentUnitsAndLastBall(conn, arrWitnesses, timestamp, onDone){
 	}
 }
 
-function checkParentUnitsAndDetermineLastBall(conn, arrWitnesses, arrParentUnits, onDone){
+function findLastBallAndAdjust(conn, arrWitnesses, arrParentUnits, onDone){
 
 	findLastStableMcBall(conn, arrWitnesses, function(err, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
 		if (err)
