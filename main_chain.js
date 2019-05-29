@@ -757,9 +757,10 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 								}
 							//	var min_mc_wl = rows[constants.MAJORITY_OF_WITNESSES-1].witnessed_level;
 								if (first_unstable_mc_index > constants.branchedMinMcWlUpgradeMci){
-									if (min_mc_wl === -1)
-										return handleMinMcWl(false);
-									//	throw Error("couldn't collect 7 witnesses, earlier unit "+earlier_unit+", best children "+arrBestChildren.join(', ')+", later "+arrLaterUnits.join(', ')+", witnesses "+arrWitnesses.join(', ')+", collected witnesses "+arrCollectedWitnesses.join(', '));
+									if (min_mc_wl === -1) {
+										console.log("couldn't collect 7 witnesses, earlier unit "+earlier_unit+", best children "+arrBestChildren.join(', ')+", later "+arrLaterUnits.join(', ')+", witnesses "+arrWitnesses.join(', ')+", collected witnesses "+arrCollectedWitnesses.join(', '));
+										return handleMinMcWl(null);
+									}
 									return handleMinMcWl(min_mc_wl);
 								}
 								// it might be more optimistic because it collects 7 witness units, not 7 units posted by _different_ witnesses
@@ -1023,6 +1024,8 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 				
 				findMinMcWitnessedLevel(function(min_mc_wl){
 					//console.log("min mc wl", min_mc_wl);
+					if (min_mc_wl === null) // couldn't collect even 7 witnesses
+						return handleResult(false);
 					determineIfHasAltBranches(function(bHasAltBranches){
 						if (!bHasAltBranches){
 							console.log("determineIfStableInLaterUnits no alt took "+(Date.now()-start_time)+"ms");
