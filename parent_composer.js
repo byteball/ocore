@@ -37,8 +37,8 @@ function pickParentUnits(conn, arrWitnesses, timestamp, onDone){
 			if (rows.filter(function(row){ return (row.count_matching_witnesses >= count_required_matches); }).length === 0)
 				return pickDeepParentUnits(conn, arrWitnesses, null, onDone);
 			var arrParentUnits = rows.map(function(row){ return row.unit; });
-			adjustParentsToNotRetreatWitnessedLevel(conn, arrWitnesses, arrParentUnits, function(arrAdjustedParents){
-				onDone(null, arrAdjustedParents);
+			adjustParentsToNotRetreatWitnessedLevel(conn, arrWitnesses, arrParentUnits, function(arrAdjustedParents, max_parent_wl){
+				onDone(null, arrAdjustedParents, max_parent_wl);
 			});
 		//	checkWitnessedLevelNotRetreatingAndLookLower(conn, arrWitnesses, arrParentUnits, (arrParentUnits.length === 1), onDone);
 		}
@@ -86,13 +86,13 @@ function adjustParentsToNotRetreatWitnessedLevel(conn, arrWitnesses, arrParentUn
 		determineWitnessedLevels(conn, arrWitnesses, arrCurrentParentUnits, function(child_witnessed_level, max_parent_wl, parent_with_max_wl, best_parent_unit){
 			if (child_witnessed_level >= max_parent_wl){
 				if (arrCurrentParentUnits.length <= constants.MAX_PARENTS_PER_UNIT)
-					return handleAdjustedParents(arrCurrentParentUnits.sort());
+					return handleAdjustedParents(arrCurrentParentUnits.sort(), max_parent_wl);
 				var bp_index = arrCurrentParentUnits.indexOf(best_parent_unit);
 				if (bp_index < 0)
 					throw Error("best parent "+best_parent_unit+" not found among parents "+arrCurrentParentUnits.join(', '));
 				arrCurrentParentUnits.splice(bp_index, 1);
 				arrCurrentParentUnits.unshift(best_parent_unit); // moves best_parent_unit to the 1st position to make sure it is not sliced off
-				return handleAdjustedParents(arrCurrentParentUnits.slice(0, constants.MAX_PARENTS_PER_UNIT).sort());
+				return handleAdjustedParents(arrCurrentParentUnits.slice(0, constants.MAX_PARENTS_PER_UNIT).sort(), max_parent_wl);
 			}
 			console.log('wl would retreat from '+max_parent_wl+' to '+child_witnessed_level+', parents '+arrCurrentParentUnits.join(', '));
 			replaceExcludedParent(arrCurrentParentUnits, parent_with_max_wl);
@@ -160,7 +160,11 @@ function determineWitnessedLevels(conn, arrWitnesses, arrParentUnits, handleResu
 			function (rows) {
 				var max_parent_wl = rows[0].witnessed_level;
 				var parent_with_max_wl = rows[0].unit;
-				handleResult(witnessed_level, max_parent_wl, parent_with_max_wl, best_parent_unit);
+				storage.readStaticUnitProps(conn, best_parent_unit, function(bestParentProps){
+					if (bestParentProps.witnessed_level === max_parent_wl)
+						parent_with_max_wl = best_parent_unit;
+					handleResult(witnessed_level, max_parent_wl, parent_with_max_wl, best_parent_unit);
+				});
 			}
 		);
 	//	storage.readStaticUnitProps(conn, best_parent_unit, function(bestParentProps){
@@ -172,7 +176,7 @@ function determineWitnessedLevels(conn, arrWitnesses, arrParentUnits, handleResu
 function checkWitnessedLevelNotRetreatingAndLookLower(conn, arrWitnesses, arrParentUnits, bRetryDeeper, onDone){
 	determineWitnessedLevels(conn, arrWitnesses, arrParentUnits, function(child_witnessed_level, max_parent_wl){
 		if (child_witnessed_level >= max_parent_wl)
-			return onDone(null, arrParentUnits);
+			return onDone(null, arrParentUnits, max_parent_wl);
 		console.log("witness level would retreat from "+max_parent_wl+" to "+child_witnessed_level+" if parents = "+arrParentUnits.join(', ')+", will look for older parents");
 		bRetryDeeper
 			? pickDeepParentUnits(conn, arrWitnesses, max_parent_wl, onDone)
@@ -240,31 +244,58 @@ function trimParentList(conn, arrParentUnits, arrWitnesses, handleTrimmedList){
 }
 
 function pickParentUnitsAndLastBall(conn, arrWitnesses, timestamp, onDone){
-	pickParentUnits(conn, arrWitnesses, timestamp, function(err, arrParentUnits){
+
+	pickParentUnits(conn, arrWitnesses, timestamp, function(err, arrParentUnits, max_parent_wl){
 		if (err)
 			return onDone(err);
-		findLastStableMcBall(conn, arrWitnesses, function(err, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
+		checkParentUnitsAndDetermineLastBall(conn, arrWitnesses, arrParentUnits, function(err,arrTrimmedParentUnits, last_stable_ball, last_stable_unit, last_stable_mci){
+			if (err)
+				return pickParentsDeeper(max_parent_wl)
+			onDone(null, arrTrimmedParentUnits, last_stable_ball, last_stable_unit, last_stable_mci);
+
+		})
+	});
+
+	function pickParentsDeeper(max_parent_wl){
+		process.stdout.write("will pick parents deeper " + max_parent_wl);
+		pickDeepParentUnits(conn, arrWitnesses, max_parent_wl, function(err, arrParentUnits, max_parent_wl){
 			if (err)
 				return onDone(err);
-			adjustLastStableMcBallAndParents(
-				conn, last_stable_mc_ball_unit, arrParentUnits, arrWitnesses, 
-				function(last_stable_ball, last_stable_unit, last_stable_mci, arrAdjustedParentUnits){
-					trimParentList(conn, arrAdjustedParentUnits, arrWitnesses, function(arrTrimmedParentUnits){
-						storage.findWitnessListUnit(conn, arrWitnesses, last_stable_mci, function(witness_list_unit){
-							var objFakeUnit = {parent_units: arrTrimmedParentUnits};
-							if (witness_list_unit)
-								objFakeUnit.witness_list_unit = witness_list_unit;
-							storage.determineIfHasWitnessListMutationsAlongMc(conn, objFakeUnit, last_stable_unit, arrWitnesses, function(err){
-								if (err)
-									return onDone(err); // if first arg is not array, it is error
-								onDone(null, arrTrimmedParentUnits, last_stable_ball, last_stable_unit, last_stable_mci);
-							});
+				checkParentUnitsAndDetermineLastBall(conn, arrWitnesses, arrParentUnits, function(err,arrTrimmedParentUnits, last_stable_ball, last_stable_unit, last_stable_mci){
+					if (err)
+						return pickParentsDeeper(max_parent_wl);
+					onDone(null, arrTrimmedParentUnits, last_stable_ball, last_stable_unit, last_stable_mci);
+				});
+		});
+	}
+}
+
+function checkParentUnitsAndDetermineLastBall(conn, arrWitnesses, arrParentUnits, onDone){
+
+	findLastStableMcBall(conn, arrWitnesses, function(err, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
+		if (err)
+			return onDone(err);
+		adjustLastStableMcBallAndParents(
+			conn, last_stable_mc_ball_unit, arrParentUnits, arrWitnesses, 
+			function(last_stable_ball, last_stable_unit, last_stable_mci, arrAdjustedParentUnits){
+				trimParentList(conn, arrAdjustedParentUnits, arrWitnesses, function(arrTrimmedParentUnits){
+					storage.findWitnessListUnit(conn, arrWitnesses, last_stable_mci, function(witness_list_unit){
+						var objFakeUnit = {parent_units: arrTrimmedParentUnits};
+						if (witness_list_unit)
+							objFakeUnit.witness_list_unit = witness_list_unit;
+						storage.determineIfHasWitnessListMutationsAlongMc(conn, objFakeUnit, last_stable_unit, arrWitnesses, function(err){
+							if (err)
+								return onDone(err); // if first arg is not array, it is error
+							onDone(null, arrTrimmedParentUnits, last_stable_ball, last_stable_unit, last_stable_mci);
 						});
 					});
-				}
-			);
-		});
+				});
+			}
+		);
 	});
+
 }
+
+
 
 exports.pickParentUnitsAndLastBall = pickParentUnitsAndLastBall;

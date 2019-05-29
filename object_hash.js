@@ -77,7 +77,7 @@ function getUnitHashToSign(objUnit) {
 	var objNakedUnit = getNakedUnit(objUnit);
 	for (var i=0; i<objNakedUnit.authors.length; i++)
 		delete objNakedUnit.authors[i].authentifiers;
-	var sourceString = (objUnit.version === constants.versionWithoutTimestamp) ? getSourceString(objNakedUnit) : getJsonSourceString(objNakedUnit)
+	var sourceString = (typeof objUnit.version === 'undefined' || objUnit.version === constants.versionWithoutTimestamp) ? getSourceString(objNakedUnit) : getJsonSourceString(objNakedUnit);
 	return crypto.createHash("sha256").update(sourceString, "utf8").digest();
 }
 
