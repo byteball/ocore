@@ -35,7 +35,7 @@ function pickParentUnits(conn, arrWitnesses, timestamp, onDone){
 			var count_required_matches = constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS;
 			// we need at least one compatible parent, otherwise go deep
 			if (rows.filter(function(row){ return (row.count_matching_witnesses >= count_required_matches); }).length === 0)
-				return pickDeepParentUnits(conn, arrWitnesses, null, onDone);
+				return pickDeepParentUnits(conn, arrWitnesses, timestamp, null, onDone);
 			var arrParentUnits = rows.map(function(row){ return row.unit; });
 			adjustParentsToNotRetreatWitnessedLevel(conn, arrWitnesses, arrParentUnits, function(arrAdjustedParents, max_parent_wl){
 				onDone(null, arrAdjustedParents, max_parent_wl);
@@ -102,12 +102,14 @@ function adjustParentsToNotRetreatWitnessedLevel(conn, arrWitnesses, arrParentUn
 	checkWitnessedLevelAndReplace(arrParentUnits);
 }
 
-function pickParentUnitsUnderWitnessedLevel(conn, arrWitnesses, max_wl, onDone){
+function pickParentUnitsUnderWitnessedLevel(conn, arrWitnesses, timestamp, max_wl, onDone){
 	console.log("looking for free parents under wl "+max_wl);
+	var bWithTimestamp = (storage.getMinRetrievableMci() >= constants.timestampUpgradeMci);
+	var ts_cond = bWithTimestamp ? "AND timestamp<=" + timestamp : '';
 	conn.query(
 		"SELECT unit \n\
 		FROM units "+(conf.storage === 'sqlite' ? "INDEXED BY byFree" : "")+" \n\
-		WHERE +sequence='good' AND is_free=1 AND witnessed_level<? \n\
+		WHERE +sequence='good' AND is_free=1 AND witnessed_level<? "+ts_cond+" \n\
 			AND ( \n\
 				SELECT COUNT(*) \n\
 				FROM unit_witnesses \n\
@@ -117,25 +119,27 @@ function pickParentUnitsUnderWitnessedLevel(conn, arrWitnesses, max_wl, onDone){
 		[max_wl, arrWitnesses, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS, constants.MAX_PARENTS_PER_UNIT], 
 		function(rows){
 			if (rows.length === 0)
-				return pickDeepParentUnits(conn, arrWitnesses, max_wl, onDone);
+				return pickDeepParentUnits(conn, arrWitnesses, timestamp, max_wl, onDone);
 			var arrParentUnits = rows.map(function(row){ return row.unit; }).sort();
-			checkWitnessedLevelNotRetreatingAndLookLower(conn, arrWitnesses, arrParentUnits, true, onDone);
+			checkWitnessedLevelNotRetreatingAndLookLower(conn, arrWitnesses, timestamp, arrParentUnits, true, onDone);
 		}
 	);
 }
 
 // if we failed to find compatible parents among free units. 
 // (This may be the case if an attacker floods the network trying to shift the witness list)
-function pickDeepParentUnits(conn, arrWitnesses, max_wl, onDone){
+function pickDeepParentUnits(conn, arrWitnesses, timestamp, max_wl, onDone){
 	// fixed: an attacker could cover all free compatible units with his own incompatible ones, then those that were not on MC will be never included
 	//var cond = bDeep ? "is_on_main_chain=1" : "is_free=1";
 	
 	console.log("looking for deep parents, max_wl="+max_wl);
 	var and_wl = (max_wl === null) ? '' : "AND +is_on_main_chain=1 AND witnessed_level<"+max_wl;
+	var bWithTimestamp = (storage.getMinRetrievableMci() >= constants.timestampUpgradeMci);
+	var ts_cond = bWithTimestamp ? "AND timestamp<=" + timestamp : '';
 	conn.query(
 		"SELECT unit \n\
 		FROM units \n\
-		WHERE +sequence='good' "+and_wl+" \n\
+		WHERE +sequence='good' "+and_wl+" "+ts_cond+" \n\
 			AND ( \n\
 				SELECT COUNT(*) \n\
 				FROM unit_witnesses \n\
@@ -147,7 +151,7 @@ function pickDeepParentUnits(conn, arrWitnesses, max_wl, onDone){
 			if (rows.length === 0)
 				return onDone("failed to find compatible parents: no deep units");
 			var arrParentUnits = rows.map(function(row){ return row.unit; });
-			checkWitnessedLevelNotRetreatingAndLookLower(conn, arrWitnesses, arrParentUnits, true, onDone);
+			checkWitnessedLevelNotRetreatingAndLookLower(conn, arrWitnesses, timestamp, arrParentUnits, true, onDone);
 		}
 	);
 }
@@ -173,14 +177,14 @@ function determineWitnessedLevels(conn, arrWitnesses, arrParentUnits, handleResu
 	});
 }
 
-function checkWitnessedLevelNotRetreatingAndLookLower(conn, arrWitnesses, arrParentUnits, bRetryDeeper, onDone){
+function checkWitnessedLevelNotRetreatingAndLookLower(conn, arrWitnesses, timestamp, arrParentUnits, bRetryDeeper, onDone){
 	determineWitnessedLevels(conn, arrWitnesses, arrParentUnits, function(child_witnessed_level, max_parent_wl){
 		if (child_witnessed_level >= max_parent_wl)
 			return onDone(null, arrParentUnits, max_parent_wl);
 		console.log("witness level would retreat from "+max_parent_wl+" to "+child_witnessed_level+" if parents = "+arrParentUnits.join(', ')+", will look for older parents");
 		bRetryDeeper
-			? pickDeepParentUnits(conn, arrWitnesses, max_parent_wl, onDone)
-			: pickParentUnitsUnderWitnessedLevel(conn, arrWitnesses, max_parent_wl, onDone);
+			? pickDeepParentUnits(conn, arrWitnesses, timestamp, max_parent_wl, onDone)
+			: pickParentUnitsUnderWitnessedLevel(conn, arrWitnesses, timestamp, max_parent_wl, onDone);
 	});
 }
 
@@ -248,7 +252,7 @@ function pickParentUnitsAndLastBall(conn, arrWitnesses, timestamp, onDone){
 	pickParentUnits(conn, arrWitnesses, timestamp, function(err, arrParentUnits, max_parent_wl){
 		if (err)
 			return onDone(err);
-		checkParentUnitsAndDetermineLastBall(conn, arrWitnesses, arrParentUnits, function(err,arrTrimmedParentUnits, last_stable_ball, last_stable_unit, last_stable_mci){
+		findLastBallAndAdjust(conn, arrWitnesses, arrParentUnits, function(err,arrTrimmedParentUnits, last_stable_ball, last_stable_unit, last_stable_mci){
 			if (err)
 				return pickParentsDeeper(max_parent_wl)
 			onDone(null, arrTrimmedParentUnits, last_stable_ball, last_stable_unit, last_stable_mci);
@@ -258,10 +262,10 @@ function pickParentUnitsAndLastBall(conn, arrWitnesses, timestamp, onDone){
 
 	function pickParentsDeeper(max_parent_wl){
 		process.stdout.write("will pick parents deeper " + max_parent_wl);
-		pickDeepParentUnits(conn, arrWitnesses, max_parent_wl, function(err, arrParentUnits, max_parent_wl){
+		pickDeepParentUnits(conn, arrWitnesses, timestamp, max_parent_wl, function(err, arrParentUnits, max_parent_wl){
 			if (err)
 				return onDone(err);
-				checkParentUnitsAndDetermineLastBall(conn, arrWitnesses, arrParentUnits, function(err,arrTrimmedParentUnits, last_stable_ball, last_stable_unit, last_stable_mci){
+				findLastBallAndAdjust(conn, arrWitnesses, arrParentUnits, function(err,arrTrimmedParentUnits, last_stable_ball, last_stable_unit, last_stable_mci){
 					if (err)
 						return pickParentsDeeper(max_parent_wl);
 					onDone(null, arrTrimmedParentUnits, last_stable_ball, last_stable_unit, last_stable_mci);
@@ -270,7 +274,7 @@ function pickParentUnitsAndLastBall(conn, arrWitnesses, timestamp, onDone){
 	}
 }
 
-function checkParentUnitsAndDetermineLastBall(conn, arrWitnesses, arrParentUnits, onDone){
+function findLastBallAndAdjust(conn, arrWitnesses, arrParentUnits, onDone){
 
 	findLastStableMcBall(conn, arrWitnesses, function(err, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
 		if (err)
