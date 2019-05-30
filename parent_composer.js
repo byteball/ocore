@@ -261,7 +261,6 @@ function pickParentUnitsAndLastBall(conn, arrWitnesses, timestamp, onDone){
 	});
 
 	function pickParentsDeeper(max_parent_wl){
-		process.stdout.write("will pick parents deeper " + max_parent_wl);
 		pickDeepParentUnits(conn, arrWitnesses, timestamp, max_parent_wl, function(err, arrParentUnits, max_parent_wl){
 			if (err)
 				return onDone(err);
