@@ -80,18 +80,22 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, onDone){
 		profiler.start();
 		findNextUpMainChainUnit(unit, function(best_parent_unit){
 			storage.readUnitProps(conn, best_parent_unit, function(objBestParentUnitProps){
-				var objBestParentUnitProps2 = storage.assocUnstableUnits[best_parent_unit];
+				var objBestParentUnitProps2 = storage.assocUnstableUnits[best_parent_unit] || storage.assocStableUnits[best_parent_unit];
 				if (!objBestParentUnitProps2){
 					if (storage.isGenesisUnit(best_parent_unit))
 						objBestParentUnitProps2 = storage.assocStableUnits[best_parent_unit];
 					else
 						throw Error("unstable unit not found: "+best_parent_unit);
 				}
-				var objBestParentUnitPropsForCheck = _.cloneDeep(objBestParentUnitProps2);
+				var objBestParentUnitProps2ForCheck = _.clone(objBestParentUnitProps2);
+				delete objBestParentUnitProps2ForCheck.parent_units;
+				delete objBestParentUnitProps2ForCheck.bAA;
+				var objBestParentUnitPropsForCheck = _.clone(objBestParentUnitProps);
+				delete objBestParentUnitPropsForCheck.bAA;
 				delete objBestParentUnitPropsForCheck.parent_units;
 				if (!storage.isGenesisUnit(best_parent_unit))
-					delete objBestParentUnitPropsForCheck.earned_headers_commission_recipients;
-				if (!conf.bFaster && !_.isEqual(objBestParentUnitPropsForCheck, objBestParentUnitProps))
+					delete objBestParentUnitProps2ForCheck.earned_headers_commission_recipients;
+				if (!conf.bFaster && !_.isEqual(objBestParentUnitProps2ForCheck, objBestParentUnitPropsForCheck))
 					throwError("different props, db: "+JSON.stringify(objBestParentUnitProps)+", unstable: "+JSON.stringify(objBestParentUnitProps2));
 				if (!objBestParentUnitProps.is_on_main_chain)
 					conn.query("UPDATE units SET is_on_main_chain=1, main_chain_index=NULL WHERE unit=?", [best_parent_unit], function(){
@@ -526,7 +530,16 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, onDone){
 									determineMaxAltLevel(
 										conn, first_unstable_mc_index, first_unstable_mc_level, arrAltBestChildren, arrWitnesses,
 										function(max_alt_level){
-											(min_mc_wl > max_alt_level) ? advanceLastStableMcUnitAndTryNext() : finish();
+											if (min_mc_wl > max_alt_level)
+												return advanceLastStableMcUnitAndTryNext();
+											console.log('--- with branches - unstable');
+											if (arrAllParents.length <= 1) // single free unit
+												return finish();
+											console.log('--- will try tip parent '+tip_unit);
+											determineIfStableInLaterUnits(conn, first_unstable_mc_unit, [tip_unit], function (bStable) {
+												console.log('---- tip only: '+bStable);
+												bStable ? advanceLastStableMcUnitAndTryNext() : finish();
+											});
 										}
 									);
 								});
@@ -1202,6 +1215,7 @@ function markMcIndexStable(conn, batch, mci, onDone){
 			},
 			ifFound: function(objJoint){
 				var content_hash = objectHash.getUnitContentHash(objJoint.unit);
+				// not setting it in kv store yet, it'll be done later by updateMinRetrievableMciAfterStabilizingMci
 				conn.query("UPDATE units SET content_hash=? WHERE unit=?", [content_hash, unit], function(){
 					onSet();
 				});
@@ -1337,6 +1351,8 @@ function markMcIndexStable(conn, batch, mci, onDone){
 												if (objJoint.ball)
 													throw Error("ball already set in kv store of unit "+unit);
 												objJoint.ball = ball;
+												if (arrSkiplistUnits.length > 0)
+													objJoint.skiplist_units = arrSkiplistUnits;
 												batch.put(key, JSON.stringify(objJoint));
 												if (arrSkiplistUnits.length === 0)
 													return saveUnstablePayloads();
@@ -1359,16 +1375,52 @@ function markMcIndexStable(conn, batch, mci, onDone){
 										delete storage.assocUnstableMessages[unit];
 										return cb();
 									}
+									var assocDefinitionByAddress = {};
 									storage.assocUnstableMessages[unit].forEach(function (message) {
 										if (message.app === 'data_feed')
 											addDataFeeds(message.payload);
-										else if (message.app === 'definition')
-											batch.put('d\n' + message.payload.address, JSON.stringify(message.payload.definition));
+										else if (message.app === 'definition') {
+											var address = message.payload.address;
+											var json = JSON.stringify(message.payload.definition);
+											assocDefinitionByAddress[address] = json;
+										//	batch.put('d\n' + address, json);
+										}
 										else
 											throw Error("unrecognized app in unstable message: " + message.app);
 									});
 									delete storage.assocUnstableMessages[unit];
-									cb();
+									if (Object.keys(assocDefinitionByAddress).length === 0)
+										return cb();
+									var arrValues = [];
+									for (var address in assocDefinitionByAddress)
+										arrValues.push("(" + conn.escape(address) + ", " + conn.escape(assocDefinitionByAddress[address]) + ", " + conn.escape(unit) + ", "+mci+")");
+									conn.query(
+										"INSERT " + db.getIgnore() + " INTO aa_addresses (address, definition, unit, mci) VALUES " + arrValues.join(', '),
+										function (res) {
+											if (res.affectedRows === 0) // repeated definition
+												return cb();
+											// fill the initial balances accumulated before it became known that this address is an AA
+											var arrAddresses = Object.keys(assocDefinitionByAddress);
+											conn.query(
+												"INSERT INTO aa_balances (address, asset, balance) \n\
+												SELECT address, IFNULL(asset, 'base'), SUM(amount) AS balance \n\
+												FROM outputs CROSS JOIN units USING(unit) \n\
+												WHERE address IN(" + arrAddresses.map(conn.escape).join(', ') + ") AND is_spent=0 AND main_chain_index<? \n\
+												GROUP BY address", // not including the outputs on the current mci, which will trigger the AA and be accounted for separately
+												[mci],
+												function () {
+													var arrAddressValues = arrAddresses.map(function (address) { return "(" + conn.escape(address) + ")"; });
+													conn.query(
+														"INSERT " + db.getIgnore() + " INTO addresses (address) \n\
+														VALUES " + arrAddressValues.join(', '),
+														function () { 
+															cb();
+														}
+													);
+												}
+											);
+										}
+									);
 								}
 								
 								function addDataFeeds(payload){
@@ -1430,14 +1482,43 @@ function markMcIndexStable(conn, batch, mci, onDone){
 				profiler.stop('mc-headers-commissions');
 				paid_witnessing.updatePaidWitnesses(conn, cb);
 			}
-		], function(){
+		], handleAATriggers);
+	}
+
+	function handleAATriggers() {
+		// a single unit can send to several AA addresses
+		// a single unit can have multiple outputs to the same AA address, even in the same asset
+		conn.query(
+			"SELECT DISTINCT address, definition, units.unit \n\
+			FROM units CROSS JOIN outputs USING(unit) CROSS JOIN aa_addresses USING(address) LEFT JOIN assets ON asset=assets.unit \n\
+			WHERE main_chain_index = ? AND sequence = 'good' AND (outputs.asset IS NULL OR is_private=0) \n\
+				AND NOT EXISTS (SELECT 1 FROM unit_authors CROSS JOIN aa_addresses USING(address) WHERE unit_authors.unit=units.unit) \n\
+			ORDER BY units.unit, address", // deterministic order
+			[mci],
+			function (rows) {
+				if (rows.length === 0)
+					return finishMarkMcIndexStable();
+				var arrValues = rows.map(function (row) {
+					return "("+mci+", "+conn.escape(row.unit)+", "+conn.escape(row.address)+")";
+				});
+				conn.query("INSERT INTO aa_triggers (mci, unit, address) VALUES " + arrValues.join(', '), function () {
+					finishMarkMcIndexStable();
+					process.nextTick(function(){ // don't call it synchronously with event emitter
+						eventBus.emit("new_aa_triggers"); // they'll be handled after the current write finishes
+					});
+				});
+			}
+		);
+	}
+
+	
+	function finishMarkMcIndexStable() {
 			process.nextTick(function(){ // don't call it synchronously with event emitter
 				eventBus.emit("mci_became_stable", mci);
 			});
 			onDone();
-		});
 	}
-	
+
 }
 
 // returns list of past MC indices for skiplist

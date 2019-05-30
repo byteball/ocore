@@ -545,7 +545,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 			case 'formula':
 				if (objValidationState.last_ball_mci < constants.formulaUpgradeMci)
 					return cb("formulas not allowed at this mci yet");
-				formulaParser.validate(args, complexity, function (result) {
+				formulaParser.validate({ formula: args, complexity: complexity }, function (result) {
 					complexity = result.complexity;
 					cb(result.error);
 				});
@@ -845,7 +845,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				var relation = args[2];
 				var value = args[3];
 				var min_mci = args[4] || 0;
-				dataFeeds.dataFeedExists(arrAddresses, feed_name, relation, value, min_mci, objValidationState.last_ball_mci, cb2);
+				dataFeeds.dataFeedExists(arrAddresses, feed_name, relation, value, min_mci, objValidationState.last_ball_mci, false, cb2);
 				/*
 				var value_condition;
 				var index;
@@ -894,12 +894,12 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				var min_mci = args[3] || 0;
 				var serialized_proof = assocAuthentifiers[path];
 				var proof = merkle.deserializeMerkleProof(serialized_proof);
-				console.error('merkle root '+proof.root);
+			//	console.error('merkle root '+proof.root);
 				if (!merkle.verifyMerkleProof(element, proof)){
 					fatal_error = "bad merkle proof at path "+path;
 					return cb2(false);
 				}
-				dataFeeds.dataFeedExists(arrAddresses, feed_name, '=', proof.root, min_mci, objValidationState.last_ball_mci, cb2);
+				dataFeeds.dataFeedExists(arrAddresses, feed_name, '=', proof.root, min_mci, objValidationState.last_ball_mci, false, cb2);
 				/*
 				conn.query(
 					"SELECT 1 FROM data_feeds CROSS JOIN units USING(unit) JOIN unit_authors USING(unit) \n\
@@ -1039,7 +1039,22 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 			case 'formula':
 				var formula = args;
 				augmentMessagesOrIgnore(formula, function (messages) {
-					formulaParser.evaluate(conn, formula, messages, objValidationState, address, function (result) {
+					var trigger = {};
+					objUnit.messages.forEach(function (message) {
+						if (message.app === 'data' && !trigger.data) // use the first data mesage, ignore the subsequent ones
+							trigger.data = message.payload;
+					});
+					var opts = {
+						conn: conn,
+						formula: formula,
+						messages: messages,
+						trigger: trigger,
+						objValidationState: objValidationState,
+						address: address
+					};
+					formulaParser.evaluate(opts, function (err, result) {
+						if (err)
+							return cb2(false);
 						if (typeof result === 'boolean') {
 							cb2(result);
 						} else if (typeof result === 'string') {

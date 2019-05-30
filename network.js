@@ -25,6 +25,7 @@ var light = require('./light.js');
 var inputs = require('./inputs.js');
 var breadcrumbs = require('./breadcrumbs.js');
 var mail = process.browser ? null : require('./mail.js'+'');
+var aa_composer = process.browser ? null : require('./aa_composer.js'+'');
 var libraryPackageJson = require('./package.json');
 
 var FORWARDING_TIMEOUT = 10*1000; // don't forward if the joint was received more than FORWARDING_TIMEOUT ms ago
@@ -924,6 +925,8 @@ function forwardJoint(ws, objJoint){
 }
 
 function handleJoint(ws, objJoint, bSaved, callbacks){
+	if ('aa' in objJoint)
+		return callbacks.ifJointError("AA unit cannot be broadcast");
 	var unit = objJoint.unit.unit;
 	if (assocUnitsInWork[unit])
 		return callbacks.ifUnitInWork();
@@ -958,10 +961,13 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 						eventBus.emit("validated-"+unit, false);
 				},
 				ifTransientError: function(error){
-					throw Error(error);
+				//	throw Error(error);
+					callbacks.ifUnitError(error);
 					unlock();
 					console.log("############################## transient error "+error);
-					delete assocUnitsInWork[unit];
+					joint_storage.removeUnhandledJointAndDependencies(unit, function(){
+						delete assocUnitsInWork[unit];
+					});
 				},
 				ifNeedHashTree: function(){
 					console.log('need hash tree for unit '+unit);
@@ -3064,6 +3070,9 @@ function startRelay(){
 	setInterval(joint_storage.purgeUncoveredNonserialJointsUnderLock, 60*1000);
 	setInterval(handleSavedPrivatePayments, 5*1000);
 	joint_storage.readDependentJointsThatAreReady(null, handleSavedJoint);
+
+	eventBus.on('new_aa_unit', findAndHandleJointsThatAreReady);
+	aa_composer.handleAATriggers(); // in case anything's left from the previous run
 }
 
 function startLightClient(){

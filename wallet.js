@@ -26,6 +26,7 @@ var balances = require('./balances');
 var Mnemonic = require('bitcore-mnemonic');
 var inputs = require('./inputs.js');
 var prosaic_contract = require('./prosaic_contract.js');
+var signed_message = require('./signed_message.js');
 
 var message_counter = 0;
 var assocLastFailedAssetMetadataTimestamps = {};
@@ -527,7 +528,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					catch(e){
 						return callbacks.ifError("wrong signed message");
 					}
-					validation.validateSignedMessage(objSignedMessage, function(err) {
+					signed_message.validateSignedMessage(db, objSignedMessage, objContract.peer_address, function(err) {
 						if (err || objSignedMessage.authors[0].address !== objContract.peer_address || objSignedMessage.signed_message != objContract.hash)
 							return callbacks.ifError("wrong contract signature");
 						processResponse(objSignedMessage);
@@ -2204,9 +2205,14 @@ function determineIfDeviceCanBeRemoved(device_address, handleResult) {
 };
 
 
-function signMessage(from_address, message, arrSigningDeviceAddresses, signWithLocalPrivateKey, handleResult){
+function signMessage(message, from_address, arrSigningDeviceAddresses, signWithLocalPrivateKey, bNetworkAware, handleResult){
+	if (!ValidationUtils.isValidAddress(from_address) && ValidationUtils.isValidAddress(message)) {
+		var tmp = from_address;
+		from_address = message;
+		message = tmp;
+	}
 	var signer = getSigner({}, arrSigningDeviceAddresses, signWithLocalPrivateKey);
-	composer.signMessage(from_address, message, signer, handleResult);
+	signed_message.signMessage(message, from_address, signer, bNetworkAware, handleResult);
 }
 
 // todo, almost same as payment

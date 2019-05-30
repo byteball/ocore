@@ -252,18 +252,7 @@ function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 											breadcrumbs.add("------- done archiving "+row.unit);
 											var parent_units = storage.assocUnstableUnits[row.unit].parent_units;
 											storage.forgetUnit(row.unit);
-											parent_units.forEach(function(parent_unit){
-												if (!storage.assocUnstableUnits[parent_unit]) // the parent is already stable
-													return;
-												var bHasChildren = false;
-												for (var unit in storage.assocUnstableUnits){
-													var o = storage.assocUnstableUnits[unit];
-													if (o.parent_units.indexOf(parent_unit) >= 0)
-														bHasChildren = true;
-												}
-												if (!bHasChildren)
-													storage.assocUnstableUnits[parent_unit].is_free = 1;
-											});
+											storage.fixIsFreeAfterForgettingUnit(parent_units);
 											unlock();
 											conn.release();
 											cb();

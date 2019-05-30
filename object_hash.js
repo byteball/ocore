@@ -73,6 +73,13 @@ function getUnitHashToSign(objUnit) {
 	return crypto.createHash("sha256").update(getSourceString(objNakedUnit), "utf8").digest();
 }
 
+function getSignedPackageHashToSign(signedPackage) {
+	var unsignedPackage = _.cloneDeep(signedPackage);
+	for (var i=0; i<unsignedPackage.authors.length; i++)
+		delete unsignedPackage.authors[i].authentifiers;
+	return crypto.createHash("sha256").update(getSourceString(unsignedPackage), "utf8").digest();
+}
+
 function getBallHash(unit, arrParentBalls, arrSkiplistBalls, bNonserial) {
 	var objBall = {
 		unit: unit
@@ -143,5 +150,6 @@ exports.cleanNullsDeep = cleanNullsDeep;
 
 exports.getDeviceAddress = getDeviceAddress;
 exports.getDeviceMessageHashToSign = getDeviceMessageHashToSign;
+exports.getSignedPackageHashToSign = getSignedPackageHashToSign;
 
 

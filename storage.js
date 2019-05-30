@@ -47,7 +47,7 @@ function readJoint(conn, unit, callbacks, bSql) {
 			if (rows.length === 0)
 				throw Error("unit found in kv but not in sql: "+unit);
 			var row = rows[0];
-			objJoint.unit.timestamp = row.timestamp;
+			objJoint.unit.timestamp = parseInt(row.timestamp);
 			objJoint.unit.main_chain_index = row.main_chain_index;
 			callbacks.ifFound(objJoint);
 		});
@@ -694,6 +694,17 @@ function readDefinition(conn, definition_chash, callbacks){
 	});
 }
 
+function readAADefinition(conn, address, handleDefinition) {
+	conn.query("SELECT definition FROM aa_addresses WHERE address=?", [address], function (rows) {
+		if (rows.length !== 1)
+			return handleDefinition(null);
+		var arrDefinition = JSON.parse(rows[0].definition);
+		if (arrDefinition[0] !== 'autonomous agent')
+			throw Error("non-AA definition in AA unit");
+		handleDefinition(arrDefinition);
+	});
+}
+
 function readFreeJoints(ifFoundFreeBall, onDone){
 	db.query("SELECT units.unit FROM units LEFT JOIN archived_joints USING(unit) WHERE is_free=1 AND archived_joints.unit IS NULL", function(rows){
 		async.each(rows, function(row, cb){
@@ -738,7 +749,7 @@ function readUnitProps(conn, unit, handleProps){
 		[unit], 
 		function(rows){
 			if (rows.length !== 1)
-				throw Error("not 1 row");
+				throw Error("not 1 row, unit "+unit);
 			var props = rows[0];
 			props.author_addresses = props.author_addresses.split(',');
 			if (props.is_stable) {
@@ -752,6 +763,7 @@ function readUnitProps(conn, unit, handleProps){
 				var props2 = _.cloneDeep(assocUnstableUnits[unit]);
 				delete props2.parent_units;
 				delete props2.earned_headers_commission_recipients;
+				delete props2.bAA;
 				if (!_.isEqual(props, props2)) {
 					debugger;
 					throw Error("different props of "+unit+", mem: "+JSON.stringify(props2)+", db: "+JSON.stringify(props)+", stack "+stack);
@@ -799,6 +811,7 @@ function readPropsOfUnits(conn, earlier_unit, arrLaterUnits, handleProps){
 					delete props.payload_commission;
 					delete props.sequence;
 					delete props.witness_list_unit;
+					delete props.bAA;
 				});
 				if (!_.isEqual(objEarlierUnitProps, objEarlierUnitProps2cmp))
 					throwError("different earlier, db "+JSON.stringify(objEarlierUnitProps)+", mem "+JSON.stringify(objEarlierUnitProps2cmp));
@@ -1253,6 +1266,8 @@ function buildListOfMcUnitsWithPotentiallyDifferentWitnesslists(conn, objUnit, l
 
 
 function readStaticUnitProps(conn, unit, handleProps, bReturnNullIfNotFound){
+	if (!unit)
+		throw Error("no unit");
 	var props = assocCachedUnits[unit];
 	if (props)
 		return handleProps(props);
@@ -1260,7 +1275,7 @@ function readStaticUnitProps(conn, unit, handleProps, bReturnNullIfNotFound){
 		if (rows.length !== 1){
 			if (bReturnNullIfNotFound)
 				return handleProps(null);
-			throw Error("not 1 unit");
+			throw Error("not 1 unit "+unit);
 		}
 		props = rows[0];
 		assocCachedUnits[unit] = props;
@@ -1274,7 +1289,7 @@ function readUnitAuthors(conn, unit, handleAuthors){
 		return handleAuthors(arrAuthors);
 	conn.query("SELECT address FROM unit_authors WHERE unit=?", [unit], function(rows){
 		if (rows.length === 0)
-			throw Error("no authors");
+			throw Error("no authors, unit "+unit);
 		var arrAuthors2 = rows.map(function(row){ return row.address; }).sort();
 	//	if (arrAuthors && arrAuthors.join('-') !== arrAuthors2.join('-'))
 	//		throw Error('cache is corrupt');
@@ -1313,6 +1328,22 @@ function forgetUnit(unit){
 		throw Error("trying to forget stable unit "+unit);
 	delete assocStableUnits[unit];
 	delete assocUnstableMessages[unit];
+}
+
+// parent_units are parent units of the forgotten unit
+function fixIsFreeAfterForgettingUnit(parent_units) {
+	parent_units.forEach(function(parent_unit){
+		if (!assocUnstableUnits[parent_unit]) // the parent is already stable
+			return;
+		var bHasChildren = false;
+		for (var unit in assocUnstableUnits){
+			var o = assocUnstableUnits[unit];
+			if (o.parent_units.indexOf(parent_unit) >= 0)
+				bHasChildren = true;
+		}
+		if (!bHasChildren)
+			assocUnstableUnits[parent_unit].is_free = 1;
+	});
 }
 
 function shrinkCache(){
@@ -1477,9 +1508,9 @@ function initUnstableMessages(conn, onDone){
 					ifFound: function(objJoint){
 						objJoint.unit.messages.forEach(function(message){
 							if (message.app === 'data_feed' || message.app === 'definition') {
-								if (!storage.assocUnstableMessages[row.unit])
-									storage.assocUnstableMessages[row.unit] = [];
-								storage.assocUnstableMessages[row.unit].push(message);
+								if (!assocUnstableMessages[row.unit])
+									assocUnstableMessages[row.unit] = [];
+								assocUnstableMessages[row.unit].push(message);
 							}
 						});
 						cb();
@@ -1494,6 +1525,20 @@ function initUnstableMessages(conn, onDone){
 		);
 	});
 }
+
+/*
+function initLastUnstableAAUnit(conn, onDone) {
+	conn.query(
+		"SELECT units.unit FROM units CROSS JOIN unit_authors USING(unit) CROSS JOIN aa_addresses USING(address) \n\
+		WHERE is_stable=0 ORDER BY latest_included_mc_index DESC, level DESC LIMIT 1",
+		function (rows) {
+			if (rows.length > 0)
+				exports.last_unstable_aa_unit = rows[0].unit;
+			console.log('last_unstable_aa_unit = ' + exports.last_unstable_aa_unit);
+			onDone();
+		}
+	);
+}*/
 
 function resetUnstableUnits(conn, onDone){
 	Object.keys(assocBestChildren).forEach(function(unit){
@@ -1558,6 +1603,7 @@ exports.readFreeJoints = readFreeJoints;
 
 exports.readDefinitionByAddress = readDefinitionByAddress;
 exports.readDefinition = readDefinition;
+exports.readAADefinition = readAADefinition;
 
 exports.readLastMainChainIndex = readLastMainChainIndex;
 
@@ -1588,6 +1634,7 @@ exports.readUnitAuthors = readUnitAuthors;
 exports.isKnownUnit = isKnownUnit;
 exports.setUnitIsKnown = setUnitIsKnown;
 exports.forgetUnit = forgetUnit;
+exports.fixIsFreeAfterForgettingUnit = fixIsFreeAfterForgettingUnit;
 
 exports.sliceAndExecuteQuery = sliceAndExecuteQuery;
 
