@@ -4,7 +4,7 @@ var eventBus = require('./event_bus.js');
 var constants = require("./constants.js");
 var conf = require("./conf.js");
 
-var VERSION = 29;
+var VERSION = 31;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -277,13 +277,59 @@ function migrateDb(connection, onDone){
 				}
 				if (version < 28){
 					connection.addQuery(arrQueries, "ALTER TABLE units ADD COLUMN timestamp INT NOT NULL DEFAULT 0");
+					connection.addQuery(arrQueries, "PRAGMA user_version=28");
 				}
 				if (version < 29)
 					connection.addQuery(arrQueries, "DELETE FROM known_bad_joints");
+				if (version < 30) {
+					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS aa_addresses ( \n\
+						address CHAR(32) NOT NULL PRIMARY KEY, \n\
+						unit CHAR(44) NOT NULL, -- where it is first defined.  No index for better speed \n\
+						mci INT NOT NULL, -- it is available since this mci (mci of the above unit) \n\
+						definition TEXT NOT NULL, \n\
+						creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP \n\
+					)");
+					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS aa_triggers ( \n\
+						mci INT NOT NULL, \n\
+						unit CHAR(44) NOT NULL, \n\
+						address CHAR(32) NOT NULL, \n\
+						creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, \n\
+						PRIMARY KEY (mci, unit, address), \n\
+						FOREIGN KEY (address) REFERENCES aa_addresses(address) \n\
+					)");
+					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS aa_balances ( \n\
+						address CHAR(32) NOT NULL, \n\
+						asset CHAR(44) NOT NULL, -- 'base' for bytes (NULL would not work for uniqueness of primary key) \n\
+						balance BIGINT NOT NULL, \n\
+						creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, \n\
+						PRIMARY KEY (address, asset), \n\
+						FOREIGN KEY (address) REFERENCES aa_addresses(address) \n\
+					--	FOREIGN KEY (asset) REFERENCES assets(unit) \n\
+					)");
+					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS aa_responses ( \n\
+						aa_response_id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \n\
+						mci INT NOT NULL, -- mci of the trigger unit \n\
+						trigger_address CHAR(32) NOT NULL, -- trigger address \n\
+						aa_address CHAR(32) NOT NULL, \n\
+						trigger_unit CHAR(44) NOT NULL, \n\
+						bounced TINYINT NOT NULL, \n\
+						response_unit CHAR(44) NULL UNIQUE, \n\
+						response TEXT NULL, -- json \n\
+						creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, \n\
+						UNIQUE (trigger_unit, aa_address), \n\
+						FOREIGN KEY (aa_address) REFERENCES aa_addresses(address), \n\
+						FOREIGN KEY (trigger_unit) REFERENCES units(unit) \n\
+					--	FOREIGN KEY (response_unit) REFERENCES units(unit) \n\
+					)");
+					connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS aaResponsesByTriggerAddress ON aa_responses(trigger_address)");
+					connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS aaResponsesByAAAddress ON aa_responses(aa_address)");
+					connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS aaResponsesByMci ON aa_responses(mci)");
+					connection.addQuery(arrQueries, "PRAGMA user_version=30");
+				}
 				cb();
 			},
 			function(cb){
-				if (version < 27){
+				if (version < 31){
 					require('./migrate_to_kv.js')(connection, cb);
 				}
 			}
