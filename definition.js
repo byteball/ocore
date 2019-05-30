@@ -4,6 +4,7 @@ var crypto = require('crypto');
 var _ = require('lodash');
 var async = require('async');
 var constants = require('./constants.js');
+var conf = require('./conf.js');
 var storage = require('./storage.js');
 var db = require('./db.js');
 var ecdsaSig = require('./signature.js');
@@ -442,6 +443,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 				
 			case 'mci':
 			case 'age':
+			case 'timestamp':
 				var relation = args[0];
 				var value = args[1];
 				if (!isNonemptyString(relation))
@@ -450,6 +452,8 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 					return cb("invalid relation: "+relation);
 				if (!isNonnegativeInteger(value))
 					return cb(op+" must be a non-neg number");
+				if (op === 'timestamp' && objValidationState.last_ball_mci < constants.timestampUpgradeMci)
+					return cb('timestamp op not allowed yet');
 				return cb();
 				
 			case 'has':
@@ -860,26 +864,52 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 					//	params.push(value, value);
 					}
 					else{
-						value_condition = 'value'+relation+'?';
-						params.push(value);
+						value_condition = 'value'+relation+conn.escape(value);
+					//	params.push(value);
 					}
 				}
 				else{
 					index = 'byNameIntValue';
-					value_condition = 'int_value'+relation+'?';
-					params.push(value);
+					value_condition = 'int_value'+relation+value;
+				//	params.push(value);
 				}
 				params.push(objValidationState.last_ball_mci, min_mci);
-				conn.query(
-					"SELECT 1 FROM data_feeds "+db.forceIndex(index)+" CROSS JOIN units USING(unit) CROSS JOIN unit_authors USING(unit) \n\
-					WHERE address IN(?) AND feed_name=? AND "+value_condition+" \n\
-						AND main_chain_index<=? AND main_chain_index>=? AND sequence='good' AND is_stable=1 LIMIT 1",
-					params,
-					function(rows){
+
+				function getOptimalQuery(handleSql) {
+					var rareFeedSql = "SELECT 1 FROM data_feeds " + db.forceIndex(index) + " CROSS JOIN units USING(unit) CROSS JOIN unit_authors USING(unit) \n\
+						WHERE address IN(?) AND feed_name=? AND " + value_condition + " \n\
+							AND main_chain_index<=? AND main_chain_index>=? AND sequence='good' AND is_stable=1 LIMIT 1";
+					var rareOracleSql = "SELECT 1 FROM unit_authors CROSS JOIN data_feeds USING(unit) CROSS JOIN units USING(unit) \n\
+						WHERE address IN(?) AND feed_name=? AND " + value_condition + " \n\
+							AND main_chain_index<=? AND main_chain_index>=? AND sequence='good' AND is_stable=1 LIMIT 1";
+					var recentFeedSql = "SELECT 1 FROM data_feeds CROSS JOIN units USING(unit) CROSS JOIN unit_authors USING(unit) \n\
+						WHERE +address IN(?) AND +feed_name=? AND " + value_condition + " \n\
+							AND +main_chain_index<=? AND +main_chain_index>=? AND +sequence='good' AND +is_stable=1 ORDER BY data_feeds.rowid DESC LIMIT 1";
+					
+					// first, see how often this data feed is posted
+					conn.query("SELECT 1 FROM data_feeds " + db.forceIndex(index) + " WHERE feed_name=? AND " + value_condition + " LIMIT 100,1", [feed_name], function (dfrows) {
+						console.log('feed ' + feed_name + ': dfrows.length=' + dfrows.length);
+						// for rare feeds, use the data feed index; for frequent feeds, scan starting from the most recent one
+						if (dfrows.length === 0)
+							return handleSql(rareFeedSql);
+						// next, see how often the oracle address posts
+						conn.query("SELECT 1 FROM unit_authors WHERE address IN(?) LIMIT 100,1", [arrAddresses], function (arows) {
+							console.log('oracles ' + arrAddresses.join(', ') + ': arows.length=' + arows.length);
+							if (arows.length === 0)
+								return handleSql(rareOracleSql);
+							if (conf.storage !== 'sqlite')
+								return handleSql(rareFeedSql);
+							handleSql(recentFeedSql);
+						});
+					});
+				}
+
+				getOptimalQuery(function (sql) {
+					conn.query(sql, params, function(rows){
 						console.log(op+" "+feed_name+" "+rows.length);
 						cb2(rows.length > 0);
-					}
-				);
+					});
+				});
 				*/
 				break;
 				
@@ -915,6 +945,20 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				*/
 				break;
 				
+			case 'timestamp':
+				var relation = args[0];
+				var timestamp = args[1];
+				switch(relation){
+					case '>': return cb2(objValidationState.last_ball_timestamp > timestamp);
+					case '>=': return cb2(objValidationState.last_ball_timestamp >= timestamp);
+					case '<': return cb2(objValidationState.last_ball_timestamp < timestamp);
+					case '<=': return cb2(objValidationState.last_ball_timestamp <= timestamp);
+					case '=': return cb2(objValidationState.last_ball_timestamp === timestamp);
+					case '!=': return cb2(objValidationState.last_ball_timestamp !== timestamp);
+					default: throw Error('unknown relation in mci: '+relation);
+				}
+				break;
+				
 			case 'mci':
 				var relation = args[0];
 				var mci = args[1];
@@ -924,6 +968,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 					case '<': return cb2(objValidationState.last_ball_mci < mci);
 					case '<=': return cb2(objValidationState.last_ball_mci <= mci);
 					case '=': return cb2(objValidationState.last_ball_mci === mci);
+					case '!=': return cb2(objValidationState.last_ball_mci !== mci);
 					default: throw Error('unknown relation in mci: '+relation);
 				}
 				break;
@@ -1331,6 +1376,7 @@ function hasReferences(arrDefinition){
 			case 'sig':
 			case 'hash':
 			case 'cosigned by':
+			case 'has definition change':
 				return false;
 				
 			case 'not':
@@ -1349,6 +1395,9 @@ function hasReferences(arrDefinition){
 			case 'has equal':
 			case 'has one equal':
 			case 'sum':
+			case 'attested':
+			case 'seen definition change':
+			case 'formula':
 				return true;
 				
 			default:

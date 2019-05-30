@@ -6,10 +6,8 @@ var db = require('./db.js');
 var constants = require('./constants.js');
 var mutex = require('./mutex.js');
 var conf = require('./conf.js');
-var composer = require('./composer.js');
 var objectHash = require('./object_hash.js');
 var _ = require('lodash');
-var storage = require('./storage.js');
 var network = require('./network.js');
 var device = require('./device.js');
 var walletGeneral = require('./wallet_general.js');
@@ -660,7 +658,7 @@ function issueOrSelectNextChangeAddress(wallet, handleAddress){
 		readLastUsedAddressIndex(wallet, 1, function(last_used_index){
 			var first_unused_index = (last_used_index === null) ? 0 : (last_used_index + 1);
 			if (first_unused_index > next_index)
-				throw Error("unued > next")
+				throw Error("unused > next")
 			if (first_unused_index < next_index)
 				readAddressByIndex(wallet, 1, first_unused_index, function(addressInfo){
 					addressInfo ? handleAddress(addressInfo) : issueAddress(wallet, 1, first_unused_index, handleAddress);
@@ -668,6 +666,54 @@ function issueOrSelectNextChangeAddress(wallet, handleAddress){
 			else
 				issueAddress(wallet, 1, next_index, handleAddress);
 		});
+	});
+}
+
+function scanForGaps(onDone) {
+	if (!onDone)
+		onDone = function () { };
+	console.log('scanning for gaps in multisig addresses');
+	db.query("SELECT wallet, COUNT(*) AS c FROM wallet_signing_paths GROUP BY wallet HAVING c > 1", function (rows) {
+		if (rows.length === 0)
+			return onDone();
+		var arrMultisigWallets = rows.map(function (row) { return row.wallet; });
+		var prev_wallet;
+		var prev_is_change;
+		var prev_address_index = -1;
+		db.query(
+			"SELECT wallet, is_change, address_index FROM my_addresses \n\
+			WHERE wallet IN(?) ORDER BY wallet, is_change, address_index",
+			[arrMultisigWallets],
+			function (rows) {
+				var arrMissingAddressInfos = [];
+				rows.forEach(function (row) {
+					if (row.wallet === prev_wallet && row.is_change === prev_is_change && row.address_index !== prev_address_index + 1) {
+						for (var i = prev_address_index + 1; i < row.address_index; i++)
+							arrMissingAddressInfos.push({wallet: row.wallet, is_change: row.is_change, address_index: i});
+					}
+					else if ((row.wallet !== prev_wallet || row.is_change !== prev_is_change) && row.address_index !== 0) {
+						for (var i = 0; i < row.address_index; i++)
+							arrMissingAddressInfos.push({wallet: row.wallet, is_change: row.is_change, address_index: i});
+					}
+					prev_wallet = row.wallet;
+					prev_is_change = row.is_change;
+					prev_address_index = row.address_index;
+				});
+				if (arrMissingAddressInfos.length === 0)
+					return onDone();
+				console.log('will create '+arrMissingAddressInfos.length+' missing addresses');
+				async.eachSeries(
+					arrMissingAddressInfos,
+					function (addressInfo, cb) {
+						issueAddress(addressInfo.wallet, addressInfo.is_change, addressInfo.address_index, function () { cb(); });
+					},
+					function () {
+						eventBus.emit('maybe_new_transactions');
+						onDone();
+					}
+				);
+			}
+		);
 	});
 }
 
@@ -829,3 +875,4 @@ exports.readCosigners = readCosigners;
 
 exports.derivePubkey = derivePubkey;
 exports.issueAddress = issueAddress;
+exports.scanForGaps = scanForGaps;

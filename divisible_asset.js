@@ -235,7 +235,7 @@ function composeDivisibleAssetPaymentJoint(params){
 						var objMessage = {
 							app: "payment",
 							payload_location: objAsset.is_private ? "none" : "inline",
-							payload_hash: objectHash.getBase64Hash(payload)
+							payload_hash: objectHash.getBase64Hash(payload, last_ball_mci >= constants.timestampUpgradeMci)
 						};
 						var assocPrivatePayloads;
 						if (objAsset.is_private){
@@ -303,7 +303,7 @@ function getSavingCallbacks(callbacks){
 					
 					if (bPrivate){
 						preCommitCallback = function(conn, cb){
-							var payload_hash = objectHash.getBase64Hash(private_payload);
+							var payload_hash = objectHash.getBase64Hash(private_payload, objUnit.version !== constants.versionWithoutTimestamp);
 							var message_index = composer.getMessageIndexByPayloadHash(objUnit, payload_hash);
 							objPrivateElement = {
 								unit: unit,

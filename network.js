@@ -137,7 +137,7 @@ function sendErrorResult(ws, unit, error) {
 
 function sendVersion(ws){
 	sendJustsaying(ws, 'version', {
-		protocol_version: constants.version, 
+		protocol_version: constants.versionWithoutTimestamp, 
 		alt: constants.alt, 
 		library: libraryPackageJson.name, 
 		library_version: libraryPackageJson.version, 
@@ -164,7 +164,7 @@ function sendRequest(ws, command, params, bReroutable, responseHandler){
 	if (params)
 		request.params = params;
 	var content = _.clone(request);
-	var tag = objectHash.getBase64Hash(request);
+	var tag = objectHash.getBase64Hash(request, true);
 	//if (ws.assocPendingRequests[tag]) // ignore duplicate requests while still waiting for response from the same peer
 	//    return console.log("will not send identical "+command+" request");
 	if (ws.assocPendingRequests[tag]){
@@ -681,9 +681,19 @@ function requestFromLightVendor(command, params, responseHandler){
 	});
 }
 
+
+function getConnectionStatus(){
+	return {
+		incoming: wss.clients.length,
+		outgoing: arrOutboundPeers.length,
+		outgoing_being_opened: Object.keys(assocConnectingOutboundWebsockets).length
+	}
+}
+
 function printConnectionStatus(){
-	console.log(wss.clients.length+" incoming connections, "+arrOutboundPeers.length+" outgoing connections, "+
-		Object.keys(assocConnectingOutboundWebsockets).length+" outgoing connections being opened");
+	var objConnectionStatus = getConnectionStatus();
+	console.log(objConnectionStatus.incoming+" incoming connections, "+objConnectionStatus.outgoing+" outgoing connections, "+
+	objConnectionStatus.outgoing_being_opened+" outgoing connections being opened");
 }
 
 function subscribe(ws){
@@ -1065,7 +1075,7 @@ function handlePostedJoint(ws, objJoint, onDone){
 		},
 		ifKnown: function(){
 			if (objJoint.unsigned)
-				throw Error("known unsigned");
+				return onDone("you can't send unsigned units");
 			onDone("known");
 			writeEvent('known_good', ws.host);
 		},
@@ -1130,7 +1140,7 @@ function handleOnlineJoint(ws, objJoint, onDone){
 		},
 		ifKnown: function(){
 			if (objJoint.unsigned)
-				throw Error("known unsigned");
+				return onDone();
 			sendResult(ws, {unit: unit, result: 'known'});
 			writeEvent('known_good', ws.host);
 			onDone();
@@ -1434,11 +1444,8 @@ function writeEvent(event, host){
 }
 
 function determineIfPeerIsBlocked(host, handleResult){
-	/*	"SELECT \n\
-			SUM(CASE WHEN event='invalid' THEN 1 ELSE 0 END) AS count_invalid, \n\
-			SUM(CASE WHEN event='new_good' THEN 1 ELSE 0 END) AS count_new_good \n\
-			FROM peer_events WHERE peer_host=? AND event_date>"+db.addTime("-1 HOUR"),*/
-	/*	"SELECT 1 FROM peer_events WHERE peer_host=? AND event_date>"+db.addTime("-1 HOUR")+" AND event='invalid' LIMIT 1",*/
+	if (constants.bTestnet)
+		return handleResult(false);
 	handleResult(!!assocBlockedPeers[host]);
 }
 
@@ -1782,8 +1789,8 @@ function handleSavedPrivatePayments(unit){
 					
 					var validateAndSave = function(){
 						var objHeadPrivateElement = arrPrivateElements[0];
-						var payload_hash = objectHash.getBase64Hash(objHeadPrivateElement.payload);
-						var key = 'private_payment_validated-'+objHeadPrivateElement.unit+'-'+payload_hash+'-'+row.output_index;
+						var json_payload_hash = objectHash.getBase64Hash(objHeadPrivateElement.payload, true);
+						var key = 'private_payment_validated-'+objHeadPrivateElement.unit+'-'+json_payload_hash+'-'+row.output_index;
 						privatePayment.validateAndSavePrivatePaymentChain(arrPrivateElements, {
 							ifOk: function(){
 								if (ws)
@@ -2060,8 +2067,8 @@ function handleJustsaying(ws, subject, body){
 		case 'version':
 			if (!body)
 				return;
-			if (body.protocol_version !== constants.version){
-				sendError(ws, 'Incompatible versions, mine '+constants.version+', yours '+body.protocol_version);
+			if (constants.supported_versions.indexOf(body.protocol_version) === -1){
+				sendError(ws, 'Incompatible versions, I support '+constants.supported_versions.join(', ')+', yours '+body.protocol_version);
 				ws.close(1000, 'incompatible versions');
 				return;
 			}
@@ -2071,13 +2078,24 @@ function handleJustsaying(ws, subject, body){
 				return;
 			}
 			ws.library_version = body.library_version;
-			if (typeof ws.library_version === 'string' && version2int(ws.library_version) < version2int(constants.minCoreVersion)){
+			if (typeof ws.library_version !== 'string') {
+				sendError(ws, "invalid library_version: " + ws.library_version);
+				return ws.close(1000, "invalid library_version");
+			}
+			if (version2int(ws.library_version) < version2int(constants.minCoreVersion)){
+				ws.old_core = true;
+				ws.bSubscribed = false;
+				sendJustsaying(ws, 'upgrade_required');
+				sendJustsaying(ws, "old core");
+				return ws.close(1000, "old core");
+			}
+			if (version2int(ws.library_version) < version2int(constants.minCoreVersionForFullNodes)){
 				ws.old_core = true;
 				if (ws.bSubscribed){
 					ws.bSubscribed = false;
 					sendJustsaying(ws, 'upgrade_required');
-					sendJustsaying(ws, "old core");
-					ws.close(1000, "old core");
+					sendJustsaying(ws, "old core (full)");
+					return ws.close(1000, "old core (full)");
 				}
 			}
 			eventBus.emit('peer_version', ws, body); // handled elsewhere
@@ -2415,12 +2433,16 @@ function handleRequest(ws, tag, command, params){
 				//    sendFreeJoints(ws);
 				return sendErrorResponse(ws, tag, "I'm light, cannot subscribe you to updates");
 			}
-			if (typeof params.library_version === 'string' && version2int(params.library_version) < version2int(constants.minCoreVersion))
+			if (typeof params.library_version !== 'string') {
+				sendErrorResponse(ws, tag, "invalid library_version: " + params.library_version);
+				return ws.close(1000, "invalid library_version");
+			}
+			if (version2int(params.library_version) < version2int(constants.minCoreVersionForFullNodes))
 				ws.old_core = true;
 			if (ws.old_core){ // can be also set in 'version'
 				sendJustsaying(ws, 'upgrade_required');
-				sendErrorResponse(ws, tag, "old core");
-				return ws.close(1000, "old core");
+				sendErrorResponse(ws, tag, "old core (full)");
+				return ws.close(1000, "old core (full)");
 			}
 			ws.bSubscribed = true;
 			sendResponse(ws, tag, "subscribed");
@@ -2796,6 +2818,22 @@ function handleRequest(ws, tag, command, params){
 			});
 			break;
 
+		case 'light/get_definition_chash':
+			if (conf.bLight)
+				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
+			if (ws.bOutbound)
+				return sendErrorResponse(ws, tag, "light clients have to be inbound");
+			if (!params)
+				return sendErrorResponse(ws, tag, "no params in light/get_definition_chash");
+			if (!ValidationUtils.isValidAddress(params.address))
+				return sendErrorResponse(ws, tag, "address not valid");
+			if (params.max_mci && !ValidationUtils.isPositiveInteger(params.max_mci))
+				return sendErrorResponse(ws, tag, "max_mci not a positive integer");
+			storage.readDefinitionChashByAddress(db, params.address, params.max_mci, function(definition_chash){
+				sendResponse(ws, tag, definition_chash);
+			});
+			break;
+		
 		case 'light/get_definition':
 			if (conf.bLight)
 				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
@@ -2813,7 +2851,44 @@ function handleRequest(ws, tag, command, params){
 			});
 			break;
 
-    	case 'light/get_balances':
+		case 'light/get_definition_for_address':
+			if (conf.bLight)
+				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
+			if (ws.bOutbound)
+				return sendErrorResponse(ws, tag, "light clients have to be inbound");
+			if (!params)
+				return sendErrorResponse(ws, tag, "no params in light/get_definition_for_address");
+			if (!ValidationUtils.isValidAddress(params.address))
+				return sendErrorResponse(ws, tag, "address not valid");
+
+			db.query("SELECT definition_chash,is_stable FROM address_definition_changes CROSS JOIN units USING(unit) WHERE address=? AND sequence='good'\n\
+			ORDER BY main_chain_index DESC LIMIT 1",[params.address],function(address_definition_changes){
+				if (address_definition_changes[0] && address_definition_changes[0].is_stable === 0){
+					return sendResponse(ws, tag, {
+						definition_chash: address_definition_changes[0].definition_chash,
+						is_stable: false
+					});
+				}
+				var definition_chash = address_definition_changes[0] ? address_definition_changes[0].definition_chash : params.address;
+				db.query("SELECT definition,is_stable FROM definitions CROSS JOIN unit_authors USING(definition_chash) CROSS JOIN units USING(unit) \n\
+					WHERE definition_chash=? AND sequence='good'",[definition_chash], function(definitions){
+						if (definitions[0]){
+							return sendResponse(ws, tag, {
+								definition_chash: definition_chash,
+								definition: JSON.parse(definitions[0].definition),
+								is_stable: definitions[0].is_stable === 1
+							});
+						} else {
+							return sendResponse(ws, tag, {
+								definition_chash: definition_chash,
+								is_stable: true
+							});
+						}
+					})
+			});
+			break;
+
+		case 'light/get_balances':
 			var addresses = params;
 			if (conf.bLight)
 				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
@@ -2845,8 +2920,8 @@ function handleRequest(ws, tag, command, params){
 				}
 			);
 			break;
-      
-    	case 'light/get_profile_units':
+
+		case 'light/get_profile_units':
 			var addresses = params;
 			if (conf.bLight)
 				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
@@ -3139,6 +3214,7 @@ exports.setWatchedAddresses = setWatchedAddresses;
 exports.addWatchedAddress = addWatchedAddress;
 exports.addLightWatchedAddress = addLightWatchedAddress;
 
+exports.getConnectionStatus = getConnectionStatus;
 exports.closeAllWsConnections = closeAllWsConnections;
 exports.isConnected = isConnected;
 exports.isCatchingUp = isCatchingUp;

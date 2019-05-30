@@ -5,6 +5,7 @@ CREATE TABLE units (
 	alt VARCHAR(3) NOT NULL DEFAULT '1',
 	witness_list_unit CHAR(44) BINARY NULL,
 	last_ball_unit CHAR(44) BINARY NULL,
+	timestamp INT NOT NULL DEFAULT 0,
 	content_hash CHAR(44) NULL,
 	headers_commission INT NOT NULL,
 	payload_commission INT NOT NULL,
@@ -63,7 +64,7 @@ CREATE TABLE parenthoods (
 
 CREATE TABLE definitions (
 	definition_chash CHAR(32) NOT NULL PRIMARY KEY,
-	definition TEXT NOT NULL,
+	definition LONGTEXT NOT NULL,
 	has_references TINYINT NOT NULL
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
@@ -136,7 +137,7 @@ CREATE TABLE messages (
 	app VARCHAR(30) NOT NULL,
 	payload_location ENUM('inline','uri','none') NOT NULL,
 	payload_hash CHAR(44) NOT NULL,
-	payload TEXT NULL,
+	payload LONGTEXT NULL,
 	payload_uri_hash CHAR(44) NULL,
 	payload_uri VARCHAR(500) NULL,
 	PRIMARY KEY (unit, message_index),
@@ -237,8 +238,8 @@ CREATE TABLE assets (
 	issued_by_definer_only TINYINT NOT NULL,
 	cosigned_by_definer TINYINT NOT NULL,
 	spender_attested TINYINT NOT NULL, -- must subsequently publish and update the list of trusted attestors
-	issue_condition TEXT NULL,
-	transfer_condition TEXT NULL,
+	issue_condition LONGTEXT NULL,
+	transfer_condition LONGTEXT NULL,
 	FOREIGN KEY (unit) REFERENCES units(unit)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
@@ -396,7 +397,7 @@ CREATE TABLE known_bad_joints (
 	joint CHAR(44) BINARY NULL UNIQUE,
 	unit CHAR(44) BINARY NULL UNIQUE,
 	json LONGTEXT NOT NULL,
-	error TEXT NOT NULL,
+	error LONGTEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
@@ -487,7 +488,7 @@ CREATE TABLE peer_host_urls (
 CREATE TABLE wallets (
 	wallet CHAR(44) NOT NULL PRIMARY KEY,
 	account INT NOT NULL,
-	definition_template TEXT NOT NULL,
+	definition_template LONGTEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	full_approval_date TIMESTAMP NULL, -- when received xpubkeys from all members
 	ready_date TIMESTAMP NULL -- when all members notified me that they saw the wallet fully approved
@@ -500,7 +501,7 @@ CREATE TABLE my_addresses (
 	wallet CHAR(44) NOT NULL,
 	is_change TINYINT NOT NULL,
 	address_index INT NOT NULL,
-	definition TEXT NOT NULL,
+	definition LONGTEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	UNIQUE KEY byWalletPath(wallet, is_change, address_index),
 	FOREIGN KEY (wallet) REFERENCES wallets(wallet)
@@ -517,7 +518,7 @@ CREATE TABLE my_witnesses (
 CREATE TABLE devices (
 	device_address CHAR(33) NOT NULL PRIMARY KEY,
 	pubkey CHAR(44) NOT NULL,
-	temp_pubkey_package TEXT NULL, -- temporary pubkey signed by the permanent pubkey
+	temp_pubkey_package LONGTEXT NULL, -- temporary pubkey signed by the permanent pubkey
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
@@ -578,13 +579,13 @@ CREATE TABLE wallet_signing_paths (
 -- member addresses live on different devices, member addresses themselves may be composed of several keys
 CREATE TABLE shared_addresses (
 	shared_address CHAR(32) NOT NULL PRIMARY KEY,
-	definition TEXT NOT NULL,
+	definition LONGTEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE pending_shared_addresses (
 	definition_template_chash CHAR(32) NOT NULL PRIMARY KEY,
-	definition_template TEXT NOT NULL,
+	definition_template LONGTEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
@@ -593,7 +594,7 @@ CREATE TABLE pending_shared_address_signing_paths (
 	device_address CHAR(33) NOT NULL,
 	signing_path VARCHAR(255) CHARACTER SET latin1 COLLATE latin1_general_cs NOT NULL, -- path from root to member address
 	address CHAR(32) NULL, -- member address
-	device_addresses_by_relative_signing_paths TEXT NULL, -- json
+	device_addresses_by_relative_signing_paths LONGTEXT NULL, -- json
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	approval_date TIMESTAMP NULL,
 	PRIMARY KEY (definition_template_chash, signing_path),
@@ -621,7 +622,7 @@ CREATE TABLE outbox (
 	`to` CHAR(33) NOT NULL, -- the device this message is addressed to, no FK because of pairing case
 	message LONGTEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	last_error TEXT NULL
+	last_error LONGTEXT NULL
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 
@@ -706,10 +707,11 @@ CREATE TABLE private_profiles (
 	payload_hash CHAR(44) NOT NULL,
 	attestor_address CHAR(32) NOT NULL,
 	address CHAR(32) NOT NULL,
-	src_profile TEXT NOT NULL,
+	src_profile LONGTEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	FOREIGN KEY (unit) REFERENCES units(unit)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
+CREATE UNIQUE INDEX IF NOT EXISTS unqPayloadHash ON private_profiles(payload_hash);
 
 CREATE TABLE private_profile_fields (
 	private_profile_id INTEGER NOT NULL ,
@@ -751,7 +753,7 @@ CREATE TABLE peer_addresses (
 	address CHAR(32) NOT NULL,
 	signing_paths VARCHAR(255) NULL,
 	device_address CHAR(33) NOT NULL,
-	definition TEXT NULL,
+	definition LONGTEXT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (address),
 	FOREIGN KEY (device_address) REFERENCES correspondent_devices(device_address)
@@ -765,13 +767,12 @@ CREATE TABLE prosaic_contracts (
 	is_incoming TINYINT NOT NULL,
 	creation_date TIMESTAMP NOT NULL,
 	ttl REAL NOT NULL DEFAULT 168, -- 168 hours = 24 * 7 = 1 week
-	status TEXT CHECK (status IN('pending', 'revoked', 'accepted', 'declined')) NOT NULL DEFAULT 'active',
+	status VARCHAR(10) NOT NULL DEFAULT 'active' CHECK (status IN('pending', 'revoked', 'accepted', 'declined')),
 	title VARCHAR(1000) NOT NULL,
-	`text` TEXT NOT NULL,
+	`text` LONGTEXT NOT NULL,
 	shared_address CHAR(32),
 	unit CHAR(44),
 	cosigners VARCHAR(1500),
-	FOREIGN KEY (peer_device_address) REFERENCES correspondent_devices(device_address),
 	FOREIGN KEY (my_address) REFERENCES my_addresses(address)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 

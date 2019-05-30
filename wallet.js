@@ -56,7 +56,8 @@ function handleJustsaying(ws, subject, body){
 				return network.sendError(ws, "missing fields");
 			if (objDeviceMessage.to !== device.getMyDeviceAddress())
 				return network.sendError(ws, "not mine");
-			if (message_hash !== objectHash.getBase64Hash(objDeviceMessage))
+			var bOldHashIsCorrect = (message_hash === objectHash.getBase64Hash(objDeviceMessage));
+			if (!bOldHashIsCorrect && message_hash !== objectHash.getBase64Hash(objDeviceMessage, true))
 				return network.sendError(ws, "wrong hash");
 			try{
 				if (!ecdsaSig.verify(objectHash.getDeviceMessageHashToSign(objDeviceMessage), objDeviceMessage.signature, objDeviceMessage.pubkey))
@@ -317,6 +318,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			var objUnit = body.unsigned_unit;
 			if (typeof objUnit !== "object")
 				return callbacks.ifError("no unsigned unit");
+			var bJsonBased = (objUnit.version !== constants.versionWithoutTimestamp);
 			// replace all existing signatures with placeholders so that signing requests sent to us on different stages of signing become identical,
 			// hence the hashes of such unsigned units are also identical
 			objUnit.authors.forEach(function(author){
@@ -336,7 +338,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 							delete o.address;
 							delete o.blinding;
 						});
-					var calculated_payload_hash = objectHash.getBase64Hash(hidden_payload);
+					var calculated_payload_hash = objectHash.getBase64Hash(hidden_payload, bJsonBased);
 					if (payload_hash !== calculated_payload_hash)
 						return callbacks.ifError("private payload hash does not match");
 					if (!ValidationUtils.isNonemptyArray(objUnit.messages))
@@ -352,7 +354,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				for (var i=0; i<arrMessages.length; i++){
 					if (arrMessages[i].payload === undefined)
 						continue;
-					var calculated_payload_hash = objectHash.getBase64Hash(arrMessages[i].payload);
+					var calculated_payload_hash = objectHash.getBase64Hash(arrMessages[i].payload, bJsonBased);
 					if (arrMessages[i].payload_hash !== calculated_payload_hash)
 						return callbacks.ifError("payload hash does not match");
 				}
@@ -372,7 +374,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					//        return callbacks.ifError("sender is not cosigner of this address");
 						callbacks.ifOk();
 						if (objUnit.signed_message && !ValidationUtils.hasFieldsExcept(objUnit, ["signed_message", "authors"])){
-							objUnit.unit = objectHash.getBase64Hash(objUnit);
+							objUnit.unit = objectHash.getBase64Hash(objUnit); // exact value doesn't matter, it just needs to be there
 							return eventBus.emit("signing_request", objAddress, body.address, objUnit, assocPrivatePayloads, from_address, body.signing_path);
 						}
 						objUnit.unit = objectHash.getUnitHash(objUnit);
@@ -471,16 +473,40 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			body.peer_device_address = from_address;
 			if (!body.title || !body.text || !body.creation_date)
 				return callbacks.ifError("not all contract fields submitted");
-			if (!ValidationUtils.isValidAddress(body.peer_address) || !ValidationUtils.isValidAddress(body.address))
+			if (!ValidationUtils.isValidAddress(body.peer_address) || !ValidationUtils.isValidAddress(body.my_address))
 				return callbacks.ifError("either peer_address or address is not valid in contract");
-			if (body.hash !== prosaic_contract.getHash(body))
+			if (body.hash !== prosaic_contract.getHash(body)) {
+				if (body.hash === prosaic_contract.getHashV1(body))
+					return callbacks.ifError("received prosaic contract offer with V1 hash");	
 				return callbacks.ifError("wrong contract hash");
+			}
 			if (!/^\d{4}\-\d{2}\-\d{2} \d{2}:\d{2}:\d{2}$/.test(body.creation_date))
 				return callbacks.ifError("wrong contract creation date");
 			prosaic_contract.store(body);
 			var chat_message = "(prosaic-contract:" + Buffer.from(JSON.stringify(body), 'utf8').toString('base64') + ")";
 			eventBus.emit("text", from_address, chat_message, ++message_counter);
 			callbacks.ifOk();
+			break;
+
+		case 'prosaic_contract_shared':
+			if (!body.title || !body.text || !body.creation_date)
+				return callbacks.ifError("not all contract fields submitted");
+			if (!ValidationUtils.isValidAddress(body.peer_address) || !ValidationUtils.isValidAddress(body.my_address))
+				return callbacks.ifError("either peer_address or address is not valid in contract");
+			if (body.hash !== prosaic_contract.getHash(body))
+				return callbacks.ifError("wrong contract hash");
+			if (!/^\d{4}\-\d{2}\-\d{2} \d{2}:\d{2}:\d{2}$/.test(body.creation_date))
+				return callbacks.ifError("wrong contract creation date");
+			db.query("SELECT 1 FROM my_addresses \n\
+					JOIN wallet_signing_paths USING(wallet)\n\
+					WHERE my_addresses.address=? AND wallet_signing_paths.device_address=?",[body.my_address, from_address],
+				function(rows) {
+					if (!rows.length)
+						return callbacks.ifError("contract does not contain my address");
+					prosaic_contract.store(body);
+					callbacks.ifOk();
+				}
+			);
 			break;
 
 		case 'prosaic_contract_response':
@@ -503,20 +529,28 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 							return callbacks.ifError("incorrect definition received");
 						if (!ValidationUtils.isValidAddress(author.address) || author.address !== objContract.peer_address)
 							return callbacks.ifError("incorrect author address");
-						db.query("INSERT "+db.getIgnore()+" INTO peer_addresses (address, device_address, signing_paths, definition) VALUES (?, ?, ?, ?)",
-								[author.address, from_address, JSON.stringify(Object.keys(objSignedMessage.authors[0].authentifiers)), JSON.stringify(author.definition)],
-								function(res) {
-									if (res.affectedRows == 0)
-										db.query("UPDATE peer_addresses SET signing_paths=?, definition=? WHERE address=?", [JSON.stringify(Object.keys(objSignedMessage.authors[0].authentifiers)), JSON.stringify(author.definition), author.address]);
-								});
+						// this can happen when acceptor and offerer have same device in cosigners
+						db.query('SELECT 1 FROM my_addresses WHERE address=? \n\
+							UNION SELECT 1 FROM shared_addresses WHERE shared_address=?', [author.address, author.address], function(rows) {
+								if (rows.length)
+									return;
+								db.query("INSERT "+db.getIgnore()+" INTO peer_addresses (address, device_address, signing_paths, definition) VALUES (?, ?, ?, ?)",
+									[author.address, from_address, JSON.stringify(Object.keys(objSignedMessage.authors[0].authentifiers)), JSON.stringify(author.definition)],
+									function(res) {
+										if (res.affectedRows == 0)
+											db.query("UPDATE peer_addresses SET signing_paths=?, definition=? WHERE address=?", [JSON.stringify(Object.keys(objSignedMessage.authors[0].authentifiers)), JSON.stringify(author.definition), author.address]);
+									}
+								);
+							}
+						);
 					}
 					if (objContract.status !== 'pending')
 						return callbacks.ifError("contract is not active, current status: " + objContract.status);
-					var created_dt = Date.parse(objContract.creation_date.replace(' ', 'T'));
-					if (created_dt + objContract.ttl * 60 * 60 * 1000 < Date.now())
+					var objDateCopy = new Date(objContract.creation_date_obj);
+					if (objDateCopy.setHours(objDateCopy.getHours() + objContract.ttl) < Date.now())
 						return callbacks.ifError("contract already expired");
 					prosaic_contract.setField(objContract.hash, "status", body.status);
-					eventBus.emit("text", from_address, "contract " + body.status, ++message_counter);
+					eventBus.emit("text", from_address, "contract \""+objContract.title+"\" " + body.status, ++message_counter);
 					eventBus.emit("prosaic_contract_response_received" + body.hash, (body.status === "accepted"), body.authors);
 					callbacks.ifOk();
 				};
@@ -529,7 +563,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 						return callbacks.ifError("wrong signed message");
 					}
 					signed_message.validateSignedMessage(db, objSignedMessage, objContract.peer_address, function(err) {
-						if (err || objSignedMessage.authors[0].address !== objContract.peer_address || objSignedMessage.signed_message != objContract.hash)
+						if (err || objSignedMessage.authors[0].address !== objContract.peer_address || objSignedMessage.signed_message != objContract.title)
 							return callbacks.ifError("wrong contract signature");
 						processResponse(objSignedMessage);
 					});
@@ -619,8 +653,8 @@ function handlePrivatePaymentChains(ws, body, from_address, callbacks){
 			if (!!objHeadPrivateElement.payload.denomination !== ValidationUtils.isNonnegativeInteger(objHeadPrivateElement.output_index))
 				return cb("divisibility doesn't match presence of output_index");
 			var output_index = objHeadPrivateElement.payload.denomination ? objHeadPrivateElement.output_index : -1;
-			var payload_hash = objectHash.getBase64Hash(objHeadPrivateElement.payload);
-			var key = 'private_payment_validated-'+objHeadPrivateElement.unit+'-'+payload_hash+'-'+output_index;
+			var json_payload_hash = objectHash.getBase64Hash(objHeadPrivateElement.payload, true);
+			var key = 'private_payment_validated-'+objHeadPrivateElement.unit+'-'+json_payload_hash+'-'+output_index;
 			assocValidatedByKey[key] = false;
 			network.handleOnlinePrivatePayment(ws, arrPrivateElements, true, {
 				ifError: function(error){
@@ -1454,7 +1488,7 @@ function getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey) {
 				[address, address, address],
 				function (rows) {
 					if (rows.length !== 1)
-						throw Error("definition not found");
+						throw Error("definition not found for address " + address);
 					handleDefinition(null, JSON.parse(rows[0].definition));
 				}
 			);
@@ -1481,8 +1515,40 @@ function getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey) {
 							eventBus.emit('refused_to_sign', device_address);
 					});
 					walletGeneral.sendOfferToSign(device_address, address, signing_path, objUnsignedUnit, assocPrivatePayloads);
-					db.query("SELECT peer_device_address FROM prosaic_contracts WHERE shared_address=?", [address], function(rows) {
-						if (rows.length && rows[0].peer_device_address === device_address) // do not show alert for peer address in prosaic contracts
+
+					// filter out prosaic contract txs to change/suppress popup messages
+					async.series([function(cb) { // step 1: prosaic contract shared address deposit
+						var payment_msg = _.find(objUnsignedUnit.messages, function(m){return m.app=="payment"});
+						if (!payment_msg)
+							return cb();
+						var possible_contract_output = _.find(payment_msg.payload.outputs, function(o){return o.amount==prosaic_contract.CHARGE_AMOUNT});
+						if (!possible_contract_output)
+							return cb();
+						db.query("SELECT 1 FROM prosaic_contracts WHERE shared_address=?", [possible_contract_output.address], function(rows) {
+							if (!rows.length)
+								return cb();
+							if (!bRequestedConfirmation) {
+								eventBus.emit("confirm_prosaic_contract_deposit");
+								bRequestedConfirmation = true;
+							}
+							return cb(true);
+						});
+					}, function(cb) { // step 2: posting unit with contract hash (or not a prosaic contract / not a tx at all)
+						db.query("SELECT peer_device_address FROM prosaic_contracts WHERE shared_address=? OR peer_address=?", [address, address], function(rows) {
+							if (!rows.length) 
+								return cb();
+							// do not show alert for peer address in prosaic contracts
+							if (rows[0].peer_device_address === device_address)
+								return cb(true);
+							// co-signers on our side
+							if (!bRequestedConfirmation) {
+								eventBus.emit("confirm_prosaic_contract_post");
+								bRequestedConfirmation = true;
+							}
+							return cb(true);
+						});
+					}], function(wasConfirmationRequested) {
+						if (wasConfirmationRequested)
 							return;
 						if (!bRequestedConfirmation) {
 							eventBus.emit("confirm_on_other_devices");
@@ -1973,7 +2039,7 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 			[addrInfo.address],
 			function(rows){
 				if (rows.length === 0) {
-					cb("This payment doesn't exist in the network");
+					cb("This textcoin either was already claimed or never existed in the network");
 				} else {
 					var row = rows[0];
 					if (false && !row.is_stable) {

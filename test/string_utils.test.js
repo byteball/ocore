@@ -9,6 +9,7 @@ const encodeDoubleInLexicograpicOrder = StringUtils.encodeDoubleInLexicograpicOr
 const decodeLexicographicToDouble = StringUtils.decodeLexicographicToDouble;
 const encodeMci = StringUtils.encodeMci;
 const getMciFromDataFeedKey = StringUtils.getMciFromDataFeedKey;
+const getJsonSourceString = StringUtils.getJsonSourceString;
 
 /**
  * getSourceString
@@ -186,3 +187,17 @@ test('encode/decode mci first bit set', t => {
     t.true(getMciFromDataFeedKey('aaa\nbbbbbb\n'+encodeMci(3e9)) === 3e9);
 });
 
+/**
+ * getJsonSourceString
+ */
+
+test('ordered object', t => {
+    const obj = {aa: ['x', "v'n", "{\"bb"], b: 8, ccc: false, "s'x": 55};
+    t.true(getJsonSourceString(obj) === JSON.stringify(obj));
+});
+
+test('unordered object', t => {
+    const unordered = { ccc: ['s', {d: 'c', a: 'nn'}], aa: 'j', b: 8};
+    const ordered = { aa: 'j', b: 8, ccc: ['s', {a: 'nn', d: 'c', }], };
+    t.true(getJsonSourceString(unordered) === JSON.stringify(ordered));
+});

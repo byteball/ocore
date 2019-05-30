@@ -384,14 +384,17 @@ function prepareParentsAndLastBallAndWitnessListUnit(arrWitnesses, callbacks){
 		if (bWithReferences)
 			return callbacks.ifError("some witnesses have references in their addresses");
 		db.takeConnectionFromPool(function(conn){
+			var timestamp = Math.round(Date.now() / 1000);
 			parentComposer.pickParentUnitsAndLastBall(
 				conn,
 				arrWitnesses,
+				timestamp,
 				function(err, arrParentUnits, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
 					conn.release();
 					if (err)
 						return callbacks.ifError("unable to find parents: "+err);
 					var objResponse = {
+						timestamp: timestamp,
 						parent_units: arrParentUnits,
 						last_stable_mc_ball: last_stable_mc_ball,
 						last_stable_mc_ball_unit: last_stable_mc_ball_unit,

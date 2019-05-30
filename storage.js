@@ -80,7 +80,7 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 	//profiler.start();
 	conn.query(
 		"SELECT units.unit, version, alt, witness_list_unit, last_ball_unit, balls.ball AS last_ball, is_stable, \n\
-			content_hash, headers_commission, payload_commission, main_chain_index, "+conn.getUnixTimestamp("units.creation_date")+" AS timestamp \n\
+			content_hash, headers_commission, payload_commission, main_chain_index, timestamp, "+conn.getUnixTimestamp("units.creation_date")+" AS received_timestamp \n\
 		FROM units LEFT JOIN balls ON last_ball_unit=balls.unit WHERE units.unit=?", 
 		[unit], 
 		function(unit_rows){
@@ -92,7 +92,8 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 			var objJoint = {unit: objUnit};
 			var main_chain_index = objUnit.main_chain_index;
 			//delete objUnit.main_chain_index;
-			objUnit.timestamp = parseInt(objUnit.timestamp);
+			objUnit.timestamp = parseInt((objUnit.version === constants.versionWithoutTimestamp) ? objUnit.received_timestamp : objUnit.timestamp);
+			delete objUnit.received_timestamp;
 			var bFinalBad = !!objUnit.content_hash;
 			var bStable = objUnit.is_stable;
 			delete objUnit.is_stable;
@@ -658,20 +659,26 @@ function readWitnessesOnMcUnit(conn, main_chain_index, handleWitnesses){
 }*/
 
 
-// max_mci must be stable
-function readDefinitionByAddress(conn, address, max_mci, callbacks){
-	if (max_mci === null)
+function readDefinitionChashByAddress(conn, address, max_mci, handle){
+	if (max_mci == null || max_mci == undefined)
 		max_mci = MAX_INT32;
 	// try to find last definition change, otherwise definition_chash=address
 	conn.query(
 		"SELECT definition_chash FROM address_definition_changes CROSS JOIN units USING(unit) \n\
-		WHERE address=? AND is_stable=1 AND sequence='good' AND main_chain_index<=? ORDER BY level DESC LIMIT 1", 
+		WHERE address=? AND is_stable=1 AND sequence='good' AND main_chain_index<=? ORDER BY main_chain_index DESC LIMIT 1", 
 		[address, max_mci], 
 		function(rows){
 			var definition_chash = (rows.length > 0) ? rows[0].definition_chash : address;
+			handle(definition_chash);
+	});
+}
+
+
+// max_mci must be stable
+function readDefinitionByAddress(conn, address, max_mci, callbacks){
+	readDefinitionChashByAddress(conn, address, max_mci, function(definition_chash){
 			readDefinitionAtMci(conn, definition_chash, max_mci, callbacks);
-		}
-	);
+	});
 }
 
 // max_mci must be stable
@@ -741,7 +748,7 @@ function readUnitProps(conn, unit, handleProps){
 		return handleProps(assocUnstableUnits[unit]);
 	var stack = new Error().stack;
 	conn.query(
-		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit\n\
+		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, timestamp, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit\n\
 			FROM units \n\
 			JOIN unit_authors USING(unit) \n\
 			WHERE unit=? \n\
@@ -782,7 +789,7 @@ function readPropsOfUnits(conn, earlier_unit, arrLaterUnits, handleProps){
 	
 	var bEarlierInLaterUnits = (arrLaterUnits.indexOf(earlier_unit) !== -1);
 	conn.query(
-		"SELECT unit, level, witnessed_level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free FROM units WHERE unit IN(?, ?)", 
+		"SELECT unit, level, witnessed_level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, timestamp FROM units WHERE unit IN(?, ?)", 
 		[earlier_unit, arrLaterUnits], 
 		function(rows){
 			if (rows.length !== arrLaterUnits.length + (bEarlierInLaterUnits ? 0 : 1))
@@ -1394,7 +1401,7 @@ setInterval(shrinkCache, 300*1000);
 function initUnstableUnits(conn, onDone){
 	var conn = conn || db;
 	conn.query(
-		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit, best_parent_unit \n\
+		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, timestamp, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit, best_parent_unit \n\
 			FROM units \n\
 			JOIN unit_authors USING(unit) \n\
 			WHERE is_stable=0 \n\
@@ -1425,7 +1432,7 @@ function initStableUnits(conn, onDone){
 	var conn = conn || db;
 	readLastStableMcIndex(conn, function(last_stable_mci){
 		conn.query(
-			"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit \n\
+			"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, timestamp, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit \n\
 			FROM units \n\
 			JOIN unit_authors USING(unit) \n\
 			WHERE is_stable=1 AND main_chain_index>=? \n\
@@ -1601,6 +1608,7 @@ exports.readJoint = readJoint;
 exports.readJointWithBall = readJointWithBall;
 exports.readFreeJoints = readFreeJoints;
 
+exports.readDefinitionChashByAddress = readDefinitionChashByAddress;
 exports.readDefinitionByAddress = readDefinitionByAddress;
 exports.readDefinition = readDefinition;
 exports.readAADefinition = readAADefinition;

@@ -754,6 +754,7 @@ function composeIndivisibleAssetPaymentJoint(params){
 						for (var i=0; i<arrPayloadsWithProofs.length; i++){
 							var payload = arrPayloadsWithProofs[i].payload;
 							var payload_hash;// = objectHash.getBase64Hash(payload);
+							var bJsonBased = (last_ball_mci >= constants.timestampUpgradeMci);
 							if (objAsset.is_private){
 								payload.outputs.forEach(function(o){
 									o.output_hash = objectHash.getBase64Hash({address: o.address, blinding: o.blinding});
@@ -763,10 +764,10 @@ function composeIndivisibleAssetPaymentJoint(params){
 									delete o.address;
 									delete o.blinding;
 								});
-								payload_hash = objectHash.getBase64Hash(hidden_payload);
+								payload_hash = objectHash.getBase64Hash(hidden_payload, bJsonBased);
 							}
 							else
-								payload_hash = objectHash.getBase64Hash(payload);
+								payload_hash = objectHash.getBase64Hash(payload, bJsonBased);
 							var objMessage = {
 								app: "payment",
 								payload_location: objAsset.is_private ? "none" : "inline",
@@ -959,7 +960,8 @@ function restorePrivateChains(asset, unit, to_address, handleChains){
 	var arrRecipientChains = [];
 	var arrCosignerChains = [];
 	db.query(
-		"SELECT DISTINCT message_index, denomination, payload_hash FROM outputs JOIN messages USING(unit, message_index) WHERE unit=? AND asset=?", 
+		"SELECT DISTINCT message_index, denomination, payload_hash, version \n\
+		FROM outputs JOIN messages USING(unit, message_index) CROSS JOIN units USING(unit) WHERE unit=? AND asset=?", 
 		[unit, asset], 
 		function(rows){
 			async.eachSeries(
@@ -1001,7 +1003,7 @@ function restorePrivateChains(asset, unit, to_address, handleChains){
 										delete o.address;
 										delete o.blinding;
 									});
-									var payload_hash = objectHash.getBase64Hash(hidden_payload);
+									var payload_hash = objectHash.getBase64Hash(hidden_payload, row.version !== constants.versionWithoutTimestamp);
 									if (payload_hash !== row.payload_hash)
 										throw Error("wrong payload hash");
 									async.forEachOfSeries(
