@@ -8,7 +8,8 @@ var getSourceString = require('./string_utils').getSourceString;
 var getJsonSourceString = require('./string_utils').getJsonSourceString;
 
 function getChash160(obj) {
-	return chash.getChash160(getSourceString(obj));
+	var sourceString = (Array.isArray(obj) && obj.length === 2 && obj[0] === 'autonomous agent') ? getJsonSourceString(obj) : getSourceString(obj);
+	return chash.getChash160(sourceString);
 }
 
 function getChash288(obj) {
