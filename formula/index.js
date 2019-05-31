@@ -1978,7 +1978,9 @@ exports.evaluate = function (opts, callback) {
 						if (!(signedPackage instanceof wrappedObject))
 							return cb(false);
 						signedPackage = signedPackage.obj;
-						if (ValidationUtils.hasFieldsExcept(signedPackage, ['signed_message', 'last_ball_unit', 'authors']))
+						if (ValidationUtils.hasFieldsExcept(signedPackage, ['signed_message', 'last_ball_unit', 'authors', 'version']))
+							return cb(false);
+						if (signedPackage.version !== constants.version)
 							return cb(false);
 						signed_message.validateSignedMessage(conn, signedPackage, evaluated_address, function (err, last_ball_mci) {
 							if (err)

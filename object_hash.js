@@ -85,7 +85,8 @@ function getSignedPackageHashToSign(signedPackage) {
 	var unsignedPackage = _.cloneDeep(signedPackage);
 	for (var i=0; i<unsignedPackage.authors.length; i++)
 		delete unsignedPackage.authors[i].authentifiers;
-	return crypto.createHash("sha256").update(getSourceString(unsignedPackage), "utf8").digest();
+	var sourceString = (typeof signedPackage.version === 'undefined' || signedPackage.version === constants.versionWithoutTimestamp) ? getSourceString(unsignedPackage) : getJsonSourceString(unsignedPackage);
+	return crypto.createHash("sha256").update(sourceString, "utf8").digest();
 }
 
 function getBallHash(unit, arrParentBalls, arrSkiplistBalls, bNonserial) {

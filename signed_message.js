@@ -32,6 +32,7 @@ function signMessage(message, from_address, signer, bNetworkAware, handleResult)
 		authentifiers: {}
 	};
 	var objUnit = {
+		version: constants.version,
 		signed_message: message,
 		authors: [objAuthor]
 	};
@@ -118,10 +119,12 @@ function validateSignedMessage(conn, objSignedMessage, address, handleResult) {
 	}
 	if (typeof objSignedMessage !== 'object')
 		return handleResult("not an object");
-	if (ValidationUtils.hasFieldsExcept(objSignedMessage, ["signed_message", "authors", "last_ball_unit", "timestamp"]))
+	if (ValidationUtils.hasFieldsExcept(objSignedMessage, ["signed_message", "authors", "last_ball_unit", "timestamp", "version"]))
 		return handleResult("unknown fields");
 	if (!('signed_message' in objSignedMessage))
 		return handleResult("no signed message");
+	if ("version" in objSignedMessage && constants.supported_versions.indexOf(objSignedMessage.version) === -1)
+		return handleResult("unsupported version: " + objSignedMessage.version);
 	var authors = objSignedMessage.authors;
 	if (!ValidationUtils.isNonemptyArray(authors))
 		return handleResult("no authors");
