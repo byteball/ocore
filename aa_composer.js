@@ -528,7 +528,7 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 
 		function completeMessage(message) {
 			message.payload_location = 'inline';
-			message.payload_hash = objectHash.getBase64Hash(message.payload);
+			message.payload_hash = objectHash.getBase64Hash(message.payload, true);
 		}
 
 		function completePaymentPayload(payload, additional_amount, cb) {
