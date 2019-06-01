@@ -1296,7 +1296,8 @@ function notifyWatchers(objJoint, source_ws){
 	db.query("SELECT peer FROM watched_light_addresses WHERE address IN(?)", [arrAddresses], function(rows){
 		if (rows.length === 0)
 			return;
-		objUnit.timestamp = Math.round(Date.now()/1000); // light clients need timestamp
+		if (!objUnit.timestamp)
+			objUnit.timestamp = Math.round(Date.now()/1000); // light clients need timestamp
 		rows.forEach(function(row){
 			var ws = getPeerWebSocket(row.peer);
 			if (ws && ws.readyState === ws.OPEN && ws !== source_ws)
