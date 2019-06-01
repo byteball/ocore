@@ -419,6 +419,18 @@ exports.validate = function (opts, callback) {
 				evaluate(expr, cb);
 				break;
 			
+			case 'json_parse':
+				var expr = arr[1];
+				if (typeof expr === 'boolean' || Decimal.isDecimal(expr))
+					return cb("bad type in json_parse");
+				evaluate(expr, cb);
+				break;
+			
+			case 'json_stringify':
+				var expr = arr[1];
+				evaluate(expr, cb);
+				break;
+			
 			case 'response_unit':
 				cb(bAA && bStatementsOnly && bStateVarAssignmentAllowed ? undefined : 'response_unit not allowed here');
 				break;
@@ -2019,6 +2031,40 @@ exports.evaluate = function (opts, callback) {
 					if (!isValidValue(res))
 						return setFatalError("invalid value in sha256: " + res, cb, false);
 					cb(crypto.createHash("sha256").update(res.toString(), "utf8").digest("base64"));
+				});
+				break;
+			
+			case 'json_parse':
+				var expr = arr[1];
+				evaluate(expr, function (res) {
+					if (fatal_error)
+						return cb(false);
+					if (typeof res !== 'string')
+						return setFatalError("not a string argument of json_parse", cb, false);
+					try {
+						var json = JSON.parse(res);
+					}
+					catch (e) {
+						console.log('json_parse failed: ' + e.toString());
+						return cb(false);
+					}
+					cb(new wrappedObject(json));
+				});
+				break;
+			
+			case 'json_stringify':
+				var expr = arr[1];
+				evaluate(expr, function (res) {
+					if (fatal_error)
+						return cb(false);
+					if (res instanceof wrappedObject)
+						res = res.obj;
+					else if (Decimal.isDecimal(res)) {
+						if (!res.isFinite())
+							return setFatalError("not finite: " + res, cb, false);
+						res = res.toNumber();
+					}
+					cb(string_utils.getJsonSourceString(res)); // sorts keys unlike JSON.stringify()
 				});
 				break;
 			

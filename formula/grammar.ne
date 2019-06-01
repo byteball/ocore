@@ -41,7 +41,7 @@
 		else: "else",
 		comparisonOperators: ["==", ">=", "<=", "!=", ">", "<", "="],
 		dfParamsName: ['oracles', 'feed_name', 'min_mci', 'feed_value', 'what'],
-		name: ['min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round', 'abs', 'hypot', 'is_valid_signed_package', 'sha256'],
+		name: ['min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round', 'abs', 'hypot', 'is_valid_signed_package', 'sha256', 'json_parse', 'json_stringify'],
 		and: ['and', 'AND'],
 		or: ['or', 'OR'],
 		not: ['not', 'NOT', '!'],
@@ -217,6 +217,8 @@ N -> float          {% id %}
     | "abs" "(" expr ")"  {% function(d) {return ['abs', d[2]]; }  %}
     | "is_valid_signed_package" "(" expr "," expr ")"    {% function(d) {return ['is_valid_signed_package', d[2], d[4]]; } %}
     | "sha256" "(" expr ")"    {% function(d) {return ['sha256', d[2]]; } %}
+    | "json_parse" "(" expr ")"    {% function(d) {return ['json_parse', d[2]]; } %}
+    | "json_stringify" "(" expr ")"    {% function(d) {return ['json_stringify', d[2]]; } %}
     | bounce_expr    {% id %}
     | %data_feed ("[" "[") df_param_list ("]" "]") {% function (d, location, reject){
 		var params = {};

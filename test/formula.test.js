@@ -1850,3 +1850,55 @@ test('timestamp', t => {
 		t.deepEqual(complexity, 1);
 	})
 });
+
+test('json_stringify', t => {
+	var trigger = { data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}} };
+	var stateVars = {  };
+	evalFormulaWithVars({ conn: null, formula: "json_stringify(trigger.data)", trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity) => {
+		t.deepEqual(res, '{"ww":{"aa":8,"dd":"h"},"z":["z",9,"ak"]}');
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('json_stringify number', t => {
+	var trigger = { data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}} };
+	var stateVars = {  };
+	evalFormulaWithVars({ conn: null, formula: "json_stringify(trigger.data.ww.aa)", trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity) => {
+		t.deepEqual(res, '8');
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('json_parse', t => {
+	var trigger = { data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}} };
+	var stateVars = {  };
+	evalFormulaWithVars({ conn: null, formula: `json_parse('{"ww":{"aa":8,"dd":"h"},"z":["z",9,"ak"]}')`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity) => {
+		t.deepEqual(res, { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}});
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('json_parse invalid json', t => {
+	var trigger = { data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}} };
+	var stateVars = {  };
+	evalFormulaWithVars({ conn: null, formula: `json_parse('{"ww":{"aa":8,"dd":"h"},"z":["z",9,"ak"]')`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity) => {
+		t.deepEqual(res, false);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('json_parse not a string', t => {
+	var trigger = { data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}} };
+	var stateVars = {  };
+	evalFormulaWithVars({ conn: null, formula: `json_parse(8)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('json_parse not a string from expr', t => {
+	var trigger = { data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}} };
+	var stateVars = {  };
+	evalFormulaWithVars({ conn: null, formula: `json_parse(trigger.data.ww.aa)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity) => {
+		t.deepEqual(res, null);
+	})
+});
