@@ -148,7 +148,7 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 	if (!bounce_fees.base)
 		bounce_fees.base = 10000;
 //	console.log('===== trigger.outputs', trigger.outputs);
-	var objValidationState = { last_ball_mci: mci, assocBalances: {} };
+	var objValidationState = { last_ball_mci: mci, last_ball_timestamp: objMcUnit.timestamp, assocBalances: {} };
 	var objStateUpdate;
 	var count = 0;
 

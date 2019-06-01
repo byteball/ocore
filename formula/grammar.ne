@@ -50,6 +50,8 @@
 		ternary: ['?', ':'],
 		base: 'base',
 		var: 'var',
+		mci: 'mci',
+		timestamp: 'timestamp',
 		response_unit: 'response_unit',
 		response: 'response',
 		bounce: 'bounce',
@@ -287,6 +289,8 @@ N -> float          {% id %}
 			field = field[1];
 		return ['asset', d[2], field];
 	} %}
+	| "mci"  {% function(d) {return ['mci']; }  %}
+	| "timestamp"  {% function(d) {return ['timestamp']; }  %}
 	| "response_unit"  {% function(d) {return ['response_unit']; }  %}
 	| "trigger.address"  {% function(d) {return ['trigger.address']; }  %}
 	| "trigger.unit"  {% function(d) {return ['trigger.unit']; }  %}

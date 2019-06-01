@@ -215,6 +215,11 @@ exports.validate = function (opts, callback) {
 				}, cb);
 				break;
 			
+			case 'mci':
+			case 'timestamp':
+				cb();
+				break;
+			
 			case 'trigger.address':
 			case 'trigger.unit':
 				cb(bAA ? undefined : op + ' in non-AA');
@@ -697,6 +702,9 @@ exports.evaluate = function (opts, callback) {
 	var address = opts.address;
 	var response_unit = opts.response_unit;
 
+	if (!ValidationUtils.isPositiveInteger(objValidationState.last_ball_timestamp))
+		throw Error('last_ball_timestamp is not a number: ' + objValidationState.last_ball_timestamp);
+	
 	var bAA = (messages.length === 0);
 	if (!bAA && (bStatementsOnly || bStateVarAssignmentAllowed || bObjectResultAllowed))
 		throw Error("bad opts for non-AA");
@@ -1603,6 +1611,14 @@ exports.evaluate = function (opts, callback) {
 				}, function (err) {
 					cb(!err ? result : false);
 				});
+				break;
+			
+			case 'mci':
+				cb(new Decimal(objValidationState.last_ball_mci));
+				break;
+			
+			case 'timestamp':
+				cb(new Decimal(objValidationState.last_ball_timestamp));
 				break;
 			
 			case 'trigger.address':

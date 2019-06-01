@@ -54,6 +54,8 @@ function id(x) { return x[0]; }
 		ternary: ['?', ':'],
 		base: 'base',
 		var: 'var',
+		mci: 'mci',
+		timestamp: 'timestamp',
 		response_unit: 'response_unit',
 		response: 'response',
 		bounce: 'bounce',
@@ -355,6 +357,8 @@ var grammar = {
         		field = field[1];
         	return ['asset', d[2], field];
         } },
+    {"name": "N", "symbols": [{"literal":"mci"}], "postprocess": function(d) {return ['mci']; }},
+    {"name": "N", "symbols": [{"literal":"timestamp"}], "postprocess": function(d) {return ['timestamp']; }},
     {"name": "N", "symbols": [{"literal":"response_unit"}], "postprocess": function(d) {return ['response_unit']; }},
     {"name": "N", "symbols": [{"literal":"trigger.address"}], "postprocess": function(d) {return ['trigger.address']; }},
     {"name": "N", "symbols": [{"literal":"trigger.unit"}], "postprocess": function(d) {return ['trigger.unit']; }},

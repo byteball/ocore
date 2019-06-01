@@ -155,22 +155,23 @@ function validateSignedMessage(conn, objSignedMessage, address, handleResult) {
 	function validateOrReadDefinition(cb) {
 		var bHasDefinition = ("definition" in objAuthor);
 		if (bNetworkAware) {
-			conn.query("SELECT main_chain_index FROM units WHERE unit=?", [objSignedMessage.last_ball_unit], function (rows) {
+			conn.query("SELECT main_chain_index, timestamp FROM units WHERE unit=?", [objSignedMessage.last_ball_unit], function (rows) {
 				if (rows.length === 0)
 					return handleResult("last_ball_unit " + objSignedMessage.last_ball_unit + " not found");
 				var last_ball_mci = rows[0].main_chain_index;
+				var last_ball_timestamp = rows[0].timestamp;
 				storage.readDefinitionByAddress(conn, objAuthor.address, last_ball_mci, {
 					ifDefinitionNotFound: function (definition_chash) { // first use of the definition_chash (in particular, of the address, when definition_chash=address)
 						if (!bHasDefinition)
 							return handleResult("definition expected but not provided");
 						if (objectHash.getChash160(objAuthor.definition) !== definition_chash)
 							return handleResult("wrong definition: "+objectHash.getChash160(objAuthor.definition) +"!=="+ definition_chash);
-						cb(objAuthor.definition, last_ball_mci);
+						cb(objAuthor.definition, last_ball_mci, last_ball_timestamp);
 					},
 					ifFound: function (arrAddressDefinition) {
 						if (bHasDefinition)
 							return handleResult("should not include definition");
-						cb(arrAddressDefinition, last_ball_mci);
+						cb(arrAddressDefinition, last_ball_mci, last_ball_timestamp);
 					}
 				});
 			});
@@ -184,17 +185,18 @@ function validateSignedMessage(conn, objSignedMessage, address, handleResult) {
 			} catch (e) {
 				return handleResult("failed to calc address definition hash: " + e);
 			}
-			cb(objAuthor.definition, -1);
+			cb(objAuthor.definition, -1, 0);
 		}
 	}
 
-	validateOrReadDefinition(function (arrAddressDefinition, last_ball_mci) {
+	validateOrReadDefinition(function (arrAddressDefinition, last_ball_mci, last_ball_timestamp) {
 		var objUnit = _.clone(objSignedMessage);
 		objUnit.messages = []; // some ops need it
 		try {
 			var objValidationState = {
 				unit_hash_to_sign: objectHash.getSignedPackageHashToSign(objSignedMessage),
 				last_ball_mci: last_ball_mci,
+				last_ball_timestamp: last_ball_timestamp,
 				bNoReferences: !bNetworkAware
 			};
 		}

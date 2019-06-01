@@ -89,6 +89,7 @@ function evalFormulaWithVars(opts, callback) {
 
 var objValidationState = {
 	last_ball_mci: 1000,
+	last_ball_timestamp: 1.5e9,
 	assocBalances: {},
 	arrAugmentedMessages: [{
 		"app": "payment",
@@ -1482,6 +1483,7 @@ test.cb('signature verification', t => {
 					amount: 1.23,
 					price: 42.3
 				},
+				version: '2.0',
 				last_ball_unit: 'oXGOcA9TQx8Tl5Syjp1d5+mB4xicsRk3kbcE82YQAS0=',
 				authors: [{
 					address: address,
@@ -1828,5 +1830,23 @@ test.cb('asset non-base auto_destroy', t => {
 		t.deepEqual(res, false);
 		t.deepEqual(complexity, 2);
 		t.end();
+	})
+});
+
+test('mci', t => {
+	var trigger = {  };
+	var stateVars = {  };
+	evalFormulaWithVars({ conn: null, formula: "mci + 1", trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity) => {
+		t.deepEqual(res, 1001);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('timestamp', t => {
+	var trigger = {  };
+	var stateVars = {  };
+	evalFormulaWithVars({ conn: null, formula: "timestamp + 1", trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity) => {
+		t.deepEqual(res, 1.5e9+1);
+		t.deepEqual(complexity, 1);
 	})
 });

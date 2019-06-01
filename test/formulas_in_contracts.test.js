@@ -35,6 +35,7 @@ var objUnit = {
 
 var objValidationState = {
 	last_ball_mci: 1000,
+	last_ball_timestamp: 1.5e9,
 	arrAugmentedMessages: [{
 		"app": "payment",
 		"payload_location": "inline",
