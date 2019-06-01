@@ -130,548 +130,548 @@ var objValidationState = {
 
 
 test('1 + 1', t => {
-	evalFormula(0, "1 + 1", 0, 0, 0, res => {
+	evalFormula(null, "1 + 1", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 2);
 	});
 });
 
 test('1 - 1', t => {
-	evalFormula(0, "1 - 1", 0, 0, 0, res => {
+	evalFormula(null, "1 - 1", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 0);
 	});
 });
 
 test('1-1', t => {
-	evalFormula(0, "1-1", 0, 0, 0, res => {
+	evalFormula(null, "1-1", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 0);
 	});
 });
 
 test('-3 + 1', t => {
-	evalFormula(0, "-3 + 1", 0, 0, 0, res => {
+	evalFormula(null, "-3 + 1", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, -2);
 	});
 });
 
 test('2 * 2', t => {
-	evalFormula(0, "2 * 2", 0, 0, 0, res => {
+	evalFormula(null, "2 * 2", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 4);
 	});
 });
 
 test('- 2 / 2', t => {
-	evalFormula(0, "- 2 / 2", 0, 0, 0, res => {
+	evalFormula(null, "- 2 / 2", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, -1);
 	});
 });
 
 test('2 / 0 infinity', t => {
-	evalFormula(0, "2 / 0", 0, 0, 0, res => {
+	evalFormula(null, "2 / 0", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, null);
 	});
 });
 
 test('2 ^ 4', t => {
-	evalFormula(0, "2 ^ 4", 0, 0, 0, res => {
+	evalFormula(null, "2 ^ 4", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 16);
 	});
 });
 
 test('-2 ^ 4', t => {
-	evalFormula(0, "-2 ^ 4", 0, 0, 0, res => {
+	evalFormula(null, "-2 ^ 4", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, -16);
 	});
 });
 
 test('2 ^ -2', t => {
-	evalFormula(0, "2 ^ -2", 0, 0, 0, res => {
+	evalFormula(null, "2 ^ -2", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, null);
 	});
 });
 
 test('-2 ^ (-2)', t => {
-	evalFormula(0, "-2 ^ (-2)", 0, 0, 0, res => {
+	evalFormula(null, "-2 ^ (-2)", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, '-0.25');
 	});
 });
 
 test('2 ^ 9007199254740992', t => {
-	evalFormula(0, "2 ^ 9007199254740992", 0, 0, 0, res => {
+	evalFormula(null, "2 ^ 9007199254740992", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, null);
 	});
 });
 
 test('2 ^ 1.5', t => {
-	evalFormula(0, "2 ^ 1.5", 0, 0, 0, res => {
+	evalFormula(null, "2 ^ 1.5", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, '2.8284271247462');
 	});
 });
 
 test('2 ^ 1.6', t => {
-	evalFormula(0, "2 ^ 1.6", 0, 0, 0, res => {
+	evalFormula(null, "2 ^ 1.6", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, '3.03143313302079');
 	});
 });
 
 test('e ^ (4-2.5)', t => {
-	evalFormula(0, "e^(4-2.5)", 0, 0, 0, res => {
+	evalFormula(null, "e^(4-2.5)", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, '4.48168907033806');
 	});
 });
 
 test('222222222 ^ 222222222 infinity', t => {
-	evalFormula(0, "222222222 ^ 222222222", 0, 0, 0, res => {
+	evalFormula(null, "222222222 ^ 222222222", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, null);
 	});
 });
 
 test('222222222 ^ (-222222222) 0', t => {
-	evalFormula(0, "222222222 ^ (-222222222)", 0, 0, 0, res => {
+	evalFormula(null, "222222222 ^ (-222222222)", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 0);
 	});
 });
 
 test('ln(e^2)', t => {
-	evalFormula(0, "ln(e^2)", 0, 0, 0, res => {
+	evalFormula(null, "ln(e^2)", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 2);
 	});
 });
 
 test('e^ln(2)', t => {
-	evalFormula(0, "e^ln(2)", 0, 0, 0, res => {
+	evalFormula(null, "e^ln(2)", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 2);
 	});
 });
 
 test('ln(e^(2+1e-15))', t => {
-	evalFormula(0, "ln(e^(2+1e-15))", 0, 0, 0, res => {
+	evalFormula(null, "ln(e^(2+1e-15))", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 2);
 	});
 });
 
 test('ln(e^(2+1e-14))', t => {
-	evalFormula(0, "ln(e^(2+1e-14))", 0, 0, 0, res => {
+	evalFormula(null, "ln(e^(2+1e-14))", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, '2.00000000000001');
 	});
 });
 
 test('(2 + 2) * 2', t => {
-	evalFormula(0, "(2 + 2) * 2", 0, 0, 0, res => {
+	evalFormula(null, "(2 + 2) * 2", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 8);
 	});
 });
 
 test('2 + 2 * 2', t => {
-	evalFormula(0, "2 + 2 * 2", 0, 0, 0, res => {
+	evalFormula(null, "2 + 2 * 2", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 6);
 	});
 });
 
 test('10 - 5 + 1', t => {
-	evalFormula(0, "10 - 5 + 1", 0, 0, 0, res => {
+	evalFormula(null, "10 - 5 + 1", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 6);
 	});
 });
 
 test('15 - 5 + 2*3', t => {
-	evalFormula(0, "15 - 5 + 2*3", 0, 0, 0, res => {
+	evalFormula(null, "15 - 5 + 2*3", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 16);
 	});
 });
 
 test('5 - 3*4 + 2*3', t => {
-	evalFormula(0, "5 - 3*4 + 2*3", 0, 0, 0, res => {
+	evalFormula(null, "5 - 3*4 + 2*3", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, -1);
 	});
 });
 
 test('pi + 2', t => {
-	evalFormula(0, "pi + 2", 0, 0, 0, res => {
+	evalFormula(null, "pi + 2", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, '5.14159265358979');
 	});
 });
 
 test('e + 2', t => {
-	evalFormula(0, "e + 2", 0, 0, 0, res => {
+	evalFormula(null, "e + 2", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, '4.71828182845904');
 	});
 });
 
 
 test('sqrt(2)', t => {
-	evalFormula(0, "sqrt ( max ( 1 , sqrt(4) ) )", 0, 0, 0, res => {
+	evalFormula(null, "sqrt ( max ( 1 , sqrt(4) ) )", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, '1.4142135623731');
 	});
 });
 
 test('sqrt ternary', t => {
-	evalFormula(0, "sqrt ( 1==2 ? 4 : 9 )", 0, 0, 0, res => {
+	evalFormula(null, "sqrt ( 1==2 ? 4 : 9 )", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 3);
 	});
 });
 
 test('abs negative', t => {
-	evalFormula(0, "abs(-2)", 0, 0, 0, res => {
+	evalFormula(null, "abs(-2)", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 2);
 	});
 });
 
 test('abs positive', t => {
-	evalFormula(0, "abs(2.33)", 0, 0, 0, res => {
+	evalFormula(null, "abs(2.33)", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, '2.33');
 	});
 });
 
 test('abs string', t => {
-	evalFormula(0, "abs(2 || '')", 0, 0, 0, res => {
+	evalFormula(null, "abs(2 || '')", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, null);
 	});
 });
 
 test('1 == 1', t => {
-	evalFormula(0, "1 == 1", 0, 0, 0, res => {
+	evalFormula(null, "1 == 1", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, true);
 	});
 });
 
 test('1 != 1', t => {
-	evalFormula(0, "1 != 1", 0, 0, 0, res => {
+	evalFormula(null, "1 != 1", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, false);
 	});
 });
 
 test('1 != 2', t => {
-	evalFormula(0, "1 != 2", 0, 0, 0, res => {
+	evalFormula(null, "1 != 2", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, true);
 	});
 });
 
 test('1 < 2', t => {
-	evalFormula(0, "1 < 2", 0, 0, 0, res => {
+	evalFormula(null, "1 < 2", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, true);
 	});
 });
 
 test('1 > 2', t => {
-	evalFormula(0, "1 > 2", 0, 0, 0, res => {
+	evalFormula(null, "1 > 2", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, false);
 	});
 });
 
 test('1 >= 2', t => {
-	evalFormula(0, "2 >= 2", 0, 0, 0, res => {
+	evalFormula(null, "2 >= 2", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, true);
 	});
 });
 
 test('1 <= 2', t => {
-	evalFormula(0, "1 <= 2", 0, 0, 0, res => {
+	evalFormula(null, "1 <= 2", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, true);
 	});
 });
 
 test('0 >= 2', t => {
-	evalFormula(0, "0 >= 2", 0, 0, 0, res => {
+	evalFormula(null, "0 >= 2", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, false);
 	});
 });
 
 test('3 <= 2', t => {
-	evalFormula(0, "3 <= 1", 0, 0, 0, res => {
+	evalFormula(null, "3 <= 1", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, false);
 	});
 });
 
 test('"test" == "test"', t => {
-	evalFormula(0, '"test" == "test"', 0, 0, 0, res => {
+	evalFormula(null, '"test" == "test"', [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, true);
 	});
 });
 
 test('"test" != "test"', t => {
-	evalFormula(0, '"test" != "test"', 0, 0, 0, res => {
+	evalFormula(null, '"test" != "test"', [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, false);
 	});
 });
 
 test('"test 1" != "test 2"', t => {
-	evalFormula(0, '"test 1" != "test 2"', 0, 0, 0, res => {
+	evalFormula(null, '"test 1" != "test 2"', [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, true);
 	});
 });
 
 test('"test 2" != "test 2"', t => {
-	evalFormula(0, '"test 2" != "test 2"', 0, 0, 0, res => {
+	evalFormula(null, '"test 2" != "test 2"', [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, false);
 	});
 });
 
 test('"test 3" == "test 3"', t => {
-	evalFormula(0, '"test 3" == "test 3"', 0, 0, 0, res => {
+	evalFormula(null, '"test 3" == "test 3"', [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, true);
 	});
 });
 
 test('1 and 1', t => {
-	evalFormula(0, "1 and 1", 0, 0, 0, res => {
+	evalFormula(null, "1 and 1", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, true);
 	});
 });
 
 test('0 and 0', t => {
-	evalFormula(0, "0 and 0", 0, 0, 0, res => {
+	evalFormula(null, "0 and 0", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, false);
 	});
 });
 
 test('0 and 1', t => {
-	evalFormula(0, "0 and 1", 0, 0, 0, res => {
+	evalFormula(null, "0 and 1", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, false);
 	});
 });
 
 test('0 or 1', t => {
-	evalFormula(0, "0 or 1", 0, 0, 0, res => {
+	evalFormula(null, "0 or 1", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, true);
 	});
 });
 
 test('1 == 1 and 1 == 1', t => {
-	evalFormula(0, "1 == 1 and 1 == 1", 0, 0, 0, res => {
+	evalFormula(null, "1 == 1 and 1 == 1", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, true);
 	});
 });
 test('1 == 1 and 1 == 2', t => {
-	evalFormula(0, "1 == 1 and 1 == 2", 0, 0, 0, res => {
+	evalFormula(null, "1 == 1 and 1 == 2", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, false);
 	});
 });
 
 test('1 or 1 and 0', t => {
-	evalFormula(0, "1 or 1 and 0", 0, 0, 0, res => {
+	evalFormula(null, "1 or 1 and 0", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, true);
 	});
 });
 
 test('1 == 1 or 1 == 2', t => {
-	evalFormula(0, "1 == 1 or 1 == 2", 0, 0, 0, res => {
+	evalFormula(null, "1 == 1 or 1 == 2", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, true);
 	});
 });
 
 test('1 == 2 or 1 == 2', t => {
-	evalFormula(0, "1 == 2 or 1 == 2", 0, 0, 0, res => {
+	evalFormula(null, "1 == 2 or 1 == 2", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, false);
 	});
 });
 
 test('10 == 10 ? 1 : 2', t => {
-	evalFormula(0, "10 == 10 ? 1 : 2", 0, 0, 0, res => {
+	evalFormula(null, "10 == 10 ? 1 : 2", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 1);
 	});
 });
 
 test('10 != 10 ? 1 : 2', t => {
-	evalFormula(0, "10 != 10 ? 1 : 2", 0, 0, 0, res => {
+	evalFormula(null, "10 != 10 ? 1 : 2", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 2);
 	});
 });
 
 test('10 == 10 ? 1 + 1 : 2 + 2', t => {
-	evalFormula(0, "10 == 10 ? 1 + 1 : 2 + 2", 0, 0, 0, res => {
+	evalFormula(null, "10 == 10 ? 1 + 1 : 2 + 2", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 2);
 	});
 });
 
 test('10 != 10 ? 1 + 1 : 2 + 2', t => {
-	evalFormula(0, "10 != 10 ? 1 + 1 : 2 + 2", 0, 0, 0, res => {
+	evalFormula(null, "10 != 10 ? 1 + 1 : 2 + 2", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 4);
 	});
 });
 
 test('1000000000000000000000000000000 == 1000000000000000000000000000000', t => {
-	evalFormula(0, "1000000000000000000000000000000 == 1000000000000000000000000000000", 0, 0, 0, res => {
+	evalFormula(null, "1000000000000000000000000000000 == 1000000000000000000000000000000", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, true);
 	});
 });
 
 test('1000000000000000000000000000000 == 1000000000000000000000000000001 excessive precision', t => {
-	evalFormula(0, "1000000000000000000000000000000 == 1000000000000000000000000000001", 0, 0, 0, res => {
+	evalFormula(null, "1000000000000000000000000000000 == 1000000000000000000000000000001", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, true);
 	});
 });
 
 test('min 1,2', t => {
-	evalFormula(0, 'min(1,2)', 0, 0, 0, res => {
+	evalFormula(null, 'min(1,2)', [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 1);
 	});
 });
 
 test('min 1,2,4', t => {
-	evalFormula(0, "min(1,2,4)", 0, 0, 0, res => {
+	evalFormula(null, "min(1,2,4)", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 1);
 	});
 });
 
 test('min 2,3,5,7', t => {
-	evalFormula(0, "min(2,3,5,7)", 0, 0, 0, res => {
+	evalFormula(null, "min(2,3,5,7)", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 2);
 	});
 });
 
 test('max 1,2', t => {
-	evalFormula(0, "max(1,2)", 0, 0, 0, res => {
+	evalFormula(null, "max(1,2)", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 2);
 	});
 });
 
 test('max 1,2 without parens', t => {
-	evalFormula(0, "max 1,2", 0, 0, 0, res => {
+	evalFormula(null, "max 1,2", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, null);
 	});
 });
 
 test('max 1,2,4', t => {
-	evalFormula(0, "max(1,2,4)", 0, 0, 0, res => {
+	evalFormula(null, "max(1,2,4)", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 4);
 	});
 });
 test('max 2,3,5,7', t => {
-	evalFormula(0, "max(2,3,5,7)", 0, 0, 0, res => {
+	evalFormula(null, "max(2,3,5,7)", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 7);
 	});
 });
 
 test('hypot(3, 4)', t => {
-	evalFormula(0, 'hypot(3, 4)', 0, 0, 0, res => {
+	evalFormula(null, 'hypot(3, 4)', [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 5);
 	});
 });
 
 test('ceil 2.5', t => {
-	evalFormula(0, "ceil(2.5)", 0, 0, 0, res => {
+	evalFormula(null, "ceil(2.5)", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 3);
 	});
 });
 
 test('ceil 2.5 without parens', t => {
-	evalFormula(0, "ceil 2.5", 0, 0, 0, res => {
+	evalFormula(null, "ceil 2.5", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, null);
 	});
 });
 
 test('floor 2.5', t => {
-	evalFormula(0, 'floor(2.5)', 0, 0, 0, res => {
+	evalFormula(null, 'floor(2.5)', [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 2);
 	});
 });
 
 test('round 2.5', t => {
-	evalFormula(0, 'round(2.9)', 0, 0, 0, res => {
+	evalFormula(null, 'round(2.9)', [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 3);
 	});
 });
 
 test('ceil(2.12345, 3)', t => {
-	evalFormula(0, "ceil(2.12345, 3)", 0, 0, 0, res => {
+	evalFormula(null, "ceil(2.12345, 3)", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, '2.124');
 	});
 });
 
 test('ceil ternary', t => {
-	evalFormula(0, "ceil((6==8 OR 3==9) ? 6.777 : 2.12345, 1+1==2 ? 3 : 1)", 0, 0, 0, res => {
+	evalFormula(null, "ceil((6==8 OR 3==9) ? 6.777 : 2.12345, 1+1==2 ? 3 : 1)", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, '2.124');
 	});
 });
 
 test('floor(2.12345, 3)', t => {
-	evalFormula(0, "floor(2.12345, 3)", 0, 0, 0, res => {
+	evalFormula(null, "floor(2.12345, 3)", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, '2.123');
 	});
 });
 
 test('round(2.12345, 3)', t => {
-	evalFormula(0, "round(2.12345, min(5, 23, 3, 77))", 0, 0, 0, res => {
+	evalFormula(null, "round(2.12345, min(5, 23, 3, 77))", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, '2.123');
 	});
 });
 
 
 test("0.1 + 0.2 == 0.3", t => {
-	evalFormula(0, "0.1 + 0.2 == 0.3", 0, 0, 0, res => {
+	evalFormula(null, "0.1 + 0.2 == 0.3", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, true);
 	});
 });
 
 test("'test' || 'test'", t => {
-	evalFormula(0, "1 || 1 || 1", 0, 0, 0, res => {
+	evalFormula(null, "1 || 1 || 1", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, "111");
 	});
 });
 
 test("'test' || 'test' and 'test'", t => {
-	evalFormula(0, "'test' || 'test' || 'test'", 0, 0, 0, res => {
+	evalFormula(null, "'test' || 'test' || 'test'", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, "testtesttest");
 	});
 });
 
 
 test("'test' || 1 and 'test'", t => {
-	evalFormula(0, "'test' || 1 || 'test'", 0, 0, 0, res => {
+	evalFormula(null, "'test' || 1 || 'test'", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, "test1test");
 	});
 });
 
 test("'test' || 1 and 'test'", t => {
-	evalFormula(0, "'test' || (1>2 ? 55 : -3+1) || 'test'", 0, 0, 0, res => {
+	evalFormula(null, "'test' || (1>2 ? 55 : -3+1) || 'test'", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, "test-2test");
 	});
 });
 
 test("1 == 1", t => {
-	evalFormula(0, "1 == 1", 0, 0, 0, res => {
+	evalFormula(null, "1 == 1", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, true);
 	});
 });
 
 test("\"1\" == \"1\"", t => {
-	evalFormula(0, "\"1\" == \"1\"", 0, 0, 0, res => {
+	evalFormula(null, "\"1\" == \"1\"", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, true);
 	});
 });
 
 test("\"1\" < \"1\"", t => {
-	evalFormula(0, "\"1\" < \"1\"", 0, 0, 0, res => {
+	evalFormula(null, "\"1\" < \"1\"", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, false);
 	});
 });
 
 test("2 == \"2\"", t => {
-	evalFormula(0, "2 == \"2\"", 0, 0, 0, res => {
+	evalFormula(null, "2 == \"2\"", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, true);
 	});
 });
 
 test("\"1\" < 2", t => {
-	evalFormula(0, "\"1\" < 2", 0, 0, 0, res => {
+	evalFormula(null, "\"1\" < 2", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, null);
 	});
 });
 
 test("\"bb\" > \"ba\"", t => {
-	evalFormula(0, "\"bb\" > \"ba\"", 0, 0, 0, res => {
+	evalFormula(null, "\"bb\" > \"ba\"", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, true);
 	});
 });
 
 test('formula - amount !=', t => {
-	evalFormula(0, 'input[[asset="base" ]].amount != output[[ asset = base , address=GFK3RDAPQLLNCMQEVGGD2KCPZTLSG3HN]].amount', objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
+	evalFormula(null, 'input[[asset="base" ]].amount != output[[ asset = base , address=GFK3RDAPQLLNCMQEVGGD2KCPZTLSG3HN]].amount', objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
 		t.deepEqual(res, true);
 	});
 });
 
 test('formula - amount = 1', t => {
-	evalFormula(0, "output[[asset = base, amount=1]].amount == 1", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
+	evalFormula(null, "output[[asset = base, amount=1]].amount == 1", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
 		t.deepEqual(res, true);
 	});
 });
@@ -906,19 +906,19 @@ test('validate round ok', t => {
 });
 
 test('validate min ok', t => {
-	evalFormula(0, "min(1 + (1 + 1) - 1 - (2+3), 2)", 0, 0, 0, res => {
+	evalFormula(null, "min(1 + (1 + 1) - 1 - (2+3), 2)", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, -3);
 	})
 });
 
 test('max ternary', t => {
-	evalFormula(0, "max(2>1 ? 5 : 6, 2)", 0, 0, 0, res => {
+	evalFormula(null, "max(2>1 ? 5 : 6, 2)", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 5);
 	})
 });
 
 test('eval ternary ok', t => {
-	evalFormula(0, "1 == 1 ? 'ok' : '!ok'", 0, 0, 0, res => {
+	evalFormula(null, "1 == 1 ? 'ok' : '!ok'", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 'ok');
 	})
 });
@@ -949,31 +949,31 @@ test('inp', t => {
 });
 
 test('max ternary input', t => {
-	evalFormula(0, "max(2>1 ? 5 : 6, input[[address=this address]].amount > 10000 ? input[[address=this address]].amount + 1 : -1, 2)", objValidationState.arrAugmentedMessages, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
+	evalFormula(null, "max(2>1 ? 5 : 6, input[[address=this address]].amount > 10000 ? input[[address=this address]].amount + 1 : -1, 2)", objValidationState.arrAugmentedMessages, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
 		t.deepEqual(res, 20001);
 	})
 });
 
 test('formula in input', t => {
-	evalFormula(0, "input[[address='this '||'address', amount=3*10*1000-10000]].amount - 5000", objValidationState.arrAugmentedMessages, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
+	evalFormula(null, "input[[address='this '||'address', amount=3*10*1000-10000]].amount - 5000", objValidationState.arrAugmentedMessages, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
 		t.deepEqual(res, 15000);
 	})
 });
 
 test('nested output in input', t => {
-	evalFormula(0, "input[[address=output[[amount>10*2-6]].address, amount=3*10*1000-10000]].amount - 5000", objValidationState.arrAugmentedMessages, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
+	evalFormula(null, "input[[address=output[[amount>10*2-6]].address, amount=3*10*1000-10000]].amount - 5000", objValidationState.arrAugmentedMessages, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
 		t.deepEqual(res, 15000);
 	})
 });
 
 test('bad address evaluated from nested output in input', t => {
-	evalFormula(0, "input[[address=output[[amount>10*2-6]].amount, amount=3*10*1000-10000]].amount * 5000", objValidationState.arrAugmentedMessages, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
+	evalFormula(null, "input[[address=output[[amount>10*2-6]].amount, amount=3*10*1000-10000]].amount * 5000", objValidationState.arrAugmentedMessages, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
 		t.deepEqual(res, null);
 	})
 });
 
 test.cb('nested data feed in input', t => {
-	evalFormula(0, "input[[address=data_feed[[oracles=\"this address\", feed_name='test']]==10 ? 'this address' : 'bad address', amount=3*10*1000-10000]].amount - 5000", objValidationState.arrAugmentedMessages, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
+	evalFormula(null, "input[[address=data_feed[[oracles=\"this address\", feed_name='test']]==10 ? 'this address' : 'bad address', amount=3*10*1000-10000]].amount - 5000", objValidationState.arrAugmentedMessages, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
 		t.deepEqual(res, 15000);
 		t.end();
 	})
@@ -1155,43 +1155,43 @@ test.cb('attestation ifseveral abort', t => {
 });
 
 test('true', t => {
-	evalFormula(0, "true", 0, 0, 0, res => {
+	evalFormula(null, "true", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, true);
 	});
 });
 
 test('ternary boolean 1', t => {
-	evalFormula(0, '(2*2==5) ? "xx" : false', 0, 0, 0, res => {
+	evalFormula(null, '(2*2==5) ? "xx" : false', [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, false);
 	});
 });
 
 test('ternary boolean 2', t => {
-	evalFormula(0, '(2*2==4) ? "xx" : true', 0, 0, 0, res => {
+	evalFormula(null, '(2*2==4) ? "xx" : true', [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, "xx");
 	});
 });
 
 test('concat boolean', t => {
-	evalFormula(0, '"xx" || true', 0, 0, 0, res => {
+	evalFormula(null, '"xx" || true', [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, "xxtrue");
 	});
 });
 
 test('multiply boolean', t => {
-	evalFormula(0, '2 * true + 3 * false - true', 0, 0, 0, res => {
+	evalFormula(null, '2 * true + 3 * false - true', [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 1);
 	});
 });
 
 test('min boolean', t => {
-	evalFormula(0, 'min(2, true)', 0, 0, 0, res => {
+	evalFormula(null, 'min(2, true)', [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 1);
 	});
 });
 
 test('round boolean', t => {
-	evalFormula(0, 'round(true)', 0, 0, 0, res => {
+	evalFormula(null, 'round(true)', [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 1);
 	});
 });
