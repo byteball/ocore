@@ -737,7 +737,7 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 				var objUnit = {
 					version: constants.version, 
 					alt: constants.alt,
-					//timestamp: Math.round(Date.now()/1000),
+					timestamp: objMcUnit.timestamp,
 					messages: messages,
 					authors: [{ address: address }],
 					last_ball_unit: objMcUnit.last_ball_unit,

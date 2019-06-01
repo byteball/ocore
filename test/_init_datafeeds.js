@@ -60,8 +60,8 @@ test.before.cb(t => {
 	
 	db.query("INSERT " + db.getIgnore() + " INTO witness_list_hashes (witness_list_unit, witness_list_hash) VALUES ('oj8yEksX9Ubq7lLc+p6F2uyHUuynugeVq4+ikT67X6E=',	'8/0sh9uejLd2vaf/5JDYeZ2fSTOnnEQnxz885cGJgf0=')");
 
-	db.query("INSERT " + db.getIgnore() + " INTO units (unit, headers_commission, payload_commission, is_free, main_chain_index, is_stable, is_on_main_chain, witness_list_unit, witnessed_level, level) VALUES ('oXGOcA9TQx8Tl5Syjp1d5+mB4xicsRk3kbcE82YQAS0=', 300, 300, 0, 500, 1, 1, 'oj8yEksX9Ubq7lLc+p6F2uyHUuynugeVq4+ikT67X6E=', 450, 500)");
-	db.query("INSERT " + db.getIgnore() + " INTO units (unit, headers_commission, payload_commission, is_free, main_chain_index, is_stable, latest_included_mc_index, best_parent_unit, witness_list_unit, witnessed_level, level) VALUES ('DTDDiGV4wBlVUdEpwwQMxZK2ZsHQGBQ6x4vM463/uy8=', 300, 300, 0, 600, 1, 599, 'oXGOcA9TQx8Tl5Syjp1d5+mB4xicsRk3kbcE82YQAS0=', 'oj8yEksX9Ubq7lLc+p6F2uyHUuynugeVq4+ikT67X6E=', 550, 600)");
+	db.query("INSERT " + db.getIgnore() + " INTO units (unit, headers_commission, payload_commission, is_free, main_chain_index, is_stable, is_on_main_chain, witness_list_unit, witnessed_level, level, timestamp) VALUES ('oXGOcA9TQx8Tl5Syjp1d5+mB4xicsRk3kbcE82YQAS0=', 300, 300, 0, 500, 1, 1, 'oj8yEksX9Ubq7lLc+p6F2uyHUuynugeVq4+ikT67X6E=', 450, 500, 1.5e9)");
+	db.query("INSERT " + db.getIgnore() + " INTO units (unit, headers_commission, payload_commission, is_free, main_chain_index, is_stable, latest_included_mc_index, best_parent_unit, witness_list_unit, witnessed_level, level, timestamp) VALUES ('DTDDiGV4wBlVUdEpwwQMxZK2ZsHQGBQ6x4vM463/uy8=', 300, 300, 0, 600, 1, 599, 'oXGOcA9TQx8Tl5Syjp1d5+mB4xicsRk3kbcE82YQAS0=', 'oj8yEksX9Ubq7lLc+p6F2uyHUuynugeVq4+ikT67X6E=', 550, 600, 1.5e9)");
 
 	db.query("INSERT " + db.getIgnore() + " INTO addresses (address) VALUES ('MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU')");
 	db.query("INSERT " + db.getIgnore() + " INTO addresses (address) VALUES ('BVVJ2K7ENPZZ3VYZFWQWK7ISPCATFIW3')");
