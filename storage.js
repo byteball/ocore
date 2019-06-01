@@ -47,7 +47,8 @@ function readJoint(conn, unit, callbacks, bSql) {
 			if (rows.length === 0)
 				throw Error("unit found in kv but not in sql: "+unit);
 			var row = rows[0];
-			objJoint.unit.timestamp = parseInt(row.timestamp);
+			if (objJoint.unit.version === constants.versionWithoutTimestamp)
+				objJoint.unit.timestamp = parseInt(row.timestamp);
 			objJoint.unit.main_chain_index = row.main_chain_index;
 			callbacks.ifFound(objJoint);
 		});

@@ -596,7 +596,7 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 								});
 							}
 							if (!conf.bLight){
-								delete objUnit.timestamp;
+							//	delete objUnit.timestamp;
 								delete objUnit.main_chain_index;
 							}
 							var batch_start_time = Date.now();
