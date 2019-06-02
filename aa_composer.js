@@ -38,8 +38,10 @@ function handleAATriggers() {
 	mutex.lock(['aa_triggers'], function (unlock) {
 		db.query(
 			"SELECT aa_triggers.mci, aa_triggers.unit, address, definition \n\
-			FROM aa_triggers CROSS JOIN aa_addresses USING(address) \n\
-			ORDER BY aa_triggers.mci, aa_triggers.unit, address",
+			FROM aa_triggers \n\
+			CROSS JOIN units USING(unit) \n\
+			CROSS JOIN aa_addresses USING(address) \n\
+			ORDER BY aa_triggers.mci, level, aa_triggers.unit, address",
 			function (rows) {
 				var arrPostedUnits = [];
 				async.eachSeries(
