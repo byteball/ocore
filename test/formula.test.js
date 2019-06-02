@@ -1902,3 +1902,11 @@ test('json_parse not a string from expr', t => {
 		t.deepEqual(res, null);
 	})
 });
+
+test('this_address', t => {
+	var trigger = {  };
+	var stateVars = {  };
+	evalFormulaWithVars({ conn: null, formula: `this_address || '@'`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity) => {
+		t.deepEqual(res, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU@');
+	})
+});
