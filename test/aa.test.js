@@ -425,7 +425,27 @@ test('no messages', t => {
 	});
 });
 
-test('no amount', t => {
+test('no address', t => {
+	var aa = ['autonomous agent', {
+		bounce_fees: { base: 10000 },
+		messages: [
+			{
+				app: 'payment',
+				payload: {
+					asset: 'base',
+					outputs: [
+						{amount: "{trigger.output[[asset=base]]-1000}", }
+					]
+				}
+			}
+		]
+	}];
+	aa_validation.validateAADefinition(aa, err => {
+		t.deepEqual(err, 'address not a string: undefined');
+	});
+});
+
+test('no amount for send-all', t => {
 	var aa = ['autonomous agent', {
 		bounce_fees: { base: 10000 },
 		messages: [
@@ -441,7 +461,7 @@ test('no amount', t => {
 		]
 	}];
 	aa_validation.validateAADefinition(aa, err => {
-		t.deepEqual(err, 'bad amount: undefined');
+		t.deepEqual(err, null);
 	});
 });
 

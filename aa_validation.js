@@ -133,6 +133,7 @@ function validateAADefinition(arrDefinition, callback) {
 					function validateOutputs(outputs, cb3) {
 						if (!isNonemptyArray(outputs))
 							return cb3("bad outputs");
+						var bHaveSendAll = false;
 						for (var i = 0; i < outputs.length; i++) {
 							var output = outputs[i];
 							if (isNonemptyString(output)) {
@@ -176,6 +177,11 @@ function validateAADefinition(arrDefinition, callback) {
 								if (f === null)
 									return cb3("bad formula in amount: " + output.amount);
 								arrFormulas.push(f);
+							}
+							else if (typeof output.amount === 'undefined') {
+								if (bHaveSendAll)
+									return cb3("a second send-all output");
+								bHaveSendAll = true;
 							}
 							else
 								return cb3('bad amount: ' + output.amount);

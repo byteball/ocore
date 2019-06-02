@@ -536,7 +536,17 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 			var is_base = (asset === null) ? 1 : 0;
 			payload.inputs = [];
 			var total_amount = 0;
-			var target_amount = payload.outputs.reduce(function (acc, output) { return acc + output.amount; }, additional_amount);
+
+			var send_all_outputs = payload.outputs.filter(function (output) { return (output.amount === undefined); });
+			if (send_all_outputs.length > 1)
+				return cb(send_all_outputs.length + " send-all outputs");
+			var send_all_output = send_all_outputs[0];
+			// send-all output looks like {address: "BASE32"}, its size is 32 since it has no amount.
+			// remove the send-all output from size calculation, it might be added later
+			if (send_all_output && is_base)
+				additional_amount -= 32;
+			
+			var target_amount = payload.outputs.reduce(function (acc, output) { return acc + (output.amount || 0); }, additional_amount);
 			var bFound = false;
 
 			function iterateUnspentOutputs(rows) {
@@ -553,13 +563,21 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 						continue;
 					if (total_amount === target_amount && payload.outputs.length > 0) {
 						bFound = true;
-						break;
+						if (send_all_output)
+							continue;
+						else
+							break;
 					}
-					var change_amount = total_amount - (target_amount + is_base * OUTPUT_SIZE);
+					var additional_output_size = is_base ? OUTPUT_SIZE : 0; // the same for send-all
+					var change_amount = total_amount - (target_amount + additional_output_size);
 					if (change_amount > 0) {
-						payload.outputs.push({ address: address, amount: change_amount });
 						bFound = true;
-						break;
+						if (send_all_output)
+							send_all_output.amount = change_amount;
+						else {
+							payload.outputs.push({ address: address, amount: change_amount });
+							break;
+						}
 					}
 				}
 			}
@@ -635,13 +653,15 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 			}
 
 			function sortOutputsAndReturn() {
+				if (send_all_output && send_all_output.amount === undefined)
+					_.pull(payload.outputs, send_all_output);
 				payload.outputs.sort(sortOutputs);
 				cb();
 			}
 
 			readStableOutputs(function (rows) {
 				iterateUnspentOutputs(rows);
-				if (bFound)
+				if (bFound && !send_all_output)
 					return sortOutputsAndReturn();
 				readUnstableOutputsSentByAAs(function (rows2) {
 					iterateUnspentOutputs(rows2);
@@ -666,10 +686,10 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 				continue;
 			var payload = message.payload;
 			// negative or fractional
-			if (!payload.outputs.every(function (output) { return isNonnegativeInteger(output.amount); }))
+			if (!payload.outputs.every(function (output) { return (isNonnegativeInteger(output.amount) || output.amount === undefined); }))
 				return bounce("negative or fractional amounts");
 			// filter out 0-outputs
-			payload.outputs = payload.outputs.filter(function (output) { return (output.amount > 0); });
+			payload.outputs = payload.outputs.filter(function (output) { return (output.amount > 0 || output.amount === undefined); });
 		}
 		// remove messages with no outputs
 		messages = messages.filter(function (message) { return (message.app !== 'payment' || message.payload.outputs.length > 0); });
