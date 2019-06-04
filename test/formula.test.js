@@ -1910,3 +1910,12 @@ test('this_address', t => {
 		t.deepEqual(res, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU@');
 	})
 });
+
+test('very long string', t => {
+	var trigger = {  };
+	var stateVars = {};
+	var str = 'a'.repeat(1000);
+	evalFormulaWithVars({ conn: null, formula: `$x="${str}"; $y=$x||$x; $z=$y||$y; $w=$z||$z; $w`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity) => {
+		t.deepEqual(res, null);
+	})
+});

@@ -759,7 +759,11 @@ exports.evaluate = function (opts, callback) {
 		if (arr instanceof wrappedObject) return cb(arr);
 		if (typeof arr !== 'object') {
 			if (typeof arr === 'boolean') return cb(arr);
-			if (typeof arr === 'string') return cb(arr);
+			if (typeof arr === 'string') {
+				if (arr.length > constants.MAX_AA_STRING_LENGTH)
+					return setFatalError("string is too long: " + arr, cb, false);
+				return cb(arr);
+			}
 			return setFatalError("unknown type of arr: "+(typeof arr), cb, false);
 		}
 		var op = arr[0];
@@ -1622,7 +1626,11 @@ exports.evaluate = function (opts, callback) {
 						cb2();
 					});
 				}, function (err) {
-					cb(!err ? result : false);
+					if (err)
+						return cb(false);
+					if (result.length > constants.MAX_AA_STRING_LENGTH)
+						return setFatalError("string too long after concat: " + result, cb, false);
+					cb(result);
 				});
 				break;
 			
@@ -2189,6 +2197,8 @@ exports.evaluate = function (opts, callback) {
 						return callback('result is not finite', null);
 					res = (res.isInteger() && res.abs().lt(Number.MAX_SAFE_INTEGER)) ? res.toNumber() : res.toString();
 				}
+				else if (typeof res === 'string' && res.length > constants.MAX_AA_STRING_LENGTH)
+					return callback('result string is too long', null);
 				callback(null, res);
 			}
 		});
