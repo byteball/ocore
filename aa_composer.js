@@ -853,6 +853,8 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 	}
 
 	function handleSuccessfulEmptyResponseUnit() {
+		if (!objStateUpdate)
+			return bounce("no state changes");
 		executeStateUpdateFormula(null, function (err) {
 			if (err) {
 				error_message = undefined; // remove error message like 'no messages after filtering'
@@ -1016,11 +1018,8 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 			if (err)
 				return bounce(err);
 			var messages = template.messages;
-			if (!messages) {
-				error_message = 'no messages';
-				console.log(error_message);
-				return finish(null);
-			}
+			if (!messages)
+				return bounce('no messages');
 			// this will also filter out the special message that performs the state changes
 			messages = messages.filter(function (message) { return ('payload' in message && (message.app !== 'payment' || 'outputs' in message.payload)); });
 			if (messages.length === 0) { // eat the received coins and send no response, state changes are still performed
