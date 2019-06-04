@@ -1829,7 +1829,7 @@ exports.evaluate = function (opts, callback) {
 							return cb(true);
 						}
 						// state_var_assignment
-						if (var_name.length > 128)
+						if (var_name.length > constants.MAX_STATE_VAR_NAME_LENGTH)
 							return setFatalError("state var name too long: " + var_name, cb, false);
 					//	if (typeof res === 'boolean')
 					//		res = new Decimal(res ? 1 : 0);
@@ -1837,7 +1837,7 @@ exports.evaluate = function (opts, callback) {
 							stateVars[address] = {};
 					//	console.log('---- assignment_op', assignment_op)
 						if (assignment_op === "=") {
-							if (typeof res === 'string' && res.length > 1024)
+							if (typeof res === 'string' && res.length > constants.MAX_STATE_VAR_VALUE_LENGTH)
 								return setFatalError("state var value too long: " + res, cb, false);
 							stateVars[address][var_name] = { value: res, updated: true };
 							return cb(true);
