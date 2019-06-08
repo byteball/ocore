@@ -734,9 +734,9 @@ test.cb.serial('no messages', t => {
 	}
 	
 	aa_composer.handleTrigger(db, batch, trigger, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (response_unit, bBounced) => {
-		t.deepEqual(response_unit, null);
-		t.deepEqual(bBounced, false);
-		t.deepEqual(objUnit, undefined);
+		t.deepEqual(response_unit, 'XKxmIIccP1UR3Pem2jex0Lrzllc6w+WQ9ASqDehjUm4=');
+		t.deepEqual(bBounced, true);
+		t.deepEqual(objUnit.unit, 'XKxmIIccP1UR3Pem2jex0Lrzllc6w+WQ9ASqDehjUm4=');
 		t.end();
 	});
 });
@@ -783,7 +783,7 @@ test.cb.serial('no outputs', t => {
 	
 	aa_composer.handleTrigger(db, batch, trigger, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (response_unit, bBounced) => {
 		t.deepEqual(response_unit, null);
-		t.deepEqual(bBounced, false);
+		t.deepEqual(bBounced, true);
 		t.deepEqual(objUnit, undefined);
 		t.end();
 	});
@@ -831,7 +831,7 @@ test.cb.serial('only 0 output', t => {
 	
 	aa_composer.handleTrigger(db, batch, trigger, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (response_unit, bBounced) => {
 		t.deepEqual(response_unit, null);
-		t.deepEqual(bBounced, false);
+		t.deepEqual(bBounced, true);
 		t.deepEqual(objUnit, undefined);
 		t.end();
 	});
