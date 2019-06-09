@@ -794,8 +794,8 @@ CREATE TABLE correspondent_settings (
 
 CREATE TABLE aa_addresses (
 	address CHAR(32) NOT NULL PRIMARY KEY,
-	unit CHAR(44) NOT NULL, -- where it is first defined.  No index for better speed
-	mci INT NOT NULL, -- it is available since this mci (mci of the above unit)
+	unit CHAR(44) NULL, -- where it is first defined.  No index for better speed, NULL for light
+	mci INT NULL, -- it is available since this mci (mci of the above unit), NULL for light
 	definition TEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
