@@ -256,7 +256,6 @@ function pickParentUnitsAndLastBall(conn, arrWitnesses, timestamp, onDone){
 			if (err)
 				return pickParentsDeeper(max_parent_wl)
 			onDone(null, arrTrimmedParentUnits, last_stable_ball, last_stable_unit, last_stable_mci);
-
 		})
 	});
 
@@ -264,11 +263,11 @@ function pickParentUnitsAndLastBall(conn, arrWitnesses, timestamp, onDone){
 		pickDeepParentUnits(conn, arrWitnesses, timestamp, max_parent_wl, function(err, arrParentUnits, max_parent_wl){
 			if (err)
 				return onDone(err);
-				findLastBallAndAdjust(conn, arrWitnesses, arrParentUnits, function(err,arrTrimmedParentUnits, last_stable_ball, last_stable_unit, last_stable_mci){
-					if (err)
-						return pickParentsDeeper(max_parent_wl);
-					onDone(null, arrTrimmedParentUnits, last_stable_ball, last_stable_unit, last_stable_mci);
-				});
+			findLastBallAndAdjust(conn, arrWitnesses, arrParentUnits, function(err,arrTrimmedParentUnits, last_stable_ball, last_stable_unit, last_stable_mci){
+				if (err)
+					return pickParentsDeeper(max_parent_wl);
+				onDone(null, arrTrimmedParentUnits, last_stable_ball, last_stable_unit, last_stable_mci);
+			});
 		});
 	}
 }
