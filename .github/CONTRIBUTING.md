@@ -41,3 +41,10 @@ Once the code is easy to read, it becomes also easy to rewrite.
 ### Tabs vs spaces
 
 * We use tabs for indent
+
+### Contributing
+
+* Every commit or PR should be focused on a single task, avoid mixing several unrelated changes in a single commit/PR.
+* Every commit/PR should come with a clear comment about its purpose.
+* Avoid noisy diffs. Avoid editors that automatically make styling changes in the parts of code that you didn't touch.
+* If in doubt whether your proposed change is going be accepted, discuss it on discord in advance.

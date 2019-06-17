@@ -689,7 +689,9 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 		conn.query(
 			// address=definition_chash is true in the first appearence of the address
 			// (not just in first appearence: it can return to its initial definition_chash sometime later)
-			"SELECT COUNT(DISTINCT address) AS count_stable_good_witnesses FROM unit_authors CROSS JOIN units USING(unit) \n\
+			"SELECT COUNT(DISTINCT address) AS count_stable_good_witnesses \n\
+			FROM unit_authors " + db.forceIndex(conf.storage === 'sqlite' ? 'byDefinitionChash' : 'unitAuthorsIndexByAddressDefinitionChash') + " \n\
+			CROSS JOIN units USING(unit) \n\
 			WHERE address=definition_chash AND +sequence='good' AND is_stable=1 AND main_chain_index<=? AND definition_chash IN(?)",
 			[objValidationState.last_ball_mci, objUnit.witnesses],
 			function(rows){

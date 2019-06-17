@@ -45,7 +45,7 @@ function getSourceString(obj) {
                 }
                 break;
             default:
-                throw Error("hash: unknown type="+(typeof variable)+" of "+variable+", object: "+JSON.stringify(obj));
+                throw Error("getSourceString: unknown type="+(typeof variable)+" of "+variable+", object: "+JSON.stringify(obj));
         }
     }
 
@@ -77,7 +77,7 @@ function getJsonSourceString(obj) {
 				}
 				break;
 			default:
-				throw Error("hash: unknown type="+(typeof variable)+" of "+variable+", object: "+JSON.stringify(obj));
+				throw Error("getJsonSourceString: unknown type="+(typeof variable)+" of "+variable+", object: "+JSON.stringify(obj));
 		}
 	}
 
