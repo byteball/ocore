@@ -787,9 +787,9 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 									return bounce(err);
 								updateFinalAABalances(arrConsumedOutputs, objUnit, function () {
 									if (arrOutputAddresses.length === 0)
-										return updateStateVarsAndFinish(objUnit.unit);
+										return updateStateVarsAndFinish(objUnit);
 									updateStateVars();
-									addResponse(objUnit.unit, function () {
+									addResponse(objUnit, function () {
 										handleSecondaryTriggers(objUnit, arrOutputAddresses);
 									});
 								});
@@ -845,11 +845,11 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 		}
 	}
 
-	function updateStateVarsAndFinish(response_unit) {
+	function updateStateVarsAndFinish(objResponseUnit) {
 		if (bBouncing)
-			return finish(response_unit);
+			return finish(objResponseUnit);
 		updateStateVars();
-		finish(response_unit);
+		finish(objResponseUnit);
 	}
 
 	function handleSuccessfulEmptyResponseUnit() {
@@ -864,7 +864,8 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 		});
 	}
 
-	function addResponse(response_unit, cb) {
+	function addResponse(objResponseUnit, cb) {
+		var response_unit = objResponseUnit ? objResponseUnit.unit : null;
 		var response = {};
 		if (!bBouncing && Object.keys(responseVars).length > 0)
 			response.responseVars = responseVars;
@@ -877,6 +878,7 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 			aa_address: address,
 			bounced: bBouncing,
 			response_unit: response_unit,
+			objResponseUnit: objResponseUnit,
 			response: response,
 		};
 		arrResponses.push(objAAResponse);
@@ -890,21 +892,21 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 		);
 	}
 
-	function finish(response_unit) {
+	function finish(objResponseUnit) {
 		if (bBouncing && bSecondary) {
-			if (response_unit)
+			if (objResponseUnit)
 				throw Error('response_unit with bouncing a secondary AA');
-			return onDone(response_unit, bBouncing);
+			return onDone(null, bBouncing);
 		}
-		addResponse(response_unit, function () {
-			onDone(response_unit, bBouncing);
+		addResponse(objResponseUnit, function () {
+			onDone(objResponseUnit, bBouncing);
 		});
 	}
 
 	function handleSecondaryTriggers(objUnit, arrOutputAddresses) {
 		conn.query("SELECT address, definition FROM aa_addresses WHERE address IN(?) AND mci<=? ORDER BY address", [arrOutputAddresses, mci], function (rows) {
 			if (rows.length === 0)
-				return onDone(objUnit.unit, bBouncing);
+				return onDone(objUnit, bBouncing);
 			if (bBouncing)
 				throw Error("secondary triggers while bouncing");
 			async.eachSeries(
@@ -951,7 +953,7 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 						});
 						return;
 					}
-					onDone(objUnit.unit, bBouncing);
+					onDone(objUnit, bBouncing);
 				}
 			);
 		});
