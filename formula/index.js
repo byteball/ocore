@@ -2171,7 +2171,7 @@ exports.evaluate = function (opts, callback) {
 			var f = string_utils.getNumericFeedValue(value);
 			if (f !== null)
 				value = new Decimal(value);
-			stateVars[param_address][var_name] = {value: value};
+			stateVars[param_address][var_name] = {value: value, old_value: value};
 			cb2(value);
 		});
 	}

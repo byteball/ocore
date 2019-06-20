@@ -1,5 +1,6 @@
 /*jslint node: true */
 "use strict";
+var Decimal = require('decimal.js');
 var _ = require('lodash');
 var async = require('async');
 var constants = require('./constants.js');
@@ -98,6 +99,59 @@ function handlePrimaryAATrigger(mci, unit, address, arrDefinition, arrPostedUnit
 	});
 }
 
+function dryRunPrimaryAATrigger(trigger, address, arrDefinition, onDone) {
+	db.takeConnectionFromPool(function (conn) {
+		conn.query("BEGIN", function () {
+			var batch = kvstore.batch();
+			readLastStableMcUnit(conn, function (mci, objMcUnit) {
+				trigger.unit = objMcUnit.unit;
+				trigger.address = objMcUnit.authors[0].address;
+				insertFakeOutputsIntoMcUnit(conn, objMcUnit, trigger.outputs, address, function () {
+					objMcUnit.unit = trigger.unit;
+					var arrResponses = [];
+					handleTrigger(conn, batch, trigger, {}, arrDefinition, address, mci, objMcUnit, false, arrResponses, function () {
+						revertResponsesInCaches(arrResponses);
+						batch.clear();
+						conn.query("ROLLBACK", function () {
+							conn.release();
+							onDone(arrResponses);
+						});
+					});
+				});
+			});
+		});
+	});
+}
+
+function readLastStableMcUnit(conn, handleMciAndUnit) {
+	conn.query(
+		"SELECT unit, main_chain_index FROM units WHERE +is_on_main_chain=1 AND +is_stable=1 \n\
+		ORDER BY main_chain_index DESC LIMIT 1",
+		function (rows) {
+			if (rows.length !== 1)
+				throw Error("found " + rows.length + " last stable MC units");
+			var row = rows[0];
+			readUnit(conn, row.unit, function (objUnit) {
+				handleMciAndUnit(row.main_chain_index, objUnit);
+			});
+		}
+	);
+}
+
+function insertFakeOutputsIntoMcUnit(conn, objMcUnit, outputs, address, onDone) {
+	// this ensures we have the funds on AA address in case the response unit tries to send the received funds somewhere else
+	console.log('inserting fake outputs into unit ' + objMcUnit.unit);
+	var arrQueries = [];
+	var message_index = objMcUnit.messages.length;
+	for (var asset in outputs) {
+		conn.addQuery(arrQueries,
+			"INSERT INTO outputs (unit, message_index, output_index, asset, address, amount) VALUES(?, ?,0, ?, ?, ?)",
+			[objMcUnit.unit, message_index, asset === 'base' ? null : asset, address, outputs[asset]]);
+		message_index++;
+	}
+	async.series(arrQueries, onDone);
+}
+
 function readMcUnit(conn, mci, handleUnit) {
 	conn.query("SELECT unit FROM units WHERE main_chain_index=? AND is_on_main_chain=1", [mci], function (rows) {
 		if (rows.length !== 1)
@@ -139,7 +193,7 @@ function getTrigger(objUnit, receiving_address) {
 	return trigger;
 }
 
-// the result is onDone(response_unit, bBounced)
+// the result is onDone(objResponseUnit, bBounced)
 function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, mci, objMcUnit, bSecondary, arrResponses, onDone) {
 	if (arrDefinition[0] !== 'autonomous agent')
 		throw Error('bad AA definition ' + arrDefinition);
@@ -787,8 +841,8 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 									return bounce(err);
 								updateFinalAABalances(arrConsumedOutputs, objUnit, function () {
 									if (arrOutputAddresses.length === 0)
-										return updateStateVarsAndFinish(objUnit);
-									updateStateVars();
+										return finish(objUnit);
+									fixStateVars();
 									addResponse(objUnit, function () {
 										handleSecondaryTriggers(objUnit, arrOutputAddresses);
 									});
@@ -825,7 +879,9 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 		});
 	}
 
-	function updateStateVars() {
+	function fixStateVars() {
+		if (bBouncing)
+			return;
 		for (var address in stateVars) {
 			var addressVars = stateVars[address];
 			for (var var_name in addressVars) {
@@ -834,22 +890,26 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 					continue;
 				if (state.value === true)
 					state.value = 1; // affects secondary triggers that execute after ours
-				if (bSecondary) // do not save yet, will save all in primary
+			}
+		}
+	}
+
+	function saveStateVars() {
+		if (bSecondary || bBouncing)
+			return;
+		for (var address in stateVars) {
+			var addressVars = stateVars[address];
+			for (var var_name in addressVars) {
+				var state = addressVars[var_name];
+				if (!state.updated)
 					continue;
 				var key = "st\n" + address + "\n" + var_name;
-				if (state.value === false) // false value signals that the should be deleted
+				if (state.value === false) // false value signals that the var should be deleted
 					batch.del(key);
 				else
 					batch.put(key, state.value.toString()); // Decimal converted to string
 			}
 		}
-	}
-
-	function updateStateVarsAndFinish(objResponseUnit) {
-		if (bBouncing)
-			return finish(objResponseUnit);
-		updateStateVars();
-		finish(objResponseUnit);
 	}
 
 	function handleSuccessfulEmptyResponseUnit() {
@@ -860,7 +920,7 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 				error_message = undefined; // remove error message like 'no messages after filtering'
 				return bounce(err);
 			}
-			updateStateVarsAndFinish(null);
+			finish(null);
 		});
 	}
 
@@ -881,6 +941,31 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 			objResponseUnit: objResponseUnit,
 			response: response,
 		};
+		if (!bSecondary && !bBouncing) {
+			var updatedStateVars = {};
+			for (var var_address in stateVars) {
+				var addressVars = stateVars[var_address];
+				for (var var_name in addressVars) {
+					var state = addressVars[var_name];
+					if (!state.updated)
+						continue;
+					if (!updatedStateVars[var_address])
+						updatedStateVars[var_address] = {};
+					var varInfo = {
+						value: Decimal.isDecimal(state.value) ? state.value.toNumber() : state.value,
+						old_value: Decimal.isDecimal(state.old_value) ? state.old_value.toNumber() : state.old_value,
+					};
+					if (typeof varInfo.value === 'number') {
+						if (typeof varInfo.old_value === 'number')
+							varInfo.delta = varInfo.value - varInfo.old_value;
+						else if (varInfo.old_value === undefined || varInfo.old_value === false)
+							varInfo.delta = varInfo.value;
+					}
+					updatedStateVars[var_address][var_name] = varInfo;
+				}
+			}
+			objAAResponse.updatedStateVars = updatedStateVars;
+		}
 		arrResponses.push(objAAResponse);
 		conn.query(
 			"INSERT INTO aa_responses (mci, trigger_address, aa_address, trigger_unit, bounced, response_unit, response) \n\
@@ -898,6 +983,8 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 				throw Error('response_unit with bouncing a secondary AA');
 			return onDone(null, bBouncing);
 		}
+		fixStateVars();
+		saveStateVars();
 		addResponse(objResponseUnit, function () {
 			onDone(objResponseUnit, bBouncing);
 		});
@@ -905,8 +992,10 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 
 	function handleSecondaryTriggers(objUnit, arrOutputAddresses) {
 		conn.query("SELECT address, definition FROM aa_addresses WHERE address IN(?) AND mci<=? ORDER BY address", [arrOutputAddresses, mci], function (rows) {
-			if (rows.length === 0)
+			if (rows.length === 0) {
+				saveStateVars();
 				return onDone(objUnit, bBouncing);
+			}
 			if (bBouncing)
 				throw Error("secondary triggers while bouncing");
 			async.eachSeries(
@@ -914,7 +1003,7 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 				function (row, cb) {
 					var child_trigger = getTrigger(objUnit, row.address);
 					var arrChildDefinition = JSON.parse(row.definition);
-					handleTrigger(conn, batch, child_trigger, stateVars, arrChildDefinition, row.address, mci, objMcUnit, true, arrResponses, function (secondary_unit, bBounced) {
+					handleTrigger(conn, batch, child_trigger, stateVars, arrChildDefinition, row.address, mci, objMcUnit, true, arrResponses, function (objSecondaryUnit, bBounced) {
 						if (bBounced)
 							return cb('bounced');
 						cb();
@@ -925,21 +1014,7 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 						// revert
 						if (bSecondary)
 							return bounce("a sub-secondary AA bounced");
-						// remove the rolled back units from caches and correct is_free of their parents if necessary
-						console.log('will revert responses ' + JSON.stringify(arrResponses, null, '\t'));
-						var arrResponseUnits = [];
-						arrResponses.forEach(function (objAAResponse) {
-							if (objAAResponse.response_unit)
-								arrResponseUnits.push(objAAResponse.response_unit);
-						});
-						console.log('will revert response units ' + arrResponseUnits.join(', '));
-						if (arrResponseUnits.length > 0) {
-							var first_unit = arrResponseUnits[0];
-							var objFirstUnit = storage.assocUnstableUnits[first_unit];
-							var parent_units = objFirstUnit.parent_units;
-							arrResponseUnits.forEach(storage.forgetUnit);
-							storage.fixIsFreeAfterForgettingUnit(parent_units);
-						}
+						revertResponsesInCaches(arrResponses);
 						arrResponses.splice(0, arrResponses.length); // start over
 						Object.keys(stateVars).forEach(function (address) { delete stateVars[address]; });
 						batch.clear();
@@ -953,6 +1028,7 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 						});
 						return;
 					}
+					saveStateVars();
 					onDone(objUnit, bBouncing);
 				}
 			);
@@ -1051,6 +1127,24 @@ function sortDenominations(a,b){
 	return (a.denomination - b.denomination);
 }
 
+function revertResponsesInCaches(arrResponses) {
+	// remove the rolled back units from caches and correct is_free of their parents if necessary
+	console.log('will revert responses ' + JSON.stringify(arrResponses, null, '\t'));
+	var arrResponseUnits = [];
+	arrResponses.forEach(function (objAAResponse) {
+		if (objAAResponse.response_unit)
+			arrResponseUnits.push(objAAResponse.response_unit);
+	});
+	console.log('will revert response units ' + arrResponseUnits.join(', '));
+	if (arrResponseUnits.length > 0) {
+		var first_unit = arrResponseUnits[0];
+		var objFirstUnit = storage.assocUnstableUnits[first_unit];
+		var parent_units = objFirstUnit.parent_units;
+		arrResponseUnits.forEach(storage.forgetUnit);
+		storage.fixIsFreeAfterForgettingUnit(parent_units);
+	}
+}
 
 exports.handleAATriggers = handleAATriggers;
 exports.handleTrigger = handleTrigger;
+exports.dryRunPrimaryAATrigger = dryRunPrimaryAATrigger;
