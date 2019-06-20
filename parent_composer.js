@@ -6,6 +6,7 @@ var constants = require("./constants.js");
 var conf = require("./conf.js");
 var storage = require("./storage.js");
 var main_chain = require("./main_chain.js");
+var graph = require('./graph.js');
 
 
 function pickParentUnits(conn, arrWitnesses, timestamp, onDone){
@@ -229,7 +230,23 @@ function adjustLastStableMcBallAndParents(conn, last_stable_mc_ball_unit, arrPar
 		storage.readStaticUnitProps(conn, last_stable_mc_ball_unit, function(objUnitProps){
 			if (!objUnitProps.best_parent_unit)
 				throw Error("no best parent of "+last_stable_mc_ball_unit);
-			adjustLastStableMcBallAndParents(conn, objUnitProps.best_parent_unit, arrParentUnits, arrWitnesses, handleAdjustedLastStableUnit);
+			var next_last_ball_unit = objUnitProps.best_parent_unit;
+			graph.determineIfIncluded(conn, next_last_ball_unit, arrParentUnits, function (bIncluded) {
+				if (bIncluded)
+					return adjustLastStableMcBallAndParents(conn, next_last_ball_unit, arrParentUnits, arrWitnesses, handleAdjustedLastStableUnit);
+				conn.query(
+					"SELECT lb_units.unit \n\
+					FROM units AS p_units \n\
+					CROSS JOIN units AS lb_units ON p_units.last_ball_unit=lb_units.unit \n\
+					WHERE p_units.unit IN(?) \n\
+					ORDER BY lb_units.main_chain_index DESC LIMIT 1",
+					[arrParentUnits],
+					function (rows) {
+						next_last_ball_unit = rows[0].unit;
+						adjustLastStableMcBallAndParents(conn, next_last_ball_unit, arrParentUnits, arrWitnesses, handleAdjustedLastStableUnit);
+					}
+				);
+			});
 		});
 	});
 }
@@ -256,20 +273,18 @@ function pickParentUnitsAndLastBall(conn, arrWitnesses, timestamp, onDone){
 			if (err)
 				return pickParentsDeeper(max_parent_wl)
 			onDone(null, arrTrimmedParentUnits, last_stable_ball, last_stable_unit, last_stable_mci);
-
 		})
 	});
 
 	function pickParentsDeeper(max_parent_wl){
-		process.stdout.write("will pick parents deeper " + max_parent_wl);
 		pickDeepParentUnits(conn, arrWitnesses, timestamp, max_parent_wl, function(err, arrParentUnits, max_parent_wl){
 			if (err)
 				return onDone(err);
-				findLastBallAndAdjust(conn, arrWitnesses, arrParentUnits, function(err,arrTrimmedParentUnits, last_stable_ball, last_stable_unit, last_stable_mci){
-					if (err)
-						return pickParentsDeeper(max_parent_wl);
-					onDone(null, arrTrimmedParentUnits, last_stable_ball, last_stable_unit, last_stable_mci);
-				});
+			findLastBallAndAdjust(conn, arrWitnesses, arrParentUnits, function(err,arrTrimmedParentUnits, last_stable_ball, last_stable_unit, last_stable_mci){
+				if (err)
+					return pickParentsDeeper(max_parent_wl);
+				onDone(null, arrTrimmedParentUnits, last_stable_ball, last_stable_unit, last_stable_mci);
+			});
 		});
 	}
 }

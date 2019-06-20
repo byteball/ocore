@@ -290,8 +290,11 @@ function composeJoint(params){
 			});
 		},
 		function(cb){ // parent units
-			if (bGenesis)
-				return cb();
+			if (bGenesis) {
+				if (constants.timestampUpgradeMci === 0)
+					objUnit.timestamp = Math.round(Date.now() / 1000);
+				return cb();	
+			}
 			
 			function checkForUnstablePredecessors(){
 				conn.query(
@@ -338,7 +341,7 @@ function composeJoint(params){
 			);
 		},
 		function (cb) { // version
-			var bVersion2 = (last_ball_mci >= constants.timestampUpgradeMci);
+			var bVersion2 = (last_ball_mci >= constants.timestampUpgradeMci || constants.timestampUpgradeMci === 0);
 			if (!bVersion2)
 				objUnit.version = constants.versionWithoutTimestamp;
 			// calc or fix payload_hash of non-payment messages
