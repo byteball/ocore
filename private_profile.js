@@ -106,7 +106,7 @@ function savePrivateProfile(objPrivateProfile, address, attestor_address, onDone
 				var isSrcProfileUpdated = false;
 				for (var field in objPrivateProfile.src_profile){
 					var arrValueAndBlinding = objPrivateProfile.src_profile[field];
-					if (ValidationUtils.isArrayOfLength(arrValueAndBlinding, 2)) {
+					if (ValidationUtils.isArrayOfLength(arrValueAndBlinding, 2) && field == field.trim()) {
 						if (!current_src_profile || !current_src_profile[field] || !ValidationUtils.isArrayOfLength(current_src_profile[field], 2)) {
 							if (current_src_profile) {
 								isSrcProfileUpdated = true;
