@@ -8,6 +8,7 @@ var objectHash = require("./object_hash.js");
 var constants = require("./constants.js");
 var mutex = require('./mutex.js');
 var archiving = require('./archiving.js');
+var eventBus = require('./event_bus.js');
 var profiler = require('./profiler.js');
 var kvstore = require('./kvstore.js');
 
@@ -834,7 +835,6 @@ function readPropsOfUnits(conn, earlier_unit, arrLaterUnits, handleProps){
 }
 
 function throwError(msg){
-	var eventBus = require('./event_bus.js');
 	debugger;
 	if (typeof window === 'undefined')
 		throw Error(msg);
@@ -1585,6 +1585,7 @@ function initCaches(){
 				console.log('initCaches done');
 				unlock();
 				onDone();
+				eventBus.emit('caches_ready');
 			}))));
 		});
 	});

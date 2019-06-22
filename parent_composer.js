@@ -234,6 +234,7 @@ function adjustLastStableMcBallAndParents(conn, last_stable_mc_ball_unit, arrPar
 			graph.determineIfIncluded(conn, next_last_ball_unit, arrParentUnits, function (bIncluded) {
 				if (bIncluded)
 					return adjustLastStableMcBallAndParents(conn, next_last_ball_unit, arrParentUnits, arrWitnesses, handleAdjustedLastStableUnit);
+				console.log("last ball unit " + next_last_ball_unit + " not included in parents " + arrParentUnits.join(', '));
 				conn.query(
 					"SELECT lb_units.unit \n\
 					FROM units AS p_units \n\
@@ -270,8 +271,10 @@ function pickParentUnitsAndLastBall(conn, arrWitnesses, timestamp, onDone){
 		if (err)
 			return onDone(err);
 		findLastBallAndAdjust(conn, arrWitnesses, arrParentUnits, function(err,arrTrimmedParentUnits, last_stable_ball, last_stable_unit, last_stable_mci){
-			if (err)
+			if (err) {
+				console.log("initial findLastBallAndAdjust returned error: " + err + ", will pickParentsDeeper");
 				return pickParentsDeeper(max_parent_wl)
+			}
 			onDone(null, arrTrimmedParentUnits, last_stable_ball, last_stable_unit, last_stable_mci);
 		})
 	});
@@ -281,8 +284,10 @@ function pickParentUnitsAndLastBall(conn, arrWitnesses, timestamp, onDone){
 			if (err)
 				return onDone(err);
 			findLastBallAndAdjust(conn, arrWitnesses, arrParentUnits, function(err,arrTrimmedParentUnits, last_stable_ball, last_stable_unit, last_stable_mci){
-				if (err)
+				if (err) {
+					console.log("secondary findLastBallAndAdjust returned error: " + err + ", will pickParentsDeeper");
 					return pickParentsDeeper(max_parent_wl);
+				}
 				onDone(null, arrTrimmedParentUnits, last_stable_ball, last_stable_unit, last_stable_mci);
 			});
 		});

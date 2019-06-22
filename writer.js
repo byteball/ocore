@@ -196,7 +196,8 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 								[objUnit.unit, i, objUnit.authors[0].address, attestation.address]);
 							for (var field in attestation.profile){
 								var value = attestation.profile[field];
-								if (field.length <= constants.MAX_PROFILE_FIELD_LENGTH && typeof value === 'string' && value.length <= constants.MAX_PROFILE_VALUE_LENGTH)
+								if (field == field.trim() && field.length <= constants.MAX_PROFILE_FIELD_LENGTH
+										&& typeof value === 'string' && value == value.trim() && value.length <= constants.MAX_PROFILE_VALUE_LENGTH)
 									conn.addQuery(arrQueries, 
 										"INSERT INTO attested_fields (unit, message_index, attestor_address, address, field, value) VALUES(?,?, ?,?, ?,?)",
 										[objUnit.unit, i, objUnit.authors[0].address, attestation.address, field, value]);

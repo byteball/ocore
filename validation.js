@@ -1163,6 +1163,8 @@ function validateMessage(conn, objMessage, message_index, objUnit, objValidation
 			return callback("must not contain payload");
 		if (typeof objMessage.payload_uri !== "string")
 			return callback("no payload uri");
+		if (objMessage.payload_uri !== objMessage.payload_uri.trim())
+			return callback("payload uri must be trimmed");
 		if (!isStringOfLength(objMessage.payload_uri_hash, constants.HASH_LENGTH))
 			return callback("wrong length of payload uri hash");
 		if (objMessage.payload_uri.length > 500)
@@ -1334,6 +1336,8 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 				return callback("unknown fields in "+objMessage.app);
 			if (typeof payload.question !== 'string')
 				return callback("no question in poll");
+			if (payload.question !== payload.question.trim())
+				return callback("question must be trimmed");
 			if (!isNonemptyArray(payload.choices))
 				return callback("no choices in poll");
 			if (payload.choices.length > constants.MAX_CHOICES_PER_POLL)
