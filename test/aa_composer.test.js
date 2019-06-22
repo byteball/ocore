@@ -1,5 +1,6 @@
 var path = require('path');
-var shell = require('child_process').execSync; 
+var shell = require('child_process').execSync;
+var _ = require('lodash');
 var constants = require("../constants.js");
 
 constants.version = '2.0dev';
@@ -35,6 +36,8 @@ shell('cp -r ' + src_dir + '/ ' + dst_dir);
 
 var db = require('../db.js');
 var aa_composer = require('../aa_composer.js');
+var storage = require('../storage.js');
+var eventBus = require('../event_bus.js');
 var network = require('../network.js'); // to initialize caches
 var test = require('ava');
 
@@ -44,13 +47,29 @@ function addAA(aa) {
 	db.query("INSERT " + db.getIgnore() + " INTO aa_addresses (address, definition, unit, mci) VALUES(?, ?, ?, ?)", [address, JSON.stringify(aa), constants.GENESIS_UNIT, 0]);
 }
 
+var old_cache = {};
 
-test.after.always.cb(t => {
-	db.close(() => {
+test.before.cb(t => {
+	eventBus.once('caches_ready', () => {
+		old_cache.assocUnstableUnits = _.cloneDeep(storage.assocUnstableUnits);
+		old_cache.assocStableUnits = _.cloneDeep(storage.assocStableUnits);
+		old_cache.assocUnstableMessages = _.cloneDeep(storage.assocUnstableMessages);
+		old_cache.assocBestChildren = _.cloneDeep(storage.assocBestChildren);
+		old_cache.assocStableUnitsByMci = _.cloneDeep(storage.assocStableUnitsByMci);
+		// this hack is necessary only for 1-witness network where an AA-response unit can rebuild the MC to itself
+		if (Object.keys(old_cache.assocUnstableUnits).length === 1)
+			for (var unit in old_cache.assocUnstableUnits) {
+				old_cache.assocUnstableUnits[unit].is_on_main_chain = 0;
+				old_cache.assocUnstableUnits[unit].main_chain_index = null;
+			}
 		t.end();
 	});
 });
-	
+
+test.after.always.cb(t => {
+	db.close(t.end);
+});
+
 test.cb.serial('AA with response vars', t => {
 	var trigger = { outputs: { base: 40000 }, data: { x: 333 } };
 	var aa = ['autonomous agent', {
@@ -76,6 +95,11 @@ test.cb.serial('AA with response vars', t => {
 		t.deepEqual(arrResponses[0].bounced, false);
 		t.deepEqual(arrResponses[0].response.responseVars.received_amount, 40000);
 		t.deepEqual(arrResponses[0].objResponseUnit.messages.find(function (message) { return (message.app === 'payment'); }).payload.outputs.find(function (output) { return (output.address === trigger.address); }).amount, 38000);
+		t.deepEqual(storage.assocUnstableUnits, old_cache.assocUnstableUnits);
+		t.deepEqual(storage.assocStableUnits, old_cache.assocStableUnits);
+		t.deepEqual(storage.assocUnstableMessages, old_cache.assocUnstableMessages);
+		t.deepEqual(storage.assocBestChildren, old_cache.assocBestChildren);
+		t.deepEqual(storage.assocStableUnitsByMci, old_cache.assocStableUnitsByMci);
 		t.end();
 	});
 });
@@ -106,6 +130,11 @@ test.cb.serial('less than bounce fees', t => {
 		t.deepEqual(arrResponses[0].response_unit, null);
 		t.deepEqual(arrResponses[0].objResponseUnit, null);
 		t.deepEqual(arrResponses[0].response.error, "received bytes are not enough to cover bounce fees");
+		t.deepEqual(storage.assocUnstableUnits, old_cache.assocUnstableUnits);
+		t.deepEqual(storage.assocStableUnits, old_cache.assocStableUnits);
+		t.deepEqual(storage.assocUnstableMessages, old_cache.assocUnstableMessages);
+		t.deepEqual(storage.assocBestChildren, old_cache.assocBestChildren);
+		t.deepEqual(storage.assocStableUnitsByMci, old_cache.assocStableUnitsByMci);
 		t.end();
 	});
 });
