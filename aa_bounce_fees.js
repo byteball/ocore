@@ -146,4 +146,5 @@ function checkAAOutputs(asset, to_address, amount, base_outputs, asset_outputs, 
 	});
 }
 
+exports.readAADefinitions = readAADefinitions;
 exports.checkAAOutputs = checkAAOutputs;
