@@ -27,7 +27,7 @@ var Mnemonic = require('bitcore-mnemonic');
 var inputs = require('./inputs.js');
 var prosaic_contract = require('./prosaic_contract.js');
 var signed_message = require('./signed_message.js');
-var aa_bounce_fees = require('./aa_bounce_fees.js');
+var aa_addresses = require('./aa_addresses.js');
 
 var message_counter = 0;
 var assocLastFailedAssetMetadataTimestamps = {};
@@ -1614,7 +1614,7 @@ function sendMultiPayment(opts, handleResult)
 	}
 	
 	if (!opts.aa_addresses_checked) {
-		aa_bounce_fees.checkAAOutputs(asset, to_address, amount, base_outputs, asset_outputs, function (err) {
+		aa_addresses.checkAAOutputs(asset, to_address, amount, base_outputs, asset_outputs, function (err) {
 			if (err)
 				return handleResult(err);
 			opts.aa_addresses_checked = true;
