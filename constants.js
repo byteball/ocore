@@ -77,3 +77,30 @@ exports.anyDefinitionChangeUpgradeMci = exports.bTestnet ? 855000 : 4229100;
 exports.formulaUpgradeMci = exports.bTestnet ? Infinity : Infinity;
 exports.witnessedLevelMustNotRetreatFromAllParentsUpgradeMci = exports.bTestnet ? 909000 : Infinity;
 exports.timestampUpgradeMci = exports.bTestnet ? 909000 : Infinity;
+
+
+if (process.env.devnet) {
+	console.log('===== devnet');
+
+	exports.version = '2.0dev';
+	exports.alt = '3';
+	exports.supported_versions = ['1.0dev', '2.0dev'];
+	exports.versionWithoutTimestamp = '1.0dev';
+	exports.GENESIS_UNIT = 'pLzHaCisvxkfgwyBDzgvZzhPp37ZKnuMOxiI3QwXxqM=';
+	exports.BLACKBYTES_ASSET = 'GRzA4D/ElsiwivoUrkCg36s+CoOr6rLsSH2F0EOes64=';
+	
+	exports.COUNT_WITNESSES = 1;
+	exports.MAJORITY_OF_WITNESSES = (exports.COUNT_WITNESSES%2===0) ? (exports.COUNT_WITNESSES/2+1) : Math.ceil(exports.COUNT_WITNESSES/2);
+	
+	exports.lastBallStableInParentsUpgradeMci = 0;
+	exports.witnessedLevelMustNotRetreatUpgradeMci = 0;
+	exports.spendUnconfirmedUpgradeMci = 0;
+	exports.branchedMinMcWlUpgradeMci = 0;
+	exports.otherAddressInDefinitionUpgradeMci = 0;
+	exports.attestedInDefinitionUpgradeMci = 0;
+	exports.altBranchByBestParentUpgradeMci = 0;
+	exports.anyDefinitionChangeUpgradeMci = 0;
+	exports.formulaUpgradeMci = 0;
+	exports.witnessedLevelMustNotRetreatFromAllParentsUpgradeMci = 0;
+	exports.timestampUpgradeMci = 0;
+}

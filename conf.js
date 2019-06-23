@@ -45,7 +45,7 @@ exports.port = null;
 // exports.socksLocalDNS = false;
 
 // WebSocket protocol prefixed to all hosts.  Must be wss:// on livenet, ws:// is allowed on testnet
-exports.WS_PROTOCOL = "wss://";
+exports.WS_PROTOCOL = process.env.devnet ? "ws://" : "wss://";
 
 exports.MAX_INBOUND_CONNECTIONS = 100;
 exports.MAX_OUTBOUND_CONNECTIONS = 100;
