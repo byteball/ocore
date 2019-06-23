@@ -1184,7 +1184,7 @@ function validateMessage(conn, objMessage, message_index, objUnit, objValidation
 			return callback("private payment must come with spend proof(s)");
 	}
 	
-	var arrInlineOnlyApps = ["address_definition_change", "data_feed", "definition_template", "asset", "asset_attestors", "attestation", "poll", "vote"];
+	var arrInlineOnlyApps = ["address_definition_change", "data_feed", "definition_template", "asset", "asset_attestors", "attestation", "poll", "vote", "definition"];
 	if (arrInlineOnlyApps.indexOf(objMessage.app) >= 0 && objMessage.payload_location !== "inline")
 		return callback(objMessage.app+" must be inline");
 
