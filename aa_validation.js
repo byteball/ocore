@@ -571,8 +571,11 @@ function validateAADefinition(arrDefinition, callback) {
 	//	console.log('--- validateFormula', formula);
 		formulaParser.validate(opts, function (result) {
 			complexity = result.complexity;
-			if (result.error)
-				return cb("validation of furmula " + formula + " failed: " + result.error);
+			if (result.error) {
+				var errorMessage = "validation of formula " + formula + " failed: " + result.error
+				errorMessage += result.errorContext ? ` at line ${result.errorContext.token.line} col ${result.errorContext.token.col}` : ''
+				return cb(errorMessage);
+			}
 			if (complexity > constants.MAX_COMPLEXITY)
 				return cb('complexity exceeded');
 			cb();
