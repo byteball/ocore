@@ -105,7 +105,8 @@ function dryRunPrimaryAATrigger(trigger, address, arrDefinition, onDone) {
 			var batch = kvstore.batch();
 			readLastStableMcUnit(conn, function (mci, objMcUnit) {
 				trigger.unit = objMcUnit.unit;
-				trigger.address = objMcUnit.authors[0].address;
+				if (!trigger.address)
+					trigger.address = objMcUnit.authors[0].address;
 				insertFakeOutputsIntoMcUnit(conn, objMcUnit, trigger.outputs, address, function () {
 					objMcUnit.unit = trigger.unit;
 					var arrResponses = [];
