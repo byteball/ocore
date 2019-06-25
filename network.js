@@ -1255,6 +1255,8 @@ function addWatchedAddress(address){
 
 // if any of the watched addresses are affected, notifies:  1. own UI  2. light clients
 function notifyWatchers(objJoint, source_ws){
+	var bAA = objJoint.new_aa;
+	delete objJoint.new_aa;
 	var objUnit = objJoint.unit;
 	var arrAddresses = objUnit.authors.map(function(author){ return author.address; });
 	if (!objUnit.messages) // voided unit
@@ -1300,8 +1302,12 @@ function notifyWatchers(objJoint, source_ws){
 			objUnit.timestamp = Math.round(Date.now()/1000); // light clients need timestamp
 		rows.forEach(function(row){
 			var ws = getPeerWebSocket(row.peer);
-			if (ws && ws.readyState === ws.OPEN && ws !== source_ws)
-				sendJoint(ws, objJoint);
+			if (ws && ws.readyState === ws.OPEN && ws !== source_ws) {
+				if (bAA) // trigger a get_history request to receive the aa_response
+					sendJustsaying(ws, 'light/have_updates');
+				else
+					sendJoint(ws, objJoint);
+			}
 		});
 	});
 }
@@ -1512,6 +1518,10 @@ function broadcastJoint(objJoint){
 	notifyWatchers(objJoint);
 }
 
+function onNewAA(objUnit) {
+	findAndHandleJointsThatAreReady(objUnit.unit);
+	notifyWatchers({ unit: objUnit, new_aa: true });
+}
 
 
 // catchup
@@ -3176,7 +3186,7 @@ function startRelay(){
 	setInterval(handleSavedPrivatePayments, 5*1000);
 	joint_storage.readDependentJointsThatAreReady(null, handleSavedJoint);
 
-	eventBus.on('new_aa_unit', findAndHandleJointsThatAreReady);
+	eventBus.on('new_aa_unit', onNewAA);
 	aa_composer.handleAATriggers(); // in case anything's left from the previous run
 }
 

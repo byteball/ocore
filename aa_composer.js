@@ -52,8 +52,8 @@ function handleAATriggers() {
 						handlePrimaryAATrigger(row.mci, row.unit, row.address, arrDefinition, arrPostedUnits, cb);
 					},
 					function () {
-						arrPostedUnits.forEach(function (unit) {
-							eventBus.emit('new_aa_unit', unit);
+						arrPostedUnits.forEach(function (objUnit) {
+							eventBus.emit('new_aa_unit', objUnit);
 						});
 						unlock();
 					}
@@ -81,8 +81,8 @@ function handlePrimaryAATrigger(mci, unit, address, arrDefinition, arrPostedUnit
 								conn.query("COMMIT", function () {
 									conn.release();
 									arrResponses.forEach(function (objAAResponse) {
-										if (objAAResponse.response_unit)
-											arrPostedUnits.push(objAAResponse.response_unit);
+										if (objAAResponse.objResponseUnit)
+											arrPostedUnits.push(objAAResponse.objResponseUnit);
 										eventBus.emit('aa_response', objAAResponse);
 										eventBus.emit('aa_response_to_unit-'+objAAResponse.trigger_unit, objAAResponse);
 										eventBus.emit('aa_response_to_address-'+objAAResponse.trigger_address, objAAResponse);
