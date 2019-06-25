@@ -835,7 +835,7 @@ CREATE TABLE aa_responses (
 	response TEXT NULL, -- json
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	UNIQUE (trigger_unit, aa_address),
-	FOREIGN KEY (aa_address) REFERENCES aa_addresses(address),
+--	FOREIGN KEY (aa_address) REFERENCES aa_addresses(address),
 	FOREIGN KEY (trigger_unit) REFERENCES units(unit)
 --	FOREIGN KEY (response_unit) REFERENCES units(unit)
 );
