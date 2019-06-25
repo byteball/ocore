@@ -1196,9 +1196,26 @@ function readTransactionHistory(opts, handleHistory){
 												cb2();
 											}
 										);
-									} else {
-										arrTransactions.push(transaction);
-										cb2();
+									}
+									else {
+										db.query(
+											"SELECT bounced, response, response_unit FROM aa_responses \n\
+											WHERE trigger_unit=? AND aa_address=?",
+											[unit, payee.address],
+											function (rows) {
+												if (rows.length > 1)
+													throw Error(rows.length + " AA responses on " + JSON.stringify(transaction));
+												if (rows.length === 1) {
+													var row = rows[0];
+													transaction.to_aa = true;
+													transaction.bounced = row.bounced;
+													transaction.response = row.response;
+													transaction.response_unit = row.response_unit;
+												}
+												arrTransactions.push(transaction);
+												cb2();
+											}
+										);
 									}
 								}, function() {
 									cb();
