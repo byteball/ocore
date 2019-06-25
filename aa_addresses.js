@@ -3,6 +3,7 @@
 var _ = require('lodash');
 var async = require('async');
 var objectHash = require('./object_hash.js');
+var constants = require('./constants.js');
 var conf = require("./conf.js");
 var network = require("./network.js");
 var db = require("./db.js");
@@ -82,8 +83,8 @@ function readAADefinitions(arrAddresses, handleRows) {
 							var strDefinition = JSON.stringify(arrDefinition);
 							var bAA = (arrDefinition[0] === 'autonomous agent');
 							if (bAA) {
-								rows.push({ address: address, definition: arrDefinition });
-								db.query("INSERT " + db.getIgnore() + " INTO aa_addresses (address, definition) VALUES(?, ?)", [address, strDefinition], insert_cb);
+								rows.push({ address: address, definition: strDefinition });
+								db.query("INSERT " + db.getIgnore() + " INTO aa_addresses (address, definition, unit, mci) VALUES(?, ?, ?, ?)", [address, strDefinition, constants.GENESIS_UNIT, 0], insert_cb);
 							}
 							else
 								db.query("INSERT " + db.getIgnore() + " INTO definitions (definition_chash, definition, has_references) VALUES (?,?,?)", [address, strDefinition, Definition.hasReferences(arrDefinition) ? 1 : 0], insert_cb);
