@@ -316,7 +316,7 @@ test('bad formula', t => {
 		]
 	}];
 	aa_validation.validateAADefinition(aa, err => {
-		t.deepEqual(err, 'validation of furmula trigger.address[] failed: parse error');
+		t.deepEqual(err, 'validation of formula trigger.address[] failed: parse error at line 1 col 16');
 	});
 });
 
@@ -347,7 +347,7 @@ test('bad formula with asset', t => {
 		}
 	}];
 	aa_validation.validateAADefinition(aa, err => {
-		t.deepEqual(err, 'validation of furmula trigger.data.auto_destroy[] failed: parse error');
+		t.deepEqual(err, 'validation of formula trigger.data.auto_destroy[] failed: parse error at line 1 col 27');
 	});
 });
 
