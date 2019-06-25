@@ -1114,6 +1114,7 @@ function readTransactionHistory(opts, handleHistory){
 							[unit], 
 							function(address_rows){
 								var arrPayerAddresses = address_rows.map(function(address_row){ return address_row.address; });
+								var arrTransactionsOnUnit = [];
 								movement.arrMyRecipients.forEach(function(objRecipient){
 									var transaction = {
 										action: 'received',
@@ -1128,8 +1129,20 @@ function readTransactionHistory(opts, handleHistory){
 										mci: movement.mci
 									};
 									arrTransactions.push(transaction);
+									arrTransactionsOnUnit.push(transaction);
 								});
-								cb();
+								if (arrPayerAddresses.length > 1)
+									return cb();
+								db.query("SELECT aa_address FROM aa_responses WHERE response_unit=?", [unit], function (aa_rows) {
+									if (aa_rows.length === 0)
+										return cb();
+									if (aa_rows[0].aa_address !== arrPayerAddresses[0])
+										throw Error("payer is not AA");
+									arrTransactionsOnUnit.forEach(function (transaction) {
+										transaction.from_aa = true;
+									});
+									cb();
+								});
 							}
 						);
 					}
