@@ -343,7 +343,9 @@ function checkIfHaveEnoughOutboundPeersAndAdd(){
 	var arrOutboundPeerUrls = arrOutboundPeers.map(function(ws){ return ws.peer; });
 	db.query(
 		"SELECT peer FROM peers JOIN peer_hosts USING(peer_host) \n\
-		WHERE count_new_good_joints>0 AND count_invalid_joints/count_new_good_joints<? AND peer IN(?)", 
+		WHERE (count_invalid_joints/count_new_good_joints<? \n\
+			OR count_new_good_joints=0 AND count_nonserial_joints=0 AND count_invalid_joints=0) \n\
+			AND peer IN(?)", 
 		[conf.MAX_TOLERATED_INVALID_RATIO, (arrOutboundPeerUrls.length > 0) ? arrOutboundPeerUrls : null],
 		function(rows){
 			var count_good_peers = rows.length;
