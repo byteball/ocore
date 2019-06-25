@@ -317,7 +317,7 @@ function migrateDb(connection, onDone){
 						response TEXT NULL, -- json \n\
 						creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, \n\
 						UNIQUE (trigger_unit, aa_address), \n\
-						FOREIGN KEY (aa_address) REFERENCES aa_addresses(address), \n\
+						"+(conf.bLight ? "" : "FOREIGN KEY (aa_address) REFERENCES aa_addresses(address),")+" \n\
 						FOREIGN KEY (trigger_unit) REFERENCES units(unit) \n\
 					--	FOREIGN KEY (response_unit) REFERENCES units(unit) \n\
 					)");
