@@ -2946,6 +2946,35 @@ function handleRequest(ws, tag, command, params){
 			);
 			break;
 
+		case 'light/dry_run_aa':
+			if (conf.bLight)
+				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
+			if (ws.bOutbound)
+				return sendErrorResponse(ws, tag, "light clients have to be inbound");
+			if (!params)
+				return sendErrorResponse(ws, tag, "no params in light/dry_run_aa");
+			if (!ValidationUtils.isValidAddress(params.address))
+				return sendErrorResponse(ws, tag, "address not valid");
+			if (!ValidationUtils.isNonemptyObject(params.trigger))
+				return sendErrorResponse(ws, tag, "no trigger");
+			if (!ValidationUtils.isNonemptyObject(params.trigger.outputs))
+				return sendErrorResponse(ws, tag, "no trigger outputs");
+			if (!ValidationUtils.isValidAddress(params.trigger.address))
+				return sendErrorResponse(ws, tag, "bad trigger address");
+			storage.readAADefinition(db, params.address, function (arrDefinition) {
+				if (!arrDefinition)
+					return sendErrorResponse(ws, tag, "not an AA");
+				aa_composer.dryRunPrimaryAATrigger(params.trigger, params.address, arrDefinition, function (arrResponses) {
+					if (constants.COUNT_WITNESSES === 1) { // the temp unit might have rebuilt the MC
+						db.executeInTransaction(function (conn, onDone) {
+							storage.resetMemory(conn, onDone);
+						});
+					}
+					sendResponse(ws, tag, arrResponses);
+				});
+			});
+			break;
+
 		// I'm a hub, the peer wants to enable push notifications
 		case 'hub/enable_notification':
 			if(ws.device_address)
