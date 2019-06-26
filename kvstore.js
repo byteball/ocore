@@ -15,7 +15,12 @@ catch(e){
 	try { fs.mkdirSync(app_data_dir, mode); } catch(e){}
 }
 
-var db = rocksdb(path);
+var db = rocksdb(path, {}, function (err) {
+	if (err)
+		throw Error("rocksdb open failed: " + err);
+});
+if (!db)
+	throw Error("no rocksdb instance");
 
 module.exports = {
 	get: function(key, cb){
