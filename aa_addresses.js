@@ -132,9 +132,9 @@ function checkAAOutputs(asset, to_address, amount, base_outputs, asset_outputs, 
 			var arrDefinition = JSON.parse(row.definition);
 			var bounce_fees = arrDefinition[1].bounce_fees;
 			if (!bounce_fees)
-				bounce_fees = { base: 10000 };
+				bounce_fees = { base: constants.MIN_BYTES_BOUNCE_FEE };
 			if (!bounce_fees.base)
-				bounce_fees.base = 10000;
+				bounce_fees.base = constants.MIN_BYTES_BOUNCE_FEE;
 			for (var asset in bounce_fees) {
 				var amount = assocAmounts[row.address][asset] || 0;
 				if (amount < bounce_fees[asset])

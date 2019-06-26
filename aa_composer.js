@@ -201,9 +201,9 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 	var error_message = '';
 	var responseVars = {};
 	var template = arrDefinition[1];
-	var bounce_fees = template.bounce_fees || {base: 10000};
+	var bounce_fees = template.bounce_fees || {base: constants.MIN_BYTES_BOUNCE_FEE};
 	if (!bounce_fees.base)
-		bounce_fees.base = 10000;
+		bounce_fees.base = constants.MIN_BYTES_BOUNCE_FEE;
 //	console.log('===== trigger.outputs', trigger.outputs);
 	var objValidationState = { last_ball_mci: mci, last_ball_timestamp: objMcUnit.timestamp, assocBalances: {} };
 	var objStateUpdate;

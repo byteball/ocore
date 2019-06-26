@@ -62,6 +62,7 @@ exports.TEXTCOIN_ASSET_CLAIM_HEADER_FEE = 391;
 exports.TEXTCOIN_ASSET_CLAIM_MESSAGE_FEE = 209;
 exports.TEXTCOIN_ASSET_CLAIM_BASE_MSG_FEE = 158;
 exports.TEXTCOIN_PRIVATE_ASSET_CLAIM_MESSAGE_FEE = 99;
+exports.MIN_BYTES_BOUNCE_FEE = 10000;
 
 exports.minCoreVersion = exports.bTestnet ? '0.2.95' : '0.2.0';
 exports.minCoreVersionForFullNodes = exports.bTestnet ? '0.2.95' : '0.2.94';

@@ -600,7 +600,7 @@ function validateAADefinition(arrDefinition, callback) {
 			if (!isNonnegativeInteger(fee) || fee > constants.MAX_CAP)
 				return callback("bad bounce fee: "+fee);
 		}
-		if ('base' in template.bounce_fees && template.bounce_fees.base < 10000)
+		if ('base' in template.bounce_fees && template.bounce_fees.base < constants.MIN_BYTES_BOUNCE_FEE)
 			return callback("too small base bounce fee: "+template.bounce_fees.base);
 	}
 	if ('init' in template) {
