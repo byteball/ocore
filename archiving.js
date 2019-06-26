@@ -39,6 +39,7 @@ function generateQueriesToRemoveJoint(conn, unit, arrQueries, cb){
 		conn.addQuery(arrQueries, "DELETE FROM messages WHERE unit=?", [unit]);
 	//	conn.addQuery(arrQueries, "DELETE FROM balls WHERE unit=?", [unit]); // if it has a ball, it can't be uncovered
 		conn.addQuery(arrQueries, "DELETE FROM units WHERE unit=?", [unit]);
+		conn.addQuery(arrQueries, "DELETE FROM joints WHERE unit=?", [unit]);
 		cb();
 	});
 }

@@ -13,7 +13,9 @@ var Definition = require("./definition.js");
 var eventBus = require('./event_bus.js');
 var profiler = require('./profiler.js');
 var breadcrumbs = require('./breadcrumbs.js');
-var kvstore = require('./kvstore.js');
+var kvstore = require('./kvstore.js'+'');
+
+var bCordova = (typeof window === 'object' && window.cordova);
 
 var count_writes = 0;
 var count_units_in_prev_analyze = 0;
@@ -65,6 +67,9 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 			}
 		}
 		
+		if (bCordova)
+			conn.addQuery(arrQueries, "INSERT INTO joints (unit, json) VALUES (?,?)", [objUnit.unit, JSON.stringify(objJoint)]);
+
 		var timestamp = (objUnit.version === constants.versionWithoutTimestamp) ? 0 : objUnit.timestamp;
 		var fields = "unit, version, alt, witness_list_unit, last_ball_unit, headers_commission, payload_commission, sequence, content_hash, timestamp";
 		var values = "?,?,?,?,?,?,?,?,?,?";
@@ -545,7 +550,7 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 		// without this locking, we get frequent deadlocks from mysql
 		mutex.lock(["write"], function(unlock){
 			console.log("got lock to write "+objUnit.unit);
-			var batch = bInLargerTx ? objValidationState.batch : kvstore.batch();
+			var batch = bCordova ? null : (bInLargerTx ? objValidationState.batch : kvstore.batch());
 			if (bGenesis){
 				storage.assocStableUnits[objUnit.unit] = objNewUnitProps;
 				storage.assocStableUnitsByMci[0] = [objNewUnitProps];
@@ -600,6 +605,8 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 							//	delete objUnit.timestamp;
 								delete objUnit.main_chain_index;
 							}
+							if (bCordova) // already written to joints table
+								return cb();
 							var batch_start_time = Date.now();
 							batch.put('j\n'+objUnit.unit, JSON.stringify(objJoint));
 							if (bInLargerTx)

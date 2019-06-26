@@ -10,7 +10,9 @@ var mutex = require('./mutex.js');
 var archiving = require('./archiving.js');
 var eventBus = require('./event_bus.js');
 var profiler = require('./profiler.js');
-var kvstore = require('./kvstore.js');
+var kvstore = require('./kvstore.js'+'');
+
+var bCordova = (typeof window === 'object' && window.cordova);
 
 var MAX_INT32 = Math.pow(2, 31) - 1;
 
@@ -34,11 +36,18 @@ var assocUnstableMessages = {};
 var min_retrievable_mci = null;
 initializeMinRetrievableMci();
 
+function readJointJsonFromStorage(conn, unit, cb) {
+	if (!bCordova)
+		return kvstore.get('j\n' + unit, cb);
+	conn.query("SELECT json FROM joints WHERE unit=?", [unit], function (rows) {
+		cb((rows.length === 0) ? null : rows[0].json);
+	});
+}
 
 function readJoint(conn, unit, callbacks, bSql) {
 	if (bSql)
 		return readJointDirectly(conn, unit, callbacks);
-	kvstore.get('j\n'+unit, function(strJoint){
+	readJointJsonFromStorage(conn, unit, function(strJoint){
 		if (!strJoint)
 			return callbacks.ifNotFound();
 		var objJoint = JSON.parse(strJoint);

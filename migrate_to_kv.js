@@ -1,10 +1,12 @@
 /*jslint node: true */
 "use strict";
 var async = require('async');
-var kvstore = require('./kvstore.js');
+var kvstore = require('./kvstore.js'+'');
 var string_utils = require('./string_utils.js');
 var conf = require('./conf.js');
 var storage = require('./storage.js'); // have to introduce a cyclic dependency but fortunately it's only when we upgrade
+
+var bCordova = (typeof window === 'object' && window.cordova);
 
 function migrate(conn, onDone){
 	storage.initializeMinRetrievableMci(conn, function(){
@@ -20,7 +22,7 @@ function migrateUnits(conn, onDone){
 			return onDone();
 		var start_time = Date.now();
 		var reading_time = 0;
-		var batch = kvstore.batch();
+		var batch = bCordova ? null : kvstore.batch();
 		async.forEachOfSeries(
 			rows,
 			function(row, i, cb){
@@ -36,6 +38,8 @@ function migrateUnits(conn, onDone){
 							delete objJoint.unit.timestamp;
 							delete objJoint.unit.main_chain_index;
 						}
+						if (bCordova)
+							return conn.query("INSERT " + conn.getIgnore() + " INTO joints (unit, json) VALUES (?,?)", [unit, JSON.stringify(objJoint)], function(){ cb(); });
 						batch.put('j\n'+unit, JSON.stringify(objJoint));
 						if (i%1000 > 0)
 							return cb();
@@ -49,6 +53,8 @@ function migrateUnits(conn, onDone){
 				}, true);
 			},
 			function(){
+				if (bCordova)
+					return onDone();
 				commitBatch(batch, function(){
 					var consumed_time = Date.now()-start_time;
 					console.error('units done in '+consumed_time+'ms, avg '+(consumed_time/rows.length)+'ms');
@@ -63,6 +69,8 @@ function migrateUnits(conn, onDone){
 function migrateDataFeeds(conn, onDone){
 	if (conf.storage !== 'sqlite')
 		throw Error('only sqlite migration supported');
+	if (bCordova)
+		return onDone();
 	var count = 0;
 	var offset = 0;
 	var CHUNK_SIZE = 10000;

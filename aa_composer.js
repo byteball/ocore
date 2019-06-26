@@ -11,11 +11,12 @@ var objectLength = require("./object_length.js");
 var objectHash = require("./object_hash.js");
 var aa_validation = require("./aa_validation.js");
 var validation = require("./validation.js");
-var formulaParser = process.browser ? null : require('./formula/index'+'');
-var kvstore = require('./kvstore.js');
+var formulaParser = require('./formula/index');
+var kvstore = require('./kvstore.js'+'');
 var eventBus = require('./event_bus.js');
 var mutex = require('./mutex.js');
 var writer = require('./writer.js');
+var conf = require('./conf.js');
 
 var isNonnegativeInteger = ValidationUtils.isNonnegativeInteger;
 var isNonemptyArray = ValidationUtils.isNonemptyArray;
@@ -99,10 +100,19 @@ function handlePrimaryAATrigger(mci, unit, address, arrDefinition, arrPostedUnit
 	});
 }
 
+var lightBatch = {
+	put: function () { },
+	del: function () { },
+	clear: function () { },
+	write: function () {
+		throw Error("attempting to write a batch in a light client");
+	}
+};
+
 function dryRunPrimaryAATrigger(trigger, address, arrDefinition, onDone) {
 	db.takeConnectionFromPool(function (conn) {
 		conn.query("BEGIN", function () {
-			var batch = kvstore.batch();
+			var batch = conf.bLight ? lightBatch : kvstore.batch();
 			readLastStableMcUnit(conn, function (mci, objMcUnit) {
 				trigger.unit = objMcUnit.unit;
 				if (!trigger.address)

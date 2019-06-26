@@ -282,6 +282,11 @@ function migrateDb(connection, onDone){
 				if (version < 29)
 					connection.addQuery(arrQueries, "DELETE FROM known_bad_joints");
 				if (version < 30) {
+					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS joints ( \n\
+						unit CHAR(44) NOT NULL PRIMARY KEY, \n\
+						json TEXT NOT NULL, \n\
+						creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP \n\
+					)");
 					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS aa_addresses ( \n\
 						address CHAR(32) NOT NULL PRIMARY KEY, \n\
 						unit CHAR(44) NOT NULL, -- where it is first defined.  No index for better speed \n\

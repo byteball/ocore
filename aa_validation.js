@@ -3,7 +3,7 @@
 var async = require('async');
 var constants = require('./constants.js');
 var ValidationUtils = require("./validation_utils.js");
-var formulaParser = process.browser ? null : require('./formula/index'+'');
+var formulaParser = require('./formula/index');
 
 var hasFieldsExcept = ValidationUtils.hasFieldsExcept;
 var isStringOfLength = ValidationUtils.isStringOfLength;
@@ -573,7 +573,7 @@ function validateAADefinition(arrDefinition, callback) {
 			complexity = result.complexity;
 			if (result.error) {
 				var errorMessage = "validation of formula " + formula + " failed: " + result.error
-				errorMessage += result.errorContext ? ` at line ${result.errorContext.token.line} col ${result.errorContext.token.col}` : ''
+				errorMessage += result.errorContext ? ' at line ' + result.errorContext.token.line + ' col ' + result.errorContext.token.col : '';
 				return cb(errorMessage);
 			}
 			if (complexity > constants.MAX_COMPLEXITY)
