@@ -73,7 +73,7 @@ exports.validate = function (opts, callback) {
 		}
 	} catch (e) {
 		console.log('==== parse error', e, e.stack)
-		return callback({error: 'parse error', complexity, errorContext: { token: e.token, offset: e.offset }});
+		return callback({error: 'parse error', complexity, errorMessage: e.message});
 	}
 	
 	var count = 0;

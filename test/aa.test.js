@@ -316,7 +316,37 @@ test('bad formula', t => {
 		]
 	}];
 	aa_validation.validateAADefinition(aa, err => {
-		t.deepEqual(err, 'validation of formula trigger.address[] failed: parse error at line 1 col 16');
+		console.log('err :', err);
+		t.deepEqual(err, `validation of formula trigger.address[] failed: parse error
+parser error: invalid syntax at line 1 col 16:
+
+  trigger.address[
+                 ^
+Unexpected sl token: "["
+`);
+	});
+});
+
+test('bad formula with different validation case', t => {
+	var aa = ['autonomous agent', {
+		messages: [
+			{
+				app: 'payment',
+				payload: {
+					asset: 'base',
+					outputs: [
+						{address: "{trigger .address}", amount: "{trigger.output[[asset=base]] - 500}"}
+					]
+				}
+			}
+		]
+	}];
+	aa_validation.validateAADefinition(aa, err => {
+		t.deepEqual(err, `validation of formula trigger .address failed: parse error
+parser error: invalid syntax at line 1 col 1:
+
+  trigger .address
+  ^`);
 	});
 });
 
@@ -347,7 +377,14 @@ test('bad formula with asset', t => {
 		}
 	}];
 	aa_validation.validateAADefinition(aa, err => {
-		t.deepEqual(err, 'validation of formula trigger.data.auto_destroy[] failed: parse error at line 1 col 27');
+		console.log('err :', err);
+		t.deepEqual(err, `validation of formula trigger.data.auto_destroy[] failed: parse error
+parser error: invalid syntax at line 1 col 27:
+
+  trigger.data.auto_destroy[]
+                            ^
+Unexpected sr token: "]"
+`);
 	});
 });
 

@@ -573,7 +573,7 @@ function validateAADefinition(arrDefinition, callback) {
 			complexity = result.complexity;
 			if (result.error) {
 				var errorMessage = "validation of formula " + formula + " failed: " + result.error
-				errorMessage += result.errorContext ? ' at line ' + result.errorContext.token.line + ' col ' + result.errorContext.token.col : '';
+				errorMessage += result.errorMessage ? `\nparser error: ${result.errorMessage}` : ''
 				return cb(errorMessage);
 			}
 			if (complexity > constants.MAX_COMPLEXITY)
