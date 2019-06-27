@@ -222,6 +222,7 @@ exports.validate = function (opts, callback) {
 			
 			case 'this_address':
 			case 'trigger.address':
+			case 'trigger.initial_address':
 			case 'trigger.unit':
 				cb(bAA ? undefined : op + ' in non-AA');
 				break;
@@ -1648,6 +1649,10 @@ exports.evaluate = function (opts, callback) {
 			
 			case 'trigger.address':
 				cb(trigger.address);
+				break;
+			
+			case 'trigger.initial_address':
+				cb(trigger.initial_address);
 				break;
 			
 			case 'trigger.unit':

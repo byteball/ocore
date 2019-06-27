@@ -59,6 +59,7 @@
 		return: 'return',
 		addressValue: ['this address', 'other address', /\b[2-7A-Z]{32}\b/],
 		trigger_address: /\btrigger\.address\b/,
+		trigger_initial_address: /\btrigger\.initial_address\b/,
 		trigger_unit: /\btrigger\.unit\b/,
 		trigger_data: /\btrigger\.data\b/,
 		trigger_output: /\btrigger\.output\b/,
@@ -297,6 +298,7 @@ N -> float          {% id %}
 	| "this_address"  {% function(d) {return ['this_address']; }  %}
 	| "response_unit"  {% function(d) {return ['response_unit']; }  %}
 	| "trigger.address"  {% function(d) {return ['trigger.address']; }  %}
+	| "trigger.initial_address"  {% function(d) {return ['trigger.initial_address']; }  %}
 	| "trigger.unit"  {% function(d) {return ['trigger.unit']; }  %}
 	| "trigger.data" (%dotSelector|"[" expr "]"):*  {% function(d) { return ['trigger.data', d[1].map(function(item){ return (item[0].type === 'dotSelector') ? item[0].value.substr(1) : item[1]; })]; }  %}
 	| "trigger.output" ("[" "[") "asset" comparisonOperator (expr|%base) ("]" "]") %dotSelector:?  {% function(d) {

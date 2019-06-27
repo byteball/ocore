@@ -1919,3 +1919,11 @@ test('very long string', t => {
 		t.deepEqual(res, null);
 	})
 });
+
+test('trigger.initial_address', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", initial_address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT" };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `trigger.address == trigger.initial_address`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity) => {
+		t.deepEqual(res, true);
+	})
+});
