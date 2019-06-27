@@ -334,9 +334,16 @@ function migrateDb(connection, onDone){
 				cb();
 			},
 			function(cb){
-				if (version < 31){
-					require('./migrate_to_kv.js')(connection, cb);
+				if (version < 31) {
+					async.series(arrQueries, function () {
+						require('./migrate_to_kv.js')(connection, function () {
+							arrQueries = [];
+							cb();
+						});
+					});
 				}
+				else
+					cb();
 			}
 		], function(){
 			connection.addQuery(arrQueries, "PRAGMA user_version="+VERSION);
