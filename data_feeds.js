@@ -2,7 +2,7 @@
 "use strict";
 var async = require('async');
 var _ = require('lodash');
-var kvstore = require('./kvstore.js'+'');
+var kvstore = require('./kvstore.js');
 var string_utils = require('./string_utils.js');
 var storage = require('./storage.js');
 

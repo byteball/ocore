@@ -9,7 +9,7 @@ var string_utils = require("../string_utils.js");
 var constants = require('../constants');
 var dataFeeds = require('../data_feeds.js');
 var storage = require('../storage.js');
-var kvstore = require('../kvstore.js'+'');
+var kvstore = require('../kvstore.js');
 var signed_message = require("../signed_message.js"); // which requires definition.js - cyclic dependency :(
 
 if (!Number.MAX_SAFE_INTEGER)

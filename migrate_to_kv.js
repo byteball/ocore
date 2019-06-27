@@ -1,12 +1,14 @@
 /*jslint node: true */
 "use strict";
 var async = require('async');
-var kvstore = require('./kvstore.js'+'');
+var kvstore = require('./kvstore.js');
 var string_utils = require('./string_utils.js');
 var conf = require('./conf.js');
 var storage = require('./storage.js'); // have to introduce a cyclic dependency but fortunately it's only when we upgrade
 
 var bCordova = (typeof window === 'object' && window.cordova);
+if (!process.hrtime)
+	process.hrtime = function () { return 0; }
 
 function migrate(conn, onDone){
 	storage.initializeMinRetrievableMci(conn, function(){

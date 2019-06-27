@@ -2,9 +2,9 @@
 "use strict";
 
 if (typeof window === 'undefined' || !window.cordova){ // desktop
-	var desktopApp = require('./desktop_app.js'+'');
+	var desktopApp = require('./desktop_app.js');
 	var appRootDir = desktopApp.getAppRootDir();
-	require('dotenv'+'').config({path: appRootDir + '/.env'});
+	require('dotenv').config({path: appRootDir + '/.env'});
 }
 
 exports.COUNT_WITNESSES = 12;

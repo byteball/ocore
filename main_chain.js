@@ -14,7 +14,7 @@ var eventBus = require('./event_bus.js');
 var profiler = require('./profiler.js');
 var breadcrumbs = require('./breadcrumbs.js');
 var conf = require('./conf.js');
-var kvstore = require('./kvstore.js'+'');
+var kvstore = require('./kvstore.js');
 var string_utils = require('./string_utils.js');
 
 // override when adding units which caused witnessed level to significantly retreat

@@ -1,7 +1,7 @@
 /*jslint node: true */
 "use strict";
 var WebSocket = process.browser ? global.WebSocket : require('ws');
-var socks = process.browser ? null : require('socks'+'');
+var socks = process.browser ? null : require('socks');
 var WebSocketServer = WebSocket.Server;
 var crypto = require('crypto');
 var _ = require('lodash');
@@ -24,8 +24,8 @@ var eventBus = require('./event_bus.js');
 var light = require('./light.js');
 var inputs = require('./inputs.js');
 var breadcrumbs = require('./breadcrumbs.js');
-var mail = process.browser ? null : require('./mail.js'+'');
-var aa_composer = process.browser ? null : require('./aa_composer.js'+'');
+var mail = require('./mail.js');
+var aa_composer = require('./aa_composer.js');
 var libraryPackageJson = require('./package.json');
 
 var FORWARDING_TIMEOUT = 10*1000; // don't forward if the joint was received more than FORWARDING_TIMEOUT ms ago

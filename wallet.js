@@ -1965,7 +1965,7 @@ function forwardPrivateChainsToOtherMembersOfSharedAddresses(arrChainsOfCosigner
 }
 
 function sendTextcoinEmail(email, subject, amount, asset, mnemonic){
-	var mail = require('./mail.js'+'');
+	var mail = require('./mail.js');
 	var usd_amount_str = '';
 	if (!asset){
 		amount -= constants.TEXTCOIN_CLAIM_FEE;
@@ -1987,7 +1987,7 @@ function sendTextcoinEmail(email, subject, amount, asset, mnemonic){
 }
 
 function replaceInTextcoinTemplate(params, handleText){
-	var fs = require('fs'+'');
+	var fs = require('fs');
 	fs.readFile(__dirname + '/email_template.html', 'utf8', function(err, template) {
 		if (err)
 			throw Error("failed to read template: "+err);
@@ -2165,7 +2165,7 @@ function storePrivateAssetPayload(fullPath, cordovaPathObj, mnemonic, chains, cb
 	var zipParams = {type: "nodebuffer", compression: 'DEFLATE', compressionOptions: {level: 9}};
 	zip.generateAsync(zipParams).then(function(zipFile) {
 		if (!bCordova) {
-			var fs = require('fs'+'');
+			var fs = require('fs');
 			fs.writeFile(fullPath, zipFile, cb);
 		} else {
 			window.requestFileSystem(LocalFileSystem.TEMPORARY, 0, function(fs) {
@@ -2255,7 +2255,7 @@ function handlePrivatePaymentFile(fullPath, content, cb) {
 	}
 
 	if (!bCordova) {
-		var fs = require('fs'+'');
+		var fs = require('fs');
 		fs.readFile(decodeURIComponent(fullPath.replace('file://', '')), unzip);
 	} else {
 		window.requestFileSystem(LocalFileSystem.TEMPORARY, 0, function(fs) {

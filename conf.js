@@ -79,7 +79,7 @@ This way is not recommended as the code becomes loading order dependent.
 */
 
 if (typeof window === 'undefined' || !window.cordova){ // desktop
-	var desktopApp = require('./desktop_app.js'+'');
+	var desktopApp = require('./desktop_app.js');
 	
 	// merge conf from other modules that include us as lib.  The other module must place its custom conf.js into its root directory
 	var appRootDir = desktopApp.getAppRootDir();

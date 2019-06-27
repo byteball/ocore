@@ -3,7 +3,7 @@ var kvstore = require("../kvstore");
 var string_utils = require("../string_utils");
 var db = require("../db");
 var rocksdb = require('rocksdb');
-var app_data_dir = require('../desktop_app.js'+'').getAppDataDir();
+var app_data_dir = require('../desktop_app.js').getAppDataDir();
 var path = app_data_dir + '/rocksdb';
 
 

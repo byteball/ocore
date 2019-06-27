@@ -1,8 +1,8 @@
 /*jslint node: true */
 "use strict";
-var fs = require('fs'+'');
+var fs = require('fs');
 var rocksdb = require('level-rocksdb');
-var app_data_dir = require('./desktop_app.js'+'').getAppDataDir();
+var app_data_dir = require('./desktop_app.js').getAppDataDir();
 var path = app_data_dir + '/rocksdb';
 
 try{
@@ -10,7 +10,7 @@ try{
 }
 catch(e){
 	var mode = parseInt('700', 8);
-	var parent_dir = require('path'+'').dirname(app_data_dir);
+	var parent_dir = require('path').dirname(app_data_dir);
 	try { fs.mkdirSync(parent_dir, mode); } catch(e){}
 	try { fs.mkdirSync(app_data_dir, mode); } catch(e){}
 }

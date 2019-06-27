@@ -13,7 +13,7 @@ var Definition = require("./definition.js");
 var eventBus = require('./event_bus.js');
 var profiler = require('./profiler.js');
 var breadcrumbs = require('./breadcrumbs.js');
-var kvstore = require('./kvstore.js'+'');
+var kvstore = require('./kvstore.js');
 
 var bCordova = (typeof window === 'object' && window.cordova);
 
