@@ -957,32 +957,6 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 			objResponseUnit: objResponseUnit,
 			response: response,
 		};
-		if (!bSecondary && !bBouncing) {
-			var updatedStateVars = {};
-			for (var var_address in stateVars) {
-				var addressVars = stateVars[var_address];
-				for (var var_name in addressVars) {
-					var state = addressVars[var_name];
-					if (!state.updated)
-						continue;
-					if (!updatedStateVars[var_address])
-						updatedStateVars[var_address] = {};
-					var varInfo = {
-						value: Decimal.isDecimal(state.value) ? state.value.toNumber() : state.value,
-					};
-					if (state.old_value !== undefined)
-						varInfo.old_value = Decimal.isDecimal(state.old_value) ? state.old_value.toNumber() : state.old_value;
-					if (typeof varInfo.value === 'number') {
-						if (typeof varInfo.old_value === 'number')
-							varInfo.delta = varInfo.value - varInfo.old_value;
-					//	else if (varInfo.old_value === undefined || varInfo.old_value === false)
-					//		varInfo.delta = varInfo.value;
-					}
-					updatedStateVars[var_address][var_name] = varInfo;
-				}
-			}
-			objAAResponse.updatedStateVars = updatedStateVars;
-		}
 		arrResponses.push(objAAResponse);
 		conn.query(
 			"INSERT INTO aa_responses (mci, trigger_address, aa_address, trigger_unit, bounced, response_unit, response) \n\
@@ -994,6 +968,35 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 		);
 	}
 
+	function addUpdatedStateVarsIntoPrimaryResponse() {
+		if (bSecondary || bBouncing)
+			return;
+		var updatedStateVars = {};
+		for (var var_address in stateVars) {
+			var addressVars = stateVars[var_address];
+			for (var var_name in addressVars) {
+				var state = addressVars[var_name];
+				if (!state.updated)
+					continue;
+				if (!updatedStateVars[var_address])
+					updatedStateVars[var_address] = {};
+				var varInfo = {
+					value: Decimal.isDecimal(state.value) ? state.value.toNumber() : state.value,
+				};
+				if (state.old_value !== undefined)
+					varInfo.old_value = Decimal.isDecimal(state.old_value) ? state.old_value.toNumber() : state.old_value;
+				if (typeof varInfo.value === 'number') {
+					if (typeof varInfo.old_value === 'number')
+						varInfo.delta = varInfo.value - varInfo.old_value;
+				//	else if (varInfo.old_value === undefined || varInfo.old_value === false)
+				//		varInfo.delta = varInfo.value;
+				}
+				updatedStateVars[var_address][var_name] = varInfo;
+			}
+		}
+		arrResponses[0].updatedStateVars = updatedStateVars;
+	}
+
 	function finish(objResponseUnit) {
 		if (bBouncing && bSecondary) {
 			if (objResponseUnit)
@@ -1003,6 +1006,7 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 		fixStateVars();
 		saveStateVars();
 		addResponse(objResponseUnit, function () {
+			addUpdatedStateVarsIntoPrimaryResponse();
 			onDone(objResponseUnit, bBouncing);
 		});
 	}
@@ -1011,6 +1015,7 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 		conn.query("SELECT address, definition FROM aa_addresses WHERE address IN(?) AND mci<=? ORDER BY address", [arrOutputAddresses, mci], function (rows) {
 			if (rows.length === 0) {
 				saveStateVars();
+				addUpdatedStateVarsIntoPrimaryResponse();
 				return onDone(objUnit, bBouncing);
 			}
 			if (bBouncing)
@@ -1047,6 +1052,7 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 						return;
 					}
 					saveStateVars();
+					addUpdatedStateVarsIntoPrimaryResponse();
 					onDone(objUnit, bBouncing);
 				}
 			);
