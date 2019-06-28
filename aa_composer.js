@@ -969,13 +969,14 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 						updatedStateVars[var_address] = {};
 					var varInfo = {
 						value: Decimal.isDecimal(state.value) ? state.value.toNumber() : state.value,
-						old_value: Decimal.isDecimal(state.old_value) ? state.old_value.toNumber() : state.old_value,
 					};
+					if (state.old_value !== undefined)
+						varInfo.old_value = Decimal.isDecimal(state.old_value) ? state.old_value.toNumber() : state.old_value;
 					if (typeof varInfo.value === 'number') {
 						if (typeof varInfo.old_value === 'number')
 							varInfo.delta = varInfo.value - varInfo.old_value;
-						else if (varInfo.old_value === undefined || varInfo.old_value === false)
-							varInfo.delta = varInfo.value;
+					//	else if (varInfo.old_value === undefined || varInfo.old_value === false)
+					//		varInfo.delta = varInfo.value;
 					}
 					updatedStateVars[var_address][var_name] = varInfo;
 				}
