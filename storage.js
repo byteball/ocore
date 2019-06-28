@@ -1345,6 +1345,7 @@ function forgetUnit(unit){
 		throw Error("trying to forget stable unit "+unit);
 	delete assocStableUnits[unit];
 	delete assocUnstableMessages[unit];
+	delete assocBestChildren[unit];
 }
 
 // parent_units are parent units of the forgotten unit
