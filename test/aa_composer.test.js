@@ -1,30 +1,9 @@
 var path = require('path');
 var shell = require('child_process').execSync;
 var _ = require('lodash');
+
+process.env.devnet = 1;
 var constants = require("../constants.js");
-
-constants.version = '2.0dev';
-constants.alt = '3';
-constants.supported_versions = ['1.0dev', '2.0dev'];
-constants.versionWithoutTimestamp = '1.0dev';
-constants.GENESIS_UNIT = 'pLzHaCisvxkfgwyBDzgvZzhPp37ZKnuMOxiI3QwXxqM=';
-constants.BLACKBYTES_ASSET = 'GRzA4D/ElsiwivoUrkCg36s+CoOr6rLsSH2F0EOes64=';
-
-constants.COUNT_WITNESSES = 1;
-constants.MAJORITY_OF_WITNESSES = (constants.COUNT_WITNESSES%2===0) ? (constants.COUNT_WITNESSES/2+1) : Math.ceil(constants.COUNT_WITNESSES/2);
-
-constants.lastBallStableInParentsUpgradeMci = 0;
-constants.witnessedLevelMustNotRetreatUpgradeMci = 0;
-constants.spendUnconfirmedUpgradeMci = 0;
-constants.branchedMinMcWlUpgradeMci = 0;
-constants.otherAddressInDefinitionUpgradeMci = 0;
-constants.attestedInDefinitionUpgradeMci = 0;
-constants.altBranchByBestParentUpgradeMci = 0;
-constants.anyDefinitionChangeUpgradeMci = 0;
-constants.formulaUpgradeMci = 0;
-constants.witnessedLevelMustNotRetreatFromAllParentsUpgradeMci = 0;
-constants.timestampUpgradeMci = 0;
-
 var objectHash = require("../object_hash.js");
 var desktop_app = require('../desktop_app.js');
 desktop_app.getAppDataDir = function () { return __dirname + '/.testdata-' + path.basename(__filename); }
