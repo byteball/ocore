@@ -1663,7 +1663,7 @@ exports.evaluate = function (opts, callback) {
 				var arrKeys = arr[1];
 			//	console.log('keys', arrKeys);
 				var value = trigger.data;
-				if (!value)
+				if (!value || Object.keys(value).length === 0)
 					return cb(false);
 				async.eachSeries(
 					arrKeys, // can be 0-length array
