@@ -1828,8 +1828,11 @@ exports.evaluate = function (opts, callback) {
 						if (res instanceof wrappedObject)
 							res = true;
 						if (op === 'response_var_assignment') {
-							if (Decimal.isDecimal(res))
+							if (Decimal.isDecimal(res)) {
 								res = res.toNumber();
+								if (!isFinite(res))
+									return setFatalError("not finite js number in response_var_assignment", cb, false);
+							}
 							responseVars[var_name] = res;
 							return cb(true);
 						}
@@ -1917,7 +1920,7 @@ exports.evaluate = function (opts, callback) {
 					if (!isValidValue(res))
 						return setFatalError("bad value in ifelse: " + res, cb, false);
 					if (Decimal.isDecimal(res))
-						res = res.toNumber();
+						res = !res.eq(0);
 					else if (typeof res === 'object')
 						throw Error("test evaluated to object " + res);
 					if (!res && !else_block)
@@ -2082,8 +2085,10 @@ exports.evaluate = function (opts, callback) {
 						res = res.obj;
 					else if (Decimal.isDecimal(res)) {
 						if (!res.isFinite())
-							return setFatalError("not finite: " + res, cb, false);
+							return setFatalError("not finite decimal: " + res, cb, false);
 						res = res.toNumber();
+						if (!isFinite(res))
+							return setFatalError("not finite js number: " + res, cb, false);
 					}
 					cb(string_utils.getJsonSourceString(res)); // sorts keys unlike JSON.stringify()
 				});

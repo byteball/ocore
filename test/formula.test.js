@@ -1553,11 +1553,18 @@ test('reading response', t => {
 	})
 });
 
-test('response', t => {
+test('formula in response', t => {
 	var responseVars = {};
 	evalFormulaWithVars({ formula: "response ['zz'||'z'] = 99; 2*2", trigger: {}, locals: { a4: 100 }, responseVars: responseVars, objValidationState: objValidationState, bStatementsOnly: false, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, res => {
 		t.deepEqual(res, 4);
 		t.deepEqual(responseVars.zzz, 99);
+	})
+});
+
+test('large number in response', t => {
+	var responseVars = {};
+	evalFormulaWithVars({ formula: "response['z'] = 5e308;", trigger: {}, locals: { a4: 100 }, responseVars: responseVars, objValidationState: objValidationState, bStatementsOnly: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, res => {
+		t.deepEqual(res, null);
 	})
 });
 
@@ -1872,6 +1879,14 @@ test('json_stringify number', t => {
 	evalFormulaWithVars({ conn: null, formula: "json_stringify(trigger.data.ww.aa)", trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity) => {
 		t.deepEqual(res, '8');
 		t.deepEqual(complexity, 1);
+	})
+});
+
+test('json_stringify large number', t => {
+	var trigger = { data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}} };
+	var stateVars = {  };
+	evalFormulaWithVars({ conn: null, formula: "json_stringify(5e308)", trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity) => {
+		t.deepEqual(res, null);
 	})
 });
 
