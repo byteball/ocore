@@ -549,6 +549,12 @@ test('hypot(3, 4)', t => {
 	});
 });
 
+test('hypot no overflow', t => {
+	evalFormula(null, 'hypot(3e308, 4e308)*1e-308', [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
+		t.deepEqual(res, 5);
+	});
+});
+
 test('ceil 2.5', t => {
 	evalFormula(null, "ceil(2.5)", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 3);
