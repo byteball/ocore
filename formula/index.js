@@ -1197,7 +1197,7 @@ exports.evaluate = function (opts, callback) {
 							return cb(null, objResult.unit);
 						if (type === 'string')
 							return cb(null, objResult.value.toString());
-						return cb(null, (typeof objResult.value === 'string') ? objResult.value : new Decimal(objResult.value));
+						return cb(null, (typeof objResult.value === 'string') ? objResult.value : new Decimal(objResult.value).times(1));
 					}
 					if (params.ifnone && params.ifnone.value !== 'abort'){
 					//	console.log('===== ifnone=', params.ifnone.value, typeof params.ifnone.value);
@@ -1560,7 +1560,7 @@ exports.evaluate = function (opts, callback) {
 								if (type === 'auto') {
 									var f = string_utils.getNumericFeedValue(value);
 									if (f !== null)
-										value = new Decimal(value);
+										value = new Decimal(value).times(1);
 								}
 								return cb(value);
 							}
@@ -1686,11 +1686,11 @@ exports.evaluate = function (opts, callback) {
 						if (typeof value === 'boolean')
 							cb(value);
 						else if (typeof value === 'number')
-							cb(new Decimal(value));
+							cb(new Decimal(value).times(1));
 						else if (typeof value === 'string') {
 							// convert to number if possible
 							var f = string_utils.getNumericFeedValue(value);
-							(f === null) ? cb(value) : cb(new Decimal(value));
+							(f === null) ? cb(value) : cb(new Decimal(value).times(1));
 						}
 						else if (typeof value === 'object')
 							cb(new wrappedObject(value));
@@ -1773,11 +1773,11 @@ exports.evaluate = function (opts, callback) {
 							if (typeof value === 'boolean')
 								cb(value);
 							else if (typeof value === 'number')
-								cb(new Decimal(value));
+								cb(new Decimal(value).times(1));
 							else if (typeof value === 'string') {
 								// convert to number if possible
 								var f = string_utils.getNumericFeedValue(value);
-								(f === null) ? cb(value) : cb(new Decimal(value));
+								(f === null) ? cb(value) : cb(new Decimal(value).times(1));
 							}
 							else if (typeof value === 'object')
 								cb(new wrappedObject(value));
@@ -2075,7 +2075,7 @@ exports.evaluate = function (opts, callback) {
 					if (typeof json === 'object')
 						return cb(new wrappedObject(json));
 					if (typeof json === 'number')
-						return cb(new Decimal(json));
+						return cb(new Decimal(json).times(1));
 					if (typeof json === 'string' || typeof json === 'boolean')
 						return cb(json);
 					throw Error("unknown type of json parse: " + (typeof json));
@@ -2189,7 +2189,7 @@ exports.evaluate = function (opts, callback) {
 			}
 			var f = string_utils.getNumericFeedValue(value);
 			if (f !== null)
-				value = new Decimal(value);
+				value = new Decimal(value).times(1);
 			stateVars[param_address][var_name] = {value: value, old_value: value};
 			cb2(value);
 		});
