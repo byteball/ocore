@@ -2072,7 +2072,13 @@ exports.evaluate = function (opts, callback) {
 						console.log('json_parse failed: ' + e.toString());
 						return cb(false);
 					}
-					cb(new wrappedObject(json));
+					if (typeof json === 'object')
+						return cb(new wrappedObject(json));
+					if (typeof json === 'number')
+						return cb(new Decimal(json));
+					if (typeof json === 'string' || typeof json === 'boolean')
+						return cb(json);
+					throw Error("unknown type of json parse: " + (typeof json));
 				});
 				break;
 			
