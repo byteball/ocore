@@ -2057,8 +2057,11 @@ exports.evaluate = function (opts, callback) {
 				evaluate(expr, function (res) {
 					if (fatal_error)
 						return cb(false);
+					if (res instanceof wrappedObject)
+						res = true;
+					//	return setFatalError("json_parse of object", cb, false);
 					if (typeof res !== 'string')
-						return setFatalError("not a string argument of json_parse", cb, false);
+						res = res.toString();
 					try {
 						var json = JSON.parse(res);
 					}
