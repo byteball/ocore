@@ -174,14 +174,6 @@ attestation_param ->  (%attestors|%address|%ifseveral|%ifnone|%type) comparisonO
 	} %}
 attestation_param_list -> attestation_param ("," attestation_param):*  {% function(d) { return [d[0]].concat(d[1].map(function (item) {return item[1];}));   } %}
 
-balance_param ->  (%asset|%address) "=" (expr|%addressValue|%base)  {% function(d) {
-		var value = d[2][0];
-		if (value.type === 'addressValue' || value.type === 'base')
-			value = value.value;
-		return [d[0][0].value, d[1].value, value];
-	} %}
-balance_param_list -> balance_param ("," balance_param):*  {% function(d) { return [d[0]].concat(d[1].map(function (item) {return item[1];}));   } %}
-
 
 P -> "(" expr ")" {% function(d) {return d[1]; } %}
     | N      {% id %}
@@ -260,18 +252,6 @@ N -> float          {% id %}
 		if (d[4])
 			field = (d[4][0].type === 'dotSelector') ? d[4][0].value.substr(1) : d[4][1];
 		return ["attestation", params, field];
-	}%}
-    | "balance" ("[" "[") balance_param_list ("]" "]")   {% function (d, location, reject){
-		var params = {};
-		var arrParams = d[2];
-		for(var i = 0; i < arrParams.length; i++){
-			var name = arrParams[i][0];
-			var operator = arrParams[i][1];
-			var value = arrParams[i][2];
-			if(params[name]) return reject;
-			params[name] = {operator: operator, value: value};
-		}
-		return ["balance", params];
 	}%}
 	| ("var"|"balance") "[" (expr|%addressValue|%base) "]" ("[" (expr|%base) "]"):?  {% function(d) {
 		var first_value = d[2][0];
