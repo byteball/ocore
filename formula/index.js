@@ -1853,7 +1853,7 @@ exports.evaluate = function (opts, callback) {
 						readVar(address, var_name, function (value) {
 							if (assignment_op === '||=') {
 								value = value.toString() + res.toString();
-								if (value.length > 1024)
+								if (value.length > constants.MAX_STATE_VAR_VALUE_LENGTH)
 									return setFatalError("state var value after "+assignment_op+" too long: " + value, cb, false);
 							}
 							else {
