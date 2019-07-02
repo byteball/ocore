@@ -46,7 +46,11 @@ var formulasInCache = [];
 var cache = {};
 
 function isValidValue(val){
-	return (typeof val === 'string' || typeof val === 'boolean' || Decimal.isDecimal(val) && val.isFinite());
+	return (typeof val === 'string' || typeof val === 'boolean' || isFiniteDecimal(val));
+}
+
+function isFiniteDecimal(val) {
+	return (Decimal.isDecimal(val) && val.isFinite() && isFinite(val.toNumber()));
 }
 
 exports.validate = function (opts, callback) {
@@ -82,7 +86,8 @@ exports.validate = function (opts, callback) {
 		count++;
 		if (count % 100 === 0) // avoid extra long call stacks to prevent Maximum call stack size exceeded
 			return setImmediate(evaluate, arr, cb);
-		if (Decimal.isDecimal(arr) && arr.isFinite()) return cb();
+		if (Decimal.isDecimal(arr))
+			return isFiniteDecimal(arr) ? cb() : cb("not finite decimal: " + arr);
 		if(typeof arr !== 'object'){
 			if (typeof arr === 'boolean') return cb();
 			if (typeof arr === 'string') return cb();
@@ -506,7 +511,7 @@ function getInputOrOutputError(params) {
 		var operator = params[name].operator;
 		var value = params[name].value;
 		if (Decimal.isDecimal(value)){
-			if (!value.isFinite())
+			if (!isFiniteDecimal(value))
 				return 'not finite';
 			value = value.toString();
 		}
@@ -541,7 +546,7 @@ function validateDataFeed(params) {
 			var operator = params[name].operator;
 			var value = params[name].value;
 			if (Decimal.isDecimal(value)){
-				if (!value.isFinite())
+				if (!isFiniteDecimal(value))
 					return {error: 'not finite', complexity};
 				value = value.toString();
 			}
@@ -603,7 +608,7 @@ function validateDataFeedExists(params) {
 		var operator = params[name].operator;
 		var value = params[name].value;
 		if (Decimal.isDecimal(value)){
-			if (!value.isFinite())
+			if (!isFiniteDecimal(value))
 				return {error: 'not finite', complexity};
 			value = value.toString();
 		}
@@ -650,7 +655,7 @@ function getAttestationError(params) {
 		var operator = params[name].operator;
 		var value = params[name].value;
 		if (Decimal.isDecimal(value)){
-			if (!value.isFinite())
+			if (!isFiniteDecimal(value))
 				return 'not finite';
 			value = value.toString();
 		}
@@ -754,8 +759,11 @@ exports.evaluate = function (opts, callback) {
 		if (early_return !== undefined)
 			return cb(true);
 		if (Decimal.isDecimal(arr)) {
-			if (arr.isFinite()) return cb(arr);
-			else return setFatalError("bad decimal: " + arr, cb, false);
+			if (!arr.isFinite())
+				setFatalError("bad decimal: " + arr, cb, false);
+			if (!isFinite(arr.toNumber()))
+				setFatalError("number overflow: " + arr, cb, false);
+			return cb(arr);
 		}
 		if (arr instanceof wrappedObject) return cb(arr);
 		if (typeof arr !== 'object') {
@@ -801,7 +809,7 @@ exports.evaluate = function (opts, callback) {
 							res = true;
 						if (typeof res === 'boolean')
 							res = new Decimal(res ? 1 : 0);
-						if (Decimal.isDecimal(res) && res.isFinite()) {
+						if (isFiniteDecimal(res)) {
 							if (prevV === undefined) {
 								prevV = res;
 							} else {
@@ -838,7 +846,7 @@ exports.evaluate = function (opts, callback) {
 				}, function (err) {
 					if (err)
 						return cb(false);
-					if (!prevV.isFinite())
+					if (!isFiniteDecimal(prevV))
 						return setFatalError('not finite in '+op, cb, false);
 					cb(prevV);
 				});
@@ -854,7 +862,7 @@ exports.evaluate = function (opts, callback) {
 						res = true;
 					if (typeof res === 'boolean')
 						res = new Decimal(res ? 1 : 0);
-					if (Decimal.isDecimal(res) && res.isFinite()) {
+					if (isFiniteDecimal(res)) {
 						if (op === 'abs')
 							return cb(res.abs());
 						if (res.isNegative())
@@ -903,7 +911,7 @@ exports.evaluate = function (opts, callback) {
 							res = true;
 						if (typeof res === 'boolean')
 							res = new Decimal(res ? 1 : 0);
-						if (Decimal.isDecimal(res) && res.isFinite()) {
+						if (isFiniteDecimal(res)) {
 							cb(res.toDecimalPlaces(dp.toNumber(), roundingMode));
 						} else {
 							return setFatalError('not a decimal in '+op, cb, false);
@@ -924,7 +932,7 @@ exports.evaluate = function (opts, callback) {
 							res = true;
 						if (typeof res === 'boolean')
 							res = new Decimal(res ? 1 : 0);
-						if (Decimal.isDecimal(res) && res.isFinite()) {
+						if (isFiniteDecimal(res)) {
 							vals.push(res);
 							cb2();
 						} else {
@@ -961,7 +969,7 @@ exports.evaluate = function (opts, callback) {
 							res = true;
 						if (typeof res === 'boolean'){
 						}
-						else if (Decimal.isDecimal(res) && res.isFinite())
+						else if (isFiniteDecimal(res))
 							res = !res.eq(0);
 						else if (typeof res === 'string')
 							res = !!res;
@@ -989,7 +997,7 @@ exports.evaluate = function (opts, callback) {
 							res = true;
 						if (typeof res === 'boolean') {
 						}
-						else if (Decimal.isDecimal(res) && res.isFinite())
+						else if (isFiniteDecimal(res))
 							res = !res.eq(0);
 						else if (typeof res === 'string')
 							res = !!res;
@@ -1053,7 +1061,9 @@ exports.evaluate = function (opts, callback) {
 					}
 					if (typeof val1 === 'boolean' || typeof val2 === 'boolean')
 						return setFatalError("booleans cannot be compared with other types", cb, false);
-					if (Decimal.isDecimal(val1) && Decimal.isDecimal(val2) && val1.isFinite() && val2.isFinite()) {
+					if (Decimal.isDecimal(val1) && Decimal.isDecimal(val2)) {
+						if (!isFiniteDecimal(val1) || !isFiniteDecimal(val2))
+							return setFatalError("non-finite in comparison", cb, false);
 						switch (operator) {
 							case '==':
 								return cb(val1.eq(val2));
@@ -1098,7 +1108,7 @@ exports.evaluate = function (opts, callback) {
 						res = true;
 					if (typeof res === 'boolean')
 						conditionResult = res;
-					else if (Decimal.isDecimal(res) && res.isFinite())
+					else if (isFiniteDecimal(res))
 						conditionResult = !(res.eq(0));
 					else if (typeof res === 'string')
 						conditionResult = !!res;
@@ -1108,7 +1118,7 @@ exports.evaluate = function (opts, callback) {
 					evaluate(param2, function (res) {
 						if (fatal_error)
 							return cb(false);
-						if (Decimal.isDecimal(res) && res.isFinite())
+						if (isFiniteDecimal(res))
 							cb(res);
 						else if (typeof res === 'boolean' || typeof res === 'string' || res instanceof wrappedObject)
 							cb(res);
@@ -1458,7 +1468,7 @@ exports.evaluate = function (opts, callback) {
 						}
 						if (evaluated_params.amount){
 							var v = evaluated_params.amount.value;
-							if(!(Decimal.isDecimal(v) && v.isFinite()))
+							if(!isFiniteDecimal(v))
 								return setFatalError('bad amount', cb, false);
 						}
 						var result = findOutputOrInputAndReturnName(evaluated_params);
@@ -1616,7 +1626,7 @@ exports.evaluate = function (opts, callback) {
 							return cb2(fatal_error);
 						if (res instanceof wrappedObject)
 							res = true;
-						if (Decimal.isDecimal(res) && res.isFinite())
+						if (isFiniteDecimal(res))
 							result += res.toString();
 						else if (typeof res === 'string')
 							result += res;
@@ -1875,7 +1885,7 @@ exports.evaluate = function (opts, callback) {
 									value = value.div(res);
 								else
 									throw Error("unknown assignment op: " + assignment_op);
-								if (!value.isFinite())
+								if (!isFiniteDecimal(value))
 									return setFatalError("not finite: " + value, cb, false);
 							}
 							stateVars[address][var_name] = { value: value, updated: true };
@@ -2212,7 +2222,7 @@ exports.evaluate = function (opts, callback) {
 				if (res instanceof wrappedObject)
 					res = bObjectResultAllowed ? res.obj : true;
 				else if (Decimal.isDecimal(res)) {
-					if (!res.isFinite())
+					if (!isFiniteDecimal(res))
 						return callback('result is not finite', null);
 					res = (res.isInteger() && res.abs().lt(Number.MAX_SAFE_INTEGER)) ? res.toNumber() : res.toString();
 				}
