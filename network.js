@@ -1,7 +1,7 @@
 /*jslint node: true */
 "use strict";
 var WebSocket = process.browser ? global.WebSocket : require('ws');
-var socks = process.browser ? null : require('socks'+'');
+var socks = process.browser ? null : require('socks');
 var WebSocketServer = WebSocket.Server;
 var crypto = require('crypto');
 var _ = require('lodash');
@@ -24,7 +24,8 @@ var eventBus = require('./event_bus.js');
 var light = require('./light.js');
 var inputs = require('./inputs.js');
 var breadcrumbs = require('./breadcrumbs.js');
-var mail = process.browser ? null : require('./mail.js'+'');
+var mail = require('./mail.js');
+var aa_composer = require('./aa_composer.js');
 var libraryPackageJson = require('./package.json');
 
 var FORWARDING_TIMEOUT = 10*1000; // don't forward if the joint was received more than FORWARDING_TIMEOUT ms ago
@@ -136,7 +137,7 @@ function sendErrorResult(ws, unit, error) {
 
 function sendVersion(ws){
 	sendJustsaying(ws, 'version', {
-		protocol_version: constants.version, 
+		protocol_version: constants.versionWithoutTimestamp, 
 		alt: constants.alt, 
 		library: libraryPackageJson.name, 
 		library_version: libraryPackageJson.version, 
@@ -163,7 +164,7 @@ function sendRequest(ws, command, params, bReroutable, responseHandler){
 	if (params)
 		request.params = params;
 	var content = _.clone(request);
-	var tag = objectHash.getBase64Hash(request);
+	var tag = objectHash.getBase64Hash(request, true);
 	//if (ws.assocPendingRequests[tag]) // ignore duplicate requests while still waiting for response from the same peer
 	//    return console.log("will not send identical "+command+" request");
 	if (ws.assocPendingRequests[tag]){
@@ -680,9 +681,19 @@ function requestFromLightVendor(command, params, responseHandler){
 	});
 }
 
+
+function getConnectionStatus(){
+	return {
+		incoming: wss.clients.length,
+		outgoing: arrOutboundPeers.length,
+		outgoing_being_opened: Object.keys(assocConnectingOutboundWebsockets).length
+	}
+}
+
 function printConnectionStatus(){
-	console.log(wss.clients.length+" incoming connections, "+arrOutboundPeers.length+" outgoing connections, "+
-		Object.keys(assocConnectingOutboundWebsockets).length+" outgoing connections being opened");
+	var objConnectionStatus = getConnectionStatus();
+	console.log(objConnectionStatus.incoming+" incoming connections, "+objConnectionStatus.outgoing+" outgoing connections, "+
+	objConnectionStatus.outgoing_being_opened+" outgoing connections being opened");
 }
 
 function subscribe(ws){
@@ -924,6 +935,8 @@ function forwardJoint(ws, objJoint){
 }
 
 function handleJoint(ws, objJoint, bSaved, callbacks){
+	if ('aa' in objJoint)
+		return callbacks.ifJointError("AA unit cannot be broadcast");
 	var unit = objJoint.unit.unit;
 	if (assocUnitsInWork[unit])
 		return callbacks.ifUnitInWork();
@@ -958,10 +971,13 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 						eventBus.emit("validated-"+unit, false);
 				},
 				ifTransientError: function(error){
-					throw Error(error);
+				//	throw Error(error);
+					callbacks.ifUnitError(error);
 					unlock();
 					console.log("############################## transient error "+error);
-					delete assocUnitsInWork[unit];
+					joint_storage.removeUnhandledJointAndDependencies(unit, function(){
+						delete assocUnitsInWork[unit];
+					});
 				},
 				ifNeedHashTree: function(){
 					console.log('need hash tree for unit '+unit);
@@ -1059,7 +1075,7 @@ function handlePostedJoint(ws, objJoint, onDone){
 		},
 		ifKnown: function(){
 			if (objJoint.unsigned)
-				throw Error("known unsigned");
+				return onDone("you can't send unsigned units");
 			onDone("known");
 			writeEvent('known_good', ws.host);
 		},
@@ -1124,7 +1140,7 @@ function handleOnlineJoint(ws, objJoint, onDone){
 		},
 		ifKnown: function(){
 			if (objJoint.unsigned)
-				throw Error("known unsigned");
+				return onDone();
 			sendResult(ws, {unit: unit, result: 'known'});
 			writeEvent('known_good', ws.host);
 			onDone();
@@ -1239,6 +1255,8 @@ function addWatchedAddress(address){
 
 // if any of the watched addresses are affected, notifies:  1. own UI  2. light clients
 function notifyWatchers(objJoint, source_ws){
+	var bAA = objJoint.new_aa;
+	delete objJoint.new_aa;
 	var objUnit = objJoint.unit;
 	var arrAddresses = objUnit.authors.map(function(author){ return author.address; });
 	if (!objUnit.messages) // voided unit
@@ -1280,11 +1298,16 @@ function notifyWatchers(objJoint, source_ws){
 	db.query("SELECT peer FROM watched_light_addresses WHERE address IN(?)", [arrAddresses], function(rows){
 		if (rows.length === 0)
 			return;
-		objUnit.timestamp = Math.round(Date.now()/1000); // light clients need timestamp
+		if (!objUnit.timestamp)
+			objUnit.timestamp = Math.round(Date.now()/1000); // light clients need timestamp
 		rows.forEach(function(row){
 			var ws = getPeerWebSocket(row.peer);
-			if (ws && ws.readyState === ws.OPEN && ws !== source_ws)
-				sendJoint(ws, objJoint);
+			if (ws && ws.readyState === ws.OPEN && ws !== source_ws) {
+				if (bAA) // trigger a get_history request to receive the aa_response
+					sendJustsaying(ws, 'light/have_updates');
+				else
+					sendJoint(ws, objJoint);
+			}
 		});
 	});
 }
@@ -1428,11 +1451,8 @@ function writeEvent(event, host){
 }
 
 function determineIfPeerIsBlocked(host, handleResult){
-	/*	"SELECT \n\
-			SUM(CASE WHEN event='invalid' THEN 1 ELSE 0 END) AS count_invalid, \n\
-			SUM(CASE WHEN event='new_good' THEN 1 ELSE 0 END) AS count_new_good \n\
-			FROM peer_events WHERE peer_host=? AND event_date>"+db.addTime("-1 HOUR"),*/
-	/*	"SELECT 1 FROM peer_events WHERE peer_host=? AND event_date>"+db.addTime("-1 HOUR")+" AND event='invalid' LIMIT 1",*/
+	if (constants.bTestnet)
+		return handleResult(false);
 	handleResult(!!assocBlockedPeers[host]);
 }
 
@@ -1498,6 +1518,10 @@ function broadcastJoint(objJoint){
 	notifyWatchers(objJoint);
 }
 
+function onNewAA(objUnit) {
+	findAndHandleJointsThatAreReady(objUnit.unit);
+	notifyWatchers({ unit: objUnit, new_aa: true });
+}
 
 
 // catchup
@@ -1776,8 +1800,8 @@ function handleSavedPrivatePayments(unit){
 					
 					var validateAndSave = function(){
 						var objHeadPrivateElement = arrPrivateElements[0];
-						var payload_hash = objectHash.getBase64Hash(objHeadPrivateElement.payload);
-						var key = 'private_payment_validated-'+objHeadPrivateElement.unit+'-'+payload_hash+'-'+row.output_index;
+						var json_payload_hash = objectHash.getBase64Hash(objHeadPrivateElement.payload, true);
+						var key = 'private_payment_validated-'+objHeadPrivateElement.unit+'-'+json_payload_hash+'-'+row.output_index;
 						privatePayment.validateAndSavePrivatePaymentChain(arrPrivateElements, {
 							ifOk: function(){
 								if (ws)
@@ -2054,8 +2078,8 @@ function handleJustsaying(ws, subject, body){
 		case 'version':
 			if (!body)
 				return;
-			if (body.protocol_version !== constants.version){
-				sendError(ws, 'Incompatible versions, mine '+constants.version+', yours '+body.protocol_version);
+			if (constants.supported_versions.indexOf(body.protocol_version) === -1){
+				sendError(ws, 'Incompatible versions, I support '+constants.supported_versions.join(', ')+', yours '+body.protocol_version);
 				ws.close(1000, 'incompatible versions');
 				return;
 			}
@@ -2065,13 +2089,24 @@ function handleJustsaying(ws, subject, body){
 				return;
 			}
 			ws.library_version = body.library_version;
-			if (typeof ws.library_version === 'string' && version2int(ws.library_version) < version2int(constants.minCoreVersion)){
+			if (typeof ws.library_version !== 'string') {
+				sendError(ws, "invalid library_version: " + ws.library_version);
+				return ws.close(1000, "invalid library_version");
+			}
+			if (version2int(ws.library_version) < version2int(constants.minCoreVersion)){
+				ws.old_core = true;
+				ws.bSubscribed = false;
+				sendJustsaying(ws, 'upgrade_required');
+				sendJustsaying(ws, "old core");
+				return ws.close(1000, "old core");
+			}
+			if (version2int(ws.library_version) < version2int(constants.minCoreVersionForFullNodes)){
 				ws.old_core = true;
 				if (ws.bSubscribed){
 					ws.bSubscribed = false;
 					sendJustsaying(ws, 'upgrade_required');
-					sendJustsaying(ws, "old core");
-					ws.close(1000, "old core");
+					sendJustsaying(ws, "old core (full)");
+					return ws.close(1000, "old core (full)");
 				}
 			}
 			eventBus.emit('peer_version', ws, body); // handled elsewhere
@@ -2275,6 +2310,27 @@ function handleJustsaying(ws, subject, body){
 			});
 			break;
 			
+		// I'm a hub, the peer wants update settings for a correspondent device
+		case 'hub/update_correspondent_settings':
+			if (!conf.bServeAsHub)
+				return sendError(ws, "I'm not a hub");
+			if (!ws.device_address)
+				return sendError(ws, "please log in first");
+			if (body.push_enabled !== 0 && body.push_enabled !== 1)
+				return sendError(ws, "invalid push_enabled");
+			if (!ValidationUtils.isValidDeviceAddress(body.correspondent_address))
+				return sendError(ws, "invalid correspondent_address");
+			db.query(
+				"INSERT "+db.getIgnore()+" INTO correspondent_settings (device_address, correspondent_address, push_enabled) VALUES(?,?,?)",
+				[ws.device_address, body.correspondent_address, body.push_enabled],
+				function(res){
+					if (res.affectedRows === 0)
+						db.query("UPDATE correspondent_settings SET push_enabled=? WHERE device_address=? AND correspondent_address=?", [body.push_enabled, ws.device_address, body.correspondent_address]);
+					sendInfo(ws, "updated push "+body.push_enabled);
+				}
+			);
+			break;
+			
 		// I'm connected to a hub
 		case 'hub/challenge':
 		case 'hub/message':
@@ -2388,12 +2444,16 @@ function handleRequest(ws, tag, command, params){
 				//    sendFreeJoints(ws);
 				return sendErrorResponse(ws, tag, "I'm light, cannot subscribe you to updates");
 			}
-			if (typeof params.library_version === 'string' && version2int(params.library_version) < version2int(constants.minCoreVersion))
+			if (typeof params.library_version !== 'string') {
+				sendErrorResponse(ws, tag, "invalid library_version: " + params.library_version);
+				return ws.close(1000, "invalid library_version");
+			}
+			if (version2int(params.library_version) < version2int(constants.minCoreVersionForFullNodes))
 				ws.old_core = true;
 			if (ws.old_core){ // can be also set in 'version'
 				sendJustsaying(ws, 'upgrade_required');
-				sendErrorResponse(ws, tag, "old core");
-				return ws.close(1000, "old core");
+				sendErrorResponse(ws, tag, "old core (full)");
+				return ws.close(1000, "old core (full)");
 			}
 			ws.bSubscribed = true;
 			sendResponse(ws, tag, "subscribed");
@@ -2531,7 +2591,15 @@ function handleRequest(ws, tag, command, params){
 							}
 						});
 						sendResponse(ws, tag, "accepted");
-						eventBus.emit('peer_sent_new_message', ws, objDeviceMessage);
+						var sender_device_address = objectHash.getDeviceAddress(objDeviceMessage.pubkey);
+						db.query(
+							"SELECT push_enabled FROM correspondent_settings WHERE device_address=? AND correspondent_address=?",
+							[objDeviceMessage.to, sender_device_address],
+							function(rows){
+								if (rows.length === 0 || rows[0].push_enabled === 1)
+									eventBus.emit('peer_sent_new_message', ws, objDeviceMessage);
+							}
+						);
 					}
 				);
 			});
@@ -2761,6 +2829,22 @@ function handleRequest(ws, tag, command, params){
 			});
 			break;
 
+		case 'light/get_definition_chash':
+			if (conf.bLight)
+				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
+			if (ws.bOutbound)
+				return sendErrorResponse(ws, tag, "light clients have to be inbound");
+			if (!params)
+				return sendErrorResponse(ws, tag, "no params in light/get_definition_chash");
+			if (!ValidationUtils.isValidAddress(params.address))
+				return sendErrorResponse(ws, tag, "address not valid");
+			if (params.max_mci && !ValidationUtils.isPositiveInteger(params.max_mci))
+				return sendErrorResponse(ws, tag, "max_mci not a positive integer");
+			storage.readDefinitionChashByAddress(db, params.address, params.max_mci, function(definition_chash){
+				sendResponse(ws, tag, definition_chash);
+			});
+			break;
+		
 		case 'light/get_definition':
 			if (conf.bLight)
 				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
@@ -2770,7 +2854,7 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "no params in light/get_definition");
 			if (!ValidationUtils.isValidAddress(params))
 				return sendErrorResponse(ws, tag, "address not valid");
-			db.query("SELECT definition FROM definitions WHERE definition_chash=?", [params], function(rows){
+			db.query("SELECT definition FROM definitions WHERE definition_chash=? UNION SELECT definition FROM aa_addresses WHERE address=? LIMIT 1", [params, params], function(rows){
 				if (!rows[0])
 					return sendResponse(ws, tag, null);
 				var arrDefinition = JSON.parse(rows[0].definition);
@@ -2778,7 +2862,44 @@ function handleRequest(ws, tag, command, params){
 			});
 			break;
 
-    	case 'light/get_balances':
+		case 'light/get_definition_for_address':
+			if (conf.bLight)
+				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
+			if (ws.bOutbound)
+				return sendErrorResponse(ws, tag, "light clients have to be inbound");
+			if (!params)
+				return sendErrorResponse(ws, tag, "no params in light/get_definition_for_address");
+			if (!ValidationUtils.isValidAddress(params.address))
+				return sendErrorResponse(ws, tag, "address not valid");
+
+			db.query("SELECT definition_chash,is_stable FROM address_definition_changes CROSS JOIN units USING(unit) WHERE address=? AND sequence='good'\n\
+			ORDER BY main_chain_index DESC LIMIT 1",[params.address],function(address_definition_changes){
+				if (address_definition_changes[0] && address_definition_changes[0].is_stable === 0){
+					return sendResponse(ws, tag, {
+						definition_chash: address_definition_changes[0].definition_chash,
+						is_stable: false
+					});
+				}
+				var definition_chash = address_definition_changes[0] ? address_definition_changes[0].definition_chash : params.address;
+				db.query("SELECT definition,is_stable FROM definitions CROSS JOIN unit_authors USING(definition_chash) CROSS JOIN units USING(unit) \n\
+					WHERE definition_chash=? AND sequence='good'",[definition_chash], function(definitions){
+						if (definitions[0]){
+							return sendResponse(ws, tag, {
+								definition_chash: definition_chash,
+								definition: JSON.parse(definitions[0].definition),
+								is_stable: definitions[0].is_stable === 1
+							});
+						} else {
+							return sendResponse(ws, tag, {
+								definition_chash: definition_chash,
+								is_stable: true
+							});
+						}
+					})
+			});
+			break;
+
+		case 'light/get_balances':
 			var addresses = params;
 			if (conf.bLight)
 				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
@@ -2810,8 +2931,8 @@ function handleRequest(ws, tag, command, params){
 				}
 			);
 			break;
-      
-    	case 'light/get_profile_units':
+
+		case 'light/get_profile_units':
 			var addresses = params;
 			if (conf.bLight)
 				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
@@ -2833,6 +2954,35 @@ function handleRequest(ws, tag, command, params){
 					sendResponse(ws, tag, units);
 				}
 			);
+			break;
+
+		case 'light/dry_run_aa':
+			if (conf.bLight)
+				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
+			if (ws.bOutbound)
+				return sendErrorResponse(ws, tag, "light clients have to be inbound");
+			if (!params)
+				return sendErrorResponse(ws, tag, "no params in light/dry_run_aa");
+			if (!ValidationUtils.isValidAddress(params.address))
+				return sendErrorResponse(ws, tag, "address not valid");
+			if (!ValidationUtils.isNonemptyObject(params.trigger))
+				return sendErrorResponse(ws, tag, "no trigger");
+			if (!ValidationUtils.isNonemptyObject(params.trigger.outputs))
+				return sendErrorResponse(ws, tag, "no trigger outputs");
+			if (!ValidationUtils.isValidAddress(params.trigger.address))
+				return sendErrorResponse(ws, tag, "bad trigger address");
+			storage.readAADefinition(db, params.address, function (arrDefinition) {
+				if (!arrDefinition)
+					return sendErrorResponse(ws, tag, "not an AA");
+				aa_composer.dryRunPrimaryAATrigger(params.trigger, params.address, arrDefinition, function (arrResponses) {
+					if (constants.COUNT_WITNESSES === 1) { // the temp unit might have rebuilt the MC
+						db.executeInTransaction(function (conn, onDone) {
+							storage.resetMemory(conn, onDone);
+						});
+					}
+					sendResponse(ws, tag, arrResponses);
+				});
+			});
 			break;
 
 		// I'm a hub, the peer wants to enable push notifications
@@ -3035,6 +3185,9 @@ function startRelay(){
 	setInterval(joint_storage.purgeUncoveredNonserialJointsUnderLock, 60*1000);
 	setInterval(handleSavedPrivatePayments, 5*1000);
 	joint_storage.readDependentJointsThatAreReady(null, handleSavedJoint);
+
+	eventBus.on('new_aa_unit', onNewAA);
+	aa_composer.handleAATriggers(); // in case anything's left from the previous run
 }
 
 function startLightClient(){
@@ -3101,6 +3254,7 @@ exports.setWatchedAddresses = setWatchedAddresses;
 exports.addWatchedAddress = addWatchedAddress;
 exports.addLightWatchedAddress = addLightWatchedAddress;
 
+exports.getConnectionStatus = getConnectionStatus;
 exports.closeAllWsConnections = closeAllWsConnections;
 exports.isConnected = isConnected;
 exports.isCatchingUp = isCatchingUp;

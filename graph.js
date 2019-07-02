@@ -6,7 +6,7 @@ var constants = require('./constants.js');
 var storage = require('./storage.js');
 var db = require('./db.js');
 var profiler = require('./profiler.js');
-
+var conf = require('./conf.js');
 
 
 function compareUnits(conn, unit1, unit2, handleResult){
@@ -153,7 +153,7 @@ function determineIfIncluded(conn, earlier_unit, arrLaterUnits, handleResult){
 		
 		var max_later_wl = Math.max.apply(
 			null, arrLaterUnitProps.map(function(objLaterUnitProps){ return objLaterUnitProps.witnessed_level; }));
-		if (max_later_wl < objEarlierUnitProps.witnessed_level && objEarlierUnitProps.main_chain_index > constants.witnessedLevelMustNotRetreatUpgradeMci)
+		if (max_later_wl < objEarlierUnitProps.witnessed_level && objEarlierUnitProps.main_chain_index > constants.witnessedLevelMustNotRetreatFromAllParentsUpgradeMci)
 			return handleResult(false);
 		
 		var bAllLaterUnitsAreWithMci = !arrLaterUnitProps.find(function(objLaterUnitProps){ return (objLaterUnitProps.main_chain_index === null); });
@@ -217,7 +217,7 @@ function determineIfIncluded(conn, earlier_unit, arrLaterUnits, handleResult){
 						continue;
 					if (objUnitProps.latest_included_mc_index < objEarlierUnitProps.latest_included_mc_index)
 						continue;
-					if (objUnitProps.witnessed_level < objEarlierUnitProps.witnessed_level && objEarlierUnitProps.main_chain_index > constants.witnessedLevelMustNotRetreatUpgradeMci)
+					if (objUnitProps.witnessed_level < objEarlierUnitProps.witnessed_level && objEarlierUnitProps.main_chain_index > constants.witnessedLevelMustNotRetreatFromAllParentsUpgradeMci)
 						continue;
 					if (objUnitProps.is_on_main_chain === 0 && objUnitProps.level > objEarlierUnitProps.level)
 						arrNewStartUnits.push(objUnitProps.unit);
@@ -260,11 +260,12 @@ function readDescendantUnitsByAuthorsBeforeMcIndex(conn, objEarlierUnitProps, ar
 	function goDown(arrStartUnits){
 		profiler.start();
 		arrKnownUnits = arrKnownUnits.concat(arrStartUnits);
+		var indexMySQL = conf.storage == "mysql" ? "USE INDEX (PRIMARY)" : "";
 		conn.query(
 			"SELECT units.unit, unit_authors.address AS author_in_list \n\
 			FROM parenthoods \n\
 			JOIN units ON child_unit=units.unit \n\
-			LEFT JOIN unit_authors ON unit_authors.unit=units.unit AND address IN(?) \n\
+			LEFT JOIN unit_authors "+ indexMySQL + " ON unit_authors.unit=units.unit AND address IN(?) \n\
 			WHERE parent_unit IN(?) AND latest_included_mc_index<? AND main_chain_index<=?",
 			[arrAuthorAddresses, arrStartUnits, objEarlierUnitProps.main_chain_index, to_main_chain_index],
 			function(rows){
@@ -283,9 +284,9 @@ function readDescendantUnitsByAuthorsBeforeMcIndex(conn, objEarlierUnitProps, ar
 	}
 	
 	profiler.start();
-
+	var indexMySQL = conf.storage == "mysql" ? "USE INDEX (PRIMARY)" : "";
 	conn.query( // _left_ join forces use of indexes in units
-		"SELECT unit FROM units "+db.forceIndex("byMcIndex")+" LEFT JOIN unit_authors USING(unit) \n\
+		"SELECT unit FROM units "+db.forceIndex("byMcIndex")+" LEFT JOIN unit_authors " + indexMySQL + " USING(unit) \n\
 		WHERE latest_included_mc_index>=? AND main_chain_index>? AND main_chain_index<=? AND latest_included_mc_index<? AND address IN(?)", 
 		[objEarlierUnitProps.main_chain_index, objEarlierUnitProps.main_chain_index, to_main_chain_index, to_main_chain_index, arrAuthorAddresses],
 //        "SELECT unit FROM units WHERE latest_included_mc_index>=? AND main_chain_index<=?", 

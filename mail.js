@@ -28,6 +28,9 @@ function sendmail(params, cb){
 
 function sendMailThroughUnixSendmail(params, cb){
 	var child = child_process.spawn('/usr/sbin/sendmail', ['-t', params.to]);
+	child.stdin.on('error', function(err){
+		console.log("Error when sending mail through Mail Transfer Agent: " + err);
+	});
 	child.stdout.pipe(process.stdout);
 	child.stderr.pipe(process.stderr);
 	child.stdin.write("Return-Path: <"+params.from+">\r\nTo: "+params.to+"\r\nFrom: "+params.from+"\r\nSubject: "+params.subject+"\r\n\r\n"+params.body);
@@ -36,7 +39,7 @@ function sendMailThroughUnixSendmail(params, cb){
 }
 
 function sendMailDirectly(params, cb) {
-	var nodemailer = require('node4mailer'+'');
+	var nodemailer = require('node4mailer');
 	var hostname = params.to.slice(params.to.indexOf("@")+1);
 	DNS.resolveMx(hostname, function(err, exchanges){
 		var exchange = hostname;
@@ -73,7 +76,7 @@ function sendMailDirectly(params, cb) {
 }
 
 function sendMailThroughRelay(params, cb){
-	var nodemailer = require('node4mailer'+'');
+	var nodemailer = require('node4mailer');
 	var transportOpts = {
 		host: conf.smtpRelay,
 		port: conf.smtpPort || null, // custom port

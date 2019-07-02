@@ -41,13 +41,14 @@ function parseAndValidatePrivateProfile(objPrivateProfile, onDone){
 		});
 		if (!payload)
 			return onDone("no such payload hash in this unit");
+		var bJsonBased = (objJoint.unit.version !== constants.versionWithoutTimestamp);
 		var hidden_profile = {};
 		var bHasHiddenFields = false;
 		for (var field in objPrivateProfile.src_profile){
 			var value = objPrivateProfile.src_profile[field];
 			// the value of each field is either array [plain_text_value, blinding] (if the field is disclosed) or a hash (if it is not disclosed)
 			if (ValidationUtils.isArrayOfLength(value, 2))
-				hidden_profile[field] = objectHash.getBase64Hash(value);
+				hidden_profile[field] = objectHash.getBase64Hash(value, bJsonBased);
 			else if (ValidationUtils.isStringOfLength(value, constants.HASH_LENGTH)){
 				hidden_profile[field] = value;
 				bHasHiddenFields = true;
@@ -55,7 +56,7 @@ function parseAndValidatePrivateProfile(objPrivateProfile, onDone){
 			else
 				return onDone("invalid src profile");
 		}
-		if (objectHash.getBase64Hash(hidden_profile) !== payload.profile.profile_hash)
+		if (objectHash.getBase64Hash(hidden_profile, bJsonBased) !== payload.profile.profile_hash)
 			return onDone("wrong profile hash");
 		db.query(
 			"SELECT 1 FROM my_addresses WHERE address=? UNION SELECT 1 FROM shared_addresses WHERE shared_address=?", 
@@ -97,25 +98,80 @@ function savePrivateProfile(objPrivateProfile, address, attestor_address, onDone
 	db.query(
 		"INSERT "+db.getIgnore()+" INTO private_profiles (unit, payload_hash, attestor_address, address, src_profile) VALUES(?,?,?,?,?)", 
 		[objPrivateProfile.unit, objPrivateProfile.payload_hash, attestor_address, address, JSON.stringify(objPrivateProfile.src_profile)], 
-		function(res){
-			var private_profile_id = res.insertId;
-			if (!private_profile_id)
-				throw Error("no insert id after inserting private profile "+JSON.stringify(objPrivateProfile));
-			var arrQueries = [];
-			for (var field in objPrivateProfile.src_profile){
-				var arrValueAndBlinding = objPrivateProfile.src_profile[field];
-				if (ValidationUtils.isArrayOfLength(arrValueAndBlinding, 2))
-					db.addQuery(arrQueries, "INSERT INTO private_profile_fields (private_profile_id, field, value, blinding) VALUES(?,?,?,?)", 
-						[private_profile_id, field, arrValueAndBlinding[0], arrValueAndBlinding[1] ]);
+		function (res) {
+			var private_profile_id = (res.insertId && res.affectedRows) ? res.insertId : 0;
+
+			var insert_fields = function(current_src_profile) {
+				var arrQueries = [];
+				var isSrcProfileUpdated = false;
+				for (var field in objPrivateProfile.src_profile){
+					var arrValueAndBlinding = objPrivateProfile.src_profile[field];
+					if (ValidationUtils.isArrayOfLength(arrValueAndBlinding, 2) && field == field.trim()) {
+						if (!current_src_profile || !current_src_profile[field] || !ValidationUtils.isArrayOfLength(current_src_profile[field], 2)) {
+							if (current_src_profile) {
+								isSrcProfileUpdated = true;
+								current_src_profile[field] = arrValueAndBlinding;
+							}
+							db.addQuery(arrQueries, "INSERT INTO private_profile_fields (private_profile_id, field, value, blinding) VALUES(?,?,?,?)", 
+							[private_profile_id, field, arrValueAndBlinding[0], arrValueAndBlinding[1] ]);
+						}
+					}
+				}
+				if (isSrcProfileUpdated)
+					db.addQuery(arrQueries, "UPDATE private_profiles SET src_profile=? WHERE private_profile_id=?", [JSON.stringify(current_src_profile), private_profile_id]);
+				async.series(arrQueries, onDone);
 			}
-			async.series(arrQueries, onDone);
+
+			if (!private_profile_id) { // already saved profile but with new fields being revealed
+				db.query("SELECT private_profile_id, src_profile FROM private_profiles WHERE payload_hash=?", [objPrivateProfile.payload_hash], function(rows) {
+					if (!rows.length)
+						throw Error("can't insert private profile "+JSON.stringify(objPrivateProfile));
+					private_profile_id = rows[0].private_profile_id;
+					var src_profile = JSON.parse(rows[0].src_profile);
+					insert_fields(src_profile);
+				});
+			}
+			else
+				insert_fields();
+
 		}
 	);
+}
+
+function getFieldsForAddress(address, fields, arrTrustedAttestorAddresses, cb) {
+	// selects LAST attestation, preferrably from trusted attestor that has full set of requested fields
+	if (!arrTrustedAttestorAddresses.length)
+		arrTrustedAttestorAddresses = [null];
+	db.query("SELECT \n\
+				field, value, \n\
+				attestor_address, \n\
+				attestor_address IN (?) AS trusted, \n\
+				unit \n\
+			FROM private_profile_fields \n\
+			JOIN private_profiles USING (private_profile_id) \n\
+			JOIN units USING(unit) \n\
+			JOIN (SELECT private_profile_id \n\
+				FROM private_profile_fields \n\
+				WHERE field IN (?) \n\
+				GROUP BY private_profile_id \n\
+				HAVING COUNT(1) = ?) AS full_set \n\
+			USING(private_profile_id) \n\
+			WHERE address=? AND field IN (?) \n\
+			ORDER BY trusted DESC, units.main_chain_index DESC LIMIT ?", [arrTrustedAttestorAddresses, fields, fields.length, address, fields, fields.length], function(rows){
+			var result = {};
+			rows.forEach(function(row) {
+				result[row.field] = row.value;
+				result.attestor_address = row.attestor_address;
+				result.attestation_unit = row.unit;
+			});
+			cb(result);
+	});
 }
 
 exports.getPrivateProfileFromJsonBase64 = getPrivateProfileFromJsonBase64;
 exports.parseAndValidatePrivateProfile = parseAndValidatePrivateProfile;
 exports.parseSrcProfile = parseSrcProfile;
 exports.savePrivateProfile = savePrivateProfile;
+exports.getFieldsForAddress = getFieldsForAddress;
 
 

@@ -1,6 +1,7 @@
 /*jslint node: true */
 "use strict";
 require('./enforce_singleton.js');
+require('./constants.js'); // in order to force loading .env before app-root's conf.js
 
 function mergeExports(anotherModule){
 	for (var key in anotherModule)
@@ -44,7 +45,7 @@ exports.port = null;
 // exports.socksLocalDNS = false;
 
 // WebSocket protocol prefixed to all hosts.  Must be wss:// on livenet, ws:// is allowed on testnet
-exports.WS_PROTOCOL = "wss://";
+exports.WS_PROTOCOL = process.env.devnet ? "ws://" : "wss://";
 
 exports.MAX_INBOUND_CONNECTIONS = 100;
 exports.MAX_OUTBOUND_CONNECTIONS = 100;
@@ -78,7 +79,7 @@ This way is not recommended as the code becomes loading order dependent.
 */
 
 if (typeof window === 'undefined' || !window.cordova){ // desktop
-	var desktopApp = require('./desktop_app.js'+'');
+	var desktopApp = require('./desktop_app.js');
 	
 	// merge conf from other modules that include us as lib.  The other module must place its custom conf.js into its root directory
 	var appRootDir = desktopApp.getAppRootDir();

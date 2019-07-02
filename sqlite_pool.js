@@ -16,9 +16,11 @@ if (bCordova){
 }
 else{
 	sqlite3 = require('sqlite3');//.verbose();
-	path = require('./desktop_app.js'+'').getAppDataDir() + '/';
+	path = require('./desktop_app.js').getAppDataDir() + '/';
 	console.log("path="+path);
 }
+
+var bLoading = true;
 
 module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 
@@ -43,6 +45,7 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 			if (err)
 				throw Error(err);
 			console.log("opened db");
+			setTimeout(function(){ bLoading = false; }, 15000);
 		//	if (!bCordova)
 		//		db.serialize();
 			connection.query("PRAGMA foreign_keys = 1", function(){
@@ -115,6 +118,9 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 						result = result.rows || [];
 					//console.log("changes="+this.changes+", affected="+result.affectedRows);
 					var consumed_time = Date.now() - start_ts;
+				//	var profiler = require('./profiler.js');
+				//	if (!bLoading)
+				//		profiler.add_result(sql.substr(0, 40).replace(/\n/, '\\n'), consumed_time);
 					if (consumed_time > 25)
 						console.log("long query took "+consumed_time+"ms:\n"+new_args.filter(function(a, i){ return (i<new_args.length-1); }).join(", ")+"\nload avg: "+require('os').loadavg().join(', '));
 					last_arg(result);
@@ -428,14 +434,14 @@ function createDatabaseIfNecessary(db_name, onDbReady){
 		}, false);
 	}
 	else{ // copy initial db to app folder
-		var fs = require('fs'+'');
+		var fs = require('fs');
 		fs.stat(path + db_name, function(err, stats){
 			console.log("stat "+err);
 			if (!err) // already exists
 				return onDbReady();
 			console.log("will copy initial db");
 			var mode = parseInt('700', 8);
-			var parent_dir = require('path'+'').dirname(path);
+			var parent_dir = require('path').dirname(path);
 			fs.mkdir(parent_dir, mode, function(err){
 				console.log('mkdir '+parent_dir+': '+err);
 				fs.mkdir(path, mode, function(err){

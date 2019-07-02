@@ -282,4 +282,3 @@ function throwError(msg){
 exports.resetMaxSpendableMci = resetMaxSpendableMci;
 exports.calcHeadersCommissions = calcHeadersCommissions;
 exports.getMaxSpendableMciForLastBallMci = getMaxSpendableMciForLastBallMci;
-

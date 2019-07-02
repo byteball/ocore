@@ -41,7 +41,7 @@ function createTextMessage(text){
 	return {
 		app: "text",
 		payload_location: "inline",
-		payload_hash: objectHash.getBase64Hash(text),
+		payload_hash: objectHash.getBase64Hash(text, storage.getMinRetrievableMci() >= constants.timestampUpgradeMci),
 		payload: text
 	};
 }
@@ -70,7 +70,7 @@ function composeContentJoint(from_address, app, payload, signer, callbacks){
 	var objMessage = {
 		app: app,
 		payload_location: "inline",
-		payload_hash: objectHash.getBase64Hash(payload),
+		payload_hash: objectHash.getBase64Hash(payload, storage.getMinRetrievableMci() >= constants.timestampUpgradeMci),
 		payload: payload
 	};
 	composeJoint({
@@ -244,7 +244,6 @@ function composeJoint(params){
 	
 	var total_input;
 	var last_ball_mci;
-	var assocSigningPaths = {};
 	var unlock_callback;
 	var conn;
 	var lightProps;
@@ -291,8 +290,11 @@ function composeJoint(params){
 			});
 		},
 		function(cb){ // parent units
-			if (bGenesis)
-				return cb();
+			if (bGenesis) {
+				if (constants.timestampUpgradeMci === 0)
+					objUnit.timestamp = Math.round(Date.now() / 1000);
+				return cb();	
+			}
 			
 			function checkForUnstablePredecessors(){
 				conn.query(
@@ -319,11 +321,14 @@ function composeJoint(params){
 				objUnit.last_ball = lightProps.last_stable_mc_ball;
 				objUnit.last_ball_unit = lightProps.last_stable_mc_ball_unit;
 				last_ball_mci = lightProps.last_stable_mc_ball_mci;
+				objUnit.timestamp = lightProps.timestamp || Math.round(Date.now() / 1000);
 				return checkForUnstablePredecessors();
 			}
+			objUnit.timestamp = Math.round(Date.now() / 1000);
 			parentComposer.pickParentUnitsAndLastBall(
 				conn, 
 				arrWitnesses, 
+				objUnit.timestamp,
 				function(err, arrParentUnits, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
 					if (err)
 						return cb("unable to find parents: "+err);
@@ -335,54 +340,24 @@ function composeJoint(params){
 				}
 			);
 		},
+		function (cb) { // version
+			var bVersion2 = (last_ball_mci >= constants.timestampUpgradeMci || constants.timestampUpgradeMci === 0);
+			if (!bVersion2)
+				objUnit.version = constants.versionWithoutTimestamp;
+			// calc or fix payload_hash of non-payment messages
+			objUnit.messages.forEach(function (message) {
+				if (message.app !== 'payment' && message.payload_location === 'inline')
+					message.payload_hash = objectHash.getBase64Hash(message.payload, bVersion2);
+			});
+			cb();
+		},
 		function(cb){ // authors
-			async.eachSeries(arrFromAddresses, function(from_address, cb2){
-				
-				function setDefinition(){
-					signer.readDefinition(conn, from_address, function(err, arrDefinition){
-						if (err)
-							return cb2(err);
-						objAuthor.definition = arrDefinition;
-						cb2();
-					});
-				}
-				
-				var objAuthor = {
-					address: from_address,
-					authentifiers: {}
-				};
-				signer.readSigningPaths(conn, from_address, function(assocLengthsBySigningPaths){
-					var arrSigningPaths = Object.keys(assocLengthsBySigningPaths);
-					assocSigningPaths[from_address] = arrSigningPaths;
-					for (var j=0; j<arrSigningPaths.length; j++)
-						objAuthor.authentifiers[arrSigningPaths[j]] = repeatString("-", assocLengthsBySigningPaths[arrSigningPaths[j]]);
-					objUnit.authors.push(objAuthor);
-					conn.query(
-						"SELECT 1 FROM unit_authors CROSS JOIN units USING(unit) \n\
-						WHERE address=? AND is_stable=1 AND sequence='good' AND main_chain_index<=? \n\
-						LIMIT 1", 
-						[from_address, last_ball_mci], 
-						function(rows){
-							if (rows.length === 0) // first message from this address
-								return setDefinition();
-							// try to find last stable change of definition, then check if the definition was already disclosed
-							conn.query(
-								"SELECT definition \n\
-								FROM address_definition_changes CROSS JOIN units USING(unit) LEFT JOIN definitions USING(definition_chash) \n\
-								WHERE address=? AND is_stable=1 AND sequence='good' AND main_chain_index<=? \n\
-								ORDER BY level DESC LIMIT 1", 
-								[from_address, last_ball_mci],
-								function(rows){
-									if (rows.length === 0) // no definition changes at all
-										return cb2();
-									var row = rows[0];
-									row.definition ? cb2() : setDefinition(); // if definition not found in the db, add it into the json
-								}
-							);
-						}
-					);
-				});
-			}, cb);
+			composeAuthorsForAddresses(conn, arrFromAddresses, last_ball_mci, objUnit.last_ball_unit, signer, function(err, authors) {
+				if (err)
+					return cb(err);
+				objUnit.authors = authors;
+				cb();
+			});
 		},
 		function(cb){ // witnesses
 			if (bGenesis){
@@ -486,14 +461,14 @@ function composeJoint(params){
 			}
 			objPaymentMessage.payload.outputs[0].amount = change;
 			objPaymentMessage.payload.outputs.sort(sortOutputs);
-			objPaymentMessage.payload_hash = objectHash.getBase64Hash(objPaymentMessage.payload);
+			objPaymentMessage.payload_hash = objectHash.getBase64Hash(objPaymentMessage.payload, objUnit.version !== constants.versionWithoutTimestamp);
 			var text_to_sign = objectHash.getUnitHashToSign(objUnit);
 			async.each(
 				objUnit.authors,
 				function(author, cb2){
 					var address = author.address;
 					async.each( // different keys sign in parallel (if multisig)
-						assocSigningPaths[address],
+						Object.keys(author.authentifiers),
 						function(path, cb3){
 							if (signer.sign){
 								signer.sign(objUnit, assocPrivatePayloads, address, path, function(err, signature){
@@ -527,7 +502,7 @@ function composeJoint(params){
 					if (bGenesis)
 						objJoint.ball = objectHash.getBallHash(objUnit.unit);
 					console.log(require('util').inspect(objJoint, {depth:null}));
-					objJoint.unit.timestamp = Math.round(Date.now()/1000); // light clients need timestamp
+				//	objJoint.unit.timestamp = Math.round(Date.now()/1000); // light clients need timestamp
 					if (Object.keys(assocPrivatePayloads).length === 0)
 						assocPrivatePayloads = null;
 					//profiler.stop('compose');
@@ -538,69 +513,6 @@ function composeJoint(params){
 	});
 }
 
-
-function signMessage(from_address, message, signer, handleResult){
-	var objAuthor = {
-		address: from_address,
-		authentifiers: {}
-	};
-	var objUnit = {
-		signed_message: message,
-		authors: [objAuthor]
-	};
-	var assocSigningPaths = {};
-	signer.readSigningPaths(db, from_address, function(assocLengthsBySigningPaths){
-		var arrSigningPaths = Object.keys(assocLengthsBySigningPaths);
-		assocSigningPaths[from_address] = arrSigningPaths;
-		for (var j=0; j<arrSigningPaths.length; j++)
-			objAuthor.authentifiers[arrSigningPaths[j]] = repeatString("-", assocLengthsBySigningPaths[arrSigningPaths[j]]);
-		signer.readDefinition(db, from_address, function(err, arrDefinition){
-			if (err)
-				throw Error("signMessage: can't read definition: "+err);
-			objAuthor.definition = arrDefinition;
-			var text_to_sign = objectHash.getUnitHashToSign(objUnit);
-			async.each(
-				objUnit.authors,
-				function(author, cb2){
-					var address = author.address;
-					async.each( // different keys sign in parallel (if multisig)
-						assocSigningPaths[address],
-						function(path, cb3){
-							if (signer.sign){
-								signer.sign(objUnit, {}, address, path, function(err, signature){
-									if (err)
-										return cb3(err);
-									// it can't be accidentally confused with real signature as there are no [ and ] in base64 alphabet
-									if (signature === '[refused]')
-										return cb3('one of the cosigners refused to sign');
-									author.authentifiers[path] = signature;
-									cb3();
-								});
-							}
-							else{
-								signer.readPrivateKey(address, path, function(err, privKey){
-									if (err)
-										return cb3(err);
-									author.authentifiers[path] = ecdsaSig.sign(text_to_sign, privKey);
-									cb3();
-								});
-							}
-						},
-						function(err){
-							cb2(err);
-						}
-					);
-				},
-				function(err){
-					if (err)
-						return handleResult(err);
-					console.log(require('util').inspect(objUnit, {depth:null}));
-					handleResult(null, objUnit);
-				}
-			);
-		});
-	});
-}
 
 var TYPICAL_FEE = 1000;
 var MAX_FEE = 20000;
@@ -779,6 +691,85 @@ function generateBlinding(){
 	return crypto.randomBytes(12).toString("base64");
 }
 
+function composeAuthorsAndMciForAddresses(conn, arrFromAddresses, signer, cb) {
+	myWitnesses.readMyWitnesses(function(arrWitnesses){
+		if (conf.bLight)
+			require('./network.js').requestFromLightVendor(
+				'light/get_parents_and_last_ball_and_witness_list_unit', 
+				{witnesses: arrWitnesses}, 
+				function(ws, request, response){
+					if (response.error)
+						return cb(response.error);
+					if (!response.parent_units || !response.last_stable_mc_ball || !response.last_stable_mc_ball_unit || typeof response.last_stable_mc_ball_mci !== 'number')
+						return cb("invalid parents from light vendor");
+					composeAuthorsForAddresses(conn, arrFromAddresses, response.last_stable_mc_ball_mci, response.last_stable_mc_ball_unit, signer, cb);
+				}
+			);
+		else
+			parentComposer.pickParentUnitsAndLastBall(
+				conn,
+				arrWitnesses,
+				Math.round(Date.now()/1000),
+				function(err, arrParentUnits, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
+					if (err)
+						return cb("unable to find parents: "+err);
+					composeAuthorsForAddresses(conn, arrFromAddresses, last_stable_mc_ball_mci, last_stable_mc_ball_unit, signer, cb);
+				}
+			);
+	});
+}
+
+function composeAuthorsForAddresses(conn, arrFromAddresses, last_ball_mci, last_ball_unit, signer, cb) {
+	var authors = [];
+	async.eachSeries(arrFromAddresses, function(from_address, cb2){
+		function setDefinition(){
+			signer.readDefinition(conn, from_address, function(err, arrDefinition){
+				if (err)
+					return cb2(err);
+				objAuthor.definition = arrDefinition;
+				cb2();
+			});
+		}
+		
+		var objAuthor = {
+			address: from_address,
+			authentifiers: {}
+		};
+		signer.readSigningPaths(conn, from_address, function(assocLengthsBySigningPaths){
+			var arrSigningPaths = Object.keys(assocLengthsBySigningPaths);
+			for (var j=0; j<arrSigningPaths.length; j++)
+				objAuthor.authentifiers[arrSigningPaths[j]] = repeatString("-", assocLengthsBySigningPaths[arrSigningPaths[j]]);
+			authors.push(objAuthor);
+			conn.query(
+				"SELECT 1 FROM unit_authors CROSS JOIN units USING(unit) \n\
+				WHERE address=? AND is_stable=1 AND sequence='good' AND main_chain_index<=? \n\
+				LIMIT 1", 
+				[from_address, last_ball_mci], 
+				function(rows){
+					if (rows.length === 0) // first message from this address
+						return setDefinition();
+					// try to find last stable change of definition, then check if the definition was already disclosed
+					conn.query(
+						"SELECT definition \n\
+						FROM address_definition_changes CROSS JOIN units USING(unit) LEFT JOIN definitions USING(definition_chash) \n\
+						WHERE address=? AND is_stable=1 AND sequence='good' AND main_chain_index<=? \n\
+						ORDER BY main_chain_index DESC LIMIT 1", 
+						[from_address, last_ball_mci],
+						function(rows){
+							if (rows.length === 0) // no definition changes at all
+								return cb2();
+							var row = rows[0];
+							row.definition ? cb2() : setDefinition(); // if definition not found in the db, add it into the json
+						}
+					);
+				}
+			);
+		});
+	}, function(err) {
+		cb(err, authors, last_ball_unit);
+	});
+}
+
 
 exports.composePaymentAndTextJoint = composePaymentAndTextJoint;
 exports.composeTextJoint = composeTextJoint;
@@ -796,8 +787,6 @@ exports.composeAssetAttestorsJoint = composeAssetAttestorsJoint;
 
 exports.composeJoint = composeJoint;
 
-exports.signMessage = signMessage;
-
 exports.filterMostFundedAddresses = filterMostFundedAddresses;
 exports.readSortedFundedAddresses = readSortedFundedAddresses;
 exports.composeAndSaveMinimalJoint = composeAndSaveMinimalJoint;
@@ -809,3 +798,4 @@ exports.composeAndSavePaymentJoint = composeAndSavePaymentJoint;
 
 exports.generateBlinding = generateBlinding;
 exports.getMessageIndexByPayloadHash = getMessageIndexByPayloadHash;
+exports.composeAuthorsAndMciForAddresses = composeAuthorsAndMciForAddresses;

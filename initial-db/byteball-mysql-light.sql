@@ -41,4 +41,7 @@ ALTER TABLE attestations
 ALTER TABLE asset_attestors
 	DROP FOREIGN KEY assetAttestorsByAsset;
 
+ALTER TABLE aa_addresses
+	CHANGE COLUMN unit unit CHAR(44) NULL,
+	CHANGE COLUMN mci mci INT NULL;
 

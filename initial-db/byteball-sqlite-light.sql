@@ -5,6 +5,7 @@ CREATE TABLE units (
 	alt VARCHAR(3) NOT NULL DEFAULT '1',
 	witness_list_unit CHAR(44) NULL,
 	last_ball_unit CHAR(44) NULL,
+	timestamp INT NOT NULL DEFAULT 0,
 	content_hash CHAR(44) NULL,
 	headers_commission INT NOT NULL,
 	payload_commission INT NOT NULL,
@@ -254,7 +255,7 @@ CREATE TABLE asset_attestors (
 	message_index TINYINT NOT NULL,
 	asset CHAR(44) NOT NULL, -- in the initial attestor list: same as unit 
 	attestor_address CHAR(32) NOT NULL,
-	PRIMARY KEY (unit, message_index),
+	PRIMARY KEY (unit, message_index, attestor_address),
 	UNIQUE (asset, attestor_address, unit),
 	FOREIGN KEY (unit) REFERENCES units(unit)
 );
@@ -542,6 +543,8 @@ CREATE TABLE correspondent_devices (
 	hub VARCHAR(100) NOT NULL, -- domain name of the hub this address is subscribed to
 	is_confirmed TINYINT NOT NULL DEFAULT 0,
 	is_indirect TINYINT NOT NULL DEFAULT 0,
+	is_blackhole TINYINT NOT NULL DEFAULT 0,
+	push_enabled TINYINT NOT NULL DEFAULT 1,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -713,6 +716,7 @@ CREATE TABLE private_profiles (
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	FOREIGN KEY (unit) REFERENCES units(unit)
 );
+CREATE UNIQUE INDEX IF NOT EXISTS unqPayloadHash ON private_profiles(payload_hash);
 
 CREATE TABLE private_profile_fields (
 	private_profile_id INTEGER NOT NULL ,
@@ -749,5 +753,95 @@ CREATE TABLE original_addresses (
 	FOREIGN KEY (unit) REFERENCES units(unit)
 );
 
+CREATE TABLE IF NOT EXISTS peer_addresses (
+	address CHAR(32) NOT NULL,
+	signing_paths VARCHAR(255) NULL, -- array of local signing paths (JSON)
+	device_address CHAR(33) NOT NULL, -- where this signing key lives or is reachable through
+	definition TEXT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	PRIMARY KEY (address),
+	FOREIGN KEY (device_address) REFERENCES correspondent_devices(device_address)
+);
 
-PRAGMA user_version=22;
+CREATE TABLE IF NOT EXISTS prosaic_contracts (
+	hash CHAR(44) NOT NULL PRIMARY KEY,
+	peer_address CHAR(32) NOT NULL,
+	peer_device_address CHAR(33) NOT NULL,
+	my_address  CHAR(32) NOT NULL,
+	is_incoming TINYINT NOT NULL,
+	creation_date TIMESTAMP NOT NULL,
+	ttl REAL NOT NULL DEFAULT 168, -- 168 hours = 24 * 7 = 1 week
+	status TEXT CHECK (status IN('pending', 'revoked', 'accepted', 'declined')) NOT NULL DEFAULT 'active',
+	title VARCHAR(1000) NOT NULL,
+	`text` TEXT NOT NULL,
+	shared_address CHAR(32),
+	unit CHAR(44),
+	cosigners VARCHAR(1500),
+	FOREIGN KEY (my_address) REFERENCES my_addresses(address)
+);
+
+-- hub table
+CREATE TABLE correspondent_settings (
+	device_address CHAR(33) NOT NULL,
+	correspondent_address CHAR(33) NOT NULL,
+	push_enabled TINYINT NOT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	PRIMARY KEY (device_address, correspondent_address)
+);
+
+
+-- Autonomous agents
+
+CREATE TABLE aa_addresses (
+	address CHAR(32) NOT NULL PRIMARY KEY,
+	unit CHAR(44) NULL, -- where it is first defined.  No index for better speed, NULL for light
+	mci INT NULL, -- it is available since this mci (mci of the above unit), NULL for light
+	definition TEXT NOT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- the table is a queue, it is almost always empty and any entries are short-lived
+-- INSERTs are wrapped in the same SQL transactions that write the triggering units
+-- secondary triggers are not written here
+CREATE TABLE aa_triggers (
+	mci INT NOT NULL,
+	unit CHAR(44) NOT NULL,
+	address CHAR(32) NOT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	PRIMARY KEY (mci, unit, address),
+	FOREIGN KEY (address) REFERENCES aa_addresses(address)
+);
+
+-- SQL is more convenient for +- the balances
+CREATE TABLE aa_balances (
+	address CHAR(32) NOT NULL,
+	asset CHAR(44) NOT NULL, -- 'base' for bytes (NULL would not work for uniqueness of primary key)
+	balance BIGINT NOT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	PRIMARY KEY (address, asset),
+	FOREIGN KEY (address) REFERENCES aa_addresses(address)
+--	FOREIGN KEY (asset) REFERENCES assets(unit)
+);
+
+-- this is basically a log.  It has many indexes to be searchable by various fields
+CREATE TABLE aa_responses (
+	aa_response_id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+	mci INT NOT NULL, -- mci of the trigger unit
+	trigger_address CHAR(32) NOT NULL, -- trigger address
+	aa_address CHAR(32) NOT NULL,
+	trigger_unit CHAR(44) NOT NULL,
+	bounced TINYINT NOT NULL,
+	response_unit CHAR(44) NULL UNIQUE,
+	response TEXT NULL, -- json
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	UNIQUE (trigger_unit, aa_address),
+--	FOREIGN KEY (aa_address) REFERENCES aa_addresses(address),
+	FOREIGN KEY (trigger_unit) REFERENCES units(unit)
+--	FOREIGN KEY (response_unit) REFERENCES units(unit)
+);
+CREATE INDEX aaResponsesByTriggerAddress ON aa_responses(trigger_address);
+CREATE INDEX aaResponsesByAAAddress ON aa_responses(aa_address);
+CREATE INDEX aaResponsesByMci ON aa_responses(mci);
+
+
+PRAGMA user_version=31;

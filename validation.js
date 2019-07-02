@@ -16,6 +16,7 @@ var mutex = require('./mutex.js');
 var constants = require("./constants.js");
 var ValidationUtils = require("./validation_utils.js");
 var Definition = require("./definition.js");
+var aa_validation = require("./aa_validation.js");
 var conf = require('./conf.js');
 var profiler = require('./profiler.js');
 var breadcrumbs = require('./breadcrumbs.js');
@@ -47,7 +48,7 @@ function hasValidHashes(objJoint){
 	return true;
 }
 
-function validate(objJoint, callbacks) {
+function validate(objJoint, callbacks, external_conn) {
 	
 	var objUnit = objJoint.unit;
 	if (typeof objUnit !== "object" || objUnit === null)
@@ -67,6 +68,16 @@ function validate(objJoint, callbacks) {
 	}
 	catch(e){
 		return callbacks.ifJointError("failed to calc unit hash: "+e);
+	}
+
+	var bAA = false;
+	if (objJoint.aa) {
+		bAA = true;
+		delete objJoint.aa;
+	}
+	else {
+		if (ValidationUtils.isArrayOfLength(objUnit.authors, 1) && !ValidationUtils.isNonemptyObject(objUnit.authors[0].authentifiers) && !objUnit.content_hash)
+			return callbacks.ifTransientError("possible AA");
 	}
 	
 	if (objJoint.unsigned){
@@ -116,18 +127,28 @@ function validate(objJoint, callbacks) {
 			return callbacks.ifJointError("wrong headers commission, expected "+objectLength.getHeadersSize(objUnit));
 		if (objectLength.getTotalPayloadSize(objUnit) !== objUnit.payload_commission)
 			return callbacks.ifJointError("wrong payload commission, unit "+objUnit.unit+", calculated "+objectLength.getTotalPayloadSize(objUnit)+", expected "+objUnit.payload_commission);
+		if (objUnit.headers_commission + objUnit.payload_commission > constants.MAX_UNIT_LENGTH)
+			return callbacks.ifUnitError("unit too large");
 	}
 	
 	if (!isNonemptyArray(objUnit.authors))
 		return callbacks.ifUnitError("missing or empty authors array");
 	
 
-	if (objUnit.version !== constants.version)
+	if (constants.supported_versions.indexOf(objUnit.version) === -1)
 		return callbacks.ifUnitError("wrong version");
 	if (objUnit.alt !== constants.alt)
 		return callbacks.ifUnitError("wrong alt");
 
-	
+	if (objUnit.version !== constants.versionWithoutTimestamp) {
+		if (!isPositiveInteger(objUnit.timestamp))
+			return callbacks.ifUnitError("timestamp required in version " + objUnit.version);
+		var current_ts = Math.round(Date.now() / 1000);
+		var max_seconds_into_the_future_to_accept = conf.max_seconds_into_the_future_to_accept || 3600;
+		if (objUnit.timestamp > current_ts + max_seconds_into_the_future_to_accept)
+			return callbacks.ifTransientError("timestamp is too far into the future");
+	}
+
 	if (!storage.isGenesisUnit(objUnit.unit)){
 		if (!isNonemptyArray(objUnit.parent_units))
 			return callbacks.ifUnitError("missing or empty parent units array");
@@ -151,6 +172,8 @@ function validate(objJoint, callbacks) {
 	};
 	if (objJoint.unsigned)
 		objValidationState.bUnsigned = true;
+	if (bAA)
+		objValidationState.bAA = true;
 	
 	if (conf.bLight){
 		if (!isPositiveInteger(objUnit.timestamp) && !objJoint.unsigned)
@@ -169,14 +192,24 @@ function validate(objJoint, callbacks) {
 	mutex.lock(arrAuthorAddresses, function(unlock){
 		
 		var conn = null;
+		var commit_fn = null;
 		var start_time = null;
 
 		async.series(
 			[
 				function(cb){
+					if (external_conn) {
+						conn = external_conn;
+						start_time = Date.now();
+						commit_fn = function (cb2) { cb2(); };
+						return cb();
+					}
 					db.takeConnectionFromPool(function(new_conn){
 						conn = new_conn;
 						start_time = Date.now();
+						commit_fn = function (cb2) {
+							conn.query("COMMIT", function () { cb2(); });
+						};
 						conn.query("BEGIN", function(){cb();});
 					});
 				},
@@ -243,11 +276,12 @@ function validate(objJoint, callbacks) {
 					profiler.stop('validation-advanced-stability');
 					// We might have advanced the stability point and have to commit the changes as the caches are already updated.
 					// There are no other updates/inserts/deletes during validation
-					conn.query("COMMIT", function(){
+					commit_fn(function(){
 						var consumed_time = Date.now()-start_time;
 						profiler.add_result('failed validation', consumed_time);
 						console.log(objUnit.unit+" validation "+JSON.stringify(err)+" took "+consumed_time+"ms");
-						conn.release();
+						if (!external_conn)
+							conn.release();
 						unlock();
 						if (typeof err === "object"){
 							if (err.error_code === "unresolved_dependency")
@@ -268,11 +302,12 @@ function validate(objJoint, callbacks) {
 				else{
 					profiler.stop('validation-messages');
 					profiler.start();
-					conn.query("COMMIT", function(){
+					commit_fn(function(){
 						var consumed_time = Date.now()-start_time;
 						profiler.add_result('validation', consumed_time);
 						console.log(objUnit.unit+" validation ok took "+consumed_time+"ms");
-						conn.release();
+						if (!external_conn)
+							conn.release();
 						profiler.stop('validation-commit');
 						if (objJoint.unsigned){
 							unlock();
@@ -298,7 +333,7 @@ function checkDuplicate(conn, unit, cb){
 	conn.query("SELECT 1 FROM units WHERE unit=?", [unit], function(rows){
 		if (rows.length === 0) 
 			return cb();
-		cb("unit "+unit+" already exists");
+		cb(createTransientError("unit "+unit+" already exists"));
 	});
 }
 
@@ -468,6 +503,8 @@ function validateParents(conn, objJoint, objValidationState, callback){
 	}
 	
 	var objUnit = objJoint.unit;
+	if (objValidationState.bAA && objUnit.parent_units.length > 2)
+		throw Error("AA unit with more than 2 parents");
 	// obsolete: when handling a ball, we can't trust parent list before we verify ball hash
 	// obsolete: when handling a fresh unit, we can begin trusting parent list earlier, after we verify parents_hash
 	// after this point, we can trust parent list as it either agrees with parents_hash or agrees with hash tree
@@ -476,12 +513,17 @@ function validateParents(conn, objJoint, objValidationState, callback){
 	var last_ball_unit = objUnit.last_ball_unit;
 	var arrPrevParentUnitProps = [];
 	objValidationState.max_parent_limci = 0;
+	objValidationState.max_parent_wl = 0;
 	async.eachSeries(
 		objUnit.parent_units, 
 		function(parent_unit, cb){
 			storage.readUnitProps(conn, parent_unit, function(objParentUnitProps){
+				if (objUnit.version !== constants.versionWithoutTimestamp && objUnit.timestamp < objParentUnitProps.timestamp)
+					return cb("timestamp decreased from parent " + parent_unit);
 				if (objParentUnitProps.latest_included_mc_index > objValidationState.max_parent_limci)
 					objValidationState.max_parent_limci = objParentUnitProps.latest_included_mc_index;
+				if (objParentUnitProps.witnessed_level > objValidationState.max_parent_wl)
+					objValidationState.max_parent_wl = objParentUnitProps.witnessed_level;
 				async.eachSeries(
 					arrPrevParentUnitProps, 
 					function(objPrevParentUnitProps, cb2){
@@ -502,7 +544,7 @@ function validateParents(conn, objJoint, objValidationState, callback){
 			if (err)
 				return callback(err);
 			conn.query(
-				"SELECT is_stable, is_on_main_chain, main_chain_index, ball, (SELECT MAX(main_chain_index) FROM units) AS max_known_mci \n\
+				"SELECT is_stable, is_on_main_chain, main_chain_index, ball, timestamp, (SELECT MAX(main_chain_index) FROM units) AS max_known_mci \n\
 				FROM units LEFT JOIN balls USING(unit) WHERE unit=?", 
 				[last_ball_unit], 
 				function(rows){
@@ -519,9 +561,15 @@ function validateParents(conn, objJoint, objValidationState, callback){
 					if (objLastBallUnitProps.ball && objLastBallUnitProps.ball !== last_ball)
 						return callback("last_ball "+last_ball+" and last_ball_unit "+last_ball_unit+" do not match");
 					objValidationState.last_ball_mci = objLastBallUnitProps.main_chain_index;
+					objValidationState.last_ball_timestamp = objLastBallUnitProps.timestamp;
 					objValidationState.max_known_mci = objLastBallUnitProps.max_known_mci;
 					if (objValidationState.max_parent_limci < objValidationState.last_ball_mci)
 						return callback("last ball unit "+last_ball_unit+" is not included in parents, unit "+objUnit.unit);
+					var bRequiresTimestamp = (objValidationState.last_ball_mci >= constants.timestampUpgradeMci);
+					if (bRequiresTimestamp && objUnit.version === constants.versionWithoutTimestamp)
+						return callback("should be higher version at this mci");
+					if (!bRequiresTimestamp && objUnit.version !== constants.versionWithoutTimestamp)
+						return callback("should be version " + constants.versionWithoutTimestamp + " at this mci");
 					readMaxParentLastBallMci(function(max_parent_last_ball_mci){
 						if (objLastBallUnitProps.is_stable === 1){
 							// if it were not stable, we wouldn't have had the ball at all
@@ -606,6 +654,10 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 			objValidationState.best_parent_unit = best_parent_unit;
 			if (objValidationState.last_ball_mci < constants.witnessedLevelMustNotRetreatUpgradeMci) // not enforced
 				return callback();
+			if (typeof objValidationState.max_parent_wl === 'undefined')
+				throw Error('no max_parent_wl');
+			if (objValidationState.last_ball_mci >= constants.witnessedLevelMustNotRetreatFromAllParentsUpgradeMci)
+				return (witnessed_level >= objValidationState.max_parent_wl) ? callback() : callback("witnessed level retreats from parent's "+objValidationState.max_parent_wl+" to "+witnessed_level);
 			storage.readStaticUnitProps(conn, best_parent_unit, function(props){
 				(witnessed_level >= props.witnessed_level) 
 					? callback() 
@@ -664,8 +716,10 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 		conn.query(
 			// address=definition_chash is true in the first appearence of the address
 			// (not just in first appearence: it can return to its initial definition_chash sometime later)
-			"SELECT COUNT(DISTINCT address) AS count_stable_good_witnesses FROM unit_authors JOIN units USING(unit) \n\
-			WHERE address=definition_chash AND +sequence='good' AND is_stable=1 AND main_chain_index<=? AND address IN(?)",
+			"SELECT COUNT(DISTINCT address) AS count_stable_good_witnesses \n\
+			FROM unit_authors " + db.forceIndex(conf.storage === 'sqlite' ? 'byDefinitionChash' : 'unitAuthorsIndexByAddressDefinitionChash') + " \n\
+			CROSS JOIN units USING(unit) \n\
+			WHERE address=definition_chash AND +sequence='good' AND is_stable=1 AND main_chain_index<=? AND definition_chash IN(?)",
 			[objValidationState.last_ball_mci, objUnit.witnesses],
 			function(rows){
 				if (rows[0].count_stable_good_witnesses !== constants.COUNT_WITNESSES)
@@ -707,6 +761,8 @@ function validateHeadersCommissionRecipients(objUnit, cb){
 }
 
 function validateAuthors(conn, arrAuthors, objUnit, objValidationState, callback) {
+	if (objValidationState.bAA && arrAuthors.length !== 1)
+		throw Error("AA unit with multiple authors");
 	if (arrAuthors.length > constants.MAX_AUTHORS_PER_UNIT) // this is anti-spam. Otherwise an attacker would send nonserial balls signed by zillions of authors.
 		return callback("too many authors");
 	objValidationState.arrAddressesWithForkedPath = [];
@@ -728,21 +784,36 @@ function validateAuthors(conn, arrAuthors, objUnit, objValidationState, callback
 function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 	if (!isStringOfLength(objAuthor.address, 32))
 		return callback("wrong address length");
-	if (hasFieldsExcept(objAuthor, ["address", "authentifiers", "definition"]))
-		return callback("unknown fields in author");
-	if (!ValidationUtils.isNonemptyObject(objAuthor.authentifiers) && !objUnit.content_hash)
-		return callback("no authentifiers");
-	for (var path in objAuthor.authentifiers){
-		if (!isNonemptyString(objAuthor.authentifiers[path]))
-			return callback("authentifiers must be nonempty strings");
-		if (objAuthor.authentifiers[path].length > constants.MAX_AUTHENTIFIER_LENGTH)
-			return callback("authentifier too long");
+	if (objValidationState.bAA && hasFieldsExcept(objAuthor, ["address"]))
+		throw Error("unknown fields in AA author");
+	if (!objValidationState.bAA) {
+		if (hasFieldsExcept(objAuthor, ["address", "authentifiers", "definition"]))
+			return callback("unknown fields in author");
+		if (!ValidationUtils.isNonemptyObject(objAuthor.authentifiers) && !objUnit.content_hash)
+			return callback("no authentifiers");
+		for (var path in objAuthor.authentifiers) {
+			if (!isNonemptyString(objAuthor.authentifiers[path]))
+				return callback("authentifiers must be nonempty strings");
+			if (objAuthor.authentifiers[path].length > constants.MAX_AUTHENTIFIER_LENGTH)
+				return callback("authentifier too long");
+		}
 	}
 	
 	var bNonserial = false;
+
+	if (objValidationState.bAA) {
+		storage.readAADefinition(conn, objAuthor.address, function (arrDefinition) {
+			if (!arrDefinition)
+				throw Error("AA definition not found");
+			checkSerialAddressUse();
+		});
+		return;
+	}
 	
 	var arrAddressDefinition = objAuthor.definition;
 	if (isNonemptyArray(arrAddressDefinition)){
+		if (arrAddressDefinition[0] === 'autonomous agent')
+			return callback('AA cannot be defined in authors');
 		// todo: check that the address is really new?
 		validateAuthentifiers(arrAddressDefinition);
 	}
@@ -756,7 +827,11 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 		// we check signatures using the latest address definition before last ball
 		storage.readDefinitionByAddress(conn, objAuthor.address, objValidationState.last_ball_mci, {
 			ifDefinitionNotFound: function(definition_chash){
-				callback("definition "+definition_chash+" bound to address "+objAuthor.address+" is not defined");
+				storage.readAADefinition(conn, objAuthor.address, function (arrDefinition) {
+					if (arrDefinition)
+						return callback(createTransientError("will not validate unit signed by AA"));
+					callback("definition "+definition_chash+" bound to address "+objAuthor.address+" is not defined");
+				});
 			},
 			ifFound: function(arrAddressDefinition){
 				validateAuthentifiers(arrAddressDefinition);
@@ -783,6 +858,7 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 	
 	function findConflictingUnits(handleConflictingUnits){
 	//	var cross = (objValidationState.max_known_mci - objValidationState.max_parent_limci < 1000) ? 'CROSS' : '';
+		var indexMySQL = conf.storage == "mysql" ? "USE INDEX(unitAuthorsIndexByAddressMci)" : "";
 		conn.query( // _left_ join forces use of indexes in units
 		/*	"SELECT unit, is_stable \n\
 			FROM units \n\
@@ -790,13 +866,13 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 			WHERE address=? AND (main_chain_index>? OR main_chain_index IS NULL) AND unit != ?",
 			[objAuthor.address, objValidationState.max_parent_limci, objUnit.unit],*/
 			"SELECT unit, is_stable, sequence, level \n\
-			FROM unit_authors \n\
-			CROSS JOIN units USING(unit) \n\
+			FROM unit_authors "+indexMySQL+"\n\
+			CROSS JOIN units USING(unit)\n\
 			WHERE address=? AND _mci>? AND unit != ? \n\
 			UNION \n\
 			SELECT unit, is_stable, sequence, level \n\
-			FROM unit_authors \n\
-			CROSS JOIN units USING(unit) \n\
+			FROM unit_authors "+indexMySQL+"\n\
+			CROSS JOIN units USING(unit)\n\
 			WHERE address=? AND _mci IS NULL AND unit != ? \n\
 			ORDER BY level DESC",
 			[objAuthor.address, objValidationState.max_parent_limci, objUnit.unit, objAuthor.address, objUnit.unit],
@@ -1033,6 +1109,8 @@ function validateMessage(conn, objMessage, message_index, objUnit, objValidation
 		return callback("unknown fields in message");
 	
 	if ("spend_proofs" in objMessage){
+		if (objValidationState.bAA)
+			throw Error("spend proofs in AA");
 		if (!Array.isArray(objMessage.spend_proofs) || objMessage.spend_proofs.length === 0 || objMessage.spend_proofs.length > constants.MAX_SPEND_PROOFS_PER_MESSAGE)
 			return callback("spend_proofs must be non-empty array max "+constants.MAX_SPEND_PROOFS_PER_MESSAGE+" elements");
 		var arrAuthorAddresses = objUnit.authors.map(function(author) { return author.address; } );
@@ -1085,6 +1163,8 @@ function validateMessage(conn, objMessage, message_index, objUnit, objValidation
 			return callback("must not contain payload");
 		if (typeof objMessage.payload_uri !== "string")
 			return callback("no payload uri");
+		if (objMessage.payload_uri !== objMessage.payload_uri.trim())
+			return callback("payload uri must be trimmed");
 		if (!isStringOfLength(objMessage.payload_uri_hash, constants.HASH_LENGTH))
 			return callback("wrong length of payload uri hash");
 		if (objMessage.payload_uri.length > 500)
@@ -1104,7 +1184,7 @@ function validateMessage(conn, objMessage, message_index, objUnit, objValidation
 			return callback("private payment must come with spend proof(s)");
 	}
 	
-	var arrInlineOnlyApps = ["address_definition_change", "data_feed", "definition_template", "asset", "asset_attestors", "attestation", "poll", "vote"];
+	var arrInlineOnlyApps = ["address_definition_change", "data_feed", "definition_template", "asset", "asset_attestors", "attestation", "poll", "vote", "definition"];
 	if (arrInlineOnlyApps.indexOf(objMessage.app) >= 0 && objMessage.payload_location !== "inline")
 		return callback(objMessage.app+" must be inline");
 
@@ -1127,8 +1207,9 @@ function validateMessage(conn, objMessage, message_index, objUnit, objValidation
 			return "spend_proof="+conn.escape(objSpendProof.spend_proof)+
 				" AND address="+conn.escape(objSpendProof.address ? objSpendProof.address : objUnit.authors[0].address);
 		});
+		var doubleSpendIndexMySQL = conf.storage == "mysql" ? "USE INDEX(bySpendProof)" : "";
 		checkForDoublespends(conn, "spend proof", 
-			"SELECT address, unit, main_chain_index, sequence FROM spend_proofs JOIN units USING(unit) WHERE unit != ? AND ("+arrEqs.join(" OR ")+")",
+			"SELECT address, unit, main_chain_index, sequence FROM spend_proofs "+ doubleSpendIndexMySQL+" JOIN units USING(unit) WHERE unit != ? AND ("+arrEqs.join(" OR ")+")",
 			[objUnit.unit], 
 			objUnit, objValidationState, function(cb2){ cb2(); }, cb);
 	}
@@ -1192,8 +1273,9 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 	if (typeof payload === "undefined")
 		return callback("no inline payload");
 	try{
-		if (objectHash.getBase64Hash(payload) !== objMessage.payload_hash)
-			return callback("wrong payload hash: expected "+objectHash.getBase64Hash(payload)+", got "+objMessage.payload_hash);
+		var expected_payload_hash = objectHash.getBase64Hash(payload, objUnit.version !== constants.versionWithoutTimestamp);
+		if (expected_payload_hash !== objMessage.payload_hash)
+			return callback("wrong payload hash: expected "+expected_payload_hash+", got "+objMessage.payload_hash);
 	}
 	catch(e){
 		return callback("failed to calc payload hash: "+e);
@@ -1232,6 +1314,18 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 				return callback("bad new definition_chash");
 			return callback();
 
+		case "definition": // for AAs only
+			if (hasFieldsExcept(payload, ["address", "definition"])) // AA definition cannot be changed and its address is also its definition_chash
+				return callback("unknown fields in app definition");
+			try{
+				if (payload.address !== objectHash.getChash160(payload.definition))
+					return callback("definition doesn't match the chash");
+			}
+			catch(e){
+				return callback("bad definition");
+			}
+			return aa_validation.validateAADefinition(payload.definition, callback);
+
 		case "poll":
 			if (objValidationState.bHasPoll)
 				return callback("can be only one poll");
@@ -1242,6 +1336,8 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 				return callback("unknown fields in "+objMessage.app);
 			if (typeof payload.question !== 'string')
 				return callback("no question in poll");
+			if (payload.question !== payload.question.trim())
+				return callback("question must be trimmed");
 			if (!isNonemptyArray(payload.choices))
 				return callback("no choices in poll");
 			if (payload.choices.length > constants.MAX_CHOICES_PER_POLL)
@@ -1441,7 +1537,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 	var arrInputAddresses = []; // used for non-transferrable assets only
 	var arrOutputAddresses = [];
 	var total_input = 0;
-	if (payload.inputs.length > constants.MAX_INPUTS_PER_PAYMENT_MESSAGE)
+	if (payload.inputs.length > constants.MAX_INPUTS_PER_PAYMENT_MESSAGE && !objValidationState.bAA)
 		return callback("too many inputs");
 	if (payload.outputs.length > constants.MAX_OUTPUTS_PER_PAYMENT_MESSAGE)
 		return callback("too many outputs");
@@ -1551,7 +1647,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 			var doubleSpendFields = "unit, address, message_index, input_index, main_chain_index, sequence, is_stable";
 			var doubleSpendWhere;
 			var doubleSpendVars = [];
-
+			var doubleSpendIndexMySQL = "";
 			function checkInputDoubleSpend(cb2){
 			//	if (objAsset)
 			//		profiler2.start();
@@ -1562,7 +1658,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 				}
 				else
 					doubleSpendWhere += " AND asset IS NULL";
-				var doubleSpendQuery = "SELECT "+doubleSpendFields+" FROM inputs JOIN units USING(unit) WHERE "+doubleSpendWhere;
+				var doubleSpendQuery = "SELECT "+doubleSpendFields+" FROM inputs " + doubleSpendIndexMySQL + " JOIN units USING(unit) WHERE "+doubleSpendWhere;
 				checkForDoublespends(
 					conn, "divisible input", 
 					doubleSpendQuery, doubleSpendVars, 
@@ -1700,7 +1796,9 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 					
 					doubleSpendWhere = "type=? AND src_unit=? AND src_message_index=? AND src_output_index=?";
 					doubleSpendVars = [type, input.unit, input.message_index, input.output_index];
-					
+					if (conf.storage == "mysql")
+						doubleSpendIndexMySQL = " FORCE INDEX(bySrcOutput) ";
+
 					// for private fixed denominations assets, we can't look up src output in the database 
 					// because we validate the entire chain before saving anything.
 					// Instead we prepopulate objValidationState with denomination and src_output 
@@ -1799,6 +1897,8 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 
 				case "headers_commission":
 				case "witnessing":
+					if (objValidationState.bAA)
+						throw Error(type+" in AA");
 					if (type === "headers_commission"){
 						if (bHaveWitnessings)
 							return cb("all headers commissions must come before witnessings");
@@ -1842,6 +1942,8 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 					
 					doubleSpendWhere = "type=? AND from_main_chain_index=? AND address=? AND asset IS NULL";
 					doubleSpendVars = [type, input.from_main_chain_index, address];
+					if (conf.storage == "mysql")
+						doubleSpendIndexMySQL = " USE INDEX (byIndexAddress) ";
 
 					mc_outputs.readNextSpendableMcIndex(conn, type, address, objValidationState.arrConflictingUnits, function(next_spendable_mc_index){
 						if (input.from_main_chain_index < next_spendable_mc_index)
@@ -1939,7 +2041,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 
 function initPrivatePaymentValidationState(conn, unit, message_index, payload, onError, onDone){
 	conn.query(
-		"SELECT payload_hash, app, units.sequence, units.is_stable, lb_units.main_chain_index AS last_ball_mci \n\
+		"SELECT payload_hash, app, units.sequence, units.version, units.is_stable, lb_units.main_chain_index AS last_ball_mci \n\
 		FROM messages JOIN units USING(unit) \n\
 		LEFT JOIN units AS lb_units ON units.last_ball_unit=lb_units.unit \n\
 		WHERE messages.unit=? AND message_index=?", 
@@ -1956,7 +2058,7 @@ function initPrivatePaymentValidationState(conn, unit, message_index, payload, o
 			if (row.app !== "payment")
 				return onError("invalid app");
 			try{
-				if (objectHash.getBase64Hash(payload) !== row.payload_hash)
+				if (objectHash.getBase64Hash(payload, row.version !== constants.versionWithoutTimestamp) !== row.payload_hash)
 					return onError("payload hash does not match");
 			}
 			catch(e){
@@ -2001,6 +2103,8 @@ function validateAssetDefinition(conn, payload, objUnit, objValidationState, cal
 	// denominations
 	if (payload.fixed_denominations && !isNonemptyArray(payload.denominations))
 		return callback("denominations not defined");
+	if (!payload.fixed_denominations && "denominations" in payload)
+		return callback("denominations should not be defined when fixed");
 	if (payload.denominations){
 		if (payload.denominations.length > constants.MAX_DENOMINATIONS_PER_ASSET_DEFINITION)
 			return callback("too many denominations");
@@ -2068,6 +2172,8 @@ function validateAssetDefinition(conn, payload, objUnit, objValidationState, cal
 function validateAttestorListUpdate(conn, payload, objUnit, objValidationState, callback){
 	if (objUnit.authors.length !== 1)
 		return callback("attestor list must be single-authored");
+	if (hasFieldsExcept(payload, ['asset', 'attestors']))
+		return callback("foreign fields in attestor list update");
 	if (!isStringOfLength(payload.asset, constants.HASH_LENGTH))
 		return callback("invalid asset in attestor list update");
 	storage.readAsset(conn, payload.asset, objValidationState.last_ball_mci, function(err, objAsset){
@@ -2136,68 +2242,15 @@ function createJointError(err){
 	};
 }
 
-
+// the function is here for compatibility only, it'll be eventually removed, use its counterpart in signed_message.js instead
 function validateSignedMessage(objSignedMessage, handleResult){
-	if (typeof objSignedMessage !== 'object')
-		return handleResult("not an object");
-	if (ValidationUtils.hasFieldsExcept(objSignedMessage, ["signed_message", "authors", "last_ball_unit", "timestamp"]))
-		return handleResult("unknown fields");
-	if (typeof objSignedMessage.signed_message !== 'string')
-		return handleResult("signed message not a string");
-	if (!Array.isArray(objSignedMessage.authors))
-		return handleResult("authors not an array");
-	if (!ValidationUtils.isArrayOfLength(objSignedMessage.authors, 1))
-		return handleResult("authors not an array of len 1");
-	var objAuthor = objSignedMessage.authors[0];
-	if (!objAuthor)
-		return handleResult("no authors[0]");
-	if (!ValidationUtils.isValidAddress(objAuthor.address))
-		return handleResult("not valid address");
-	if (typeof objAuthor.authentifiers !== 'object')
-		return handleResult("not valid authentifiers");
-	var arrAddressDefinition = objAuthor.definition;
-	try{
-		if (objectHash.getChash160(arrAddressDefinition) !== objAuthor.address)
-			return handleResult("wrong definition: "+objectHash.getChash160(arrAddressDefinition) +"!=="+ objAuthor.address);
-	} catch(e) {
-		return handleResult("failed to calc address definition hash: " +e);
-	}
-	var objUnit = _.clone(objSignedMessage);
-	objUnit.messages = []; // some ops need it
-	try{
-		var objValidationState = {
-			unit_hash_to_sign: objectHash.getUnitHashToSign(objSignedMessage),
-			last_ball_mci: -1,
-			bNoReferences: true
-		};
-	}
-	catch(e) {
-		return handleResult("failed to calc unit_hash_to_sign: " +e);
-	}
-	// passing db as null
-	Definition.validateAuthentifiers(
-		null, objAuthor.address, null, arrAddressDefinition, objUnit, objValidationState, objAuthor.authentifiers, 
-		function(err, res){
-			if (err) // error in address definition
-				return handleResult(err);
-			if (!res) // wrong signature or the like
-				return handleResult("authentifier verification failed");
-			handleResult();
-		}
-	);
+	var signed_message = require('./signed_message.js');
+	signed_message.validateSignedMessage(objSignedMessage, handleResult);
 }
 
-// inconsistent for multisig addresses
 function validateSignedMessageSync(objSignedMessage){
-	var err;
-	var bCalledBack = false;
-	validateSignedMessage(objSignedMessage, function(_err){
-		err = _err;
-		bCalledBack = true;
-	});
-	if (!bCalledBack)
-		throw Error("validateSignedMessage is not sync");
-	return err;
+	var signed_message = require('./signed_message.js');
+	return signed_message.validateSignedMessageSync(objSignedMessage);
 }
 
 exports.validate = validate;

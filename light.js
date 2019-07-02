@@ -115,9 +115,18 @@ function prepareHistory(historyRequest, callbacks){
 							//    throw "no proofs";
 							if (objResponse.proofchain_balls.length === 0)
 								delete objResponse.proofchain_balls;
-							callbacks.ifOk(objResponse);
-							console.log("prepareHistory for addresses "+(arrAddresses || []).join(', ')+" and joints "+(arrRequestedJoints || []).join(', ')+" took "+(Date.now()-start_ts)+'ms');
-							unlock();
+							var arrUnits = objResponse.joints.map(function (objJoint) { return objJoint.unit.unit; });
+							db.query("SELECT mci, trigger_address, aa_address, trigger_unit, bounced, response_unit, response, creation_date FROM aa_responses WHERE trigger_unit IN(" + arrUnits.map(db.escape).join(', ') + ")", function (aa_rows) {
+								// there is nothing to prove that responses are authentic
+								if (aa_rows.length > 0)
+									objResponse.aa_responses = aa_rows.map(function (aa_row) {
+										objectHash.cleanNulls(aa_row);
+										return aa_row;
+									});
+								callbacks.ifOk(objResponse);
+								console.log("prepareHistory for addresses "+(arrAddresses || []).join(', ')+" and joints "+(arrRequestedJoints || []).join(', ')+" took "+(Date.now()-start_ts)+'ms');
+								unlock();
+							});
 						}
 					);
 				}
@@ -186,6 +195,35 @@ function processHistory(objResponse, arrWitnesses, callbacks){
 				// we receive unconfirmed units too
 				//if (!assocProvenUnitsNonserialness[objUnit.unit])
 				//    return callbacks.ifError("proofchain doesn't prove unit "+objUnit.unit);
+			}
+
+			if (objResponse.aa_responses) {
+				// AA responses are trusted without proof
+				if (!ValidationUtils.isNonemptyArray(objResponse.aa_responses))
+					return callbacks.ifError("aa_responses must be non-empty array");
+				for (var i = 0; i < objResponse.aa_responses.length; i++){
+					var aa_response = objResponse.aa_responses[i];
+					if (!ValidationUtils.isPositiveInteger(aa_response.mci))
+						return callbacks.ifError("bad mci");
+					if (!ValidationUtils.isValidAddress(aa_response.trigger_address))
+						return callbacks.ifError("bad trigger_address");
+					if (!ValidationUtils.isValidAddress(aa_response.aa_address))
+						return callbacks.ifError("bad aa_address");
+					if (!ValidationUtils.isValidBase64(aa_response.trigger_unit, constants.HASH_LENGTH))
+						return callbacks.ifError("bad trigger_unit");
+					if (aa_response.bounced !== 0 && aa_response.bounced !== 1)
+						return callbacks.ifError("bad bounced");
+					if ("response_unit" in aa_response && !ValidationUtils.isValidBase64(aa_response.response_unit, constants.HASH_LENGTH))
+						return callbacks.ifError("bad response_unit");
+					try {
+						JSON.parse(aa_response.response);
+					}
+					catch (e) {
+						return callbacks.ifError("bad response json");
+					}
+					if (objResponse.joints.filter(function (objJoint) { return (objJoint.unit.unit === aa_response.trigger_unit) }).length === 0)
+						return callbacks.ifError("foreign trigger_unit");
+				}
 			}
 
 			// save joints that pay to/from me and joints that I explicitly requested
@@ -259,6 +297,14 @@ function processHistory(objResponse, arrWitnesses, callbacks){
 									});
 								});
 							});
+							// this can execute after callbacks
+							if (objResponse.aa_responses) {
+								var arrQueries = [];
+								objResponse.aa_responses.forEach(function (aa_response) {
+									db.addQuery(arrQueries, "INSERT " + db.getIgnore() + " INTO aa_responses (mci, trigger_address, aa_address, trigger_unit, bounced, response_unit, response, creation_date) VALUES (?, ?,?, ?, ?, ?,?, ?)", [aa_response.mci, aa_response.trigger_address, aa_response.aa_address, aa_response.trigger_unit, aa_response.bounced, aa_response.response_unit, aa_response.response, aa_response.creation_date]);
+								});
+								async.series(arrQueries);
+							}
 						}
 					);
 				});
@@ -384,14 +430,17 @@ function prepareParentsAndLastBallAndWitnessListUnit(arrWitnesses, callbacks){
 		if (bWithReferences)
 			return callbacks.ifError("some witnesses have references in their addresses");
 		db.takeConnectionFromPool(function(conn){
+			var timestamp = Math.round(Date.now() / 1000);
 			parentComposer.pickParentUnitsAndLastBall(
 				conn,
 				arrWitnesses,
+				timestamp,
 				function(err, arrParentUnits, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
 					conn.release();
 					if (err)
 						return callbacks.ifError("unable to find parents: "+err);
 					var objResponse = {
+						timestamp: timestamp,
 						parent_units: arrParentUnits,
 						last_stable_mc_ball: last_stable_mc_ball,
 						last_stable_mc_ball_unit: last_stable_mc_ball_unit,

@@ -45,7 +45,7 @@ function getSourceString(obj) {
 				}
 				break;
 			default:
-				throw Error("hash: unknown type="+(typeof variable)+" of "+variable+", object: "+JSON.stringify(obj));
+				throw Error("getSourceString: unknown type="+(typeof variable)+" of "+variable+", object: "+JSON.stringify(obj));
 		}
 	}
 
@@ -89,6 +89,7 @@ function getNumericFeedValue(value){
 	var abs_exp = m[4];
 	if (f === 0 && mantissa > 0 && abs_exp > 0) // too small number out of range such as 1.23e-700
 		return null;
+	// mantissa can also be 123.456, 00.123, 1.2300000000, 123000000000, anyway too long number indicates we want to keep it as a string
 	if (mantissa.length > 15) // including the point (if any), including 0. in 0.123
 		return null;
 	return f;
@@ -145,6 +146,37 @@ if (!String.prototype.padStart) {
 	};
 }
 
+function getJsonSourceString(obj) {
+	function stringify(variable){
+		if (variable === null)
+			throw Error("null value in "+JSON.stringify(obj));
+		switch (typeof variable){
+			case "string":
+				return JSON.stringify(variable);
+			case "number":
+			case "boolean":
+				return variable.toString();
+			case "object":
+				if (Array.isArray(variable)){
+					if (variable.length === 0)
+						throw Error("empty array in "+JSON.stringify(obj));
+					return '[' + variable.map(stringify).join(',') + ']';
+				}
+				else{
+					var keys = Object.keys(variable).sort();
+					if (keys.length === 0)
+						throw Error("empty object in "+JSON.stringify(obj));
+					return '{' + keys.map(function(key){ return JSON.stringify(key)+':'+stringify(variable[key]) }).join(',') + '}';
+				}
+				break;
+			default:
+				throw Error("getJsonSourceString: unknown type="+(typeof variable)+" of "+variable+", object: "+JSON.stringify(obj));
+		}
+	}
+
+	return stringify(obj);
+}
+
 exports.STRING_JOIN_CHAR = STRING_JOIN_CHAR; // for tests
 exports.getSourceString = getSourceString;
 exports.encodeMci = encodeMci;
@@ -154,4 +186,6 @@ exports.getNumericFeedValue = getNumericFeedValue;
 exports.getFeedValue = getFeedValue;
 exports.encodeDoubleInLexicograpicOrder = encodeDoubleInLexicograpicOrder;
 exports.decodeLexicographicToDouble = decodeLexicographicToDouble;
+exports.getJsonSourceString = getJsonSourceString;
+
 

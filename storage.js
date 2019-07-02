@@ -8,8 +8,11 @@ var objectHash = require("./object_hash.js");
 var constants = require("./constants.js");
 var mutex = require('./mutex.js');
 var archiving = require('./archiving.js');
+var eventBus = require('./event_bus.js');
 var profiler = require('./profiler.js');
 var kvstore = require('./kvstore.js');
+
+var bCordova = (typeof window === 'object' && window.cordova);
 
 var MAX_INT32 = Math.pow(2, 31) - 1;
 
@@ -28,16 +31,23 @@ var assocStableUnitsByMci = {};
 var assocBestChildren = {};
 
 var assocHashTreeUnitsByBall = {};
-var assocUnstableDataFeeds = {};
+var assocUnstableMessages = {};
 
 var min_retrievable_mci = null;
 initializeMinRetrievableMci();
 
+function readJointJsonFromStorage(conn, unit, cb) {
+	if (!bCordova)
+		return kvstore.get('j\n' + unit, cb);
+	conn.query("SELECT json FROM joints WHERE unit=?", [unit], function (rows) {
+		cb((rows.length === 0) ? null : rows[0].json);
+	});
+}
 
 function readJoint(conn, unit, callbacks, bSql) {
 	if (bSql)
 		return readJointDirectly(conn, unit, callbacks);
-	kvstore.get('j\n'+unit, function(strJoint){
+	readJointJsonFromStorage(conn, unit, function(strJoint){
 		if (!strJoint)
 			return callbacks.ifNotFound();
 		var objJoint = JSON.parse(strJoint);
@@ -47,7 +57,8 @@ function readJoint(conn, unit, callbacks, bSql) {
 			if (rows.length === 0)
 				throw Error("unit found in kv but not in sql: "+unit);
 			var row = rows[0];
-			objJoint.unit.timestamp = row.timestamp;
+			if (objJoint.unit.version === constants.versionWithoutTimestamp)
+				objJoint.unit.timestamp = parseInt(row.timestamp);
 			objJoint.unit.main_chain_index = row.main_chain_index;
 			callbacks.ifFound(objJoint);
 		});
@@ -80,7 +91,7 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 	//profiler.start();
 	conn.query(
 		"SELECT units.unit, version, alt, witness_list_unit, last_ball_unit, balls.ball AS last_ball, is_stable, \n\
-			content_hash, headers_commission, payload_commission, main_chain_index, "+conn.getUnixTimestamp("units.creation_date")+" AS timestamp \n\
+			content_hash, headers_commission, payload_commission, main_chain_index, timestamp, "+conn.getUnixTimestamp("units.creation_date")+" AS received_timestamp \n\
 		FROM units LEFT JOIN balls ON last_ball_unit=balls.unit WHERE units.unit=?", 
 		[unit], 
 		function(unit_rows){
@@ -92,7 +103,8 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 			var objJoint = {unit: objUnit};
 			var main_chain_index = objUnit.main_chain_index;
 			//delete objUnit.main_chain_index;
-			objUnit.timestamp = parseInt(objUnit.timestamp);
+			objUnit.timestamp = parseInt((objUnit.version === constants.versionWithoutTimestamp) ? objUnit.received_timestamp : objUnit.timestamp);
+			delete objUnit.received_timestamp;
 			var bFinalBad = !!objUnit.content_hash;
 			var bStable = objUnit.is_stable;
 			delete objUnit.is_stable;
@@ -658,20 +670,26 @@ function readWitnessesOnMcUnit(conn, main_chain_index, handleWitnesses){
 }*/
 
 
-// max_mci must be stable
-function readDefinitionByAddress(conn, address, max_mci, callbacks){
-	if (max_mci === null)
+function readDefinitionChashByAddress(conn, address, max_mci, handle){
+	if (max_mci == null || max_mci == undefined)
 		max_mci = MAX_INT32;
 	// try to find last definition change, otherwise definition_chash=address
 	conn.query(
 		"SELECT definition_chash FROM address_definition_changes CROSS JOIN units USING(unit) \n\
-		WHERE address=? AND is_stable=1 AND sequence='good' AND main_chain_index<=? ORDER BY level DESC LIMIT 1", 
+		WHERE address=? AND is_stable=1 AND sequence='good' AND main_chain_index<=? ORDER BY main_chain_index DESC LIMIT 1", 
 		[address, max_mci], 
 		function(rows){
 			var definition_chash = (rows.length > 0) ? rows[0].definition_chash : address;
+			handle(definition_chash);
+	});
+}
+
+
+// max_mci must be stable
+function readDefinitionByAddress(conn, address, max_mci, callbacks){
+	readDefinitionChashByAddress(conn, address, max_mci, function(definition_chash){
 			readDefinitionAtMci(conn, definition_chash, max_mci, callbacks);
-		}
-	);
+	});
 }
 
 // max_mci must be stable
@@ -691,6 +709,17 @@ function readDefinition(conn, definition_chash, callbacks){
 		if (rows.length === 0)
 			return callbacks.ifDefinitionNotFound(definition_chash);
 		callbacks.ifFound(JSON.parse(rows[0].definition));
+	});
+}
+
+function readAADefinition(conn, address, handleDefinition) {
+	conn.query("SELECT definition FROM aa_addresses WHERE address=?", [address], function (rows) {
+		if (rows.length !== 1)
+			return handleDefinition(null);
+		var arrDefinition = JSON.parse(rows[0].definition);
+		if (arrDefinition[0] !== 'autonomous agent')
+			throw Error("non-AA definition in AA unit");
+		handleDefinition(arrDefinition);
 	});
 }
 
@@ -730,7 +759,7 @@ function readUnitProps(conn, unit, handleProps){
 		return handleProps(assocUnstableUnits[unit]);
 	var stack = new Error().stack;
 	conn.query(
-		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit\n\
+		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, timestamp, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit\n\
 			FROM units \n\
 			JOIN unit_authors USING(unit) \n\
 			WHERE unit=? \n\
@@ -738,7 +767,7 @@ function readUnitProps(conn, unit, handleProps){
 		[unit], 
 		function(rows){
 			if (rows.length !== 1)
-				throw Error("not 1 row");
+				throw Error("not 1 row, unit "+unit);
 			var props = rows[0];
 			props.author_addresses = props.author_addresses.split(',');
 			if (props.is_stable) {
@@ -752,6 +781,7 @@ function readUnitProps(conn, unit, handleProps){
 				var props2 = _.cloneDeep(assocUnstableUnits[unit]);
 				delete props2.parent_units;
 				delete props2.earned_headers_commission_recipients;
+				delete props2.bAA;
 				if (!_.isEqual(props, props2)) {
 					debugger;
 					throw Error("different props of "+unit+", mem: "+JSON.stringify(props2)+", db: "+JSON.stringify(props)+", stack "+stack);
@@ -770,7 +800,7 @@ function readPropsOfUnits(conn, earlier_unit, arrLaterUnits, handleProps){
 	
 	var bEarlierInLaterUnits = (arrLaterUnits.indexOf(earlier_unit) !== -1);
 	conn.query(
-		"SELECT unit, level, witnessed_level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free FROM units WHERE unit IN(?, ?)", 
+		"SELECT unit, level, witnessed_level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, timestamp FROM units WHERE unit IN(?, ?)", 
 		[earlier_unit, arrLaterUnits], 
 		function(rows){
 			if (rows.length !== arrLaterUnits.length + (bEarlierInLaterUnits ? 0 : 1))
@@ -799,6 +829,7 @@ function readPropsOfUnits(conn, earlier_unit, arrLaterUnits, handleProps){
 					delete props.payload_commission;
 					delete props.sequence;
 					delete props.witness_list_unit;
+					delete props.bAA;
 				});
 				if (!_.isEqual(objEarlierUnitProps, objEarlierUnitProps2cmp))
 					throwError("different earlier, db "+JSON.stringify(objEarlierUnitProps)+", mem "+JSON.stringify(objEarlierUnitProps2cmp));
@@ -813,7 +844,6 @@ function readPropsOfUnits(conn, earlier_unit, arrLaterUnits, handleProps){
 }
 
 function throwError(msg){
-	var eventBus = require('./event_bus.js');
 	debugger;
 	if (typeof window === 'undefined')
 		throw Error(msg);
@@ -1253,6 +1283,8 @@ function buildListOfMcUnitsWithPotentiallyDifferentWitnesslists(conn, objUnit, l
 
 
 function readStaticUnitProps(conn, unit, handleProps, bReturnNullIfNotFound){
+	if (!unit)
+		throw Error("no unit");
 	var props = assocCachedUnits[unit];
 	if (props)
 		return handleProps(props);
@@ -1260,7 +1292,7 @@ function readStaticUnitProps(conn, unit, handleProps, bReturnNullIfNotFound){
 		if (rows.length !== 1){
 			if (bReturnNullIfNotFound)
 				return handleProps(null);
-			throw Error("not 1 unit");
+			throw Error("not 1 unit "+unit);
 		}
 		props = rows[0];
 		assocCachedUnits[unit] = props;
@@ -1274,7 +1306,7 @@ function readUnitAuthors(conn, unit, handleAuthors){
 		return handleAuthors(arrAuthors);
 	conn.query("SELECT address FROM unit_authors WHERE unit=?", [unit], function(rows){
 		if (rows.length === 0)
-			throw Error("no authors");
+			throw Error("no authors, unit "+unit);
 		var arrAuthors2 = rows.map(function(row){ return row.address; }).sort();
 	//	if (arrAuthors && arrAuthors.join('-') !== arrAuthors2.join('-'))
 	//		throw Error('cache is corrupt');
@@ -1312,6 +1344,24 @@ function forgetUnit(unit){
 	if (!conf.bLight && assocStableUnits[unit])
 		throw Error("trying to forget stable unit "+unit);
 	delete assocStableUnits[unit];
+	delete assocUnstableMessages[unit];
+	delete assocBestChildren[unit];
+}
+
+// parent_units are parent units of the forgotten unit
+function fixIsFreeAfterForgettingUnit(parent_units) {
+	parent_units.forEach(function(parent_unit){
+		if (!assocUnstableUnits[parent_unit]) // the parent is already stable
+			return;
+		var bHasChildren = false;
+		for (var unit in assocUnstableUnits){
+			var o = assocUnstableUnits[unit];
+			if (o.parent_units.indexOf(parent_unit) >= 0)
+				bHasChildren = true;
+		}
+		if (!bHasChildren)
+			assocUnstableUnits[parent_unit].is_free = 1;
+	});
 }
 
 function shrinkCache(){
@@ -1362,7 +1412,7 @@ setInterval(shrinkCache, 300*1000);
 function initUnstableUnits(conn, onDone){
 	var conn = conn || db;
 	conn.query(
-		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit, best_parent_unit \n\
+		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, timestamp, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit, best_parent_unit \n\
 			FROM units \n\
 			JOIN unit_authors USING(unit) \n\
 			WHERE is_stable=0 \n\
@@ -1393,7 +1443,7 @@ function initStableUnits(conn, onDone){
 	var conn = conn || db;
 	readLastStableMcIndex(conn, function(last_stable_mci){
 		conn.query(
-			"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit \n\
+			"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, timestamp, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit \n\
 			FROM units \n\
 			JOIN unit_authors USING(unit) \n\
 			WHERE is_stable=1 AND main_chain_index>=? \n\
@@ -1463,9 +1513,9 @@ function initHashTreeBalls(conn, onDone){
 	});
 }
 
-function initUnstableDataFeeds(conn, onDone){
+function initUnstableMessages(conn, onDone){
 	var conn = conn || db;
-	conn.query("SELECT unit FROM units CROSS JOIN messages USING(unit) WHERE is_stable=0 AND app='data_feed'", function(rows){
+	conn.query("SELECT unit FROM units CROSS JOIN messages USING(unit) WHERE is_stable=0 AND app IN('data_feed', 'definition')", function(rows){
 		async.eachSeries(
 			rows,
 			function(row, cb){
@@ -1475,21 +1525,38 @@ function initUnstableDataFeeds(conn, onDone){
 					},
 					ifFound: function(objJoint){
 						objJoint.unit.messages.forEach(function(message){
-							if (message.app === 'data_feed')
-								assocUnstableDataFeeds[row.unit] = message.payload;
+							if (message.app === 'data_feed' || message.app === 'definition') {
+								if (!assocUnstableMessages[row.unit])
+									assocUnstableMessages[row.unit] = [];
+								assocUnstableMessages[row.unit].push(message);
+							}
 						});
 						cb();
 					}
 				});
 			},
 			function(){
-				console.log('initUnstableDataFeeds done, '+Object.keys(assocUnstableDataFeeds).length+' data feeds found');
+				console.log('initUnstableMessages done, '+Object.keys(assocUnstableMessages).length+' messages found');
 				if (onDone)
 					onDone();
 			}
 		);
 	});
 }
+
+/*
+function initLastUnstableAAUnit(conn, onDone) {
+	conn.query(
+		"SELECT units.unit FROM units CROSS JOIN unit_authors USING(unit) CROSS JOIN aa_addresses USING(address) \n\
+		WHERE is_stable=0 ORDER BY latest_included_mc_index DESC, level DESC LIMIT 1",
+		function (rows) {
+			if (rows.length > 0)
+				exports.last_unstable_aa_unit = rows[0].unit;
+			console.log('last_unstable_aa_unit = ' + exports.last_unstable_aa_unit);
+			onDone();
+		}
+	);
+}*/
 
 function resetUnstableUnits(conn, onDone){
 	Object.keys(assocBestChildren).forEach(function(unit){
@@ -1524,10 +1591,11 @@ function initCaches(){
 	console.log('initCaches');
 	db.executeInTransaction(function(conn, onDone){
 		mutex.lock(['write'], function(unlock) {
-			initUnstableUnits(conn, initStableUnits.bind(this, conn, initUnstableDataFeeds.bind(this, conn, initHashTreeBalls.bind(this, conn, function(){
+			initUnstableUnits(conn, initStableUnits.bind(this, conn, initUnstableMessages.bind(this, conn, initHashTreeBalls.bind(this, conn, function(){
 				console.log('initCaches done');
 				unlock();
 				onDone();
+				eventBus.emit('caches_ready');
 			}))));
 		});
 	});
@@ -1552,8 +1620,10 @@ exports.readJoint = readJoint;
 exports.readJointWithBall = readJointWithBall;
 exports.readFreeJoints = readFreeJoints;
 
+exports.readDefinitionChashByAddress = readDefinitionChashByAddress;
 exports.readDefinitionByAddress = readDefinitionByAddress;
 exports.readDefinition = readDefinition;
+exports.readAADefinition = readAADefinition;
 
 exports.readLastMainChainIndex = readLastMainChainIndex;
 
@@ -1584,6 +1654,7 @@ exports.readUnitAuthors = readUnitAuthors;
 exports.isKnownUnit = isKnownUnit;
 exports.setUnitIsKnown = setUnitIsKnown;
 exports.forgetUnit = forgetUnit;
+exports.fixIsFreeAfterForgettingUnit = fixIsFreeAfterForgettingUnit;
 
 exports.sliceAndExecuteQuery = sliceAndExecuteQuery;
 
@@ -1592,7 +1663,7 @@ exports.assocStableUnits = assocStableUnits;
 exports.assocStableUnitsByMci = assocStableUnitsByMci;
 exports.assocBestChildren = assocBestChildren;
 exports.assocHashTreeUnitsByBall = assocHashTreeUnitsByBall;
-exports.assocUnstableDataFeeds = assocUnstableDataFeeds;
+exports.assocUnstableMessages = assocUnstableMessages;
 exports.initCaches = initCaches;
 exports.resetMemory = resetMemory;
 exports.initializeMinRetrievableMci = initializeMinRetrievableMci;

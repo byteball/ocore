@@ -47,7 +47,13 @@ module.exports = function(connection_or_pool){
 				throw err;
 			}
 			if (Array.isArray(results))
-				results = results.map(function(row){ return Object.assign({}, row); });
+				results = results.map(function(row){
+					for (var key in row){
+						if (Buffer.isBuffer(row[key])) // VARBINARY fields are read as buffer, we have to convert them to string
+							row[key] = row[key].toString();
+					}
+					return Object.assign({}, row);
+				});
 			var consumed_time = Date.now() - start_ts;
 			if (consumed_time > 25)
 				console.log("long query took "+consumed_time+"ms:\n"+new_args.filter(function(a, i){ return (i<new_args.length-1); }).join(", ")+"\nload avg: "+require('os').loadavg().join(', '));

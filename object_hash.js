@@ -3,10 +3,13 @@
 var crypto = require('crypto');
 var _ = require('lodash');
 var chash = require('./chash.js');
+var constants = require('./constants.js');
 var getSourceString = require('./string_utils').getSourceString;
+var getJsonSourceString = require('./string_utils').getJsonSourceString;
 
 function getChash160(obj) {
-	return chash.getChash160(getSourceString(obj));
+	var sourceString = (Array.isArray(obj) && obj.length === 2 && obj[0] === 'autonomous agent') ? getJsonSourceString(obj) : getSourceString(obj);
+	return chash.getChash160(sourceString);
 }
 
 function getChash288(obj) {
@@ -17,8 +20,9 @@ function getHexHash(obj) {
 	return crypto.createHash("sha256").update(getSourceString(obj), "utf8").digest("hex");
 }
 
-function getBase64Hash(obj) {
-	return crypto.createHash("sha256").update(getSourceString(obj), "utf8").digest("base64");
+function getBase64Hash(obj, bJsonBased) {
+	var sourceString = bJsonBased ? getJsonSourceString(obj) : getSourceString(obj)
+	return crypto.createHash("sha256").update(sourceString, "utf8").digest("base64");
 }
 
 
@@ -28,7 +32,8 @@ function getNakedUnit(objUnit){
 	delete objNakedUnit.headers_commission;
 	delete objNakedUnit.payload_commission;
 	delete objNakedUnit.main_chain_index;
-	delete objNakedUnit.timestamp;
+	if (objUnit.version === constants.versionWithoutTimestamp)
+		delete objNakedUnit.timestamp;
 	//delete objNakedUnit.last_ball_unit;
 	if (objNakedUnit.messages){
 		for (var i=0; i<objNakedUnit.messages.length; i++){
@@ -42,12 +47,13 @@ function getNakedUnit(objUnit){
 }
 
 function getUnitContentHash(objUnit){
-	return getBase64Hash(getNakedUnit(objUnit));
+	return getBase64Hash(getNakedUnit(objUnit), objUnit.version !== constants.versionWithoutTimestamp);
 }
 
 function getUnitHash(objUnit) {
+	var bVersion2 = (objUnit.version !== constants.versionWithoutTimestamp);
 	if (objUnit.content_hash) // already stripped
-		return getBase64Hash(getNakedUnit(objUnit));
+		return getBase64Hash(getNakedUnit(objUnit), bVersion2);
 	var objStrippedUnit = {
 		content_hash: getUnitContentHash(objUnit),
 		version: objUnit.version,
@@ -63,14 +69,25 @@ function getUnitHash(objUnit) {
 		objStrippedUnit.last_ball = objUnit.last_ball;
 		objStrippedUnit.last_ball_unit = objUnit.last_ball_unit;
 	}
-	return getBase64Hash(objStrippedUnit);
+	if (bVersion2)
+		objStrippedUnit.timestamp = objUnit.timestamp;
+	return getBase64Hash(objStrippedUnit, bVersion2);
 }
 
 function getUnitHashToSign(objUnit) {
 	var objNakedUnit = getNakedUnit(objUnit);
 	for (var i=0; i<objNakedUnit.authors.length; i++)
 		delete objNakedUnit.authors[i].authentifiers;
-	return crypto.createHash("sha256").update(getSourceString(objNakedUnit), "utf8").digest();
+	var sourceString = (typeof objUnit.version === 'undefined' || objUnit.version === constants.versionWithoutTimestamp) ? getSourceString(objNakedUnit) : getJsonSourceString(objNakedUnit);
+	return crypto.createHash("sha256").update(sourceString, "utf8").digest();
+}
+
+function getSignedPackageHashToSign(signedPackage) {
+	var unsignedPackage = _.cloneDeep(signedPackage);
+	for (var i=0; i<unsignedPackage.authors.length; i++)
+		delete unsignedPackage.authors[i].authentifiers;
+	var sourceString = (typeof signedPackage.version === 'undefined' || signedPackage.version === constants.versionWithoutTimestamp) ? getSourceString(unsignedPackage) : getJsonSourceString(unsignedPackage);
+	return crypto.createHash("sha256").update(sourceString, "utf8").digest();
 }
 
 function getBallHash(unit, arrParentBalls, arrSkiplistBalls, bNonserial) {
@@ -143,5 +160,6 @@ exports.cleanNullsDeep = cleanNullsDeep;
 
 exports.getDeviceAddress = getDeviceAddress;
 exports.getDeviceMessageHashToSign = getDeviceMessageHashToSign;
+exports.getSignedPackageHashToSign = getSignedPackageHashToSign;
 
 

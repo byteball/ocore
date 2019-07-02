@@ -1,12 +1,80 @@
 /*jslint node: true */
 "use strict";
 var async = require('async');
+var _ = require('lodash');
 var kvstore = require('./kvstore.js');
 var string_utils = require('./string_utils.js');
+var storage = require('./storage.js');
 
 
-function dataFeedExists(arrAddresses, feed_name, relation, value, min_mci, max_mci, handleResult){
+function dataFeedExists(arrAddresses, feed_name, relation, value, min_mci, max_mci, bAA, handleResult){
 	var start_time = Date.now();
+	if (bAA) {
+		var bFound = false;
+		function relationSatisfied(v1, v2) {
+			switch (relation) {
+				case '<': return (v1 < v2);
+				case '<=': return (v1 <= v2);
+				case '>': return (v1 > v2);
+				case '>=': return (v1 >= v2);
+				default: throw Error("unknown relation: " + relation);
+			}
+		}
+		for (var unit in storage.assocUnstableMessages) {
+			var objUnit = storage.assocUnstableUnits[unit];
+			if (!objUnit)
+				throw Error("unstable unit " + unit + " not in assoc");
+			if (!objUnit.bAA)
+				continue;
+			if (_.intersection(arrAddresses, objUnit.author_addresses).length === 0)
+				continue;
+			storage.assocUnstableMessages[unit].forEach(function (message) {
+				if (message.app !== 'data_feed')
+					return;
+				var payload = message.payload;
+				if (!(feed_name in payload))
+					return;
+				var feed_value = payload[feed_name];
+				if (relation === '=') {
+					if (value === feed_value || value.toString() === feed_value.toString())
+						bFound = true;
+					return;
+				}
+				if (relation === '!=') {
+					if (value.toString() !== feed_value.toString())
+						bFound = true;
+					return;
+				}
+				if (typeof value === 'number' && typeof feed_value === 'number') {
+					if (relationSatisfied(feed_value, value))
+						bFound = true;
+					return;
+				}
+				var f_value = (typeof value === 'string') ? string_utils.getNumericFeedValue(value) : value;
+				var f_feed_value = (typeof feed_value === 'string') ? string_utils.getNumericFeedValue(feed_value) : feed_value;
+				if (f_value === null && f_feed_value === null) { // both are strings that don't look like numbers
+					if (relationSatisfied(feed_value, value))
+						bFound = true;
+					return;
+				}
+				if (f_value !== null && f_feed_value !== null) { // both are either numbers or strings that look like numbers
+					if (relationSatisfied(f_feed_value, f_value))
+						bFound = true;
+					return;
+				}
+				if (typeof value === 'string' && typeof feed_value === 'string') { // only one string looks like a number
+					if (relationSatisfied(feed_value, value))
+						bFound = true;
+					return;
+				}
+				// else they are incomparable e.g. 'abc' > 123
+			});
+			if (bFound)
+				break;
+		}
+		if (bFound)
+			return handleResult(true);
+	}
 	async.eachSeries(
 		arrAddresses,
 		function(address, cb){
@@ -112,9 +180,67 @@ function dataFeedByAddressExists(address, feed_name, relation, value, min_mci, m
 }
 
 
-function readDataFeedValue(arrAddresses, feed_name, value, min_mci, max_mci, ifseveral, handleResult){
+function readDataFeedValue(arrAddresses, feed_name, value, min_mci, max_mci, bAA, ifseveral, handleResult){
 	var start_time = Date.now();
-	var objResult = {bAbortedBecauseOfSeveral: false, value: undefined, unit: undefined, mci: undefined};
+	var objResult = { bAbortedBecauseOfSeveral: false, value: undefined, unit: undefined, mci: undefined };
+	if (bAA) {
+		var arrCandidates = [];
+		for (var unit in storage.assocUnstableMessages) {
+			var objUnit = storage.assocUnstableUnits[unit];
+			if (!objUnit)
+				throw Error("unstable unit " + unit + " not in assoc");
+			if (!objUnit.bAA)
+				continue;
+			if (_.intersection(arrAddresses, objUnit.author_addresses).length === 0)
+				continue;
+			storage.assocUnstableMessages[unit].forEach(function (message) {
+				if (message.app !== 'data_feed')
+					return;
+				var payload = message.payload;
+				if (!(feed_name in payload))
+					return;
+				var feed_value = payload[feed_name];
+				if (value === null || value === feed_value || value.toString() === feed_value.toString())
+					arrCandidates.push({
+						value: feed_value,
+						latest_included_mc_index: objUnit.latest_included_mc_index,
+						level: objUnit.level,
+						unit: objUnit.unit,
+						mci: max_mci // it doesn't matter
+					});
+			});
+		}
+		if (arrCandidates.length === 1) {
+			var feed = arrCandidates[0];
+			objResult.value = feed.value;
+			objResult.unit = feed.unit;
+			objResult.mci = feed.mci;
+			if (ifseveral === 'last')
+				return handleResult(objResult);
+		}
+		else if (arrCandidates.length > 1) {
+			if (ifseveral === 'abort') {
+				objResult.bAbortedBecauseOfSeveral = true;
+				return handleResult(objResult);
+			}
+			arrCandidates.sort(function (a, b) {
+				if (a.latest_included_mc_index < b.latest_included_mc_index)
+					return -1;
+				if (a.latest_included_mc_index > b.latest_included_mc_index)
+					return 1;
+				if (a.level < b.level)
+					return -1;
+				if (a.level > b.level)
+					return 1;
+				throw Error("can't sort candidates "+a+" and "+b);
+			});
+			var feed = arrCandidates[arrCandidates.length - 1];
+			objResult.value = feed.value;
+			objResult.unit = feed.unit;
+			objResult.mci = feed.mci;
+			return handleResult(objResult);
+		}
+	}
 	async.eachSeries(
 		arrAddresses,
 		function(address, cb){

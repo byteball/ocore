@@ -1,8 +1,8 @@
 /*jslint node: true */
 "use strict";
-var fs = require('fs'+'');
+var fs = require('fs');
 var rocksdb = require('level-rocksdb');
-var app_data_dir = require('./desktop_app.js'+'').getAppDataDir();
+var app_data_dir = require('./desktop_app.js').getAppDataDir();
 var path = app_data_dir + '/rocksdb';
 
 try{
@@ -10,12 +10,17 @@ try{
 }
 catch(e){
 	var mode = parseInt('700', 8);
-	var parent_dir = require('path'+'').dirname(app_data_dir);
+	var parent_dir = require('path').dirname(app_data_dir);
 	try { fs.mkdirSync(parent_dir, mode); } catch(e){}
 	try { fs.mkdirSync(app_data_dir, mode); } catch(e){}
 }
 
-var db = rocksdb(path);
+var db = rocksdb(path, {}, function (err) {
+	if (err)
+		throw Error("rocksdb open failed: " + err);
+});
+if (!db)
+	throw Error("no rocksdb instance");
 
 module.exports = {
 	get: function(key, cb){
@@ -34,6 +39,15 @@ module.exports = {
 			if (err)
 				throw Error("put "+key+" = "+val+" failed: "+err);
 			cb();
+		});
+	},
+	
+	del: function(key, cb){
+		db.del(key, function(err){
+			if (err)
+				throw Error("del " + key + " failed: " + err);
+			if (cb)
+				cb();
 		});
 	},
 	

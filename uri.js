@@ -91,12 +91,30 @@ function parseUri(uri, callbacks){
 		return handleMnemonic(mnemonic);
 	}
 	
-	// pay to address
+	// pay to address or send data
 	var arrParts = value.split('?');
 	if (arrParts.length > 2)
 		return callbacks.ifError("too many question marks");
-	var address = decodeURIComponent(arrParts[0]);
+	var main_part = decodeURIComponent(arrParts[0]);
 	var query_string = arrParts[1];
+
+	if (main_part === 'data') {
+		if (!query_string)
+			return callbacks.ifError("data without query string");
+		var assocParams = parseQueryString(query_string);
+		var app = assocParams.app;
+		if (app !== 'data' && app !== 'data_feed' && app !== 'attestation' && app !== 'profile' && app !== 'poll' && app !== 'vote')
+			return callbacks.ifError("invalid app: " + app);
+		if (app === 'attestation' && !ValidationUtils.isValidAddress(assocParams.address))
+			return callbacks.ifError("invalid attested address: "+assocParams.address);
+		if (app === 'vote' && !ValidationUtils.isValidBase64(assocParams.unit, constants.HASH_LENGTH))
+			return callbacks.ifError("invalid poll unit: " + assocParams.unit);
+		objRequest = assocParams;
+		objRequest.type = 'data';
+		return callbacks.ifOk(objRequest);
+	}
+
+	var address = main_part;
 	if (!ValidationUtils.isValidAddress(address) && !ValidationUtils.isValidEmail(address) && !address.match(/^(steem\/|reddit\/|@).{3,}/i) && !address.match(/^\+\d{9,14}$/))
 		return callbacks.ifError("address "+address+" is invalid");
 	objRequest.type = "address";
