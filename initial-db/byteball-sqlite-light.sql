@@ -848,4 +848,4 @@ CREATE INDEX aaResponsesByAAAddress ON aa_responses(aa_address);
 CREATE INDEX aaResponsesByMci ON aa_responses(mci);
 
 
-PRAGMA user_version=31;
+PRAGMA user_version=32;
