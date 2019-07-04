@@ -1187,6 +1187,7 @@ exports.evaluate = function (opts, callback) {
 					min_mci = params.min_mci.value.toString();
 					if (!(/^\d+$/.test(min_mci) && ValidationUtils.isNonnegativeInteger(parseInt(min_mci))))
 						return cb("bad min_mci: "+min_mci);
+					min_mci = parseInt(min_mci);
 				}
 				var ifseveral = 'last';
 				if (params.ifseveral){
@@ -1365,6 +1366,7 @@ exports.evaluate = function (opts, callback) {
 							min_mci = evaluated_params.min_mci.value.toString();
 							if (!(/^\d+$/.test(min_mci) && ValidationUtils.isNonnegativeInteger(parseInt(min_mci))))
 								return setFatalError('bad min_mci', cb, false);
+							min_mci = parseInt(min_mci);
 						}
 						dataFeeds.dataFeedExists(arrAddresses, feed_name, relation, value, min_mci, objValidationState.last_ball_mci, bAA, cb);
 					}
