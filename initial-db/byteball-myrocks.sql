@@ -545,6 +545,11 @@ CREATE TABLE wallet_signing_paths (
 	-- FOREIGN KEY (device_address) REFERENCES correspondent_devices(device_address)
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
+CREATE TABLE my_watched_addresses (
+	address CHAR(32) BINARY NOT NULL PRIMARY KEY,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+); ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
+
 -- addresses composed of several other addresses (such as ["and", [["address", "ADDRESS1"], ["address", "ADDRESS2"]]]),
 -- member addresses live on different devices, member addresses themselves may be composed of several keys
 CREATE TABLE shared_addresses (

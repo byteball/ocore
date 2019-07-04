@@ -578,6 +578,10 @@ CREATE TABLE wallet_signing_paths (
 --    FOREIGN KEY byDeviceAddress(device_address) REFERENCES correspondent_devices(device_address)
 );
 
+CREATE TABLE my_watched_addresses (
+	address CHAR(32) NOT NULL PRIMARY KEY,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
 -- addresses composed of several other addresses (such as ["and", [["address", "ADDRESS1"], ["address", "ADDRESS2"]]]), 
 -- member addresses live on different devices, member addresses themselves may be composed of several keys
@@ -844,4 +848,4 @@ CREATE INDEX aaResponsesByAAAddress ON aa_responses(aa_address);
 CREATE INDEX aaResponsesByMci ON aa_responses(mci);
 
 
-PRAGMA user_version=31;
+PRAGMA user_version=32;
