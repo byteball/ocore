@@ -329,6 +329,10 @@ function migrateDb(connection, onDone){
 					connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS aaResponsesByTriggerAddress ON aa_responses(trigger_address)");
 					connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS aaResponsesByAAAddress ON aa_responses(aa_address)");
 					connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS aaResponsesByMci ON aa_responses(mci)");
+					connection.addQuery(arrQueries, "CREATE TABLE my_watched_addresses (\n\
+						address CHAR(32) NOT NULL PRIMARY KEY,\n\
+						creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP\n\
+					)");
 					connection.addQuery(arrQueries, "PRAGMA user_version=30");
 				}
 				cb();
