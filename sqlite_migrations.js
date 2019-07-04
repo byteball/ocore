@@ -4,7 +4,7 @@ var eventBus = require('./event_bus.js');
 var constants = require("./constants.js");
 var conf = require("./conf.js");
 
-var VERSION = 31;
+var VERSION = 32;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -329,13 +329,8 @@ function migrateDb(connection, onDone){
 					connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS aaResponsesByTriggerAddress ON aa_responses(trigger_address)");
 					connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS aaResponsesByAAAddress ON aa_responses(aa_address)");
 					connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS aaResponsesByMci ON aa_responses(mci)");
+					connection.addQuery(arrQueries, "PRAGMA user_version=30");
 				}
-				if (version < 31)
-					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS my_watched_addresses (\n\
-						address CHAR(32) NOT NULL PRIMARY KEY,\n\
-						creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP\n\
-					)");
-				connection.addQuery(arrQueries, "PRAGMA user_version=31");
 				cb();
 			},
 			function(cb){
@@ -349,8 +344,17 @@ function migrateDb(connection, onDone){
 				}
 				else
 					cb();
+			}, 
+			function(cb){
+				if (version < 32)
+					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS my_watched_addresses (\n\
+						address CHAR(32) NOT NULL PRIMARY KEY,\n\
+						creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP\n\
+					)");
+				cb();
 			}
-		], function(){
+		],
+		function(){
 			connection.addQuery(arrQueries, "PRAGMA user_version="+VERSION);
 			async.series(arrQueries, function(){
 				eventBus.emit('finished_db_upgrade');
