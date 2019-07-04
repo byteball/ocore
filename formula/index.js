@@ -311,7 +311,7 @@ exports.validate = function (opts, callback) {
 				var rhs = arr[2];
 				var assignment_op = arr[3];
 				if (typeof var_name_or_expr === 'number' || typeof var_name_or_expr === 'boolean' || Decimal.isDecimal(var_name_or_expr))
-					return cb('bad var naame: ' + var_name_or_expr);
+					return cb('bad var name: ' + var_name_or_expr);
 				if (assignment_op) {
 					if (op !== 'state_var_assignment')
 						return cb(assignment_op + ' in ' + op);
@@ -319,7 +319,7 @@ exports.validate = function (opts, callback) {
 						return cb('bad assignment op: ' + assignment_op);
 				}
 				else if (op === 'state_var_assignment')
-					return cb('no asignment op in state var assignment');
+					return cb('no assignment op in state var assignment');
 				// we can't check local var reassignment without analyzing the code, e.g. if(..) $x=1; else $x=2; is valid
 				evaluate(var_name_or_expr, function (err) {
 					if (err)
