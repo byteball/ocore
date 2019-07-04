@@ -26,6 +26,8 @@ function dataFeedExists(arrAddresses, feed_name, relation, value, min_mci, max_m
 				throw Error("unstable unit " + unit + " not in assoc");
 			if (!objUnit.bAA)
 				continue;
+			if (objUnit.latest_included_mc_index < min_mci || objUnit.latest_included_mc_index > max_mci)
+				continue;
 			if (_.intersection(arrAddresses, objUnit.author_addresses).length === 0)
 				continue;
 			storage.assocUnstableMessages[unit].forEach(function (message) {
@@ -190,6 +192,8 @@ function readDataFeedValue(arrAddresses, feed_name, value, min_mci, max_mci, bAA
 			if (!objUnit)
 				throw Error("unstable unit " + unit + " not in assoc");
 			if (!objUnit.bAA)
+				continue;
+			if (objUnit.latest_included_mc_index < min_mci || objUnit.latest_included_mc_index > max_mci)
 				continue;
 			if (_.intersection(arrAddresses, objUnit.author_addresses).length === 0)
 				continue;
