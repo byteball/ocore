@@ -105,6 +105,8 @@ exports.validate = function (opts, callback) {
 			case '*':
 			case '/':
 			case '^':
+				if (op === '^')
+					complexity++;
 				async.eachSeries(arr.slice(1), function (param, cb2) {
 					if (typeof param === 'string') {
 						cb2("arithmetic operation " + op + " with a string: " + param);
@@ -118,6 +120,8 @@ exports.validate = function (opts, callback) {
 			case 'abs':
 				if (typeof arr[1] === 'string')
 					return cb(op + " of a string " + arr[1]);
+				if (op === 'sqrt' || op === 'ln')
+					complexity++;
 				evaluate(arr[1], cb);
 				break;
 			case 'ceil':
@@ -136,6 +140,8 @@ exports.validate = function (opts, callback) {
 			case 'min':
 			case 'max':
 			case 'hypot':
+				if (op === 'hypot')
+					complexity++;
 				async.eachSeries(arr[1], function (param, cb2) {
 					if (typeof param === 'string')
 						return cb2(op + ' of a string: ' + param);
@@ -432,6 +438,7 @@ exports.validate = function (opts, callback) {
 				break;
 			
 			case 'json_parse':
+				complexity++;
 				var expr = arr[1];
 				if (typeof expr === 'boolean' || Decimal.isDecimal(expr))
 					return cb("bad type in json_parse");

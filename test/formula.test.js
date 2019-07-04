@@ -1895,7 +1895,7 @@ test('json_parse', t => {
 	var stateVars = {  };
 	evalFormulaWithVars({ conn: null, formula: `json_parse('{"ww":{"aa":8,"dd":"h"},"z":["z",9,"ak"]}')`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity) => {
 		t.deepEqual(res, { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}});
-		t.deepEqual(complexity, 1);
+		t.deepEqual(complexity, 2);
 	})
 });
 
@@ -1904,7 +1904,7 @@ test('json_parse invalid json', t => {
 	var stateVars = {  };
 	evalFormulaWithVars({ conn: null, formula: `json_parse('{"ww":{"aa":8,"dd":"h"},"z":["z",9,"ak"]')`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity) => {
 		t.deepEqual(res, false);
-		t.deepEqual(complexity, 1);
+		t.deepEqual(complexity, 2);
 	})
 });
 
