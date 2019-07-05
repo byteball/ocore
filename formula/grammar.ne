@@ -16,7 +16,7 @@
 		bcpl_comment: /\/\/.*?$/,
 		number: /(?:[0-9]|[1-9][0-9]+)(?:\.[0-9]+)?(?:[eE][-+]?[0-9]+)?\b/,
 		assignment_with_op: ["+=", "-=", "/=", "*=", '||='],
-		op: ["+", "-", "/", "*", '^'],
+		op: ["+", "-", "/", "*", "%", '^'],
 		concat: '||',
 		l: '(',
 		r: ')',
@@ -187,6 +187,7 @@ unary_expr -> Exp {% id %}
 
 MD -> MD "*" unary_expr  {% function(d) {return ['*', d[0], d[2]]; } %}
     | MD "/" unary_expr  {% function(d) {return ['/', d[0], d[2]]; } %}
+    | MD "%" unary_expr  {% function(d) {return ['%', d[0], d[2]]; } %}
     | unary_expr             {% id %}
 
 AS -> AS "+" MD {% function(d) {return ['+', d[0], d[2]]; } %}

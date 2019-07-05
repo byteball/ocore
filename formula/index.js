@@ -106,6 +106,7 @@ exports.validate = function (opts, callback) {
 			case '-':
 			case '*':
 			case '/':
+			case '%':
 			case '^':
 				if (op === '^')
 					complexity++;
@@ -795,6 +796,7 @@ exports.evaluate = function (opts, callback) {
 			case '-':
 			case '*':
 			case '/':
+			case '%':
 			case '^':
 				var f = '';
 				switch (op) {
@@ -809,6 +811,9 @@ exports.evaluate = function (opts, callback) {
 						break;
 					case '/':
 						f = 'div';
+						break;
+					case '%':
+						f = 'mod';
 						break;
 					case '^':
 						f = 'pow';

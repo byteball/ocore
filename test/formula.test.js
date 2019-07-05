@@ -1987,3 +1987,29 @@ test('underflow', t => {
 		t.deepEqual(res, 0);
 	})
 });
+
+test('mod', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT" };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `11+8%3`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity) => {
+		t.deepEqual(res, 13);
+	})
+});
+
+test('fractional mod', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT" };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `1%0.9`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, '0.1');
+		t.deepEqual(count_ops, 2);
+	})
+});
+
+test('fractional negative mod', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT" };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `1%(-0.9)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, '0.1');
+		t.deepEqual(count_ops, 3);
+	})
+});
