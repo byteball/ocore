@@ -243,6 +243,7 @@ exports.validate = function (opts, callback) {
 			case 'trigger.address':
 			case 'trigger.initial_address':
 			case 'trigger.unit':
+			case 'mc_unit':
 				cb(bAA ? undefined : op + ' in non-AA');
 				break;
 			
@@ -1689,6 +1690,10 @@ exports.evaluate = function (opts, callback) {
 			
 			case 'timestamp':
 				cb(new Decimal(objValidationState.last_ball_timestamp));
+				break;
+			
+			case 'mc_unit':
+				cb(objValidationState.mc_unit);
 				break;
 			
 			case 'this_address':

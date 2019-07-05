@@ -91,6 +91,7 @@ function evalFormulaWithVars(opts, callback) {
 var objValidationState = {
 	last_ball_mci: 1000,
 	last_ball_timestamp: 1.5e9,
+	mc_unit: "oXGOcA9TQx8Tl5Syjp1d5+mB4xicsRk3kbcE82YQAS0=",
 	assocBalances: {},
 	arrAugmentedMessages: [{
 		"app": "payment",
@@ -2011,5 +2012,14 @@ test('fractional negative mod', t => {
 	evalFormulaWithVars({ conn: null, formula: `1%(-0.9)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
 		t.deepEqual(res, '0.1');
 		t.deepEqual(count_ops, 3);
+	})
+});
+
+test('mc_unit', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT" };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `(1==2) ? 6 : mc_unit`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'oXGOcA9TQx8Tl5Syjp1d5+mB4xicsRk3kbcE82YQAS0=');
+		t.deepEqual(count_ops, 4);
 	})
 });
