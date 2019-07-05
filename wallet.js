@@ -30,6 +30,8 @@ var prosaic_contract = require('./prosaic_contract.js');
 var message_counter = 0;
 var assocLastFailedAssetMetadataTimestamps = {};
 var ASSET_METADATA_RETRY_PERIOD = 3600*1000;
+const MAX_MESSAGES_PER_UNIT = 10;
+
 
 function handleJustsaying(ws, subject, body){
 	switch (subject){
@@ -2034,7 +2036,7 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 	function checkStability() {
 		db.query(
 			"SELECT is_stable, asset, SUM(amount) AS `amount` \n\
-			FROM outputs JOIN units USING(unit) WHERE address=? AND sequence='good' AND is_spent=0 GROUP BY asset ORDER BY asset DESC", 
+			FROM outputs JOIN units USING(unit) WHERE address=? AND sequence='good' AND is_spent=0 GROUP BY asset ORDER BY asset DESC LIMIT " + MAX_MESSAGES_PER_UNIT, 
 			[addrInfo.address],
 			function(rows){
 				if (rows.length === 0) {
