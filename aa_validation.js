@@ -564,6 +564,7 @@ function validateAADefinition(arrDefinition, callback) {
 		var opts = {
 			formula: formula,
 			complexity: complexity,
+			count_ops: count_ops,
 			bAA: true,
 			bStatementsOnly: bStatementsOnly,
 			bStateVarAssignmentAllowed: bStateVarAssignmentAllowed
@@ -571,6 +572,7 @@ function validateAADefinition(arrDefinition, callback) {
 	//	console.log('--- validateFormula', formula);
 		formulaParser.validate(opts, function (result) {
 			complexity = result.complexity;
+			count_ops = result.count_ops;
 			if (result.error) {
 				var errorMessage = "validation of formula " + formula + " failed: " + result.error
 				errorMessage += result.errorMessage ? `\nparser error: ${result.errorMessage}` : ''
@@ -578,11 +580,14 @@ function validateAADefinition(arrDefinition, callback) {
 			}
 			if (complexity > constants.MAX_COMPLEXITY)
 				return cb('complexity exceeded');
+			if (count_ops > constants.MAX_OPS)
+				return cb('number of ops exceeded');
 			cb();
 		});
 	}
 
 	var complexity = 0;
+	var count_ops = 0;
 	if (!isArrayOfLength(arrDefinition, 2))
 		return callback("AA definition must be 2-element array");
 	if (arrDefinition[0] !== 'autonomous agent')
@@ -613,13 +618,13 @@ function validateAADefinition(arrDefinition, callback) {
 			if (err)
 				return callback(err);
 			validateFieldWrappedInCases(template, 'messages', validateMessages, function (err) {
-				console.log('AA validated, complexity = ' + complexity);
+				console.log('AA validated, complexity = ' + complexity + ', ops = ' + count_ops);
 				callback(err);
 			});
 		});
 	}
 	validateFieldWrappedInCases(template, 'messages', validateMessages, function (err) {
-		console.log('AA validated, complexity = ' + complexity);
+		console.log('AA validated, complexity = ' + complexity + ', ops = ' + count_ops);
 		callback(err);
 	});
 }

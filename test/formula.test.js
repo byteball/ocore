@@ -16,7 +16,7 @@ function validateFormula(formula, complexity, cb) {
 }
 
 function evalFormula(conn, formula, messages, objValidationState, address, callback){
-	formulaParser.validate({ formula: formula, complexity: 1 }, function (res) {
+	formulaParser.validate({ formula: formula, complexity: 1, count_ops: 0 }, function (res) {
 		console.log('validation: ', res);
 		if (res.error)
 			return callback(null);
@@ -38,7 +38,7 @@ function evalFormula(conn, formula, messages, objValidationState, address, callb
 }
 
 function evalAAFormula(conn, formula, trigger, objValidationState, address, callback){
-	formulaParser.validate({ formula: formula, complexity: 1, bAA: true }, function(validation_res){
+	formulaParser.validate({ formula: formula, complexity: 1, count_ops: 0, bAA: true }, function(validation_res){
 		if (validation_res.error) {
 			console.log("validation failed", validation_res);
 			return callback(null);
@@ -57,7 +57,7 @@ function evalAAFormula(conn, formula, trigger, objValidationState, address, call
 		formulaParser.evaluate(opts, function (err, eval_res) {
 			if (err)
 				console.log("evaluation error: " + err);
-			callback(eval_res, validation_res.complexity);
+			callback(eval_res, validation_res.complexity, validation_res.count_ops);
 		});
 	});
 }
@@ -66,6 +66,7 @@ function evalFormulaWithVars(opts, callback) {
 	var val_opts = {
 		formula: opts.formula,
 		complexity: 1,
+		count_ops: 0,
 		bAA: true,
 		bStateVarAssignmentAllowed: opts.bStateVarAssignmentAllowed,
 		bStatementsOnly: opts.bStatementsOnly
@@ -82,7 +83,7 @@ function evalFormulaWithVars(opts, callback) {
 		formulaParser.evaluate(opts, function (err, eval_res) {
 			if (err)
 				console.log("evaluation error: " + err);
-			callback(eval_res, validation_res.complexity);
+			callback(eval_res, validation_res.complexity, validation_res.count_ops);
 		});
 	});
 }
@@ -1095,9 +1096,10 @@ test.cb('attestation', t => {
 
 test.cb('attestation int', t => {
 	var db = require("../db");
-	evalAAFormula(db, "attestation[[attestors=I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT, address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU]].age", {}, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', (res, complexity) => {
+	evalAAFormula(db, "attestation[[attestors=I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT, address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU]].age", {}, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', (res, complexity, count_ops) => {
 		t.deepEqual(res, 24);
 		t.deepEqual(complexity, 2);
+		t.deepEqual(count_ops, 2);
 		t.end();
 	})
 });
@@ -1206,9 +1208,10 @@ test('round boolean', t => {
 
 test.cb('balance 2 param', t => {
 	var db = require("../db");
-	evalAAFormula(db, "balance [MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU] [base]", {}, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', (res, complexity) => {
+	evalAAFormula(db, "balance [MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU] [base]", {}, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', (res, complexity, count_ops) => {
 		t.deepEqual(res, 10000);
 		t.deepEqual(complexity, 2);
+		t.deepEqual(count_ops, 2);
 		t.end();
 	})
 });
@@ -1274,14 +1277,16 @@ test.cb('balance with asset not found', t => {
 });
 
 test('read locals +', t => {
-	evalFormulaWithVars({ formula: "$volume + $price", trigger: {}, locals: { volume: 100 }, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, res => {
+	evalFormulaWithVars({ formula: "$volume + $price", trigger: {}, locals: { volume: 100 }, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops) => {
 		t.deepEqual(res, 100);
+		t.deepEqual(count_ops, 4);
 	})
 });
 
 test('read locals ||', t => {
-	evalFormulaWithVars({ formula: "$volume || $price", trigger: {}, locals: { volume: 100 }, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, res => {
+	evalFormulaWithVars({ formula: "$volume || $price", trigger: {}, locals: { volume: 100 }, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops) => {
 		t.deepEqual(res, '100false');
+		t.deepEqual(count_ops, 4);
 	})
 });
 
@@ -1298,8 +1303,9 @@ test('read locals with expr evaluating to non-string', t => {
 });
 
 test('read locals with expr with number', t => {
-	evalFormulaWithVars({ formula: "${'a'||2*2} + ${'b'||5} + 1", trigger: {}, locals: { a4: 100 }, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, res => {
+	evalFormulaWithVars({ formula: "${'a'||2*2} + ${'b'||5} + 1", trigger: {}, locals: { a4: 100 }, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
 		t.deepEqual(res, 101);
+		t.deepEqual(count_ops, 8);
 	})
 });
 
@@ -1322,8 +1328,9 @@ test('assign with expr', t => {
 });
 
 test('if else', t => {
-	evalFormulaWithVars({ formula: "if ($volume == 100) $price = 1; else $price = 2; $price", trigger: {}, locals: {volume: 100}, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, res => {
+	evalFormulaWithVars({ formula: "if ($volume == 100) $price = 1; else $price = 2; $price", trigger: {}, locals: {volume: 100}, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops) => {
 		t.deepEqual(res, 1);
+		t.deepEqual(count_ops, 7);
 	})
 });
 

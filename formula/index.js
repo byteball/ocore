@@ -65,6 +65,7 @@ exports.validate = function (opts, callback) {
 	var bStatementsOnly = opts.bStatementsOnly;
 	var bAA = opts.bAA;
 	var complexity = opts.complexity;
+	var count_ops = opts.count_ops;
 
 	var parser = {};
 	try {
@@ -98,6 +99,7 @@ exports.validate = function (opts, callback) {
 			if (typeof arr === 'string') return cb();
 			return cb('unknown type: ' + (typeof arr));
 		}
+		count_ops++;
 		var op = arr[0];
 		switch (op) {
 			case '+':
@@ -505,7 +507,7 @@ exports.validate = function (opts, callback) {
 	if (parser.results.length === 1 && parser.results[0]) {
 		//	console.log('--- parser result', JSON.stringify(parser.results[0], null, '\t'));
 		evaluate(parser.results[0], err => {
-			callback({ complexity, error: err || false });
+			callback({ complexity, count_ops, error: err || false });
 		});
 	} else {
 		if (parser.results.length > 1){
