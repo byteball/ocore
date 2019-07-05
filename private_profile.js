@@ -154,7 +154,7 @@ function getFieldsForAddress(address, fields, arrTrustedAttestorAddresses, cb) {
 				FROM private_profile_fields \n\
 				WHERE field IN (?) \n\
 				GROUP BY private_profile_id \n\
-				HAVING COUNT(1) = ?) AS full_set \n\
+				HAVING COUNT(1) = CAST(? AS INTEGER) ) AS full_set -- we need to cast to INTEGER here because of cordova-sqlite-plugin is broken on Android \n\
 			USING(private_profile_id) \n\
 			WHERE address=? AND field IN (?) \n\
 			ORDER BY trusted DESC, units.main_chain_index DESC LIMIT ?", [arrTrustedAttestorAddresses, fields, fields.length, address, fields, fields.length], function(rows){
