@@ -41,7 +41,7 @@
 		else: "else",
 		comparisonOperators: ["==", ">=", "<=", "!=", ">", "<", "="],
 		dfParamsName: ['oracles', 'feed_name', 'min_mci', 'feed_value', 'what'],
-		name: ['min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round', 'abs', 'hypot', 'is_valid_signed_package', 'sha256', 'json_parse', 'json_stringify'],
+		name: ['min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round', 'abs', 'hypot', 'is_valid_signed_package', 'sha256', 'json_parse', 'json_stringify', 'number_from_seed'],
 		and: ['and', 'AND'],
 		or: ['or', 'OR'],
 		not: ['not', 'NOT', '!'],
@@ -207,6 +207,7 @@ N -> float          {% id %}
     | "min" "(" expr_list ")"  {% function(d) {return ['min', d[2]]; }  %}
     | "max" "(" expr_list ")"  {% function(d) {return ['max', d[2]]; }  %}
     | "hypot" "(" expr_list ")"  {% function(d) {return ['hypot', d[2]]; }  %}
+    | "number_from_seed" "(" expr_list ")"    {% function(d) {return ['number_from_seed', d[2]]; } %}
     | "ceil" "(" expr (%comma expr):? ")"    {% function(d) {return ['ceil', d[2], d[3] ? d[3][1] : null]; } %}
     | "floor" "(" expr (%comma expr):? ")"    {% function(d) {return ['floor', d[2], d[3] ? d[3][1] : null]; } %}
     | "round" "(" expr (%comma expr):? ")"    {% function(d) {return ['round', d[2], d[3] ? d[3][1] : null]; } %}

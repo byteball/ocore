@@ -2023,3 +2023,48 @@ test('mc_unit', t => {
 		t.deepEqual(count_ops, 4);
 	})
 });
+
+test('number_from_seed', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT" };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `number_from_seed("vvv")`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, '0.240886496464544');
+		t.deepEqual(count_ops, 2);
+	})
+});
+
+test('int number_from_seed', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT" };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `number_from_seed("vvv", 99)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 24);
+		t.deepEqual(count_ops, 2);
+	})
+});
+
+test('int number_from_seed with min', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT" };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `number_from_seed("vvv", 10, 109)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 34);
+		t.deepEqual(count_ops, 2);
+	})
+});
+
+test('number_from_seed too many params', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT" };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `number_from_seed("vvv", 10, 99, 77)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+
+test('number_from_seed with non-int min', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT" };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `number_from_seed("vvv", '10', 109)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+

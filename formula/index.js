@@ -441,6 +441,21 @@ exports.validate = function (opts, callback) {
 				evaluate(expr, cb);
 				break;
 			
+			case 'number_from_seed':
+				complexity++;
+				if (arr[1].length > 3)
+					return cb("too many params in number_from_seed");
+				if (typeof arr[1][1] === 'string' || typeof arr[1][2] === 'string')
+					return cb("min or max is a string");
+				async.eachSeries(
+					arr[1],
+					function (param, cb2) {
+						evaluate(param, cb2);
+					},
+					cb
+				);
+				break;
+			
 			case 'json_parse':
 				complexity++;
 				var expr = arr[1];
@@ -1741,6 +1756,8 @@ exports.evaluate = function (opts, callback) {
 						else if (typeof value === 'number')
 							cb(new Decimal(value).times(1));
 						else if (typeof value === 'string') {
+							if (value.length > constants.MAX_AA_STRING_LENGTH)
+								return setFatalError("trigger.data field too long: " + value, cb, false);
 							// convert to number if possible
 							var f = string_utils.getNumericFeedValue(value);
 							(f === null) ? cb(value) : cb(new Decimal(value).times(1));
@@ -2113,6 +2130,54 @@ exports.evaluate = function (opts, callback) {
 				});
 				break;
 			
+			case 'number_from_seed':
+				var evaluated_params = [];
+				async.eachSeries(
+					arr[1],
+					function (param, cb2) {
+						evaluate(param, function (res) {
+							if (fatal_error)
+								return cb2(fatal_error);
+							if (res instanceof wrappedObject)
+								res = true;
+							if (!isValidValue(res))
+								return setFatalError("invalid value in sha256: " + res, cb, false);
+							if (isFiniteDecimal(res))
+								res = toDoubleRange(res);
+							evaluated_params.push(res);
+							cb2();
+						});
+					},
+					function (err) {
+						if (err)
+							return cb(false);
+						var seed = evaluated_params[0];
+						var hash = crypto.createHash("sha256").update(seed.toString(), "utf8").digest("hex");
+						var head = hash.substr(0, 16);
+						var nominator = new Decimal("0x" + head);
+						var denominator = new Decimal("0x1" + "0".repeat(16));
+						var num = nominator.div(denominator); // float from 0 to 1
+						if (evaluated_params.length === 1)
+							return cb(num);
+						var min = new Decimal(0);
+						var max;
+						if (evaluated_params.length === 2)
+							max = evaluated_params[1];
+						else {
+							min = evaluated_params[1];
+							max = evaluated_params[2];
+						}
+						if (!min.isInteger() || !max.isInteger())
+							return setFatalError("min and max must be integers", cb, false);
+						if (!max.gt(min))
+							return setFatalError("max must be greater than min", cb, false);
+						var len = max.minus(min).plus(1);
+						num = num.times(len).floor().plus(min);
+						cb(num);
+					}
+				);
+				break;
+			
 			case 'json_parse':
 				var expr = arr[1];
 				evaluate(expr, function (res) {
@@ -2156,7 +2221,10 @@ exports.evaluate = function (opts, callback) {
 						if (!isFinite(res))
 							return setFatalError("not finite js number: " + res, cb, false);
 					}
-					cb(string_utils.getJsonSourceString(res)); // sorts keys unlike JSON.stringify()
+					var json = string_utils.getJsonSourceString(res); // sorts keys unlike JSON.stringify()
+					if (json.length > constants.MAX_AA_STRING_LENGTH)
+						return setFatalError("json_stringified is too long", cb, false);
+					cb(json);
 				});
 				break;
 			
