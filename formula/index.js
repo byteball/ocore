@@ -319,7 +319,7 @@ exports.validate = function (opts, callback) {
 				if (assignment_op) {
 					if (op !== 'state_var_assignment')
 						return cb(assignment_op + ' in ' + op);
-					if (['=', '+=', '-=', '*=', '/=', '||='].indexOf(assignment_op) === -1)
+					if (['=', '+=', '-=', '*=', '/=', '%=', '||='].indexOf(assignment_op) === -1)
 						return cb('bad assignment op: ' + assignment_op);
 				}
 				else if (op === 'state_var_assignment')
@@ -1945,6 +1945,8 @@ exports.evaluate = function (opts, callback) {
 									value = value.times(res);
 								else if (assignment_op === '/=')
 									value = value.div(res);
+								else if (assignment_op === '%=')
+									value = value.mod(res);
 								else
 									throw Error("unknown assignment op: " + assignment_op);
 								if (!isFiniteDecimal(value))

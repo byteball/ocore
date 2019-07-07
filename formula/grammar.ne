@@ -15,7 +15,7 @@
 		comment: { match: /\/\*[^]*?\*\//, lineBreaks: true },
 		bcpl_comment: /\/\/.*?$/,
 		number: /(?:[0-9]|[1-9][0-9]+)(?:\.[0-9]+)?(?:[eE][-+]?[0-9]+)?\b/,
-		assignment_with_op: ["+=", "-=", "/=", "*=", '||='],
+		assignment_with_op: ["+=", "-=", "/=", "%=", "*=", '||='],
 		op: ["+", "-", "/", "*", "%", '^'],
 		concat: '||',
 		l: '(',
@@ -152,7 +152,7 @@ local_var -> (%local_var_name|local_var_expr) (%dotSelector|"[" expr "]"):*  {% 
 
 local_var_assignment -> local_var "=" expr ";" {% function(d) { return ['local_var_assignment', d[0], d[2]]; } %}
 
-state_var_assignment -> "var" "[" expr "]" ("="|"+="|"-="|"*="|"/="|"||=") expr ";" {% function(d) { return ['state_var_assignment', d[2], d[5], d[4][0].value]; } %}
+state_var_assignment -> "var" "[" expr "]" ("="|"+="|"-="|"*="|"/="|"%="|"||=") expr ";" {% function(d) { return ['state_var_assignment', d[2], d[5], d[4][0].value]; } %}
 
 response_var_assignment -> "response" "[" expr "]" "=" expr ";" {% function(d) { return ['response_var_assignment', d[2], d[5]]; } %}
 

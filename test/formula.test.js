@@ -2015,6 +2015,16 @@ test('fractional negative mod', t => {
 	})
 });
 
+test.cb('mod assignment', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT" };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: {x: { value: new Decimal(47) } } };
+	evalFormulaWithVars({ conn: null, formula: `var['x'] %= 3;`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', bStatementsOnly: true, bStateVarAssignmentAllowed: true}, (res, complexity) => {
+		t.deepEqual(res, true);
+		t.deepEqual(stateVars.MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU.x.value.toNumber(), 2);
+		t.end();
+	})
+});
+
 test('mc_unit', t => {
 	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT" };
 	var stateVars = {};
