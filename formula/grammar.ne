@@ -15,8 +15,8 @@
 		comment: { match: /\/\*[^]*?\*\//, lineBreaks: true },
 		bcpl_comment: /\/\/.*?$/,
 		number: /(?:[0-9]|[1-9][0-9]+)(?:\.[0-9]+)?(?:[eE][-+]?[0-9]+)?\b/,
-		assignment_with_op: ["+=", "-=", "/=", "*=", '||='],
-		op: ["+", "-", "/", "*", '^'],
+		assignment_with_op: ["+=", "-=", "/=", "%=", "*=", '||='],
+		op: ["+", "-", "/", "*", "%", '^'],
 		concat: '||',
 		l: '(',
 		r: ')',
@@ -41,7 +41,7 @@
 		else: "else",
 		comparisonOperators: ["==", ">=", "<=", "!=", ">", "<", "="],
 		dfParamsName: ['oracles', 'feed_name', 'min_mci', 'feed_value', 'what'],
-		name: ['min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round', 'abs', 'hypot', 'is_valid_signed_package', 'sha256', 'json_parse', 'json_stringify'],
+		name: ['min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round', 'abs', 'hypot', 'is_valid_signed_package', 'sha256', 'json_parse', 'json_stringify', 'number_from_seed'],
 		and: ['and', 'AND'],
 		or: ['or', 'OR'],
 		not: ['not', 'NOT', '!'],
@@ -53,6 +53,7 @@
 		mci: 'mci',
 		timestamp: 'timestamp',
 		this_address: 'this_address',
+		mc_unit: 'mc_unit',
 		response_unit: 'response_unit',
 		response: 'response',
 		bounce: 'bounce',
@@ -151,7 +152,7 @@ local_var -> (%local_var_name|local_var_expr) (%dotSelector|"[" expr "]"):*  {% 
 
 local_var_assignment -> local_var "=" expr ";" {% function(d) { return ['local_var_assignment', d[0], d[2]]; } %}
 
-state_var_assignment -> "var" "[" expr "]" ("="|"+="|"-="|"*="|"/="|"||=") expr ";" {% function(d) { return ['state_var_assignment', d[2], d[5], d[4][0].value]; } %}
+state_var_assignment -> "var" "[" expr "]" ("="|"+="|"-="|"*="|"/="|"%="|"||=") expr ";" {% function(d) { return ['state_var_assignment', d[2], d[5], d[4][0].value]; } %}
 
 response_var_assignment -> "response" "[" expr "]" "=" expr ";" {% function(d) { return ['response_var_assignment', d[2], d[5]]; } %}
 
@@ -187,6 +188,7 @@ unary_expr -> Exp {% id %}
 
 MD -> MD "*" unary_expr  {% function(d) {return ['*', d[0], d[2]]; } %}
     | MD "/" unary_expr  {% function(d) {return ['/', d[0], d[2]]; } %}
+    | MD "%" unary_expr  {% function(d) {return ['%', d[0], d[2]]; } %}
     | unary_expr             {% id %}
 
 AS -> AS "+" MD {% function(d) {return ['+', d[0], d[2]]; } %}
@@ -205,6 +207,7 @@ N -> float          {% id %}
     | "min" "(" expr_list ")"  {% function(d) {return ['min', d[2]]; }  %}
     | "max" "(" expr_list ")"  {% function(d) {return ['max', d[2]]; }  %}
     | "hypot" "(" expr_list ")"  {% function(d) {return ['hypot', d[2]]; }  %}
+    | "number_from_seed" "(" expr_list ")"    {% function(d) {return ['number_from_seed', d[2]]; } %}
     | "ceil" "(" expr (%comma expr):? ")"    {% function(d) {return ['ceil', d[2], d[3] ? d[3][1] : null]; } %}
     | "floor" "(" expr (%comma expr):? ")"    {% function(d) {return ['floor', d[2], d[3] ? d[3][1] : null]; } %}
     | "round" "(" expr (%comma expr):? ")"    {% function(d) {return ['round', d[2], d[3] ? d[3][1] : null]; } %}
@@ -275,6 +278,7 @@ N -> float          {% id %}
 	} %}
 	| "mci"  {% function(d) {return ['mci']; }  %}
 	| "timestamp"  {% function(d) {return ['timestamp']; }  %}
+	| "mc_unit"  {% function(d) {return ['mc_unit']; }  %}
 	| "this_address"  {% function(d) {return ['this_address']; }  %}
 	| "response_unit"  {% function(d) {return ['response_unit']; }  %}
 	| "trigger.address"  {% function(d) {return ['trigger.address']; }  %}

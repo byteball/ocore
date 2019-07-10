@@ -46,7 +46,16 @@ var formulasInCache = [];
 var cache = {};
 
 function isValidValue(val){
-	return (typeof val === 'string' || typeof val === 'boolean' || Decimal.isDecimal(val) && val.isFinite());
+	return (typeof val === 'string' || typeof val === 'boolean' || isFiniteDecimal(val));
+}
+
+function isFiniteDecimal(val) {
+	return (Decimal.isDecimal(val) && val.isFinite() && isFinite(val.toNumber()));
+}
+
+function toDoubleRange(val) {
+	// check for underflow
+	return (val.toNumber() === 0) ? new Decimal(0) : val;
 }
 
 exports.validate = function (opts, callback) {
@@ -56,6 +65,7 @@ exports.validate = function (opts, callback) {
 	var bStatementsOnly = opts.bStatementsOnly;
 	var bAA = opts.bAA;
 	var complexity = opts.complexity;
+	var count_ops = opts.count_ops;
 
 	var parser = {};
 	try {
@@ -73,7 +83,7 @@ exports.validate = function (opts, callback) {
 		}
 	} catch (e) {
 		console.log('==== parse error', e, e.stack)
-		return callback({error: 'parse error', complexity, errorContext: { token: e.token, offset: e.offset }});
+		return callback({error: 'parse error', complexity, errorMessage: e.message});
 	}
 	
 	var count = 0;
@@ -82,19 +92,24 @@ exports.validate = function (opts, callback) {
 		count++;
 		if (count % 100 === 0) // avoid extra long call stacks to prevent Maximum call stack size exceeded
 			return setImmediate(evaluate, arr, cb);
-		if (Decimal.isDecimal(arr) && arr.isFinite()) return cb();
+		if (Decimal.isDecimal(arr))
+			return isFiniteDecimal(arr) ? cb() : cb("not finite decimal: " + arr);
 		if(typeof arr !== 'object'){
 			if (typeof arr === 'boolean') return cb();
 			if (typeof arr === 'string') return cb();
 			return cb('unknown type: ' + (typeof arr));
 		}
+		count_ops++;
 		var op = arr[0];
 		switch (op) {
 			case '+':
 			case '-':
 			case '*':
 			case '/':
+			case '%':
 			case '^':
+				if (op === '^')
+					complexity++;
 				async.eachSeries(arr.slice(1), function (param, cb2) {
 					if (typeof param === 'string') {
 						cb2("arithmetic operation " + op + " with a string: " + param);
@@ -108,6 +123,8 @@ exports.validate = function (opts, callback) {
 			case 'abs':
 				if (typeof arr[1] === 'string')
 					return cb(op + " of a string " + arr[1]);
+				if (op === 'sqrt' || op === 'ln')
+					complexity++;
 				evaluate(arr[1], cb);
 				break;
 			case 'ceil':
@@ -126,6 +143,8 @@ exports.validate = function (opts, callback) {
 			case 'min':
 			case 'max':
 			case 'hypot':
+				if (op === 'hypot')
+					complexity++;
 				async.eachSeries(arr[1], function (param, cb2) {
 					if (typeof param === 'string')
 						return cb2(op + ' of a string: ' + param);
@@ -224,6 +243,7 @@ exports.validate = function (opts, callback) {
 			case 'trigger.address':
 			case 'trigger.initial_address':
 			case 'trigger.unit':
+			case 'mc_unit':
 				cb(bAA ? undefined : op + ' in non-AA');
 				break;
 			
@@ -295,15 +315,15 @@ exports.validate = function (opts, callback) {
 				var rhs = arr[2];
 				var assignment_op = arr[3];
 				if (typeof var_name_or_expr === 'number' || typeof var_name_or_expr === 'boolean' || Decimal.isDecimal(var_name_or_expr))
-					return cb('bad var naame: ' + var_name_or_expr);
+					return cb('bad var name: ' + var_name_or_expr);
 				if (assignment_op) {
 					if (op !== 'state_var_assignment')
 						return cb(assignment_op + ' in ' + op);
-					if (['=', '+=', '-=', '*=', '/=', '||='].indexOf(assignment_op) === -1)
+					if (['=', '+=', '-=', '*=', '/=', '%=', '||='].indexOf(assignment_op) === -1)
 						return cb('bad assignment op: ' + assignment_op);
 				}
 				else if (op === 'state_var_assignment')
-					return cb('no asignment op in state var assignment');
+					return cb('no assignment op in state var assignment');
 				// we can't check local var reassignment without analyzing the code, e.g. if(..) $x=1; else $x=2; is valid
 				evaluate(var_name_or_expr, function (err) {
 					if (err)
@@ -421,7 +441,23 @@ exports.validate = function (opts, callback) {
 				evaluate(expr, cb);
 				break;
 			
+			case 'number_from_seed':
+				complexity++;
+				if (arr[1].length > 3)
+					return cb("too many params in number_from_seed");
+				if (typeof arr[1][1] === 'string' || typeof arr[1][2] === 'string')
+					return cb("min or max is a string");
+				async.eachSeries(
+					arr[1],
+					function (param, cb2) {
+						evaluate(param, cb2);
+					},
+					cb
+				);
+				break;
+			
 			case 'json_parse':
+				complexity++;
 				var expr = arr[1];
 				if (typeof expr === 'boolean' || Decimal.isDecimal(expr))
 					return cb("bad type in json_parse");
@@ -488,7 +524,7 @@ exports.validate = function (opts, callback) {
 	if (parser.results.length === 1 && parser.results[0]) {
 		//	console.log('--- parser result', JSON.stringify(parser.results[0], null, '\t'));
 		evaluate(parser.results[0], err => {
-			callback({ complexity, error: err || false });
+			callback({ complexity, count_ops, error: err || false });
 		});
 	} else {
 		if (parser.results.length > 1){
@@ -506,9 +542,9 @@ function getInputOrOutputError(params) {
 		var operator = params[name].operator;
 		var value = params[name].value;
 		if (Decimal.isDecimal(value)){
-			if (!value.isFinite())
+			if (!isFiniteDecimal(value))
 				return 'not finite';
-			value = value.toString();
+			value = toDoubleRange(value).toString();
 		}
 		if (operator === '==') return '== not allowed';
 		if (['address', 'amount', 'asset'].indexOf(name) === -1)
@@ -541,9 +577,9 @@ function validateDataFeed(params) {
 			var operator = params[name].operator;
 			var value = params[name].value;
 			if (Decimal.isDecimal(value)){
-				if (!value.isFinite())
+				if (!isFiniteDecimal(value))
 					return {error: 'not finite', complexity};
-				value = value.toString();
+				value = toDoubleRange(value).toString();
 			}
 			if (operator !== '=') return {error: 'not =', complexity};
 			if (['oracles', 'feed_name', 'min_mci', 'feed_value', 'ifseveral', 'ifnone', 'what', 'type'].indexOf(name) === -1)
@@ -603,9 +639,9 @@ function validateDataFeedExists(params) {
 		var operator = params[name].operator;
 		var value = params[name].value;
 		if (Decimal.isDecimal(value)){
-			if (!value.isFinite())
+			if (!isFiniteDecimal(value))
 				return {error: 'not finite', complexity};
-			value = value.toString();
+			value = toDoubleRange(value).toString();
 		}
 		if (operator === '==') return {error: 'op ==', complexity};
 		if (['oracles', 'feed_name', 'min_mci', 'feed_value'].indexOf(name) === -1)
@@ -650,9 +686,9 @@ function getAttestationError(params) {
 		var operator = params[name].operator;
 		var value = params[name].value;
 		if (Decimal.isDecimal(value)){
-			if (!value.isFinite())
+			if (!isFiniteDecimal(value))
 				return 'not finite';
-			value = value.toString();
+			value = toDoubleRange(value).toString();
 		}
 		if (operator !== '=')
 			return 'not =';
@@ -754,8 +790,11 @@ exports.evaluate = function (opts, callback) {
 		if (early_return !== undefined)
 			return cb(true);
 		if (Decimal.isDecimal(arr)) {
-			if (arr.isFinite()) return cb(arr);
-			else return setFatalError("bad decimal: " + arr, cb, false);
+			if (!arr.isFinite())
+				setFatalError("bad decimal: " + arr, cb, false);
+			if (!isFinite(arr.toNumber()))
+				setFatalError("number overflow: " + arr, cb, false);
+			return cb(toDoubleRange(arr));
 		}
 		if (arr instanceof wrappedObject) return cb(arr);
 		if (typeof arr !== 'object') {
@@ -773,6 +812,7 @@ exports.evaluate = function (opts, callback) {
 			case '-':
 			case '*':
 			case '/':
+			case '%':
 			case '^':
 				var f = '';
 				switch (op) {
@@ -788,6 +828,9 @@ exports.evaluate = function (opts, callback) {
 					case '/':
 						f = 'div';
 						break;
+					case '%':
+						f = 'mod';
+						break;
 					case '^':
 						f = 'pow';
 						break;
@@ -801,7 +844,8 @@ exports.evaluate = function (opts, callback) {
 							res = true;
 						if (typeof res === 'boolean')
 							res = new Decimal(res ? 1 : 0);
-						if (Decimal.isDecimal(res) && res.isFinite()) {
+						if (isFiniteDecimal(res)) {
+							res = toDoubleRange(res);
 							if (prevV === undefined) {
 								prevV = res;
 							} else {
@@ -824,7 +868,7 @@ exports.evaluate = function (opts, callback) {
 								//		return cb2();
 								//	}
 									// else fractional power.  Don't use decimal's pow as it might try to increase the precision of the intermediary result only by 15 digits, not infinitely.  Instead, round the intermediary result to our precision to get a reproducible precision loss
-									prevV = prevV.ln().times(res).exp();
+									prevV = toDoubleRange(toDoubleRange(prevV.ln()).times(res)).exp();
 									return cb2();
 								}
 								prevV = prevV[f](res);
@@ -838,9 +882,9 @@ exports.evaluate = function (opts, callback) {
 				}, function (err) {
 					if (err)
 						return cb(false);
-					if (!prevV.isFinite())
+					if (!isFiniteDecimal(prevV))
 						return setFatalError('not finite in '+op, cb, false);
-					cb(prevV);
+					cb(toDoubleRange(prevV));
 				});
 				break;
 			
@@ -854,12 +898,13 @@ exports.evaluate = function (opts, callback) {
 						res = true;
 					if (typeof res === 'boolean')
 						res = new Decimal(res ? 1 : 0);
-					if (Decimal.isDecimal(res) && res.isFinite()) {
+					if (isFiniteDecimal(res)) {
+						res = toDoubleRange(res);
 						if (op === 'abs')
-							return cb(res.abs());
+							return cb(toDoubleRange(res.abs()));
 						if (res.isNegative())
 							return setFatalError(op + " of negative", cb, false);
-						cb(op === 'sqrt' ? res.sqrt() : res.ln());
+						cb(toDoubleRange(op === 'sqrt' ? res.sqrt() : res.ln()));
 					} else {
 						return setFatalError('not a decimal in '+op, cb, false);
 					}
@@ -903,7 +948,8 @@ exports.evaluate = function (opts, callback) {
 							res = true;
 						if (typeof res === 'boolean')
 							res = new Decimal(res ? 1 : 0);
-						if (Decimal.isDecimal(res) && res.isFinite()) {
+						if (isFiniteDecimal(res)) {
+							res = toDoubleRange(res);
 							cb(res.toDecimalPlaces(dp.toNumber(), roundingMode));
 						} else {
 							return setFatalError('not a decimal in '+op, cb, false);
@@ -924,7 +970,8 @@ exports.evaluate = function (opts, callback) {
 							res = true;
 						if (typeof res === 'boolean')
 							res = new Decimal(res ? 1 : 0);
-						if (Decimal.isDecimal(res) && res.isFinite()) {
+						if (isFiniteDecimal(res)) {
+							res = toDoubleRange(res);
 							vals.push(res);
 							cb2();
 						} else {
@@ -945,7 +992,7 @@ exports.evaluate = function (opts, callback) {
 						return cb(false);
 					if (res instanceof wrappedObject)
 						res = true;
-					else if (Decimal.isDecimal(res) && res.eq(0))
+					else if (Decimal.isDecimal(res) && res.toNumber() === 0)
 						res = 0;
 					cb(!res);
 				});
@@ -961,8 +1008,8 @@ exports.evaluate = function (opts, callback) {
 							res = true;
 						if (typeof res === 'boolean'){
 						}
-						else if (Decimal.isDecimal(res) && res.isFinite())
-							res = !res.eq(0);
+						else if (isFiniteDecimal(res))
+							res = (res.toNumber() !== 0);
 						else if (typeof res === 'string')
 							res = !!res;
 						else
@@ -989,8 +1036,8 @@ exports.evaluate = function (opts, callback) {
 							res = true;
 						if (typeof res === 'boolean') {
 						}
-						else if (Decimal.isDecimal(res) && res.isFinite())
-							res = !res.eq(0);
+						else if (isFiniteDecimal(res))
+							res = (res.toNumber() !== 0);
 						else if (typeof res === 'string')
 							res = !!res;
 						else
@@ -1016,6 +1063,8 @@ exports.evaluate = function (opts, callback) {
 				var param2 = arr[3];
 				async.forEachOfSeries([param1, param2], function (param, index, cb2) {
 					evaluate(param, function (res) {
+						if (Decimal.isDecimal(res))
+							res = toDoubleRange(res);
 						vals[index] = res;
 						cb2();
 					});
@@ -1053,7 +1102,9 @@ exports.evaluate = function (opts, callback) {
 					}
 					if (typeof val1 === 'boolean' || typeof val2 === 'boolean')
 						return setFatalError("booleans cannot be compared with other types", cb, false);
-					if (Decimal.isDecimal(val1) && Decimal.isDecimal(val2) && val1.isFinite() && val2.isFinite()) {
+					if (Decimal.isDecimal(val1) && Decimal.isDecimal(val2)) {
+						if (!isFiniteDecimal(val1) || !isFiniteDecimal(val2))
+							return setFatalError("non-finite in comparison", cb, false);
 						switch (operator) {
 							case '==':
 								return cb(val1.eq(val2));
@@ -1098,8 +1149,8 @@ exports.evaluate = function (opts, callback) {
 						res = true;
 					if (typeof res === 'boolean')
 						conditionResult = res;
-					else if (Decimal.isDecimal(res) && res.isFinite())
-						conditionResult = !(res.eq(0));
+					else if (isFiniteDecimal(res))
+						conditionResult = (res.toNumber() !== 0);
 					else if (typeof res === 'string')
 						conditionResult = !!res;
 					else
@@ -1108,8 +1159,8 @@ exports.evaluate = function (opts, callback) {
 					evaluate(param2, function (res) {
 						if (fatal_error)
 							return cb(false);
-						if (Decimal.isDecimal(res) && res.isFinite())
-							cb(res);
+						if (isFiniteDecimal(res))
+							cb(toDoubleRange(res));
 						else if (typeof res === 'boolean' || typeof res === 'string' || res instanceof wrappedObject)
 							cb(res);
 						else
@@ -1123,7 +1174,7 @@ exports.evaluate = function (opts, callback) {
 					if (fatal_error)
 						return cb(false);
 					// wrappedObject stays intact
-					if (Decimal.isDecimal(param1) && param1.eq(0))
+					if (Decimal.isDecimal(param1) && param1.toNumber() === 0)
 						param1 = 0;
 					if (param1)
 						return cb(param1);
@@ -1166,6 +1217,7 @@ exports.evaluate = function (opts, callback) {
 					min_mci = params.min_mci.value.toString();
 					if (!(/^\d+$/.test(min_mci) && ValidationUtils.isNonnegativeInteger(parseInt(min_mci))))
 						return cb("bad min_mci: "+min_mci);
+					min_mci = parseInt(min_mci);
 				}
 				var ifseveral = 'last';
 				if (params.ifseveral){
@@ -1279,6 +1331,8 @@ exports.evaluate = function (opts, callback) {
 							// boolean allowed for ifnone
 							if (!isValidValue(res) || typeof res === 'boolean' && param_name !== 'ifnone')
 								return setFatalError('bad value in data feed: '+res, cb2);
+							if (Decimal.isDecimal(res))
+								res = toDoubleRange(res);
 							evaluated_params[param_name] = {
 								operator: params[param_name].operator,
 								value: res
@@ -1311,6 +1365,8 @@ exports.evaluate = function (opts, callback) {
 								res = true;
 							if (!isValidValue(res) || typeof res === 'boolean')
 								return setFatalError('bad in-df param', cb2);
+							if (Decimal.isDecimal(res))
+								res = toDoubleRange(res);
 							evaluated_params[param_name] = {
 								operator: params[param_name].operator,
 								value: res
@@ -1340,6 +1396,7 @@ exports.evaluate = function (opts, callback) {
 							min_mci = evaluated_params.min_mci.value.toString();
 							if (!(/^\d+$/.test(min_mci) && ValidationUtils.isNonnegativeInteger(parseInt(min_mci))))
 								return setFatalError('bad min_mci', cb, false);
+							min_mci = parseInt(min_mci);
 						}
 						dataFeeds.dataFeedExists(arrAddresses, feed_name, relation, value, min_mci, objValidationState.last_ball_mci, bAA, cb);
 					}
@@ -1436,6 +1493,8 @@ exports.evaluate = function (opts, callback) {
 								res = true;
 							if (!isValidValue(res) || typeof res === 'boolean')
 								return setFatalError('bad value in '+op+': '+res, cb2);
+							if (Decimal.isDecimal(res))
+								res = toDoubleRange(res);
 							evaluated_params[param_name] = {
 								operator: params[param_name].operator,
 								value: res
@@ -1458,7 +1517,7 @@ exports.evaluate = function (opts, callback) {
 						}
 						if (evaluated_params.amount){
 							var v = evaluated_params.amount.value;
-							if(!(Decimal.isDecimal(v) && v.isFinite()))
+							if(!isFiniteDecimal(v))
 								return setFatalError('bad amount', cb, false);
 						}
 						var result = findOutputOrInputAndReturnName(evaluated_params);
@@ -1491,6 +1550,11 @@ exports.evaluate = function (opts, callback) {
 								res = true;
 							if (typeof res !== 'string' && param_name !== 'ifnone')
 								return setFatalError('bad value of '+param_name+' in attestation: '+res, cb2);
+							if (Decimal.isDecimal(res)) {
+								if (!isFiniteDecimal(res))
+									return setFatalError('not finite '+param_name+' in attestation: '+res, cb2);
+								res = toDoubleRange(res);
+							}
 							evaluated_params[param_name] = {
 								operator: params[param_name].operator,
 								value: res
@@ -1616,8 +1680,8 @@ exports.evaluate = function (opts, callback) {
 							return cb2(fatal_error);
 						if (res instanceof wrappedObject)
 							res = true;
-						if (Decimal.isDecimal(res) && res.isFinite())
-							result += res.toString();
+						if (isFiniteDecimal(res))
+							result += toDoubleRange(res).toString();
 						else if (typeof res === 'string')
 							result += res;
 						else if (typeof res === 'boolean')
@@ -1641,6 +1705,10 @@ exports.evaluate = function (opts, callback) {
 			
 			case 'timestamp':
 				cb(new Decimal(objValidationState.last_ball_timestamp));
+				break;
+			
+			case 'mc_unit':
+				cb(objValidationState.mc_unit);
 				break;
 			
 			case 'this_address':
@@ -1688,6 +1756,8 @@ exports.evaluate = function (opts, callback) {
 						else if (typeof value === 'number')
 							cb(new Decimal(value).times(1));
 						else if (typeof value === 'string') {
+							if (value.length > constants.MAX_AA_STRING_LENGTH)
+								return setFatalError("trigger.data field too long: " + value, cb, false);
 							// convert to number if possible
 							var f = string_utils.getNumericFeedValue(value);
 							(f === null) ? cb(value) : cb(new Decimal(value).times(1));
@@ -1817,6 +1887,8 @@ exports.evaluate = function (opts, callback) {
 							return cb(false);
 						if (!isValidValue(res) && !(res instanceof wrappedObject))
 							return setFatalError("evaluation of rhs " + rhs + " failed: " + res, cb, false);
+						if (Decimal.isDecimal(res))
+							res = toDoubleRange(res);
 						if (bLocal) {
 							if (locals[var_name] !== undefined)
 								return setFatalError("reassignment to " + var_name + " after evaluation", cb, false);
@@ -1853,7 +1925,7 @@ exports.evaluate = function (opts, callback) {
 						readVar(address, var_name, function (value) {
 							if (assignment_op === '||=') {
 								value = value.toString() + res.toString();
-								if (value.length > 1024)
+								if (value.length > constants.MAX_STATE_VAR_VALUE_LENGTH)
 									return setFatalError("state var value after "+assignment_op+" too long: " + value, cb, false);
 							}
 							else {
@@ -1873,10 +1945,13 @@ exports.evaluate = function (opts, callback) {
 									value = value.times(res);
 								else if (assignment_op === '/=')
 									value = value.div(res);
+								else if (assignment_op === '%=')
+									value = value.mod(res);
 								else
 									throw Error("unknown assignment op: " + assignment_op);
-								if (!value.isFinite())
+								if (!isFiniteDecimal(value))
 									return setFatalError("not finite: " + value, cb, false);
+								value = toDoubleRange(value);
 							}
 							stateVars[address][var_name] = { value: value, updated: true };
 							cb(true);
@@ -1920,7 +1995,7 @@ exports.evaluate = function (opts, callback) {
 					if (!isValidValue(res))
 						return setFatalError("bad value in ifelse: " + res, cb, false);
 					if (Decimal.isDecimal(res))
-						res = !res.eq(0);
+						res = (res.toNumber() !== 0);
 					else if (typeof res === 'object')
 						throw Error("test evaluated to object " + res);
 					if (!res && !else_block)
@@ -2051,8 +2126,58 @@ exports.evaluate = function (opts, callback) {
 						res = true;
 					if (!isValidValue(res))
 						return setFatalError("invalid value in sha256: " + res, cb, false);
+					if (Decimal.isDecimal(res))
+						res = toDoubleRange(res);
 					cb(crypto.createHash("sha256").update(res.toString(), "utf8").digest("base64"));
 				});
+				break;
+			
+			case 'number_from_seed':
+				var evaluated_params = [];
+				async.eachSeries(
+					arr[1],
+					function (param, cb2) {
+						evaluate(param, function (res) {
+							if (fatal_error)
+								return cb2(fatal_error);
+							if (res instanceof wrappedObject)
+								res = true;
+							if (!isValidValue(res))
+								return setFatalError("invalid value in sha256: " + res, cb, false);
+							if (isFiniteDecimal(res))
+								res = toDoubleRange(res);
+							evaluated_params.push(res);
+							cb2();
+						});
+					},
+					function (err) {
+						if (err)
+							return cb(false);
+						var seed = evaluated_params[0];
+						var hash = crypto.createHash("sha256").update(seed.toString(), "utf8").digest("hex");
+						var head = hash.substr(0, 16);
+						var nominator = new Decimal("0x" + head);
+						var denominator = new Decimal("0x1" + "0".repeat(16));
+						var num = nominator.div(denominator); // float from 0 to 1
+						if (evaluated_params.length === 1)
+							return cb(num);
+						var min = new Decimal(0);
+						var max;
+						if (evaluated_params.length === 2)
+							max = evaluated_params[1];
+						else {
+							min = evaluated_params[1];
+							max = evaluated_params[2];
+						}
+						if (!min.isInteger() || !max.isInteger())
+							return setFatalError("min and max must be integers", cb, false);
+						if (!max.gt(min))
+							return setFatalError("max must be greater than min", cb, false);
+						var len = max.minus(min).plus(1);
+						num = num.times(len).floor().plus(min);
+						cb(num);
+					}
+				);
 				break;
 			
 			case 'json_parse':
@@ -2063,6 +2188,8 @@ exports.evaluate = function (opts, callback) {
 					if (res instanceof wrappedObject)
 						res = true;
 					//	return setFatalError("json_parse of object", cb, false);
+					if (Decimal.isDecimal(res))
+						res = toDoubleRange(res);
 					if (typeof res !== 'string')
 						res = res.toString();
 					try {
@@ -2096,7 +2223,10 @@ exports.evaluate = function (opts, callback) {
 						if (!isFinite(res))
 							return setFatalError("not finite js number: " + res, cb, false);
 					}
-					cb(string_utils.getJsonSourceString(res)); // sorts keys unlike JSON.stringify()
+					var json = string_utils.getJsonSourceString(res); // sorts keys unlike JSON.stringify()
+					if (json.length > constants.MAX_AA_STRING_LENGTH)
+						return setFatalError("json_stringified is too long", cb, false);
+					cb(json);
 				});
 				break;
 			
@@ -2134,6 +2264,8 @@ exports.evaluate = function (opts, callback) {
 					console.log('early return with: ', res);
 					if (res instanceof wrappedObject)
 						res = true;
+					if (Decimal.isDecimal(res))
+						res = toDoubleRange(res);
 					early_return = res;
 					cb(true);
 				});
@@ -2212,8 +2344,9 @@ exports.evaluate = function (opts, callback) {
 				if (res instanceof wrappedObject)
 					res = bObjectResultAllowed ? res.obj : true;
 				else if (Decimal.isDecimal(res)) {
-					if (!res.isFinite())
+					if (!isFiniteDecimal(res))
 						return callback('result is not finite', null);
+					res = toDoubleRange(res);
 					res = (res.isInteger() && res.abs().lt(Number.MAX_SAFE_INTEGER)) ? res.toNumber() : res.toString();
 				}
 				else if (typeof res === 'string' && res.length > constants.MAX_AA_STRING_LENGTH)

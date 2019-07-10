@@ -96,8 +96,11 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 	
 	function evaluate(arr, path, bInNegation, cb){
 		complexity++;
+		count_ops++;
 		if (complexity > constants.MAX_COMPLEXITY)
 			return cb("complexity exceeded at "+path);
+		if (count_ops > constants.MAX_OPS)
+			return cb("number of ops exceeded at "+path);
 		if (!isArrayOfLength(arr, 2))
 			return cb("expression must be 2-element array");
 		var op = arr[0];
@@ -549,8 +552,9 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 			case 'formula':
 				if (objValidationState.last_ball_mci < constants.formulaUpgradeMci)
 					return cb("formulas not allowed at this mci yet");
-				formulaParser.validate({ formula: args, complexity: complexity }, function (result) {
+				formulaParser.validate({ formula: args, complexity: complexity, count_ops: count_ops }, function (result) {
 					complexity = result.complexity;
+					count_ops = result.count_ops;
 					cb(result.error);
 				});
 				break;
@@ -560,6 +564,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 	}
 	
 	var complexity = 0;
+	var count_ops = 0;
 	evaluate(arrDefinition, 'r', false, function(err, bHasSig){
 		if (err)
 			return handleResult(err);
@@ -567,6 +572,8 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 			return handleResult("each branch must have a signature");
 		if (complexity > constants.MAX_COMPLEXITY)
 			return handleResult("complexity exceeded");
+		if (count_ops > constants.MAX_OPS)
+			return handleResult("number of ops exceeded");
 		handleResult();
 	});
 }

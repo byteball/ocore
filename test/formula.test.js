@@ -16,7 +16,7 @@ function validateFormula(formula, complexity, cb) {
 }
 
 function evalFormula(conn, formula, messages, objValidationState, address, callback){
-	formulaParser.validate({ formula: formula, complexity: 1 }, function (res) {
+	formulaParser.validate({ formula: formula, complexity: 1, count_ops: 0 }, function (res) {
 		console.log('validation: ', res);
 		if (res.error)
 			return callback(null);
@@ -38,7 +38,7 @@ function evalFormula(conn, formula, messages, objValidationState, address, callb
 }
 
 function evalAAFormula(conn, formula, trigger, objValidationState, address, callback){
-	formulaParser.validate({ formula: formula, complexity: 1, bAA: true }, function(validation_res){
+	formulaParser.validate({ formula: formula, complexity: 1, count_ops: 0, bAA: true }, function(validation_res){
 		if (validation_res.error) {
 			console.log("validation failed", validation_res);
 			return callback(null);
@@ -57,7 +57,7 @@ function evalAAFormula(conn, formula, trigger, objValidationState, address, call
 		formulaParser.evaluate(opts, function (err, eval_res) {
 			if (err)
 				console.log("evaluation error: " + err);
-			callback(eval_res, validation_res.complexity);
+			callback(eval_res, validation_res.complexity, validation_res.count_ops);
 		});
 	});
 }
@@ -66,6 +66,7 @@ function evalFormulaWithVars(opts, callback) {
 	var val_opts = {
 		formula: opts.formula,
 		complexity: 1,
+		count_ops: 0,
 		bAA: true,
 		bStateVarAssignmentAllowed: opts.bStateVarAssignmentAllowed,
 		bStatementsOnly: opts.bStatementsOnly
@@ -82,7 +83,7 @@ function evalFormulaWithVars(opts, callback) {
 		formulaParser.evaluate(opts, function (err, eval_res) {
 			if (err)
 				console.log("evaluation error: " + err);
-			callback(eval_res, validation_res.complexity);
+			callback(eval_res, validation_res.complexity, validation_res.count_ops);
 		});
 	});
 }
@@ -90,6 +91,7 @@ function evalFormulaWithVars(opts, callback) {
 var objValidationState = {
 	last_ball_mci: 1000,
 	last_ball_timestamp: 1.5e9,
+	mc_unit: "oXGOcA9TQx8Tl5Syjp1d5+mB4xicsRk3kbcE82YQAS0=",
 	assocBalances: {},
 	arrAugmentedMessages: [{
 		"app": "payment",
@@ -550,7 +552,7 @@ test('hypot(3, 4)', t => {
 });
 
 test('hypot no overflow', t => {
-	evalFormula(null, 'hypot(3e308, 4e308)*1e-308', [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
+	evalFormula(null, 'hypot(3e307, 4e307)*1e-307', [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 5);
 	});
 });
@@ -1095,9 +1097,10 @@ test.cb('attestation', t => {
 
 test.cb('attestation int', t => {
 	var db = require("../db");
-	evalAAFormula(db, "attestation[[attestors=I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT, address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU]].age", {}, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', (res, complexity) => {
+	evalAAFormula(db, "attestation[[attestors=I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT, address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU]].age", {}, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', (res, complexity, count_ops) => {
 		t.deepEqual(res, 24);
 		t.deepEqual(complexity, 2);
+		t.deepEqual(count_ops, 2);
 		t.end();
 	})
 });
@@ -1206,9 +1209,10 @@ test('round boolean', t => {
 
 test.cb('balance 2 param', t => {
 	var db = require("../db");
-	evalAAFormula(db, "balance [MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU] [base]", {}, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', (res, complexity) => {
+	evalAAFormula(db, "balance [MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU] [base]", {}, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', (res, complexity, count_ops) => {
 		t.deepEqual(res, 10000);
 		t.deepEqual(complexity, 2);
+		t.deepEqual(count_ops, 2);
 		t.end();
 	})
 });
@@ -1274,14 +1278,16 @@ test.cb('balance with asset not found', t => {
 });
 
 test('read locals +', t => {
-	evalFormulaWithVars({ formula: "$volume + $price", trigger: {}, locals: { volume: 100 }, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, res => {
+	evalFormulaWithVars({ formula: "$volume + $price", trigger: {}, locals: { volume: 100 }, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops) => {
 		t.deepEqual(res, 100);
+		t.deepEqual(count_ops, 4);
 	})
 });
 
 test('read locals ||', t => {
-	evalFormulaWithVars({ formula: "$volume || $price", trigger: {}, locals: { volume: 100 }, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, res => {
+	evalFormulaWithVars({ formula: "$volume || $price", trigger: {}, locals: { volume: 100 }, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops) => {
 		t.deepEqual(res, '100false');
+		t.deepEqual(count_ops, 4);
 	})
 });
 
@@ -1298,8 +1304,9 @@ test('read locals with expr evaluating to non-string', t => {
 });
 
 test('read locals with expr with number', t => {
-	evalFormulaWithVars({ formula: "${'a'||2*2} + ${'b'||5} + 1", trigger: {}, locals: { a4: 100 }, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, res => {
+	evalFormulaWithVars({ formula: "${'a'||2*2} + ${'b'||5} + 1", trigger: {}, locals: { a4: 100 }, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
 		t.deepEqual(res, 101);
+		t.deepEqual(count_ops, 8);
 	})
 });
 
@@ -1322,8 +1329,9 @@ test('assign with expr', t => {
 });
 
 test('if else', t => {
-	evalFormulaWithVars({ formula: "if ($volume == 100) $price = 1; else $price = 2; $price", trigger: {}, locals: {volume: 100}, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, res => {
+	evalFormulaWithVars({ formula: "if ($volume == 100) $price = 1; else $price = 2; $price", trigger: {}, locals: {volume: 100}, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops) => {
 		t.deepEqual(res, 1);
+		t.deepEqual(count_ops, 7);
 	})
 });
 
@@ -1895,7 +1903,7 @@ test('json_parse', t => {
 	var stateVars = {  };
 	evalFormulaWithVars({ conn: null, formula: `json_parse('{"ww":{"aa":8,"dd":"h"},"z":["z",9,"ak"]}')`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity) => {
 		t.deepEqual(res, { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}});
-		t.deepEqual(complexity, 1);
+		t.deepEqual(complexity, 2);
 	})
 });
 
@@ -1904,7 +1912,7 @@ test('json_parse invalid json', t => {
 	var stateVars = {  };
 	evalFormulaWithVars({ conn: null, formula: `json_parse('{"ww":{"aa":8,"dd":"h"},"z":["z",9,"ak"]')`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity) => {
 		t.deepEqual(res, false);
-		t.deepEqual(complexity, 1);
+		t.deepEqual(complexity, 2);
 	})
 });
 
@@ -1972,3 +1980,101 @@ test('trigger.initial_address', t => {
 		t.deepEqual(res, true);
 	})
 });
+
+test('underflow', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", initial_address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT" };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `2e-324`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity) => {
+		t.deepEqual(res, 0);
+	})
+});
+
+test('mod', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT" };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `11+8%3`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity) => {
+		t.deepEqual(res, 13);
+	})
+});
+
+test('fractional mod', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT" };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `1%0.9`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, '0.1');
+		t.deepEqual(count_ops, 2);
+	})
+});
+
+test('fractional negative mod', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT" };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `1%(-0.9)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, '0.1');
+		t.deepEqual(count_ops, 3);
+	})
+});
+
+test.cb('mod assignment', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT" };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: {x: { value: new Decimal(47) } } };
+	evalFormulaWithVars({ conn: null, formula: `var['x'] %= 3;`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', bStatementsOnly: true, bStateVarAssignmentAllowed: true}, (res, complexity) => {
+		t.deepEqual(res, true);
+		t.deepEqual(stateVars.MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU.x.value.toNumber(), 2);
+		t.end();
+	})
+});
+
+test('mc_unit', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT" };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `(1==2) ? 6 : mc_unit`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'oXGOcA9TQx8Tl5Syjp1d5+mB4xicsRk3kbcE82YQAS0=');
+		t.deepEqual(count_ops, 4);
+	})
+});
+
+test('number_from_seed', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT" };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `number_from_seed("vvv")`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, '0.240886496464544');
+		t.deepEqual(count_ops, 2);
+	})
+});
+
+test('int number_from_seed', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT" };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `number_from_seed("vvv", 99)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 24);
+		t.deepEqual(count_ops, 2);
+	})
+});
+
+test('int number_from_seed with min', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT" };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `number_from_seed("vvv", 10, 109)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 34);
+		t.deepEqual(count_ops, 2);
+	})
+});
+
+test('number_from_seed too many params', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT" };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `number_from_seed("vvv", 10, 99, 77)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+
+test('number_from_seed with non-int min', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT" };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `number_from_seed("vvv", '10', 109)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
