@@ -434,7 +434,23 @@ exports.validate = function (opts, callback) {
 					evaluate(address_expr, cb);
 				});
 				break;
-			
+
+			case 'is_valid_sig':
+				complexity++;
+				var hash = arr[1];
+				var pem_key = arr[2];
+				var signature = arr[3];
+				evaluate(hash, function (err) {
+					if (err)
+						return cb(err);
+					evaluate(pem_key, function (err) {
+						if (err)
+							return cb(err);
+						evaluate(signature, cb);
+					});
+				});
+				break;
+				
 			case 'sha256':
 				complexity++;
 				var expr = arr[1];
