@@ -292,7 +292,7 @@ function composeJoint(params){
 		function(cb){ // parent units
 			if (bGenesis) {
 				if (constants.timestampUpgradeMci === 0)
-					objUnit.timestamp = Math.round(Date.now() / 1000);
+					objUnit.timestamp = 1561049490; // Jun 20 2019 16:51:30 UTC
 				return cb();	
 			}
 			
