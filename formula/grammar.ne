@@ -41,7 +41,7 @@
 		else: "else",
 		comparisonOperators: ["==", ">=", "<=", "!=", ">", "<", "="],
 		dfParamsName: ['oracles', 'feed_name', 'min_mci', 'feed_value', 'what'],
-		name: ['min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round', 'abs', 'hypot', 'is_valid_signed_package', 'sha256', 'json_parse', 'json_stringify', 'number_from_seed'],
+		name: ['min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round', 'abs', 'hypot', 'is_valid_signed_package', 'is_valid_sig', 'sha256', 'json_parse', 'json_stringify', 'number_from_seed'],
 		and: ['and', 'AND'],
 		or: ['or', 'OR'],
 		not: ['not', 'NOT', '!'],
@@ -213,6 +213,7 @@ N -> float          {% id %}
     | "round" "(" expr (%comma expr):? ")"    {% function(d) {return ['round', d[2], d[3] ? d[3][1] : null]; } %}
     | "abs" "(" expr ")"  {% function(d) {return ['abs', d[2]]; }  %}
     | "is_valid_signed_package" "(" expr "," expr ")"    {% function(d) {return ['is_valid_signed_package', d[2], d[4]]; } %}
+    | "is_valid_sig" "(" expr "," expr "," expr ")"    {% function(d) {return ['is_valid_sig', d[2], d[4], d[6]]; } %}
     | "sha256" "(" expr ")"    {% function(d) {return ['sha256', d[2]]; } %}
     | "json_parse" "(" expr ")"    {% function(d) {return ['json_parse', d[2]]; } %}
     | "json_stringify" "(" expr ")"    {% function(d) {return ['json_stringify', d[2]]; } %}

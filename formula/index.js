@@ -11,6 +11,7 @@ var dataFeeds = require('../data_feeds.js');
 var storage = require('../storage.js');
 var kvstore = require('../kvstore.js');
 var signed_message = require("../signed_message.js"); // which requires definition.js - cyclic dependency :(
+var signature = require('../signature.js');
 
 if (!Number.MAX_SAFE_INTEGER)
 	Number.MAX_SAFE_INTEGER = Math.pow(2, 53) - 1; // 9007199254740991
@@ -436,17 +437,17 @@ exports.validate = function (opts, callback) {
 				break;
 
 			case 'is_valid_sig':
-				complexity++;
-				var hash = arr[1];
+				complexity+=2;
+				var message = arr[1];
 				var pem_key = arr[2];
-				var signature = arr[3];
-				evaluate(hash, function (err) {
+				var sig = arr[3];
+				evaluate(message, function (err) {
 					if (err)
 						return cb(err);
 					evaluate(pem_key, function (err) {
 						if (err)
 							return cb(err);
-						evaluate(signature, cb);
+						evaluate(sig, cb);
 					});
 				});
 				break;
@@ -2133,6 +2134,35 @@ exports.evaluate = function (opts, callback) {
 				});
 				break;
 			
+			case 'is_valid_sig':
+				var message = arr[1];
+				var pem_key = arr[2];
+				var sig = arr[3];
+				evaluate(message, function (evaluated_message) {
+					if (fatal_error)
+						return cb(false);
+					if (!ValidationUtils.isNonemptyString(evaluated_message))
+						return cb(false);
+					evaluate(sig, function (evaluated_signature) {
+						if (fatal_error)
+							return cb(false);
+						if (!ValidationUtils.isValidHexadecimal(evaluated_signature) && !ValidationUtils.isValidBase64(evaluated_signature))
+							return cb(false);
+						evaluate(pem_key, function (evaluated_pem_key) {
+							if (fatal_error)
+								return cb(false);
+								signature.validateAndFormatPemKey(evaluated_pem_key, function (error, formatted_pem_key){
+									if (error)
+										return setFatalError("bad PEM key in is_valid_sig: " + error, cb, false);
+										var result = signature.verifyWithPemKey(evaluated_message, evaluated_signature, formatted_pem_key);
+										console.log(result);
+									return cb(result);
+								});
+						});
+					});
+				});
+				break;
+
 			case 'sha256':
 				var expr = arr[1];
 				evaluate(expr, function (res) {
