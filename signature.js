@@ -28,9 +28,13 @@ exports.verifyMessageWithPemPubKey = function(message, signature, pem_key) {
 	var encodage = ValidationUtils.isValidHexadecimal(signature) ? 'hex' : 'base64';
 	try {
 		return verify.verify(pem_key, signature, encodage)
-	} catch(e) {
-		console.log("exception when verifying with pem key: " + e);
-		return false;
+	} catch(e1) {
+		try {
+			return verify.verify({key: pem_key}, signature, encodage) // from Node v11, the key has to be included in an object 
+		} catch(e2) {
+			console.log("exception when verifying with pem key: " + e1 + " " + e2);
+			return false;
+		}
 	}
 }
 
@@ -48,9 +52,13 @@ exports.signMessageWithPemPrivKey = function(message, pem_key) {
 	sign.end();
 	try {
 		return sign.sign(pem_key, 'base64');
-	} catch(e) {
-		console.log("exception when signing with pem key: " + e);
-		return null;
+	} catch(e1) {
+		try {
+			return sign.sign({key: pem_key}, 'base64');
+		} catch(e2) {
+			console.log("exception when signing with pem key: " + e1 + " " + e2);
+			return null;
+		}
 	}
 }
 
