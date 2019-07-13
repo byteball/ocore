@@ -20,7 +20,7 @@ exports.verify = function(hash, b64_sig, b64_pub_key){
 	}
 };
 
-exports.verifyWithPemKey = function(message, signature, pem_key) {
+exports.verifyMessageWithPemPubKey = function(message, signature, pem_key) {
 
 	var verify = crypto.createVerify('SHA256');
 	verify.update(message);
@@ -34,40 +34,61 @@ exports.verifyWithPemKey = function(message, signature, pem_key) {
 	}
 }
 
+exports.signMessageWithPemPrivKey = function(message, pem_key) {
 
-exports.validateAndFormatPemKey = function(pem_key, handle) {
+	//we fix pem key format
+	var contentAloneB64 = pem_key.replace("-----BEGIN EC PRIVATE KEY-----", "").replace("-----END EC PRIVATE KEY-----", ""); 
+	contentAloneB64 = contentAloneB64.replace(/\s/g, "");
+	pem_key =	"-----BEGIN EC PRIVATE KEY-----" + "\n";
+	pem_key += contentAloneB64+"\n";
+	pem_key += "-----END EC PRIVATE KEY-----";
+
+	var sign = crypto.createSign('SHA256');
+	sign.update(message);
+	sign.end();
+	try {
+		return sign.sign(pem_key, 'base64');
+	} catch(e) {
+		console.log("exception when signing with pem key: " + e);
+		return null;
+	}
+}
+
+
+exports.validateAndFormatPemPubKey = function(pem_key, handle) {
 
 		if (!ValidationUtils.isNonemptyString(pem_key))
 			return handle("pem key should be a non empty string");
 
-		var encoding_alone_b64 = 	pem_key.replace("-----BEGIN PUBLIC KEY-----", "").replace("-----END PUBLIC KEY-----", ""); 
+		//we remove header and footer if present
+		var contentAloneB64 = 	pem_key.replace("-----BEGIN PUBLIC KEY-----", "").replace("-----END PUBLIC KEY-----", ""); 
 		
-		encoding_alone_b64 = encoding_alone_b64.replace(/\s/g, "");
-		if (!ValidationUtils.isValidBase64(encoding_alone_b64))
-			return handle("not valid base64 encoding" + encoding_alone_b64);
+		//we remove space, tab space or carriage returns
+		contentAloneB64 = contentAloneB64.replace(/\s/g, "");
+		if (!ValidationUtils.isValidBase64(contentAloneB64))
+			return handle("not valid base64 encoding" + contentAloneB64);
 	
-		var encoding_alone_buffer = Buffer.from(encoding_alone_b64, 'base64');
+		var contentAloneBuffer = Buffer.from(contentAloneB64, 'base64');
 	
 		//we decode the length of curve identifiers
-		var curveIdentifiersLength = encoding_alone_buffer[3];
+		var curveIdentifiersLength = contentAloneBuffer[3];
 		if (curveIdentifiersLength != 16 && curveIdentifiersLength != 19 && curveIdentifiersLength != 20)
 			return handle("wrong curve identifiers length" + curveIdentifiersLength);
 	
 		//we isolate the curve identifiers
-		var encodingAloneHex = encoding_alone_buffer.toString('hex')
-		var curveIdentifiersHex = encodingAloneHex.slice(0,(curveIdentifiersLength +4)*2);
+		var contentAloneHex = contentAloneBuffer.toString('hex')
+		var curveIdentifiersHex = contentAloneHex.slice(0,(curveIdentifiersLength +4)*2);
 	
 		if (!objSupportedPemCurves[curveIdentifiersHex])
 			return handle("unsupported_curve in pem key");
-		if (objSupportedPemCurves[curveIdentifiersHex].hex_key_length != (encodingAloneHex.length - (curveIdentifiersLength + 8)*2))
+		if (objSupportedPemCurves[curveIdentifiersHex].hex_key_length != (contentAloneHex.length - (curveIdentifiersLength + 8)*2))
 			return handle("wrong key length");
 	
-		//we add back return carriages
-			pem_key =	"-----BEGIN PUBLIC KEY-----" + "\n";
-			pem_key += encoding_alone_b64.slice(0,64) +"\n";
-			pem_key += encoding_alone_b64.slice(64, encoding_alone_b64.length)+"\n";
-			pem_key += "-----END PUBLIC KEY-----";
-			return handle(null,pem_key);
+		//we add back header and footer
+		pem_key =	"-----BEGIN PUBLIC KEY-----" + "\n";
+		pem_key += contentAloneB64+"\n";
+		pem_key += "-----END PUBLIC KEY-----";
+		return handle(null,pem_key);
 	}
 
 var objSupportedPemCurves = {

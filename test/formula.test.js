@@ -2404,7 +2404,7 @@ test.cb('is_valid_sig secp128r1', t => {
 	var trigger = { data: 
 	{
 		pem_key: "-----BEGIN PUBLIC KEY-----\n\
-MDYwEAYHKoZIzj0CAQYFK4EEABwDIgAE3NnCLe9V/CnfPGidbHKBTYOfqlncIBF7\n\
+MDYwEAYHKoZIzj		0CAQYF   K4EEABwDIgAE3NnCLe  9V/CnfPGidbHKBTYOfqlncIBF7\n\
 n4Eph94TXsE=\n\
 -----END PUBLIC KEY-----\n\
 ",
@@ -2697,9 +2697,7 @@ plx5ZBeK\n\
 test.cb('is_valid_sig  wap-wsg-idm-ecid-wtls4 base64', t => {
 	var trigger = { data: 
 		{
-			pem_key: "-----BEGIN PUBLIC KEY-----\n\
-MDQwEAYHKoZIzj0CAQYFZysBBAQDIAAEASXF52NqXzD0LTJITPpFAdCSnjmAbbOd\n\
-wweGdisD\n\
+			pem_key: "-----BEGIN PUBLIC KEY-----MDQwEAYHKoZIzj0CAQYFZysBBAQDIAAEASXF52NqXzD0LTJITPpFAdCSnjmAbbOdwweGdisD\n\
 -----END PUBLIC KEY-----",
 			message: "93742a587b78a1e9fcbb28ca5e22911ee40b9ef52bcf65a5a0b6a84b98de0003",
 			signature: "MCECDwCwFsU3ad7Ds+4J5UQa0wIOQRCzDTvmfKJbYuWlh8Y="
@@ -2806,4 +2804,82 @@ yufZHPc4CmP84iPBG1yA4A==\n\
 		t.end();
 	})
 });
+
+test.cb('is_valid_sig bad sig', t => {
+	var trigger = { data: 
+		{
+			pem_key: "-----BEGIN PUBLIC KEY-----\n\
+MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAESrCfUeo8PK2yYjh7qQi3E5NnhI7cMxV2\n\
+k590vrJ5L0ZwnpZ7X4j0Htm85gKWj/fBnPFF2JxZw584nvXH3U4HmfwPil5OmDVN\n\
+BY/eihj5OWxfk4edRHEw/5oVwCYjv8Lp\n\
+-----END PUBLIC KEY-----",
+			message: "0bfa4fa0dfb7c5ea690936984deaf734519b2ff06cc6a391a61650dea2bcab36",
+			signature: "!GUCMQDgcsJ82L9FlMeG+CQVhdYsfpJBKR6C4eN9Hoc7s5OeDvAbzLgIHcJE63PNlCa0bRQCMGpqhKxUCRiPSMgwxrJoDofHIqhDdzdW6OWKud4rVl/KdtnTmxXjbqamb73HhXBZuA=="
+		}
+	};
+	
+	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, null);
+		t.deepEqual(complexity, 3);
+		t.end();
+	})
+});
+
+test.cb('is_valid_sig bad message', t => {
+	var trigger = { data: 
+		{
+			pem_key: "-----BEGIN PUBLIC KEY-----\n\
+MDgwEAYHKoZIzj0CAQYFK4EEABcDJAAEBXsC0pF78Pkm+xbZ9O0jas4HcXpkaj3V\n\
+Nj0rbU9Qdp3fUQ==\n\
+-----END PUBLIC KEY-----",
+			message: {data: "5a3b2275d4df38beacce80614ee742498cbeea4ce8fde0a36726e8c0edb464f"},
+			signature: "MCUCEQJMpOatObfCwHqg9ibWp9ztAhAHL6DIq4sggDTG6B9SyFp5"
+		}
+	};
+	
+	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, null);
+		t.deepEqual(complexity, 3);
+		t.end();
+	})
+});
+
+test.cb('is_valid_sig brainpoolP192r1 wrong sig', t => {
+	var trigger = { data: 
+	{
+		pem_key: "-----BEGIN PUBLIC KEY-----\n\
+MEowFAYHKoZIzj0CAQYJKyQDAwIIAQEDAzIABBrPicyaJL113QhTutwGTUlZpvUN\n\
+Xr4O+pCjIwdCf4ZWB5zm175REld05mCxw1WD7w==\n\
+-----END PUBLIC KEY-----\n\
+",
+		message: "ifrRBpyCAppA4Q==",
+		signature: "30340228436e84c604312ad267ef1768111ebdfe5f89774e254e3b8a02185638216092aa5ac464aa9b8d58ce58ac6d7c243641785f6f"}
+	};
+	
+	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, false);
+		t.deepEqual(complexity, 3);
+		t.end();
+	})
+});
+
+test.cb('is_valid_sig wrong key length', t => {
+	var trigger = { data: 
+	{
+		pem_key: "-----BEGIN PUBLIC KEY-----\n\
+MEkwEwYHKoZIzj0CAQYIKoZIzj0DAQIDMgAv/XMkZQAh6raybe5eUSZslEQHa2\n\
+hF0aQX7GEzIUaf6U+tcCxH0vA98NJruvNSo6\n\
+-----END PUBLIC KEY-----\n\
+",
+		message: "GrR8t8sUxWoZTA==",
+		signature: "3035021900d6f10143fdd2663e607005e63946d3f8b06fc5506853b32502183f1b991abf1dd88b2be604db0439070eb190e663f3e0d4c2"}
+	};
+
+	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, null);
+		t.deepEqual(complexity, 3);
+		t.end();
+	})
+});
+
 

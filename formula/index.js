@@ -2142,22 +2142,22 @@ exports.evaluate = function (opts, callback) {
 					if (fatal_error)
 						return cb(false);
 					if (!ValidationUtils.isNonemptyString(evaluated_message))
-						return cb(false);
+						return setFatalError("bad message string in is_valid_sig", cb, false);
 					evaluate(sig, function (evaluated_signature) {
 						if (fatal_error)
 							return cb(false);
 						if (!ValidationUtils.isValidHexadecimal(evaluated_signature) && !ValidationUtils.isValidBase64(evaluated_signature))
-							return cb(false);
+							return setFatalError("bad signature string in is_valid_sig", cb, false);
 						evaluate(pem_key, function (evaluated_pem_key) {
 							if (fatal_error)
 								return cb(false);
-								signature.validateAndFormatPemKey(evaluated_pem_key, function (error, formatted_pem_key){
-									if (error)
-										return setFatalError("bad PEM key in is_valid_sig: " + error, cb, false);
-										var result = signature.verifyWithPemKey(evaluated_message, evaluated_signature, formatted_pem_key);
-										console.log(result);
-									return cb(result);
-								});
+							signature.validateAndFormatPemPubKey(evaluated_pem_key, function (error, formatted_pem_key){
+								if (error)
+									return setFatalError("bad PEM key in is_valid_sig: " + error, cb, false);
+									var result = signature.verifyMessageWithPemPubKey(evaluated_message, evaluated_signature, formatted_pem_key);
+									console.log(result);
+								return cb(result);
+							});
 						});
 					});
 				});
