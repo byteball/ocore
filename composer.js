@@ -129,6 +129,7 @@ function composeAssetAttestorsJoint(from_address, asset, arrNewAttestors, signer
 	params.paying_addresses pay for byte outputs and commissions
 */
 function composeJoint(params){
+	console.log('========param=======$j', params);
 	
 	var arrWitnesses = params.witnesses;
 	if (!arrWitnesses){
@@ -181,6 +182,8 @@ function composeJoint(params){
 		
 		return trySubset(1);
 	}
+
+	console.log('=======Second param output==%j', params);
 	
 	var arrSigningAddresses = params.signing_addresses || [];
 	var arrPayingAddresses = params.paying_addresses || [];
@@ -199,8 +202,8 @@ function composeJoint(params){
 	//profiler.start();
 	var arrChangeOutputs = arrOutputs.filter(function(output) { return (output.amount === 0); });
 	var arrExternalOutputs = arrOutputs.filter(function(output) { return (output.amount > 0); });
-	if (arrChangeOutputs.length > 1)
-		throw Error("more than one change output");
+	// if (arrChangeOutputs.length > 1)
+	// 	throw Error("more than one change output");
 	if (arrChangeOutputs.length === 0)
 		throw Error("no change outputs");
 	
