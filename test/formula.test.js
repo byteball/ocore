@@ -2077,4 +2077,3 @@ test('number_from_seed with non-int min', t => {
 		t.deepEqual(res, null);
 	})
 });
-

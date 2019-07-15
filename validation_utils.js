@@ -81,6 +81,10 @@ function isValidBase64(b64, len){
 	return (typeof b64 === "string" && (!len || b64.length === len) && b64 === (new Buffer(b64, "base64")).toString("base64"));
 }
 
+function isValidHexadecimal(hex, len){
+	return (typeof hex === "string" && (!len || hex.length === len) && hex === (new Buffer(hex, "hex")).toString("hex"));
+}
+
 function isValidEmail(str) {
 	return (typeof str === "string" && /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/.test(str));
 }
@@ -103,4 +107,5 @@ exports.isValidAddressAnyCase = isValidAddressAnyCase;
 exports.isValidAddress = isValidAddress;
 exports.isValidDeviceAddress = isValidDeviceAddress;
 exports.isValidBase64 = isValidBase64;
+exports.isValidHexadecimal = isValidHexadecimal;
 exports.isValidEmail = isValidEmail;
