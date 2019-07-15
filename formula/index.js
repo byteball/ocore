@@ -437,7 +437,7 @@ exports.validate = function (opts, callback) {
 				break;
 
 			case 'is_valid_sig':
-				complexity+=2;
+				complexity+=1;
 				var message = arr[1];
 				var pem_key = arr[2];
 				var sig = arr[3];

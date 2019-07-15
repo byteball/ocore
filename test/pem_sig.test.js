@@ -93,7 +93,7 @@ Eb73voycog6PiLDlhliiKRChX/k=\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -111,7 +111,7 @@ BNikqRtTJI5OEF+1zgM/vPbOiSk=\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -130,7 +130,7 @@ Xr4O+pCjIwdCf4ZWB5zm175REld05mCxw1WD7w==\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -148,7 +148,7 @@ ebtdiWNfmIvnMC3quUpg3XQal7okD8HuqcuQCg==\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -167,7 +167,7 @@ MFIwFAYHKoZIzj0CAQYJKyQDAwIIAQEFAzoABKrMKlXz4Q1V4E5Jc/pOtu8e9hCz\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -186,7 +186,7 @@ MFIwFAYHKoZIzj0CAQYJKyQDAwIIAQEGAzoABJOCCM3NyNbBPuKM5tXnEYF9G1yN\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -205,7 +205,7 @@ hFTQlZtnri6yeYc4FD14JtRsGlCs/MhFD0cJ1eyG8LF6at3IKDgEXVKFQ14=\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -224,7 +224,7 @@ MFowFAYHKoZIzj0CAQYJKyQDAwIIAQEIA0IABAOwh8XfsafAtRLbSXr9TeyoxALw\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -243,7 +243,7 @@ wyyL5c97Q1PKdOs3imnb6vHzjX2+OiUbyeo0\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -262,7 +262,7 @@ hF0aQX7GEzIUaf6U+tcCxH0vA98NJruvNSo6\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -281,7 +281,7 @@ j1CF57Xty1oW0qwQp7MGwZFoI4PUcPOW13n7\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -300,7 +300,7 @@ AmjfEi1SfznVLimygh0tagzsOd+nsU1ZR/9Rsm6tYA5/WQ6TSm82\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -319,7 +319,7 @@ zZKc5kzJv5+RO+h27kH9YwGQxVrHkYBuT0CdHPwRP4qoV3rtDTr0\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -338,7 +338,7 @@ rdqRuUd2Xov6cNdKWVEqD3b+75UoD85QY1T0kGRGPozJsYOQi5mo\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -357,7 +357,7 @@ Efj35hOsRLwauY4Zwcg3np9JwXnGKpqOcQqzAoGssdDu4VcEsLBH36aDOQ==\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -376,7 +376,7 @@ pGgXPA==\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -395,7 +395,7 @@ RhK3zQ==\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -414,7 +414,7 @@ n4Eph94TXsE=\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -430,7 +430,7 @@ test.cb('is_valid_sig secp128r2', t => {
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -448,7 +448,7 @@ mU8TyjvILmp3uf30gAhRog==\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -468,7 +468,7 @@ yO83NJ3jYS8N0m+zf2ZjnA==\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -487,7 +487,7 @@ ZB5m99fx0RZtoS	zGjNnDDg==\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -506,7 +506,7 @@ ddE32NpknZ/jRrKFw9Mfig==\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -524,7 +524,7 @@ aFLaYYaAn4u5uMY8cKp3ljZU8JAdgEZ8\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -542,7 +542,7 @@ HzORXVUNLI8wxes5guOcc80Ik3iFcb0uPn5J7xf0bNw=\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -561,7 +561,7 @@ kMigTiz+BMzuLiDBGicKTufnYN/NDDuynnRS0DCHBs0=\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -579,7 +579,7 @@ wtxsPV3F3i6MFRJgSRCbUChJkG9dqyGh7DqM7xwHn5YdqQ+HwfE4bw==\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -598,7 +598,7 @@ BY/eihj5OWxfk4edRHEw/5oVwCYjv8Lp\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -617,7 +617,7 @@ m19WO62N\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -636,7 +636,7 @@ XgWeszOD\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -654,7 +654,7 @@ Qe/VD9Z8TSogbQ==\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -672,7 +672,7 @@ Nj0rbU9Qdp3fUQ==\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -690,7 +690,7 @@ plx5ZBeK\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -706,7 +706,7 @@ test.cb('is_valid_sig  wap-wsg-idm-ecid-wtls4 base64', t => {
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -725,7 +725,7 @@ MDIwEAYHKoZIzj0CAQYFZysBBAYDHgAEtDlDeleEaOtZqhiq8NS57eVTp02jbGYU\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -743,7 +743,7 @@ MD4wEAYHKoZIzj0CAQYFZysBBAcDKgAEuafrAVc0ym3lxXBCqIVkKasIwV0dErF9\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -761,7 +761,7 @@ HFuU6g==\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -780,7 +780,7 @@ yufZHPc4CmP84iPBG1yA4A==\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -800,7 +800,7 @@ yufZHPc4CmP84iPBG1yA4A==\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, null);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -820,7 +820,7 @@ BY/eihj5OWxfk4edRHEw/5oVwCYjv8Lp\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, null);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -839,7 +839,7 @@ Nj0rbU9Qdp3fUQ==\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, null);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -858,7 +858,7 @@ Xr4O+pCjIwdCf4ZWB5zm175REld05mCxw1WD7w==\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, false);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -877,7 +877,7 @@ hF0aQX7GEzIUaf6U+tcCxH0vA98NJruvNSo6\n\
 
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, null);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -892,7 +892,7 @@ test.cb('is_valid_sig null key', t => {
 
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, null);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -911,7 +911,7 @@ MD4wEAYHKoZIzj0CAQYFZysBBAcDKgAEuafrAVc0ym3lxXBCqIVkKasIwV0dErF9\n\
 	
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, null);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -929,7 +929,7 @@ MD4wEAYHKoZIzj0CAQYFZysBBAcDKgAEuafrAVc0ym3lxXBCqIVkKasIwV0dErF9\n\
 	};
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, null);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -953,7 +953,7 @@ Ke/9gUiP7kmnq86iGFQN5kXPdsX7gtJq81qwr9o3A3OQvhdRkt4=\n\
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -976,7 +976,7 @@ MvkPqvL6pv4nOBR8RKqpYCbxpzL02uF+qXAijKUfhnod6cVzZyI=\n\
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -999,7 +999,7 @@ O+0=\n\
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -1022,7 +1022,7 @@ JOM=\n\
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -1045,7 +1045,7 @@ oTwDOgAEzAqIVShGIBIFl3XQV8htCTHpfxYtuypDWC9Fhj7lpgb81HvDQLxfngxU\n\
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -1068,7 +1068,7 @@ vVn5dc99AzhQsHNn22A=\n\
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -1091,7 +1091,7 @@ CAEBB6FEA0IABBVx5WUJX1vbRd8bxrYbbkr5DVh+TzFiur/Cqc0qTIm9GO5QUld2\n\
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -1114,7 +1114,7 @@ yEU/Yjk6pB6gOTuD5akpqOg5SCJom0GpP9Y=\n\
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -1137,7 +1137,7 @@ uw==\n\
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -1160,7 +1160,7 @@ Fw==\n\
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -1183,7 +1183,7 @@ BJSA0W+/0iaHoml+yPmd1/giknjIgP2M3uyPp1arsNTxqLUwitZ6fAPXexz3mXZg\n\
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -1206,7 +1206,7 @@ BKFAAz4ABCH9lRPEb6myp4sE1mRVkAEWXg//fdI0R4jaEpQ3OR48e+hnpdGOvLI2\n\
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -1229,7 +1229,7 @@ BaFAAz4ABBo7/7YXa8fnePVnziLs2huanLwi74y4ekMh7jjDxRlBnRs6qSMuHSc8\n\
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -1252,7 +1252,7 @@ ErxS/u2WKKH6jUyfVpFEh02Ubw==\n\
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -1275,7 +1275,7 @@ SEJO8f9+EA2QWxGX+hO5VTVUZ8g4PyYe9w==\n\
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -1297,7 +1297,7 @@ PF2wxjQIUifoJuchHuDfMA==\n\
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -1319,7 +1319,7 @@ MD4CAQEEDhSv5IBto2+5e3Lvy5GVoAcGBSuBBAAHoSADHgAEYcVPzIZFm7lwjjYK\n\
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -1341,7 +1341,7 @@ vuHJZO8Lxpodv8K2N1LLRh8oldn45g==\n\
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -1364,7 +1364,7 @@ Y+eDsZSvXO0A62R7KU/V+RFE8kl0EQ==\n\
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -1386,7 +1386,7 @@ Wu4qxKYVVYL0IphE3Hqbm2Ukw8/pQZH58mSxsfqD6kK7oCc=\n\
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -1408,7 +1408,7 @@ cnMf85Mre0trO/fHz8sXAvqNFdhKb7LZ2IDZAQRA7sdyaPQ=\n\
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -1430,7 +1430,7 @@ z/5C/FySZ3OYFBr6Zt4SvPG9HBvNjqXt/encty81v0r5eWQ=\n\
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -1452,7 +1452,7 @@ sYV0UylWOZpEb0E4PeT91Zl/XN8wPme7pMcz1gf7aP4nyYknhpMYfHpbB9DzEg==\n\
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -1475,7 +1475,7 @@ X9hx9d/AV1hi9qw=\n\
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -1498,7 +1498,7 @@ AATeuz2O5No9kZ8ZVhe5qC8ThJi4G3r1SAAfMpPdD3pezfXS0bAJKp9eEeYmJK7L\n\
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -1523,7 +1523,7 @@ oUQDQgAEy0Qk1KKfeFo7uLGhWKrjB7nS1A/hlruyZYQWvg4QIcOLSNKybwWOetAQ\n\
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -1548,7 +1548,7 @@ qKCKkm8YRyuwbir/YH5qGRYbjH3H8oQ=\n\
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -1567,7 +1567,7 @@ A5f6BdUL\n\
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -1591,7 +1591,7 @@ nCUKKwHWDw5RGCTXCxJNcueZGQ==\n\
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -1615,7 +1615,7 @@ MEcCAQEEEQI6aiidxX6Md5bBPfFtR+9MoAcGBSuBBAAWoSYDJAAEBOSQ+aUY98NF\n\
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -1639,7 +1639,7 @@ YvYaQ8xGjRIFXDpwq8TCnYu/i1GmfiDQFg==\n\
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -1663,7 +1663,7 @@ Z0YLAXp/dIWIsso2+5qPCmRX\n\
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -1687,7 +1687,7 @@ SmGurQB8gL/Lcr1t3nAxQd     				0TnQ==\n\
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -1711,7 +1711,7 @@ Qqtl6jIs3JUgrlRYIqHtwA==\n\
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -1735,7 +1735,7 @@ za2hANRlctvPnTKTmuRxb3SW94oVyvyZQjj6SRcQqyvfTA0=\n\
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -1759,7 +1759,7 @@ AxaBI4v92Oi4pU3Ws03Xm6g=\n\
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
@@ -1782,7 +1782,7 @@ MFECAQEEFQA2IZUNqctaMdZhyFuGcDjeoYqbc6AHBgVnKwEECaEsAyoABO2bZ7vGeMf0qWWiVRVPCyKI
 	t.deepEqual(!!trigger.data.signature, true);
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
-		t.deepEqual(complexity, 3);
+		t.deepEqual(complexity, 2);
 		t.end();
 	})
 });
