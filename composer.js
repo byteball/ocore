@@ -129,7 +129,6 @@ function composeAssetAttestorsJoint(from_address, asset, arrNewAttestors, signer
 	params.paying_addresses pay for byte outputs and commissions
 */
 function composeJoint(params){
-	console.log('========param=======$j', params);
 	
 	var arrWitnesses = params.witnesses;
 	if (!arrWitnesses){
@@ -182,8 +181,6 @@ function composeJoint(params){
 		
 		return trySubset(1);
 	}
-
-	console.log('=======Second param output==%j', params);
 	
 	var arrSigningAddresses = params.signing_addresses || [];
 	var arrPayingAddresses = params.paying_addresses || [];

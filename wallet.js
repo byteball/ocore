@@ -31,8 +31,6 @@ var constants = require("./constants.js");
 var message_counter = 0;
 var assocLastFailedAssetMetadataTimestamps = {};
 var ASSET_METADATA_RETRY_PERIOD = 3600*1000;
-const MAX_MESSAGES_PER_UNIT = 10;
-
 
 function handleJustsaying(ws, subject, body){
 	switch (subject){
