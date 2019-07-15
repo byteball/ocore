@@ -27,10 +27,13 @@ exports.verifyMessageWithPemPubKey = function(message, signature, pem_key) {
 	verify.end();
 	var encoding = ValidationUtils.isValidHexadecimal(signature) ? 'hex' : 'base64';
 	try {
-		return verify.verify(pem_key, signature, encoding)
+		return verify.verify(pem_key, signature, encoding);
 	} catch(e1) {
 		try {
-			return verify.verify({key: pem_key}, signature, encoding) // from Node v11, the key has to be included in an object 
+			if (e1 instanceof TypeError)
+				return verify.verify({key: pem_key}, signature, encoding); // from Node v11, the key has to be included in an object 
+			else
+				return false;
 		} catch(e2) {
 			console.log("exception when verifying with pem key: " + e1 + " " + e2);
 			return false;
