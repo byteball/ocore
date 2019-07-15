@@ -2154,8 +2154,7 @@ exports.evaluate = function (opts, callback) {
 							signature.validateAndFormatPemPubKey(evaluated_pem_key, function (error, formatted_pem_key){
 								if (error)
 									return setFatalError("bad PEM key in is_valid_sig: " + error, cb, false);
-									var result = signature.verifyMessageWithPemPubKey(evaluated_message, evaluated_signature, formatted_pem_key);
-									console.log(result);
+								var result = signature.verifyMessageWithPemPubKey(evaluated_message, evaluated_signature, formatted_pem_key);
 								return cb(result);
 							});
 						});
