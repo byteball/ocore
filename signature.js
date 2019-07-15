@@ -32,8 +32,10 @@ exports.verifyMessageWithPemPubKey = function(message, signature, pem_key) {
 		try {
 			if (e1 instanceof TypeError)
 				return verify.verify({key: pem_key}, signature, encoding); // from Node v11, the key has to be included in an object 
-			else
+			else{
+				console.log("exception when verifying with pem key: " + e1);
 				return false;
+			}
 		} catch(e2) {
 			console.log("exception when verifying with pem key: " + e1 + " " + e2);
 			return false;
