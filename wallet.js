@@ -32,7 +32,6 @@ var message_counter = 0;
 var assocLastFailedAssetMetadataTimestamps = {};
 var ASSET_METADATA_RETRY_PERIOD = 3600*1000;
 
-
 function handleJustsaying(ws, subject, body){
 	switch (subject){
 		// I'm connected to a hub, received challenge
@@ -157,7 +156,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 	if (!subject || typeof body == "undefined")
 		return callbacks.ifError("no subject or body");
 	//if (bIndirectCorrespondent && ["cancel_new_wallet", "my_xpubkey", "new_wallet_address"].indexOf(subject) === -1)
-	//		return callbacks.ifError("you're indirect correspondent, cannot trust "+subject+" from you");
+	//    return callbacks.ifError("you're indirect correspondent, cannot trust "+subject+" from you");
 	var from_address = objectHash.getDeviceAddress(device_pubkey);
 	
 	switch (subject){
@@ -334,7 +333,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				for (var payload_hash in assocPrivatePayloads){
 					var payload = assocPrivatePayloads[payload_hash];
 					var hidden_payload = _.cloneDeep(payload);
-					if (payload.denomination) // indivisible asset.	In this case, payload hash is calculated based on output_hash rather than address and blinding
+					if (payload.denomination) // indivisible asset.  In this case, payload hash is calculated based on output_hash rather than address and blinding
 						hidden_payload.outputs.forEach(function(o){
 							delete o.address;
 							delete o.blinding;
@@ -371,8 +370,8 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				ifLocal: function(objAddress){
 					// the commented check would make multilateral signing impossible
 					//db.query("SELECT 1 FROM extended_pubkeys WHERE wallet=? AND device_address=?", [row.wallet, from_address], function(sender_rows){
-					//		if (sender_rows.length !== 1)
-					//				return callbacks.ifError("sender is not cosigner of this address");
+					//    if (sender_rows.length !== 1)
+					//        return callbacks.ifError("sender is not cosigner of this address");
 						callbacks.ifOk();
 						if (objUnit.signed_message && !ValidationUtils.hasFieldsExcept(objUnit, ["signed_message", "authors"])){
 							objUnit.unit = objectHash.getBase64Hash(objUnit); // exact value doesn't matter, it just needs to be there
@@ -443,7 +442,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			
 		case 'payment_notification':
 			// note that since the payments are public, an evil user might notify us about a payment sent by someone else 
-			// (we'll be fooled to believe it was sent by the evil user).	It is only possible if he learns our address, e.g. if we make it public.
+			// (we'll be fooled to believe it was sent by the evil user).  It is only possible if he learns our address, e.g. if we make it public.
 			// Normally, we generate a one-time address and share it in chat session with the future payer only.
 			var current_message_counter = ++message_counter;
 			var unit = body;
@@ -1072,7 +1071,7 @@ function readTransactionHistory(opts, handleHistory){
 			for (var i=0; i<rows.length; i++){
 				var row = rows[i];
 				//if (asset !== "base")
-				//		row.fee = null;
+				//    row.fee = null;
 				if (!assocMovements[row.unit])
 					assocMovements[row.unit] = {
 						plus:0, has_minus:false, ts: row.ts, level: row.level, is_stable: row.is_stable, sequence: row.sequence, fee: row.fee, mci: row.mci
@@ -1133,7 +1132,7 @@ function readTransactionHistory(opts, handleHistory){
 					}
 					else if (movement.has_minus){
 						var queryString, parameters;
-						queryString =	 "SELECT outputs.address, SUM(outputs.amount) AS amount, outputs.asset, ("
+						queryString =   "SELECT outputs.address, SUM(outputs.amount) AS amount, outputs.asset, ("
 							+ ( walletIsAddress ? "outputs.address!=?" : "my_addresses.address IS NULL") + ") AS is_external, \n\
 							sent_mnemonics.textAddress, sent_mnemonics.mnemonic, \n\
 							(SELECT unit_authors.unit FROM unit_authors WHERE unit_authors.address = sent_mnemonics.address LIMIT 1) AS claiming_unit, \n\
