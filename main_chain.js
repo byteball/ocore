@@ -1497,7 +1497,7 @@ function markMcIndexStable(conn, batch, mci, onDone){
 			FROM units CROSS JOIN outputs USING(unit) CROSS JOIN aa_addresses USING(address) LEFT JOIN assets ON asset=assets.unit \n\
 			WHERE main_chain_index = ? AND sequence = 'good' AND (outputs.asset IS NULL OR is_private=0) \n\
 				AND NOT EXISTS (SELECT 1 FROM unit_authors CROSS JOIN aa_addresses USING(address) WHERE unit_authors.unit=units.unit) \n\
-			ORDER BY units.unit, address", // deterministic order
+			ORDER BY level, units.unit, address", // deterministic order
 			[mci],
 			function (rows) {
 				if (rows.length === 0)
