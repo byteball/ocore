@@ -390,7 +390,11 @@ function getSqlToFilterMyUnits(arrUnits){
 		UNION \n\
 		SELECT unit FROM unit_authors JOIN shared_addresses ON address=shared_address WHERE unit IN("+strUnitList+") \n\
 		UNION \n\
-		SELECT unit FROM outputs JOIN shared_addresses ON address=shared_address WHERE unit IN("+strUnitList+")";
+		SELECT unit FROM outputs JOIN shared_addresses ON address=shared_address WHERE unit IN("+strUnitList+")\n\
+		UNION \n\
+		SELECT unit FROM unit_authors JOIN my_watched_addresses USING(address) WHERE unit IN("+strUnitList+") \n\
+		UNION \n\
+		SELECT unit FROM outputs JOIN my_watched_addresses USING(address) WHERE unit IN("+strUnitList+")";
 }
 
 function emitStability(arrProvenUnits, onDone){

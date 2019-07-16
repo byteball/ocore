@@ -1278,8 +1278,8 @@ function notifyWatchers(objJoint, source_ws){
 	}
 	else
 		db.query(
-			"SELECT 1 FROM my_addresses WHERE address IN(?) UNION SELECT 1 FROM shared_addresses WHERE shared_address IN(?)", 
-			[arrAddresses, arrAddresses], 
+			"SELECT 1 FROM my_addresses WHERE address IN(?) UNION SELECT 1 FROM shared_addresses WHERE shared_address IN(?) UNION SELECT 1 FROM my_watched_addresses WHERE address IN(?)", 
+			[arrAddresses, arrAddresses, arrAddresses], 
 			function(rows){
 				if (rows.length > 0){
 					eventBus.emit("new_my_transactions", [objJoint.unit.unit]);
@@ -1386,8 +1386,12 @@ function notifyLocalWatchedAddressesAboutStableJoints(mci){
 		UNION \n\
 		SELECT unit FROM units CROSS JOIN unit_authors USING(unit) CROSS JOIN shared_addresses ON address=shared_address WHERE main_chain_index=? AND sequence='good' \n\
 		UNION \n\
-		SELECT unit FROM units CROSS JOIN outputs USING(unit) CROSS JOIN shared_addresses ON address=shared_address WHERE main_chain_index=? AND sequence='good'",
-		[mci, mci, mci, mci],
+		SELECT unit FROM units CROSS JOIN outputs USING(unit) CROSS JOIN shared_addresses ON address=shared_address WHERE main_chain_index=? AND sequence='good'\n\
+		UNION \n\
+		SELECT unit FROM units CROSS JOIN unit_authors USING(unit) CROSS JOIN my_watched_addresses USING(address) WHERE main_chain_index=? AND sequence='good' \n\
+		UNION \n\
+		SELECT unit FROM units CROSS JOIN outputs USING(unit) CROSS JOIN my_watched_addresses USING(address) WHERE main_chain_index=? AND sequence='good'",
+		[mci, mci, mci, mci, mci, mci],
 		handleRows
 	);
 }
