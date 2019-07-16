@@ -871,7 +871,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				}
 				params.push(objValidationState.last_ball_mci, min_mci);
 
-				function getOptimalQuery(handleSql) {
+				var getOptimalQuery = function(handleSql) {
 					var rareFeedSql = "SELECT 1 FROM data_feeds " + db.forceIndex(index) + " CROSS JOIN units USING(unit) CROSS JOIN unit_authors USING(unit) \n\
 						WHERE address IN(?) AND feed_name=? AND " + value_condition + " \n\
 							AND main_chain_index<=? AND main_chain_index>=? AND sequence='good' AND is_stable=1 LIMIT 1";
