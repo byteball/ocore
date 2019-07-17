@@ -14,6 +14,8 @@ function getAppsDataDir(){
 
 function getPackageJsonDir(start_dir){
 	try{
+		if (start_dir === __dirname)
+			throw Error("still in core");
 		fs.accessSync(start_dir + '/package.json');
 		return start_dir;
 	}
