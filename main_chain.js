@@ -28,7 +28,7 @@ var arrRetreatingUnits = [
 ];
 
 
-function updateMainChain(conn, batch, from_unit, last_added_unit, onDone){
+function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStabilityPoint, onDone){
 	
 	var arrAllParents = [];
 	var arrNewMcUnits = [];
@@ -470,6 +470,8 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, onDone){
 	}
 	
 	function updateStableMcFlag(){
+		if (bKeepStabilityPoint)
+			return finish();
 		console.log("updateStableMcFlag");
 		profiler.start();
 		readLastStableMcUnit(function(last_stable_mc_unit){
