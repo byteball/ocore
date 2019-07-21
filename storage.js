@@ -10,7 +10,6 @@ var mutex = require('./mutex.js');
 var archiving = require('./archiving.js');
 var eventBus = require('./event_bus.js');
 var profiler = require('./profiler.js');
-var kvstore = require('./kvstore.js');
 
 var bCordova = (typeof window === 'object' && window.cordova);
 
@@ -37,6 +36,7 @@ var min_retrievable_mci = null;
 initializeMinRetrievableMci();
 
 function readJointJsonFromStorage(conn, unit, cb) {
+	var kvstore = require('./kvstore.js');
 	if (!bCordova)
 		return kvstore.get('j\n' + unit, cb);
 	conn.query("SELECT json FROM joints WHERE unit=?", [unit], function (rows) {
