@@ -726,6 +726,8 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 			function sortOutputsAndReturn() {
 				if (send_all_output && send_all_output.amount === undefined)
 					_.pull(payload.outputs, send_all_output);
+				if (payload.outputs.find(output => typeof output.address !== 'string'))
+					return cb("some addresses are not strings");
 				payload.outputs.sort(sortOutputs);
 				cb();
 			}
