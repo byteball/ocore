@@ -1371,8 +1371,14 @@ function readFundedAddresses(asset, wallet, estimated_amount, spend_unconfirmed,
 					estimated_amount = 0; // don't shorten the list of addresses, indivisible_asset.js will do it later according to denominations
 				if (!objAsset.cap){ // uncapped asset: can be issued from definer_address or from any address
 					var and_address = objAsset.issued_by_definer_only ? " AND address="+db.escape(objAsset.definer_address) : '';
-					db.query("SELECT address FROM my_addresses WHERE wallet=? "+and_address+" LIMIT 1", [wallet], function(rows){
-						handleFundedAddresses(rows.map(function(row){ return row.address; }));
+					db.query("SELECT address FROM my_addresses WHERE wallet=? "+and_address+" LIMIT 1", [wallet], function(issuer_rows){
+						issuer_rows.forEach(issuer_row => {
+							issuer_row.total = Infinity;
+						});
+						var arrNonIssuerAddresses = rows.map(row => row.address);
+						issuer_rows = issuer_rows.filter(issuer_row => arrNonIssuerAddresses.indexOf(issuer_row.address) === -1);
+						rows = rows.concat(issuer_rows);
+						handleFundedAddresses(composer.filterMostFundedAddresses(rows, estimated_amount));
 					});
 					return;
 				}
