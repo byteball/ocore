@@ -1,6 +1,7 @@
 /*jslint node: true */
 "use strict";
 var async = require('async');
+var constants = require('./constants.js');
 var kvstore = require('./kvstore.js');
 var string_utils = require('./string_utils.js');
 var conf = require('./conf.js');
@@ -37,7 +38,8 @@ function migrateUnits(conn, onDone){
 					ifFound: function(objJoint){
 						reading_time += getTimeDifference(time);
 						if (!conf.bLight){
-							delete objJoint.unit.timestamp;
+							if (objJoint.unit.version === constants.versionWithoutTimestamp)
+								delete objJoint.unit.timestamp;
 							delete objJoint.unit.main_chain_index;
 						}
 						if (bCordova)

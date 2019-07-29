@@ -28,7 +28,7 @@ var arrRetreatingUnits = [
 ];
 
 
-function updateMainChain(conn, batch, from_unit, last_added_unit, onDone){
+function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStabilityPoint, onDone){
 	
 	var arrAllParents = [];
 	var arrNewMcUnits = [];
@@ -470,6 +470,8 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, onDone){
 	}
 	
 	function updateStableMcFlag(){
+		if (bKeepStabilityPoint)
+			return finish();
 		console.log("updateStableMcFlag");
 		profiler.start();
 		readLastStableMcUnit(function(last_stable_mc_unit){
@@ -1497,7 +1499,7 @@ function markMcIndexStable(conn, batch, mci, onDone){
 			FROM units CROSS JOIN outputs USING(unit) CROSS JOIN aa_addresses USING(address) LEFT JOIN assets ON asset=assets.unit \n\
 			WHERE main_chain_index = ? AND sequence = 'good' AND (outputs.asset IS NULL OR is_private=0) \n\
 				AND NOT EXISTS (SELECT 1 FROM unit_authors CROSS JOIN aa_addresses USING(address) WHERE unit_authors.unit=units.unit) \n\
-			ORDER BY units.unit, address", // deterministic order
+			ORDER BY level, units.unit, address", // deterministic order
 			[mci],
 			function (rows) {
 				if (rows.length === 0)
