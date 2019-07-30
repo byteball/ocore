@@ -1003,13 +1003,13 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 		if (bBouncing && bSecondary) {
 			if (objResponseUnit)
 				throw Error('response_unit with bouncing a secondary AA');
-			return onDone(null, bBouncing);
+			return onDone(null, error_message);
 		}
 		fixStateVars();
 		saveStateVars();
 		addResponse(objResponseUnit, function () {
 			addUpdatedStateVarsIntoPrimaryResponse();
-			onDone(objResponseUnit, bBouncing);
+			onDone(objResponseUnit, bBouncing ? error_message : false);
 		});
 	}
 
@@ -1018,7 +1018,7 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 			if (rows.length === 0) {
 				saveStateVars();
 				addUpdatedStateVarsIntoPrimaryResponse();
-				return onDone(objUnit, bBouncing);
+				return onDone(objUnit, bBouncing ? error_message : false);
 			}
 			if (bBouncing)
 				throw Error("secondary triggers while bouncing");
@@ -1028,9 +1028,9 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 					var child_trigger = getTrigger(objUnit, row.address);
 					child_trigger.initial_address = trigger.initial_address;
 					var arrChildDefinition = JSON.parse(row.definition);
-					handleTrigger(conn, batch, child_trigger, stateVars, arrChildDefinition, row.address, mci, objMcUnit, true, arrResponses, function (objSecondaryUnit, bBounced) {
-						if (bBounced)
-							return cb('bounced');
+					handleTrigger(conn, batch, child_trigger, stateVars, arrChildDefinition, row.address, mci, objMcUnit, true, arrResponses, function (objSecondaryUnit, bounce_message) {
+						if (bounce_message)
+							return cb(bounce_message);
 						cb();
 					});
 				},
@@ -1038,7 +1038,7 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 					if (err) {
 						// revert
 						if (bSecondary)
-							return bounce("a sub-secondary AA bounced");
+							return bounce(err);
 						revertResponsesInCaches(arrResponses);
 						arrResponses.splice(0, arrResponses.length); // start over
 						Object.keys(stateVars).forEach(function (address) { delete stateVars[address]; });
@@ -1047,7 +1047,7 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 							conn.query("BEGIN", function () {
 								// initial AA balances were rolled back, we have to add them again
 								updateInitialAABalances(function () {
-									bounce("one of secondary AAs bounced");
+									bounce("one of secondary AAs bounced with error: " + err);
 								});
 							});
 						});
@@ -1055,7 +1055,7 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 					}
 					saveStateVars();
 					addUpdatedStateVarsIntoPrimaryResponse();
-					onDone(objUnit, bBouncing);
+					onDone(objUnit, bBouncing ? error_message : false);
 				}
 			);
 		});
