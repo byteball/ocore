@@ -2282,7 +2282,7 @@ exports.evaluate = function (opts, callback) {
 				if (!bAA || !bStatementsOnly || !bStateVarAssignmentAllowed)
 					return setFatalError("response_unit outside state update formula", cb, false);
 				if (!response_unit)
-					throw Error("no respose_unit");
+					return cb(false);
 				cb(response_unit);
 				break;
 			
