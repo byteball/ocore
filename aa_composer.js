@@ -73,7 +73,7 @@ function handlePrimaryAATrigger(mci, unit, address, arrDefinition, arrPostedUnit
 					var arrResponses = [];
 					var trigger = getTrigger(objUnit, address);
 					trigger.initial_address = trigger.address;
-					handleTrigger(conn, batch, trigger, {}, arrDefinition, address, mci, objMcUnit, false, arrResponses, function(){
+					handleTrigger(conn, batch, null, trigger, {}, arrDefinition, address, mci, objMcUnit, false, arrResponses, function(){
 						conn.query("DELETE FROM aa_triggers WHERE mci=? AND unit=? AND address=?", [mci, unit, address], function(){
 							var batch_start_time = Date.now();
 							batch.write(function(err){
@@ -119,10 +119,12 @@ function dryRunPrimaryAATrigger(trigger, address, arrDefinition, onDone) {
 				if (!trigger.address)
 					trigger.address = objMcUnit.authors[0].address;
 				trigger.initial_address = trigger.address;
-				insertFakeOutputsIntoMcUnit(conn, objMcUnit, trigger.outputs, address, function () {
-					objMcUnit.unit = trigger.unit;
+				var fPrepare = function (cb) {
+					insertFakeOutputsIntoMcUnit(conn, objMcUnit, trigger.outputs, address, cb);
+				};
+				fPrepare(function () {
 					var arrResponses = [];
-					handleTrigger(conn, batch, trigger, {}, arrDefinition, address, mci, objMcUnit, false, arrResponses, function () {
+					handleTrigger(conn, batch, fPrepare, trigger, {}, arrDefinition, address, mci, objMcUnit, false, arrResponses, function () {
 						revertResponsesInCaches(arrResponses);
 						batch.clear();
 						conn.query("ROLLBACK", function () {
@@ -207,7 +209,7 @@ function getTrigger(objUnit, receiving_address) {
 }
 
 // the result is onDone(objResponseUnit, bBounced)
-function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, mci, objMcUnit, bSecondary, arrResponses, onDone) {
+function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition, address, mci, objMcUnit, bSecondary, arrResponses, onDone) {
 	if (arrDefinition[0] !== 'autonomous agent')
 		throw Error('bad AA definition ' + arrDefinition);
 	if (!trigger.initial_address)
@@ -1028,7 +1030,7 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 					var child_trigger = getTrigger(objUnit, row.address);
 					child_trigger.initial_address = trigger.initial_address;
 					var arrChildDefinition = JSON.parse(row.definition);
-					handleTrigger(conn, batch, child_trigger, stateVars, arrChildDefinition, row.address, mci, objMcUnit, true, arrResponses, function (objSecondaryUnit, bounce_message) {
+					handleTrigger(conn, batch, null, child_trigger, stateVars, arrChildDefinition, row.address, mci, objMcUnit, true, arrResponses, function (objSecondaryUnit, bounce_message) {
 						if (bounce_message)
 							return cb(bounce_message);
 						cb();
@@ -1046,8 +1048,12 @@ function handleTrigger(conn, batch, trigger, stateVars, arrDefinition, address, 
 						conn.query("ROLLBACK", function () {
 							conn.query("BEGIN", function () {
 								// initial AA balances were rolled back, we have to add them again
-								updateInitialAABalances(function () {
-									bounce("one of secondary AAs bounced with error: " + err);
+								if (!fPrepare)
+									fPrepare = function (cb) { cb(); };
+								fPrepare(function () {
+									updateInitialAABalances(function () {
+										bounce("one of secondary AAs bounced with error: " + err);
+									});
 								});
 							});
 						});
