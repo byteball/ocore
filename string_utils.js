@@ -146,13 +146,21 @@ if (!String.prototype.padStart) {
 	};
 }
 
+// node 12+ implements well-formed JSON.stringify(), earlier versions could generate invalid UTF
+// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify#Well-formed_JSON.stringify()
+var bWellFormedJsonStringify = (JSON.stringify("\uD800") === '"\\ud800"');
+function toWellFormedJsonStringify(obj) {
+	var str = JSON.stringify(obj);
+	return bWellFormedJsonStringify ? str : str.replace(/[\ud800-\udfff]/g, chr => "\\u" + chr.codePointAt(0).toString(16));
+}
+
 function getJsonSourceString(obj) {
 	function stringify(variable){
 		if (variable === null)
 			throw Error("null value in "+JSON.stringify(obj));
 		switch (typeof variable){
 			case "string":
-				return JSON.stringify(variable);
+				return toWellFormedJsonStringify(variable);
 			case "number":
 			case "boolean":
 				return variable.toString();
@@ -166,7 +174,7 @@ function getJsonSourceString(obj) {
 					var keys = Object.keys(variable).sort();
 					if (keys.length === 0)
 						throw Error("empty object in "+JSON.stringify(obj));
-					return '{' + keys.map(function(key){ return JSON.stringify(key)+':'+stringify(variable[key]) }).join(',') + '}';
+					return '{' + keys.map(function(key){ return toWellFormedJsonStringify(key)+':'+stringify(variable[key]) }).join(',') + '}';
 				}
 				break;
 			default:

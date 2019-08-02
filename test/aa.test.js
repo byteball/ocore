@@ -585,7 +585,7 @@ test.cb.serial('compose simple AA', t => {
 		onDone();
 	}
 	
-	aa_composer.handleTrigger(db, batch, trigger, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (bPosted, bBounced) => {
+	aa_composer.handleTrigger(db, batch, null, trigger, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (bPosted, bBounced) => {
 		t.deepEqual(!!bPosted, true);
 		t.deepEqual(bBounced, false);
 		t.deepEqual(objUnit.messages.find(function (message) { return (message.app === 'payment'); }).payload.outputs.find(function (output) { return (output.address === trigger.address); }).amount, 38000);
@@ -669,7 +669,7 @@ test.cb.serial('compose complex AA', t => {
 		onDone();
 	}
 	
-	aa_composer.handleTrigger(db, batch, trigger, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (bPosted, bBounced) => {
+	aa_composer.handleTrigger(db, batch, null, trigger, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (bPosted, bBounced) => {
 		t.deepEqual(!!bPosted, true);
 		t.deepEqual(bBounced, false);
 		t.deepEqual(stateVars[address]['z'].value.toNumber(), 4.5);
@@ -721,9 +721,9 @@ test.cb.serial('variable reassignment', t => {
 		onDone();
 	}
 	
-	aa_composer.handleTrigger(db, batch, trigger, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (bPosted, bBounced) => {
+	aa_composer.handleTrigger(db, batch, null, trigger, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (bPosted, bounce_message) => {
 		t.deepEqual(!!bPosted, true);
-		t.deepEqual(bBounced, true);
+		t.deepEqual(bounce_message, 'formula $a=10; trigger.output[[asset=base]] - 2000 failed: reassignment to a, old value 9');
 		t.deepEqual(objUnit.messages.find(function (message) { return (message.app === 'payment'); }).payload.outputs.find(function (output) { return (output.address === trigger.address); }).amount, 30000);
 		t.end();
 	});
@@ -770,9 +770,9 @@ test.cb.serial('no messages', t => {
 		onDone();
 	}
 	
-	aa_composer.handleTrigger(db, batch, trigger, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (objResponseUnit, bBounced) => {
+	aa_composer.handleTrigger(db, batch, null, trigger, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (objResponseUnit, bounce_message) => {
 		t.deepEqual(objResponseUnit.unit, 'XKxmIIccP1UR3Pem2jex0Lrzllc6w+WQ9ASqDehjUm4=');
-		t.deepEqual(bBounced, true);
+		t.deepEqual(bounce_message, 'no messages');
 		t.deepEqual(objUnit.unit, 'XKxmIIccP1UR3Pem2jex0Lrzllc6w+WQ9ASqDehjUm4=');
 		t.end();
 	});
@@ -818,9 +818,9 @@ test.cb.serial('no outputs', t => {
 		onDone();
 	}
 	
-	aa_composer.handleTrigger(db, batch, trigger, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (objResponseUnit, bBounced) => {
+	aa_composer.handleTrigger(db, batch, null, trigger, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (objResponseUnit, bounce_message) => {
 		t.deepEqual(objResponseUnit, null);
-		t.deepEqual(bBounced, true);
+		t.deepEqual(bounce_message, 'no messages after filtering, then no state changes, then not enough funds for 30361 bytes');
 		t.deepEqual(objUnit, undefined);
 		t.end();
 	});
@@ -866,9 +866,9 @@ test.cb.serial('only 0 output', t => {
 		onDone();
 	}
 	
-	aa_composer.handleTrigger(db, batch, trigger, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (objResponseUnit, bBounced) => {
+	aa_composer.handleTrigger(db, batch, null, trigger, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (objResponseUnit, bounce_message) => {
 		t.deepEqual(objResponseUnit, null);
-		t.deepEqual(bBounced, true);
+		t.deepEqual(bounce_message, 'no messages after removing 0-outputs, then no state changes, then not enough funds for 30361 bytes');
 		t.deepEqual(objUnit, undefined);
 		t.end();
 	});
@@ -915,7 +915,7 @@ test.cb.serial('AA with response vars', t => {
 		onDone();
 	}
 	
-	aa_composer.handleTrigger(db, batch, trigger, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (bPosted, bBounced) => {
+	aa_composer.handleTrigger(db, batch, null, trigger, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (bPosted, bBounced) => {
 		t.deepEqual(!!bPosted, true);
 		t.deepEqual(bBounced, false);
 		t.deepEqual(objUnit.messages.find(function (message) { return (message.app === 'payment'); }).payload.outputs.find(function (output) { return (output.address === trigger.address); }).amount, 38000);

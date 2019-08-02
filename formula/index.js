@@ -1954,6 +1954,8 @@ exports.evaluate = function (opts, callback) {
 									return setFatalError("current value is not decimal: " + value, cb, false);
 								if (!Decimal.isDecimal(res))
 									return setFatalError("rhs is not decimal: " + res, cb, false);
+								if ((assignment_op === '+=' || assignment_op === '-=') && stateVars[address][var_name].old_value === undefined)
+									stateVars[address][var_name].old_value = new Decimal(0);
 								if (assignment_op === '+=')
 									value = value.plus(res);
 								else if (assignment_op === '-=')
@@ -1970,7 +1972,8 @@ exports.evaluate = function (opts, callback) {
 									return setFatalError("not finite: " + value, cb, false);
 								value = toDoubleRange(value);
 							}
-							stateVars[address][var_name] = { value: value, updated: true };
+							stateVars[address][var_name].value = value;
+							stateVars[address][var_name].updated = true;
 							cb(true);
 						});
 					});
@@ -2279,7 +2282,7 @@ exports.evaluate = function (opts, callback) {
 				if (!bAA || !bStatementsOnly || !bStateVarAssignmentAllowed)
 					return setFatalError("response_unit outside state update formula", cb, false);
 				if (!response_unit)
-					throw Error("no respose_unit");
+					return cb(false);
 				cb(response_unit);
 				break;
 			

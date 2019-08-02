@@ -209,3 +209,35 @@ test.cb.serial('chain of AAs', t => {
 	});
 });
 
+
+test.cb.serial('AA with state changes only', t => {
+	var trigger = { outputs: { base: 40000 }, data: { x: 333 } };
+	var aa = ['autonomous agent', {
+		messages: [
+			{
+				app: 'state',
+				state: `{
+					var['count'] += 1;
+					var['unit'] = response_unit;
+				}`
+			}
+		]
+	}];
+	var address = objectHash.getChash160(aa);
+	addAA(aa);
+	
+	aa_composer.dryRunPrimaryAATrigger(trigger, address, aa, (arrResponses) => {
+		t.deepEqual(arrResponses.length, 1);
+		t.deepEqual(arrResponses[0].bounced, false);
+		t.deepEqual(arrResponses[0].updatedStateVars[address].count.delta, 1);
+		t.deepEqual(arrResponses[0].updatedStateVars[address].unit.value, false);
+		fixCache();
+		t.deepEqual(storage.assocUnstableUnits, old_cache.assocUnstableUnits);
+		t.deepEqual(storage.assocStableUnits, old_cache.assocStableUnits);
+		t.deepEqual(storage.assocUnstableMessages, old_cache.assocUnstableMessages);
+		t.deepEqual(storage.assocBestChildren, old_cache.assocBestChildren);
+		t.deepEqual(storage.assocStableUnitsByMci, old_cache.assocStableUnitsByMci);
+		t.end();
+	});
+});
+
