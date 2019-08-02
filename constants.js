@@ -1,7 +1,7 @@
 /*jslint node: true */
 "use strict";
 
-if (typeof window === 'undefined' || !window.cordova){ // desktop
+if (typeof process === 'object' && typeof process.versions === 'object' && typeof process.versions.node !== 'undefined') { // desktop
 	var desktopApp = require('./desktop_app.js');
 	var appRootDir = desktopApp.getAppRootDir();
 	require('dotenv').config({path: appRootDir + '/.env'});
@@ -90,10 +90,10 @@ if (process.env.devnet) {
 	exports.versionWithoutTimestamp = '1.0dev';
 	exports.GENESIS_UNIT = 'pLzHaCisvxkfgwyBDzgvZzhPp37ZKnuMOxiI3QwXxqM=';
 	exports.BLACKBYTES_ASSET = 'GRzA4D/ElsiwivoUrkCg36s+CoOr6rLsSH2F0EOes64=';
-	
+
 	exports.COUNT_WITNESSES = 1;
 	exports.MAJORITY_OF_WITNESSES = (exports.COUNT_WITNESSES%2===0) ? (exports.COUNT_WITNESSES/2+1) : Math.ceil(exports.COUNT_WITNESSES/2);
-	
+
 	exports.lastBallStableInParentsUpgradeMci = 0;
 	exports.witnessedLevelMustNotRetreatUpgradeMci = 0;
 	exports.spendUnconfirmedUpgradeMci = 0;
