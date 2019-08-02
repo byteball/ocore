@@ -35,7 +35,7 @@ function calcOffsets(chash_length){
 
 	if (index != 32)
 		throw Error("wrong number of checksum bits");
-	
+
 	return arrOffsets;
 }
 
@@ -129,7 +129,7 @@ function getChash(data, chash_length){
 	var checksum = getChecksum(truncated_hash);
 	//console.log("checksum", checksum);
 	//console.log("checksum", buffer2bin(checksum));
-	
+
 	var binCleanData = buffer2bin(truncated_hash);
 	var binChecksum = buffer2bin(checksum);
 	var binChash = mixChecksumIntoCleanData(binCleanData, binChecksum);
