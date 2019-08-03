@@ -52,6 +52,8 @@ function adjustParentsToNotRetreatWitnessedLevel(conn, arrWitnesses, arrParentUn
 	
 	function replaceExcludedParent(arrCurrentParentUnits, excluded_unit){
 		console.log('replaceExcludedParent '+arrCurrentParentUnits.join(', ')+" excluding "+excluded_unit);
+		if (!excluded_unit)
+			throw Error("no excluded unit");
 		var arrNewExcludedUnits = [excluded_unit];
 		console.log('excluded parents: '+arrNewExcludedUnits.join(', '));
 		arrExcludedUnits = arrExcludedUnits.concat(arrNewExcludedUnits);
@@ -165,9 +167,9 @@ function determineWitnessedLevels(conn, arrWitnesses, arrParentUnits, handleResu
 			[arrParentUnits],
 			function (rows) {
 				var max_parent_wl = rows[0].witnessed_level;
-				if (!best_parent_unit)
-					return handleResult(witnessed_level, max_parent_wl);
 				var parent_with_max_wl = rows[0].unit;
+				if (!best_parent_unit)
+					return handleResult(witnessed_level, max_parent_wl, parent_with_max_wl);
 				storage.readStaticUnitProps(conn, best_parent_unit, function(bestParentProps){
 					if (bestParentProps.witnessed_level === max_parent_wl)
 						parent_with_max_wl = best_parent_unit;
