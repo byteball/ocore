@@ -305,6 +305,7 @@ function processHistory(objResponse, arrWitnesses, callbacks){
 								});
 								async.series(arrQueries, function () {
 									objResponse.aa_responses.forEach(function (objAAResponse) {
+										objAAResponse.response = JSON.parse(objAAResponse.response);
 										eventBus.emit('aa_response', objAAResponse);
 										eventBus.emit('aa_response_to_unit-'+objAAResponse.trigger_unit, objAAResponse);
 										eventBus.emit('aa_response_to_address-'+objAAResponse.trigger_address, objAAResponse);
