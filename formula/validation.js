@@ -243,7 +243,7 @@ exports.validate = function (opts, callback) {
 	function evaluate(arr, cb) {
 		count++;
 		if (count % 100 === 0) // avoid extra long call stacks to prevent Maximum call stack size exceeded
-			return setImmediate(evaluate, arr, cb);
+			return setImmediate ? setImmediate(evaluate, arr, cb) : setTimeout(evaluate, 0, arr, cb);
 		if (Decimal.isDecimal(arr))
 			return isFiniteDecimal(arr) ? cb() : cb("not finite decimal: " + arr);
 		if(typeof arr !== 'object'){

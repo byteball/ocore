@@ -212,7 +212,7 @@ function validateAADefinition(arrDefinition, callback) {
 						return cb2("definition must be array of 2");
 					if (hasFieldsExcept(payload, ['definition']))
 						return cb2("unknown fields in AA definition in AA");
-					setImmediate(validateAADefinition, payload.definition, cb2); // interrupt the call stack to protect against deep nesting
+					setImmediate ? setImmediate(validateAADefinition, payload.definition, cb2) : setTimeout(validateAADefinition, 0, payload.definition, cb2); // interrupt the call stack to protect against deep nesting
 					break;
 
 				case 'asset':
