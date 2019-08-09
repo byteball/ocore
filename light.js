@@ -303,7 +303,15 @@ function processHistory(objResponse, arrWitnesses, callbacks){
 								objResponse.aa_responses.forEach(function (aa_response) {
 									db.addQuery(arrQueries, "INSERT " + db.getIgnore() + " INTO aa_responses (mci, trigger_address, aa_address, trigger_unit, bounced, response_unit, response, creation_date) VALUES (?, ?,?, ?, ?, ?,?, ?)", [aa_response.mci, aa_response.trigger_address, aa_response.aa_address, aa_response.trigger_unit, aa_response.bounced, aa_response.response_unit, aa_response.response, aa_response.creation_date]);
 								});
-								async.series(arrQueries);
+								async.series(arrQueries, function () {
+									objResponse.aa_responses.forEach(function (objAAResponse) {
+										objAAResponse.response = JSON.parse(objAAResponse.response);
+										eventBus.emit('aa_response', objAAResponse);
+										eventBus.emit('aa_response_to_unit-'+objAAResponse.trigger_unit, objAAResponse);
+										eventBus.emit('aa_response_to_address-'+objAAResponse.trigger_address, objAAResponse);
+										eventBus.emit('aa_response_from_aa-'+objAAResponse.aa_address, objAAResponse);
+									});
+								});
 							}
 						}
 					);
