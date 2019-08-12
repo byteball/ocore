@@ -83,7 +83,7 @@ exports.timestampUpgradeMci = exports.bTestnet ? 909000 : Infinity;
 
 if (process.env.devnet) {
 	console.log('===== devnet');
-
+	exports.bDevnet = true;
 	exports.version = '2.0dev';
 	exports.alt = '3';
 	exports.supported_versions = ['1.0dev', '2.0dev'];

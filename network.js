@@ -1457,7 +1457,7 @@ function writeEvent(event, host){
 }
 
 function determineIfPeerIsBlocked(host, handleResult){
-	if (constants.bTestnet)
+	if (constants.bTestnet || constants.bDevnet)
 		return handleResult(false);
 	handleResult(!!assocBlockedPeers[host]);
 }
