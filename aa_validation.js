@@ -1,9 +1,10 @@
 /*jslint node: true */
 "use strict";
+
 var async = require('async');
 var constants = require('./constants.js');
 var ValidationUtils = require("./validation_utils.js");
-var formulaParser = require('./formula/index');
+var formulaValidator = require('./formula/validation.js');
 
 var hasFieldsExcept = ValidationUtils.hasFieldsExcept;
 var isStringOfLength = ValidationUtils.isStringOfLength;
@@ -19,7 +20,7 @@ var isValidBase64 = ValidationUtils.isValidBase64;
 
 
 function validateAADefinition(arrDefinition, callback) {
-	
+
 
 	function validateMessage(message, cb) {
 
@@ -79,7 +80,7 @@ function validateAADefinition(arrDefinition, callback) {
 					arrFormulas = arrFormulas.concat(arrDataFormulas);
 					async.eachSeries(arrFormulas, validateFormula, cb2);
 					break;
-				
+
 				case 'data_feed':
 					if (!isNonemptyObject(payload))
 						return cb2("data feed payload must be non-empty object or formula");
@@ -114,7 +115,7 @@ function validateAADefinition(arrDefinition, callback) {
 					}
 					async.eachSeries(arrFormulas, validateFormula, cb2);
 					break;
-				
+
 				case 'payment':
 				//	console.log('---payment', payload);
 					if (hasFieldsExcept(payload, ['asset', 'outputs', 'init']))
@@ -196,7 +197,7 @@ function validateAADefinition(arrDefinition, callback) {
 						async.eachSeries(arrFormulas, validateFormula, cb2);
 					});
 					break;
-				
+
 				case 'text':
 					if (!isNonemptyString(payload))
 						return cb2("bad text: " + payload);
@@ -205,15 +206,15 @@ function validateAADefinition(arrDefinition, callback) {
 						return cb2();
 					validateFormula(text_formula, cb2);
 					break;
-				
+
 				case 'definition':
 					if (!isArrayOfLength(payload.definition, 2))
 						return cb2("definition must be array of 2");
 					if (hasFieldsExcept(payload, ['definition']))
 						return cb2("unknown fields in AA definition in AA");
-					setImmediate(validateAADefinition, payload.definition, cb2); // interrupt the call stack to protect against deep nesting
+					(typeof setImmediate === 'function') ? setImmediate(validateAADefinition, payload.definition, cb2) : setTimeout(validateAADefinition, 0, payload.definition, cb2); // interrupt the call stack to protect against deep nesting
 					break;
-				
+
 				case 'asset':
 					if (hasFieldsExcept(payload, ["cap", "is_private", "is_transferrable", "auto_destroy", "fixed_denominations", "issued_by_definer_only", "cosigned_by_definer", "spender_attested", "issue_condition", "transfer_condition", "attestors", "denominations", "init"]))
 						return cb2("unknown fields in asset definition in AA");
@@ -336,7 +337,7 @@ function validateAADefinition(arrDefinition, callback) {
 						}
 					);
 					break;
-				
+
 				case 'asset_attestors':
 					if (hasFieldsExcept(payload, ['asset', 'attestors', 'init']))
 						return cb2("foreign fields in attestor list update");
@@ -353,7 +354,7 @@ function validateAADefinition(arrDefinition, callback) {
 						async.eachSeries(arrFormulas, validateFormula, cb2);
 					});
 					break;
-				
+
 				case 'attestation':
 					if (hasFieldsExcept(payload, ["address", "profile", "init"]))
 						return cb2("unknown fields in AA attestation");
@@ -372,7 +373,7 @@ function validateAADefinition(arrDefinition, callback) {
 						return cb2("bad address in attestation: " + payload.address);
 					async.eachSeries(arrFormulas, validateFormula, cb2);
 					break;
-				
+
 				case 'poll':
 					if (!isNonemptyObject(payload))
 						return cb2("poll payload must be a non-empty object");
@@ -383,7 +384,7 @@ function validateAADefinition(arrDefinition, callback) {
 					var question_formula = getFormula(payload.question);
 					if (question_formula !== null)
 						arrFormulas.push(question_formula);
-					
+
 					function validateChoices(choices, cb3) {
 						if (isNonemptyString(choices)) {
 							var f = getFormula(choices);
@@ -416,7 +417,7 @@ function validateAADefinition(arrDefinition, callback) {
 						async.eachSeries(arrFormulas, validateFormula, cb2);
 					});
 					break;
-				
+
 				case 'vote':
 					if (hasFieldsExcept(payload, ["unit", "choice", 'init']))
 						return cb2("unknown fields in AA vote");
@@ -434,7 +435,7 @@ function validateAADefinition(arrDefinition, callback) {
 						arrFormulas.push(choice_formula);
 					async.eachSeries(arrFormulas, validateFormula, cb2);
 					break;
-				
+
 				case 'definition_template':
 					if (!ValidationUtils.isArrayOfLength(payload, 2))
 						return cb2("AA definition_template must be array of two elements");
@@ -444,12 +445,12 @@ function validateAADefinition(arrDefinition, callback) {
 					arrFormulas = arrFormulas.concat(arrTemplFormulas);
 					async.eachSeries(arrFormulas, validateFormula, cb2);
 					break;
-				
+
 				default:
 					cb2("unsupported app in AA: " + message.app);
 			}
 		}
-		
+
 		async.series([
 			function (cb2) {
 				if (!message.if)
@@ -570,7 +571,7 @@ function validateAADefinition(arrDefinition, callback) {
 			bStateVarAssignmentAllowed: bStateVarAssignmentAllowed
 		};
 	//	console.log('--- validateFormula', formula);
-		formulaParser.validate(opts, function (result) {
+		formulaValidator.validate(opts, function (result) {
 			complexity = result.complexity;
 			count_ops = result.count_ops;
 			if (result.error) {
