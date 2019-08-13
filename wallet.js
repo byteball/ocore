@@ -2100,6 +2100,42 @@ function claimBackOldTextcoins(to_address, days){
 	);
 }
 
+// claim back multiple textcoint in single transaction
+function claimBackMultipleOldTextcoins(asset, to_address, days) {
+	db.takeConnectionFromPool(function(conn) {
+		var queries = [];
+		conn.addQuery(queries, "BEGIN");
+
+		db.query(
+			"SELECT mnemonic FROM sent_mnemonics LEFT JOIN unit_authors USING(address) \n\
+			WHERE mnemonic!='' AND unit_authors.address IS NULL AND creation_date<"+db.addTime("-"+days+" DAYS"),
+			function(rows) {
+				var opts = {
+					'wallet': wallet_id,
+					'asset': asset,
+					'to_address': to_address
+				};
+				async.eachSeries(
+					rows,
+					function(row, cb) {
+						sendMultiPayment(opts, function(err) {
+							if (err)
+								console.log("failed claiming back old textcoin "+row.mnemonic+": "+err);
+							else 
+								console.log("claimed back mnemonic "+row.mnemonic)
+						});
+					}
+				);
+			}
+		)
+
+		conn.addQuery(queries, "COMMIT");
+		async.series(queries, function() {
+			conn.release();
+		});
+	});
+}
+
 function eraseTextcoin(unit, address) {
 	db.query(
 		"UPDATE sent_mnemonics \n\
