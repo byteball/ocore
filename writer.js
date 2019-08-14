@@ -350,7 +350,7 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 							
 							determineInputAddress(function(address){
 								var is_unique = 
-									objValidationState.arrDoubleSpendInputs.some(function(ds){ return (ds.message_index === i && ds.input_index === j); }) 
+									(objValidationState.arrDoubleSpendInputs.some(function(ds){ return (ds.message_index === i && ds.input_index === j); }) || conf.bLight) 
 									? null : 1;
 								conn.addQuery(arrQueries, "INSERT INTO inputs \n\
 										(unit, message_index, input_index, type, \n\
