@@ -13,6 +13,7 @@ var storage = require('./storage.js');
 var device = require('./device.js');
 var walletGeneral = require('./wallet_general.js');
 var lightWallet = require('./light_wallet.js');
+var light = require('./light.js');
 var walletDefinedByKeys = require('./wallet_defined_by_keys.js');
 var walletDefinedByAddresses = require('./wallet_defined_by_addresses.js');
 var eventBus = require('./event_bus.js');
@@ -134,6 +135,9 @@ function handleJustsaying(ws, subject, body){
 			
 		case 'light/have_updates':
 			lightWallet.refreshLightClientHistory();
+			break;
+		case 'light/have_updates':
+				light.updateAndEmitBadSequence(body);
 			break;
 	}
 }

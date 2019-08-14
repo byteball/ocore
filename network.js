@@ -1003,7 +1003,10 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 						unlock();
 						if (ws)
 							writeEvent((objValidationState.sequence !== 'good') ? 'nonserial' : 'new_good', ws.host);
-						notifyWatchers(objJoint, ws);
+						if (objValidationState.sequence === 'good')
+							notifyWatchers(objJoint, ws);
+						if (objValidationState.arrUnitsGettingBadSequence)
+							notifyWatchersAboutUnitsGettingBadSequence(objValidationState.arrUnitsGettingBadSequence);
 						if (!bCatchingUp)
 							eventBus.emit('new_joint', objJoint);
 					});
@@ -1255,14 +1258,76 @@ function addWatchedAddress(address){
 	arrWatchedAddresses.push(address);
 }
 
-// if any of the watched addresses are affected, notifies:  1. own UI  2. light clients
-function notifyWatchers(objJoint, source_ws){
-	var bAA = objJoint.new_aa;
-	delete objJoint.new_aa;
-	var objUnit = objJoint.unit;
+function notifyWatchersAboutUnitsGettingBadSequence(arrUnits){
+	if (conf.bLight)
+		throw Error("light node cannot notify about bad sequence");
+	var assocAddressesByUnit = {};
+	var assocUnitsByAddress = {};
+
+	async.each(arrUnits, function(unit, cb){
+		storage.readJoint(db, unit, function(objUnit){
+			var arrAddresses = getAllAuthorsAndOutputsAddresses(objUnit);
+			if (!arrAddresses) // voided unit
+				return cb();
+			assocAddressesByUnit[unit] = arrAddresses;
+			arrAddresses.forEach(address){
+				if (!assocUnitsByAddress[address])
+					assocUnitsByAddress[address] = [];
+				assocUnitsByAddress[address].push(unit);
+			});
+			cb();
+		});
+	},function(){
+		// notify local watchers
+		var assocUniqueUnits = {};
+		for (var unit in assocAddressesByUnit){
+			if (_.intersection(arrWatchedAddresses, assocAddressesByUnit[unit]).length > 0){
+				assocUniqueUnits[unit] = true;
+			}
+		}
+		db.query(
+			"SELECT address FROM my_addresses UNION SELECT address FROM shared_addresses UNION SELECT address FROM my_watched_addresses",  
+			function(rows){
+				var arrAllMyAddresses = rows.map(function(row){return row.address});
+				for (var unit in assocAddressesByUnit){
+					if (_.intersection(arrAllMyAddresses, assocAddressesByUnit[unit]).length > 0){
+						assocUniqueUnits[unit] = true;
+					}
+				}
+				if (rows.length > 0){
+					eventBus.emit("bad_sequence_units", [Object.keys(assocUniqueUnits)]);
+				}
+			}
+		);
+		// notify light watchers
+		if (!bWatchingForLight)
+			return;
+		db.query("SELECT peer,address FROM watched_light_addresses WHERE address IN(?)", [Object.keys(assocUnitsByAddress)], function(rows){
+			if (rows.length === 0)
+				return;
+			var assocUniqueUnitsByPeer = {};
+			rows.forEach(function(row){
+				if (assocUnitsByAddress[row.address]){
+						assocUnitsByAddress[row.address].forEach(function(unit){
+						if (!assocUniqueUnitsByPeer[row.peer])
+							assocUniqueUnitsByPeer[row.peer] = {};
+							assocUniqueUnitsByPeer[row.peer][unit] = true;
+					});
+				}
+			});
+			Object.keys(assocUniqueUnitsByPeer).forEach(function(peer){
+				var ws = getPeerWebSocket(peer);
+				if (ws && ws.readyState === ws.OPEN && ws !== source_ws)
+						sendJustsaying(ws, 'light/bad_sequence_units', Object.keys(assocUniqueUnitsByPeer[peer]));
+			});
+		});
+	});
+}
+
+function getAllAuthorsAndOutputsAddresses(objUnit){
 	var arrAddresses = objUnit.authors.map(function(author){ return author.address; });
 	if (!objUnit.messages) // voided unit
-		return;
+		return null;
 	for (var i=0; i<objUnit.messages.length; i++){
 		var message = objUnit.messages[i];
 		if (message.app !== "payment" || !message.payload)
@@ -1274,6 +1339,18 @@ function notifyWatchers(objJoint, source_ws){
 				arrAddresses.push(address);
 		}
 	}
+	return arrAddresses;
+}
+
+// if any of the watched addresses are affected, notifies:  1. own UI  2. light clients
+function notifyWatchers(objJoint, source_ws){
+	var bAA = objJoint.new_aa;
+	delete objJoint.new_aa;
+	var objUnit = objJoint.unit;
+	var arrAddresses = getAllAuthorsAndOutputsAddresses(objUnit);
+	if (!arrAddresses) // voided unit
+		return;
+
 	if (_.intersection(arrWatchedAddresses, arrAddresses).length > 0){
 		eventBus.emit("new_my_transactions", [objJoint.unit.unit]);
 		eventBus.emit("new_my_unit-"+objJoint.unit.unit, objJoint);
@@ -2348,6 +2425,7 @@ function handleJustsaying(ws, subject, body){
 			
 		// I'm light client
 		case 'light/have_updates':
+		case 'light/bad_sequence_units':
 			if (!conf.bLight)
 				return sendError(ws, "I'm not light");
 			if (!ws.bLightVendor)

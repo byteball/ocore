@@ -437,6 +437,20 @@ function emitNewMyTransactions(arrNewUnits){
 	);
 }
 
+function updateAndEmitBadSequence(arrBadSequenceUnits){
+	if (!Array.isArray(arrBadSequenceUnits))
+		return console.log("arrBadSequenceUnits not array");
+	db.query("UPDATE units SET sequence='temp-bad' WHERE is_stable=0 AND unit IN (?)", [arrBadSequenceUnits], function(result){
+		db.query(
+			getSqlToFilterMyUnits(arrBadSequenceUnits),
+			function(rows){
+				if (rows.length > 0){
+					eventBus.emit('bad_sequence_units', rows.map(function(row){ return row.unit; }));
+				}
+			});
+	});
+}
+
 
 function prepareParentsAndLastBallAndWitnessListUnit(arrWitnesses, callbacks){
 	if (!ValidationUtils.isArrayOfLength(arrWitnesses, constants.COUNT_WITNESSES))
@@ -671,5 +685,5 @@ exports.prepareLinkProofs = prepareLinkProofs;
 exports.processLinkProofs = processLinkProofs;
 exports.determineIfHaveUnstableJoints = determineIfHaveUnstableJoints;
 exports.prepareParentsAndLastBallAndWitnessListUnit = prepareParentsAndLastBallAndWitnessListUnit;
-
+exports.updateAndEmitBadSequence = updateAndEmitBadSequence;
 

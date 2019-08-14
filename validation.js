@@ -929,9 +929,12 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 			if (arrUnstableConflictingUnits.length === 0)
 				return next();
 			// we don't modify the db during validation, schedule the update for the write
-			objValidationState.arrAdditionalQueries.push(
-				{sql: "UPDATE units SET sequence='temp-bad' WHERE unit IN(?) AND +sequence='good'", params: [arrUnstableConflictingUnits]});
-			next();
+			conn.query("SELECT unit FROM units WHERE unit IN(?) AND +sequence='good'",function(rows){
+				objValidationState.arrUnitsGettingBadSequence = rows.map(function(row){return row.unit});
+				objValidationState.arrAdditionalQueries.push(
+					{sql: "UPDATE units SET sequence='temp-bad' WHERE unit IN(?) AND +sequence='good'", params: [arrUnstableConflictingUnits]});
+				next();
+				});
 		});
 	}
 	
