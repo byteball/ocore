@@ -287,13 +287,16 @@ function processHistory(objResponse, arrWitnesses, callbacks){
 									unlock();
 									return callbacks.ifOk(true);
 								}
-								db.query("UPDATE units SET is_stable=1, is_free=0 WHERE unit IN("+arrProvenUnits.map(db.escape).join(', ')+")", function(){
-									unlock();
-									arrProvenUnits = arrProvenUnits.filter(function(unit){ return !assocProvenUnitsNonserialness[unit]; });
-									if (arrProvenUnits.length === 0)
-										return callbacks.ifOk(true);
-									emitStability(arrProvenUnits, function(bEmitted){
-										callbacks.ifOk(!bEmitted);
+								var sqlProvenUnits = arrProvenUnits.map(db.escape).join(', ');
+								db.query("UPDATE inputs SET is_unique=1 WHERE unit IN("+sqlProvenUnits+")", function(){
+									db.query("UPDATE units SET is_stable=1, is_free=0 WHERE unit IN("+sqlProvenUnits+")", function(){
+										unlock();
+										arrProvenUnits = arrProvenUnits.filter(function(unit){ return !assocProvenUnitsNonserialness[unit]; });
+										if (arrProvenUnits.length === 0)
+											return callbacks.ifOk(true);
+										emitStability(arrProvenUnits, function(bEmitted){
+											callbacks.ifOk(!bEmitted);
+										});
 									});
 								});
 							});
