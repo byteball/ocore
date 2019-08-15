@@ -1003,8 +1003,7 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 						unlock();
 						if (ws)
 							writeEvent((objValidationState.sequence !== 'good') ? 'nonserial' : 'new_good', ws.host);
-						if (objValidationState.sequence === 'good')
-							notifyWatchers(objJoint, ws);
+						notifyWatchers(objJoint, objValidationState.sequence === 'good', ws);
 						if (objValidationState.arrUnitsGettingBadSequence)
 							notifyWatchersAboutUnitsGettingBadSequence(objValidationState.arrUnitsGettingBadSequence);
 						if (!bCatchingUp)
@@ -1353,7 +1352,7 @@ function getAllAuthorsAndOutputsAddresses(objUnit){
 }
 
 // if any of the watched addresses are affected, notifies:  1. own UI  2. light clients
-function notifyWatchers(objJoint, source_ws){
+function notifyWatchers(objJoint, bGoodSequence, source_ws){
 	var bAA = objJoint.new_aa;
 	delete objJoint.new_aa;
 	var objUnit = objJoint.unit;
@@ -1379,7 +1378,7 @@ function notifyWatchers(objJoint, source_ws){
 	
 	if (conf.bLight)
 		return;
-	if (objJoint.ball) // already stable, light clients will require a proof
+	if (objJoint.ball || !bGoodSequence) // If already stable, light clients will require a proof. We notify them only good sequence unit.
 		return;
 	if (!bWatchingForLight)
 		return;
@@ -1608,12 +1607,12 @@ function broadcastJoint(objJoint){
 			if (client.bSubscribed)
 				sendJoint(client, objJoint);
 		});
-	notifyWatchers(objJoint);
+	notifyWatchers(objJoint, true);
 }
 
 function onNewAA(objUnit) {
 	findAndHandleJointsThatAreReady(objUnit.unit);
-	notifyWatchers({ unit: objUnit, new_aa: true });
+	notifyWatchers({ unit: objUnit, new_aa: true }, true);
 }
 
 
