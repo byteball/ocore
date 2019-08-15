@@ -1261,23 +1261,34 @@ function addWatchedAddress(address){
 function notifyWatchersAboutUnitsGettingBadSequence(arrUnits){
 	if (conf.bLight)
 		throw Error("light node cannot notify about bad sequence");
+
+	// - one unit can concern several addresses
+	// - same address can be concerned by several units
+	// - several addresses can be watched locally or by same peer
+	// we have to sort that in order to provide duplicated units to sequence_became_bad event
 	var assocAddressesByUnit = {};
 	var assocUnitsByAddress = {};
-
 	async.each(arrUnits, function(unit, cb){
-		storage.readJoint(db, unit, function(objUnit){
-			var arrAddresses = getAllAuthorsAndOutputsAddresses(objUnit);
-			if (!arrAddresses) // voided unit
-				return cb();
-			assocAddressesByUnit[unit] = arrAddresses;
-			arrAddresses.forEach(address){
-				if (!assocUnitsByAddress[address])
-					assocUnitsByAddress[address] = [];
-				assocUnitsByAddress[address].push(unit);
+		storage.readJoint(db, unit, 
+			{
+				ifFound: function(objUnit){
+					var arrAddresses = getAllAuthorsAndOutputsAddresses(objUnit.unit);
+					if (!arrAddresses) // voided unit
+						return cb();
+					assocAddressesByUnit[unit] = arrAddresses;
+					arrAddresses.forEach(function(address){
+						if (!assocUnitsByAddress[address])
+							assocUnitsByAddress[address] = [];
+						assocUnitsByAddress[address].push(unit);
+					});
+					cb();
+				},
+				ifNotFound: function(){
+					return cb();
+				}
 			});
-			cb();
-		});
-	},function(){
+		},
+		function(){
 		// notify local watchers
 		var assocUniqueUnits = {};
 		for (var unit in assocAddressesByUnit){
@@ -1286,7 +1297,7 @@ function notifyWatchersAboutUnitsGettingBadSequence(arrUnits){
 			}
 		}
 		db.query(
-			"SELECT address FROM my_addresses UNION SELECT address FROM shared_addresses UNION SELECT address FROM my_watched_addresses",  
+			"SELECT address FROM my_addresses UNION SELECT shared_address AS address FROM shared_addresses UNION SELECT address FROM my_watched_addresses",  
 			function(rows){
 				var arrAllMyAddresses = rows.map(function(row){return row.address});
 				for (var unit in assocAddressesByUnit){
@@ -1294,9 +1305,8 @@ function notifyWatchersAboutUnitsGettingBadSequence(arrUnits){
 						assocUniqueUnits[unit] = true;
 					}
 				}
-				if (rows.length > 0){
-					eventBus.emit("bad_sequence_units", [Object.keys(assocUniqueUnits)]);
-				}
+				if (rows.length > 0)
+					eventBus.emit("sequence_became_bad", [Object.keys(assocUniqueUnits)]);
 			}
 		);
 		// notify light watchers
@@ -1311,14 +1321,14 @@ function notifyWatchersAboutUnitsGettingBadSequence(arrUnits){
 						assocUnitsByAddress[row.address].forEach(function(unit){
 						if (!assocUniqueUnitsByPeer[row.peer])
 							assocUniqueUnitsByPeer[row.peer] = {};
-							assocUniqueUnitsByPeer[row.peer][unit] = true;
+						assocUniqueUnitsByPeer[row.peer][unit] = true;
 					});
 				}
 			});
 			Object.keys(assocUniqueUnitsByPeer).forEach(function(peer){
 				var ws = getPeerWebSocket(peer);
-				if (ws && ws.readyState === ws.OPEN && ws !== source_ws)
-						sendJustsaying(ws, 'light/bad_sequence_units', Object.keys(assocUniqueUnitsByPeer[peer]));
+				if (ws && ws.readyState === ws.OPEN)
+						sendJustsaying(ws, 'light/sequence_became_bad', Object.keys(assocUniqueUnitsByPeer[peer]));
 			});
 		});
 	});
@@ -2425,7 +2435,7 @@ function handleJustsaying(ws, subject, body){
 			
 		// I'm light client
 		case 'light/have_updates':
-		case 'light/bad_sequence_units':
+		case 'light/sequence_became_bad':
 			if (!conf.bLight)
 				return sendError(ws, "I'm not light");
 			if (!ws.bLightVendor)

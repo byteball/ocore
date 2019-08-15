@@ -136,8 +136,8 @@ function handleJustsaying(ws, subject, body){
 		case 'light/have_updates':
 			lightWallet.refreshLightClientHistory();
 			break;
-		case 'light/have_updates':
-				light.updateAndEmitBadSequence(body);
+		case 'light/sequence_became_bad':
+			light.updateAndEmitBadSequenceUnits(body);
 			break;
 	}
 }
