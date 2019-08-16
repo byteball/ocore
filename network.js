@@ -1265,13 +1265,14 @@ function notifyWatchersAboutUnitsGettingBadSequence(arrUnits){
 	// - same address can be concerned by several units
 	// - several addresses can be watched locally or by same peer
 	// we have to sort that in order to provide duplicated units to sequence_became_bad event
+	arrUnits = _.uniq(arrUnits);
 	var assocAddressesByUnit = {};
 	var assocUnitsByAddress = {};
 	async.each(arrUnits, function(unit, cb){
 		storage.readJoint(db, unit, 
 			{
 				ifFound: function(objUnit){
-					var arrAddresses = getAllAuthorsAndOutputsAddresses(objUnit.unit);
+					var arrAddresses = getAllAuthorsAndOutputAddresses(objUnit.unit);
 					if (!arrAddresses) // voided unit
 						return cb();
 					assocAddressesByUnit[unit] = arrAddresses;
@@ -1295,23 +1296,25 @@ function notifyWatchersAboutUnitsGettingBadSequence(arrUnits){
 				assocUniqueUnits[unit] = true;
 			}
 		}
+		var arrConcernedAddresses = Object.keys(assocUnitsByAddress);
 		db.query(
-			"SELECT address FROM my_addresses UNION SELECT shared_address AS address FROM shared_addresses UNION SELECT address FROM my_watched_addresses",  
+			"SELECT address FROM my_addresses WHERE address IN(?) UNION SELECT shared_address AS address FROM shared_addresses WHERE address IN(?) UNION SELECT address FROM my_watched_addresses WHERE address IN(?)",  
+			[arrConcernedAddresses, arrConcernedAddresses, arrConcernedAddresses],
 			function(rows){
-				var arrAllMyAddresses = rows.map(function(row){return row.address});
-				for (var unit in assocAddressesByUnit){
-					if (_.intersection(arrAllMyAddresses, assocAddressesByUnit[unit]).length > 0){
-						assocUniqueUnits[unit] = true;
+				if (rows.length > 0){
+					var arrMyConcernedAddresses = rows.map(function(row){return row.address});
+					for (var unit in assocAddressesByUnit){
+						if (_.intersection(arrMyConcernedAddresses, assocAddressesByUnit[unit]).length > 0)
+							assocUniqueUnits[unit] = true;
 					}
-				}
-				if (rows.length > 0)
 					eventBus.emit("sequence_became_bad", [Object.keys(assocUniqueUnits)]);
+				}
 			}
 		);
 		// notify light watchers
 		if (!bWatchingForLight)
 			return;
-		db.query("SELECT peer,address FROM watched_light_addresses WHERE address IN(?)", [Object.keys(assocUnitsByAddress)], function(rows){
+		db.query("SELECT peer,address FROM watched_light_addresses WHERE address IN(?)", [arrConcernedAddresses], function(rows){
 			if (rows.length === 0)
 				return;
 			var assocUniqueUnitsByPeer = {};
@@ -1333,7 +1336,7 @@ function notifyWatchersAboutUnitsGettingBadSequence(arrUnits){
 	});
 }
 
-function getAllAuthorsAndOutputsAddresses(objUnit){
+function getAllAuthorsAndOutputAddresses(objUnit){
 	var arrAddresses = objUnit.authors.map(function(author){ return author.address; });
 	if (!objUnit.messages) // voided unit
 		return null;
@@ -1356,7 +1359,7 @@ function notifyWatchers(objJoint, bGoodSequence, source_ws){
 	var bAA = objJoint.new_aa;
 	delete objJoint.new_aa;
 	var objUnit = objJoint.unit;
-	var arrAddresses = getAllAuthorsAndOutputsAddresses(objUnit);
+	var arrAddresses = getAllAuthorsAndOutputAddresses(objUnit);
 	if (!arrAddresses) // voided unit
 		return;
 

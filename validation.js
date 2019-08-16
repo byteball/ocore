@@ -930,7 +930,7 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 				return next();
 			conn.query("SELECT unit FROM units WHERE unit IN(?) AND +sequence='good'",[arrUnstableConflictingUnits],function(rows){
 				if (rows.length > 0)
-					objValidationState.arrUnitsGettingBadSequence = rows.map(function(row){return row.unit});
+					objValidationState.arrUnitsGettingBadSequence = (objValidationState.arrUnitsGettingBadSequence || []).concat(rows.map(function(row){return row.unit}));
 				// we don't modify the db during validation, schedule the update for the write
 				objValidationState.arrAdditionalQueries.push(
 				{sql: "UPDATE units SET sequence='temp-bad' WHERE unit IN(?) AND +sequence='good'", params: [arrUnstableConflictingUnits]});
