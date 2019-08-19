@@ -619,14 +619,18 @@ function validateAADefinition(arrDefinition, callback) {
 			if (err)
 				return callback(err);
 			validateFieldWrappedInCases(template, 'messages', validateMessages, function (err) {
+				if (err)
+					return callback(err);
 				console.log('AA validated, complexity = ' + complexity + ', ops = ' + count_ops);
-				callback(err);
+				callback(null, {complexity, count_ops});
 			});
 		});
 	}
 	validateFieldWrappedInCases(template, 'messages', validateMessages, function (err) {
+		if (err)
+			return callback(err);
 		console.log('AA validated, complexity = ' + complexity + ', ops = ' + count_ops);
-		callback(err);
+		callback(null, {complexity, count_ops});
 	});
 }
 
