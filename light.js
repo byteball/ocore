@@ -16,6 +16,7 @@ var parentComposer = require('./parent_composer.js');
 var breadcrumbs = require('./breadcrumbs.js');
 var eventBus = require('./event_bus.js');
 var proofChain = require('./proof_chain.js');
+var _ = require('lodash');
 
 var MAX_HISTORY_ITEMS = 2000;
 
@@ -437,19 +438,28 @@ function emitNewMyTransactions(arrNewUnits){
 	);
 }
 
-function updateAndEmitBadSequenceUnits(arrBadSequenceUnits){
+function updateAndEmitBadSequenceUnits(arrBadSequenceUnits, retryDelay){
 	if (!ValidationUtils.isNonemptyArray(arrBadSequenceUnits))
 		return console.log("arrBadSequenceUnits not array or empty");
-	setTimeout(function(){ // we add a delay to be sure units had time to be validated and saved
-		db.query("UPDATE units SET sequence='temp-bad' WHERE is_stable=0 AND unit IN (?)", [arrBadSequenceUnits], function(){
-			db.query(
-				getSqlToFilterMyUnits(arrBadSequenceUnits),
-				function(rows){
-					if (rows.length > 0)
-						eventBus.emit('sequence_became_bad', rows.map(function(row){ return row.unit; }));
-				});
+	if (!retryDelay)
+		retryDelay = 100;
+	if (retryDelay > 6400)
+		return;
+	db.query("SELECT unit FROM units WHERE unit IN (?)", [arrBadSequenceUnits], function(rows){
+		var arrAlreadySavedUnits = rows.map(function(row){return row.unit});
+		var arrNotSavedUnits = _.difference(arrBadSequenceUnits, arrAlreadySavedUnits);
+		if (arrNotSavedUnits.length > 0)
+			setTimeout(function(){
+				updateAndEmitBadSequenceUnits(arrNotSavedUnits, retryDelay*2); // we retry later for units that are not validated and saved yet
+			}, retryDelay);
+		db.query("UPDATE units SET sequence='temp-bad' WHERE is_stable=0 AND unit IN (?)", [arrAlreadySavedUnits], function(){
+			db.query(getSqlToFilterMyUnits(arrAlreadySavedUnits),
+			function(arrMySavedUnits){
+				if (arrMySavedUnits.length > 0)
+					eventBus.emit('sequence_became_bad', arrMySavedUnits.map(function(row){ return row.unit; }));
+			});
 		});
-	}, 500);
+	});
 }
 
 

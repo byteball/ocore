@@ -1307,30 +1307,37 @@ function notifyWatchersAboutUnitsGettingBadSequence(arrUnits){
 						if (_.intersection(arrMyConcernedAddresses, assocAddressesByUnit[unit]).length > 0)
 							assocUniqueUnits[unit] = true;
 					}
-					eventBus.emit("sequence_became_bad", [Object.keys(assocUniqueUnits)]);
 				}
+				var arrUniqueUnits = Object.keys(assocUniqueUnits);
+				if (arrUniqueUnits.length > 0)
+					eventBus.emit("sequence_became_bad", arrUniqueUnits);
 			}
 		);
 		// notify light watchers
 		if (!bWatchingForLight)
 			return;
-		db.query("SELECT peer,address FROM watched_light_addresses WHERE address IN(?)", [arrConcernedAddresses], function(rows){
-			if (rows.length === 0)
-				return;
+		db.query("SELECT peer,address FROM watched_light_addresses WHERE address IN(?)", [arrConcernedAddresses], function(watched_addresses){
 			var assocUniqueUnitsByPeer = {};
-			rows.forEach(function(row){
+			watched_addresses.forEach(function(row){
 				if (assocUnitsByAddress[row.address]){
-						assocUnitsByAddress[row.address].forEach(function(unit){
+					assocUnitsByAddress[row.address].forEach(function(unit){
 						if (!assocUniqueUnitsByPeer[row.peer])
 							assocUniqueUnitsByPeer[row.peer] = {};
 						assocUniqueUnitsByPeer[row.peer][unit] = true;
 					});
 				}
 			});
-			Object.keys(assocUniqueUnitsByPeer).forEach(function(peer){
-				var ws = getPeerWebSocket(peer);
-				if (ws && ws.readyState === ws.OPEN)
+			db.query("SELECT peer,unit FROM watched_light_units WHERE unit IN(?)", [arrUnits], function(watched_units){
+				watched_units.forEach(function(row){
+					if (!assocUniqueUnitsByPeer[row.peer])
+						assocUniqueUnitsByPeer[row.peer] = {};
+					assocUniqueUnitsByPeer[row.peer][row.unit] = true;
+				});
+				Object.keys(assocUniqueUnitsByPeer).forEach(function(peer){
+					var ws = getPeerWebSocket(peer);
+					if (ws && ws.readyState === ws.OPEN)
 						sendJustsaying(ws, 'light/sequence_became_bad', Object.keys(assocUniqueUnitsByPeer[peer]));
+				});
 			});
 		});
 	});
