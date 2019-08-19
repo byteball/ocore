@@ -621,14 +621,16 @@ function validateAADefinition(arrDefinition, callback) {
 			validateFieldWrappedInCases(template, 'messages', validateMessages, function (err) {
 				if (err)
 					return callback(err);
-				callback(null, 'AA validated, complexity = ' + complexity + ', ops = ' + count_ops);
+				console.log('AA validated, complexity = ' + complexity + ', ops = ' + count_ops);
+				callback(null, {complexity, count_ops});
 			});
 		});
 	}
 	validateFieldWrappedInCases(template, 'messages', validateMessages, function (err) {
 		if (err)
 			return callback(err);
-		callback(null, 'AA validated, complexity = ' + complexity + ', ops = ' + count_ops);
+		console.log('AA validated, complexity = ' + complexity + ', ops = ' + count_ops);
+		callback(null, {complexity, count_ops});
 	});
 }
 
