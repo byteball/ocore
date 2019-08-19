@@ -144,6 +144,17 @@ function parseUri(uri, callbacks){
 				return callbacks.ifError('invalid device address: '+device_address);
 			objRequest.device_address = device_address;
 		}
+		var single_address = assocParams.single_address;
+		if (single_address) {
+			single_address = single_address.replace(/^single/, '');
+			if (single_address && !ValidationUtils.isValidAddress(single_address))
+				single_address = 1;
+			objRequest.single_address = single_address;
+		}
+		var base64data = assocParams.base64data;
+		if (base64data){
+			objRequest.base64data = base64data;
+		}
 	}
 	callbacks.ifOk(objRequest);
 }
