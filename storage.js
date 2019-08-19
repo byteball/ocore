@@ -723,6 +723,26 @@ function readAADefinition(conn, address, handleDefinition) {
 	});
 }
 
+function readAAStateVars(address, handle){
+	var options = {};
+	options.gte = "st\n" + address + "\n";
+	options.lte = "st\n" + address + "\n\uFFFF";
+
+	var objStateVars = {}
+	var handleData = function (data){
+		objStateVars[data.key.slice(36)] = data.value;
+	}
+	var kvstore = require('./kvstore.js');
+	var stream = kvstore.createReadStream(options);
+	stream.on('data', handleData)
+	.on('end', function(){
+		handle(objStateVars);
+	})
+	.on('error', function(error){
+		throw Error('error from data stream: '+error);
+	});
+}
+
 function readFreeJoints(ifFoundFreeBall, onDone){
 	db.query("SELECT units.unit FROM units LEFT JOIN archived_joints USING(unit) WHERE is_free=1 AND archived_joints.unit IS NULL", function(rows){
 		async.each(rows, function(row, cb){
@@ -1624,6 +1644,7 @@ exports.readDefinitionChashByAddress = readDefinitionChashByAddress;
 exports.readDefinitionByAddress = readDefinitionByAddress;
 exports.readDefinition = readDefinition;
 exports.readAADefinition = readAADefinition;
+exports.readAAStateVars = readAAStateVars;
 
 exports.readLastMainChainIndex = readLastMainChainIndex;
 
