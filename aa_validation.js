@@ -223,7 +223,7 @@ function validateAADefinition(arrDefinition, callback) {
 					if ("cap" in payload) {
 						if (typeof payload.cap === 'number') {
 							if (!(isPositiveInteger(payload.cap) && payload.cap <= constants.MAX_CAP))
-								return cp2("invalid cap: " + payload.cap);
+								return cb2("invalid cap: " + payload.cap);
 						}
 						else if (typeof payload.cap === 'string') {
 							var f = getFormula(payload.cap);

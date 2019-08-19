@@ -16,6 +16,7 @@ var parentComposer = require('./parent_composer.js');
 var breadcrumbs = require('./breadcrumbs.js');
 var eventBus = require('./event_bus.js');
 var proofChain = require('./proof_chain.js');
+var _ = require('lodash');
 
 var MAX_HISTORY_ITEMS = 2000;
 
@@ -437,6 +438,31 @@ function emitNewMyTransactions(arrNewUnits){
 	);
 }
 
+function updateAndEmitBadSequenceUnits(arrBadSequenceUnits, retryDelay){
+	if (!ValidationUtils.isNonemptyArray(arrBadSequenceUnits))
+		return console.log("arrBadSequenceUnits not array or empty");
+	if (!retryDelay)
+		retryDelay = 100;
+	if (retryDelay > 6400)
+		return;
+	db.query("SELECT unit FROM units WHERE unit IN (?)", [arrBadSequenceUnits], function(rows){
+		var arrAlreadySavedUnits = rows.map(function(row){return row.unit});
+		var arrNotSavedUnits = _.difference(arrBadSequenceUnits, arrAlreadySavedUnits);
+		if (arrNotSavedUnits.length > 0)
+			setTimeout(function(){
+				updateAndEmitBadSequenceUnits(arrNotSavedUnits, retryDelay*2); // we retry later for units that are not validated and saved yet
+			}, retryDelay);
+		if (arrAlreadySavedUnits.length > 0)
+			db.query("UPDATE units SET sequence='temp-bad' WHERE is_stable=0 AND unit IN (?)", [arrAlreadySavedUnits], function(){
+				db.query(getSqlToFilterMyUnits(arrAlreadySavedUnits),
+				function(arrMySavedUnitsRows){
+					if (arrMySavedUnitsRows.length > 0)
+						eventBus.emit('sequence_became_bad', arrMySavedUnitsRows.map(function(row){ return row.unit; }));
+				});
+			});
+	});
+}
+
 
 function prepareParentsAndLastBallAndWitnessListUnit(arrWitnesses, callbacks){
 	if (!ValidationUtils.isArrayOfLength(arrWitnesses, constants.COUNT_WITNESSES))
@@ -671,5 +697,5 @@ exports.prepareLinkProofs = prepareLinkProofs;
 exports.processLinkProofs = processLinkProofs;
 exports.determineIfHaveUnstableJoints = determineIfHaveUnstableJoints;
 exports.prepareParentsAndLastBallAndWitnessListUnit = prepareParentsAndLastBallAndWitnessListUnit;
-
+exports.updateAndEmitBadSequenceUnits = updateAndEmitBadSequenceUnits;
 

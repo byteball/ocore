@@ -103,7 +103,7 @@ function parseUri(uri, callbacks){
 			return callbacks.ifError("data without query string");
 		var assocParams = parseQueryString(query_string);
 		var app = assocParams.app;
-		if (app !== 'data' && app !== 'data_feed' && app !== 'attestation' && app !== 'profile' && app !== 'poll' && app !== 'vote')
+		if (app !== 'data' && app !== 'data_feed' && app !== 'attestation' && app !== 'profile' && app !== 'poll' && app !== 'vote' && app !== 'definition')
 			return callbacks.ifError("invalid app: " + app);
 		if (app === 'attestation' && !ValidationUtils.isValidAddress(assocParams.address))
 			return callbacks.ifError("invalid attested address: "+assocParams.address);
@@ -143,6 +143,17 @@ function parseUri(uri, callbacks){
 			if (!ValidationUtils.isValidDeviceAddress(device_address))
 				return callbacks.ifError('invalid device address: '+device_address);
 			objRequest.device_address = device_address;
+		}
+		var single_address = assocParams.single_address;
+		if (single_address) {
+			single_address = single_address.replace(/^single/, '');
+			if (single_address && !ValidationUtils.isValidAddress(single_address))
+				single_address = 1;
+			objRequest.single_address = single_address;
+		}
+		var base64data = assocParams.base64data;
+		if (base64data){
+			objRequest.base64data = base64data;
 		}
 	}
 	callbacks.ifOk(objRequest);

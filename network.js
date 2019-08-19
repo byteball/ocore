@@ -1003,7 +1003,9 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 						unlock();
 						if (ws)
 							writeEvent((objValidationState.sequence !== 'good') ? 'nonserial' : 'new_good', ws.host);
-						notifyWatchers(objJoint, ws);
+						notifyWatchers(objJoint, objValidationState.sequence === 'good', ws);
+						if (objValidationState.arrUnitsGettingBadSequence)
+							notifyWatchersAboutUnitsGettingBadSequence(objValidationState.arrUnitsGettingBadSequence);
 						if (!bCatchingUp)
 							eventBus.emit('new_joint', objJoint);
 					});
@@ -1255,14 +1257,96 @@ function addWatchedAddress(address){
 	arrWatchedAddresses.push(address);
 }
 
-// if any of the watched addresses are affected, notifies:  1. own UI  2. light clients
-function notifyWatchers(objJoint, source_ws){
-	var bAA = objJoint.new_aa;
-	delete objJoint.new_aa;
-	var objUnit = objJoint.unit;
+function notifyWatchersAboutUnitsGettingBadSequence(arrUnits){
+	if (conf.bLight)
+		throw Error("light node cannot notify about bad sequence");
+
+	// - one unit can concern several addresses
+	// - same address can be concerned by several units
+	// - several addresses can be watched locally or by same peer
+	// we have to sort that in order to provide duplicated units to sequence_became_bad event
+	arrUnits = _.uniq(arrUnits);
+	var assocAddressesByUnit = {};
+	var assocUnitsByAddress = {};
+	async.each(arrUnits, function(unit, cb){
+		storage.readJoint(db, unit, 
+			{
+				ifFound: function(objUnit){
+					var arrAddresses = getAllAuthorsAndOutputAddresses(objUnit.unit);
+					if (!arrAddresses) // voided unit
+						return cb();
+					assocAddressesByUnit[unit] = arrAddresses;
+					arrAddresses.forEach(function(address){
+						if (!assocUnitsByAddress[address])
+							assocUnitsByAddress[address] = [];
+						assocUnitsByAddress[address].push(unit);
+					});
+					cb();
+				},
+				ifNotFound: function(){
+					return cb();
+				}
+			});
+		},
+		function(){
+		// notify local watchers
+		var assocUniqueUnits = {};
+		for (var unit in assocAddressesByUnit){
+			if (_.intersection(arrWatchedAddresses, assocAddressesByUnit[unit]).length > 0){
+				assocUniqueUnits[unit] = true;
+			}
+		}
+		var arrConcernedAddresses = Object.keys(assocUnitsByAddress);
+		db.query(
+			"SELECT address FROM my_addresses WHERE address IN(?) UNION SELECT shared_address AS address FROM shared_addresses WHERE address IN(?) UNION SELECT address FROM my_watched_addresses WHERE address IN(?)",  
+			[arrConcernedAddresses, arrConcernedAddresses, arrConcernedAddresses],
+			function(rows){
+				if (rows.length > 0){
+					var arrMyConcernedAddresses = rows.map(function(row){return row.address});
+					for (var unit in assocAddressesByUnit){
+						if (_.intersection(arrMyConcernedAddresses, assocAddressesByUnit[unit]).length > 0)
+							assocUniqueUnits[unit] = true;
+					}
+				}
+				var arrUniqueUnits = Object.keys(assocUniqueUnits);
+				if (arrUniqueUnits.length > 0)
+					eventBus.emit("sequence_became_bad", arrUniqueUnits);
+			}
+		);
+		// notify light watchers
+		if (!bWatchingForLight)
+			return;
+		db.query("SELECT peer,address,null FROM watched_light_addresses WHERE address IN(?) UNION SELECT peer,null,unit FROM watched_light_units WHERE unit IN(?)", [arrConcernedAddresses, arrUnits], function(rows){
+			var assocUniqueUnitsByPeer = {};
+			rows.forEach(function(row){
+				if (row.address){
+					if (assocUnitsByAddress[row.address]){
+						assocUnitsByAddress[row.address].forEach(function(unit){
+							if (!assocUniqueUnitsByPeer[row.peer])
+								assocUniqueUnitsByPeer[row.peer] = {};
+							assocUniqueUnitsByPeer[row.peer][unit] = true;
+						});
+					}
+				}
+				if (row.unit){
+					if (!assocUniqueUnitsByPeer[row.peer])
+						assocUniqueUnitsByPeer[row.peer] = {};
+					assocUniqueUnitsByPeer[row.peer][row.unit] = true;
+				}
+			});
+			Object.keys(assocUniqueUnitsByPeer).forEach(function(peer){
+				var ws = getPeerWebSocket(peer);
+				if (ws && ws.readyState === ws.OPEN)
+					sendJustsaying(ws, 'light/sequence_became_bad', Object.keys(assocUniqueUnitsByPeer[peer]));
+			});
+		});
+	});
+}
+
+function getAllAuthorsAndOutputAddresses(objUnit){
 	var arrAddresses = objUnit.authors.map(function(author){ return author.address; });
 	if (!objUnit.messages) // voided unit
-		return;
+		return null;
 	for (var i=0; i<objUnit.messages.length; i++){
 		var message = objUnit.messages[i];
 		if (message.app !== "payment" || !message.payload)
@@ -1274,6 +1358,18 @@ function notifyWatchers(objJoint, source_ws){
 				arrAddresses.push(address);
 		}
 	}
+	return arrAddresses;
+}
+
+// if any of the watched addresses are affected, notifies:  1. own UI  2. light clients
+function notifyWatchers(objJoint, bGoodSequence, source_ws){
+	var bAA = objJoint.new_aa;
+	delete objJoint.new_aa;
+	var objUnit = objJoint.unit;
+	var arrAddresses = getAllAuthorsAndOutputAddresses(objUnit);
+	if (!arrAddresses) // voided unit
+		return;
+
 	if (_.intersection(arrWatchedAddresses, arrAddresses).length > 0){
 		eventBus.emit("new_my_transactions", [objJoint.unit.unit]);
 		eventBus.emit("new_my_unit-"+objJoint.unit.unit, objJoint);
@@ -1292,7 +1388,7 @@ function notifyWatchers(objJoint, source_ws){
 	
 	if (conf.bLight)
 		return;
-	if (objJoint.ball) // already stable, light clients will require a proof
+	if (objJoint.ball || !bGoodSequence) // If already stable, light clients will require a proof. We notify them only good sequence unit.
 		return;
 	if (!bWatchingForLight)
 		return;
@@ -1521,12 +1617,12 @@ function broadcastJoint(objJoint){
 			if (client.bSubscribed)
 				sendJoint(client, objJoint);
 		});
-	notifyWatchers(objJoint);
+	notifyWatchers(objJoint, true);
 }
 
 function onNewAA(objUnit) {
 	findAndHandleJointsThatAreReady(objUnit.unit);
-	notifyWatchers({ unit: objUnit, new_aa: true });
+	notifyWatchers({ unit: objUnit, new_aa: true }, true);
 }
 
 
@@ -2348,6 +2444,7 @@ function handleJustsaying(ws, subject, body){
 			
 		// I'm light client
 		case 'light/have_updates':
+		case 'light/sequence_became_bad':
 			if (!conf.bLight)
 				return sendError(ws, "I'm not light");
 			if (!ws.bLightVendor)

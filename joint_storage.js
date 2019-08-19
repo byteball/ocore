@@ -249,14 +249,15 @@ function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 									conn.addQuery(arrQueries, "BEGIN");
 									archiving.generateQueriesToArchiveJoint(conn, objJoint, 'uncovered', arrQueries, function(){
 										conn.addQuery(arrQueries, "COMMIT");
-										async.series(arrQueries, function(){
-											kvstore.del('j\n'+row.unit);
-											breadcrumbs.add("------- done archiving "+row.unit);
-											var parent_units = storage.assocUnstableUnits[row.unit].parent_units;
-											storage.forgetUnit(row.unit);
-											storage.fixIsFreeAfterForgettingUnit(parent_units);
-											unlock();
-											cb();
+										kvstore.del('j\n'+row.unit, function(){
+											async.series(arrQueries, function(){
+												breadcrumbs.add("------- done archiving "+row.unit);
+												var parent_units = storage.assocUnstableUnits[row.unit].parent_units;
+												storage.forgetUnit(row.unit);
+												storage.fixIsFreeAfterForgettingUnit(parent_units);
+												unlock();
+												cb();
+											});
 										});
 									});
 								});
