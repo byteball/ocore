@@ -452,13 +452,14 @@ function updateAndEmitBadSequenceUnits(arrBadSequenceUnits, retryDelay){
 			setTimeout(function(){
 				updateAndEmitBadSequenceUnits(arrNotSavedUnits, retryDelay*2); // we retry later for units that are not validated and saved yet
 			}, retryDelay);
-		db.query("UPDATE units SET sequence='temp-bad' WHERE is_stable=0 AND unit IN (?)", [arrAlreadySavedUnits], function(){
-			db.query(getSqlToFilterMyUnits(arrAlreadySavedUnits),
-			function(arrMySavedUnits){
-				if (arrMySavedUnits.length > 0)
-					eventBus.emit('sequence_became_bad', arrMySavedUnits.map(function(row){ return row.unit; }));
+		if (arrAlreadySavedUnits.length > 0)
+			db.query("UPDATE units SET sequence='temp-bad' WHERE is_stable=0 AND unit IN (?)", [arrAlreadySavedUnits], function(){
+				db.query(getSqlToFilterMyUnits(arrAlreadySavedUnits),
+				function(arrMySavedUnitsRows){
+					if (arrMySavedUnitsRows.length > 0)
+						eventBus.emit('sequence_became_bad', arrMySavedUnitsRows.map(function(row){ return row.unit; }));
+				});
 			});
-		});
 	});
 }
 
