@@ -3088,6 +3088,24 @@ function handleRequest(ws, tag, command, params){
 			});
 			break;
 
+		case 'light/get_aa_state_vars':
+			if (conf.bLight)
+				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
+			if (ws.bOutbound)
+				return sendErrorResponse(ws, tag, "light clients have to be inbound");
+			if (!params)
+				return sendErrorResponse(ws, tag, "no params in light/get_aa_state_vars");
+			if (!ValidationUtils.isValidAddress(params.address))
+				return sendErrorResponse(ws, tag, "address not valid");
+			storage.readAADefinition(db, params.address, function (arrDefinition) {
+				if (!arrDefinition)
+					return sendErrorResponse(ws, tag, "not an AA");
+				storage.readAAStateVars(params.address, function (objStateVars) {
+					sendResponse(ws, tag, objStateVars);
+				});
+			});
+			break;
+			
 		// I'm a hub, the peer wants to enable push notifications
 		case 'hub/enable_notification':
 			if(ws.device_address)
