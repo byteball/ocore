@@ -818,7 +818,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 					return bounce(err);
 				messages = messages.filter(function (message) { return (message.app !== 'payment' || !message.payload.asset || !assetInfos[message.payload.asset].fixed_denominations); });
 				if (messages.length === 0) {
-					error_message = 'no mesaages after removing fixed denominations';
+					error_message = 'no messages after removing fixed denominations';
 					console.log(error_message);
 					return handleSuccessfulEmptyResponseUnit(null);
 				}
