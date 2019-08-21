@@ -802,9 +802,9 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 				storage.loadAssetWithListOfAttestedAuthors(conn, asset, mci, [address], function (err, objAsset) {
 					if (err)
 						return cb(err);
+					assetInfos[asset] = objAsset;
 					if (objAsset.fixed_denominations) // will skip it later
 						return cb();
-					assetInfos[asset] = objAsset;
 					completePaymentPayload(payload, 0, function (err) {
 						if (err)
 							return cb(err);
