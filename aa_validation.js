@@ -212,7 +212,16 @@ function validateAADefinition(arrDefinition, callback) {
 						return cb2("definition must be array of 2");
 					if (hasFieldsExcept(payload, ['definition']))
 						return cb2("unknown fields in AA definition in AA");
-					(typeof setImmediate === 'function') ? setImmediate(validateAADefinition, payload.definition, cb2) : setTimeout(validateAADefinition, 0, payload.definition, cb2); // interrupt the call stack to protect against deep nesting
+					if (payload.definition[0] !== 'autonomous agent')
+						return cb2('not an AA in nested AA definition');
+					if (!isNonemptyObject(payload.definition[1]))
+						return cb2('empty nested definition');
+					var arrDefinitionFormulas = collectFormulasInVar(payload.definition[1]);
+					if (arrDefinitionFormulas === null)
+						return cb2("nested definition object too deep");
+					arrFormulas = arrFormulas.concat(arrDefinitionFormulas);
+					async.eachSeries(arrFormulas, validateFormula, cb2);
+				//	(typeof setImmediate === 'function') ? setImmediate(validateAADefinition, payload.definition, cb2) : setTimeout(validateAADefinition, 0, payload.definition, cb2); // interrupt the call stack to protect against deep nesting
 					break;
 
 				case 'asset':
