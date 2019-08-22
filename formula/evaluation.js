@@ -1499,6 +1499,8 @@ exports.evaluate = function (opts, callback) {
 							min = evaluated_params[1];
 							max = evaluated_params[2];
 						}
+						if (!isFiniteDecimal(min) || !isFiniteDecimal(max))
+							return setFatalError("min and max must be numbers", cb, false);
 						if (!min.isInteger() || !max.isInteger())
 							return setFatalError("min and max must be integers", cb, false);
 						if (!max.gt(min))
