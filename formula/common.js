@@ -26,6 +26,8 @@ var objBaseAssetInfo = {
 	cosigned_by_definer: false,
 	spender_attested: false,
 	is_issued: true,
+	exists: true,
+	definer_address: 'MZ4GUQC7WUKZKKLGAS3H3FSDKLHI7HFO',
 };
 
 function isFiniteDecimal(val) {

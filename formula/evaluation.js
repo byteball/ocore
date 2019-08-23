@@ -1362,8 +1362,6 @@ exports.evaluate = function (opts, callback) {
 				evaluate(asset_expr, function (asset) {
 					if (fatal_error)
 						return cb(false);
-					if (asset !== 'base' && !ValidationUtils.isValidBase64(asset, constants.HASH_LENGTH))
-						return setFatalError("bad asset in asset[]: " + asset, cb, false);
 					evaluate(field_expr, function (field) {
 						if (fatal_error)
 							return cb(false);
@@ -1371,6 +1369,11 @@ exports.evaluate = function (opts, callback) {
 							return setFatalError("bad field in asset[]: " + field, cb, false);
 						if (asset === 'base')
 							return cb(objBaseAssetInfo[field]);
+						if (!ValidationUtils.isValidBase64(asset, constants.HASH_LENGTH)) {
+							if (field === 'exists')
+								return cb(false);
+							return setFatalError("bad asset in asset[]: " + asset, cb, false);
+						}
 						storage.readAssetInfo(conn, asset, function (objAsset) {
 							if (!objAsset)
 								return cb(false);
@@ -1380,6 +1383,10 @@ exports.evaluate = function (opts, callback) {
 								return cb(false);
 							if (field === 'cap') // can be null
 								return cb(objAsset.cap || 0);
+							if (field === 'definer_address')
+								return cb(objAsset.definer_address);
+							if (field === 'exists')
+								return cb(true);
 							if (field !== 'is_issued')
 								return cb(!!objAsset[field]);
 							conn.query("SELECT 1 FROM inputs WHERE type='issue' AND asset=? LIMIT 1", [asset], function(rows){

@@ -1854,6 +1854,39 @@ test.cb('asset non-base auto_destroy', t => {
 	})
 });
 
+test.cb('asset non-existing', t => {
+	var db = require("../db");
+	var trigger = {  };
+	var stateVars = {  };
+	evalFormulaWithVars({ conn: db, formula: "asset['xx'||''].exists", trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity) => {
+		t.deepEqual(res, false);
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});
+
+test.cb('asset exists', t => {
+	var db = require("../db");
+	var trigger = {  };
+	var stateVars = {  };
+	evalFormulaWithVars({ conn: db, formula: "asset['oXGOcA9TQx8Tl5Syjp1d5+mB4xicsRk3kbcE82YQAS0='].exists", trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity) => {
+		t.deepEqual(res, true);
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});
+
+test.cb('asset definer_address', t => {
+	var db = require("../db");
+	var trigger = {  };
+	var stateVars = {  };
+	evalFormulaWithVars({ conn: db, formula: "asset['oXGOcA9TQx8Tl5Syjp1d5+mB4xicsRk3kbcE82YQAS0='].definer_address", trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity) => {
+		t.deepEqual(res, 'BVVJ2K7ENPZZ3VYZFWQWK7ISPCATFIW3');
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});
+
 test('mci', t => {
 	var trigger = {  };
 	var stateVars = {  };
