@@ -1038,8 +1038,10 @@ exports.evaluate = function (opts, callback) {
 						evaluate(key, function (evaluated_key) {
 							if (fatal_error)
 								return cb2(fatal_error);
-							if (typeof evaluated_key !== 'string')
-								return setFatalError("result of " + key + " is not a string: " + evaluated_key, cb2);
+							if (Decimal.isDecimal(evaluated_key))
+								evaluated_key = evaluated_key.toNumber();
+							else if (typeof evaluated_key !== 'string')
+								return setFatalError("result of " + key + " is not a string or number: " + evaluated_key, cb2);
 							value = value[evaluated_key];
 							if (value === undefined)
 								return cb2("no such key in data");
@@ -1127,8 +1129,10 @@ exports.evaluate = function (opts, callback) {
 							evaluate(key, function (evaluated_key) {
 								if (fatal_error)
 									return cb2(fatal_error);
-								if (typeof evaluated_key !== 'string')
-									return setFatalError("result of " + key + " is not a string: " + evaluated_key, cb2);
+								if (Decimal.isDecimal(evaluated_key))
+									evaluated_key = evaluated_key.toNumber();
+								else if (typeof evaluated_key !== 'string')
+									return setFatalError("result of " + key + " is not a string or number: " + evaluated_key, cb2);
 								value = value[evaluated_key];
 								if (value === undefined)
 									return cb2("no such key in data");

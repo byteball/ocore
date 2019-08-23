@@ -1079,6 +1079,27 @@ test('trigger object converted to boolean and nonexistent', t => {
 	})
 });
 
+test('trigger.data with numeric index', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { key1: "val1", arr: ['gg', 9] }, outputs: { base: 555, "s7GXNHSjRVIS6ohoDclYF/LbCnrRdBP429qLbBGWGMo=": 777 } };
+	evalAAFormula(0, " trigger.data.arr[0]", trigger, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
+		t.deepEqual(res, "gg");
+	})
+});
+
+test('$local_var with numeric index', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { key1: "val1", arr: ['gg', 9] }, outputs: { base: 555, "s7GXNHSjRVIS6ohoDclYF/LbCnrRdBP429qLbBGWGMo=": 777 } };
+	evalAAFormula(0, "$d = trigger.data; $d.arr.1", trigger, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
+		t.deepEqual(res, 9);
+	})
+});
+
+test('$local_var with object under numeric index', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { key1: "val1", arr: ['gg', {h: 88}, 4] }, outputs: { base: 555, "s7GXNHSjRVIS6ohoDclYF/LbCnrRdBP429qLbBGWGMo=": 777 } };
+	evalAAFormula(0, "$d = trigger.data; $d.arr.1.h + trigger.data.arr.2", trigger, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
+		t.deepEqual(res, 92);
+	})
+});
+
 test('trigger with bad asset', t => {
 	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { key1: "val1", ando: {oracles: { key3: "val3", amount: 444 } }}, outputs: { base: 555, "s7GXNHSjRVIS6ohoDclYF/LbCnrRdBP429qLbBGWGMo=": 777 } };
 	evalAAFormula(0, "7 + trigger.output[[asset='bbbbb']].amount", trigger, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
