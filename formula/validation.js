@@ -625,16 +625,69 @@ exports.validate = function (opts, callback) {
 				break;
 
 			case 'json_parse':
+			case 'is_valid_address':
 				complexity++;
 				var expr = arr[1];
 				if (typeof expr === 'boolean' || Decimal.isDecimal(expr))
-					return cb("bad type in json_parse");
+					return cb("bad type in " + op);
+				if (op === 'is_valid_address' && typeof expr === 'string' && !ValidationUtils.isValidAddress(expr))
+					return cb("not valid address literal: " + expr);
 				evaluate(expr, cb);
 				break;
 
 			case 'json_stringify':
+			case 'typeof':
+			case 'length':
+			case 'parse_date':
 				var expr = arr[1];
 				evaluate(expr, cb);
+				break;
+
+			case 'starts_with':
+			case 'ends_with':
+			case 'contains':
+				var str = arr[1];
+				var sub = arr[2];
+				evaluate(str, function (err) {
+					if (err)
+						return cb(err);
+					evaluate(sub, cb);
+				});
+				break;
+
+			case 'substring':
+				var str = arr[1];
+				var start = arr[2];
+				var length = arr[3];
+				if (typeof start === 'string' || typeof length === 'string')
+					return cb("start and length in substring cannot be strings");
+				evaluate(str, function (err) {
+					if (err)
+						return cb(err);
+					evaluate(start, function (err) {
+						if (err)
+							return cb(err);
+						length ? evaluate(length, cb) : cb();
+					});
+				});
+				break;
+
+			case 'timestamp_to_string':
+				var ts = arr[1];
+				var format = arr[2];
+				if (typeof ts === 'string')
+					return cb("timestamp cannot be string");
+				if (format) {
+					if (typeof format === 'boolean' || Decimal.isDecimal(format))
+						return cb("format must be string");
+					if (typeof format === 'string' && format !== 'date' && format !== 'datetime')
+						return cb("format must be date or datetime");
+				}
+				evaluate(ts, function (err) {
+					if (err)
+						return cb(err);
+					format ? evaluate(format, cb) : cb();
+				});
 				break;
 
 			case 'response_unit':
