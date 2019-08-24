@@ -297,7 +297,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 	function replace(obj, name, path, locals, cb) {
 		count++;
 		if (count % 100 === 0) // interrupt the call stack
-			return setImmediate(replace, obj, name, locals, cb);
+			return setImmediate(replace, obj, name, path, locals, cb);
 		locals = _.clone(locals);
 		var value = obj[name];
 		if (typeof name === 'string') {
