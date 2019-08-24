@@ -35,13 +35,14 @@
 		attestors: 'attestors',
 		ifseveral: 'ifseveral',
 		ifnone: 'ifnone',
+		typeof: 'typeof',
 		type: 'type',
 		boolean: ['true', 'false'],
 		if: "if",
 		else: "else",
 		comparisonOperators: ["==", ">=", "<=", "!=", ">", "<", "="],
 		dfParamsName: ['oracles', 'feed_name', 'min_mci', 'feed_value', 'what'],
-		name: ['min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round', 'abs', 'hypot', 'is_valid_signed_package', 'is_valid_sig', 'sha256', 'json_parse', 'json_stringify', 'number_from_seed'],
+		name: ['min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round', 'abs', 'hypot', 'is_valid_signed_package', 'is_valid_sig', 'sha256', 'json_parse', 'json_stringify', 'number_from_seed', 'length', 'is_valid_address', 'starts_with', 'ends_with', 'contains', 'substring', 'timestamp_to_string', 'parse_date'],
 		and: ['and', 'AND'],
 		or: ['or', 'OR'],
 		not: ['not', 'NOT', '!'],
@@ -64,7 +65,7 @@
 		trigger_unit: /\btrigger\.unit\b/,
 		trigger_data: /\btrigger\.data\b/,
 		trigger_output: /\btrigger\.output\b/,
-		dotSelector: /\.[a-zA-Z]\w*/,
+		dotSelector: /\.\w+/,
 		local_var_name: /\$[a-zA-Z]\w*\b/,
 		semi: ';',
 		comma: ',',
@@ -217,6 +218,15 @@ N -> float          {% id %}
     | "sha256" "(" expr ")"    {% function(d) {return ['sha256', d[2]]; } %}
     | "json_parse" "(" expr ")"    {% function(d) {return ['json_parse', d[2]]; } %}
     | "json_stringify" "(" expr ")"    {% function(d) {return ['json_stringify', d[2]]; } %}
+    | "typeof" "(" expr ")"    {% function(d) {return ['typeof', d[2]]; } %}
+    | "length" "(" expr ")"    {% function(d) {return ['length', d[2]]; } %}
+    | "is_valid_address" "(" expr ")"    {% function(d) {return ['is_valid_address', d[2]]; } %}
+    | "starts_with" "(" expr "," expr ")"    {% function(d) {return ['starts_with', d[2], d[4]]; } %}
+    | "ends_with" "(" expr "," expr ")"    {% function(d) {return ['ends_with', d[2], d[4]]; } %}
+    | "contains" "(" expr "," expr ")"    {% function(d) {return ['contains', d[2], d[4]]; } %}
+    | "substring" "(" expr "," expr ("," expr):? ")"    {% function(d) {return ['substring', d[2], d[4], d[5] ? d[5][1] : null]; } %}
+    | "timestamp_to_string" "(" expr ("," expr):? ")"    {% function(d) {return ['timestamp_to_string', d[2], d[3] ? d[3][1] : null]; } %}
+    | "parse_date" "(" expr ")"    {% function(d) {return ['parse_date', d[2]]; } %}
     | bounce_expr    {% id %}
     | %data_feed ("[" "[") df_param_list ("]" "]") {% function (d, location, reject){
 		var params = {};

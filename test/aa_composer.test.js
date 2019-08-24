@@ -60,6 +60,7 @@ test.cb.serial('AA with response vars', t => {
 	var trigger = { outputs: { base: 40000 }, data: { x: 333 } };
 	var aa = ['autonomous agent', {
 		bounce_fees: { base: 10000 },
+		doc_url: 'https://myapp.com/description.json',
 		messages: [
 			{
 				app: 'payment',
