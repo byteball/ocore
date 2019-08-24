@@ -32,6 +32,7 @@ validation.validate = function (objJoint, callbacks, external_conn) {
 test('simple AA', t => {
 	var aa = ['autonomous agent', {
 		bounce_fees: { base: 10000 },
+		doc_url: 'https://myapp.com/description.json',
 		messages: [
 			{
 				app: 'payment',

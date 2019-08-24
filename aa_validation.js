@@ -603,7 +603,7 @@ function validateAADefinition(arrDefinition, callback) {
 	if (arrDefinition[0] !== 'autonomous agent')
 		return callback("not an AA");
 	var template = arrDefinition[1];
-	if (hasFieldsExcept(template, ['bounce_fees', 'messages', 'init']))
+	if (hasFieldsExcept(template, ['bounce_fees', 'messages', 'init', 'doc_url']))
 		return callback("foreign fields in AA definition");
 	if ('bounce_fees' in template){
 		if (!ValidationUtils.isNonemptyObject(template.bounce_fees))
@@ -618,6 +618,8 @@ function validateAADefinition(arrDefinition, callback) {
 		if ('base' in template.bounce_fees && template.bounce_fees.base < constants.MIN_BYTES_BOUNCE_FEE)
 			return callback("too small base bounce fee: "+template.bounce_fees.base);
 	}
+	if ('doc_url' in template && !isNonemptyString(template.doc_url))
+		return callback("invalid doc_url: " + templace.doc_url);
 	if ('init' in template) {
 		if (!ValidationUtils.isNonemptyString(template.init))
 			return callback("init is not a string");
