@@ -800,6 +800,7 @@ CREATE TABLE aa_addresses (
 	address CHAR(32) NOT NULL PRIMARY KEY,
 	unit CHAR(44) NULL, -- where it is first defined.  No index for better speed, NULL for light
 	mci INT NULL, -- it is available since this mci (mci of the above unit), NULL for light
+	storage_size INT NOT NULL DEFAULT 0,
 	definition TEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -848,4 +849,4 @@ CREATE INDEX aaResponsesByAAAddress ON aa_responses(aa_address);
 CREATE INDEX aaResponsesByMci ON aa_responses(mci);
 
 
-PRAGMA user_version=32;
+PRAGMA user_version=34;

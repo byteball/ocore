@@ -1219,13 +1219,14 @@ exports.evaluate = function (opts, callback) {
 						if (!stateVars[address])
 							stateVars[address] = {};
 					//	console.log('---- assignment_op', assignment_op)
-						if (assignment_op === "=") {
-							if (typeof res === 'string' && res.length > constants.MAX_STATE_VAR_VALUE_LENGTH)
-								return setFatalError("state var value too long: " + res, cb, false);
-							stateVars[address][var_name] = { value: res, updated: true };
-							return cb(true);
-						}
 						readVar(address, var_name, function (value) {
+							if (assignment_op === "=") {
+								if (typeof res === 'string' && res.length > constants.MAX_STATE_VAR_VALUE_LENGTH)
+									return setFatalError("state var value too long: " + res, cb, false);
+								stateVars[address][var_name].value = res;
+								stateVars[address][var_name].updated = true;
+								return cb(true);
+							}
 							if (assignment_op === '||=') {
 								value = value.toString() + res.toString();
 								if (value.length > constants.MAX_STATE_VAR_VALUE_LENGTH)
@@ -1818,7 +1819,7 @@ exports.evaluate = function (opts, callback) {
 			var f = string_utils.getNumericFeedValue(value);
 			if (f !== null)
 				value = new Decimal(value).times(1);
-			stateVars[param_address][var_name] = {value: value, old_value: value};
+			stateVars[param_address][var_name] = {value: value, old_value: value, original_old_value: value};
 			cb2(value);
 		});
 	}

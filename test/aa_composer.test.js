@@ -242,3 +242,43 @@ test.cb.serial('AA with state changes only', t => {
 	});
 });
 
+
+test.cb.serial('AA with insufficient balance for storage', t => {
+	var trigger = { outputs: { base: 40000 }, data: { x: 333 } };
+	var aa = ['autonomous agent', {
+		messages: [
+			{
+				app: 'payment',
+				payload: {
+					asset: 'base',
+					outputs: [
+						{address: "{trigger.address}"}
+					]
+				}
+			},
+			{
+				app: 'state',
+				state: `{
+					var['count'] += 1;
+					var['unit'] = response_unit;
+				}`
+			}
+		]
+	}];
+	var address = objectHash.getChash160(aa);
+	addAA(aa);
+	
+	aa_composer.dryRunPrimaryAATrigger(trigger, address, aa, (arrResponses) => {
+		t.deepEqual(arrResponses.length, 1);
+		console.log('--- responses', arrResponses);
+		t.deepEqual(arrResponses[0].bounced, true);
+		fixCache();
+		t.deepEqual(storage.assocUnstableUnits, old_cache.assocUnstableUnits);
+		t.deepEqual(storage.assocStableUnits, old_cache.assocStableUnits);
+		t.deepEqual(storage.assocUnstableMessages, old_cache.assocUnstableMessages);
+		t.deepEqual(storage.assocBestChildren, old_cache.assocBestChildren);
+		t.deepEqual(storage.assocStableUnitsByMci, old_cache.assocStableUnitsByMci);
+		t.end();
+	});
+});
+

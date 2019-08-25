@@ -79,6 +79,7 @@ exports.anyDefinitionChangeUpgradeMci = exports.bTestnet ? 855000 : 4229100;
 exports.formulaUpgradeMci = exports.bTestnet ? 961000 : Infinity;
 exports.witnessedLevelMustNotRetreatFromAllParentsUpgradeMci = exports.bTestnet ? 909000 : Infinity;
 exports.timestampUpgradeMci = exports.bTestnet ? 909000 : Infinity;
+exports.aaStorageSizeUpgradeMci = exports.bTestnet ? 1024000 : Infinity;
 
 
 if (process.env.devnet) {
@@ -105,4 +106,5 @@ if (process.env.devnet) {
 	exports.formulaUpgradeMci = 0;
 	exports.witnessedLevelMustNotRetreatFromAllParentsUpgradeMci = 0;
 	exports.timestampUpgradeMci = 0;
+	exports.aaStorageSizeUpgradeMci = 0;
 }
