@@ -1597,11 +1597,12 @@ test('large number in response', t => {
 	})
 });
 
-test('response unit', t => {
+test.cb('response unit', t => {
 	var stateVars = {};
 	evalFormulaWithVars({ formula: "var['unit'] = response_unit;", trigger: {}, locals: { a4: 100 }, stateVars: stateVars, objValidationState: objValidationState, bStatementsOnly: true, bStateVarAssignmentAllowed: true, response_unit: 'theunit', address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, res => {
 		t.deepEqual(res, true);
 		t.deepEqual(stateVars.MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU.unit.value, 'theunit');
+		t.end();
 	})
 });
 

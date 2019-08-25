@@ -4,7 +4,7 @@ var eventBus = require('./event_bus.js');
 var constants = require("./constants.js");
 var conf = require("./conf.js");
 
-var VERSION = 32;
+var VERSION = 34;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -351,7 +351,17 @@ function migrateDb(connection, onDone){
 						address CHAR(32) NOT NULL PRIMARY KEY,\n\
 						creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP\n\
 					)");
+				if (version < 33) {
+					connection.addQuery(arrQueries, "ALTER TABLE aa_addresses ADD COLUMN storage_size INT NOT NULL DEFAULT 0");
+					connection.addQuery(arrQueries, "PRAGMA user_version=33");
+				}
 				cb();
+			},
+			function (cb) {
+				if (version < 34)
+					initStorageSizes(connection, arrQueries, cb);
+				else
+					cb();
 			}
 		],
 		function(){
@@ -368,5 +378,31 @@ function migrateDb(connection, onDone){
 	});
 }
 
+
+function initStorageSizes(connection, arrQueries, cb){
+	var options = {};
+	options.gte = "st\n";
+	options.lte = "st\n\uFFFF";
+
+	var assocSizes = {};
+	var handleData = function (data) {
+		var address = data.key.substr(3, 32);
+		var var_name = data.key.substr(36);
+		if (!assocSizes[address])
+			assocSizes[address] = 0;
+		assocSizes[address] += var_name.length + data.value.length;
+	}
+	var kvstore = require('./kvstore.js');
+	var stream = kvstore.createReadStream(options);
+	stream.on('data', handleData)
+		.on('end', function(){
+			for (var address in assocSizes)
+				connection.addQuery(arrQueries, "UPDATE aa_addresses SET storage_size=? WHERE address=?", [assocSizes[address], address]);
+			cb();
+		})
+		.on('error', function(error){
+			throw Error('error from data stream: '+error);
+		});
+}
 
 exports.migrateDb = migrateDb;
