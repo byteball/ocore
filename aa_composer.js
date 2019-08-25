@@ -256,6 +256,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 					conn.addQuery(arrQueries, "INSERT INTO aa_balances (address, asset, balance) VALUES "+arrValues.join(', '));
 				}
 				byte_balance = objValidationState.assocBalances[address].base;
+				conn.addQuery(arrQueries, "SAVEPOINT initial_balances");
 				async.series(arrQueries, function () {
 					conn.query("SELECT storage_size FROM aa_addresses WHERE address=?", [address], function (rows) {
 						if (rows.length === 0)
@@ -1115,6 +1116,11 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 		arrResponses.splice(0, arrResponses.length); // start over
 		Object.keys(stateVars).forEach(function (address) { delete stateVars[address]; });
 		batch.clear();
+		conn.query("ROLLBACK TO SAVEPOINT initial_balances", function () {
+			console.log('done revert: ' + err);
+			bounce(err);
+		});
+		/*
 		conn.query("ROLLBACK", function () {
 			conn.query("BEGIN", function () {
 				// initial AA balances were rolled back, we have to add them again
@@ -1127,7 +1133,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 					});
 				});
 			});
-		});
+		});*/
 	}
 
 	function validateAndSaveUnit(objUnit, cb) {
