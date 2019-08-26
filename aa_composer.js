@@ -636,7 +636,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 			var target_amount = payload.outputs.reduce(function (acc, output) { return acc + (output.amount || 0); }, additional_amount);
 			var bFound = false;
 
-			function iterateUnspentOutputs(rows) {
+			function iterateUnspentOutputs(rows, bFinalCall) {
 				for (var i = 0; i < rows.length; i++){
 					var row = rows[i];
 					var input = { unit: row.unit, message_index: row.message_index, output_index: row.output_index };
@@ -661,15 +661,21 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 						bFound = true;
 						if (send_all_output) {
 							console.log("change " + change_amount + ", storage_size " + storage_size);
-							// this assumes storage size won't change as a result of this trigger, otherwise the amount is inaccurate
-							if (is_base && change_amount > storage_size && mci >= constants.aaStorageSizeUpgradeMci)
-								change_amount -= storage_size;
 							send_all_output.amount = change_amount;
 						}
 						else {
 							payload.outputs.push({ address: address, amount: change_amount });
 							break;
 						}
+					}
+				}
+				// this assumes storage size won't change as a result of this trigger, otherwise the amount is inaccurate
+				if (bFinalCall && is_base && send_all_output && storage_size > 0 && mci >= constants.aaStorageSizeUpgradeMci){
+					if (storage_size + OUTPUT_SIZE > send_all_output.amount)
+						bFound = false;
+					else {
+						send_all_output.amount -= storage_size + OUTPUT_SIZE;
+						payload.outputs.push({ address: address, amount: storage_size });
 					}
 				}
 			}
@@ -758,7 +764,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 				if (bFound && !send_all_output)
 					return sortOutputsAndReturn();
 				readUnstableOutputsSentByAAs(function (rows2) {
-					iterateUnspentOutputs(rows2);
+					iterateUnspentOutputs(rows2, true);
 					if (bFound)
 						return sortOutputsAndReturn();
 					if (!asset)
@@ -1141,6 +1147,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 
 	function validateAndSaveUnit(objUnit, cb) {
 		var objJoint = { unit: objUnit, aa: true };
+		console.log(JSON.stringify(objJoint));
 		validation.validate(objJoint, {
 			ifJointError: function (err) {
 				throw Error("AA validation joint error: " + err);
