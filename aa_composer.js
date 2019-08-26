@@ -256,7 +256,8 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 					conn.addQuery(arrQueries, "INSERT INTO aa_balances (address, asset, balance) VALUES "+arrValues.join(', '));
 				}
 				byte_balance = objValidationState.assocBalances[address].base;
-				conn.addQuery(arrQueries, "SAVEPOINT initial_balances");
+				if (!bSecondary)
+					conn.addQuery(arrQueries, "SAVEPOINT initial_balances");
 				async.series(arrQueries, function () {
 					conn.query("SELECT storage_size FROM aa_addresses WHERE address=?", [address], function (rows) {
 						if (rows.length === 0)
@@ -1112,6 +1113,8 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 
 	function revert(err) {
 		console.log('will revert: ' + err);
+		if (bSecondary)
+			return bounce(err);
 		revertResponsesInCaches(arrResponses);
 		arrResponses.splice(0, arrResponses.length); // start over
 		Object.keys(stateVars).forEach(function (address) { delete stateVars[address]; });
