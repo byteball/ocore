@@ -630,9 +630,14 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 			var send_all_output = send_all_outputs[0];
 			// send-all output looks like {address: "BASE32"}, its size is 32 since it has no amount.
 			// remove the send-all output from size calculation, it might be added later
-			if (send_all_output && is_base)
+			if (send_all_output && is_base){
 				additional_amount -= 32;
-			
+				// we add a change output to AA to keep balance above storage_size
+				if (storage_size > 60 && mci >= constants.aaStorageSizeUpgradeMci){
+					additional_amount += OUTPUT_SIZE;
+					payload.outputs.push({ address: address, amount: storage_size });
+				}
+			}
 			var target_amount = payload.outputs.reduce(function (acc, output) { return acc + (output.amount || 0); }, additional_amount);
 			var bFound = false;
 
@@ -661,9 +666,6 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 						bFound = true;
 						if (send_all_output) {
 							console.log("change " + change_amount + ", storage_size " + storage_size);
-							// this assumes storage size won't change as a result of this trigger, otherwise the amount is inaccurate
-							if (is_base && change_amount > storage_size && mci >= constants.aaStorageSizeUpgradeMci)
-								change_amount -= storage_size;
 							send_all_output.amount = change_amount;
 						}
 						else {
@@ -672,6 +674,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 						}
 					}
 				}
+
 			}
 
 			function readStableOutputs(handleRows) {
@@ -978,7 +981,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 		var new_storage_size = storage_size + delta_storage_size;
 		if (new_storage_size < 0)
 			throw Error("storage size would become negative: " + new_storage_size);
-		if (byte_balance < new_storage_size && mci >= constants.aaStorageSizeUpgradeMci)
+		if (byte_balance < new_storage_size && new_storage_size > 60 && mci >= constants.aaStorageSizeUpgradeMci)
 			return cb("byte balance " + byte_balance + " would drop below new storage size " + new_storage_size);
 		if (delta_storage_size === 0)
 			return cb();
@@ -1141,6 +1144,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 
 	function validateAndSaveUnit(objUnit, cb) {
 		var objJoint = { unit: objUnit, aa: true };
+		console.log(JSON.stringify(objJoint));
 		validation.validate(objJoint, {
 			ifJointError: function (err) {
 				throw Error("AA validation joint error: " + err);
