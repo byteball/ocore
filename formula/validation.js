@@ -1,5 +1,5 @@
 var nearley = require("nearley");
-var grammar = require("./grammar.js");
+var grammar = require("./grammars/oscript.js");
 var async = require('async');
 var ValidationUtils = require("../validation_utils.js");
 var constants = require('../constants');

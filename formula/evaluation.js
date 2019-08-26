@@ -1,5 +1,5 @@
 var nearley = require("nearley");
-var grammar = require("./grammar.js");
+var grammar = require("./grammars/oscript.js");
 var async = require('async');
 var crypto = require('crypto');
 var _ = require('lodash');
