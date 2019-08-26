@@ -986,7 +986,7 @@ exports.evaluate = function (opts, callback) {
 						else if (typeof res === 'boolean')
 							result += res.toString();
 						else
-							return setFatalError('unrecognized type in '+op, cb2);
+							return setFatalError('unrecognized type in ' + op + ': ' + res, cb2);
 						cb2();
 					});
 				}, function (err) {
@@ -1038,8 +1038,10 @@ exports.evaluate = function (opts, callback) {
 						evaluate(key, function (evaluated_key) {
 							if (fatal_error)
 								return cb2(fatal_error);
-							if (typeof evaluated_key !== 'string')
-								return setFatalError("result of " + key + " is not a string: " + evaluated_key, cb2);
+							if (Decimal.isDecimal(evaluated_key))
+								evaluated_key = evaluated_key.toNumber();
+							else if (typeof evaluated_key !== 'string')
+								return setFatalError("result of " + key + " is not a string or number: " + evaluated_key, cb2);
 							value = value[evaluated_key];
 							if (value === undefined)
 								return cb2("no such key in data");
@@ -1127,8 +1129,10 @@ exports.evaluate = function (opts, callback) {
 							evaluate(key, function (evaluated_key) {
 								if (fatal_error)
 									return cb2(fatal_error);
-								if (typeof evaluated_key !== 'string')
-									return setFatalError("result of " + key + " is not a string: " + evaluated_key, cb2);
+								if (Decimal.isDecimal(evaluated_key))
+									evaluated_key = evaluated_key.toNumber();
+								else if (typeof evaluated_key !== 'string')
+									return setFatalError("result of " + key + " is not a string or number: " + evaluated_key, cb2);
 								value = value[evaluated_key];
 								if (value === undefined)
 									return cb2("no such key in data");
@@ -1215,13 +1219,14 @@ exports.evaluate = function (opts, callback) {
 						if (!stateVars[address])
 							stateVars[address] = {};
 					//	console.log('---- assignment_op', assignment_op)
-						if (assignment_op === "=") {
-							if (typeof res === 'string' && res.length > constants.MAX_STATE_VAR_VALUE_LENGTH)
-								return setFatalError("state var value too long: " + res, cb, false);
-							stateVars[address][var_name] = { value: res, updated: true };
-							return cb(true);
-						}
 						readVar(address, var_name, function (value) {
+							if (assignment_op === "=") {
+								if (typeof res === 'string' && res.length > constants.MAX_STATE_VAR_VALUE_LENGTH)
+									return setFatalError("state var value too long: " + res, cb, false);
+								stateVars[address][var_name].value = res;
+								stateVars[address][var_name].updated = true;
+								return cb(true);
+							}
 							if (assignment_op === '||=') {
 								value = value.toString() + res.toString();
 								if (value.length > constants.MAX_STATE_VAR_VALUE_LENGTH)
@@ -1362,8 +1367,6 @@ exports.evaluate = function (opts, callback) {
 				evaluate(asset_expr, function (asset) {
 					if (fatal_error)
 						return cb(false);
-					if (asset !== 'base' && !ValidationUtils.isValidBase64(asset, constants.HASH_LENGTH))
-						return setFatalError("bad asset in asset[]: " + asset, cb, false);
 					evaluate(field_expr, function (field) {
 						if (fatal_error)
 							return cb(false);
@@ -1371,6 +1374,11 @@ exports.evaluate = function (opts, callback) {
 							return setFatalError("bad field in asset[]: " + field, cb, false);
 						if (asset === 'base')
 							return cb(objBaseAssetInfo[field]);
+						if (!ValidationUtils.isValidBase64(asset, constants.HASH_LENGTH)) {
+							if (field === 'exists')
+								return cb(false);
+							return setFatalError("bad asset in asset[]: " + asset, cb, false);
+						}
 						storage.readAssetInfo(conn, asset, function (objAsset) {
 							if (!objAsset)
 								return cb(false);
@@ -1380,6 +1388,10 @@ exports.evaluate = function (opts, callback) {
 								return cb(false);
 							if (field === 'cap') // can be null
 								return cb(objAsset.cap || 0);
+							if (field === 'definer_address')
+								return cb(objAsset.definer_address);
+							if (field === 'exists')
+								return cb(true);
 							if (field !== 'is_issued')
 								return cb(!!objAsset[field]);
 							conn.query("SELECT 1 FROM inputs WHERE type='issue' AND asset=? LIMIT 1", [asset], function(rows){
@@ -1499,6 +1511,8 @@ exports.evaluate = function (opts, callback) {
 							min = evaluated_params[1];
 							max = evaluated_params[2];
 						}
+						if (!isFiniteDecimal(min) || !isFiniteDecimal(max))
+							return setFatalError("min and max must be numbers", cb, false);
 						if (!min.isInteger() || !max.isInteger())
 							return setFatalError("min and max must be integers", cb, false);
 						if (!max.gt(min))
@@ -1557,6 +1571,159 @@ exports.evaluate = function (opts, callback) {
 					if (json.length > constants.MAX_AA_STRING_LENGTH)
 						return setFatalError("json_stringified is too long", cb, false);
 					cb(json);
+				});
+				break;
+
+			case 'length':
+				var expr = arr[1];
+				evaluate(expr, function (res) {
+					if (fatal_error)
+						return cb(false);
+					if (res instanceof wrappedObject)
+						res = true;
+					cb(new Decimal(res.toString().length));
+				});
+				break;
+
+			case 'starts_with':
+			case 'ends_with':
+			case 'contains':
+				var str_expr = arr[1];
+				var sub_expr = arr[2];
+				evaluate(str_expr, function (res) {
+					if (fatal_error)
+						return cb(false);
+					if (res instanceof wrappedObject)
+						res = true;
+					var str = res.toString();
+					evaluate(sub_expr, function (sub_res) {
+						if (fatal_error)
+							return cb(false);
+						if (sub_res instanceof wrappedObject)
+							sub_res = true;
+						var sub = sub_res.toString();
+						if (op === 'starts_with')
+							return cb(str.startsWith(sub));
+						if (op === 'ends_with')
+							return cb(str.endsWith(sub));
+						if (op === 'contains')
+							return cb(str.includes(sub));
+						throw Error("unknown op: " + op);
+					});
+				});
+				break;
+
+			case 'substring':
+				var str_expr = arr[1];
+				var start_expr = arr[2];
+				var length_expr = arr[3];
+				evaluate(str_expr, function (str) {
+					if (fatal_error)
+						return cb(false);
+					if (str instanceof wrappedObject)
+						str = true;
+					str = str.toString();
+					evaluate(start_expr, function (start) {
+						if (fatal_error)
+							return cb(false);
+						if (typeof start === 'string')
+							return setFatalError("start index in substring cannot be a string", cb, false);
+						if (start instanceof wrappedObject)
+							start = true;
+						if (typeof start === 'boolean')
+							start = start ? 1 : 0;
+						else if (Decimal.isDecimal(start))
+							start = start.toNumber();
+						else
+							throw Error("unknown type of start in substring: " + start);
+						if (!length_expr)
+							return cb(str.substr(start));
+						evaluate(length_expr, function (length) {
+							if (fatal_error)
+								return cb(false);
+							if (typeof length === 'string')
+								return setFatalError("length in substring cannot be a string", cb, false);
+							if (length instanceof wrappedObject)
+								length = true;
+							if (typeof length === 'boolean')
+								length = length ? 1 : 0;
+							else if (Decimal.isDecimal(length))
+								length = length.toNumber();
+							else
+								throw Error("unknown type of length in substring: " + length);
+							cb(str.substr(start, length));
+						});
+					});
+				});
+				break;
+
+			case 'is_valid_address':
+				var expr = arr[1];
+				evaluate(expr, function (res) {
+					if (fatal_error)
+						return cb(false);
+					cb(ValidationUtils.isValidAddress(res));
+				});
+				break;
+
+			case 'timestamp_to_string':
+				var ts_expr = arr[1];
+				var format_expr = arr[2] || 'datetime';
+				evaluate(ts_expr, function (ts) {
+					if (fatal_error)
+						return cb(false);
+					if (!Decimal.isDecimal(ts))
+						return setFatalError('timestamp in timestamp_to_string must be a number', cb, false);
+					ts = ts.toNumber();
+					evaluate(format_expr, function (format) {
+						if (fatal_error)
+							return cb(false);
+						if (format !== 'date' && format !== 'datetime')
+							return setFatalError("format in timestamp_to_string must be date or datetime", cb, false);
+						var str = new Date(ts * 1000).toISOString().replace('.000', '');
+						if (format === 'date')
+							str = str.substr(0, 10);
+						cb(str);
+					});
+				});
+				break;
+
+			case 'parse_date':
+				var date_expr = arr[1];
+				evaluate(date_expr, function (date) {
+					if (fatal_error)
+						return cb(false);
+					if (typeof date !== 'string')
+						return cb(false);
+					var ts;
+					if (date.match(/^\d\d\d\d-\d\d-\d\d$/))
+						ts = Date.parse(date);
+					else if (date.match(/^\d\d\d\d-\d\d-\d\d( |T)\d\d:\d\d:\d\dZ$/))
+						ts = Date.parse(date);
+					else if (date.match(/^\d\d\d\d-\d\d-\d\d( |T)\d\d:\d\d:\d\d$/))
+						ts = Date.parse(date + 'Z');
+					if (ts === undefined || isNaN(ts))
+						return cb(false);
+					if (ts % 1000)
+						throw Error("non-integer seconds");
+					cb(new Decimal(ts / 1000));
+				});
+				break;
+
+			case 'typeof':
+				var expr = arr[1];
+				evaluate(expr, function (res) {
+					if (fatal_error)
+						return cb(false);
+					if (res instanceof wrappedObject)
+						return cb('object');
+					if (typeof res === 'boolean')
+						return cb('boolean');
+					if (Decimal.isDecimal(res))
+						return cb('number');
+					if (typeof res === 'string')
+						return cb('string');
+					setFatalError("unknown type of " + res, cb, false);
 				});
 				break;
 
@@ -1652,7 +1819,7 @@ exports.evaluate = function (opts, callback) {
 			var f = string_utils.getNumericFeedValue(value);
 			if (f !== null)
 				value = new Decimal(value).times(1);
-			stateVars[param_address][var_name] = {value: value, old_value: value};
+			stateVars[param_address][var_name] = {value: value, old_value: value, original_old_value: value};
 			cb2(value);
 		});
 	}

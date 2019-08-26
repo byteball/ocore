@@ -212,7 +212,16 @@ function validateAADefinition(arrDefinition, callback) {
 						return cb2("definition must be array of 2");
 					if (hasFieldsExcept(payload, ['definition']))
 						return cb2("unknown fields in AA definition in AA");
-					(typeof setImmediate === 'function') ? setImmediate(validateAADefinition, payload.definition, cb2) : setTimeout(validateAADefinition, 0, payload.definition, cb2); // interrupt the call stack to protect against deep nesting
+					if (payload.definition[0] !== 'autonomous agent')
+						return cb2('not an AA in nested AA definition');
+					if (!isNonemptyObject(payload.definition[1]))
+						return cb2('empty nested definition');
+					var arrDefinitionFormulas = collectFormulasInVar(payload.definition[1]);
+					if (arrDefinitionFormulas === null)
+						return cb2("nested definition object too deep");
+					arrFormulas = arrFormulas.concat(arrDefinitionFormulas);
+					async.eachSeries(arrFormulas, validateFormula, cb2);
+				//	(typeof setImmediate === 'function') ? setImmediate(validateAADefinition, payload.definition, cb2) : setTimeout(validateAADefinition, 0, payload.definition, cb2); // interrupt the call stack to protect against deep nesting
 					break;
 
 				case 'asset':
@@ -594,7 +603,7 @@ function validateAADefinition(arrDefinition, callback) {
 	if (arrDefinition[0] !== 'autonomous agent')
 		return callback("not an AA");
 	var template = arrDefinition[1];
-	if (hasFieldsExcept(template, ['bounce_fees', 'messages', 'init']))
+	if (hasFieldsExcept(template, ['bounce_fees', 'messages', 'init', 'doc_url']))
 		return callback("foreign fields in AA definition");
 	if ('bounce_fees' in template){
 		if (!ValidationUtils.isNonemptyObject(template.bounce_fees))
@@ -609,6 +618,8 @@ function validateAADefinition(arrDefinition, callback) {
 		if ('base' in template.bounce_fees && template.bounce_fees.base < constants.MIN_BYTES_BOUNCE_FEE)
 			return callback("too small base bounce fee: "+template.bounce_fees.base);
 	}
+	if ('doc_url' in template && !isNonemptyString(template.doc_url))
+		return callback("invalid doc_url: " + templace.doc_url);
 	if ('init' in template) {
 		if (!ValidationUtils.isNonemptyString(template.init))
 			return callback("init is not a string");
@@ -619,14 +630,18 @@ function validateAADefinition(arrDefinition, callback) {
 			if (err)
 				return callback(err);
 			validateFieldWrappedInCases(template, 'messages', validateMessages, function (err) {
+				if (err)
+					return callback(err);
 				console.log('AA validated, complexity = ' + complexity + ', ops = ' + count_ops);
-				callback(err);
+				callback(null, {complexity, count_ops});
 			});
 		});
 	}
 	validateFieldWrappedInCases(template, 'messages', validateMessages, function (err) {
+		if (err)
+			return callback(err);
 		console.log('AA validated, complexity = ' + complexity + ', ops = ' + count_ops);
-		callback(err);
+		callback(null, {complexity, count_ops});
 	});
 }
 

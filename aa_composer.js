@@ -222,6 +222,8 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 		bounce_fees.base = constants.MIN_BYTES_BOUNCE_FEE;
 //	console.log('===== trigger.outputs', trigger.outputs);
 	var objValidationState = { last_ball_mci: mci, last_ball_timestamp: objMcUnit.timestamp, mc_unit: objMcUnit.unit, assocBalances: {} };
+	var byte_balance;
+	var storage_size;
 	var objStateUpdate;
 	var count = 0;
 
@@ -253,7 +255,16 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 					});
 					conn.addQuery(arrQueries, "INSERT INTO aa_balances (address, asset, balance) VALUES "+arrValues.join(', '));
 				}
-				async.series(arrQueries, cb);
+				byte_balance = objValidationState.assocBalances[address].base;
+				conn.addQuery(arrQueries, "SAVEPOINT initial_balances");
+				async.series(arrQueries, function () {
+					conn.query("SELECT storage_size FROM aa_addresses WHERE address=?", [address], function (rows) {
+						if (rows.length === 0)
+							throw Error("AA not found? " + address);
+						storage_size = rows[0].storage_size;
+						cb();
+					});
+				});
 			}
 		);
 	}
@@ -290,6 +301,8 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 			if (assocDeltas[asset])
 				conn.addQuery(arrQueries, "UPDATE aa_balances SET balance=balance+? WHERE address=? AND asset=?", [assocDeltas[asset], address, asset]);
 		}
+		if (assocDeltas.base)
+			byte_balance += assocDeltas.base;
 		async.series(arrQueries, cb);
 	}
 	
@@ -297,7 +310,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 	function replace(obj, name, path, locals, cb) {
 		count++;
 		if (count % 100 === 0) // interrupt the call stack
-			return setImmediate(replace, obj, name, locals, cb);
+			return setImmediate(replace, obj, name, path, locals, cb);
 		locals = _.clone(locals);
 		var value = obj[name];
 		if (typeof name === 'string') {
@@ -645,8 +658,13 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 					var change_amount = total_amount - (target_amount + additional_output_size);
 					if (change_amount > 0) {
 						bFound = true;
-						if (send_all_output)
+						if (send_all_output) {
+							console.log("change " + change_amount + ", storage_size " + storage_size);
+							// this assumes storage size won't change as a result of this trigger, otherwise the amount is inaccurate
+							if (is_base && change_amount > storage_size && mci >= constants.aaStorageSizeUpgradeMci)
+								change_amount -= storage_size;
 							send_all_output.amount = change_amount;
+						}
 						else {
 							payload.outputs.push({ address: address, amount: change_amount });
 							break;
@@ -802,9 +820,9 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 				storage.loadAssetWithListOfAttestedAuthors(conn, asset, mci, [address], function (err, objAsset) {
 					if (err)
 						return cb(err);
+					assetInfos[asset] = objAsset;
 					if (objAsset.fixed_denominations) // will skip it later
 						return cb();
-					assetInfos[asset] = objAsset;
 					completePaymentPayload(payload, 0, function (err) {
 						if (err)
 							return cb(err);
@@ -818,7 +836,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 					return bounce(err);
 				messages = messages.filter(function (message) { return (message.app !== 'payment' || !message.payload.asset || !assetInfos[message.payload.asset].fixed_denominations); });
 				if (messages.length === 0) {
-					error_message = 'no mesaages after removing fixed denominations';
+					error_message = 'no messages after removing fixed denominations';
 					console.log(error_message);
 					return handleSuccessfulEmptyResponseUnit(null);
 				}
@@ -863,7 +881,11 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 										return finish(objUnit);
 									fixStateVars();
 									addResponse(objUnit, function () {
-										handleSecondaryTriggers(objUnit, arrOutputAddresses);
+										updateStorageSize(function (err) {
+											if (err)
+												return revert(err);
+											handleSecondaryTriggers(objUnit, arrOutputAddresses);
+										});
 									});
 								});
 							});
@@ -929,6 +951,39 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 					batch.put(key, state.value.toString()); // Decimal converted to string
 			}
 		}
+	}
+
+	function updateStorageSize(cb) {
+		if (bBouncing)
+			return cb();
+		var delta_storage_size = 0;
+		var addressVars = stateVars[address] || {};
+		for (var var_name in addressVars) {
+			var state = addressVars[var_name];
+			if (!state.updated)
+				continue;
+			if (state.value === false) { // false value signals that the var should be deleted
+				if (state.original_old_value !== undefined)
+					delta_storage_size -= var_name.length + state.original_old_value.toString().length;
+			}
+			else {
+				if (state.original_old_value !== undefined)
+					delta_storage_size += state.value.toString().length - state.original_old_value.toString().length;
+				else
+					delta_storage_size += var_name.length + state.value.toString().length;
+			}
+		}
+		console.log('storage size = ' + storage_size + ' + ' + delta_storage_size + ', byte_balance = ' + byte_balance);
+		var new_storage_size = storage_size + delta_storage_size;
+		if (new_storage_size < 0)
+			throw Error("storage size would become negative: " + new_storage_size);
+		if (byte_balance < new_storage_size && mci >= constants.aaStorageSizeUpgradeMci)
+			return cb("byte balance " + byte_balance + " would drop below new storage size " + new_storage_size);
+		if (delta_storage_size === 0)
+			return cb();
+		conn.query("UPDATE aa_addresses SET storage_size=? WHERE address=?", [new_storage_size, address], function () {
+			cb();
+		});
 	}
 
 	function handleSuccessfulEmptyResponseUnit() {
@@ -1010,8 +1065,12 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 		fixStateVars();
 		saveStateVars();
 		addResponse(objResponseUnit, function () {
-			addUpdatedStateVarsIntoPrimaryResponse();
-			onDone(objResponseUnit, bBouncing ? error_message : false);
+			updateStorageSize(function (err) {
+				if (err)
+					return revert(err);
+				addUpdatedStateVarsIntoPrimaryResponse();
+				onDone(objResponseUnit, bBouncing ? error_message : false);
+			});
 		});
 	}
 
@@ -1041,23 +1100,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 						// revert
 						if (bSecondary)
 							return bounce(err);
-						revertResponsesInCaches(arrResponses);
-						arrResponses.splice(0, arrResponses.length); // start over
-						Object.keys(stateVars).forEach(function (address) { delete stateVars[address]; });
-						batch.clear();
-						conn.query("ROLLBACK", function () {
-							conn.query("BEGIN", function () {
-								// initial AA balances were rolled back, we have to add them again
-								if (!fPrepare)
-									fPrepare = function (cb) { cb(); };
-								fPrepare(function () {
-									updateInitialAABalances(function () {
-										bounce("one of secondary AAs bounced with error: " + err);
-									});
-								});
-							});
-						});
-						return;
+						return revert("one of secondary AAs bounced with error: " + err);
 					}
 					saveStateVars();
 					addUpdatedStateVarsIntoPrimaryResponse();
@@ -1065,6 +1108,32 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 				}
 			);
 		});
+	}
+
+	function revert(err) {
+		console.log('will revert: ' + err);
+		revertResponsesInCaches(arrResponses);
+		arrResponses.splice(0, arrResponses.length); // start over
+		Object.keys(stateVars).forEach(function (address) { delete stateVars[address]; });
+		batch.clear();
+		conn.query("ROLLBACK TO SAVEPOINT initial_balances", function () {
+			console.log('done revert: ' + err);
+			bounce(err);
+		});
+		/*
+		conn.query("ROLLBACK", function () {
+			conn.query("BEGIN", function () {
+				// initial AA balances were rolled back, we have to add them again
+				if (!fPrepare)
+					fPrepare = function (cb) { cb(); };
+				fPrepare(function () {
+					updateInitialAABalances(function () {
+						console.log('done revert: ' + err);
+						bounce(err);
+					});
+				});
+			});
+		});*/
 	}
 
 	function validateAndSaveUnit(objUnit, cb) {
@@ -1175,6 +1244,44 @@ function revertResponsesInCaches(arrResponses) {
 		arrResponseUnits.forEach(storage.forgetUnit);
 		storage.fixIsFreeAfterForgettingUnit(parent_units);
 	}
+}
+
+function checkStorageSizes() {
+	db.takeConnectionFromPool(function (conn) { // block conection for the etire duration of the check
+		var options = {};
+		options.gte = "st\n";
+		options.lte = "st\n\uFFFF";
+
+		var assocSizes = {};
+		var handleData = function (data) {
+			var address = data.key.substr(3, 32);
+			var var_name = data.key.substr(36);
+			if (!assocSizes[address])
+				assocSizes[address] = 0;
+			assocSizes[address] += var_name.length + data.value.length;
+		}
+		var stream = kvstore.createReadStream(options);
+		stream.on('data', handleData)
+			.on('end', function () {
+				conn.query("SELECT address, storage_size FROM aa_addresses", function (rows) {
+					rows.forEach(function (row) {
+						if (!assocSizes[row.address])
+							assocSizes[row.address] = 0;
+						if (row.storage_size !== assocSizes[row.address])
+							throw Error("storage size mismatch: db=" + row.storage_size + ", kv=" + assocSizes[row.address]);
+					});
+					conn.release();
+				});
+			})
+			.on('error', function (error) {
+				throw Error('error from data stream: ' + error);
+			});
+	});
+}
+
+if (!conf.bLight) {
+	setTimeout(checkStorageSizes, 1000);
+	setInterval(checkStorageSizes, 600 * 1000);
 }
 
 exports.handleAATriggers = handleAATriggers;
