@@ -674,7 +674,6 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 						}
 					}
 				}
-
 			}
 
 			function readStableOutputs(handleRows) {
@@ -1144,7 +1143,6 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 
 	function validateAndSaveUnit(objUnit, cb) {
 		var objJoint = { unit: objUnit, aa: true };
-		console.log(JSON.stringify(objJoint));
 		validation.validate(objJoint, {
 			ifJointError: function (err) {
 				throw Error("AA validation joint error: " + err);
