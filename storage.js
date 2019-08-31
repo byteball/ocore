@@ -1615,6 +1615,8 @@ function initCaches(){
 		mutex.lock(['write'], function(unlock) {
 			initUnstableUnits(conn, initStableUnits.bind(this, conn, initUnstableMessages.bind(this, conn, initHashTreeBalls.bind(this, conn, function(){
 				console.log('initCaches done');
+				if (!conf.bLight && constants.bTestnet)
+					archiveJointAndDescendantsIfExists('K6OAWrAQkKkkTgfvBb/4GIeN99+6WSHtfVUd30sen1M=');
 				unlock();
 				onDone();
 				eventBus.emit('caches_ready');
@@ -1623,8 +1625,6 @@ function initCaches(){
 	});
 }
 
-if (!conf.bLight && constants.bTestnet)
-	archiveJointAndDescendantsIfExists('K6OAWrAQkKkkTgfvBb/4GIeN99+6WSHtfVUd30sen1M=');
 
 
 exports.isGenesisUnit = isGenesisUnit;
