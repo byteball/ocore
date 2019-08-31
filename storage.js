@@ -1053,6 +1053,8 @@ function archiveJointAndDescendants(from_unit){
 				},
 				function(){
 					conn.addQuery(arrQueries, "DELETE FROM known_bad_joints");
+					conn.addQuery(arrQueries, "UPDATE units SET is_free=1 WHERE is_free=0 AND is_stable=0 \n\
+						AND (SELECT 1 FROM parenthoods WHERE parent_unit=unit LIMIT 1) IS NULL");
 					console.log('will execute '+arrQueries.length+' queries to archive');
 					async.series(arrQueries, function(){
 						arrUnits.forEach(forgetUnit);
