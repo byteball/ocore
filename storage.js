@@ -1623,8 +1623,8 @@ function initCaches(){
 	});
 }
 
-if (!conf.bLight)
-	archiveJointAndDescendantsIfExists('N6QadI9yg3zLxPMphfNGJcPfddW4yHPkoGMbbGZsWa0=');
+if (!conf.bLight && constants.bTestnet)
+	archiveJointAndDescendantsIfExists('K6OAWrAQkKkkTgfvBb/4GIeN99+6WSHtfVUd30sen1M=');
 
 
 exports.isGenesisUnit = isGenesisUnit;
