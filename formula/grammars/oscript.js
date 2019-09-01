@@ -55,6 +55,7 @@ function id(x) { return x[0]; }
 		ternary: ['?', ':'],
 		base: 'base',
 		var: 'var',
+		storage_size: 'storage_size',
 		mci: 'mci',
 		timestamp: 'timestamp',
 		this_address: 'this_address',
@@ -353,6 +354,7 @@ var grammar = {
         		field = field[1];
         	return ['asset', d[2], field];
         } },
+    {"name": "N", "symbols": [{"literal":"storage_size"}], "postprocess": function(d) {return ['storage_size']; }},
     {"name": "N", "symbols": [{"literal":"mci"}], "postprocess": function(d) {return ['mci']; }},
     {"name": "N", "symbols": [{"literal":"timestamp"}], "postprocess": function(d) {return ['timestamp']; }},
     {"name": "N", "symbols": [{"literal":"mc_unit"}], "postprocess": function(d) {return ['mc_unit']; }},

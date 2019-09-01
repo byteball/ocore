@@ -265,6 +265,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 						if (rows.length === 0)
 							throw Error("AA not found? " + address);
 						storage_size = rows[0].storage_size;
+						objValidationState.storage_size = storage_size;
 						cb();
 					});
 				});

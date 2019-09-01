@@ -998,6 +998,10 @@ exports.evaluate = function (opts, callback) {
 				});
 				break;
 
+			case 'storage_size':
+				cb(new Decimal(objValidationState.storage_size));
+				break;
+
 			case 'mci':
 				cb(new Decimal(objValidationState.last_ball_mci));
 				break;

@@ -92,6 +92,7 @@ var objValidationState = {
 	last_ball_mci: 1000,
 	last_ball_timestamp: 1.5e9,
 	mc_unit: "oXGOcA9TQx8Tl5Syjp1d5+mB4xicsRk3kbcE82YQAS0=",
+	storage_size: 200,
 	assocBalances: {},
 	arrAugmentedMessages: [{
 		"app": "payment",
@@ -2224,6 +2225,15 @@ test('parse_date invalid', t => {
 	var stateVars = {};
 	evalFormulaWithVars({ conn: null, formula: `parse_date('1970-01-32') || ' ' || parse_date('bb') || ' ' || parse_date(8)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
 		t.deepEqual(res, 'false false false');
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('storage_size', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}}  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `storage_size + 10`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 210);
 		t.deepEqual(complexity, 1);
 	})
 });

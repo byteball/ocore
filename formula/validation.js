@@ -396,6 +396,7 @@ exports.validate = function (opts, callback) {
 			case 'trigger.initial_address':
 			case 'trigger.unit':
 			case 'mc_unit':
+			case 'storage_size':
 				cb(bAA ? undefined : op + ' in non-AA');
 				break;
 

@@ -51,6 +51,7 @@
 		ternary: ['?', ':'],
 		base: 'base',
 		var: 'var',
+		storage_size: 'storage_size',
 		mci: 'mci',
 		timestamp: 'timestamp',
 		this_address: 'this_address',
@@ -287,6 +288,7 @@ N -> float          {% id %}
 			field = field[1];
 		return ['asset', d[2], field];
 	} %}
+	| "storage_size"  {% function(d) {return ['storage_size']; }  %}
 	| "mci"  {% function(d) {return ['mci']; }  %}
 	| "timestamp"  {% function(d) {return ['timestamp']; }  %}
 	| "mc_unit"  {% function(d) {return ['mc_unit']; }  %}
