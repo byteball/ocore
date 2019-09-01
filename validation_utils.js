@@ -82,7 +82,12 @@ function isValidBase64(b64, len){
 }
 
 function isValidHexadecimal(hex, len){
-	return (typeof hex === "string" && (!len || hex.length === len) && hex === (new Buffer(hex, "hex")).toString("hex"));
+	try {
+		return (typeof hex === "string" && (!len || hex.length === len) && hex === (new Buffer(hex, "hex")).toString("hex"));
+	}
+	catch (e) {
+		return false;
+	}
 }
 
 function isValidEmail(str) {
