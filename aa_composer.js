@@ -1273,7 +1273,7 @@ function checkStorageSizes() {
 						if (!assocSizes[row.address])
 							assocSizes[row.address] = 0;
 						if (row.storage_size !== assocSizes[row.address])
-							throw Error("storage size mismatch: db=" + row.storage_size + ", kv=" + assocSizes[row.address]);
+							throw Error("storage size mismatch on " + row.address + ": db=" + row.storage_size + ", kv=" + assocSizes[row.address]);
 					});
 					conn.release();
 				});
