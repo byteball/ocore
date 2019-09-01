@@ -226,6 +226,8 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 	var storage_size;
 	var objStateUpdate;
 	var count = 0;
+	if (bSecondary)
+		updateOriginalOldValues();
 
 	// add the coins received in the trigger
 	function updateInitialAABalances(cb) {
@@ -987,6 +989,17 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 		conn.query("UPDATE aa_addresses SET storage_size=? WHERE address=?", [new_storage_size, address], function () {
 			cb();
 		});
+	}
+
+	function updateOriginalOldValues() {
+		if (!bSecondary || !stateVars[address])
+			return;
+		var addressVars = stateVars[address];
+		for (var var_name in addressVars) {
+			var state = addressVars[var_name];
+			if (state.updated)
+				state.original_old_value = (state.value === false) ? undefined : state.value;
+		}
 	}
 
 	function handleSuccessfulEmptyResponseUnit() {
