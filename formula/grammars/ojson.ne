@@ -100,6 +100,12 @@ const valueDecimal = (d) => ([{
 	context: d[0].context
 }])
 
+const quotedFormula = (d) => ([{
+	type: TYPES.STR,
+	value: "'{" + d[0].value + "}'",
+	context: d[0].contex
+}])
+
 const str = (d) => ({
 	type: TYPES.STR,
 	value: d[0].text,
@@ -178,6 +184,7 @@ value ->
 	| base64
 	| decimal
 	| quoted[decimal] {% valueDecimal %}
+	| quoted[formula] {% quotedFormula %}
 
 array -> "[" _ arrayContent _ "]" {% array %}
 arrayContent -> commaOptional[(object | formula | quoted[str] | base64 | array)] {% arrayContent %}

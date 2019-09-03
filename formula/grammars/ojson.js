@@ -104,6 +104,12 @@ const valueDecimal = (d) => ([{
 	context: d[0].context
 }])
 
+const quotedFormula = (d) => ([{
+	type: TYPES.STR,
+	value: "'{" + d[0].value + "}'",
+	context: d[0].contex
+}])
+
 const str = (d) => ({
 	type: TYPES.STR,
 	value: d[0].text,
@@ -192,6 +198,11 @@ var grammar = {
     {"name": "value$macrocall$3", "symbols": [{"literal":"`"}, "value$macrocall$4", {"literal":"`"}], "postprocess": quoted},
     {"name": "value$macrocall$3", "symbols": [{"literal":"\""}, "value$macrocall$4", {"literal":"\""}], "postprocess": quoted},
     {"name": "value", "symbols": ["value$macrocall$3"], "postprocess": valueDecimal},
+    {"name": "value$macrocall$6", "symbols": ["formula"]},
+    {"name": "value$macrocall$5", "symbols": [{"literal":"'"}, "value$macrocall$6", {"literal":"'"}], "postprocess": quoted},
+    {"name": "value$macrocall$5", "symbols": [{"literal":"`"}, "value$macrocall$6", {"literal":"`"}], "postprocess": quoted},
+    {"name": "value$macrocall$5", "symbols": [{"literal":"\""}, "value$macrocall$6", {"literal":"\""}], "postprocess": quoted},
+    {"name": "value", "symbols": ["value$macrocall$5"], "postprocess": quotedFormula},
     {"name": "array", "symbols": [{"literal":"["}, "_", "arrayContent", "_", {"literal":"]"}], "postprocess": array},
     {"name": "arrayContent$macrocall$2$subexpression$1", "symbols": ["object"]},
     {"name": "arrayContent$macrocall$2$subexpression$1", "symbols": ["formula"]},
