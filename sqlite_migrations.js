@@ -380,6 +380,8 @@ function migrateDb(connection, onDone){
 
 
 function initStorageSizes(connection, arrQueries, cb){
+	if (bCordova)
+		return cb();
 	var options = {};
 	options.gte = "st\n";
 	options.lte = "st\n\uFFFF";
