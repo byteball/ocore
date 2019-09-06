@@ -31,6 +31,7 @@ let lexer = moo.states({
 		"'": "'",
 		'`': '`',
 		decimal: /(?:[+-])?(?:[0-9]*[.])?[0-9]+/,
+		autonomous_agent: 'autonomous agent',
 		str: /[a-zA-Z_0-9 =+*/@-]+/,
 	},
 	formulaDouble: {
@@ -153,13 +154,13 @@ const log = cb => {
 var grammar = {
     Lexer: lexer,
     ParserRules: [
-    {"name": "start", "symbols": ["object"], "postprocess": (d) => d[0]},
+    {"name": "start", "symbols": ["_", "object", "_"], "postprocess": (d) => d[1]},
     {"name": "start", "symbols": ["startWithAA"], "postprocess": (d) => d[0]},
     {"name": "startWithAA$macrocall$2", "symbols": [(lexer.has("autonomous_agent") ? {type: "autonomous_agent"} : autonomous_agent)]},
     {"name": "startWithAA$macrocall$1", "symbols": [{"literal":"'"}, "startWithAA$macrocall$2", {"literal":"'"}], "postprocess": quoted},
     {"name": "startWithAA$macrocall$1", "symbols": [{"literal":"`"}, "startWithAA$macrocall$2", {"literal":"`"}], "postprocess": quoted},
     {"name": "startWithAA$macrocall$1", "symbols": [{"literal":"\""}, "startWithAA$macrocall$2", {"literal":"\""}], "postprocess": quoted},
-    {"name": "startWithAA", "symbols": ["_", {"literal":"["}, "_", "startWithAA$macrocall$1", {"literal":","}, "object", {"literal":"]"}, "_"], "postprocess": (d) => d[5]},
+    {"name": "startWithAA", "symbols": ["_", {"literal":"["}, "_", "startWithAA$macrocall$1", {"literal":","}, "_", "object", "_", {"literal":"]"}, "_"], "postprocess": (d) => d[6]},
     {"name": "object$macrocall$2", "symbols": ["pair"]},
     {"name": "object$macrocall$1$ebnf$1", "symbols": [{"literal":","}], "postprocess": id},
     {"name": "object$macrocall$1$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},

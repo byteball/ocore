@@ -27,6 +27,7 @@ let lexer = moo.states({
 		"'": "'",
 		'`': '`',
 		decimal: /(?:[+-])?(?:[0-9]*[.])?[0-9]+/,
+		autonomous_agent: 'autonomous agent',
 		str: /[a-zA-Z_0-9 =+*/@-]+/,
 	},
 	formulaDouble: {
@@ -159,10 +160,10 @@ commaOptional[X] ->
 		$X ",":?							{% commaOptionalSingle %}
 	| $X ("," _ $X):+ ",":?	{% commaOptionalMany %}
 
-start -> object {% (d) => d[0] %}
+start -> _ object _ {% (d) => d[1] %}
 	| startWithAA {% (d) => d[0] %}
 
-startWithAA -> _ "[" _ quoted[%autonomous_agent] "," object "]" _ {% (d) => d[5] %}
+startWithAA -> _ "[" _ quoted[%autonomous_agent] "," _ object _ "]" _ {% (d) => d[6] %}
 
 object -> "{" _ commaOptional[pair] _ "}" {% objectP %}
 
