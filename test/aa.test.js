@@ -591,7 +591,7 @@ test.cb.serial('compose simple AA', t => {
 	}
 	
 	db.takeConnectionFromPool(conn => {
-		conn.query('BEGin');
+		conn.query('BEGIN');
 		aa_composer.handleTrigger(conn, batch, null, trigger, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (bPosted, bBounced) => {
 			conn.query('ROLLBACK');
 			conn.release();
@@ -681,9 +681,7 @@ test.cb.serial('compose complex AA', t => {
 	}
 	
 	db.takeConnectionFromPool(conn => {
-		console.log('==== before begin');
-		conn.query('BEGIn');
-		console.log('==== begin');
+		conn.query('BEGIN');
 		aa_composer.handleTrigger(conn, batch, null, trigger, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (bPosted, bBounced) => {
 			conn.query('ROLLBACK');
 			conn.release();
