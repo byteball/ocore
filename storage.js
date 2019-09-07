@@ -643,7 +643,8 @@ function determineWitnessedLevelAndBestParent(conn, arrParentUnits, arrWitnesses
 
 	determineBestParent(conn, {parent_units: arrParentUnits, witness_list_unit: 'none'}, arrWitnesses, function(best_parent_unit){
 		if (!best_parent_unit)
-			throw Error("no best parent of "+arrParentUnits.join(', ')+", witnesses "+arrWitnesses.join(', '));
+			return handleWitnessedLevelAndBestParent();
+		//	throw Error("no best parent of "+arrParentUnits.join(', ')+", witnesses "+arrWitnesses.join(', '));
 		my_best_parent_unit = best_parent_unit;
 		addWitnessesAndGoUp(best_parent_unit);
 	});

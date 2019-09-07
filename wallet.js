@@ -2091,41 +2091,35 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 			FROM outputs JOIN units USING(unit) WHERE address=? AND sequence='good' AND is_spent=0 GROUP BY asset ORDER BY asset DESC LIMIT 1", 
 			[addrInfo.address],
 			function(rows){
-				if (rows.length === 0) {
-					cb("This textcoin either was already claimed or never existed in the network");
-				} else {
-					var row = rows[0];
-					if (false && !row.is_stable) {
-						cb("This payment is not confirmed yet, try again later");
-					} else {
-						if (row.asset) { // claiming asset
-							opts.asset = row.asset;
-							opts.amount = row.amount;
-							opts.fee_paying_addresses = [addrInfo.address];
-							storage.readAsset(db, row.asset, null, function(err, objAsset){
-								if (err && err.indexOf("not found" !== -1)) {
-									if (!conf.bLight) // full wallets must have this asset
-										throw Error("textcoin asset "+row.asset+" not found");
-									return network.requestHistoryFor([opts.asset], [], checkStability);
-								}
-								asset = opts.asset;
-								opts.to_address = addressTo;
-								if (objAsset.fixed_denominations){ // indivisible
-									opts.tolerance_plus = 0;
-									opts.tolerance_minus = 0;
-									indivisibleAsset.composeAndSaveIndivisibleAssetPaymentJoint(opts);
-								}
-								else{ // divisible
-									divisibleAsset.composeAndSaveDivisibleAssetPaymentJoint(opts);
-								}
-							});
-						} else {// claiming bytes
-							opts.send_all = true;
-							opts.outputs = [{address: addressTo, amount: 0}];
-							opts.callbacks = composer.getSavingCallbacks(opts.callbacks);
-							composer.composeJoint(opts);
+				if (rows.length === 0)
+					return cb("This textcoin either was already claimed or never existed in the network");
+				var row = rows[0];
+				if (row.asset) { // claiming asset
+					opts.asset = row.asset;
+					opts.amount = row.amount;
+					opts.fee_paying_addresses = [addrInfo.address];
+					storage.readAsset(db, row.asset, null, function(err, objAsset){
+						if (err && err.indexOf("not found") !== -1) {
+							if (!conf.bLight) // full wallets must have this asset
+								throw Error("textcoin asset "+row.asset+" not found");
+							return network.requestHistoryFor([opts.asset], [], checkStability);
 						}
-					}
+						asset = opts.asset;
+						opts.to_address = addressTo;
+						if (objAsset.fixed_denominations){ // indivisible
+							opts.tolerance_plus = 0;
+							opts.tolerance_minus = 0;
+							indivisibleAsset.composeAndSaveIndivisibleAssetPaymentJoint(opts);
+						}
+						else{ // divisible
+							divisibleAsset.composeAndSaveDivisibleAssetPaymentJoint(opts);
+						}
+					});
+				} else {// claiming bytes
+					opts.send_all = true;
+					opts.outputs = [{address: addressTo, amount: 0}];
+					opts.callbacks = composer.getSavingCallbacks(opts.callbacks);
+					composer.composeJoint(opts);
 				}
 			}
 		);		
