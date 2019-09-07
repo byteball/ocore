@@ -54,6 +54,7 @@ test.before.cb(t => {
 
 test.after.always.cb(t => {
 	db.close(t.end);
+	console.log('***** aa_composer.test done');
 });
 
 test.cb.serial('AA with response vars', t => {

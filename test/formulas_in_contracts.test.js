@@ -58,6 +58,10 @@ var objValidationState = {
 };
 
 
+test.after.always(t => {
+	console.log('***** formulas_in_contracts.test done');
+});
+
 test('formula - validate formula - ok', t => {
 	validateFormula("10 + 10 == 20", 0, (result) => {
 		t.is(result.error, false);

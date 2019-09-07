@@ -132,6 +132,9 @@ var objValidationState = {
 };
 
 
+test.after.always(t => {
+	console.log('***** formula.test done');
+});
 
 test('1 + 1', t => {
 	evalFormula(null, "1 + 1", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {

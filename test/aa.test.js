@@ -29,6 +29,10 @@ validation.validate = function (objJoint, callbacks, external_conn) {
 	});
 }
 
+test.after.always(t => {
+	console.log('***** aa.test done');
+});
+
 test('simple AA', t => {
 	var aa = ['autonomous agent', {
 		bounce_fees: { base: 10000 },
