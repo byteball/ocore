@@ -106,7 +106,7 @@ function buffer2bin(buf){
 
 function bin2buffer(bin){
 	var len = bin.length/8;
-	var buf = new Buffer(len);
+	var buf = new Buffer.alloc(len);
 	for (var i=0; i<len; i++)
 		buf[i] = parseInt(bin.substr(i*8, 8), 2);
 	return buf;
@@ -115,7 +115,7 @@ function bin2buffer(bin){
 function getChecksum(clean_data){
 	var full_checksum = crypto.createHash("sha256").update(clean_data).digest();
 	//console.log(full_checksum);
-	var checksum = new Buffer([full_checksum[5], full_checksum[13], full_checksum[21], full_checksum[29]]);
+	var checksum = new Buffer.from([full_checksum[5], full_checksum[13], full_checksum[21], full_checksum[29]]);
 	return checksum;
 }
 
@@ -154,7 +154,7 @@ function isChashValid(encoded){
 	if (encoded_len !== 32 && encoded_len !== 48) // 160/5 = 32, 288/6 = 48
 		throw Error("wrong encoded length: "+encoded_len);
 	try{
-		var chash = (encoded_len === 32) ? base32.decode(encoded) : new Buffer(encoded, 'base64');
+		var chash = (encoded_len === 32) ? base32.decode(encoded) : new Buffer.from(encoded, 'base64');
 	}
 	catch(e){
 		console.log(e);
