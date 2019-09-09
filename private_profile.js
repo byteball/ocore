@@ -17,7 +17,7 @@ returns objPrivateProfile {
 }
 */
 function getPrivateProfileFromJsonBase64(privateProfileJsonBase64){
-	var privateProfileJson = Buffer(privateProfileJsonBase64, 'base64').toString('utf8');
+	var privateProfileJson = Buffer.from(privateProfileJsonBase64, 'base64').toString('utf8');
 	console.log(privateProfileJson);
 	try{
 		var objPrivateProfile = JSON.parse(privateProfileJson);

@@ -120,7 +120,7 @@ function setDeviceHub(device_hub){
 }
 
 function isValidPubKey(b64_pubkey){
-	return ecdsa.publicKeyVerify(new Buffer(b64_pubkey, 'base64'));
+	return ecdsa.publicKeyVerify(new Buffer.from(b64_pubkey, 'base64'));
 }
 
 // -------------------------
@@ -318,11 +318,11 @@ function decryptPackage(objEncryptedPackage){
 		ecdh.generateKeys("base64", "compressed");
 	ecdh.setPrivateKey(priv_key);
 	var shared_secret = deriveSharedSecret(ecdh, objEncryptedPackage.dh.sender_ephemeral_pubkey);
-	var iv = new Buffer(objEncryptedPackage.iv, 'base64');
+	var iv = new Buffer.from(objEncryptedPackage.iv, 'base64');
 	var decipher = crypto.createDecipheriv('aes-128-gcm', shared_secret, iv);
-	var authtag = new Buffer(objEncryptedPackage.authtag, 'base64');
+	var authtag = new Buffer.from(objEncryptedPackage.authtag, 'base64');
 	decipher.setAuthTag(authtag);
-	var enc_buf = Buffer(objEncryptedPackage.encrypted_message, "base64");
+	var enc_buf = Buffer.from(objEncryptedPackage.encrypted_message, "base64");
 //	var decrypted1 = decipher.update(enc_buf);
 	// under browserify, decryption of long buffers fails with Array buffer allocation errors, have to split the buffer into chunks
 	var arrChunks = [];
