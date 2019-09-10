@@ -2262,3 +2262,29 @@ test.cb('is_aa invalid literal', t => {
 	})
 });
 
+test('is_integer', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: '8', bb: '-7'}}  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `is_integer(trigger.data.z.1) || is_integer(trigger.data.ww.aa) || is_integer(trigger.data.ww.bb) || is_integer(trigger.data.z) || is_integer(trigger.data.ww.dd)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'truetruetruefalsefalse');
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('is_integer invalid', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: '8', bb: '-7'}}  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `is_integer('nn')`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('is_valid_amount', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: '8', bb: '-7', cc: 9.9e15}}  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `is_valid_amount(trigger.data.z.1) || is_valid_amount(trigger.data.ww.aa) || is_valid_amount(trigger.data.ww.bb) || is_valid_amount(trigger.data.z) || is_valid_amount(trigger.data.ww.dd) || is_valid_amount(trigger.data.ww.cc)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'truetruefalsefalsefalsefalse');
+		t.deepEqual(complexity, 1);
+	})
+});
+

@@ -42,7 +42,7 @@
 		else: "else",
 		comparisonOperators: ["==", ">=", "<=", "!=", ">", "<", "="],
 		dfParamsName: ['oracles', 'feed_name', 'min_mci', 'feed_value', 'what'],
-		name: ['min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round', 'abs', 'hypot', 'is_valid_signed_package', 'is_valid_sig', 'sha256', 'json_parse', 'json_stringify', 'number_from_seed', 'length', 'is_valid_address', 'starts_with', 'ends_with', 'contains', 'substring', 'timestamp_to_string', 'parse_date', 'is_aa'],
+		name: ['min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round', 'abs', 'hypot', 'is_valid_signed_package', 'is_valid_sig', 'sha256', 'json_parse', 'json_stringify', 'number_from_seed', 'length', 'is_valid_address', 'starts_with', 'ends_with', 'contains', 'substring', 'timestamp_to_string', 'parse_date', 'is_aa', 'is_integer', 'is_valid_amount'],
 		and: ['and', 'AND'],
 		or: ['or', 'OR'],
 		not: ['not', 'NOT', '!'],
@@ -223,6 +223,8 @@ N -> float          {% id %}
     | "length" "(" expr ")"    {% function(d) {return ['length', d[2]]; } %}
     | "is_valid_address" "(" expr ")"    {% function(d) {return ['is_valid_address', d[2]]; } %}
     | "is_aa" "(" expr ")"    {% function(d) {return ['is_aa', d[2]]; } %}
+    | "is_integer" "(" expr ")"    {% function(d) {return ['is_integer', d[2]]; } %}
+    | "is_valid_amount" "(" expr ")"    {% function(d) {return ['is_valid_amount', d[2]]; } %}
     | "starts_with" "(" expr "," expr ")"    {% function(d) {return ['starts_with', d[2], d[4]]; } %}
     | "ends_with" "(" expr "," expr ")"    {% function(d) {return ['ends_with', d[2], d[4]]; } %}
     | "contains" "(" expr "," expr ")"    {% function(d) {return ['contains', d[2], d[4]]; } %}

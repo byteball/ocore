@@ -636,6 +636,21 @@ exports.validate = function (opts, callback) {
 					return cb("not valid address literal: " + expr);
 				evaluate(expr, cb);
 				break;
+			
+			case 'is_integer':
+			case 'is_valid_amount':
+				var expr = arr[1];
+				if (typeof expr === 'string' || typeof expr === 'boolean')
+					return cb('bad literal in ' + op);
+				if (Decimal.isDecimal(expr)) {
+					if (!expr.isInteger())
+						return cb('non-int literal in ' + op);
+					if (op === 'is_valid_amount' && !expr.isPositive())
+						return cb('non-positive literal in is_valid_amount');
+					return cb();
+				}
+				evaluate(expr, cb);
+				break;
 
 			case 'json_stringify':
 			case 'typeof':

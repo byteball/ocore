@@ -1676,6 +1676,22 @@ exports.evaluate = function (opts, callback) {
 				});
 				break;
 
+			case 'is_integer':
+			case 'is_valid_amount':
+				var expr = arr[1];
+				evaluate(expr, function (res) {
+					if (fatal_error)
+						return cb(false);
+					if (!Decimal.isDecimal(res))
+						return cb(false);
+					if (!res.isInteger())
+						return cb(false);
+					if (op === 'is_valid_amount' && (!res.isPositive() || res.gt(constants.MAX_CAP)))
+						return cb(false);
+					cb(true);
+				});
+				break;
+
 			case 'timestamp_to_string':
 				var ts_expr = arr[1];
 				var format_expr = arr[2] || 'datetime';
