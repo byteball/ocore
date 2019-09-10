@@ -200,7 +200,9 @@ _ -> null
 	| %comment _ {% (d) => null %}
 	| _ %blockComment _ {% (d) => null %}
 
-str -> %str {% str %}
+str ->
+		%str {% str %}
+	| %autonomous_agent {% str %}
 true -> %true {% trueP %}
 base64 -> %base64 {% base64ToStr %}
 false -> %false {% falseP %}
