@@ -627,11 +627,12 @@ exports.validate = function (opts, callback) {
 
 			case 'json_parse':
 			case 'is_valid_address':
+			case 'is_aa':
 				complexity++;
 				var expr = arr[1];
 				if (typeof expr === 'boolean' || Decimal.isDecimal(expr))
 					return cb("bad type in " + op);
-				if (op === 'is_valid_address' && typeof expr === 'string' && !ValidationUtils.isValidAddress(expr))
+				if ((op === 'is_valid_address' || op === 'is_aa') && (typeof expr === 'boolean' || Decimal.isDecimal(expr) || typeof expr === 'string' && !ValidationUtils.isValidAddress(expr)))
 					return cb("not valid address literal: " + expr);
 				evaluate(expr, cb);
 				break;

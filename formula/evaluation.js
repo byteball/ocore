@@ -1662,11 +1662,17 @@ exports.evaluate = function (opts, callback) {
 				break;
 
 			case 'is_valid_address':
+			case 'is_aa':
 				var expr = arr[1];
 				evaluate(expr, function (res) {
 					if (fatal_error)
 						return cb(false);
-					cb(ValidationUtils.isValidAddress(res));
+					var bValid = ValidationUtils.isValidAddress(res);
+					if (!bValid || op === 'is_valid_address')
+						return cb(bValid);
+					conn.query("SELECT 1 FROM aa_addresses WHERE address=? AND mci<=?", [res, objValidationState.last_ball_mci], function (rows) {
+						cb(rows.length > 0);
+					});
 				});
 				break;
 

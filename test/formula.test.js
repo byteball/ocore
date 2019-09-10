@@ -2241,3 +2241,24 @@ test('storage_size', t => {
 	})
 });
 
+test.cb('is_aa', t => {
+	var db = require("../db");
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}}  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: db, formula: `is_aa(this_address) || is_aa('MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU') || is_aa(2*2) || is_aa('JPQKPRI5FMTQRJF4ZZMYZYDQVRD55OTC')`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'truetruefalsefalse');
+		t.deepEqual(complexity, 5);
+		t.end();
+	})
+});
+
+test.cb('is_aa invalid literal', t => {
+	var db = require("../db");
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}}  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: db, formula: `is_aa(6)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+		t.end();
+	})
+});
+
