@@ -102,7 +102,7 @@ statement -> local_var_assignment {% id %}
 	| return_statement {% id %}
 	| empty_return_statement {% id %}
 
-ifelse -> "if" "(" expr ")" block ("else" block):?  {% function(d){  
+ifelse -> "if" "(" expr ")" block ("else" block):?  {% function(d){
 	var else_block = d[5] ? d[5][1] : null;
 	return ['ifelse', d[2], d[4], else_block];
 } %}
@@ -158,7 +158,12 @@ state_var_assignment -> "var" "[" expr "]" ("="|"+="|"-="|"*="|"/="|"%="|"||=") 
 
 response_var_assignment -> "response" "[" expr "]" "=" expr ";" {% function(d) { return ['response_var_assignment', d[2], d[5]]; } %}
 
-df_param ->  (%dfParamsName|%ifseveral|%ifnone|%type) comparisonOperator expr  {% function(d) { return [d[0][0].value, d[1], d[2]]; } %}
+df_param ->  (%dfParamsName|%ifseveral|%ifnone|%type) comparisonOperator (expr | %addressValue)  {% function(d) {
+	var value = d[2][0];
+	if (value.type === 'addressValue')
+		value = value.value;
+	return [d[0][0].value, d[1], value];
+} %}
 df_param_list -> df_param ("," df_param):*  {% function(d) { return [d[0]].concat(d[1].map(function (item) {return item[1];}));   } %}
 
 io_param ->  (%address|%amount|%asset) comparisonOperator (expr|%base|%addressValue)  {% function(d) {
