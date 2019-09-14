@@ -655,17 +655,17 @@ exports.validate = function (opts, callback) {
 			case 'is_aa':
 				complexity++;
 				var expr = arr[1];
-				if (typeof expr === 'boolean' || Decimal.isDecimal(expr))
+			/*	if (typeof expr === 'boolean' || Decimal.isDecimal(expr))
 					return cb("bad type in " + op);
 				if ((op === 'is_valid_address' || op === 'is_aa') && (typeof expr === 'boolean' || Decimal.isDecimal(expr) || typeof expr === 'string' && !ValidationUtils.isValidAddress(expr)))
-					return cb("not valid address literal: " + expr);
+					return cb("not valid address literal: " + expr);*/
 				evaluate(expr, cb);
 				break;
 			
 			case 'is_integer':
 			case 'is_valid_amount':
 				var expr = arr[1];
-				if (typeof expr === 'string' || typeof expr === 'boolean')
+			/*	if (typeof expr === 'string' || typeof expr === 'boolean')
 					return cb('bad literal in ' + op);
 				if (Decimal.isDecimal(expr)) {
 					if (!expr.isInteger())
@@ -673,7 +673,7 @@ exports.validate = function (opts, callback) {
 					if (op === 'is_valid_amount' && !expr.isPositive())
 						return cb('non-positive literal in is_valid_amount');
 					return cb();
-				}
+				}*/
 				evaluate(expr, cb);
 				break;
 

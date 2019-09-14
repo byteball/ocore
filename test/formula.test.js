@@ -1979,7 +1979,7 @@ test('json_parse not a string', t => {
 	var trigger = { data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}} };
 	var stateVars = {  };
 	evalFormulaWithVars({ conn: null, formula: `json_parse(8)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity) => {
-		t.deepEqual(res, null);
+		t.deepEqual(res, 8);
 	})
 });
 
@@ -2166,7 +2166,7 @@ test('is_valid_address bad string literal', t => {
 	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}}  };
 	var stateVars = {};
 	evalFormulaWithVars({ conn: null, formula: `is_valid_address("bbb")`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
-		t.deepEqual(res, null);
+		t.deepEqual(res, false);
 	})
 });
 
@@ -2174,7 +2174,7 @@ test('is_valid_address bad type', t => {
 	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}}  };
 	var stateVars = {};
 	evalFormulaWithVars({ conn: null, formula: `is_valid_address(88)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
-		t.deepEqual(res, null);
+		t.deepEqual(res, false);
 	})
 });
 
@@ -2257,7 +2257,7 @@ test.cb('is_aa invalid literal', t => {
 	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}}  };
 	var stateVars = {};
 	evalFormulaWithVars({ conn: db, formula: `is_aa(6)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
-		t.deepEqual(res, null);
+		t.deepEqual(res, false);
 		t.end();
 	})
 });
@@ -2275,7 +2275,7 @@ test('is_integer invalid', t => {
 	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: '8', bb: '-7'}}  };
 	var stateVars = {};
 	evalFormulaWithVars({ conn: null, formula: `is_integer('nn')`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
-		t.deepEqual(res, null);
+		t.deepEqual(res, false);
 	})
 });
 
