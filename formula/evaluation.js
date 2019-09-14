@@ -1031,64 +1031,12 @@ exports.evaluate = function (opts, callback) {
 				break;
 
 			case 'trigger.data':
-				var arrKeys = arr[1];
+				var arrKeys = arr[1]; // can be 0-length array
 			//	console.log('keys', arrKeys);
 				var value = trigger.data;
 				if (!value || Object.keys(value).length === 0)
 					return cb(false);
-				async.eachSeries(
-					arrKeys, // can be 0-length array
-					function (key, cb2) {
-						if (typeof value !== 'object')
-							return cb2('not an object while trying to access key ' + key);
-						if (ValidationUtils.isArrayOfLength(key, 2) && key[0] === 'search_param_list') {
-							var arrPairs = key[1];
-							filterBySearchCriteria(value, arrPairs, function (err, filtered_array) {
-								if (fatal_error)
-									return cb2(fatal_error);
-								if (err)
-									return cb2(err);
-								value = filtered_array;
-								cb2();
-							});
-							return;
-						}
-						evaluate(key, function (evaluated_key) {
-							if (fatal_error)
-								return cb2(fatal_error);
-							if (Decimal.isDecimal(evaluated_key))
-								evaluated_key = evaluated_key.toNumber();
-							else if (typeof evaluated_key !== 'string')
-								return setFatalError("result of " + key + " is not a string or number: " + evaluated_key, cb2);
-							if (typeof evaluated_key === 'string')
-								value = unwrapOneElementArrays(value);
-							value = value[evaluated_key];
-							if (value === undefined)
-								return cb2("no such key in data");
-							cb2();
-						});
-					},
-					function (err) {
-						if (fatal_error || err)
-							return cb(false);
-					//	console.log('value', typeof value, value)
-						if (typeof value === 'boolean')
-							cb(value);
-						else if (typeof value === 'number')
-							cb(new Decimal(value).times(1));
-						else if (typeof value === 'string') {
-							if (value.length > constants.MAX_AA_STRING_LENGTH)
-								return setFatalError("trigger.data field too long: " + value, cb, false);
-							// convert to number if possible
-							var f = string_utils.getNumericFeedValue(value);
-							(f === null) ? cb(value) : cb(new Decimal(value).times(1));
-						}
-						else if (typeof value === 'object')
-							cb(new wrappedObject(value));
-						else
-							throw Error("unknown type of trigger.data: " + value);
-					}
-				);
+				selectSubobject(value, arrKeys, cb);
 				break;
 
 			case 'trigger.output':
@@ -1143,57 +1091,7 @@ exports.evaluate = function (opts, callback) {
 					if (!(value instanceof wrappedObject)) // scalars have no keys
 						return cb(false);
 					value = value.obj; // unwrap
-					async.eachSeries(
-						arrKeys,
-						function (key, cb2) {
-							if (typeof value !== 'object')
-								return cb2('not an object while trying to access key ' + key);
-							if (ValidationUtils.isArrayOfLength(key, 2) && key[0] === 'search_param_list') {
-								var arrPairs = key[1];
-								filterBySearchCriteria(value, arrPairs, function (err, filtered_array) {
-									if (fatal_error)
-										return cb2(fatal_error);
-									if (err)
-										return cb2(err);
-									value = filtered_array;
-									cb2();
-								});
-								return;
-							}
-							evaluate(key, function (evaluated_key) {
-								if (fatal_error)
-									return cb2(fatal_error);
-								if (Decimal.isDecimal(evaluated_key))
-									evaluated_key = evaluated_key.toNumber();
-								else if (typeof evaluated_key !== 'string')
-									return setFatalError("result of " + key + " is not a string or number: " + evaluated_key, cb2);
-								if (typeof evaluated_key === 'string')
-									value = unwrapOneElementArrays(value);
-								value = value[evaluated_key];
-								if (value === undefined)
-									return cb2("no such key in data");
-								cb2();
-							});
-						},
-						function (err) {
-							if (err || fatal_error)
-								return cb(false);
-						//	console.log('value', typeof value, value)
-							if (typeof value === 'boolean')
-								cb(value);
-							else if (typeof value === 'number')
-								cb(new Decimal(value).times(1));
-							else if (typeof value === 'string') {
-								// convert to number if possible
-								var f = string_utils.getNumericFeedValue(value);
-								(f === null) ? cb(value) : cb(new Decimal(value).times(1));
-							}
-							else if (typeof value === 'object')
-								cb(new wrappedObject(value));
-							else
-								throw Error("unknown type of keyed local var: " + value);
-						}
-					);
+					selectSubobject(value, arrKeys, cb);
 				});
 				break;
 
@@ -1912,6 +1810,61 @@ exports.evaluate = function (opts, callback) {
 			stateVars[param_address][var_name] = {value: value, old_value: value, original_old_value: value};
 			cb2(value);
 		});
+	}
+
+	function selectSubobject(value, arrKeys, cb) {
+		async.eachSeries(
+			arrKeys,
+			function (key, cb2) {
+				if (typeof value !== 'object')
+					return cb2('not an object while trying to access key ' + key);
+				if (ValidationUtils.isArrayOfLength(key, 2) && key[0] === 'search_param_list') {
+					var arrPairs = key[1];
+					filterBySearchCriteria(value, arrPairs, function (err, filtered_array) {
+						if (fatal_error)
+							return cb2(fatal_error);
+						if (err)
+							return cb2(err);
+						value = filtered_array;
+						cb2();
+					});
+					return;
+				}
+				evaluate(key, function (evaluated_key) {
+					if (fatal_error)
+						return cb2(fatal_error);
+					if (Decimal.isDecimal(evaluated_key))
+						evaluated_key = evaluated_key.toNumber();
+					else if (typeof evaluated_key !== 'string')
+						return setFatalError("result of " + key + " is not a string or number: " + evaluated_key, cb2);
+					if (typeof evaluated_key === 'string')
+						value = unwrapOneElementArrays(value);
+					value = value[evaluated_key];
+					if (value === undefined)
+						return cb2("no such key in data");
+					cb2();
+				});
+			},
+			function (err) {
+				if (err || fatal_error)
+					return cb(false);
+				if (typeof value === 'boolean')
+					cb(value);
+				else if (typeof value === 'number')
+					cb(new Decimal(value).times(1));
+				else if (typeof value === 'string') {
+					if (value.length > constants.MAX_AA_STRING_LENGTH)
+						return setFatalError("string value too long: " + value, cb, false);
+					// convert to number if possible
+					var f = string_utils.getNumericFeedValue(value);
+					(f === null) ? cb(value) : cb(new Decimal(value).times(1));
+				}
+				else if (typeof value === 'object')
+					cb(new wrappedObject(value));
+				else
+					throw Error("unknown type of subobject: " + value);
+			}
+		);
 	}
 
 	function filterBySearchCriteria(array, arrPairs, handleResult) {
