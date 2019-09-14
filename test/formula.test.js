@@ -2288,3 +2288,74 @@ test('is_valid_amount', t => {
 	})
 });
 
+test('selector with search criteria', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `$x=trigger.data; $x.messages[[.app = 'payment', .payload.asset != 'ff', .payload.outputs.0.amount > 10]].payload.asset`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'sss');
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('selector with search criteria and 2 payments', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {asset: 'asset2', outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `$x=trigger.data; $x.messages[[.app = 'payment', .payload.asset = 'sss', .payload.outputs.0.amount > 10]].payload.outputs.address`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'ADDR');
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('2 selectors with search criteria and 2 payments', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {asset: 'asset2', outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `$x=trigger.data; $x.messages[[.app = 'payment', .payload.asset = 'sss', .payload.outputs.0.amount > 10]].payload.outputs[[.address!=9]].address`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'ADDR');
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('selector with search criteria and none', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `$x=trigger.data; $x.messages[[.app = 'payment', .payload.asset = none, .payload.outputs.0.amount > 10]].payload.outputs.amount`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 5000);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('selector with search criteria and !=none', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `$x=trigger.data; $x.messages[[.app = 'payment', .payload.asset != none, .payload.outputs.0.amount > 10]].payload.outputs.amount`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 1000);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('selector with search criteria and deep none', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `$x=trigger.data; $x.messages[[ .payload.asset = none, .payload.outputs.0.amount = none]].payload.age`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 88);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('selector with search criteria and deep !=none', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `trigger.data.messages[[ .payload.asset = none, .payload.outputs.0.amount != none]].payload.outputs.amount`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 5000);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('selector with search criteria and 2-element array after filtering', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `$x=trigger.data; $x.messages[[ .app = 'payment', .payload.outputs.0.amount != none]].payload.outputs.amount`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, false);
+		t.deepEqual(complexity, 1);
+	})
+});

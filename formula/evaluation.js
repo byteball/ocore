@@ -1039,6 +1039,20 @@ exports.evaluate = function (opts, callback) {
 				async.eachSeries(
 					arrKeys, // can be 0-length array
 					function (key, cb2) {
+						if (typeof value !== 'object')
+							return cb2('not an object while trying to access key ' + key);
+						if (ValidationUtils.isArrayOfLength(key, 2) && key[0] === 'search_param_list') {
+							var arrPairs = key[1];
+							filterBySearchCriteria(value, arrPairs, function (err, filtered_array) {
+								if (fatal_error)
+									return cb2(fatal_error);
+								if (err)
+									return cb2(err);
+								value = filtered_array;
+								cb2();
+							});
+							return;
+						}
 						evaluate(key, function (evaluated_key) {
 							if (fatal_error)
 								return cb2(fatal_error);
@@ -1046,6 +1060,8 @@ exports.evaluate = function (opts, callback) {
 								evaluated_key = evaluated_key.toNumber();
 							else if (typeof evaluated_key !== 'string')
 								return setFatalError("result of " + key + " is not a string or number: " + evaluated_key, cb2);
+							if (typeof evaluated_key === 'string')
+								value = unwrapOneElementArrays(value);
 							value = value[evaluated_key];
 							if (value === undefined)
 								return cb2("no such key in data");
@@ -1130,6 +1146,20 @@ exports.evaluate = function (opts, callback) {
 					async.eachSeries(
 						arrKeys,
 						function (key, cb2) {
+							if (typeof value !== 'object')
+								return cb2('not an object while trying to access key ' + key);
+							if (ValidationUtils.isArrayOfLength(key, 2) && key[0] === 'search_param_list') {
+								var arrPairs = key[1];
+								filterBySearchCriteria(value, arrPairs, function (err, filtered_array) {
+									if (fatal_error)
+										return cb2(fatal_error);
+									if (err)
+										return cb2(err);
+									value = filtered_array;
+									cb2();
+								});
+								return;
+							}
 							evaluate(key, function (evaluated_key) {
 								if (fatal_error)
 									return cb2(fatal_error);
@@ -1137,6 +1167,8 @@ exports.evaluate = function (opts, callback) {
 									evaluated_key = evaluated_key.toNumber();
 								else if (typeof evaluated_key !== 'string')
 									return setFatalError("result of " + key + " is not a string or number: " + evaluated_key, cb2);
+								if (typeof evaluated_key === 'string')
+									value = unwrapOneElementArrays(value);
 								value = value[evaluated_key];
 								if (value === undefined)
 									return cb2("no such key in data");
@@ -1848,6 +1880,76 @@ exports.evaluate = function (opts, callback) {
 			stateVars[param_address][var_name] = {value: value, old_value: value, original_old_value: value};
 			cb2(value);
 		});
+	}
+
+	function filterBySearchCriteria(array, arrPairs, handleResult) {
+		if (!ValidationUtils.isNonemptyArray(arrPairs))
+			throw Error('search params is not an array');
+		if (!ValidationUtils.isNonemptyArray(array))
+			return handleResult('not an array, search criteria cannot be applied');
+		var arrSearchCriteria = [];
+		async.eachSeries(
+			arrPairs,
+			function (pair, cb3) {
+				var fields = pair[0]; // array of keys key1.key2.key3
+				var comp = pair[1]; // comparison operator
+				var search_value_expr = pair[2];
+				if (search_value_expr.type === 'none') {
+					arrSearchCriteria.push({ fields, comp, search_value: null });
+					return cb3();
+				}
+				evaluate(search_value_expr, function (search_value) {
+					if (fatal_error)
+						return cb3(fatal_error);
+					if (Decimal.isDecimal(search_value))
+						search_value = search_value.toNumber();
+					arrSearchCriteria.push({ fields, comp, search_value });
+					cb3();
+				});
+			},
+			function () {
+				if (fatal_error)
+					return handleResult(fatal_error);
+				var filtered_array = array.filter(elem => {
+					return arrSearchCriteria.every(search_criterion => {
+						var val = elem;
+						var fields = search_criterion.fields;
+						var comp = search_criterion.comp;
+						var search_value = search_criterion.search_value;
+						for (var i = 0; i < fields.length; i++) {
+							if (typeof val !== 'object')
+								return (search_value === null ? comp === '=' : comp === '!=');
+							val = val[fields[i]];
+						}
+						if (search_value === null)
+							return (comp === '=' ? val === undefined : val !== undefined);
+						if (typeof val === 'string' && typeof search_value === 'number') {
+							var f = string_utils.getNumericFeedValue(val);
+							if (f !== null)
+								val = f;
+						}
+						if (typeof val !== typeof search_value)
+							return (comp === '!=');
+						switch (comp) {
+							case '=': return (val === search_value);
+							case '!=': return (val !== search_value);
+							case '>': return (val > search_value);
+							case '>=': return (val >= search_value);
+							case '<': return (val < search_value);
+							case '<=': return (val <= search_value);
+							default: throw Error("unknown comparison: " + comp);
+						}
+					});
+				});
+				if (filtered_array.length === 0)
+					return handleResult('empty array after filtering');
+				handleResult(null, filtered_array);
+			}
+		);
+	}
+
+	function unwrapOneElementArrays(value) {
+		return ValidationUtils.isArrayOfLength(value, 1) ? unwrapOneElementArrays(value[0]) : value;
 	}
 
 	function setFatalError(err, cb, cb_arg){

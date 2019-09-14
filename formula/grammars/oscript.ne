@@ -35,6 +35,7 @@
 		attestors: 'attestors',
 		ifseveral: 'ifseveral',
 		ifnone: 'ifnone',
+		none: 'none',
 		typeof: 'typeof',
 		type: 'type',
 		boolean: ['true', 'false'],
@@ -68,6 +69,7 @@
 		trigger_output: /\btrigger\.output\b/,
 		dotSelector: /\.\w+/,
 		local_var_name: /\$[a-zA-Z]\w*\b/,
+	//	search_field: /[a-zA-Z]\w*\b/,
 		semi: ';',
 		comma: ',',
 		dot: '.',
@@ -142,13 +144,20 @@ comparisonOperator -> %comparisonOperators {% function(d) { return d[0].value } 
 
 local_var_expr -> "${" expr "}" {% function(d) { return d[1]; }  %}
 
-local_var -> (%local_var_name|local_var_expr) (%dotSelector|"[" expr "]"):*  {% function(d) {
+local_var -> (%local_var_name|local_var_expr) (%dotSelector|"[" "[" search_param_list "]" "]"|"[" expr "]"):*  {% function(d) {
 	var v = d[0][0];
 	if (v.type === 'local_var_name')
 		v = v.value.substr(1);
 	var selectors = null;
 	if (d[1] && d[1].length)
-		selectors = d[1].map(function(item){ return (item[0].type === 'dotSelector') ? item[0].value.substr(1) : item[1]; })
+		selectors = d[1].map(function(item){
+			if (item[0].type === 'dotSelector')
+				return item[0].value.substr(1);
+			else if (item.length === 5)
+				return ['search_param_list', item[2]];
+			else
+				return item[1]; 
+		});
 	return ['local_var', v, selectors];
 }  %}
 
@@ -157,6 +166,18 @@ local_var_assignment -> local_var "=" expr ";" {% function(d) { return ['local_v
 state_var_assignment -> "var" "[" expr "]" ("="|"+="|"-="|"*="|"/="|"%="|"||=") expr ";" {% function(d) { return ['state_var_assignment', d[2], d[5], d[4][0].value]; } %}
 
 response_var_assignment -> "response" "[" expr "]" "=" expr ";" {% function(d) { return ['response_var_assignment', d[2], d[5]]; } %}
+
+search_fields -> (%dotSelector):+ {% function(d) {
+/*	var fields = [d[0].value];
+	if (d[1] && d[1].length)
+		fields = fields.concat(d[1].map(field => field[0].value.substr(1)));
+	return fields;*/
+	return d[0].map(field => field[0].value.substr(1));
+} %}
+
+search_param ->  search_fields comparisonOperator (expr|"none")  {% function(d) { return [d[0], d[1], d[2][0]]; } %}
+
+search_param_list -> search_param ("," search_param):*  {% function(d) { return [d[0]].concat(d[1].map(function (item) {return item[1];}));   } %}
 
 df_param ->  (%dfParamsName|%ifseveral|%ifnone|%type) comparisonOperator expr  {% function(d) { return [d[0][0].value, d[1], d[2]]; } %}
 df_param_list -> df_param ("," df_param):*  {% function(d) { return [d[0]].concat(d[1].map(function (item) {return item[1];}));   } %}
@@ -300,7 +321,17 @@ N -> float          {% id %}
 	| "trigger.address"  {% function(d) {return ['trigger.address']; }  %}
 	| "trigger.initial_address"  {% function(d) {return ['trigger.initial_address']; }  %}
 	| "trigger.unit"  {% function(d) {return ['trigger.unit']; }  %}
-	| "trigger.data" (%dotSelector|"[" expr "]"):*  {% function(d) { return ['trigger.data', d[1].map(function(item){ return (item[0].type === 'dotSelector') ? item[0].value.substr(1) : item[1]; })]; }  %}
+	| "trigger.data" (%dotSelector|"[" "[" search_param_list "]" "]"|"[" expr "]"):*  {% function(d) {
+		var selectors = d[1].map(function(item){
+			if (item[0].type === 'dotSelector')
+				return item[0].value.substr(1);
+			else if (item.length === 5)
+				return ['search_param_list', item[2]];
+			else
+				return item[1]; 
+		});
+		return ['trigger.data', selectors]; }  
+	%}
 	| "trigger.output" ("[" "[") "asset" comparisonOperator (expr|%base) ("]" "]") %dotSelector:?  {% function(d) {
 		var value = d[4][0];
 		var field = d[6] ? d[6].value.substr(1) : 'amount';

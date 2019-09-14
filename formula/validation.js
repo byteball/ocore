@@ -429,6 +429,31 @@ exports.validate = function (opts, callback) {
 				evaluate(asset, cb);
 				break;
 
+			case 'search_param_list':
+				var arrPairs = arr[1];
+				async.eachSeries(
+					arrPairs,
+					function (pair, cb2) {
+						if (!ValidationUtils.isArrayOfLength(pair, 3))
+							return cb2("not array of 3");
+						var fields = pair[0];
+						var comp = pair[1];
+						var value = pair[2];
+						if (comp === '==')
+							return cb2("wrong comparison operator: " + comp);
+						if (!ValidationUtils.isNonemptyArray(fields) || !fields.every(key => typeof key === 'string'))
+							return cb2("bad search field: " + fields);
+						if (value.type === 'none') {
+							if (comp !== '=' && comp !== '!=')
+								return cb2("bad comparison for none: " + comp);
+							return cb2();
+						}
+						evaluate(value, cb2);
+					},
+					cb
+				);
+				break;
+
 			case 'local_var':
 				var var_name_or_expr = arr[1];
 				var arrKeys = arr[2];
