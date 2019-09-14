@@ -679,6 +679,7 @@ exports.validate = function (opts, callback) {
 
 			case 'is_array':
 			case 'is_assoc':
+			case 'array_length':
 				var expr = arr[1];
 				evaluate(expr, cb);
 				break;

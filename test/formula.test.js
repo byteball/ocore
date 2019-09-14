@@ -2377,3 +2377,30 @@ test('is_assoc', t => {
 		t.deepEqual(complexity, 1);
 	})
 });
+
+test('array_length', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `array_length(trigger.data.messages)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 3);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('array_length invalid obj', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `array_length(trigger.data)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('array_length invalid scalar', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `array_length(trigger.data.messages[0].app)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+		t.deepEqual(complexity, 1);
+	})
+});

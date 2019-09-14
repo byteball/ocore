@@ -1740,6 +1740,17 @@ exports.evaluate = function (opts, callback) {
 				});
 				break;
 
+			case 'array_length':
+				var expr = arr[1];
+				evaluate(expr, function (res) {
+					if (fatal_error)
+						return cb(false);
+					if (!(res instanceof wrappedObject) || !Array.isArray(res.obj))
+						return setFatalError("not an array: " + res, cb, false);
+					cb(new Decimal(res.obj.length));
+				});
+				break;
+
 			case 'timestamp_to_string':
 				var ts_expr = arr[1];
 				var format_expr = arr[2] || 'datetime';
