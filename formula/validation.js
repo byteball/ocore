@@ -695,6 +695,7 @@ exports.validate = function (opts, callback) {
 			case 'starts_with':
 			case 'ends_with':
 			case 'contains':
+			case 'index_of':
 				var str = arr[1];
 				var sub = arr[2];
 				evaluate(str, function (err) {

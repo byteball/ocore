@@ -1624,6 +1624,7 @@ exports.evaluate = function (opts, callback) {
 			case 'starts_with':
 			case 'ends_with':
 			case 'contains':
+			case 'index_of':
 				var str_expr = arr[1];
 				var sub_expr = arr[2];
 				evaluate(str_expr, function (res) {
@@ -1644,6 +1645,8 @@ exports.evaluate = function (opts, callback) {
 							return cb(str.endsWith(sub));
 						if (op === 'contains')
 							return cb(str.includes(sub));
+						if (op === 'index_of')
+							return cb(new Decimal(str.indexOf(sub)));
 						throw Error("unknown op: " + op);
 					});
 				});
