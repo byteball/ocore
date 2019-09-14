@@ -729,8 +729,8 @@ exports.validate = function (opts, callback) {
 				if (format) {
 					if (typeof format === 'boolean' || Decimal.isDecimal(format))
 						return cb("format must be string");
-					if (typeof format === 'string' && format !== 'date' && format !== 'datetime')
-						return cb("format must be date or datetime");
+					if (typeof format === 'string' && format !== 'date' && format !== 'time' && format !== 'datetime')
+						return cb("format must be date or time or datetime");
 				}
 				evaluate(ts, function (err) {
 					if (err)

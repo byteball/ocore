@@ -1763,11 +1763,13 @@ exports.evaluate = function (opts, callback) {
 					evaluate(format_expr, function (format) {
 						if (fatal_error)
 							return cb(false);
-						if (format !== 'date' && format !== 'datetime')
-							return setFatalError("format in timestamp_to_string must be date or datetime", cb, false);
+						if (format !== 'date' && format !== 'datetime' && format !== 'time')
+							return setFatalError("format in timestamp_to_string must be date or time or datetime", cb, false);
 						var str = new Date(ts * 1000).toISOString().replace('.000', '');
 						if (format === 'date')
 							str = str.substr(0, 10);
+						else if (format === 'time')
+							str = str.substr(11, 8);
 						cb(str);
 					});
 				});
