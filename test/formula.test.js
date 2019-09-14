@@ -2359,3 +2359,21 @@ test('selector with search criteria and 2-element array after filtering', t => {
 		t.deepEqual(complexity, 1);
 	})
 });
+
+test('is_array', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `is_array(trigger.data.messages) || is_array(trigger.data.messages.0) || is_array(trigger.data.messages.0.app) || is_array(trigger.data.nonexistent)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'truefalsefalsefalse');
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('is_assoc', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `is_assoc(trigger.data.messages) || is_assoc(trigger.data.messages.0) || is_assoc(trigger.data.messages.0.app) || is_assoc(trigger.data.nonexistent)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'falsetruefalsefalse');
+		t.deepEqual(complexity, 1);
+	})
+});

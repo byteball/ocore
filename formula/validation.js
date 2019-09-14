@@ -677,6 +677,12 @@ exports.validate = function (opts, callback) {
 				evaluate(expr, cb);
 				break;
 
+			case 'is_array':
+			case 'is_assoc':
+				var expr = arr[1];
+				evaluate(expr, cb);
+				break;
+
 			case 'json_stringify':
 			case 'typeof':
 			case 'length':

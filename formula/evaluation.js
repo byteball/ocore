@@ -1724,6 +1724,22 @@ exports.evaluate = function (opts, callback) {
 				});
 				break;
 
+			case 'is_array':
+			case 'is_assoc':
+				var expr = arr[1];
+				evaluate(expr, function (res) {
+					if (fatal_error)
+						return cb(false);
+					if (!(res instanceof wrappedObject))
+						return cb(false);
+					var obj = res.obj;
+					if (typeof obj !== 'object')
+						return cb(false);
+					var bArray = Array.isArray(obj);
+					cb(op === 'is_array' ? bArray : !bArray);
+				});
+				break;
+
 			case 'timestamp_to_string':
 				var ts_expr = arr[1];
 				var format_expr = arr[2] || 'datetime';
