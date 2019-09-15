@@ -221,7 +221,13 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 	if (!bounce_fees.base)
 		bounce_fees.base = constants.MIN_BYTES_BOUNCE_FEE;
 //	console.log('===== trigger.outputs', trigger.outputs);
-	var objValidationState = { last_ball_mci: mci, last_ball_timestamp: objMcUnit.timestamp, mc_unit: objMcUnit.unit, assocBalances: {} };
+	var objValidationState = {
+		last_ball_mci: mci,
+		last_ball_timestamp: objMcUnit.timestamp,
+		mc_unit: objMcUnit.unit,
+		assocBalances: {},
+		arrPreviousResponseUnits: arrResponses.map(objAAResponse => objAAResponse.objResponseUnit)
+	};
 	var byte_balance;
 	var storage_size;
 	var objStateUpdate;
@@ -876,7 +882,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 						completeMessage(objBasePaymentMessage); // fixes payload_hash
 						objUnit.payload_commission = objectLength.getTotalPayloadSize(objUnit);
 						objUnit.unit = objectHash.getUnitHash(objUnit);
-						executeStateUpdateFormula(objUnit.unit, function (err) {
+						executeStateUpdateFormula(objUnit, function (err) {
 							if (err)
 								return bounce(err);
 							validateAndSaveUnit(objUnit, function (err) {
@@ -902,7 +908,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 		);
 	}
 
-	function executeStateUpdateFormula(response_unit, cb) {
+	function executeStateUpdateFormula(objResponseUnit, cb) {
 		if (!objStateUpdate || bBouncing)
 			return cb();
 		var opts = {
@@ -916,7 +922,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 			bStatementsOnly: true,
 			objValidationState: objValidationState,
 			address: address,
-			response_unit: response_unit
+			objResponseUnit: objResponseUnit
 		};
 		formulaParser.evaluate(opts, function (err, res) {
 		//	console.log('--- state update formula', objStateUpdate.formula, '=', res);

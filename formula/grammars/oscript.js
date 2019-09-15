@@ -62,6 +62,7 @@ function id(x) { return x[0]; }
 		this_address: 'this_address',
 		mc_unit: 'mc_unit',
 		response_unit: 'response_unit',
+		unit: 'unit',
 		response: 'response',
 		bounce: 'bounce',
 		return: 'return',
@@ -389,6 +390,25 @@ var grammar = {
         		field = field[1];
         	return ['asset', d[2], field];
         } },
+    {"name": "N$ebnf$8", "symbols": []},
+    {"name": "N$ebnf$8$subexpression$1", "symbols": [(lexer.has("dotSelector") ? {type: "dotSelector"} : dotSelector)]},
+    {"name": "N$ebnf$8$subexpression$1", "symbols": [{"literal":"["}, {"literal":"["}, "search_param_list", {"literal":"]"}, {"literal":"]"}]},
+    {"name": "N$ebnf$8$subexpression$1", "symbols": [{"literal":"["}, "expr", {"literal":"]"}]},
+    {"name": "N$ebnf$8", "symbols": ["N$ebnf$8", "N$ebnf$8$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
+    {"name": "N", "symbols": [{"literal":"unit"}, {"literal":"["}, "expr", {"literal":"]"}, "N$ebnf$8"], "postprocess":  function(d) {
+        var selectors = null;
+        if (d[4] && d[4].length){
+        	selectors = d[4].map(function(item){
+        		if (item[0].type === 'dotSelector')
+        			return item[0].value.substr(1);
+        		else if (item.length === 5)
+        			return ['search_param_list', item[2]];
+        		else
+        			return item[1]; 
+        	});
+        }
+        return ['unit', d[2], selectors]; }  
+        	},
     {"name": "N", "symbols": [{"literal":"storage_size"}], "postprocess": function(d) {return ['storage_size']; }},
     {"name": "N", "symbols": [{"literal":"mci"}], "postprocess": function(d) {return ['mci']; }},
     {"name": "N", "symbols": [{"literal":"timestamp"}], "postprocess": function(d) {return ['timestamp']; }},
@@ -398,12 +418,12 @@ var grammar = {
     {"name": "N", "symbols": [{"literal":"trigger.address"}], "postprocess": function(d) {return ['trigger.address']; }},
     {"name": "N", "symbols": [{"literal":"trigger.initial_address"}], "postprocess": function(d) {return ['trigger.initial_address']; }},
     {"name": "N", "symbols": [{"literal":"trigger.unit"}], "postprocess": function(d) {return ['trigger.unit']; }},
-    {"name": "N$ebnf$8", "symbols": []},
-    {"name": "N$ebnf$8$subexpression$1", "symbols": [(lexer.has("dotSelector") ? {type: "dotSelector"} : dotSelector)]},
-    {"name": "N$ebnf$8$subexpression$1", "symbols": [{"literal":"["}, {"literal":"["}, "search_param_list", {"literal":"]"}, {"literal":"]"}]},
-    {"name": "N$ebnf$8$subexpression$1", "symbols": [{"literal":"["}, "expr", {"literal":"]"}]},
-    {"name": "N$ebnf$8", "symbols": ["N$ebnf$8", "N$ebnf$8$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
-    {"name": "N", "symbols": [{"literal":"trigger.data"}, "N$ebnf$8"], "postprocess":  function(d) {
+    {"name": "N$ebnf$9", "symbols": []},
+    {"name": "N$ebnf$9$subexpression$1", "symbols": [(lexer.has("dotSelector") ? {type: "dotSelector"} : dotSelector)]},
+    {"name": "N$ebnf$9$subexpression$1", "symbols": [{"literal":"["}, {"literal":"["}, "search_param_list", {"literal":"]"}, {"literal":"]"}]},
+    {"name": "N$ebnf$9$subexpression$1", "symbols": [{"literal":"["}, "expr", {"literal":"]"}]},
+    {"name": "N$ebnf$9", "symbols": ["N$ebnf$9", "N$ebnf$9$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
+    {"name": "N", "symbols": [{"literal":"trigger.data"}, "N$ebnf$9"], "postprocess":  function(d) {
         var selectors = d[1].map(function(item){
         	if (item[0].type === 'dotSelector')
         		return item[0].value.substr(1);
@@ -418,9 +438,9 @@ var grammar = {
     {"name": "N$subexpression$11", "symbols": ["expr"]},
     {"name": "N$subexpression$11", "symbols": [(lexer.has("base") ? {type: "base"} : base)]},
     {"name": "N$subexpression$12", "symbols": [{"literal":"]"}, {"literal":"]"}]},
-    {"name": "N$ebnf$9", "symbols": [(lexer.has("dotSelector") ? {type: "dotSelector"} : dotSelector)], "postprocess": id},
-    {"name": "N$ebnf$9", "symbols": [], "postprocess": function(d) {return null;}},
-    {"name": "N", "symbols": [{"literal":"trigger.output"}, "N$subexpression$10", {"literal":"asset"}, "comparisonOperator", "N$subexpression$11", "N$subexpression$12", "N$ebnf$9"], "postprocess":  function(d) {
+    {"name": "N$ebnf$10", "symbols": [(lexer.has("dotSelector") ? {type: "dotSelector"} : dotSelector)], "postprocess": id},
+    {"name": "N$ebnf$10", "symbols": [], "postprocess": function(d) {return null;}},
+    {"name": "N", "symbols": [{"literal":"trigger.output"}, "N$subexpression$10", {"literal":"asset"}, "comparisonOperator", "N$subexpression$11", "N$subexpression$12", "N$ebnf$10"], "postprocess":  function(d) {
         	var value = d[4][0];
         	var field = d[6] ? d[6].value.substr(1) : 'amount';
         	if (value.type === 'base')

@@ -94,6 +94,7 @@ var objValidationState = {
 	mc_unit: "oXGOcA9TQx8Tl5Syjp1d5+mB4xicsRk3kbcE82YQAS0=",
 	storage_size: 200,
 	assocBalances: {},
+	arrPreviousResponseUnits: [],
 	arrAugmentedMessages: [{
 		"app": "payment",
 		"payload_location": "inline",
@@ -1603,7 +1604,7 @@ test('large number in response', t => {
 
 test.cb('response unit', t => {
 	var stateVars = {};
-	evalFormulaWithVars({ formula: "var['unit'] = response_unit;", trigger: {}, locals: { a4: 100 }, stateVars: stateVars, objValidationState: objValidationState, bStatementsOnly: true, bStateVarAssignmentAllowed: true, response_unit: 'theunit', address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, res => {
+	evalFormulaWithVars({ formula: "var['unit'] = response_unit;", trigger: {}, locals: { a4: 100 }, stateVars: stateVars, objValidationState: objValidationState, bStatementsOnly: true, bStateVarAssignmentAllowed: true, objResponseUnit: {unit: 'theunit'}, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, res => {
 		t.deepEqual(res, true);
 		t.deepEqual(stateVars.MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU.unit.value, 'theunit');
 		t.end();
@@ -1612,7 +1613,7 @@ test.cb('response unit', t => {
 
 test('misplaced response unit', t => {
 	var stateVars = {};
-	evalFormulaWithVars({ formula: "var['unit'] = response_unit;", trigger: {}, locals: { a4: 100 }, stateVars: stateVars, objValidationState: objValidationState, bStatementsOnly: true,  response_unit: 'theunit', address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, res => {
+	evalFormulaWithVars({ formula: "var['unit'] = response_unit;", trigger: {}, locals: { a4: 100 }, stateVars: stateVars, objValidationState: objValidationState, bStatementsOnly: true,  robjResponseUnit: {unit: 'theunit'}, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, res => {
 		t.deepEqual(res, null);
 	})
 });
@@ -2428,5 +2429,62 @@ test('array_length invalid scalar', t => {
 	evalFormulaWithVars({ conn: null, formula: `array_length(trigger.data.messages[0].app)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
 		t.deepEqual(res, null);
 		t.deepEqual(complexity, 1);
+	})
+});
+
+test.cb('unit', t => {
+	var db = require("../db");
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: db, formula: `unit['oXGOcA9TQx8Tl5Syjp1d5+mB4xicsRk3kbcE82YQAS0='].authors[0].address`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'TU3Q44S6H2WXTGQO6BZAGWFKKJCF7Q3W');
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});
+
+test.cb('unit and var', t => {
+	var db = require("../db");
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: db, formula: `$u = unit['oXGOcA9TQx8Tl5Syjp1d5+mB4xicsRk3kbcE82YQAS0=']; $u.authors[0].address`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'TU3Q44S6H2WXTGQO6BZAGWFKKJCF7Q3W');
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});
+
+test.cb('unit selector and var', t => {
+	var db = require("../db");
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: db, formula: `$u = unit['oXGOcA9TQx8Tl5Syjp1d5+mB4xicsRk3kbcE82YQAS0='].authors; $u[0].address`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'TU3Q44S6H2WXTGQO6BZAGWFKKJCF7Q3W');
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});
+
+test.cb('unit not found', t => {
+	var db = require("../db");
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: db, formula: `unit['4ne7myhibBARgaA/PPwynnK408bmY7ypL/+X+tp0IqU='].authors[0].address`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, false);
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});
+
+test.cb('unit and response_unit', t => {
+	var db = require("../db");
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	var objResponseUnit = { unit: 'C2sUTptm3d55Q9qTYau4Wdq1ppLgZEC2snsVv78krkE=', authors: [{ address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }], messages: [{ app: 'profile', payload: { humidity: 78 } }, { app: 'payment', payload: { outputs: [{ address: 'OYW2XTDKSNKGSEZ27LMGNOPJSYIXHBHC', amount: 5000 }] } }] };
+	evalFormulaWithVars({ conn: db, formula: `var['x'] = unit[response_unit].authors[0].address || ' ' || unit[response_unit].messages[[.app='profile']].payload.humidity;`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', bStatementsOnly: true, bStateVarAssignmentAllowed: true, objResponseUnit}, (res, complexity, count_ops) => {
+		t.deepEqual(res, true);
+		t.deepEqual(stateVars.MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU.x.value, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU 78');
+		t.deepEqual(complexity, 4);
+		t.end();
 	})
 });

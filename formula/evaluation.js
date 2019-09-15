@@ -49,7 +49,7 @@ exports.evaluate = function (opts, callback) {
 	var bObjectResultAllowed = opts.bObjectResultAllowed;
 	var objValidationState = opts.objValidationState;
 	var address = opts.address;
-	var response_unit = opts.response_unit;
+	var objResponseUnit = opts.objResponseUnit;
 
 	if (!ValidationUtils.isPositiveInteger(objValidationState.last_ball_timestamp))
 		throw Error('last_ball_timestamp is not a number: ' + objValidationState.last_ball_timestamp);
@@ -1336,6 +1336,43 @@ exports.evaluate = function (opts, callback) {
 				});
 				break;
 
+			case 'unit':
+				var unit_expr = arr[1];
+				var arrKeys = arr[2];
+				evaluate(unit_expr, function (unit) {
+					console.log('---- unit', unit);
+					if (fatal_error)
+						return cb(false);
+					if (!ValidationUtils.isValidBase64(unit, constants.HASH_LENGTH))
+						return cb(false);
+					// 1. check the current response unit
+					if (objResponseUnit && objResponseUnit.unit === unit)
+						return selectSubobject(objResponseUnit, arrKeys, cb);
+					// 2. check previous response units from the same primary trigger, they are not in the db yet
+					for (var i = 0; i < objValidationState.arrPreviousResponseUnits.length; i++){
+						var objPreviousResponseUnit = objValidationState.arrPreviousResponseUnits[i];
+						if (objPreviousResponseUnit && objPreviousResponseUnit.unit === unit)
+							return selectSubobject(objPreviousResponseUnit, arrKeys, cb);
+					}
+					// 3. check the units from the db
+					console.log('---- reading', unit);
+					storage.readJoint(conn, unit, {
+						ifNotFound: function () {
+							cb(false);
+						},
+						ifFound: function (objJoint) {
+							console.log('---- found', unit);
+							var objUnit = objJoint.unit;
+							var mci = objUnit.main_chain_index;
+							// ignore non-AA units that are not stable or created at a later mci
+							if ((mci === null || mci > objValidationState.last_ball_mci) && objUnit.authors[0].authentifiers)
+								return cb(false);
+							selectSubobject(objUnit, arrKeys, cb);
+						}
+					});
+				});
+				break;
+
 			case 'is_valid_signed_package':
 				var signed_package_expr = arr[1];
 				var address_expr = arr[2];
@@ -1718,9 +1755,9 @@ exports.evaluate = function (opts, callback) {
 			case 'response_unit':
 				if (!bAA || !bStatementsOnly || !bStateVarAssignmentAllowed)
 					return setFatalError("response_unit outside state update formula", cb, false);
-				if (!response_unit)
+				if (!objResponseUnit)
 					return cb(false);
-				cb(response_unit);
+				cb(objResponseUnit.unit);
 				break;
 
 			case 'bounce':
@@ -1814,7 +1851,7 @@ exports.evaluate = function (opts, callback) {
 
 	function selectSubobject(value, arrKeys, cb) {
 		async.eachSeries(
-			arrKeys,
+			arrKeys || [],
 			function (key, cb2) {
 				if (typeof value !== 'object')
 					return cb2('not an object while trying to access key ' + key);

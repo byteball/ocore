@@ -602,6 +602,24 @@ exports.validate = function (opts, callback) {
 				);
 				break;
 
+			case 'unit':
+				// for non-AAs too
+				complexity++;
+				var unit_expr = arr[1];
+				var arrKeys = arr[2];
+				evaluate(unit_expr, function (err) {
+					if (err)
+						return cb(err);
+					async.eachSeries(
+						arrKeys || [],
+						function (key, cb2) {
+							evaluate(key, cb2);
+						},
+						cb
+					);
+				});
+				break;
+	
 			case 'is_valid_signed_package':
 				complexity++;
 				var signed_package_expr = arr[1];

@@ -58,6 +58,7 @@
 		this_address: 'this_address',
 		mc_unit: 'mc_unit',
 		response_unit: 'response_unit',
+		unit: 'unit',
 		response: 'response',
 		bounce: 'bounce',
 		return: 'return',
@@ -316,6 +317,20 @@ N -> float          {% id %}
 			field = field[1];
 		return ['asset', d[2], field];
 	} %}
+	| "unit" "[" expr "]" (%dotSelector|"[" "[" search_param_list "]" "]"|"[" expr "]"):*  {% function(d) {
+		var selectors = null;
+		if (d[4] && d[4].length){
+			selectors = d[4].map(function(item){
+				if (item[0].type === 'dotSelector')
+					return item[0].value.substr(1);
+				else if (item.length === 5)
+					return ['search_param_list', item[2]];
+				else
+					return item[1]; 
+			});
+		}
+		return ['unit', d[2], selectors]; }  
+	%}
 	| "storage_size"  {% function(d) {return ['storage_size']; }  %}
 	| "mci"  {% function(d) {return ['mci']; }  %}
 	| "timestamp"  {% function(d) {return ['timestamp']; }  %}
