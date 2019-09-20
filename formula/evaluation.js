@@ -8,7 +8,6 @@ var string_utils = require("../string_utils.js");
 var constants = require('../constants');
 var dataFeeds = require('../data_feeds.js');
 var storage = require('../storage.js');
-var kvstore = require('../kvstore.js');
 var signed_message = require("../signed_message.js"); // which requires definition.js - cyclic dependency :(
 var signature = require('../signature.js');
 
@@ -1814,7 +1813,7 @@ exports.evaluate = function (opts, callback) {
 			console.log('using cache for var '+var_name);
 			return cb2(stateVars[param_address][var_name].value);
 		}
-		kvstore.get("st\n" + param_address + "\n" + var_name, function (value) {
+		storage.readAAStateVar(param_address, var_name, function (value) {
 			console.log(var_name+'='+value);
 			if (value === undefined) {
 				stateVars[param_address][var_name] = {value: false};
