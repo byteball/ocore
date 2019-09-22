@@ -110,7 +110,7 @@ var grammar = {
     {"name": "ifelse$ebnf$1$subexpression$1", "symbols": [{"literal":"else"}, "block"]},
     {"name": "ifelse$ebnf$1", "symbols": ["ifelse$ebnf$1$subexpression$1"], "postprocess": id},
     {"name": "ifelse$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
-    {"name": "ifelse", "symbols": [{"literal":"if"}, {"literal":"("}, "expr", {"literal":")"}, "block", "ifelse$ebnf$1"], "postprocess":  function(d){  
+    {"name": "ifelse", "symbols": [{"literal":"if"}, {"literal":"("}, "expr", {"literal":")"}, "block", "ifelse$ebnf$1"], "postprocess":  function(d){
         	var else_block = d[5] ? d[5][1] : null;
         	return ['ifelse', d[2], d[4], else_block];
         } },
@@ -174,7 +174,14 @@ var grammar = {
     {"name": "df_param$subexpression$1", "symbols": [(lexer.has("ifseveral") ? {type: "ifseveral"} : ifseveral)]},
     {"name": "df_param$subexpression$1", "symbols": [(lexer.has("ifnone") ? {type: "ifnone"} : ifnone)]},
     {"name": "df_param$subexpression$1", "symbols": [(lexer.has("type") ? {type: "type"} : type)]},
-    {"name": "df_param", "symbols": ["df_param$subexpression$1", "comparisonOperator", "expr"], "postprocess": function(d) { return [d[0][0].value, d[1], d[2]]; }},
+    {"name": "df_param$subexpression$2", "symbols": ["expr"]},
+    {"name": "df_param$subexpression$2", "symbols": [(lexer.has("addressValue") ? {type: "addressValue"} : addressValue)]},
+    {"name": "df_param", "symbols": ["df_param$subexpression$1", "comparisonOperator", "df_param$subexpression$2"], "postprocess":  function(d) {
+        	var value = d[2][0];
+        	if (value.type === 'addressValue')
+        		value = value.value;
+        	return [d[0][0].value, d[1], value];
+        } },
     {"name": "df_param_list$ebnf$1", "symbols": []},
     {"name": "df_param_list$ebnf$1$subexpression$1", "symbols": [{"literal":","}, "df_param"]},
     {"name": "df_param_list$ebnf$1", "symbols": ["df_param_list$ebnf$1", "df_param_list$ebnf$1$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
