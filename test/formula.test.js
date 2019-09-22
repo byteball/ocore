@@ -892,6 +892,13 @@ test.cb('validate datafeed ok', t => {
 	})
 });
 
+test.cb('validate datafeed this address', t => {
+	validateFormula("data_feed[[oracles=this address, feed_name=\"test\"]]", 0, res => {
+		t.deepEqual(res.error, false);
+		t.end();
+	})
+});
+
 test.cb('validate datafeed error', t => {
 	validateFormula("data_feed[[oracles=\"this address\"]]", 0, res => {
 		t.deepEqual(res.error, 'no oracles or feed name');
