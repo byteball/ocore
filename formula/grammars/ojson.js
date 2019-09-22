@@ -243,6 +243,7 @@ var grammar = {
     {"name": "_", "symbols": [(lexer.has("comment") ? {type: "comment"} : comment), "_"], "postprocess": (d) => null},
     {"name": "_", "symbols": ["_", (lexer.has("blockComment") ? {type: "blockComment"} : blockComment), "_"], "postprocess": (d) => null},
     {"name": "str", "symbols": [(lexer.has("str") ? {type: "str"} : str)], "postprocess": str},
+    {"name": "str", "symbols": [(lexer.has("autonomous_agent") ? {type: "autonomous_agent"} : autonomous_agent)], "postprocess": str},
     {"name": "true", "symbols": [(lexer.has("true") ? {type: "true"} : true)], "postprocess": trueP},
     {"name": "base64", "symbols": [(lexer.has("base64") ? {type: "base64"} : base64)], "postprocess": base64ToStr},
     {"name": "false", "symbols": [(lexer.has("false") ? {type: "false"} : false)], "postprocess": falseP},

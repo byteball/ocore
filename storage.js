@@ -724,6 +724,11 @@ function readAADefinition(conn, address, handleDefinition) {
 	});
 }
 
+function readAAStateVar(address, var_name, handleResult) {
+	var kvstore = require('./kvstore.js');
+	kvstore.get("st\n" + address + "\n" + var_name, handleResult);
+}
+
 function readAAStateVars(address, handle){
 	var options = {};
 	options.gte = "st\n" + address + "\n";
@@ -1647,6 +1652,7 @@ exports.readDefinitionChashByAddress = readDefinitionChashByAddress;
 exports.readDefinitionByAddress = readDefinitionByAddress;
 exports.readDefinition = readDefinition;
 exports.readAADefinition = readAADefinition;
+exports.readAAStateVar = readAAStateVar;
 exports.readAAStateVars = readAAStateVars;
 
 exports.readLastMainChainIndex = readLastMainChainIndex;
