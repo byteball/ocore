@@ -1,7 +1,7 @@
 /*jslint node: true */
 "use strict";
 
-if (typeof window === 'undefined' || !window.cordova){ // desktop
+if (typeof window === 'undefined' || !window.cordova || (typeof global !== 'undefined' && !global.Expo)){ // desktop
 	var desktopApp = require('./desktop_app.js'+'');
 	var appRootDir = desktopApp.getAppRootDir();
 	require('dotenv'+'').config({path: appRootDir + '/.env'});
