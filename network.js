@@ -50,6 +50,7 @@ var peer_events_buffer = [];
 var assocKnownPeers = {};
 var assocBlockedPeers = {};
 var exchangeRates = {};
+var knownWitnesses = {};
 var bWatchingForLight = false;
 
 if (process.browser){ // browser
@@ -2386,6 +2387,13 @@ function handleJustsaying(ws, subject, body){
 			eventBus.emit('rates_updated');
 			break;
 			
+		case 'known_witnesses':
+			if (!ws.bLoggingIn && !ws.bLoggedIn) // accept from hub only
+				return console.log('ignoring known_witnesses from non-hub');
+			_.assign(knownWitnesses, body);
+			eventBus.emit('known_witnesses_updated');
+			break;
+			
 		case 'upgrade_required':
 			if (!ws.bLoggingIn && !ws.bLoggedIn) // accept from hub only
 				return;
@@ -3225,5 +3233,6 @@ exports.isConnected = isConnected;
 exports.isCatchingUp = isCatchingUp;
 exports.requestHistoryFor = requestHistoryFor;
 exports.exchangeRates = exchangeRates;
+exports.knownWitnesses = knownWitnesses;
 exports.getInboundDeviceWebSocket = getInboundDeviceWebSocket;
 exports.deletePendingRequest = deletePendingRequest;

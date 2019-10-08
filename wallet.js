@@ -1337,8 +1337,14 @@ function readFundedAddresses(asset, wallet, estimated_amount, spend_unconfirmed,
 					estimated_amount = 0; // don't shorten the list of addresses, indivisible_asset.js will do it later according to denominations
 				if (!objAsset.cap){ // uncapped asset: can be issued from definer_address or from any address
 					var and_address = objAsset.issued_by_definer_only ? " AND address="+db.escape(objAsset.definer_address) : '';
-					db.query("SELECT address FROM my_addresses WHERE wallet=? "+and_address+" LIMIT 1", [wallet], function(rows){
-						handleFundedAddresses(rows.map(function(row){ return row.address; }));
+					db.query("SELECT address FROM my_addresses WHERE wallet=? "+and_address+" LIMIT 1", [wallet], function(issuer_rows){
+						issuer_rows.forEach(issuer_row => {
+							issuer_row.total = Infinity;
+						});
+						var arrNonIssuerAddresses = rows.map(row => row.address);
+						issuer_rows = issuer_rows.filter(issuer_row => arrNonIssuerAddresses.indexOf(issuer_row.address) === -1);
+						rows = rows.concat(issuer_rows);
+						handleFundedAddresses(composer.filterMostFundedAddresses(rows, estimated_amount));
 					});
 					return;
 				}
@@ -2037,41 +2043,35 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 			FROM outputs JOIN units USING(unit) WHERE address=? AND sequence='good' AND is_spent=0 GROUP BY asset ORDER BY asset DESC LIMIT 1", 
 			[addrInfo.address],
 			function(rows){
-				if (rows.length === 0) {
-					cb("This textcoin either was already claimed or never existed in the network");
-				} else {
-					var row = rows[0];
-					if (false && !row.is_stable) {
-						cb("This payment is not confirmed yet, try again later");
-					} else {
-						if (row.asset) { // claiming asset
-							opts.asset = row.asset;
-							opts.amount = row.amount;
-							opts.fee_paying_addresses = [addrInfo.address];
-							storage.readAsset(db, row.asset, null, function(err, objAsset){
-								if (err && err.indexOf("not found" !== -1)) {
-									if (!conf.bLight) // full wallets must have this asset
-										throw Error("textcoin asset "+row.asset+" not found");
-									return network.requestHistoryFor([opts.asset], [], checkStability);
-								}
-								asset = opts.asset;
-								opts.to_address = addressTo;
-								if (objAsset.fixed_denominations){ // indivisible
-									opts.tolerance_plus = 0;
-									opts.tolerance_minus = 0;
-									indivisibleAsset.composeAndSaveIndivisibleAssetPaymentJoint(opts);
-								}
-								else{ // divisible
-									divisibleAsset.composeAndSaveDivisibleAssetPaymentJoint(opts);
-								}
-							});
-						} else {// claiming bytes
-							opts.send_all = true;
-							opts.outputs = [{address: addressTo, amount: 0}];
-							opts.callbacks = composer.getSavingCallbacks(opts.callbacks);
-							composer.composeJoint(opts);
+				if (rows.length === 0)
+					return cb("This textcoin either was already claimed or never existed in the network");
+				var row = rows[0];
+				if (row.asset) { // claiming asset
+					opts.asset = row.asset;
+					opts.amount = row.amount;
+					opts.fee_paying_addresses = [addrInfo.address];
+					storage.readAsset(db, row.asset, null, function(err, objAsset){
+						if (err && err.indexOf("not found") !== -1) {
+							if (!conf.bLight) // full wallets must have this asset
+								throw Error("textcoin asset "+row.asset+" not found");
+							return network.requestHistoryFor([opts.asset], [], checkStability);
 						}
-					}
+						asset = opts.asset;
+						opts.to_address = addressTo;
+						if (objAsset.fixed_denominations){ // indivisible
+							opts.tolerance_plus = 0;
+							opts.tolerance_minus = 0;
+							indivisibleAsset.composeAndSaveIndivisibleAssetPaymentJoint(opts);
+						}
+						else{ // divisible
+							divisibleAsset.composeAndSaveDivisibleAssetPaymentJoint(opts);
+						}
+					});
+				} else {// claiming bytes
+					opts.send_all = true;
+					opts.outputs = [{address: addressTo, amount: 0}];
+					opts.callbacks = composer.getSavingCallbacks(opts.callbacks);
+					composer.composeJoint(opts);
 				}
 			}
 		);		
