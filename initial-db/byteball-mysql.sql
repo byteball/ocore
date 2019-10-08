@@ -784,3 +784,9 @@ CREATE TABLE correspondent_settings (
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (device_address, correspondent_address)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
+
+CREATE TABLE IF NOT EXISTS arbiter_associations (
+	arbiter_address CHAR(32) NOT NULL PRIMARY KEY,
+	arbstore_address CHAR(32) NOT NULL,
+	unit CHAR(44) NOT NULL UNIQUE
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;

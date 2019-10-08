@@ -2975,6 +2975,14 @@ function handleRequest(ws, tag, command, params){
 				sendResponse(ws, tag, rows[0]);
 			});
 			break;
+
+		case 'hub/get_arbstore_url':
+			var arbiter_address = params;
+			db.query("SELECT arbstore_address FROM arbiter_locations WHERE arbiter_address=?", [arbiter_address], function(rows){
+				var address = rows.length ? conf.ArbRegistries[rows[0].arbstore_address] : '';
+				sendResponse(ws, tag, address);
+			});
+			break;
 			
 		case 'custom':
 			eventBus.emit('custom_request', ws, params,tag);

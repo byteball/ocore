@@ -594,6 +594,19 @@ function startWaitingForPairing(handlePairingInfo){
 	});
 }
 
+function generatePermanentPairingInfo(handlePairingInfo){
+	var pairing_secret = crypto.randomBytes(9).toString("base64");
+	var pairingInfo = {
+		pairing_secret: pairing_secret,
+		device_pubkey: objMyPermanentDeviceKey.pub_b64,
+		device_address: my_device_address,
+		hub: my_device_hub
+	};
+	db.query("INSERT INTO pairing_secrets (pairing_secret, is_permanent, expiry_date) VALUES(?, 1, '2038-01-01')", [pairing_secret], function(){
+		handlePairingInfo(pairingInfo);
+	});
+}
+
 // {pairing_secret: "random string", device_name: "Bob's MacBook Pro", reverse_pairing_secret: "random string"}
 function handlePairingMessage(json, device_pubkey, callbacks){
 	var body = json.body;
@@ -788,6 +801,7 @@ exports.sendMessageToDevice = sendMessageToDevice;
 
 exports.sendPairingMessage = sendPairingMessage;
 exports.startWaitingForPairing = startWaitingForPairing;
+exports.generatePermanentPairingInfo = generatePermanentPairingInfo;
 exports.handlePairingMessage = handlePairingMessage;
 
 exports.addUnconfirmedCorrespondent = addUnconfirmedCorrespondent;
