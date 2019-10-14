@@ -1782,18 +1782,19 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 							if (rows.length === 0)
 								return cb("input unit "+input.unit+" not found");
 							var src_output = rows[0];
+							var bStableInParents = (src_output.main_chain_index !== null && src_output.main_chain_index <= objValidationState.last_ball_mci);
 							if (typeof src_output.amount !== 'number')
 								throw Error("src output amount is not a number");
 							if (!(!payload.asset && !src_output.asset || payload.asset === src_output.asset))
 								return cb("asset mismatch");
 							//if (src_output.is_stable !== 1) // we allow immediate spends, that's why the error is transient
 							//    return cb(createTransientError("input unit is not on stable MC yet, unit "+objUnit.unit+", input "+input.unit));
-							if (src_output.main_chain_index !== null && src_output.main_chain_index <= objValidationState.last_ball_mci && src_output.sequence !== 'good')
+							if (bStableInParents && src_output.sequence !== 'good')
 								return cb("stable input unit "+input.unit+" is not serial");
 							if (objValidationState.last_ball_mci < constants.spendUnconfirmedUpgradeMci){
 								if (!objAsset || !objAsset.is_private){
 									// for public payments, you can't spend unconfirmed transactions
-									if (src_output.main_chain_index > objValidationState.last_ball_mci || src_output.main_chain_index === null)
+									if (!bStableInParents)
 										return cb("src output must be before last ball");
 								}
 								if (src_output.sequence !== 'good') // it is also stable or private
@@ -1818,7 +1819,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 								arrInputAddresses.push(owner_address);
 							total_input += src_output.amount;
 							
-							if (src_output.main_chain_index !== null && src_output.main_chain_index <= objValidationState.last_ball_mci)
+							if (bStableInParents)
 								return checkInputDoubleSpend(cb);
 
 							// the below is for unstable inputs only.
