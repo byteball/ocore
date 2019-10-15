@@ -29,6 +29,10 @@ validation.validate = function (objJoint, callbacks, external_conn) {
 	});
 }
 
+test.after.always(t => {
+	console.log('***** aa.test done');
+});
+
 test('simple AA', t => {
 	var aa = ['autonomous agent', {
 		bounce_fees: { base: 10000 },
@@ -586,11 +590,17 @@ test.cb.serial('compose simple AA', t => {
 		onDone();
 	}
 	
-	aa_composer.handleTrigger(db, batch, null, trigger, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (bPosted, bBounced) => {
-		t.deepEqual(!!bPosted, true);
-		t.deepEqual(bBounced, false);
-		t.deepEqual(objUnit.messages.find(function (message) { return (message.app === 'payment'); }).payload.outputs.find(function (output) { return (output.address === trigger.address); }).amount, 38000);
-		t.end();
+	db.takeConnectionFromPool(conn => {
+		conn.query('BEGIN');
+		aa_composer.handleTrigger(conn, batch, null, trigger, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (bPosted, bBounced) => {
+			conn.query('ROLLBACK');
+			conn.release();
+			t.deepEqual(!!bPosted, true);
+			t.deepEqual(bBounced, false);
+			t.deepEqual(objUnit.messages.find(function (message) { return (message.app === 'payment'); }).payload.outputs.find(function (output) { return (output.address === trigger.address); }).amount, 38000);
+			console.log('=== done first test');
+			t.end();
+		});
 	});
 });
 
@@ -670,14 +680,19 @@ test.cb.serial('compose complex AA', t => {
 		onDone();
 	}
 	
-	aa_composer.handleTrigger(db, batch, null, trigger, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (bPosted, bBounced) => {
-		t.deepEqual(!!bPosted, true);
-		t.deepEqual(bBounced, false);
-		t.deepEqual(stateVars[address]['z'].value.toNumber(), 4.5);
-		t.deepEqual(objUnit.messages.find(function (message) { return (message.app === 'payment'); }).payload.outputs.find(function (output) { return (output.address === trigger.address); }).amount, 18150);
-		t.deepEqual(objUnit.messages.find(function (message) { return (message.app === 'data'); }).payload.zzz, undefined);
-		t.deepEqual(objUnit.messages.find(function (message) { return (message.app === 'data'); }).payload.val_300, 80000);
-		t.end();
+	db.takeConnectionFromPool(conn => {
+		conn.query('BEGIN');
+		aa_composer.handleTrigger(conn, batch, null, trigger, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (bPosted, bBounced) => {
+			conn.query('ROLLBACK');
+			conn.release();
+			t.deepEqual(!!bPosted, true);
+			t.deepEqual(bBounced, false);
+			t.deepEqual(stateVars[address]['z'].value.toNumber(), 4.5);
+			t.deepEqual(objUnit.messages.find(function (message) { return (message.app === 'payment'); }).payload.outputs.find(function (output) { return (output.address === trigger.address); }).amount, 18150);
+			t.deepEqual(objUnit.messages.find(function (message) { return (message.app === 'data'); }).payload.zzz, undefined);
+			t.deepEqual(objUnit.messages.find(function (message) { return (message.app === 'data'); }).payload.val_300, 80000);
+			t.end();
+		});
 	});
 });
 

@@ -39,6 +39,7 @@ function id(x) { return x[0]; }
 		attestors: 'attestors',
 		ifseveral: 'ifseveral',
 		ifnone: 'ifnone',
+		none: 'none',
 		typeof: 'typeof',
 		type: 'type',
 		boolean: ['true', 'false'],
@@ -46,7 +47,7 @@ function id(x) { return x[0]; }
 		else: "else",
 		comparisonOperators: ["==", ">=", "<=", "!=", ">", "<", "="],
 		dfParamsName: ['oracles', 'feed_name', 'min_mci', 'feed_value', 'what'],
-		name: ['min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round', 'abs', 'hypot', 'is_valid_signed_package', 'is_valid_sig', 'sha256', 'json_parse', 'json_stringify', 'number_from_seed', 'length', 'is_valid_address', 'starts_with', 'ends_with', 'contains', 'substring', 'timestamp_to_string', 'parse_date'],
+		name: ['min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round', 'abs', 'hypot', 'is_valid_signed_package', 'is_valid_sig', 'sha256', 'json_parse', 'json_stringify', 'number_from_seed', 'length', 'is_valid_address', 'starts_with', 'ends_with', 'contains', 'substring', 'timestamp_to_string', 'parse_date', 'is_aa', 'is_integer', 'is_valid_amount', 'is_array', 'is_assoc', 'array_length', 'index_of'],
 		and: ['and', 'AND'],
 		or: ['or', 'OR'],
 		not: ['not', 'NOT', '!'],
@@ -55,11 +56,13 @@ function id(x) { return x[0]; }
 		ternary: ['?', ':'],
 		base: 'base',
 		var: 'var',
+		storage_size: 'storage_size',
 		mci: 'mci',
 		timestamp: 'timestamp',
 		this_address: 'this_address',
 		mc_unit: 'mc_unit',
 		response_unit: 'response_unit',
+		unit: 'unit',
 		response: 'response',
 		bounce: 'bounce',
 		return: 'return',
@@ -71,6 +74,7 @@ function id(x) { return x[0]; }
 		trigger_output: /\btrigger\.output\b/,
 		dotSelector: /\.\w+/,
 		local_var_name: /\$[a-zA-Z]\w*\b/,
+	//	search_field: /[a-zA-Z]\w*\b/,
 		semi: ';',
 		comma: ',',
 		dot: '.',
@@ -109,7 +113,7 @@ var grammar = {
     {"name": "ifelse$ebnf$1$subexpression$1", "symbols": [{"literal":"else"}, "block"]},
     {"name": "ifelse$ebnf$1", "symbols": ["ifelse$ebnf$1$subexpression$1"], "postprocess": id},
     {"name": "ifelse$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
-    {"name": "ifelse", "symbols": [{"literal":"if"}, {"literal":"("}, "expr", {"literal":")"}, "block", "ifelse$ebnf$1"], "postprocess":  function(d){  
+    {"name": "ifelse", "symbols": [{"literal":"if"}, {"literal":"("}, "expr", {"literal":")"}, "block", "ifelse$ebnf$1"], "postprocess":  function(d){
         	var else_block = d[5] ? d[5][1] : null;
         	return ['ifelse', d[2], d[4], else_block];
         } },
@@ -148,6 +152,7 @@ var grammar = {
     {"name": "local_var$subexpression$1", "symbols": ["local_var_expr"]},
     {"name": "local_var$ebnf$1", "symbols": []},
     {"name": "local_var$ebnf$1$subexpression$1", "symbols": [(lexer.has("dotSelector") ? {type: "dotSelector"} : dotSelector)]},
+    {"name": "local_var$ebnf$1$subexpression$1", "symbols": [{"literal":"["}, {"literal":"["}, "search_param_list", {"literal":"]"}, {"literal":"]"}]},
     {"name": "local_var$ebnf$1$subexpression$1", "symbols": [{"literal":"["}, "expr", {"literal":"]"}]},
     {"name": "local_var$ebnf$1", "symbols": ["local_var$ebnf$1", "local_var$ebnf$1$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
     {"name": "local_var", "symbols": ["local_var$subexpression$1", "local_var$ebnf$1"], "postprocess":  function(d) {
@@ -156,7 +161,14 @@ var grammar = {
         		v = v.value.substr(1);
         	var selectors = null;
         	if (d[1] && d[1].length)
-        		selectors = d[1].map(function(item){ return (item[0].type === 'dotSelector') ? item[0].value.substr(1) : item[1]; })
+        		selectors = d[1].map(function(item){
+        			if (item[0].type === 'dotSelector')
+        				return item[0].value.substr(1);
+        			else if (item.length === 5)
+        				return ['search_param_list', item[2]];
+        			else
+        				return item[1]; 
+        		});
         	return ['local_var', v, selectors];
         }  },
     {"name": "local_var_assignment", "symbols": ["local_var", {"literal":"="}, "expr", {"literal":";"}], "postprocess": function(d) { return ['local_var_assignment', d[0], d[2]]; }},
@@ -169,11 +181,36 @@ var grammar = {
     {"name": "state_var_assignment$subexpression$1", "symbols": [{"literal":"||="}]},
     {"name": "state_var_assignment", "symbols": [{"literal":"var"}, {"literal":"["}, "expr", {"literal":"]"}, "state_var_assignment$subexpression$1", "expr", {"literal":";"}], "postprocess": function(d) { return ['state_var_assignment', d[2], d[5], d[4][0].value]; }},
     {"name": "response_var_assignment", "symbols": [{"literal":"response"}, {"literal":"["}, "expr", {"literal":"]"}, {"literal":"="}, "expr", {"literal":";"}], "postprocess": function(d) { return ['response_var_assignment', d[2], d[5]]; }},
+    {"name": "search_fields$ebnf$1$subexpression$1", "symbols": [(lexer.has("dotSelector") ? {type: "dotSelector"} : dotSelector)]},
+    {"name": "search_fields$ebnf$1", "symbols": ["search_fields$ebnf$1$subexpression$1"]},
+    {"name": "search_fields$ebnf$1$subexpression$2", "symbols": [(lexer.has("dotSelector") ? {type: "dotSelector"} : dotSelector)]},
+    {"name": "search_fields$ebnf$1", "symbols": ["search_fields$ebnf$1", "search_fields$ebnf$1$subexpression$2"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
+    {"name": "search_fields", "symbols": ["search_fields$ebnf$1"], "postprocess":  function(d) {
+        /*	var fields = [d[0].value];
+        	if (d[1] && d[1].length)
+        		fields = fields.concat(d[1].map(field => field[0].value.substr(1)));
+        	return fields;*/
+        	return d[0].map(field => field[0].value.substr(1));
+        } },
+    {"name": "search_param$subexpression$1", "symbols": ["expr"]},
+    {"name": "search_param$subexpression$1", "symbols": [{"literal":"none"}]},
+    {"name": "search_param", "symbols": ["search_fields", "comparisonOperator", "search_param$subexpression$1"], "postprocess": function(d) { return [d[0], d[1], d[2][0]]; }},
+    {"name": "search_param_list$ebnf$1", "symbols": []},
+    {"name": "search_param_list$ebnf$1$subexpression$1", "symbols": [{"literal":","}, "search_param"]},
+    {"name": "search_param_list$ebnf$1", "symbols": ["search_param_list$ebnf$1", "search_param_list$ebnf$1$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
+    {"name": "search_param_list", "symbols": ["search_param", "search_param_list$ebnf$1"], "postprocess": function(d) { return [d[0]].concat(d[1].map(function (item) {return item[1];}));   }},
     {"name": "df_param$subexpression$1", "symbols": [(lexer.has("dfParamsName") ? {type: "dfParamsName"} : dfParamsName)]},
     {"name": "df_param$subexpression$1", "symbols": [(lexer.has("ifseveral") ? {type: "ifseveral"} : ifseveral)]},
     {"name": "df_param$subexpression$1", "symbols": [(lexer.has("ifnone") ? {type: "ifnone"} : ifnone)]},
     {"name": "df_param$subexpression$1", "symbols": [(lexer.has("type") ? {type: "type"} : type)]},
-    {"name": "df_param", "symbols": ["df_param$subexpression$1", "comparisonOperator", "expr"], "postprocess": function(d) { return [d[0][0].value, d[1], d[2]]; }},
+    {"name": "df_param$subexpression$2", "symbols": ["expr"]},
+    {"name": "df_param$subexpression$2", "symbols": [(lexer.has("addressValue") ? {type: "addressValue"} : addressValue)]},
+    {"name": "df_param", "symbols": ["df_param$subexpression$1", "comparisonOperator", "df_param$subexpression$2"], "postprocess":  function(d) {
+        	var value = d[2][0];
+        	if (value.type === 'addressValue')
+        		value = value.value;
+        	return [d[0][0].value, d[1], value];
+        } },
     {"name": "df_param_list$ebnf$1", "symbols": []},
     {"name": "df_param_list$ebnf$1$subexpression$1", "symbols": [{"literal":","}, "df_param"]},
     {"name": "df_param_list$ebnf$1", "symbols": ["df_param_list$ebnf$1", "df_param_list$ebnf$1$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
@@ -259,9 +296,16 @@ var grammar = {
     {"name": "N", "symbols": [{"literal":"typeof"}, {"literal":"("}, "expr", {"literal":")"}], "postprocess": function(d) {return ['typeof', d[2]]; }},
     {"name": "N", "symbols": [{"literal":"length"}, {"literal":"("}, "expr", {"literal":")"}], "postprocess": function(d) {return ['length', d[2]]; }},
     {"name": "N", "symbols": [{"literal":"is_valid_address"}, {"literal":"("}, "expr", {"literal":")"}], "postprocess": function(d) {return ['is_valid_address', d[2]]; }},
+    {"name": "N", "symbols": [{"literal":"is_aa"}, {"literal":"("}, "expr", {"literal":")"}], "postprocess": function(d) {return ['is_aa', d[2]]; }},
+    {"name": "N", "symbols": [{"literal":"is_integer"}, {"literal":"("}, "expr", {"literal":")"}], "postprocess": function(d) {return ['is_integer', d[2]]; }},
+    {"name": "N", "symbols": [{"literal":"is_valid_amount"}, {"literal":"("}, "expr", {"literal":")"}], "postprocess": function(d) {return ['is_valid_amount', d[2]]; }},
+    {"name": "N", "symbols": [{"literal":"is_array"}, {"literal":"("}, "expr", {"literal":")"}], "postprocess": function(d) {return ['is_array', d[2]]; }},
+    {"name": "N", "symbols": [{"literal":"is_assoc"}, {"literal":"("}, "expr", {"literal":")"}], "postprocess": function(d) {return ['is_assoc', d[2]]; }},
+    {"name": "N", "symbols": [{"literal":"array_length"}, {"literal":"("}, "expr", {"literal":")"}], "postprocess": function(d) {return ['array_length', d[2]]; }},
     {"name": "N", "symbols": [{"literal":"starts_with"}, {"literal":"("}, "expr", {"literal":","}, "expr", {"literal":")"}], "postprocess": function(d) {return ['starts_with', d[2], d[4]]; }},
     {"name": "N", "symbols": [{"literal":"ends_with"}, {"literal":"("}, "expr", {"literal":","}, "expr", {"literal":")"}], "postprocess": function(d) {return ['ends_with', d[2], d[4]]; }},
     {"name": "N", "symbols": [{"literal":"contains"}, {"literal":"("}, "expr", {"literal":","}, "expr", {"literal":")"}], "postprocess": function(d) {return ['contains', d[2], d[4]]; }},
+    {"name": "N", "symbols": [{"literal":"index_of"}, {"literal":"("}, "expr", {"literal":","}, "expr", {"literal":")"}], "postprocess": function(d) {return ['index_of', d[2], d[4]]; }},
     {"name": "N$ebnf$4$subexpression$1", "symbols": [{"literal":","}, "expr"]},
     {"name": "N$ebnf$4", "symbols": ["N$ebnf$4$subexpression$1"], "postprocess": id},
     {"name": "N$ebnf$4", "symbols": [], "postprocess": function(d) {return null;}},
@@ -353,6 +397,26 @@ var grammar = {
         		field = field[1];
         	return ['asset', d[2], field];
         } },
+    {"name": "N$ebnf$8", "symbols": []},
+    {"name": "N$ebnf$8$subexpression$1", "symbols": [(lexer.has("dotSelector") ? {type: "dotSelector"} : dotSelector)]},
+    {"name": "N$ebnf$8$subexpression$1", "symbols": [{"literal":"["}, {"literal":"["}, "search_param_list", {"literal":"]"}, {"literal":"]"}]},
+    {"name": "N$ebnf$8$subexpression$1", "symbols": [{"literal":"["}, "expr", {"literal":"]"}]},
+    {"name": "N$ebnf$8", "symbols": ["N$ebnf$8", "N$ebnf$8$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
+    {"name": "N", "symbols": [{"literal":"unit"}, {"literal":"["}, "expr", {"literal":"]"}, "N$ebnf$8"], "postprocess":  function(d) {
+        var selectors = null;
+        if (d[4] && d[4].length){
+        	selectors = d[4].map(function(item){
+        		if (item[0].type === 'dotSelector')
+        			return item[0].value.substr(1);
+        		else if (item.length === 5)
+        			return ['search_param_list', item[2]];
+        		else
+        			return item[1]; 
+        	});
+        }
+        return ['unit', d[2], selectors]; }  
+        	},
+    {"name": "N", "symbols": [{"literal":"storage_size"}], "postprocess": function(d) {return ['storage_size']; }},
     {"name": "N", "symbols": [{"literal":"mci"}], "postprocess": function(d) {return ['mci']; }},
     {"name": "N", "symbols": [{"literal":"timestamp"}], "postprocess": function(d) {return ['timestamp']; }},
     {"name": "N", "symbols": [{"literal":"mc_unit"}], "postprocess": function(d) {return ['mc_unit']; }},
@@ -361,18 +425,29 @@ var grammar = {
     {"name": "N", "symbols": [{"literal":"trigger.address"}], "postprocess": function(d) {return ['trigger.address']; }},
     {"name": "N", "symbols": [{"literal":"trigger.initial_address"}], "postprocess": function(d) {return ['trigger.initial_address']; }},
     {"name": "N", "symbols": [{"literal":"trigger.unit"}], "postprocess": function(d) {return ['trigger.unit']; }},
-    {"name": "N$ebnf$8", "symbols": []},
-    {"name": "N$ebnf$8$subexpression$1", "symbols": [(lexer.has("dotSelector") ? {type: "dotSelector"} : dotSelector)]},
-    {"name": "N$ebnf$8$subexpression$1", "symbols": [{"literal":"["}, "expr", {"literal":"]"}]},
-    {"name": "N$ebnf$8", "symbols": ["N$ebnf$8", "N$ebnf$8$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
-    {"name": "N", "symbols": [{"literal":"trigger.data"}, "N$ebnf$8"], "postprocess": function(d) { return ['trigger.data', d[1].map(function(item){ return (item[0].type === 'dotSelector') ? item[0].value.substr(1) : item[1]; })]; }},
+    {"name": "N$ebnf$9", "symbols": []},
+    {"name": "N$ebnf$9$subexpression$1", "symbols": [(lexer.has("dotSelector") ? {type: "dotSelector"} : dotSelector)]},
+    {"name": "N$ebnf$9$subexpression$1", "symbols": [{"literal":"["}, {"literal":"["}, "search_param_list", {"literal":"]"}, {"literal":"]"}]},
+    {"name": "N$ebnf$9$subexpression$1", "symbols": [{"literal":"["}, "expr", {"literal":"]"}]},
+    {"name": "N$ebnf$9", "symbols": ["N$ebnf$9", "N$ebnf$9$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
+    {"name": "N", "symbols": [{"literal":"trigger.data"}, "N$ebnf$9"], "postprocess":  function(d) {
+        var selectors = d[1].map(function(item){
+        	if (item[0].type === 'dotSelector')
+        		return item[0].value.substr(1);
+        	else if (item.length === 5)
+        		return ['search_param_list', item[2]];
+        	else
+        		return item[1]; 
+        });
+        return ['trigger.data', selectors]; }  
+        	},
     {"name": "N$subexpression$10", "symbols": [{"literal":"["}, {"literal":"["}]},
     {"name": "N$subexpression$11", "symbols": ["expr"]},
     {"name": "N$subexpression$11", "symbols": [(lexer.has("base") ? {type: "base"} : base)]},
     {"name": "N$subexpression$12", "symbols": [{"literal":"]"}, {"literal":"]"}]},
-    {"name": "N$ebnf$9", "symbols": [(lexer.has("dotSelector") ? {type: "dotSelector"} : dotSelector)], "postprocess": id},
-    {"name": "N$ebnf$9", "symbols": [], "postprocess": function(d) {return null;}},
-    {"name": "N", "symbols": [{"literal":"trigger.output"}, "N$subexpression$10", {"literal":"asset"}, "comparisonOperator", "N$subexpression$11", "N$subexpression$12", "N$ebnf$9"], "postprocess":  function(d) {
+    {"name": "N$ebnf$10", "symbols": [(lexer.has("dotSelector") ? {type: "dotSelector"} : dotSelector)], "postprocess": id},
+    {"name": "N$ebnf$10", "symbols": [], "postprocess": function(d) {return null;}},
+    {"name": "N", "symbols": [{"literal":"trigger.output"}, "N$subexpression$10", {"literal":"asset"}, "comparisonOperator", "N$subexpression$11", "N$subexpression$12", "N$ebnf$10"], "postprocess":  function(d) {
         	var value = d[4][0];
         	var field = d[6] ? d[6].value.substr(1) : 'amount';
         	if (value.type === 'base')

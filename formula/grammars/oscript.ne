@@ -35,6 +35,7 @@
 		attestors: 'attestors',
 		ifseveral: 'ifseveral',
 		ifnone: 'ifnone',
+		none: 'none',
 		typeof: 'typeof',
 		type: 'type',
 		boolean: ['true', 'false'],
@@ -42,7 +43,7 @@
 		else: "else",
 		comparisonOperators: ["==", ">=", "<=", "!=", ">", "<", "="],
 		dfParamsName: ['oracles', 'feed_name', 'min_mci', 'feed_value', 'what'],
-		name: ['min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round', 'abs', 'hypot', 'is_valid_signed_package', 'is_valid_sig', 'sha256', 'json_parse', 'json_stringify', 'number_from_seed', 'length', 'is_valid_address', 'starts_with', 'ends_with', 'contains', 'substring', 'timestamp_to_string', 'parse_date'],
+		name: ['min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round', 'abs', 'hypot', 'is_valid_signed_package', 'is_valid_sig', 'sha256', 'json_parse', 'json_stringify', 'number_from_seed', 'length', 'is_valid_address', 'starts_with', 'ends_with', 'contains', 'substring', 'timestamp_to_string', 'parse_date', 'is_aa', 'is_integer', 'is_valid_amount', 'is_array', 'is_assoc', 'array_length', 'index_of'],
 		and: ['and', 'AND'],
 		or: ['or', 'OR'],
 		not: ['not', 'NOT', '!'],
@@ -51,11 +52,13 @@
 		ternary: ['?', ':'],
 		base: 'base',
 		var: 'var',
+		storage_size: 'storage_size',
 		mci: 'mci',
 		timestamp: 'timestamp',
 		this_address: 'this_address',
 		mc_unit: 'mc_unit',
 		response_unit: 'response_unit',
+		unit: 'unit',
 		response: 'response',
 		bounce: 'bounce',
 		return: 'return',
@@ -67,6 +70,7 @@
 		trigger_output: /\btrigger\.output\b/,
 		dotSelector: /\.\w+/,
 		local_var_name: /\$[a-zA-Z]\w*\b/,
+	//	search_field: /[a-zA-Z]\w*\b/,
 		semi: ';',
 		comma: ',',
 		dot: '.',
@@ -101,7 +105,7 @@ statement -> local_var_assignment {% id %}
 	| return_statement {% id %}
 	| empty_return_statement {% id %}
 
-ifelse -> "if" "(" expr ")" block ("else" block):?  {% function(d){  
+ifelse -> "if" "(" expr ")" block ("else" block):?  {% function(d){
 	var else_block = d[5] ? d[5][1] : null;
 	return ['ifelse', d[2], d[4], else_block];
 } %}
@@ -141,13 +145,20 @@ comparisonOperator -> %comparisonOperators {% function(d) { return d[0].value } 
 
 local_var_expr -> "${" expr "}" {% function(d) { return d[1]; }  %}
 
-local_var -> (%local_var_name|local_var_expr) (%dotSelector|"[" expr "]"):*  {% function(d) {
+local_var -> (%local_var_name|local_var_expr) (%dotSelector|"[" "[" search_param_list "]" "]"|"[" expr "]"):*  {% function(d) {
 	var v = d[0][0];
 	if (v.type === 'local_var_name')
 		v = v.value.substr(1);
 	var selectors = null;
 	if (d[1] && d[1].length)
-		selectors = d[1].map(function(item){ return (item[0].type === 'dotSelector') ? item[0].value.substr(1) : item[1]; })
+		selectors = d[1].map(function(item){
+			if (item[0].type === 'dotSelector')
+				return item[0].value.substr(1);
+			else if (item.length === 5)
+				return ['search_param_list', item[2]];
+			else
+				return item[1]; 
+		});
 	return ['local_var', v, selectors];
 }  %}
 
@@ -157,7 +168,24 @@ state_var_assignment -> "var" "[" expr "]" ("="|"+="|"-="|"*="|"/="|"%="|"||=") 
 
 response_var_assignment -> "response" "[" expr "]" "=" expr ";" {% function(d) { return ['response_var_assignment', d[2], d[5]]; } %}
 
-df_param ->  (%dfParamsName|%ifseveral|%ifnone|%type) comparisonOperator expr  {% function(d) { return [d[0][0].value, d[1], d[2]]; } %}
+search_fields -> (%dotSelector):+ {% function(d) {
+/*	var fields = [d[0].value];
+	if (d[1] && d[1].length)
+		fields = fields.concat(d[1].map(field => field[0].value.substr(1)));
+	return fields;*/
+	return d[0].map(field => field[0].value.substr(1));
+} %}
+
+search_param ->  search_fields comparisonOperator (expr|"none")  {% function(d) { return [d[0], d[1], d[2][0]]; } %}
+
+search_param_list -> search_param ("," search_param):*  {% function(d) { return [d[0]].concat(d[1].map(function (item) {return item[1];}));   } %}
+
+df_param ->  (%dfParamsName|%ifseveral|%ifnone|%type) comparisonOperator (expr | %addressValue)  {% function(d) {
+	var value = d[2][0];
+	if (value.type === 'addressValue')
+		value = value.value;
+	return [d[0][0].value, d[1], value];
+} %}
 df_param_list -> df_param ("," df_param):*  {% function(d) { return [d[0]].concat(d[1].map(function (item) {return item[1];}));   } %}
 
 io_param ->  (%address|%amount|%asset) comparisonOperator (expr|%base|%addressValue)  {% function(d) {
@@ -221,9 +249,16 @@ N -> float          {% id %}
     | "typeof" "(" expr ")"    {% function(d) {return ['typeof', d[2]]; } %}
     | "length" "(" expr ")"    {% function(d) {return ['length', d[2]]; } %}
     | "is_valid_address" "(" expr ")"    {% function(d) {return ['is_valid_address', d[2]]; } %}
+    | "is_aa" "(" expr ")"    {% function(d) {return ['is_aa', d[2]]; } %}
+    | "is_integer" "(" expr ")"    {% function(d) {return ['is_integer', d[2]]; } %}
+    | "is_valid_amount" "(" expr ")"    {% function(d) {return ['is_valid_amount', d[2]]; } %}
+    | "is_array" "(" expr ")"    {% function(d) {return ['is_array', d[2]]; } %}
+    | "is_assoc" "(" expr ")"    {% function(d) {return ['is_assoc', d[2]]; } %}
+    | "array_length" "(" expr ")"    {% function(d) {return ['array_length', d[2]]; } %}
     | "starts_with" "(" expr "," expr ")"    {% function(d) {return ['starts_with', d[2], d[4]]; } %}
     | "ends_with" "(" expr "," expr ")"    {% function(d) {return ['ends_with', d[2], d[4]]; } %}
     | "contains" "(" expr "," expr ")"    {% function(d) {return ['contains', d[2], d[4]]; } %}
+    | "index_of" "(" expr "," expr ")"    {% function(d) {return ['index_of', d[2], d[4]]; } %}
     | "substring" "(" expr "," expr ("," expr):? ")"    {% function(d) {return ['substring', d[2], d[4], d[5] ? d[5][1] : null]; } %}
     | "timestamp_to_string" "(" expr ("," expr):? ")"    {% function(d) {return ['timestamp_to_string', d[2], d[3] ? d[3][1] : null]; } %}
     | "parse_date" "(" expr ")"    {% function(d) {return ['parse_date', d[2]]; } %}
@@ -287,6 +322,21 @@ N -> float          {% id %}
 			field = field[1];
 		return ['asset', d[2], field];
 	} %}
+	| "unit" "[" expr "]" (%dotSelector|"[" "[" search_param_list "]" "]"|"[" expr "]"):*  {% function(d) {
+		var selectors = null;
+		if (d[4] && d[4].length){
+			selectors = d[4].map(function(item){
+				if (item[0].type === 'dotSelector')
+					return item[0].value.substr(1);
+				else if (item.length === 5)
+					return ['search_param_list', item[2]];
+				else
+					return item[1]; 
+			});
+		}
+		return ['unit', d[2], selectors]; }  
+	%}
+	| "storage_size"  {% function(d) {return ['storage_size']; }  %}
 	| "mci"  {% function(d) {return ['mci']; }  %}
 	| "timestamp"  {% function(d) {return ['timestamp']; }  %}
 	| "mc_unit"  {% function(d) {return ['mc_unit']; }  %}
@@ -295,7 +345,17 @@ N -> float          {% id %}
 	| "trigger.address"  {% function(d) {return ['trigger.address']; }  %}
 	| "trigger.initial_address"  {% function(d) {return ['trigger.initial_address']; }  %}
 	| "trigger.unit"  {% function(d) {return ['trigger.unit']; }  %}
-	| "trigger.data" (%dotSelector|"[" expr "]"):*  {% function(d) { return ['trigger.data', d[1].map(function(item){ return (item[0].type === 'dotSelector') ? item[0].value.substr(1) : item[1]; })]; }  %}
+	| "trigger.data" (%dotSelector|"[" "[" search_param_list "]" "]"|"[" expr "]"):*  {% function(d) {
+		var selectors = d[1].map(function(item){
+			if (item[0].type === 'dotSelector')
+				return item[0].value.substr(1);
+			else if (item.length === 5)
+				return ['search_param_list', item[2]];
+			else
+				return item[1]; 
+		});
+		return ['trigger.data', selectors]; }  
+	%}
 	| "trigger.output" ("[" "[") "asset" comparisonOperator (expr|%base) ("]" "]") %dotSelector:?  {% function(d) {
 		var value = d[4][0];
 		var field = d[6] ? d[6].value.substr(1) : 'amount';

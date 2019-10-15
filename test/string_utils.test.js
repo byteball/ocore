@@ -11,6 +11,10 @@ const encodeMci = StringUtils.encodeMci;
 const getMciFromDataFeedKey = StringUtils.getMciFromDataFeedKey;
 const getJsonSourceString = StringUtils.getJsonSourceString;
 
+test.after.always(t => {
+	console.log('***** string_utils.test done');
+});
+
 /**
  * getSourceString
  */

@@ -92,7 +92,9 @@ var objValidationState = {
 	last_ball_mci: 1000,
 	last_ball_timestamp: 1.5e9,
 	mc_unit: "oXGOcA9TQx8Tl5Syjp1d5+mB4xicsRk3kbcE82YQAS0=",
+	storage_size: 200,
 	assocBalances: {},
+	arrPreviousResponseUnits: [],
 	arrAugmentedMessages: [{
 		"app": "payment",
 		"payload_location": "inline",
@@ -131,6 +133,9 @@ var objValidationState = {
 };
 
 
+test.after.always(t => {
+	console.log('***** formula.test done');
+});
 
 test('1 + 1', t => {
 	evalFormula(null, "1 + 1", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
@@ -887,6 +892,13 @@ test.cb('validate datafeed ok', t => {
 	})
 });
 
+test.cb('validate datafeed this address', t => {
+	validateFormula("data_feed[[oracles=this address, feed_name=\"test\"]]", 0, res => {
+		t.deepEqual(res.error, false);
+		t.end();
+	})
+});
+
 test.cb('validate datafeed error', t => {
 	validateFormula("data_feed[[oracles=\"this address\"]]", 0, res => {
 		t.deepEqual(res.error, 'no oracles or feed name');
@@ -1599,7 +1611,7 @@ test('large number in response', t => {
 
 test.cb('response unit', t => {
 	var stateVars = {};
-	evalFormulaWithVars({ formula: "var['unit'] = response_unit;", trigger: {}, locals: { a4: 100 }, stateVars: stateVars, objValidationState: objValidationState, bStatementsOnly: true, bStateVarAssignmentAllowed: true, response_unit: 'theunit', address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, res => {
+	evalFormulaWithVars({ formula: "var['unit'] = response_unit;", trigger: {}, locals: { a4: 100 }, stateVars: stateVars, objValidationState: objValidationState, bStatementsOnly: true, bStateVarAssignmentAllowed: true, objResponseUnit: {unit: 'theunit'}, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, res => {
 		t.deepEqual(res, true);
 		t.deepEqual(stateVars.MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU.unit.value, 'theunit');
 		t.end();
@@ -1608,7 +1620,7 @@ test.cb('response unit', t => {
 
 test('misplaced response unit', t => {
 	var stateVars = {};
-	evalFormulaWithVars({ formula: "var['unit'] = response_unit;", trigger: {}, locals: { a4: 100 }, stateVars: stateVars, objValidationState: objValidationState, bStatementsOnly: true,  response_unit: 'theunit', address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, res => {
+	evalFormulaWithVars({ formula: "var['unit'] = response_unit;", trigger: {}, locals: { a4: 100 }, stateVars: stateVars, objValidationState: objValidationState, bStatementsOnly: true,  robjResponseUnit: {unit: 'theunit'}, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, res => {
 		t.deepEqual(res, null);
 	})
 });
@@ -1975,7 +1987,7 @@ test('json_parse not a string', t => {
 	var trigger = { data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}} };
 	var stateVars = {  };
 	evalFormulaWithVars({ conn: null, formula: `json_parse(8)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity) => {
-		t.deepEqual(res, null);
+		t.deepEqual(res, 8);
 	})
 });
 
@@ -2162,7 +2174,7 @@ test('is_valid_address bad string literal', t => {
 	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}}  };
 	var stateVars = {};
 	evalFormulaWithVars({ conn: null, formula: `is_valid_address("bbb")`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
-		t.deepEqual(res, null);
+		t.deepEqual(res, false);
 	})
 });
 
@@ -2170,7 +2182,7 @@ test('is_valid_address bad type', t => {
 	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}}  };
 	var stateVars = {};
 	evalFormulaWithVars({ conn: null, formula: `is_valid_address(88)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
-		t.deepEqual(res, null);
+		t.deepEqual(res, false);
 	})
 });
 
@@ -2179,6 +2191,15 @@ test('starts_with ends_with contains', t => {
 	var stateVars = {};
 	evalFormulaWithVars({ conn: null, formula: `starts_with("abcd", "abc") || starts_with('abcd', 'cd') || ends_with('abcd', 'cd') || ends_with("abcd", "abc") || contains('abcd', 'bc') || contains('abcd', 'x')`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
 		t.deepEqual(res, 'truefalsetruefalsetruefalse');
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('index_of', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}}  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `index_of("abcd", "cd") || index_of('abcd', 'z')`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, '2-1');
 		t.deepEqual(complexity, 1);
 	})
 });
@@ -2210,6 +2231,23 @@ test('timestamp_to_string', t => {
 	})
 });
 
+test('timestamp_to_string date and time', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}}  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `timestamp_to_string(timestamp, 'date') || ' at ' || timestamp_to_string(timestamp, 'time')`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, '2017-07-14 at 02:40:00');
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('timestamp_to_string invalid', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}}  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `timestamp_to_string(timestamp, 'cc')`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
 test('parse_date', t => {
 	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}}  };
 	var stateVars = {};
@@ -2228,3 +2266,232 @@ test('parse_date invalid', t => {
 	})
 });
 
+test('storage_size', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}}  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `storage_size + 10`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 210);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test.cb('is_aa', t => {
+	var db = require("../db");
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}}  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: db, formula: `is_aa(this_address) || is_aa('MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU') || is_aa(2*2) || is_aa('JPQKPRI5FMTQRJF4ZZMYZYDQVRD55OTC')`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'truetruefalsefalse');
+		t.deepEqual(complexity, 5);
+		t.end();
+	})
+});
+
+test.cb('is_aa invalid literal', t => {
+	var db = require("../db");
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}}  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: db, formula: `is_aa(6)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, false);
+		t.end();
+	})
+});
+
+test('is_integer', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: '8', bb: '-7'}}  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `is_integer(trigger.data.z.1) || is_integer(trigger.data.ww.aa) || is_integer(trigger.data.ww.bb) || is_integer(trigger.data.z) || is_integer(trigger.data.ww.dd)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'truetruetruefalsefalse');
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('is_integer invalid', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: '8', bb: '-7'}}  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `is_integer('nn')`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, false);
+	})
+});
+
+test('is_valid_amount', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: '8', bb: '-7', cc: 9.9e15}}  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `is_valid_amount(trigger.data.z.1) || is_valid_amount(trigger.data.ww.aa) || is_valid_amount(trigger.data.ww.bb) || is_valid_amount(trigger.data.z) || is_valid_amount(trigger.data.ww.dd) || is_valid_amount(trigger.data.ww.cc)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'truetruefalsefalsefalsefalse');
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('selector with search criteria', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `$x=trigger.data; $x.messages[[.app = 'payment', .payload.asset != 'ff', .payload.outputs.0.amount > 10]].payload.asset`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'sss');
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('selector with search criteria and 2 payments', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {asset: 'asset2', outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `$x=trigger.data; $x.messages[[.app = 'payment', .payload.asset = 'sss', .payload.outputs.0.amount > 10]].payload.outputs.address`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'ADDR');
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('2 selectors with search criteria and 2 payments', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {asset: 'asset2', outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `$x=trigger.data; $x.messages[[.app = 'payment', .payload.asset = 'sss', .payload.outputs.0.amount > 10]].payload.outputs[[.address!=9]].address`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'ADDR');
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('selector with search criteria and none', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `$x=trigger.data; $x.messages[[.app = 'payment', .payload.asset = none, .payload.outputs.0.amount > 10]].payload.outputs.amount`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 5000);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('selector with search criteria and !=none', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `$x=trigger.data; $x.messages[[.app = 'payment', .payload.asset != none, .payload.outputs.0.amount > 10]].payload.outputs.amount`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 1000);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('selector with search criteria and deep none', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `$x=trigger.data; $x.messages[[ .payload.asset = none, .payload.outputs.0.amount = none]].payload.age`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 88);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('selector with search criteria and deep !=none', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `trigger.data.messages[[ .payload.asset = none, .payload.outputs.0.amount != none]].payload.outputs.amount`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 5000);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('selector with search criteria and 2-element array after filtering', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `$x=trigger.data; $x.messages[[ .app = 'payment', .payload.outputs.0.amount != none]].payload.outputs.amount`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, false);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('is_array', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `is_array(trigger.data.messages) || is_array(trigger.data.messages.0) || is_array(trigger.data.messages.0.app) || is_array(trigger.data.nonexistent)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'truefalsefalsefalse');
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('is_assoc', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `is_assoc(trigger.data.messages) || is_assoc(trigger.data.messages.0) || is_assoc(trigger.data.messages.0.app) || is_assoc(trigger.data.nonexistent)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'falsetruefalsefalse');
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('array_length', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `array_length(trigger.data.messages)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 3);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('array_length invalid obj', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `array_length(trigger.data)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('array_length invalid scalar', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `array_length(trigger.data.messages[0].app)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test.cb('unit', t => {
+	var db = require("../db");
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: db, formula: `unit['oXGOcA9TQx8Tl5Syjp1d5+mB4xicsRk3kbcE82YQAS0='].authors[0].address`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'TU3Q44S6H2WXTGQO6BZAGWFKKJCF7Q3W');
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});
+
+test.cb('unit and var', t => {
+	var db = require("../db");
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: db, formula: `$u = unit['oXGOcA9TQx8Tl5Syjp1d5+mB4xicsRk3kbcE82YQAS0=']; $u.authors[0].address`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'TU3Q44S6H2WXTGQO6BZAGWFKKJCF7Q3W');
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});
+
+test.cb('unit selector and var', t => {
+	var db = require("../db");
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: db, formula: `$u = unit['oXGOcA9TQx8Tl5Syjp1d5+mB4xicsRk3kbcE82YQAS0='].authors; $u[0].address`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'TU3Q44S6H2WXTGQO6BZAGWFKKJCF7Q3W');
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});
+
+test.cb('unit not found', t => {
+	var db = require("../db");
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: db, formula: `unit['4ne7myhibBARgaA/PPwynnK408bmY7ypL/+X+tp0IqU='].authors[0].address`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, false);
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});
+
+test.cb('unit and response_unit', t => {
+	var db = require("../db");
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	var objResponseUnit = { unit: 'C2sUTptm3d55Q9qTYau4Wdq1ppLgZEC2snsVv78krkE=', authors: [{ address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }], messages: [{ app: 'profile', payload: { humidity: 78 } }, { app: 'payment', payload: { outputs: [{ address: 'OYW2XTDKSNKGSEZ27LMGNOPJSYIXHBHC', amount: 5000 }] } }] };
+	evalFormulaWithVars({ conn: db, formula: `var['x'] = unit[response_unit].authors[0].address || ' ' || unit[response_unit].messages[[.app='profile']].payload.humidity;`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', bStatementsOnly: true, bStateVarAssignmentAllowed: true, objResponseUnit}, (res, complexity, count_ops) => {
+		t.deepEqual(res, true);
+		t.deepEqual(stateVars.MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU.x.value, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU 78');
+		t.deepEqual(complexity, 4);
+		t.end();
+	})
+});

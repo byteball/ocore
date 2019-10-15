@@ -1,3 +1,4 @@
+var shell = require('child_process').execSync;
 var test = require('ava');
 var kvstore = require("../kvstore");
 var string_utils = require("../string_utils");
@@ -53,7 +54,7 @@ test.before.cb(t => {
 	db.query("INSERT " + db.getIgnore() + " INTO attestations (unit, message_index, attestor_address, address) VALUES ('unit2', 0, 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT', 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU')");
 	db.query("INSERT " + db.getIgnore() + " INTO attested_fields (unit, message_index, attestor_address, address, field, value) VALUES ('unit2', 0, 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT', 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', 'email', 'smith@matrix.com')");
 
-	db.query("INSERT " + db.getIgnore() + " INTO aa_addresses (address, unit, mci, definition) VALUES ('MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', 'def-unit', 100, 'some definition')");
+	db.query("INSERT " + db.getIgnore() + " INTO aa_addresses (address, unit, mci, definition, storage_size) VALUES ('MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', 'def-unit', 100, 'some definition', 27)");
 	db.query("INSERT " + db.getIgnore() + " INTO aa_balances (address, asset, balance) VALUES ('MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', 'base', 10000)");
 
 	db.query("INSERT " + db.getIgnore() + " INTO units (unit, headers_commission, payload_commission, is_free, main_chain_index, is_stable) VALUES ('oj8yEksX9Ubq7lLc+p6F2uyHUuynugeVq4+ikT67X6E=', 300, 300, 0, 0, 1)");
@@ -90,6 +91,8 @@ test.before.cb(t => {
 	('oj8yEksX9Ubq7lLc+p6F2uyHUuynugeVq4+ikT67X6E=',	'TKT4UESIKTTRALRRLWS4SENSTJX6ODCW'), \n\
 	('oj8yEksX9Ubq7lLc+p6F2uyHUuynugeVq4+ikT67X6E=',	'UENJPVZ7HVHM6QGVGT6MWOJGGRTUTJXQ')");
 
+	kvstore.put('j\noXGOcA9TQx8Tl5Syjp1d5+mB4xicsRk3kbcE82YQAS0=', '{"unit":{"unit":"oXGOcA9TQx8Tl5Syjp1d5+mB4xicsRk3kbcE82YQAS0=","version":"1.0","alt":"1","witness_list_unit":"J8QFgTLI+3EkuAxX+eL6a0q114PJ4h4EOAiHAzxUp24=","last_ball_unit":"ichtuZ7mv93Jw26hksj8O4LnoNd8S+XCehVcFc8mbNg=","last_ball":"KQyKskSkOpGG839zVBKLbSe2Q6q+VJ2oh1m+46A0p1I=","headers_commission":344,"payload_commission":197,"main_chain_index":4123083,"timestamp":1553853204,"parent_units":["4ne7myhibBARgaA/PPwynnK408bmY7ypL/+X+tp0IqU="],"authors":[{"address":"TU3Q44S6H2WXTGQO6BZAGWFKKJCF7Q3W","authentifiers":{"r":"deqAMOAKyn4mDOZlyBd2eHMPrIXiT8BsVh7/Ejuii+kUm90CCrcWU0adsTWGHhj/7j7/LGZn7SLzzISQ93QRlA=="}}],"messages":[{"app":"payment","payload_hash":"24J5BXJrAfoOub2g/auiK04Z0x3LfQJq71Zsv8M8GVQ=","payload_location":"inline","payload":{"inputs":[{"unit":"ichtuZ7mv93Jw26hksj8O4LnoNd8S+XCehVcFc8mbNg=","message_index":0,"output_index":0}],"outputs":[{"address":"2VOBZNQPXAO4POCXEUZXUJSRD53OMOTH","amount":13729863},{"address":"TU3Q44S6H2WXTGQO6BZAGWFKKJCF7Q3W","amount":1543931896}]}}]},"ball":"nAgiWwtErFZ7Y2GNKbcrAJmN4qf4AeV++wlwNi1MTww="}', () => { });
+
 	t.end();
 });
 
@@ -98,7 +101,10 @@ test.after.always.cb(t => {
 	kvstore.close(() => {
 		rocksdb.destroy(path, function(err){
 			console.log('db destroy result: '+(err || 'ok'));
-			t.end();
+			db.close(() => {
+				shell('rm -r ' + app_data_dir);
+				t.end();
+			});
 		});
 	});
 });

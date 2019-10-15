@@ -14,6 +14,7 @@ function generateQueriesToArchiveJoint(conn, objJoint, reason, arrQueries, cb){
 
 function generateQueriesToRemoveJoint(conn, unit, arrQueries, cb){
 	generateQueriesToUnspendOutputsSpentInArchivedUnit(conn, unit, arrQueries, function(){
+		conn.addQuery(arrQueries, "DELETE FROM aa_responses WHERE trigger_unit=? OR response_unit=?", [unit, unit]);
 		conn.addQuery(arrQueries, "DELETE FROM original_addresses WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM sent_mnemonics WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM witness_list_hashes WHERE witness_list_unit=?", [unit]);

@@ -221,11 +221,19 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 	if (!bounce_fees.base)
 		bounce_fees.base = constants.MIN_BYTES_BOUNCE_FEE;
 //	console.log('===== trigger.outputs', trigger.outputs);
-	var objValidationState = { last_ball_mci: mci, last_ball_timestamp: objMcUnit.timestamp, mc_unit: objMcUnit.unit, assocBalances: {} };
+	var objValidationState = {
+		last_ball_mci: mci,
+		last_ball_timestamp: objMcUnit.timestamp,
+		mc_unit: objMcUnit.unit,
+		assocBalances: {},
+		arrPreviousResponseUnits: arrResponses.map(objAAResponse => objAAResponse.objResponseUnit)
+	};
 	var byte_balance;
 	var storage_size;
 	var objStateUpdate;
 	var count = 0;
+	if (bSecondary)
+		updateOriginalOldValues();
 
 	// add the coins received in the trigger
 	function updateInitialAABalances(cb) {
@@ -263,6 +271,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 						if (rows.length === 0)
 							throw Error("AA not found? " + address);
 						storage_size = rows[0].storage_size;
+						objValidationState.storage_size = storage_size;
 						cb();
 					});
 				});
@@ -873,7 +882,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 						completeMessage(objBasePaymentMessage); // fixes payload_hash
 						objUnit.payload_commission = objectLength.getTotalPayloadSize(objUnit);
 						objUnit.unit = objectHash.getUnitHash(objUnit);
-						executeStateUpdateFormula(objUnit.unit, function (err) {
+						executeStateUpdateFormula(objUnit, function (err) {
 							if (err)
 								return bounce(err);
 							validateAndSaveUnit(objUnit, function (err) {
@@ -899,7 +908,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 		);
 	}
 
-	function executeStateUpdateFormula(response_unit, cb) {
+	function executeStateUpdateFormula(objResponseUnit, cb) {
 		if (!objStateUpdate || bBouncing)
 			return cb();
 		var opts = {
@@ -913,7 +922,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 			bStatementsOnly: true,
 			objValidationState: objValidationState,
 			address: address,
-			response_unit: response_unit
+			objResponseUnit: objResponseUnit
 		};
 		formulaParser.evaluate(opts, function (err, res) {
 		//	console.log('--- state update formula', objStateUpdate.formula, '=', res);
@@ -987,6 +996,17 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 		conn.query("UPDATE aa_addresses SET storage_size=? WHERE address=?", [new_storage_size, address], function () {
 			cb();
 		});
+	}
+
+	function updateOriginalOldValues() {
+		if (!bSecondary || !stateVars[address])
+			return;
+		var addressVars = stateVars[address];
+		for (var var_name in addressVars) {
+			var state = addressVars[var_name];
+			if (state.updated)
+				state.original_old_value = (state.value === false) ? undefined : state.value;
+		}
 	}
 
 	function handleSuccessfulEmptyResponseUnit() {
@@ -1273,7 +1293,7 @@ function checkStorageSizes() {
 						if (!assocSizes[row.address])
 							assocSizes[row.address] = 0;
 						if (row.storage_size !== assocSizes[row.address])
-							throw Error("storage size mismatch: db=" + row.storage_size + ", kv=" + assocSizes[row.address]);
+							throw Error("storage size mismatch on " + row.address + ": db=" + row.storage_size + ", kv=" + assocSizes[row.address]);
 					});
 					conn.release();
 				});

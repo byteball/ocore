@@ -643,7 +643,8 @@ function determineWitnessedLevelAndBestParent(conn, arrParentUnits, arrWitnesses
 
 	determineBestParent(conn, {parent_units: arrParentUnits, witness_list_unit: 'none'}, arrWitnesses, function(best_parent_unit){
 		if (!best_parent_unit)
-			throw Error("no best parent of "+arrParentUnits.join(', ')+", witnesses "+arrWitnesses.join(', '));
+			return handleWitnessedLevelAndBestParent();
+		//	throw Error("no best parent of "+arrParentUnits.join(', ')+", witnesses "+arrWitnesses.join(', '));
 		my_best_parent_unit = best_parent_unit;
 		addWitnessesAndGoUp(best_parent_unit);
 	});
@@ -721,6 +722,11 @@ function readAADefinition(conn, address, handleDefinition) {
 			throw Error("non-AA definition in AA unit");
 		handleDefinition(arrDefinition);
 	});
+}
+
+function readAAStateVar(address, var_name, handleResult) {
+	var kvstore = require('./kvstore.js');
+	kvstore.get("st\n" + address + "\n" + var_name, handleResult);
 }
 
 function readAAStateVars(address, handle){
@@ -1053,6 +1059,8 @@ function archiveJointAndDescendants(from_unit){
 				},
 				function(){
 					conn.addQuery(arrQueries, "DELETE FROM known_bad_joints");
+					conn.addQuery(arrQueries, "UPDATE units SET is_free=1 WHERE is_free=0 AND is_stable=0 \n\
+						AND (SELECT 1 FROM parenthoods WHERE parent_unit=unit LIMIT 1) IS NULL");
 					console.log('will execute '+arrQueries.length+' queries to archive');
 					async.series(arrQueries, function(){
 						arrUnits.forEach(forgetUnit);
@@ -1613,6 +1621,8 @@ function initCaches(){
 		mutex.lock(['write'], function(unlock) {
 			initUnstableUnits(conn, initStableUnits.bind(this, conn, initUnstableMessages.bind(this, conn, initHashTreeBalls.bind(this, conn, function(){
 				console.log('initCaches done');
+				if (!conf.bLight && constants.bTestnet)
+					archiveJointAndDescendantsIfExists('K6OAWrAQkKkkTgfvBb/4GIeN99+6WSHtfVUd30sen1M=');
 				unlock();
 				onDone();
 				eventBus.emit('caches_ready');
@@ -1621,8 +1631,6 @@ function initCaches(){
 	});
 }
 
-if (!conf.bLight)
-	archiveJointAndDescendantsIfExists('N6QadI9yg3zLxPMphfNGJcPfddW4yHPkoGMbbGZsWa0=');
 
 
 exports.isGenesisUnit = isGenesisUnit;
@@ -1644,6 +1652,7 @@ exports.readDefinitionChashByAddress = readDefinitionChashByAddress;
 exports.readDefinitionByAddress = readDefinitionByAddress;
 exports.readDefinition = readDefinition;
 exports.readAADefinition = readAADefinition;
+exports.readAAStateVar = readAAStateVar;
 exports.readAAStateVars = readAAStateVars;
 
 exports.readLastMainChainIndex = readLastMainChainIndex;

@@ -650,6 +650,8 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 
 	function checkWitnessedLevelDidNotRetreat(arrWitnesses){
 		storage.determineWitnessedLevelAndBestParent(conn, objUnit.parent_units, arrWitnesses, function(witnessed_level, best_parent_unit){
+			if (!best_parent_unit)
+				return callback("no best parent");
 			objValidationState.witnessed_level = witnessed_level;
 			objValidationState.best_parent_unit = best_parent_unit;
 			if (objValidationState.last_ball_mci < constants.witnessedLevelMustNotRetreatUpgradeMci) // not enforced

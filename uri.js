@@ -103,7 +103,7 @@ function parseUri(uri, callbacks){
 			return callbacks.ifError("data without query string");
 		var assocParams = parseQueryString(query_string);
 		var app = assocParams.app;
-		if (app !== 'data' && app !== 'data_feed' && app !== 'attestation' && app !== 'profile' && app !== 'poll' && app !== 'vote' && app !== 'definition')
+		if (app !== 'data' && app !== 'data_feed' && app !== 'attestation' && app !== 'profile' && app !== 'poll' && app !== 'vote' && app !== 'definition' && app !== 'text')
 			return callbacks.ifError("invalid app: " + app);
 		if (app === 'attestation' && !ValidationUtils.isValidAddress(assocParams.address))
 			return callbacks.ifError("invalid attested address: "+assocParams.address);

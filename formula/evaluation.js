@@ -1,5 +1,5 @@
 var nearley = require("nearley");
-var grammar = require("./grammar.js");
+var grammar = require("./grammars/oscript.js");
 var async = require('async');
 var crypto = require('crypto');
 var _ = require('lodash');
@@ -8,7 +8,6 @@ var string_utils = require("../string_utils.js");
 var constants = require('../constants');
 var dataFeeds = require('../data_feeds.js');
 var storage = require('../storage.js');
-var kvstore = require('../kvstore.js');
 var signed_message = require("../signed_message.js"); // which requires definition.js - cyclic dependency :(
 var signature = require('../signature.js');
 
@@ -49,7 +48,7 @@ exports.evaluate = function (opts, callback) {
 	var bObjectResultAllowed = opts.bObjectResultAllowed;
 	var objValidationState = opts.objValidationState;
 	var address = opts.address;
-	var response_unit = opts.response_unit;
+	var objResponseUnit = opts.objResponseUnit;
 
 	if (!ValidationUtils.isPositiveInteger(objValidationState.last_ball_timestamp))
 		throw Error('last_ball_timestamp is not a number: ' + objValidationState.last_ball_timestamp);
@@ -998,6 +997,10 @@ exports.evaluate = function (opts, callback) {
 				});
 				break;
 
+			case 'storage_size':
+				cb(new Decimal(objValidationState.storage_size));
+				break;
+
 			case 'mci':
 				cb(new Decimal(objValidationState.last_ball_mci));
 				break;
@@ -1027,48 +1030,12 @@ exports.evaluate = function (opts, callback) {
 				break;
 
 			case 'trigger.data':
-				var arrKeys = arr[1];
+				var arrKeys = arr[1]; // can be 0-length array
 			//	console.log('keys', arrKeys);
 				var value = trigger.data;
 				if (!value || Object.keys(value).length === 0)
 					return cb(false);
-				async.eachSeries(
-					arrKeys, // can be 0-length array
-					function (key, cb2) {
-						evaluate(key, function (evaluated_key) {
-							if (fatal_error)
-								return cb2(fatal_error);
-							if (Decimal.isDecimal(evaluated_key))
-								evaluated_key = evaluated_key.toNumber();
-							else if (typeof evaluated_key !== 'string')
-								return setFatalError("result of " + key + " is not a string or number: " + evaluated_key, cb2);
-							value = value[evaluated_key];
-							if (value === undefined)
-								return cb2("no such key in data");
-							cb2();
-						});
-					},
-					function (err) {
-						if (fatal_error || err)
-							return cb(false);
-					//	console.log('value', typeof value, value)
-						if (typeof value === 'boolean')
-							cb(value);
-						else if (typeof value === 'number')
-							cb(new Decimal(value).times(1));
-						else if (typeof value === 'string') {
-							if (value.length > constants.MAX_AA_STRING_LENGTH)
-								return setFatalError("trigger.data field too long: " + value, cb, false);
-							// convert to number if possible
-							var f = string_utils.getNumericFeedValue(value);
-							(f === null) ? cb(value) : cb(new Decimal(value).times(1));
-						}
-						else if (typeof value === 'object')
-							cb(new wrappedObject(value));
-						else
-							throw Error("unknown type of trigger.data: " + value);
-					}
-				);
+				selectSubobject(value, arrKeys, cb);
 				break;
 
 			case 'trigger.output':
@@ -1123,41 +1090,7 @@ exports.evaluate = function (opts, callback) {
 					if (!(value instanceof wrappedObject)) // scalars have no keys
 						return cb(false);
 					value = value.obj; // unwrap
-					async.eachSeries(
-						arrKeys,
-						function (key, cb2) {
-							evaluate(key, function (evaluated_key) {
-								if (fatal_error)
-									return cb2(fatal_error);
-								if (Decimal.isDecimal(evaluated_key))
-									evaluated_key = evaluated_key.toNumber();
-								else if (typeof evaluated_key !== 'string')
-									return setFatalError("result of " + key + " is not a string or number: " + evaluated_key, cb2);
-								value = value[evaluated_key];
-								if (value === undefined)
-									return cb2("no such key in data");
-								cb2();
-							});
-						},
-						function (err) {
-							if (err || fatal_error)
-								return cb(false);
-						//	console.log('value', typeof value, value)
-							if (typeof value === 'boolean')
-								cb(value);
-							else if (typeof value === 'number')
-								cb(new Decimal(value).times(1));
-							else if (typeof value === 'string') {
-								// convert to number if possible
-								var f = string_utils.getNumericFeedValue(value);
-								(f === null) ? cb(value) : cb(new Decimal(value).times(1));
-							}
-							else if (typeof value === 'object')
-								cb(new wrappedObject(value));
-							else
-								throw Error("unknown type of keyed local var: " + value);
-						}
-					);
+					selectSubobject(value, arrKeys, cb);
 				});
 				break;
 
@@ -1402,6 +1335,43 @@ exports.evaluate = function (opts, callback) {
 				});
 				break;
 
+			case 'unit':
+				var unit_expr = arr[1];
+				var arrKeys = arr[2];
+				evaluate(unit_expr, function (unit) {
+					console.log('---- unit', unit);
+					if (fatal_error)
+						return cb(false);
+					if (!ValidationUtils.isValidBase64(unit, constants.HASH_LENGTH))
+						return cb(false);
+					// 1. check the current response unit
+					if (objResponseUnit && objResponseUnit.unit === unit)
+						return selectSubobject(objResponseUnit, arrKeys, cb);
+					// 2. check previous response units from the same primary trigger, they are not in the db yet
+					for (var i = 0; i < objValidationState.arrPreviousResponseUnits.length; i++){
+						var objPreviousResponseUnit = objValidationState.arrPreviousResponseUnits[i];
+						if (objPreviousResponseUnit && objPreviousResponseUnit.unit === unit)
+							return selectSubobject(objPreviousResponseUnit, arrKeys, cb);
+					}
+					// 3. check the units from the db
+					console.log('---- reading', unit);
+					storage.readJoint(conn, unit, {
+						ifNotFound: function () {
+							cb(false);
+						},
+						ifFound: function (objJoint) {
+							console.log('---- found', unit);
+							var objUnit = objJoint.unit;
+							var mci = objUnit.main_chain_index;
+							// ignore non-AA units that are not stable or created at a later mci
+							if ((mci === null || mci > objValidationState.last_ball_mci) && objUnit.authors[0].authentifiers)
+								return cb(false);
+							selectSubobject(objUnit, arrKeys, cb);
+						}
+					});
+				});
+				break;
+
 			case 'is_valid_signed_package':
 				var signed_package_expr = arr[1];
 				var address_expr = arr[2];
@@ -1588,6 +1558,7 @@ exports.evaluate = function (opts, callback) {
 			case 'starts_with':
 			case 'ends_with':
 			case 'contains':
+			case 'index_of':
 				var str_expr = arr[1];
 				var sub_expr = arr[2];
 				evaluate(str_expr, function (res) {
@@ -1608,6 +1579,8 @@ exports.evaluate = function (opts, callback) {
 							return cb(str.endsWith(sub));
 						if (op === 'contains')
 							return cb(str.includes(sub));
+						if (op === 'index_of')
+							return cb(new Decimal(str.indexOf(sub)));
 						throw Error("unknown op: " + op);
 					});
 				});
@@ -1658,11 +1631,60 @@ exports.evaluate = function (opts, callback) {
 				break;
 
 			case 'is_valid_address':
+			case 'is_aa':
 				var expr = arr[1];
 				evaluate(expr, function (res) {
 					if (fatal_error)
 						return cb(false);
-					cb(ValidationUtils.isValidAddress(res));
+					var bValid = ValidationUtils.isValidAddress(res);
+					if (!bValid || op === 'is_valid_address')
+						return cb(bValid);
+					conn.query("SELECT 1 FROM aa_addresses WHERE address=? AND mci<=?", [res, objValidationState.last_ball_mci], function (rows) {
+						cb(rows.length > 0);
+					});
+				});
+				break;
+
+			case 'is_integer':
+			case 'is_valid_amount':
+				var expr = arr[1];
+				evaluate(expr, function (res) {
+					if (fatal_error)
+						return cb(false);
+					if (!Decimal.isDecimal(res))
+						return cb(false);
+					if (!res.isInteger())
+						return cb(false);
+					if (op === 'is_valid_amount' && (!res.isPositive() || res.gt(constants.MAX_CAP)))
+						return cb(false);
+					cb(true);
+				});
+				break;
+
+			case 'is_array':
+			case 'is_assoc':
+				var expr = arr[1];
+				evaluate(expr, function (res) {
+					if (fatal_error)
+						return cb(false);
+					if (!(res instanceof wrappedObject))
+						return cb(false);
+					var obj = res.obj;
+					if (typeof obj !== 'object')
+						return cb(false);
+					var bArray = Array.isArray(obj);
+					cb(op === 'is_array' ? bArray : !bArray);
+				});
+				break;
+
+			case 'array_length':
+				var expr = arr[1];
+				evaluate(expr, function (res) {
+					if (fatal_error)
+						return cb(false);
+					if (!(res instanceof wrappedObject) || !Array.isArray(res.obj))
+						return setFatalError("not an array: " + res, cb, false);
+					cb(new Decimal(res.obj.length));
 				});
 				break;
 
@@ -1678,11 +1700,13 @@ exports.evaluate = function (opts, callback) {
 					evaluate(format_expr, function (format) {
 						if (fatal_error)
 							return cb(false);
-						if (format !== 'date' && format !== 'datetime')
-							return setFatalError("format in timestamp_to_string must be date or datetime", cb, false);
+						if (format !== 'date' && format !== 'datetime' && format !== 'time')
+							return setFatalError("format in timestamp_to_string must be date or time or datetime", cb, false);
 						var str = new Date(ts * 1000).toISOString().replace('.000', '');
 						if (format === 'date')
 							str = str.substr(0, 10);
+						else if (format === 'time')
+							str = str.substr(11, 8);
 						cb(str);
 					});
 				});
@@ -1730,9 +1754,9 @@ exports.evaluate = function (opts, callback) {
 			case 'response_unit':
 				if (!bAA || !bStatementsOnly || !bStateVarAssignmentAllowed)
 					return setFatalError("response_unit outside state update formula", cb, false);
-				if (!response_unit)
+				if (!objResponseUnit)
 					return cb(false);
-				cb(response_unit);
+				cb(objResponseUnit.unit);
 				break;
 
 			case 'bounce':
@@ -1810,7 +1834,7 @@ exports.evaluate = function (opts, callback) {
 			console.log('using cache for var '+var_name);
 			return cb2(stateVars[param_address][var_name].value);
 		}
-		kvstore.get("st\n" + param_address + "\n" + var_name, function (value) {
+		storage.readAAStateVar(param_address, var_name, function (value) {
 			console.log(var_name+'='+value);
 			if (value === undefined) {
 				stateVars[param_address][var_name] = {value: false};
@@ -1822,6 +1846,131 @@ exports.evaluate = function (opts, callback) {
 			stateVars[param_address][var_name] = {value: value, old_value: value, original_old_value: value};
 			cb2(value);
 		});
+	}
+
+	function selectSubobject(value, arrKeys, cb) {
+		async.eachSeries(
+			arrKeys || [],
+			function (key, cb2) {
+				if (typeof value !== 'object')
+					return cb2('not an object while trying to access key ' + key);
+				if (ValidationUtils.isArrayOfLength(key, 2) && key[0] === 'search_param_list') {
+					var arrPairs = key[1];
+					filterBySearchCriteria(value, arrPairs, function (err, filtered_array) {
+						if (fatal_error)
+							return cb2(fatal_error);
+						if (err)
+							return cb2(err);
+						value = filtered_array;
+						cb2();
+					});
+					return;
+				}
+				evaluate(key, function (evaluated_key) {
+					if (fatal_error)
+						return cb2(fatal_error);
+					if (Decimal.isDecimal(evaluated_key))
+						evaluated_key = evaluated_key.toNumber();
+					else if (typeof evaluated_key !== 'string')
+						return setFatalError("result of " + key + " is not a string or number: " + evaluated_key, cb2);
+					if (typeof evaluated_key === 'string')
+						value = unwrapOneElementArrays(value);
+					value = value[evaluated_key];
+					if (value === undefined)
+						return cb2("no such key in data");
+					cb2();
+				});
+			},
+			function (err) {
+				if (err || fatal_error)
+					return cb(false);
+				if (typeof value === 'boolean')
+					cb(value);
+				else if (typeof value === 'number')
+					cb(new Decimal(value).times(1));
+				else if (typeof value === 'string') {
+					if (value.length > constants.MAX_AA_STRING_LENGTH)
+						return setFatalError("string value too long: " + value, cb, false);
+					// convert to number if possible
+					var f = string_utils.getNumericFeedValue(value);
+					(f === null) ? cb(value) : cb(new Decimal(value).times(1));
+				}
+				else if (typeof value === 'object')
+					cb(new wrappedObject(value));
+				else
+					throw Error("unknown type of subobject: " + value);
+			}
+		);
+	}
+
+	function filterBySearchCriteria(array, arrPairs, handleResult) {
+		if (!ValidationUtils.isNonemptyArray(arrPairs))
+			throw Error('search params is not an array');
+		if (!ValidationUtils.isNonemptyArray(array))
+			return handleResult('not an array, search criteria cannot be applied');
+		var arrSearchCriteria = [];
+		async.eachSeries(
+			arrPairs,
+			function (pair, cb3) {
+				var fields = pair[0]; // array of keys key1.key2.key3
+				var comp = pair[1]; // comparison operator
+				var search_value_expr = pair[2];
+				if (search_value_expr.type === 'none') {
+					arrSearchCriteria.push({ fields, comp, search_value: null });
+					return cb3();
+				}
+				evaluate(search_value_expr, function (search_value) {
+					if (fatal_error)
+						return cb3(fatal_error);
+					if (Decimal.isDecimal(search_value))
+						search_value = search_value.toNumber();
+					arrSearchCriteria.push({ fields, comp, search_value });
+					cb3();
+				});
+			},
+			function () {
+				if (fatal_error)
+					return handleResult(fatal_error);
+				var filtered_array = array.filter(elem => {
+					return arrSearchCriteria.every(search_criterion => {
+						var val = elem;
+						var fields = search_criterion.fields;
+						var comp = search_criterion.comp;
+						var search_value = search_criterion.search_value;
+						for (var i = 0; i < fields.length; i++) {
+							if (typeof val !== 'object')
+								return (search_value === null ? comp === '=' : comp === '!=');
+							val = val[fields[i]];
+						}
+						if (search_value === null)
+							return (comp === '=' ? val === undefined : val !== undefined);
+						if (typeof val === 'string' && typeof search_value === 'number') {
+							var f = string_utils.getNumericFeedValue(val);
+							if (f !== null)
+								val = f;
+						}
+						if (typeof val !== typeof search_value)
+							return (comp === '!=');
+						switch (comp) {
+							case '=': return (val === search_value);
+							case '!=': return (val !== search_value);
+							case '>': return (val > search_value);
+							case '>=': return (val >= search_value);
+							case '<': return (val < search_value);
+							case '<=': return (val <= search_value);
+							default: throw Error("unknown comparison: " + comp);
+						}
+					});
+				});
+				if (filtered_array.length === 0)
+					return handleResult('empty array after filtering');
+				handleResult(null, filtered_array);
+			}
+		);
+	}
+
+	function unwrapOneElementArrays(value) {
+		return ValidationUtils.isArrayOfLength(value, 1) ? unwrapOneElementArrays(value[0]) : value;
 	}
 
 	function setFatalError(err, cb, cb_arg){

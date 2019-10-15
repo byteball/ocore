@@ -1,5 +1,5 @@
 var nearley = require("nearley");
-var grammar = require("./grammar.js");
+var grammar = require("./grammars/oscript.js");
 var async = require('async');
 var ValidationUtils = require("../validation_utils.js");
 var constants = require('../constants');
@@ -396,6 +396,7 @@ exports.validate = function (opts, callback) {
 			case 'trigger.initial_address':
 			case 'trigger.unit':
 			case 'mc_unit':
+			case 'storage_size':
 				cb(bAA ? undefined : op + ' in non-AA');
 				break;
 
@@ -426,6 +427,31 @@ exports.validate = function (opts, callback) {
 				if (typeof asset === 'string')
 					return cb((asset === 'base' || ValidationUtils.isValidBase64(asset, constants.HASH_LENGTH)) ? undefined : 'invalid asset: ' + asset);
 				evaluate(asset, cb);
+				break;
+
+			case 'search_param_list':
+				var arrPairs = arr[1];
+				async.eachSeries(
+					arrPairs,
+					function (pair, cb2) {
+						if (!ValidationUtils.isArrayOfLength(pair, 3))
+							return cb2("not array of 3");
+						var fields = pair[0];
+						var comp = pair[1];
+						var value = pair[2];
+						if (comp === '==')
+							return cb2("wrong comparison operator: " + comp);
+						if (!ValidationUtils.isNonemptyArray(fields) || !fields.every(key => typeof key === 'string'))
+							return cb2("bad search field: " + fields);
+						if (value.type === 'none') {
+							if (comp !== '=' && comp !== '!=')
+								return cb2("bad comparison for none: " + comp);
+							return cb2();
+						}
+						evaluate(value, cb2);
+					},
+					cb
+				);
 				break;
 
 			case 'local_var':
@@ -576,6 +602,24 @@ exports.validate = function (opts, callback) {
 				);
 				break;
 
+			case 'unit':
+				// for non-AAs too
+				complexity++;
+				var unit_expr = arr[1];
+				var arrKeys = arr[2];
+				evaluate(unit_expr, function (err) {
+					if (err)
+						return cb(err);
+					async.eachSeries(
+						arrKeys || [],
+						function (key, cb2) {
+							evaluate(key, cb2);
+						},
+						cb
+					);
+				});
+				break;
+	
 			case 'is_valid_signed_package':
 				complexity++;
 				var signed_package_expr = arr[1];
@@ -626,12 +670,35 @@ exports.validate = function (opts, callback) {
 
 			case 'json_parse':
 			case 'is_valid_address':
+			case 'is_aa':
 				complexity++;
 				var expr = arr[1];
-				if (typeof expr === 'boolean' || Decimal.isDecimal(expr))
+			/*	if (typeof expr === 'boolean' || Decimal.isDecimal(expr))
 					return cb("bad type in " + op);
-				if (op === 'is_valid_address' && typeof expr === 'string' && !ValidationUtils.isValidAddress(expr))
-					return cb("not valid address literal: " + expr);
+				if ((op === 'is_valid_address' || op === 'is_aa') && (typeof expr === 'boolean' || Decimal.isDecimal(expr) || typeof expr === 'string' && !ValidationUtils.isValidAddress(expr)))
+					return cb("not valid address literal: " + expr);*/
+				evaluate(expr, cb);
+				break;
+			
+			case 'is_integer':
+			case 'is_valid_amount':
+				var expr = arr[1];
+			/*	if (typeof expr === 'string' || typeof expr === 'boolean')
+					return cb('bad literal in ' + op);
+				if (Decimal.isDecimal(expr)) {
+					if (!expr.isInteger())
+						return cb('non-int literal in ' + op);
+					if (op === 'is_valid_amount' && !expr.isPositive())
+						return cb('non-positive literal in is_valid_amount');
+					return cb();
+				}*/
+				evaluate(expr, cb);
+				break;
+
+			case 'is_array':
+			case 'is_assoc':
+			case 'array_length':
+				var expr = arr[1];
 				evaluate(expr, cb);
 				break;
 
@@ -646,6 +713,7 @@ exports.validate = function (opts, callback) {
 			case 'starts_with':
 			case 'ends_with':
 			case 'contains':
+			case 'index_of':
 				var str = arr[1];
 				var sub = arr[2];
 				evaluate(str, function (err) {
@@ -680,8 +748,8 @@ exports.validate = function (opts, callback) {
 				if (format) {
 					if (typeof format === 'boolean' || Decimal.isDecimal(format))
 						return cb("format must be string");
-					if (typeof format === 'string' && format !== 'date' && format !== 'datetime')
-						return cb("format must be date or datetime");
+					if (typeof format === 'string' && format !== 'date' && format !== 'time' && format !== 'datetime')
+						return cb("format must be date or time or datetime");
 				}
 				evaluate(ts, function (err) {
 					if (err)

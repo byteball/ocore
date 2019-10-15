@@ -78,6 +78,9 @@ var objValidationState = {
 };
 
 
+test.after.always(t => {
+	console.log('***** pem_sig.test done');
+});
 
 test.cb('is_valid_sig brainpoolP160r1', t => {
 	var trigger = { data: 
