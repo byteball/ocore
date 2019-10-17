@@ -25,8 +25,11 @@ function checkIfNewUnit(unit, callbacks) {
 	var error = assocKnownBadUnits[unit];
 	if (error)
 		return callbacks.ifKnownBad(error);
-	db.query("SELECT 1 FROM units WHERE unit=?", [unit], function(rows){
+	db.query("SELECT sequence, main_chain_index FROM units WHERE unit=?", [unit], function(rows){
 		if (rows.length > 0){
+			var row = rows[0];
+			if (row.sequence === 'final-bad' && row.main_chain_index < storage.getMinRetrievableMci()) // already stripped
+				return callbacks.ifNew();
 			storage.setUnitIsKnown(unit);
 			return callbacks.ifKnown();
 		}
