@@ -481,16 +481,14 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			}
 			if (!/^\d{4}\-\d{2}\-\d{2} \d{2}:\d{2}:\d{2}$/.test(body.creation_date))
 				return callbacks.ifError("wrong contract creation date");
-			db.query("SELECT 1 FROM my_addresses WHERE my_addresses.address=?",[body.my_address],
-				function(rows) {
-					if (!rows.length)
-						return callbacks.ifError("contract does not contain my address");
-					prosaic_contract.store(body);
-					var chat_message = "(prosaic-contract:" + Buffer.from(JSON.stringify(body), 'utf8').toString('base64') + ")";
-					eventBus.emit("text", from_address, chat_message, ++message_counter);
-					callbacks.ifOk();
-				}
-			);
+			db.query("SELECT 1 FROM my_addresses WHERE address=?", [body.my_address], function(rows) {
+				if (!rows.length)
+					return callbacks.ifError("contract does not contain my address");
+				prosaic_contract.store(body);
+				var chat_message = "(prosaic-contract:" + Buffer.from(JSON.stringify(body), 'utf8').toString('base64') + ")";
+				eventBus.emit("text", from_address, chat_message, ++message_counter);
+				callbacks.ifOk();
+			});
 			break;
 
 		case 'prosaic_contract_shared':
