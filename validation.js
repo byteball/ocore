@@ -1330,6 +1330,8 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 			catch(e){
 				return callback("bad definition");
 			}
+			if (constants.bTestnet && objUnit.unit === 'BD7RTYgniYtyCX0t/a/mmAAZEiK/ZhTvInCMCPG5B1k=')
+				return callback();
 			return aa_validation.validateAADefinition(payload.definition, callback);
 
 		case "poll":
