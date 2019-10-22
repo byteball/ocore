@@ -273,6 +273,7 @@ function trimParentList(conn, arrParentUnits, arrWitnesses, handleTrimmedList){
 
 function pickParentUnitsAndLastBall(conn, arrWitnesses, timestamp, onDone){
 
+	var depth = 0;
 	pickParentUnits(conn, arrWitnesses, timestamp, function(err, arrParentUnits, max_parent_wl){
 		if (err)
 			return onDone(err);
@@ -286,7 +287,10 @@ function pickParentUnitsAndLastBall(conn, arrWitnesses, timestamp, onDone){
 	});
 
 	function pickParentsDeeper(max_parent_wl){
-		pickDeepParentUnits(conn, arrWitnesses, timestamp, max_parent_wl, function(err, arrParentUnits, max_parent_wl){
+		depth++;
+		if (conf.MAX_PARENT_DEPTH && depth > conf.MAX_PARENT_DEPTH)
+			return onDone("failed to pick parents after digging to depth " + depth);
+		pickDeepParentUnits(conn, arrWitnesses, timestamp, max_parent_wl, function (err, arrParentUnits, max_parent_wl) {
 			if (err)
 				return onDone(err);
 			findLastBallAndAdjust(conn, arrWitnesses, arrParentUnits, function(err,arrTrimmedParentUnits, last_stable_ball, last_stable_unit, last_stable_mci){

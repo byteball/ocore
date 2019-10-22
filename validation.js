@@ -215,7 +215,7 @@ function validate(objJoint, callbacks, external_conn) {
 				},
 				function(cb){
 					profiler.start();
-					checkDuplicate(conn, objUnit.unit, cb);
+					checkDuplicate(conn, objUnit, cb);
 				},
 				function(cb){
 					profiler.stop('validation-checkDuplicate');
@@ -285,7 +285,7 @@ function validate(objJoint, callbacks, external_conn) {
 						unlock();
 						if (typeof err === "object"){
 							if (err.error_code === "unresolved_dependency")
-								callbacks.ifNeedParentUnits(err.arrMissingUnits);
+								callbacks.ifNeedParentUnits(err.arrMissingUnits, err.dontsave);
 							else if (err.error_code === "need_hash_tree") // need to download hash tree to catch up
 								callbacks.ifNeedHashTree();
 							else if (err.error_code === "invalid_joint") // ball found in hash tree but with another unit
@@ -329,9 +329,13 @@ function validate(objJoint, callbacks, external_conn) {
 //  ----------------    
 
 
-function checkDuplicate(conn, unit, cb){
-	conn.query("SELECT 1 FROM units WHERE unit=?", [unit], function(rows){
+function checkDuplicate(conn, objUnit, cb){
+	var unit = objUnit.unit;
+	conn.query("SELECT sequence, main_chain_index FROM units WHERE unit=?", [unit], function (rows) {
 		if (rows.length === 0) 
+			return cb();
+		var row = rows[0];
+		if (row.sequence === 'final-bad' && row.main_chain_index < storage.getMinRetrievableMci() && objUnit.messages && !objUnit.content_hash) // already stripped locally but received a full version
 			return cb();
 		cb(createTransientError("unit "+unit+" already exists"));
 	});
@@ -1840,28 +1844,40 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 					
 					conn.query(
 						"SELECT amount, is_stable, sequence, address, main_chain_index, denomination, asset \n\
-						FROM outputs \n\
-						JOIN units USING(unit) \n\
-						WHERE outputs.unit=? AND message_index=? AND output_index=?",
-						[input.unit, input.message_index, input.output_index],
+						FROM units \n\
+						LEFT JOIN outputs ON units.unit=outputs.unit AND message_index=? AND output_index=? \n\
+						WHERE units.unit=?",
+						[input.message_index, input.output_index, input.unit],
 						function(rows){
 							if (rows.length > 1)
 								throw Error("more than 1 src output");
 							if (rows.length === 0)
 								return cb("input unit "+input.unit+" not found");
 							var src_output = rows[0];
+							var bStableInParents = (src_output.main_chain_index !== null && src_output.main_chain_index <= objValidationState.last_ball_mci);
+							if (bStableInParents) {
+								if (src_output.sequence === 'temp-bad')
+									throw Error("spending a stable temp-bad output " + input.unit);
+								if (src_output.sequence === 'final-bad')
+									return cb("spending a stable final-bad output " + input.unit);
+							}
+							if (!src_output.address) {
+								if (src_output.sequence === 'final-bad' && src_output.main_chain_index < storage.getMinRetrievableMci()) // already stripped, request full content
+									return cb({error_code: "unresolved_dependency", arrMissingUnits: [input.unit], dontsave: true});
+								return cb("output being spent " + input.unit + " not found");
+							}
 							if (typeof src_output.amount !== 'number')
 								throw Error("src output amount is not a number");
 							if (!(!payload.asset && !src_output.asset || payload.asset === src_output.asset))
 								return cb("asset mismatch");
 							//if (src_output.is_stable !== 1) // we allow immediate spends, that's why the error is transient
 							//    return cb(createTransientError("input unit is not on stable MC yet, unit "+objUnit.unit+", input "+input.unit));
-							if (src_output.main_chain_index !== null && src_output.main_chain_index <= objValidationState.last_ball_mci && src_output.sequence !== 'good')
+							if (bStableInParents && src_output.sequence !== 'good')
 								return cb("stable input unit "+input.unit+" is not serial");
 							if (objValidationState.last_ball_mci < constants.spendUnconfirmedUpgradeMci){
 								if (!objAsset || !objAsset.is_private){
 									// for public payments, you can't spend unconfirmed transactions
-									if (src_output.main_chain_index > objValidationState.last_ball_mci || src_output.main_chain_index === null)
+									if (!bStableInParents)
 										return cb("src output must be before last ball");
 								}
 								if (src_output.sequence !== 'good') // it is also stable or private
@@ -1886,7 +1902,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 								arrInputAddresses.push(owner_address);
 							total_input += src_output.amount;
 							
-							if (src_output.main_chain_index !== null && src_output.main_chain_index <= objValidationState.last_ball_mci)
+							if (bStableInParents)
 								return checkInputDoubleSpend(cb);
 
 							// the below is for unstable inputs only.
