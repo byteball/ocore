@@ -87,7 +87,8 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 			values += ",?,?";
 			params.push(objValidationState.best_parent_unit, objValidationState.witnessed_level);
 		}
-		conn.addQuery(arrQueries, "INSERT INTO units ("+fields+") VALUES ("+values+")", params);
+		var ignore = (objValidationState.sequence === 'final-bad') ? conn.getIgnore() : ''; // possible re-insertion of a previously stripped unit
+		conn.addQuery(arrQueries, "INSERT " + ignore + " INTO units ("+fields+") VALUES ("+values+")", params);
 		
 		if (objJoint.ball && !conf.bLight){
 			conn.addQuery(arrQueries, "INSERT INTO balls (ball, unit) VALUES(?,?)", [objJoint.ball, objUnit.unit]);
