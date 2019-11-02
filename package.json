@@ -41,7 +41,7 @@
     "socks": "1.1.10",
     "sqlite3": "^4.0.0",
     "thirty-two": "^1.0.1",
-    "ws": "^1.0.1"
+    "ws": "^7.2.0"
   },
   "scripts": {
     "test": "yarn ava",
