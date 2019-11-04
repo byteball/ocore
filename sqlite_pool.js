@@ -16,7 +16,7 @@ if (bCordova){
 }
 else{
 	sqlite3 = require('sqlite3');//.verbose();
-	path = require('./desktop_app.js'+'').getAppDataDir() + '/';
+	path = require('./desktop_app.js'+'').getDatabaseDir() + '/';
 	console.log("path="+path);
 }
 

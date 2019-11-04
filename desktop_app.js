@@ -53,7 +53,16 @@ function getAppDataDir(){
 	return (getAppsDataDir() + '/' + getAppName());
 }
 
+// database can be located in another directory
+function getDatabaseDir(){
+
+	const customDatabaseDir = require('./conf.js').DatabaseDir;
+	if (customDatabaseDir) return customDatabaseDir;
+
+	return getAppDataDir();
+}
 
 exports.getAppRootDir = getAppRootDir;
 exports.getAppDataDir = getAppDataDir;
+exports.getDatabaseDir = getDatabaseDir;
 

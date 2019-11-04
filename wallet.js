@@ -207,6 +207,11 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			callbacks.ifOk();
 			break;
 		
+		case "remove_paired_device":
+			device.removeCorrespondentDevice(from_address, function(){});
+			callbacks.ifOk();
+			break;
+
 		case "create_new_wallet":
 			// {wallet: "base64", wallet_definition_template: [...]}
 			walletDefinedByKeys.handleOfferToCreateNewWallet(body, from_address, callbacks);
