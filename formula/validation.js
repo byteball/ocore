@@ -546,7 +546,7 @@ exports.validate = function (opts, callback) {
 
 			case 'var':
 			case 'balance':
-				if (!bAA)
+				if (!bAA) // we cannot allow even var[aa_address][name] in non-AAs because the var would have to be taken at some past time that corresponds to the unit's last_ball_unit but we know only the current (last) value of the var
 					return cb(op + ' in non-AA');
 				function isValidVarNameOrAsset(param) {
 					if (op === 'var')
