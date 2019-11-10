@@ -89,8 +89,8 @@ function findMcIndexIntervalToTargetAmount(conn, type, address, max_mci, target_
 				);
 			}
 			else{
-				var MIN_MC_OUTPUT = (type === 'witnessing') ? 11 : 344;
-				var max_count_outputs = Math.ceil(target_amount/MIN_MC_OUTPUT);
+				var MIN_MC_OUTPUT = (type === 'witnessing') ? 10 : 344;
+				var max_count_outputs = Math.ceil(target_amount/MIN_MC_OUTPUT) + 1;
 				conn.query(
 					"SELECT main_chain_index, amount \n\
 					FROM "+table+" \n\

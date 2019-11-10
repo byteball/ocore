@@ -50,6 +50,7 @@ var peer_events_buffer = [];
 var assocKnownPeers = {};
 var assocBlockedPeers = {};
 var exchangeRates = {};
+var knownWitnesses = {};
 var bWatchingForLight = false;
 
 if (process.browser){ // browser
@@ -1112,11 +1113,14 @@ function handleOnlineJoint(ws, objJoint, onDone){
 			// which will trigger another attempt to request catchup
 			onDone();
 		},
-		ifNeedParentUnits: function(arrMissingUnits){
+		ifNeedParentUnits: function(arrMissingUnits, dontsave){
 			sendInfo(ws, {unit: unit, info: "unresolved dependencies: "+arrMissingUnits.join(", ")});
-			joint_storage.saveUnhandledJointAndDependencies(objJoint, arrMissingUnits, ws.peer, function(){
+			if (dontsave)
 				delete assocUnitsInWork[unit];
-			});
+			else
+				joint_storage.saveUnhandledJointAndDependencies(objJoint, arrMissingUnits, ws.peer, function(){
+					delete assocUnitsInWork[unit];
+				});
 			requestNewMissingJoints(ws, arrMissingUnits);
 			onDone();
 		},
@@ -2386,6 +2390,13 @@ function handleJustsaying(ws, subject, body){
 			eventBus.emit('rates_updated');
 			break;
 			
+		case 'known_witnesses':
+			if (!ws.bLoggingIn && !ws.bLoggedIn) // accept from hub only
+				return console.log('ignoring known_witnesses from non-hub');
+			_.assign(knownWitnesses, body);
+			eventBus.emit('known_witnesses_updated');
+			break;
+			
 		case 'upgrade_required':
 			if (!ws.bLoggingIn && !ws.bLoggedIn) // accept from hub only
 				return;
@@ -3217,5 +3228,6 @@ exports.isConnected = isConnected;
 exports.isCatchingUp = isCatchingUp;
 exports.requestHistoryFor = requestHistoryFor;
 exports.exchangeRates = exchangeRates;
+exports.knownWitnesses = knownWitnesses;
 exports.getInboundDeviceWebSocket = getInboundDeviceWebSocket;
 exports.deletePendingRequest = deletePendingRequest;
