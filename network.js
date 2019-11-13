@@ -1113,11 +1113,14 @@ function handleOnlineJoint(ws, objJoint, onDone){
 			// which will trigger another attempt to request catchup
 			onDone();
 		},
-		ifNeedParentUnits: function(arrMissingUnits){
+		ifNeedParentUnits: function(arrMissingUnits, dontsave){
 			sendInfo(ws, {unit: unit, info: "unresolved dependencies: "+arrMissingUnits.join(", ")});
-			joint_storage.saveUnhandledJointAndDependencies(objJoint, arrMissingUnits, ws.peer, function(){
+			if (dontsave)
 				delete assocUnitsInWork[unit];
-			});
+			else
+				joint_storage.saveUnhandledJointAndDependencies(objJoint, arrMissingUnits, ws.peer, function(){
+					delete assocUnitsInWork[unit];
+				});
 			requestNewMissingJoints(ws, arrMissingUnits);
 			onDone();
 		},
