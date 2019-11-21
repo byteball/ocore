@@ -3,6 +3,7 @@
 var async = require('async');
 var db = require('./db.js');
 var constants = require('./constants.js');
+var conf = require('./conf.js');
 var objectHash = require('./object_hash.js');
 var ecdsaSig = require('./signature.js');
 var _ = require('lodash');
@@ -152,18 +153,31 @@ function validateSignedMessage(conn, objSignedMessage, address, handleResult) {
 	if (bNetworkAware && !ValidationUtils.isValidBase64(objSignedMessage.last_ball_unit, constants.HASH_LENGTH))
 		return handleResult("invalid last_ball_unit");
 	
-	function validateOrReadDefinition(cb) {
+	function validateOrReadDefinition(cb, bRetrying) {
 		var bHasDefinition = ("definition" in objAuthor);
 		if (bNetworkAware) {
 			conn.query("SELECT main_chain_index, timestamp FROM units WHERE unit=?", [objSignedMessage.last_ball_unit], function (rows) {
-				if (rows.length === 0)
-					return handleResult("last_ball_unit " + objSignedMessage.last_ball_unit + " not found");
+				if (rows.length === 0) {
+					if (!conf.bLight || bRetrying)
+						return handleResult("last_ball_unit " + objSignedMessage.last_ball_unit + " not found");
+					var network = require('./network.js');
+					return network.requestHistoryFor([objSignedMessage.last_ball_unit], [objAuthor.address], function () {
+						validateOrReadDefinition(cb, true);
+					});
+				}
+				bRetrying = false;
 				var last_ball_mci = rows[0].main_chain_index;
 				var last_ball_timestamp = rows[0].timestamp;
 				storage.readDefinitionByAddress(conn, objAuthor.address, last_ball_mci, {
 					ifDefinitionNotFound: function (definition_chash) { // first use of the definition_chash (in particular, of the address, when definition_chash=address)
-						if (!bHasDefinition)
-							return handleResult("definition expected but not provided");
+						if (!bHasDefinition) {
+							if (!conf.bLight || bRetrying)
+								return handleResult("definition expected but not provided");
+							var network = require('./network.js');
+							return network.requestHistoryFor([], [objAuthor.address], function () {
+								validateOrReadDefinition(cb, true);
+							});
+						}
 						if (objectHash.getChash160(objAuthor.definition) !== definition_chash)
 							return handleResult("wrong definition: "+objectHash.getChash160(objAuthor.definition) +"!=="+ definition_chash);
 						cb(objAuthor.definition, last_ball_mci, last_ball_timestamp);
