@@ -61,7 +61,10 @@ function prepareHistory(historyRequest, callbacks){
 			WHERE address IN("+strAddressList+") AND (+sequence='good' OR is_stable=1) \n\
 			UNION \n\
 			SELECT DISTINCT unit, main_chain_index, level FROM unit_authors JOIN units USING(unit) \n\
-			WHERE address IN("+strAddressList+") AND (+sequence='good' OR is_stable=1) \n"];
+			WHERE address IN(" + strAddressList + ") AND (+sequence='good' OR is_stable=1) \n\
+			UNION \n\
+			SELECT DISTINCT unit, main_chain_index, level FROM aa_responses JOIN units ON trigger_unit=unit \n\
+			WHERE aa_address IN(" + strAddressList + ")"];
 	}
 	if (arrRequestedJoints){
 		var strUnitList = arrRequestedJoints.map(db.escape).join(', ');
