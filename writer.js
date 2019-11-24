@@ -641,8 +641,10 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 									if (!bInLargerTx)
 										conn.release();
 								}
-								if (!err)
+								if (!err){
 									eventBus.emit('saved_unit-'+objUnit.unit, objJoint);
+									eventBus.emit('saved_unit', objJoint);
+								}
 								if (onDone)
 									onDone(err);
 								count_writes++;
