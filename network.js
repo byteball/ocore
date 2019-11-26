@@ -52,6 +52,7 @@ var assocBlockedPeers = {};
 var exchangeRates = {};
 var knownWitnesses = {};
 var bWatchingForLight = false;
+var prev_bugreport_hash = '';
 
 if (process.browser){ // browser
 	console.log("defining .on() on ws");
@@ -2122,7 +2123,12 @@ function handleJustsaying(ws, subject, body){
 		case 'bugreport':
 			if (!body)
 				return;
-			if (conf.ignoreBugreportRegexp && new RegExp(conf.ignoreBugreportRegexp).test(body.message+' '+body.exception.toString()))
+			var text = body.message + ' ' + body.exception.toString();
+			var hash = crypto.createHash("sha256").update(text, "utf8").digest("base64");
+			if (hash === prev_bugreport_hash)
+				return console.log("ignoring known bug report");
+			prev_bugreport_hash = hash;
+			if (conf.ignoreBugreportRegexp && new RegExp(conf.ignoreBugreportRegexp).test(text))
 				return console.log('ignoring bugreport');
 			mail.sendBugEmail(body.message, body.exception);
 			break;
