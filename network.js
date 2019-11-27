@@ -2123,7 +2123,8 @@ function handleJustsaying(ws, subject, body){
 		case 'bugreport':
 			if (!body)
 				return;
-			var text = body.message + ' ' + body.exception.toString();
+			var arrParts = body.exception.toString().split("Breadcrumbs", 2);
+			var text = body.message + ' ' + arrParts[0];
 			var hash = crypto.createHash("sha256").update(text, "utf8").digest("base64");
 			if (hash === prev_bugreport_hash)
 				return console.log("ignoring known bug report");
