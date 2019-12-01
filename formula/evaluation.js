@@ -922,7 +922,7 @@ exports.evaluate = function (opts, callback) {
 								if (type === 'auto') {
 									var f = string_utils.getNumericFeedValue(value);
 									if (f !== null)
-										value = new Decimal(value).times(1);
+										value = toDoubleRange(new Decimal(value).times(1));
 								}
 								return cb(value);
 							}
@@ -1842,7 +1842,7 @@ exports.evaluate = function (opts, callback) {
 			}
 			var f = string_utils.getNumericFeedValue(value);
 			if (f !== null)
-				value = new Decimal(value).times(1);
+				value = toDoubleRange(new Decimal(value).times(1));
 			stateVars[param_address][var_name] = {value: value, old_value: value, original_old_value: value};
 			cb2(value);
 		});
@@ -1893,7 +1893,7 @@ exports.evaluate = function (opts, callback) {
 						return setFatalError("string value too long: " + value, cb, false);
 					// convert to number if possible
 					var f = string_utils.getNumericFeedValue(value);
-					(f === null) ? cb(value) : cb(new Decimal(value).times(1));
+					(f === null) ? cb(value) : cb(toDoubleRange(new Decimal(value).times(1)));
 				}
 				else if (typeof value === 'object')
 					cb(new wrappedObject(value));
