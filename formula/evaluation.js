@@ -142,6 +142,11 @@ exports.evaluate = function (opts, callback) {
 							res = true;
 						if (typeof res === 'boolean')
 							res = new Decimal(res ? 1 : 0);
+						else if (typeof res === 'string') {
+							var float = string_utils.getNumericFeedValue(res);
+							if (float !== null)
+								res = new Decimal(res).times(1);
+						}
 						if (isFiniteDecimal(res)) {
 							res = toDoubleRange(res);
 							if (prevV === undefined) {
@@ -196,6 +201,11 @@ exports.evaluate = function (opts, callback) {
 						res = true;
 					if (typeof res === 'boolean')
 						res = new Decimal(res ? 1 : 0);
+					else if (typeof res === 'string') {
+						var float = string_utils.getNumericFeedValue(res);
+						if (float !== null)
+							res = new Decimal(res).times(1);
+					}
 					if (isFiniteDecimal(res)) {
 						res = toDoubleRange(res);
 						if (op === 'abs')
@@ -222,6 +232,11 @@ exports.evaluate = function (opts, callback) {
 						dp_res = true;
 					if (typeof dp_res === 'boolean')
 						dp_res = new Decimal(dp_res ? 1 : 0);
+					else if (typeof dp_res === 'string') {
+						var float = string_utils.getNumericFeedValue(dp_res);
+						if (float !== null)
+							dp_res = toDoubleRange(new Decimal(dp_res).times(1));
+					}
 					if (Decimal.isDecimal(dp_res) && dp_res.isInteger() && !dp_res.isNegative() && dp_res.lte(15))
 						dp = dp_res;
 					else{
@@ -246,6 +261,11 @@ exports.evaluate = function (opts, callback) {
 							res = true;
 						if (typeof res === 'boolean')
 							res = new Decimal(res ? 1 : 0);
+						else if (typeof res === 'string') {
+							var float = string_utils.getNumericFeedValue(res);
+							if (float !== null)
+								res = new Decimal(res).times(1);
+						}
 						if (isFiniteDecimal(res)) {
 							res = toDoubleRange(res);
 							cb(res.toDecimalPlaces(dp.toNumber(), roundingMode));
@@ -268,6 +288,11 @@ exports.evaluate = function (opts, callback) {
 							res = true;
 						if (typeof res === 'boolean')
 							res = new Decimal(res ? 1 : 0);
+						else if (typeof res === 'string') {
+							var float = string_utils.getNumericFeedValue(res);
+							if (float !== null)
+								res = new Decimal(res).times(1);
+						}
 						if (isFiniteDecimal(res)) {
 							res = toDoubleRange(res);
 							vals.push(res);

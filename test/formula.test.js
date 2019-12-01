@@ -332,7 +332,7 @@ test('abs positive', t => {
 
 test('abs string', t => {
 	evalFormula(null, "abs(2 || '')", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
-		t.deepEqual(res, null);
+		t.deepEqual(res, 2);
 	});
 });
 
@@ -2493,5 +2493,40 @@ test.cb('unit and response_unit', t => {
 		t.deepEqual(stateVars.MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU.x.value, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU 78');
 		t.deepEqual(complexity, 4);
 		t.end();
+	})
+});
+
+test('strings in arithmetic operations', t => {
+	var trigger = { };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `4 + substring('as3', 2)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 7);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('strings in max', t => {
+	var trigger = { };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `max(4, substring('as5', 2))`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 5);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('strings in round', t => {
+	var trigger = { };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `round(substring('as5.7', 2))`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 6);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('non-number strings in round', t => {
+	var trigger = { };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `round(substring('as5.7', 1))`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
 	})
 });
