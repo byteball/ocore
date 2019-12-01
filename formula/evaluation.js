@@ -212,7 +212,7 @@ exports.evaluate = function (opts, callback) {
 							return cb(toDoubleRange(res.abs()));
 						if (res.isNegative())
 							return setFatalError(op + " of negative", cb, false);
-						cb(toDoubleRange(op === 'sqrt' ? res.sqrt() : res.ln()));
+						evaluate(toDoubleRange(op === 'sqrt' ? res.sqrt() : res.ln()), cb);
 					} else {
 						return setFatalError('not a decimal in '+op, cb, false);
 					}
@@ -268,7 +268,7 @@ exports.evaluate = function (opts, callback) {
 						}
 						if (isFiniteDecimal(res)) {
 							res = toDoubleRange(res);
-							cb(res.toDecimalPlaces(dp.toNumber(), roundingMode));
+							evaluate(res.toDecimalPlaces(dp.toNumber(), roundingMode), cb);
 						} else {
 							return setFatalError('not a decimal in '+op, cb, false);
 						}
@@ -305,7 +305,7 @@ exports.evaluate = function (opts, callback) {
 					if (err) {
 						return cb(false);
 					}
-					cb(Decimal[op].apply(Decimal, vals));
+					evaluate(Decimal[op].apply(Decimal, vals), cb);
 				});
 				break;
 
@@ -1550,7 +1550,7 @@ exports.evaluate = function (opts, callback) {
 					if (typeof json === 'object')
 						return cb(new wrappedObject(json));
 					if (typeof json === 'number')
-						return cb(new Decimal(json).times(1));
+						return evaluate(new Decimal(json).times(1), cb);
 					if (typeof json === 'string' || typeof json === 'boolean')
 						return cb(json);
 					throw Error("unknown type of json parse: " + (typeof json));
