@@ -91,9 +91,9 @@ exports.evaluate = function (opts, callback) {
 			return cb(true);
 		if (Decimal.isDecimal(arr)) {
 			if (!arr.isFinite())
-				setFatalError("bad decimal: " + arr, cb, false);
+				return setFatalError("bad decimal: " + arr, cb, false);
 			if (!isFinite(arr.toNumber()))
-				setFatalError("number overflow: " + arr, cb, false);
+				return setFatalError("number overflow: " + arr, cb, false);
 			return cb(toDoubleRange(arr));
 		}
 		if (arr instanceof wrappedObject) return cb(arr);
