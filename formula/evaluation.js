@@ -1579,13 +1579,21 @@ exports.evaluate = function (opts, callback) {
 				break;
 
 			case 'length':
+			case 'to_upper':
+			case 'to_lower':
 				var expr = arr[1];
 				evaluate(expr, function (res) {
 					if (fatal_error)
 						return cb(false);
 					if (res instanceof wrappedObject)
 						res = true;
-					cb(new Decimal(res.toString().length));
+					if (op === 'length')
+						return cb(new Decimal(res.toString().length));
+					if (op === 'to_upper')
+						return cb(res.toString().toUpperCase());
+					if (op === 'to_lower')
+						return cb(res.toString().toLowerCase());
+					throw Error("unknown op: " + op);
 				});
 				break;
 

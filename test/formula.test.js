@@ -2565,3 +2565,21 @@ test('convert to number with +', t => {
 		t.deepEqual(complexity, 1);
 	})
 });
+
+test('to_upper', t => {
+	var trigger = { };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `to_upper(!trigger.data)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'TRUE');
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('to_lower', t => {
+	var trigger = { };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `to_lower('aSdF')`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'asdf');
+		t.deepEqual(complexity, 1);
+	})
+});

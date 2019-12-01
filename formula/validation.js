@@ -717,6 +717,8 @@ exports.validate = function (opts, callback) {
 			case 'typeof':
 			case 'length':
 			case 'parse_date':
+			case 'to_upper':
+			case 'to_lower':
 				var expr = arr[1];
 				evaluate(expr, cb);
 				break;
