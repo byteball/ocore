@@ -2583,3 +2583,13 @@ test('to_lower', t => {
 		t.deepEqual(complexity, 1);
 	})
 });
+
+test.cb('exists', t => {
+	var trigger = { data: {x: 0} };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `$x=false; exists('aSdF') || ' ' || exists(trigger.data.x) || ' ' || exists(trigger.data.y) || ' ' || exists(var['x']) || ' ' || exists($x) || ' ' || exists(!$x) || ' ' || exists($y)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'true true false false false true false');
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});

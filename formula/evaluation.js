@@ -1703,12 +1703,15 @@ exports.evaluate = function (opts, callback) {
 				});
 				break;
 
+			case 'exists':
 			case 'is_array':
 			case 'is_assoc':
 				var expr = arr[1];
 				evaluate(expr, function (res) {
 					if (fatal_error)
 						return cb(false);
+					if (op === 'exists')
+						return cb(res !== false);
 					if (!(res instanceof wrappedObject))
 						return cb(false);
 					var obj = res.obj;
