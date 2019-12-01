@@ -24,6 +24,8 @@ var toDoubleRange = require('./common.js').toDoubleRange;
 if (!Number.MAX_SAFE_INTEGER)
 	Number.MAX_SAFE_INTEGER = Math.pow(2, 53) - 1; // 9007199254740991
 
+var testnetStringToNumberInArithmeticUpgradeMci = 1151000;
+
 var decimalE = new Decimal(Math.E);
 var decimalPi = new Decimal(Math.PI);
 
@@ -142,7 +144,7 @@ exports.evaluate = function (opts, callback) {
 							res = true;
 						if (typeof res === 'boolean')
 							res = new Decimal(res ? 1 : 0);
-						else if (typeof res === 'string') {
+						else if (typeof res === 'string' && (!constants.bTestnet || objValidationState.last_ball_mci > testnetStringToNumberInArithmeticUpgradeMci)) {
 							var float = string_utils.getNumericFeedValue(res);
 							if (float !== null)
 								res = new Decimal(res).times(1);
