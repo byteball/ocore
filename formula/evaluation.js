@@ -1040,6 +1040,10 @@ exports.evaluate = function (opts, callback) {
 				cb(objValidationState.mc_unit);
 				break;
 
+			case 'number_of_responses':
+				cb(new Decimal(objValidationState.number_of_responses));
+				break;
+
 			case 'this_address':
 				cb(address);
 				break;

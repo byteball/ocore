@@ -226,6 +226,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 		last_ball_timestamp: objMcUnit.timestamp,
 		mc_unit: objMcUnit.unit,
 		assocBalances: {},
+		number_of_responses: arrResponses.length,
 		arrPreviousResponseUnits: arrResponses.map(objAAResponse => objAAResponse.objResponseUnit)
 	};
 	var byte_balance;

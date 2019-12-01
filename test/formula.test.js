@@ -94,6 +94,7 @@ var objValidationState = {
 	mc_unit: "oXGOcA9TQx8Tl5Syjp1d5+mB4xicsRk3kbcE82YQAS0=",
 	storage_size: 200,
 	assocBalances: {},
+	number_of_responses: 0,
 	arrPreviousResponseUnits: [],
 	arrAugmentedMessages: [{
 		"app": "payment",
@@ -2591,5 +2592,14 @@ test.cb('exists', t => {
 		t.deepEqual(res, 'true true false false false true false');
 		t.deepEqual(complexity, 2);
 		t.end();
+	})
+});
+
+test('number_of_responses', t => {
+	var trigger = { };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `number_of_responses`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 0);
+		t.deepEqual(complexity, 1);
 	})
 });
