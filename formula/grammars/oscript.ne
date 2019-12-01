@@ -223,6 +223,7 @@ MD -> MD "*" unary_expr  {% function(d) {return ['*', d[0], d[2]]; } %}
 AS -> AS "+" MD {% function(d) {return ['+', d[0], d[2]]; } %}
     | AS "-" MD {% function(d) {return ['-', d[0], d[2]]; } %}
     | "-" MD {% function(d) {return ['-', new Decimal(0), d[1]]; } %}
+    | "+" MD {% function(d) {return ['+', new Decimal(0), d[1]]; } %}
     | AS %concat MD {% function(d) {return ['concat', d[0], d[2]]; } %}
     | MD            {% id %}
 

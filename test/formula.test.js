@@ -2530,3 +2530,12 @@ test('non-number strings in round', t => {
 		t.deepEqual(res, null);
 	})
 });
+
+test('convert to number with +', t => {
+	var trigger = { };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `typeof(+substring('as5.7', 2))`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'number');
+		t.deepEqual(complexity, 1);
+	})
+});

@@ -262,6 +262,7 @@ var grammar = {
     {"name": "AS", "symbols": ["AS", {"literal":"+"}, "MD"], "postprocess": function(d) {return ['+', d[0], d[2]]; }},
     {"name": "AS", "symbols": ["AS", {"literal":"-"}, "MD"], "postprocess": function(d) {return ['-', d[0], d[2]]; }},
     {"name": "AS", "symbols": [{"literal":"-"}, "MD"], "postprocess": function(d) {return ['-', new Decimal(0), d[1]]; }},
+    {"name": "AS", "symbols": [{"literal":"+"}, "MD"], "postprocess": function(d) {return ['+', new Decimal(0), d[1]]; }},
     {"name": "AS", "symbols": ["AS", (lexer.has("concat") ? {type: "concat"} : concat), "MD"], "postprocess": function(d) {return ['concat', d[0], d[2]]; }},
     {"name": "AS", "symbols": ["MD"], "postprocess": id},
     {"name": "N", "symbols": ["float"], "postprocess": id},
