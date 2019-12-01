@@ -650,7 +650,18 @@ exports.validate = function (opts, callback) {
 			case 'sha256':
 				complexity++;
 				var expr = arr[1];
-				evaluate(expr, cb);
+				evaluate(expr, function (err) {
+					if (err)
+						return cb(err);
+					var format_expr = arr[2];
+					if (format_expr === null || format_expr === 'hex' || format_expr === 'base64')
+						return cb();
+					if (typeof format_expr === 'boolean' || Decimal.isDecimal(format_expr))
+						return cb("format of sha256 must be string");
+					if (typeof format_expr === 'string')
+						return cb("wrong format of sha256: " + format_expr);
+					evaluate(format_expr, cb);
+				});
 				break;
 
 			case 'number_from_seed':

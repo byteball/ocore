@@ -244,7 +244,7 @@ N -> float          {% id %}
     | "abs" "(" expr ")"  {% function(d) {return ['abs', d[2]]; }  %}
     | "is_valid_signed_package" "(" expr "," expr ")"    {% function(d) {return ['is_valid_signed_package', d[2], d[4]]; } %}
     | "is_valid_sig" "(" expr "," expr "," expr ")"    {% function(d) {return ['is_valid_sig', d[2], d[4], d[6]]; } %}
-    | "sha256" "(" expr ")"    {% function(d) {return ['sha256', d[2]]; } %}
+    | "sha256" "(" expr ("," expr):? ")"    {% function(d) {return ['sha256', d[2], d[3] ? d[3][1] : null]; } %}
     | "json_parse" "(" expr ")"    {% function(d) {return ['json_parse', d[2]]; } %}
     | "json_stringify" "(" expr ")"    {% function(d) {return ['json_stringify', d[2]]; } %}
     | "typeof" "(" expr ")"    {% function(d) {return ['typeof', d[2]]; } %}

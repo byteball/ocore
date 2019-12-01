@@ -1513,6 +1513,32 @@ test('sha256 with numbers', t => {
 	})
 });
 
+test('sha256 hex', t => {
+	var str = 'abcd';
+	var hash = crypto.createHash("sha256").update(str, "utf8").digest("hex");
+	evalFormulaWithVars({ formula: "sha256(trigger.data.str, 'hex')", trigger: {data: {str: str}}, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, hash);
+		t.deepEqual(complexity, 2);
+	})
+});
+
+test('sha256 hex expr', t => {
+	var str = 'abcd';
+	var hash = crypto.createHash("sha256").update(str, "utf8").digest("hex");
+	evalFormulaWithVars({ formula: "sha256(trigger.data.str, 'he'||'x')", trigger: {data: {str: str}}, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, hash);
+		t.deepEqual(complexity, 2);
+	})
+});
+
+test('sha256 bad format', t => {
+	var str = 'abcd';
+	var hash = crypto.createHash("sha256").update(str, "utf8").digest("hex");
+	evalFormulaWithVars({ formula: "sha256(trigger.data.str, 'invalid')", trigger: {data: {str: str}}, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, null);
+	})
+});
+
 test.cb('signature verification', t => {
 	var db = require("../db");
 	var mnemonic = new Mnemonic();

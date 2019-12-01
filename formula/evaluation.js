@@ -1465,7 +1465,16 @@ exports.evaluate = function (opts, callback) {
 						return setFatalError("invalid value in sha256: " + res, cb, false);
 					if (Decimal.isDecimal(res))
 						res = toDoubleRange(res);
-					cb(crypto.createHash("sha256").update(res.toString(), "utf8").digest("base64"));
+					var format_expr = arr[2];
+					if (format_expr === null || format_expr === 'base64')
+						return cb(crypto.createHash("sha256").update(res.toString(), "utf8").digest("base64"));
+					evaluate(format_expr, function (format) {
+						if (fatal_error)
+							return cb(false);
+						if (format !== 'base64' && format !== 'hex')
+							return setFatalError("bad format of sha256: " + format, cb, false);
+						cb(crypto.createHash("sha256").update(res.toString(), "utf8").digest(format));
+					});
 				});
 				break;
 
