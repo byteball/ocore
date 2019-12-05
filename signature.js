@@ -44,38 +44,26 @@ exports.verifyMessageWithPemPubKey = function(message, signature, pem_key) {
 }
 
 exports.signMessageWithEcPemPrivKey = function(message, pem_key) {
-
 	//we fix pem key formatting
 	var contentAloneB64 = pem_key.replace("-----BEGIN EC PRIVATE KEY-----", "").replace("-----END EC PRIVATE KEY-----", ""); 
 	contentAloneB64 = contentAloneB64.replace(/\s/g, "");
 	pem_key =	"-----BEGIN EC PRIVATE KEY-----" + "\n";
 	pem_key += contentAloneB64+"\n";
 	pem_key += "-----END EC PRIVATE KEY-----";
-
-	var sign = crypto.createSign('SHA256');
-	sign.update(message);
-	sign.end();
-	try {
-		return sign.sign(pem_key, 'base64');
-	} catch(e1) {
-		try {
-			return sign.sign({key: pem_key}, 'base64');
-		} catch(e2) {
-			console.log("exception when signing with pem key: " + e1 + " " + e2);
-			return null;
-		}
-	}
+	return signMessage(message, pem_key);
 }
 
 exports.signMessageWithRsaPemPrivKey = function(message, pem_key) {
-
 	//we fix pem key formatting
 	var contentAloneB64 = pem_key.replace("-----BEGIN RSA PRIVATE KEY-----", "").replace("-----END RSA PRIVATE KEY-----", ""); 
 	contentAloneB64 = contentAloneB64.replace(/\s/g, "");
 	pem_key =	"-----BEGIN RSA PRIVATE KEY-----" + "\n";
 	pem_key += contentAloneB64+"\n";
 	pem_key += "-----END RSA PRIVATE KEY-----";
+	return signMessage(message, pem_key);
+}
 
+function signMessage(message, pem_key){
 	var sign = crypto.createSign('SHA256');
 	sign.update(message);
 	sign.end();
