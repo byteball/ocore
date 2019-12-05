@@ -112,10 +112,10 @@ exports.validateAndFormatPemPubKey = function(pem_key, handle) {
 
 	if (contentAloneBuffer[0] != 0x30)
 		return handle("pem key doesn't start with a sequence");
-		
+
 //we determine start and length of algo/curve identifiers
-	if (contentAloneBuffer[1] < 0x7F){
-		if (contentAloneBuffer[2] !=0x30)
+	if (contentAloneBuffer[1] <= 0x7F){
+		if (contentAloneBuffer[2] != 0x30)
 			return handle("pem key doesn't have a second sequence");
 		var identifiersStart = 4;
 		var identifiersLength = contentAloneBuffer[3];
@@ -125,7 +125,7 @@ exports.validateAndFormatPemPubKey = function(pem_key, handle) {
 		var identifiersStart = 5;
 		var identifiersLength = contentAloneBuffer[4];
 	} else if (contentAloneBuffer[1] == 0x82){
-		if (contentAloneBuffer[4] !=0x30) 
+		if (contentAloneBuffer[4] != 0x30) 
 			return handle("pem key doesn't have a second sequence");
 		var identifiersStart = 6;
 		var identifiersLength = contentAloneBuffer[5];
