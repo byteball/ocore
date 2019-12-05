@@ -1,7 +1,7 @@
 /*jslint node: true */
 "use strict";
 var WebSocket = process.browser ? global.WebSocket : require('ws');
-var socks = process.browser ? null : require('socks'+'');
+var socks = process.browser ? null : require('socks');
 var WebSocketServer = WebSocket.Server;
 var crypto = require('crypto');
 var _ = require('lodash');
@@ -24,7 +24,8 @@ var eventBus = require('./event_bus.js');
 var light = require('./light.js');
 var inputs = require('./inputs.js');
 var breadcrumbs = require('./breadcrumbs.js');
-var mail = process.browser ? null : require('./mail.js'+'');
+var mail = require('./mail.js');
+var aa_composer = require('./aa_composer.js');
 var libraryPackageJson = require('./package.json');
 
 var FORWARDING_TIMEOUT = 10*1000; // don't forward if the joint was received more than FORWARDING_TIMEOUT ms ago
@@ -937,6 +938,8 @@ function forwardJoint(ws, objJoint){
 }
 
 function handleJoint(ws, objJoint, bSaved, callbacks){
+	if ('aa' in objJoint)
+		return callbacks.ifJointError("AA unit cannot be broadcast");
 	var unit = objJoint.unit.unit;
 	if (assocUnitsInWork[unit])
 		return callbacks.ifUnitInWork();
@@ -1001,7 +1004,9 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 						unlock();
 						if (ws)
 							writeEvent((objValidationState.sequence !== 'good') ? 'nonserial' : 'new_good', ws.host);
-						notifyWatchers(objJoint, ws);
+						notifyWatchers(objJoint, objValidationState.sequence === 'good', ws);
+						if (objValidationState.arrUnitsGettingBadSequence)
+							notifyWatchersAboutUnitsGettingBadSequence(objValidationState.arrUnitsGettingBadSequence);
 						if (!bCatchingUp)
 							eventBus.emit('new_joint', objJoint);
 					});
@@ -1256,12 +1261,96 @@ function addWatchedAddress(address){
 	arrWatchedAddresses.push(address);
 }
 
-// if any of the watched addresses are affected, notifies:  1. own UI  2. light clients
-function notifyWatchers(objJoint, source_ws){
-	var objUnit = objJoint.unit;
+function notifyWatchersAboutUnitsGettingBadSequence(arrUnits){
+	if (conf.bLight)
+		throw Error("light node cannot notify about bad sequence");
+
+	// - one unit can concern several addresses
+	// - same address can be concerned by several units
+	// - several addresses can be watched locally or by same peer
+	// we have to sort that in order to provide duplicated units to sequence_became_bad event
+	arrUnits = _.uniq(arrUnits);
+	var assocAddressesByUnit = {};
+	var assocUnitsByAddress = {};
+	async.each(arrUnits, function(unit, cb){
+		storage.readJoint(db, unit, 
+			{
+				ifFound: function(objUnit){
+					var arrAddresses = getAllAuthorsAndOutputAddresses(objUnit.unit);
+					if (!arrAddresses) // voided unit
+						return cb();
+					assocAddressesByUnit[unit] = arrAddresses;
+					arrAddresses.forEach(function(address){
+						if (!assocUnitsByAddress[address])
+							assocUnitsByAddress[address] = [];
+						assocUnitsByAddress[address].push(unit);
+					});
+					cb();
+				},
+				ifNotFound: function(){
+					return cb();
+				}
+			});
+		},
+		function(){
+		// notify local watchers
+		var assocUniqueUnits = {};
+		for (var unit in assocAddressesByUnit){
+			if (_.intersection(arrWatchedAddresses, assocAddressesByUnit[unit]).length > 0){
+				assocUniqueUnits[unit] = true;
+			}
+		}
+		var arrConcernedAddresses = Object.keys(assocUnitsByAddress);
+		db.query(
+			"SELECT address FROM my_addresses WHERE address IN(?) UNION SELECT shared_address AS address FROM shared_addresses WHERE address IN(?) UNION SELECT address FROM my_watched_addresses WHERE address IN(?)",  
+			[arrConcernedAddresses, arrConcernedAddresses, arrConcernedAddresses],
+			function(rows){
+				if (rows.length > 0){
+					var arrMyConcernedAddresses = rows.map(function(row){return row.address});
+					for (var unit in assocAddressesByUnit){
+						if (_.intersection(arrMyConcernedAddresses, assocAddressesByUnit[unit]).length > 0)
+							assocUniqueUnits[unit] = true;
+					}
+				}
+				var arrUniqueUnits = Object.keys(assocUniqueUnits);
+				if (arrUniqueUnits.length > 0)
+					eventBus.emit("sequence_became_bad", arrUniqueUnits);
+			}
+		);
+		// notify light watchers
+		if (!bWatchingForLight)
+			return;
+		db.query("SELECT peer,address,null FROM watched_light_addresses WHERE address IN(?) UNION SELECT peer,null,unit FROM watched_light_units WHERE unit IN(?)", [arrConcernedAddresses, arrUnits], function(rows){
+			var assocUniqueUnitsByPeer = {};
+			rows.forEach(function(row){
+				if (row.address){
+					if (assocUnitsByAddress[row.address]){
+						assocUnitsByAddress[row.address].forEach(function(unit){
+							if (!assocUniqueUnitsByPeer[row.peer])
+								assocUniqueUnitsByPeer[row.peer] = {};
+							assocUniqueUnitsByPeer[row.peer][unit] = true;
+						});
+					}
+				}
+				if (row.unit){
+					if (!assocUniqueUnitsByPeer[row.peer])
+						assocUniqueUnitsByPeer[row.peer] = {};
+					assocUniqueUnitsByPeer[row.peer][row.unit] = true;
+				}
+			});
+			Object.keys(assocUniqueUnitsByPeer).forEach(function(peer){
+				var ws = getPeerWebSocket(peer);
+				if (ws && ws.readyState === ws.OPEN)
+					sendJustsaying(ws, 'light/sequence_became_bad', Object.keys(assocUniqueUnitsByPeer[peer]));
+			});
+		});
+	});
+}
+
+function getAllAuthorsAndOutputAddresses(objUnit){
 	var arrAddresses = objUnit.authors.map(function(author){ return author.address; });
 	if (!objUnit.messages) // voided unit
-		return;
+		return null;
 	for (var i=0; i<objUnit.messages.length; i++){
 		var message = objUnit.messages[i];
 		if (message.app !== "payment" || !message.payload)
@@ -1273,14 +1362,26 @@ function notifyWatchers(objJoint, source_ws){
 				arrAddresses.push(address);
 		}
 	}
+	return arrAddresses;
+}
+
+// if any of the watched addresses are affected, notifies:  1. own UI  2. light clients
+function notifyWatchers(objJoint, bGoodSequence, source_ws){
+	var bAA = objJoint.new_aa;
+	delete objJoint.new_aa;
+	var objUnit = objJoint.unit;
+	var arrAddresses = getAllAuthorsAndOutputAddresses(objUnit);
+	if (!arrAddresses) // voided unit
+		return;
+
 	if (_.intersection(arrWatchedAddresses, arrAddresses).length > 0){
 		eventBus.emit("new_my_transactions", [objJoint.unit.unit]);
 		eventBus.emit("new_my_unit-"+objJoint.unit.unit, objJoint);
 	}
 	else
 		db.query(
-			"SELECT 1 FROM my_addresses WHERE address IN(?) UNION SELECT 1 FROM shared_addresses WHERE shared_address IN(?)", 
-			[arrAddresses, arrAddresses], 
+			"SELECT 1 FROM my_addresses WHERE address IN(?) UNION SELECT 1 FROM shared_addresses WHERE shared_address IN(?) UNION SELECT 1 FROM my_watched_addresses WHERE address IN(?)", 
+			[arrAddresses, arrAddresses, arrAddresses], 
 			function(rows){
 				if (rows.length > 0){
 					eventBus.emit("new_my_transactions", [objJoint.unit.unit]);
@@ -1291,7 +1392,7 @@ function notifyWatchers(objJoint, source_ws){
 	
 	if (conf.bLight)
 		return;
-	if (objJoint.ball) // already stable, light clients will require a proof
+	if (objJoint.ball || !bGoodSequence) // If already stable, light clients will require a proof. We notify them only good sequence unit.
 		return;
 	if (!bWatchingForLight)
 		return;
@@ -1303,8 +1404,12 @@ function notifyWatchers(objJoint, source_ws){
 			objUnit.timestamp = Math.round(Date.now()/1000); // light clients need timestamp
 		rows.forEach(function(row){
 			var ws = getPeerWebSocket(row.peer);
-			if (ws && ws.readyState === ws.OPEN && ws !== source_ws)
-				sendJoint(ws, objJoint);
+			if (ws && ws.readyState === ws.OPEN && ws !== source_ws) {
+				if (bAA) // trigger a get_history request to receive the aa_response
+					sendJustsaying(ws, 'light/have_updates');
+				else
+					sendJoint(ws, objJoint);
+			}
 		});
 	});
 }
@@ -1383,8 +1488,12 @@ function notifyLocalWatchedAddressesAboutStableJoints(mci){
 		UNION \n\
 		SELECT unit FROM units CROSS JOIN unit_authors USING(unit) CROSS JOIN shared_addresses ON address=shared_address WHERE main_chain_index=? AND sequence='good' \n\
 		UNION \n\
-		SELECT unit FROM units CROSS JOIN outputs USING(unit) CROSS JOIN shared_addresses ON address=shared_address WHERE main_chain_index=? AND sequence='good'",
-		[mci, mci, mci, mci],
+		SELECT unit FROM units CROSS JOIN outputs USING(unit) CROSS JOIN shared_addresses ON address=shared_address WHERE main_chain_index=? AND sequence='good'\n\
+		UNION \n\
+		SELECT unit FROM units CROSS JOIN unit_authors USING(unit) CROSS JOIN my_watched_addresses USING(address) WHERE main_chain_index=? AND sequence='good' \n\
+		UNION \n\
+		SELECT unit FROM units CROSS JOIN outputs USING(unit) CROSS JOIN my_watched_addresses USING(address) WHERE main_chain_index=? AND sequence='good'",
+		[mci, mci, mci, mci, mci, mci],
 		handleRows
 	);
 }
@@ -1448,7 +1557,7 @@ function writeEvent(event, host){
 }
 
 function determineIfPeerIsBlocked(host, handleResult){
-	if (constants.bTestnet)
+	if (constants.bTestnet || constants.bDevnet)
 		return handleResult(false);
 	handleResult(!!assocBlockedPeers[host]);
 }
@@ -1512,9 +1621,13 @@ function broadcastJoint(objJoint){
 			if (client.bSubscribed)
 				sendJoint(client, objJoint);
 		});
-	notifyWatchers(objJoint);
+	notifyWatchers(objJoint, true);
 }
 
+function onNewAA(objUnit) {
+	findAndHandleJointsThatAreReady(objUnit.unit);
+	notifyWatchers({ unit: objUnit, new_aa: true }, true);
+}
 
 
 // catchup
@@ -2335,6 +2448,7 @@ function handleJustsaying(ws, subject, body){
 			
 		// I'm light client
 		case 'light/have_updates':
+		case 'light/sequence_became_bad':
 			if (!conf.bLight)
 				return sendError(ws, "I'm not light");
 			if (!ws.bLightVendor)
@@ -2854,7 +2968,7 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "no params in light/get_definition");
 			if (!ValidationUtils.isValidAddress(params))
 				return sendErrorResponse(ws, tag, "address not valid");
-			db.query("SELECT definition FROM definitions WHERE definition_chash=?", [params], function(rows){
+			db.query("SELECT definition FROM definitions WHERE definition_chash=? UNION SELECT definition FROM aa_addresses WHERE address=? LIMIT 1", [params, params], function(rows){
 				if (!rows[0])
 					return sendResponse(ws, tag, null);
 				var arrDefinition = JSON.parse(rows[0].definition);
@@ -2956,6 +3070,53 @@ function handleRequest(ws, tag, command, params){
 			);
 			break;
 
+		case 'light/dry_run_aa':
+			if (conf.bLight)
+				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
+			if (ws.bOutbound)
+				return sendErrorResponse(ws, tag, "light clients have to be inbound");
+			if (!params)
+				return sendErrorResponse(ws, tag, "no params in light/dry_run_aa");
+			if (!ValidationUtils.isValidAddress(params.address))
+				return sendErrorResponse(ws, tag, "address not valid");
+			if (!ValidationUtils.isNonemptyObject(params.trigger))
+				return sendErrorResponse(ws, tag, "no trigger");
+			if (!ValidationUtils.isNonemptyObject(params.trigger.outputs))
+				return sendErrorResponse(ws, tag, "no trigger outputs");
+			if (!ValidationUtils.isValidAddress(params.trigger.address))
+				return sendErrorResponse(ws, tag, "bad trigger address");
+			storage.readAADefinition(db, params.address, function (arrDefinition) {
+				if (!arrDefinition)
+					return sendErrorResponse(ws, tag, "not an AA");
+				aa_composer.dryRunPrimaryAATrigger(params.trigger, params.address, arrDefinition, function (arrResponses) {
+					if (constants.COUNT_WITNESSES === 1) { // the temp unit might have rebuilt the MC
+						db.executeInTransaction(function (conn, onDone) {
+							storage.resetMemory(conn, onDone);
+						});
+					}
+					sendResponse(ws, tag, arrResponses);
+				});
+			});
+			break;
+
+		case 'light/get_aa_state_vars':
+			if (conf.bLight)
+				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
+			if (ws.bOutbound)
+				return sendErrorResponse(ws, tag, "light clients have to be inbound");
+			if (!params)
+				return sendErrorResponse(ws, tag, "no params in light/get_aa_state_vars");
+			if (!ValidationUtils.isValidAddress(params.address))
+				return sendErrorResponse(ws, tag, "address not valid");
+			storage.readAADefinition(db, params.address, function (arrDefinition) {
+				if (!arrDefinition)
+					return sendErrorResponse(ws, tag, "not an AA");
+				storage.readAAStateVars(params.address, function (objStateVars) {
+					sendResponse(ws, tag, objStateVars);
+				});
+			});
+			break;
+			
 		// I'm a hub, the peer wants to enable push notifications
 		case 'hub/enable_notification':
 			if(ws.device_address)
@@ -3156,6 +3317,9 @@ function startRelay(){
 	setInterval(joint_storage.purgeUncoveredNonserialJointsUnderLock, 60*1000);
 	setInterval(handleSavedPrivatePayments, 5*1000);
 	joint_storage.readDependentJointsThatAreReady(null, handleSavedJoint);
+
+	eventBus.on('new_aa_unit', onNewAA);
+	aa_composer.handleAATriggers(); // in case anything's left from the previous run
 }
 
 function startLightClient(){

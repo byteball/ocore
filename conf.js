@@ -41,11 +41,11 @@ exports.port = null;
 // Connects through socks v5 proxy without auth, WS_PROTOCOL has to be 'wss'
 // exports.socksHost = 'localhost';
 // exports.socksPort = 9050;
-// For better security you should not use local DNS with socks proxy 
+// For better security you should not use local DNS with socks proxy
 // exports.socksLocalDNS = false;
 
 // WebSocket protocol prefixed to all hosts.  Must be wss:// on livenet, ws:// is allowed on testnet
-exports.WS_PROTOCOL = "wss://";
+exports.WS_PROTOCOL = process.env.devnet ? "ws://" : "wss://";
 
 exports.MAX_INBOUND_CONNECTIONS = 100;
 exports.MAX_OUTBOUND_CONNECTIONS = 100;
@@ -78,9 +78,9 @@ The later require()s of this conf will see the modified version.
 This way is not recommended as the code becomes loading order dependent.
 */
 
-if (typeof window === 'undefined' || !window.cordova){ // desktop
-	var desktopApp = require('./desktop_app.js'+'');
-	
+if (typeof process === 'object' && typeof process.versions === 'object' && typeof process.versions.node !== 'undefined') { // desktop
+	var desktopApp = require('./desktop_app.js');
+
 	// merge conf from other modules that include us as lib.  The other module must place its custom conf.js into its root directory
 	var appRootDir = desktopApp.getAppRootDir();
 	var appPackageJson = require(appRootDir + '/package.json');
@@ -97,7 +97,7 @@ if (typeof window === 'undefined' || !window.cordova){ // desktop
 	}
 	else
 		console.log("I'm already at the root");
-	
+
 	// merge conf from user home directory, if any.
 	// Note that it is json rather than js to avoid code injection
 	var appDataDir = desktopApp.getAppDataDir();

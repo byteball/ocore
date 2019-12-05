@@ -16,7 +16,7 @@ if (bCordova){
 }
 else{
 	sqlite3 = require('sqlite3');//.verbose();
-	path = require('./desktop_app.js'+'').getAppDataDir() + '/';
+	path = require('./desktop_app.js').getAppDataDir() + '/';
 	console.log("path="+path);
 }
 
@@ -434,19 +434,21 @@ function createDatabaseIfNecessary(db_name, onDbReady){
 		}, false);
 	}
 	else{ // copy initial db to app folder
-		var fs = require('fs'+'');
+		var fs = require('fs');
 		fs.stat(path + db_name, function(err, stats){
 			console.log("stat "+err);
 			if (!err) // already exists
 				return onDbReady();
 			console.log("will copy initial db");
 			var mode = parseInt('700', 8);
-			var parent_dir = require('path'+'').dirname(path);
+			var parent_dir = require('path').dirname(path);
 			fs.mkdir(parent_dir, mode, function(err){
 				console.log('mkdir '+parent_dir+': '+err);
 				fs.mkdir(path, mode, function(err){
 					console.log('mkdir '+path+': '+err);
-					fs.createReadStream(__dirname + '/initial-db/' + initial_db_filename).pipe(fs.createWriteStream(path + db_name)).on('finish', onDbReady);
+				//	fs.createReadStream(__dirname + '/initial-db/' + initial_db_filename).pipe(fs.createWriteStream(path + db_name)).on('finish', onDbReady);
+					fs.writeFileSync(path + db_name, fs.readFileSync(__dirname + '/initial-db/' + initial_db_filename));
+					onDbReady();
 				});
 			});
 		});

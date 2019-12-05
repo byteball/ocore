@@ -575,6 +575,11 @@ CREATE TABLE wallet_signing_paths (
 	-- FOREIGN KEY (device_address) REFERENCES correspondent_devices(device_address)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
+CREATE TABLE my_watched_addresses (
+	address CHAR(32) CHAR(32) NOT NULL PRIMARY KEY,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+); ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
+
 -- addresses composed of several other addresses (such as ["and", [["address", "ADDRESS1"], ["address", "ADDRESS2"]]]),
 -- member addresses live on different devices, member addresses themselves may be composed of several keys
 CREATE TABLE shared_addresses (
@@ -784,3 +789,59 @@ CREATE TABLE correspondent_settings (
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (device_address, correspondent_address)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
+
+
+-- Autonomous agents
+
+CREATE TABLE aa_addresses (
+	address CHAR(32) NOT NULL PRIMARY KEY,
+	unit CHAR(44) NOT NULL, -- where it is first defined.  No index for better speed
+	mci INT NOT NULL, -- it is available since this mci (mci of the above unit)
+	storage_size INT NOT NULL DEFAULT 0,
+	definition TEXT NOT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- the table is a queue, it is almost always empty and any entries are short-lived
+-- INSERTs are wrapped in the same SQL transactions that write the triggering units
+-- secondary triggers are not written here
+CREATE TABLE aa_triggers (
+	mci INT NOT NULL,
+	unit CHAR(44) NOT NULL,
+	address CHAR(32) NOT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	PRIMARY KEY (mci, unit, address),
+	FOREIGN KEY (address) REFERENCES aa_addresses(address)
+);
+
+-- SQL is more convenient for +- the balances
+CREATE TABLE aa_balances (
+	address CHAR(32) NOT NULL,
+	asset CHAR(44) NOT NULL, -- 'base' for bytes (NULL would not work for uniqueness of primary key)
+	balance BIGINT NOT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	PRIMARY KEY (address, asset),
+	FOREIGN KEY (address) REFERENCES aa_addresses(address)
+--	FOREIGN KEY (asset) REFERENCES assets(unit)
+);
+
+-- this is basically a log.  It has many indexes to be searchable by various fields
+CREATE TABLE aa_responses (
+	aa_response_id INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,
+	mci INT NOT NULL, -- mci of the trigger unit
+	trigger_address CHAR(32) NOT NULL, -- trigger address
+	aa_address CHAR(32) NOT NULL,
+	trigger_unit CHAR(44) NOT NULL,
+	bounced TINYINT NOT NULL,
+	response_unit CHAR(44) NULL UNIQUE,
+	response TEXT NULL, -- json
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	UNIQUE (trigger_unit, aa_address),
+	FOREIGN KEY (aa_address) REFERENCES aa_addresses(address),
+	FOREIGN KEY (trigger_unit) REFERENCES units(unit)
+--	FOREIGN KEY (response_unit) REFERENCES units(unit)
+);
+CREATE INDEX aaResponsesByTriggerAddress ON aa_responses(trigger_address);
+CREATE INDEX aaResponsesByAAAddress ON aa_responses(aa_address);
+CREATE INDEX aaResponsesByMci ON aa_responses(mci);
+

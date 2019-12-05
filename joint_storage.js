@@ -3,6 +3,7 @@
 var _ = require('lodash');
 var async = require('async');
 var storage = require('./storage.js');
+var kvstore = require('./kvstore.js');
 var archiving = require('./archiving.js');
 var db = require('./db.js');
 var constants = require("./constants.js");
@@ -251,24 +252,15 @@ function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 									conn.addQuery(arrQueries, "BEGIN");
 									archiving.generateQueriesToArchiveJoint(conn, objJoint, 'uncovered', arrQueries, function(){
 										conn.addQuery(arrQueries, "COMMIT");
-										async.series(arrQueries, function(){
-											breadcrumbs.add("------- done archiving "+row.unit);
-											var parent_units = storage.assocUnstableUnits[row.unit].parent_units;
-											storage.forgetUnit(row.unit);
-											parent_units.forEach(function(parent_unit){
-												if (!storage.assocUnstableUnits[parent_unit]) // the parent is already stable
-													return;
-												var bHasChildren = false;
-												for (var unit in storage.assocUnstableUnits){
-													var o = storage.assocUnstableUnits[unit];
-													if (o.parent_units.indexOf(parent_unit) >= 0)
-														bHasChildren = true;
-												}
-												if (!bHasChildren)
-													storage.assocUnstableUnits[parent_unit].is_free = 1;
+										kvstore.del('j\n'+row.unit, function(){
+											async.series(arrQueries, function(){
+												breadcrumbs.add("------- done archiving "+row.unit);
+												var parent_units = storage.assocUnstableUnits[row.unit].parent_units;
+												storage.forgetUnit(row.unit);
+												storage.fixIsFreeAfterForgettingUnit(parent_units);
+												unlock();
+												cb();
 											});
-											unlock();
-											cb();
 										});
 									});
 								});
