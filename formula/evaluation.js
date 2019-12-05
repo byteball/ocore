@@ -1444,6 +1444,10 @@ exports.evaluate = function (opts, callback) {
 					evaluate(sig, function (evaluated_signature) {
 						if (fatal_error)
 							return cb(false);
+						if (!ValidationUtils.isNonemptyString(evaluated_signature))
+							return setFatalError("bad signature string in is_valid_sig", cb, false);
+						if (evaluated_signature.length > 1024)
+							return setFatalError("signature is too large", cb, false);
 						if (!ValidationUtils.isValidHexadecimal(evaluated_signature) && !ValidationUtils.isValidBase64(evaluated_signature))
 							return setFatalError("bad signature string in is_valid_sig", cb, false);
 						evaluate(pem_key, function (evaluated_pem_key) {
