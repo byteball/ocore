@@ -1142,6 +1142,29 @@ test.cb('is_valid_sig RSA 2048 bits wrong second sequence', t => {
 	})
 });
 
+test.cb('is_valid_sig RSA 1024 bits PSS padding (non-deterministic)', t => {
+	var trigger = { data: 
+		{
+			pem_key: "-----BEGIN PUBLIC KEY-----\n\
+			MIGdMA0GCSqGSIb3DQEBAQUAA4GLADCBhwKBgQDjnZCQWuJ9zg/ubzrQsqb4eBjt\n\
+			A1qI4LGbq/4WAYVK/JgMGXbghuGlEpb9CX1N3wjlm90s5nS3oS5Dc9r0+5PDfMNP\n\
+			Xkpm2solSSSQFOmkazacGmpgu1+0wnd55S1IOxlHMskWZ5qHaTeHWdgOOzbuh2or\n\
+			oL8kV6HkeL2DGlDhBQIBEQ==\n\
+			-----END PUBLIC KEY-----\n\
+			",
+			message: "zouplaboom",
+			signature: "H12bUZND/vovbHzj3213sujVmlkTYCyeOh0J83bfQWR3IkpUY69DJaBciidppV1CgIDG+NKWi1xhcl6GA3YID/MKpAjhy1yOluDwjChg8Nur2LA5ipbIcSv5XKI86Rm7QPOpK6kEWxNKVK2S57eys58ZhCtPaw7lapkeYgaYRyk="
+		}
+	};
+	
+	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, false);
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});
+
+
 test.cb('is_valid_sig  wrong pub key 1', t => {
 	var trigger = { data: 
 		{
