@@ -305,21 +305,23 @@ function processHistory(objResponse, arrWitnesses, callbacks){
 								});
 							});
 							// this can execute after callbacks
-							if (objResponse.aa_responses) {
-								var arrQueries = [];
-								objResponse.aa_responses.forEach(function (aa_response) {
-									db.addQuery(arrQueries, "INSERT " + db.getIgnore() + " INTO aa_responses (mci, trigger_address, aa_address, trigger_unit, bounced, response_unit, response, creation_date) VALUES (?, ?,?, ?, ?, ?,?, ?)", [aa_response.mci, aa_response.trigger_address, aa_response.aa_address, aa_response.trigger_unit, aa_response.bounced, aa_response.response_unit, aa_response.response, aa_response.creation_date]);
-								});
-								async.series(arrQueries, function () {
-									objResponse.aa_responses.forEach(function (objAAResponse) {
+							if (!objResponse.aa_responses)
+								return;
+							async.eachSeries(objResponse.aa_responses, function (objAAResponse, cb3) {
+								db.query(
+									"INSERT " + db.getIgnore() + " INTO aa_responses (mci, trigger_address, aa_address, trigger_unit, bounced, response_unit, response, creation_date) VALUES (?, ?,?, ?, ?, ?,?, ?)",
+									[objAAResponse.mci, objAAResponse.trigger_address, objAAResponse.aa_address, objAAResponse.trigger_unit, objAAResponse.bounced, objAAResponse.response_unit, objAAResponse.response, objAAResponse.creation_date],
+									function (res) {
+										if (res.affectedRows === 0) // don't emit events again
+											return cb3();
 										objAAResponse.response = JSON.parse(objAAResponse.response);
 										eventBus.emit('aa_response', objAAResponse);
 										eventBus.emit('aa_response_to_unit-'+objAAResponse.trigger_unit, objAAResponse);
 										eventBus.emit('aa_response_to_address-'+objAAResponse.trigger_address, objAAResponse);
 										eventBus.emit('aa_response_from_aa-'+objAAResponse.aa_address, objAAResponse);
-									});
-								});
-							}
+									}
+								);
+							});
 						}
 					);
 				});
