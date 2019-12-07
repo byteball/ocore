@@ -8,6 +8,7 @@ desktop_app.getAppDataDir = function() { return __dirname + '/.testdata-' + path
 
 var Decimal = require('decimal.js');
 var formulaParser = require('../formula/index');
+var formulaCommon = require('../formula/common.js');
 var test = require('ava');
 require('./_init_datafeeds.js');
 
@@ -135,6 +136,11 @@ var objValidationState = {
 
 test.after.always(t => {
 	console.log('***** formula.test done');
+});
+
+test('toOscriptPrecision(0.018600000000000002)', t => {
+	var res = formulaCommon.toOscriptPrecision(0.018600000000000002);
+	t.deepEqual(res, '0.0186');
 });
 
 test('1 + 1', t => {
