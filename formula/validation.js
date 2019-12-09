@@ -651,7 +651,7 @@ exports.validate = function (opts, callback) {
 			case 'vrf_verify':
 				complexity+=1;
 				var seed = arr[1];
-				var pseudorandom_value = arr[2];
+				var proof = arr[2];
 				var pem_key = arr[3];
 				evaluate(seed, function (err) {
 					if (err)
@@ -659,7 +659,7 @@ exports.validate = function (opts, callback) {
 					evaluate(pem_key, function (err) {
 						if (err)
 							return cb(err);
-						evaluate(pseudorandom_value, cb);
+						evaluate(proof, cb);
 					});
 				});
 				break;

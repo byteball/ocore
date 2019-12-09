@@ -2437,10 +2437,10 @@ test.cb('vrf_verify RSA 2048 bits', t => {
 		+wIBEQ==\n\
 		-----END PUBLIC KEY-----",
 		seed: "thisIsAseed",
-		pseudorandom_value: "33296bb4c9d56c36f9f9b877cf35becc63a99a9915016071027434aeac396b66aac2f93a59f4a49b8ca61c7e3e6ba072b76874c20363c6928c8ecfe317ae131e229d03d644c3a8577fd431c907e7536d5e89dacff244404fea8fe052371d483d52bea4bf31d8e4fa1c0608976c70d0f9686284454152104134988d32788b9b0d89c5b060a6aaf9b4744ad72ea1f63dd88531ad509758fc72ffa80de4730ab494b65cdc3c47aff09ed343c352c7c2a8a7c1d6d03a47eaf391d42f88d65d16800a5c527e3fa9364b82bc2796f807645a8d9842f267e74f7e594d31f8781ab81497ecf4c2a04ef978c0eb6e8fc0a2994dec191e8827574c0e8af0ab04c9ef2c1ea5"}
+		proof: "33296bb4c9d56c36f9f9b877cf35becc63a99a9915016071027434aeac396b66aac2f93a59f4a49b8ca61c7e3e6ba072b76874c20363c6928c8ecfe317ae131e229d03d644c3a8577fd431c907e7536d5e89dacff244404fea8fe052371d483d52bea4bf31d8e4fa1c0608976c70d0f9686284454152104134988d32788b9b0d89c5b060a6aaf9b4744ad72ea1f63dd88531ad509758fc72ffa80de4730ab494b65cdc3c47aff09ed343c352c7c2a8a7c1d6d03a47eaf391d42f88d65d16800a5c527e3fa9364b82bc2796f807645a8d9842f267e74f7e594d31f8781ab81497ecf4c2a04ef978c0eb6e8fc0a2994dec191e8827574c0e8af0ab04c9ef2c1ea5"}
 	};
 	
-	evalFormulaWithVars({ conn: null, formula:  "vrf_verify(trigger.data.seed, trigger.data.pseudorandom_value, trigger.data.pem_key)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+	evalFormulaWithVars({ conn: null, formula:  "vrf_verify(trigger.data.seed, trigger.data.proof, trigger.data.pem_key)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, true);
 		t.deepEqual(complexity, 2);
 		t.end();
@@ -2461,10 +2461,10 @@ test.cb('vrf_verify RSA 2048 bits wrong value', t => {
 		+wIBEQ==\n\
 		-----END PUBLIC KEY-----",
 		seed: "thisIsAseed",
-		pseudorandom_value: "13296bb4c9d56c36f9f9b877cf35becc63a99a9915016071027434aeac396b66aac2f93a59f4a49b8ca61c7e3e6ba072b76874c20363c6928c8ecfe317ae131e229d03d644c3a8577fd431c907e7536d5e89dacff244404fea8fe052371d483d52bea4bf31d8e4fa1c0608976c70d0f9686284454152104134988d32788b9b0d89c5b060a6aaf9b4744ad72ea1f63dd88531ad509758fc72ffa80de4730ab494b65cdc3c47aff09ed343c352c7c2a8a7c1d6d03a47eaf391d42f88d65d16800a5c527e3fa9364b82bc2796f807645a8d9842f267e74f7e594d31f8781ab81497ecf4c2a04ef978c0eb6e8fc0a2994dec191e8827574c0e8af0ab04c9ef2c1ea5"}
+		proof: "13296bb4c9d56c36f9f9b877cf35becc63a99a9915016071027434aeac396b66aac2f93a59f4a49b8ca61c7e3e6ba072b76874c20363c6928c8ecfe317ae131e229d03d644c3a8577fd431c907e7536d5e89dacff244404fea8fe052371d483d52bea4bf31d8e4fa1c0608976c70d0f9686284454152104134988d32788b9b0d89c5b060a6aaf9b4744ad72ea1f63dd88531ad509758fc72ffa80de4730ab494b65cdc3c47aff09ed343c352c7c2a8a7c1d6d03a47eaf391d42f88d65d16800a5c527e3fa9364b82bc2796f807645a8d9842f267e74f7e594d31f8781ab81497ecf4c2a04ef978c0eb6e8fc0a2994dec191e8827574c0e8af0ab04c9ef2c1ea5"}
 	};
 	
-	evalFormulaWithVars({ conn: null, formula:  "vrf_verify(trigger.data.seed, trigger.data.pseudorandom_value, trigger.data.pem_key)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+	evalFormulaWithVars({ conn: null, formula:  "vrf_verify(trigger.data.seed, trigger.data.proof, trigger.data.pem_key)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, false);
 		t.deepEqual(complexity, 2);
 		t.end();
@@ -2485,10 +2485,10 @@ test.cb('vrf_verify RSA 2048 bits base64', t => {
 		+wIBEQ==\n\
 		-----END PUBLIC KEY-----",
 		seed: "thisIsAseed",
-		pseudorandom_value: "MylrtMnVbDb5+bh3zzW+zGOpmpkVAWBxAnQ0rqw5a2aqwvk6WfSkm4ymHH4+a6Byt2h0wgNjxpKMjs/jF64THiKdA9ZEw6hXf9QxyQfnU21eidrP8kRAT+qP4FI3HUg9Ur6kvzHY5PocBgiXbHDQ+WhihEVBUhBBNJiNMniLmw2JxbBgpqr5tHRK1y6h9j3YhTGtUJdY/HL/qA3kcwq0lLZc3DxHr/Ce00PDUsfCqKfB1tA6R+rzkdQviNZdFoAKXFJ+P6k2S4K8J5b4B2RajZhC8mfnT35ZTTH4eBq4FJfs9MKgTvl4wOtuj8CimU3sGR6IJ1dMDorwqwTJ7ywepQ=="}
+		proof: "MylrtMnVbDb5+bh3zzW+zGOpmpkVAWBxAnQ0rqw5a2aqwvk6WfSkm4ymHH4+a6Byt2h0wgNjxpKMjs/jF64THiKdA9ZEw6hXf9QxyQfnU21eidrP8kRAT+qP4FI3HUg9Ur6kvzHY5PocBgiXbHDQ+WhihEVBUhBBNJiNMniLmw2JxbBgpqr5tHRK1y6h9j3YhTGtUJdY/HL/qA3kcwq0lLZc3DxHr/Ce00PDUsfCqKfB1tA6R+rzkdQviNZdFoAKXFJ+P6k2S4K8J5b4B2RajZhC8mfnT35ZTTH4eBq4FJfs9MKgTvl4wOtuj8CimU3sGR6IJ1dMDorwqwTJ7ywepQ=="}
 	};
 	
-	evalFormulaWithVars({ conn: null, formula:  "vrf_verify(trigger.data.seed, trigger.data.pseudorandom_value, trigger.data.pem_key)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+	evalFormulaWithVars({ conn: null, formula:  "vrf_verify(trigger.data.seed, trigger.data.proof, trigger.data.pem_key)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, null);
 		t.deepEqual(complexity, 2);
 		t.end();
@@ -2508,10 +2508,10 @@ test.cb('vrf_verify RSA 2048 bits empty seed', t => {
 		+wIBEQ==\n\
 		-----END PUBLIC KEY-----",
 		seed: "",
-		pseudorandom_value: "33296bb4c9d56c36f9f9b877cf35becc63a99a9915016071027434aeac396b66aac2f93a59f4a49b8ca61c7e3e6ba072b76874c20363c6928c8ecfe317ae131e229d03d644c3a8577fd431c907e7536d5e89dacff244404fea8fe052371d483d52bea4bf31d8e4fa1c0608976c70d0f9686284454152104134988d32788b9b0d89c5b060a6aaf9b4744ad72ea1f63dd88531ad509758fc72ffa80de4730ab494b65cdc3c47aff09ed343c352c7c2a8a7c1d6d03a47eaf391d42f88d65d16800a5c527e3fa9364b82bc2796f807645a8d9842f267e74f7e594d31f8781ab81497ecf4c2a04ef978c0eb6e8fc0a2994dec191e8827574c0e8af0ab04c9ef2c1ea5"}
+		proof: "33296bb4c9d56c36f9f9b877cf35becc63a99a9915016071027434aeac396b66aac2f93a59f4a49b8ca61c7e3e6ba072b76874c20363c6928c8ecfe317ae131e229d03d644c3a8577fd431c907e7536d5e89dacff244404fea8fe052371d483d52bea4bf31d8e4fa1c0608976c70d0f9686284454152104134988d32788b9b0d89c5b060a6aaf9b4744ad72ea1f63dd88531ad509758fc72ffa80de4730ab494b65cdc3c47aff09ed343c352c7c2a8a7c1d6d03a47eaf391d42f88d65d16800a5c527e3fa9364b82bc2796f807645a8d9842f267e74f7e594d31f8781ab81497ecf4c2a04ef978c0eb6e8fc0a2994dec191e8827574c0e8af0ab04c9ef2c1ea5"}
 	};
 	
-	evalFormulaWithVars({ conn: null, formula:  "vrf_verify(trigger.data.seed, trigger.data.pseudorandom_value, trigger.data.pem_key)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+	evalFormulaWithVars({ conn: null, formula:  "vrf_verify(trigger.data.seed, trigger.data.proof, trigger.data.pem_key)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, null);
 		t.deepEqual(complexity, 2);
 		t.end();
@@ -2531,10 +2531,10 @@ test.cb('vrf_verify RSA 2048 bits empty random value', t => {
 		+wIBEQ==\n\
 		-----END PUBLIC KEY-----",
 		seed: "thisIsAseed",
-		pseudorandom_value: ""}
+		proof: ""}
 	};
 	
-	evalFormulaWithVars({ conn: null, formula:  "vrf_verify(trigger.data.seed, trigger.data.pseudorandom_value, trigger.data.pem_key)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+	evalFormulaWithVars({ conn: null, formula:  "vrf_verify(trigger.data.seed, trigger.data.proof, trigger.data.pem_key)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, null);
 		t.deepEqual(complexity, 2);
 		t.end();
@@ -2554,10 +2554,10 @@ test.cb('vrf_verify RSA 2048 bits bad key', t => {
 		+wIBEQ==\n\
 		-----END PUBLIC KEY-----",
 		seed: "thisIsAseed",
-		pseudorandom_value: "33296bb4c9d56c36f9f9b877cf35becc63a99a9915016071027434aeac396b66aac2f93a59f4a49b8ca61c7e3e6ba072b76874c20363c6928c8ecfe317ae131e229d03d644c3a8577fd431c907e7536d5e89dacff244404fea8fe052371d483d52bea4bf31d8e4fa1c0608976c70d0f9686284454152104134988d32788b9b0d89c5b060a6aaf9b4744ad72ea1f63dd88531ad509758fc72ffa80de4730ab494b65cdc3c47aff09ed343c352c7c2a8a7c1d6d03a47eaf391d42f88d65d16800a5c527e3fa9364b82bc2796f807645a8d9842f267e74f7e594d31f8781ab81497ecf4c2a04ef978c0eb6e8fc0a2994dec191e8827574c0e8af0ab04c9ef2c1ea5"}
+		proof: "33296bb4c9d56c36f9f9b877cf35becc63a99a9915016071027434aeac396b66aac2f93a59f4a49b8ca61c7e3e6ba072b76874c20363c6928c8ecfe317ae131e229d03d644c3a8577fd431c907e7536d5e89dacff244404fea8fe052371d483d52bea4bf31d8e4fa1c0608976c70d0f9686284454152104134988d32788b9b0d89c5b060a6aaf9b4744ad72ea1f63dd88531ad509758fc72ffa80de4730ab494b65cdc3c47aff09ed343c352c7c2a8a7c1d6d03a47eaf391d42f88d65d16800a5c527e3fa9364b82bc2796f807645a8d9842f267e74f7e594d31f8781ab81497ecf4c2a04ef978c0eb6e8fc0a2994dec191e8827574c0e8af0ab04c9ef2c1ea5"}
 	};
 	
-	evalFormulaWithVars({ conn: null, formula:  "vrf_verify(trigger.data.seed, trigger.data.pseudorandom_value, trigger.data.pem_key)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+	evalFormulaWithVars({ conn: null, formula:  "vrf_verify(trigger.data.seed, trigger.data.proof, trigger.data.pem_key)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, false);
 		t.deepEqual(complexity, 2);
 		t.end();
