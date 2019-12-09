@@ -4,12 +4,12 @@ var ecdsa = require('secp256k1');
 var ValidationUtils = require('./validation_utils.js');
 var crypto = require('crypto');
 
-exports.sign = function(hash, priv_key){
+function sign(hash, priv_key){
 	var res = ecdsa.sign(hash, priv_key);
 	return res.signature.toString("base64");
 };
 
-exports.verify = function(hash, b64_sig, b64_pub_key){
+function verify(hash, b64_sig, b64_pub_key){
 	try{
 		var signature = new Buffer.from(b64_sig, "base64"); // 64 bytes (32+32)
 		return ecdsa.verify(hash, signature, new Buffer.from(b64_pub_key, "base64"));
@@ -20,8 +20,7 @@ exports.verify = function(hash, b64_sig, b64_pub_key){
 	}
 };
 
-exports.verifyMessageWithPemPubKey = function(message, signature, pem_key) {
-
+function verifyMessageWithPemPubKey(message, signature, pem_key) {
 	var verify = crypto.createVerify('SHA256');
 	verify.update(message);
 	verify.end();
@@ -43,35 +42,42 @@ exports.verifyMessageWithPemPubKey = function(message, signature, pem_key) {
 	}
 }
 
-exports.signMessageWithEcPemPrivKey = function(message, pem_key) {
+function signMessageWithEcPemPrivKey(message, encoding, pem_key) {
 	//we fix pem key formatting
 	var contentAloneB64 = pem_key.replace("-----BEGIN EC PRIVATE KEY-----", "").replace("-----END EC PRIVATE KEY-----", ""); 
 	contentAloneB64 = contentAloneB64.replace(/\s/g, "");
 	pem_key =	"-----BEGIN EC PRIVATE KEY-----" + "\n";
 	pem_key += contentAloneB64+"\n";
 	pem_key += "-----END EC PRIVATE KEY-----";
-	return signMessage(message, pem_key);
+	return signMessage(message, encoding, pem_key);
 }
 
-exports.signMessageWithRsaPemPrivKey = function(message, pem_key) {
+function vrfGenerate(seed, privkey){
+	return signMessageWithRsaPemPrivKey(seed, 'hex', privkey);
+}
+
+
+function signMessageWithRsaPemPrivKey(message, encoding, pem_key) {
 	//we fix pem key formatting
 	var contentAloneB64 = pem_key.replace("-----BEGIN RSA PRIVATE KEY-----", "").replace("-----END RSA PRIVATE KEY-----", ""); 
 	contentAloneB64 = contentAloneB64.replace(/\s/g, "");
 	pem_key =	"-----BEGIN RSA PRIVATE KEY-----" + "\n";
 	pem_key += contentAloneB64+"\n";
 	pem_key += "-----END RSA PRIVATE KEY-----";
-	return signMessage(message, pem_key);
+	return signMessage(message, encoding, pem_key);
 }
 
-function signMessage(message, pem_key){
+function signMessage(message, encoding, pem_key){
+	if (!encoding)
+		encoding = 'base64'
 	var sign = crypto.createSign('SHA256');
 	sign.update(message);
 	sign.end();
 	try {
-		return sign.sign(pem_key, 'base64');
+		return sign.sign(pem_key, encoding);
 	} catch(e1) {
 		try {
-			return sign.sign({key: pem_key}, 'base64');
+			return sign.sign({key: pem_key}, encoding);
 		} catch(e2) {
 			console.log("exception when signing with pem key: " + e1 + " " + e2);
 			return null;
@@ -79,7 +85,7 @@ function signMessage(message, pem_key){
 	}
 }
 
-exports.validateAndFormatPemPubKey = function(pem_key, handle) {
+function validateAndFormatPemPubKey(pem_key, algo, handle) {
 
 	if (!ValidationUtils.isNonemptyString(pem_key))
 		return handle("pem key should be a non empty string");
@@ -131,6 +137,14 @@ exports.validateAndFormatPemPubKey = function(pem_key, handle) {
 
 	if (!objSupportedPemTypes[typeIdentifiersHex])
 		return handle("unsupported algo or curve in pem key");
+
+	if (algo != "any"){
+		if (algo == "ECDSA" && objSupportedPemTypes[typeIdentifiersHex].algo != "ECDSA")
+			return handle("PEM key is not ECDSA type");
+		if (algo == "RSA" && objSupportedPemTypes[typeIdentifiersHex].algo != "RSA")
+			return handle("PEM key is not RSA type");
+	}
+
 	if (objSupportedPemTypes[typeIdentifiersHex].algo == "ECDSA" && objSupportedPemTypes[typeIdentifiersHex].hex_pub_key_length != (contentAloneHex.length - identifiersStart * 2 - identifiersLength *2 - 8))
 		return handle("wrong key length");
 
@@ -332,3 +346,12 @@ var objSupportedPemTypes = {
 		algo: 'RSA'
 	}
 };
+
+
+exports.signMessageWithRsaPemPrivKey = signMessageWithRsaPemPrivKey;
+exports.sign = sign;
+exports.verify = verify;
+exports.verifyMessageWithPemPubKey = verifyMessageWithPemPubKey;
+exports.signMessageWithEcPemPrivKey = signMessageWithEcPemPrivKey;
+exports.vrfGenerate = vrfGenerate;
+exports.validateAndFormatPemPubKey = validateAndFormatPemPubKey;

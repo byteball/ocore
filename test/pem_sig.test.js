@@ -1,5 +1,5 @@
 var path = require('path');
-var ecdsaSig = require('../signature.js');
+var asymSig = require('../signature.js');
 var desktop_app = require('../desktop_app.js');
 desktop_app.getAppDataDir = function() { return __dirname + '/.testdata-' + path.basename(__filename); }
 
@@ -1323,7 +1323,7 @@ MEIwFAYHKoZIzj0CAQYJKyQDAwIIAQEBAyoABFnaKe/9gUiP7kmnq86iGFQN5kXP\n\
 dsX7gtJq81qwr9o3A3OQvhdRkt4=\n\
 -----END PUBLIC KEY-----",
 				message: "P951kKJ14x5O7Q==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("P951kKJ14x5O7Q==","-----BEGIN EC PRIVATE KEY-----\n\
+				signature: asymSig.signMessageWithEcPemPrivKey("P951kKJ14x5O7Q==", null, "-----BEGIN EC PRIVATE KEY-----\n\
 MFQCAQEEFNzyc6dCke0GhI2ucAadDnCDaT1uoAsGCSskAwMCCAEBAaEsAyoABFna\n\
 Ke/9gUiP7kmnq86iGFQN5kXPdsX7gtJq81qwr9o3A3OQvhdRkt4=\n\
 -----END EC PRIVATE KEY-----\n\
@@ -1347,7 +1347,7 @@ pzL02uF+qXAijKUfhnod6cVzZyI=\n\
 -----END PUBLIC KEY-----\n\
 ",
 				message: "zPUBWinJhyNOEQ==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("zPUBWinJhyNOEQ==","-----BEGIN EC PRIVATE KEY-----\n\
+				signature: asymSig.signMessageWithEcPemPrivKey("zPUBWinJhyNOEQ==", null, "-----BEGIN EC PRIVATE KEY-----\n\
 MFQCAQEEFAlZ5apMPrIdbuf5mXGF6Ii+5hHvoAsGCSskAwMCCAEBAqEsAyoABKex\n\
 MvkPqvL6pv4nOBR8RKqpYCbxpzL02uF+qXAijKUfhnod6cVzZyI=\n\
 -----END EC PRIVATE KEY-----")
@@ -1369,7 +1369,7 @@ MEowFAYHKoZIzj0CAQYJKyQDAwIIAQEDAzIABEhl92YIRKzy7hvtkCJJ5rha/V6A\n\
 KZ8r0JRPfbh+zFZ/X/RPDip3oWjTQnvpIkg77Q==\n\
 -----END PUBLIC KEY-----",
 				message: "rG3+h/T0mwQcbQ==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("rG3+h/T0mwQcbQ==","-----BEGIN EC PRIVATE KEY-----\n\
+				signature: asymSig.signMessageWithEcPemPrivKey("rG3+h/T0mwQcbQ==", null, "-----BEGIN EC PRIVATE KEY-----\n\
 MGACAQEEGBCj91wTucIqOq94t5NLOLCE77LP99kB76ALBgkrJAMDAggBAQOhNAMy\n\
 AARIZfdmCESs8u4b7ZAiSea4Wv1egCmfK9CUT324fsxWf1/0Tw4qd6Fo00J76SJI\n\
 O+0=\n\
@@ -1392,7 +1392,7 @@ MEowFAYHKoZIzj0CAQYJKyQDAwIIAQEEAzIABHxDJOxXr8BQzILUU08wZRNLbd2j\n\
 R8tCDzmE/EUKT4isbH3stl9XbPa1wn3o5eMk4w==\n\
 -----END PUBLIC KEY-----",
 				message: "rsMMMjPmpj78dA==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("rsMMMjPmpj78dA==","-----BEGIN EC PRIVATE KEY-----\n\
+				signature: asymSig.signMessageWithEcPemPrivKey("rsMMMjPmpj78dA==",  null, "-----BEGIN EC PRIVATE KEY-----\n\
 MGACAQEEGA69Y41/g1Z52Pu2Ft1ew7pidsIJzLm7OaALBgkrJAMDAggBAQShNAMy\n\
 AAR8QyTsV6/AUMyC1FNPMGUTS23do0fLQg85hPxFCk+IrGx97LZfV2z2tcJ96OXj\n\
 JOM=\n\
@@ -1415,7 +1415,7 @@ MFIwFAYHKoZIzj0CAQYJKyQDAwIIAQEFAzoABMwKiFUoRiASBZd10FfIbQkx6X8W\n\
 LbsqQ1gvRYY+5aYG/NR7w0C8X54MVO46bAiLSga+JIzQUiOg\n\
 -----END PUBLIC KEY-----",
 				message: "WI+nO8zTv/4i7A==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("WI+nO8zTv/4i7A==","-----BEGIN EC PRIVATE KEY-----\n\
+				signature: asymSig.signMessageWithEcPemPrivKey("WI+nO8zTv/4i7A==", null, "-----BEGIN EC PRIVATE KEY-----\n\
 MGwCAQEEHHmHoXMh8XBVrGrMRhgHiFxDTWYe+Lh9Iw5bYKmgCwYJKyQDAwIIAQEF\n\
 oTwDOgAEzAqIVShGIBIFl3XQV8htCTHpfxYtuypDWC9Fhj7lpgb81HvDQLxfngxU\n\
 7jpsCItKBr4kjNBSI6A=\n\
@@ -1438,7 +1438,7 @@ MFIwFAYHKoZIzj0CAQYJKyQDAwIIAQEGAzoABGjnhJGfw3fHAOARjzcZMg1RAGcN\n\
 L+WIYiwaubQ4HtYKeorB8qpb1gXaLb1Z+XXPfQM4ULBzZ9tg\n\
 -----END PUBLIC KEY-----",
 				message: "qfBoh08KLefyog==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("qfBoh08KLefyog==","-----BEGIN EC PRIVATE KEY-----\n\
+				signature: asymSig.signMessageWithEcPemPrivKey("qfBoh08KLefyog==", null, "-----BEGIN EC PRIVATE KEY-----\n\
 MGwCAQEEHHBk4o+HSv3W9vfja6EDJXOzL84wMRLqGnStMMmgCwYJKyQDAwIIAQEG\n\
 oTwDOgAEaOeEkZ/Dd8cA4BGPNxkyDVEAZw0v5YhiLBq5tDge1gp6isHyqlvWBdot\n\
 vVn5dc99AzhQsHNn22A=\n\
@@ -1461,7 +1461,7 @@ MFowFAYHKoZIzj0CAQYJKyQDAwIIAQEHA0IABBVx5WUJX1vbRd8bxrYbbkr5DVh+\n\
 TzFiur/Cqc0qTIm9GO5QUld2+tqWqGA/eCbTv2U4dqLcMS+dbHkftzU5IHs=\n\
 -----END PUBLIC KEY-----",
 				message: "lFHZncTgWOgt9w==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("lFHZncTgWOgt9w==","-----BEGIN EC PRIVATE KEY-----\n\
+				signature: asymSig.signMessageWithEcPemPrivKey("lFHZncTgWOgt9w==", null, "-----BEGIN EC PRIVATE KEY-----\n\
 MHgCAQEEIE1+FxGZbwXOvm4qZtqqJ13tct6YU+aeVwpW4ujUUTimoAsGCSskAwMC\n\
 CAEBB6FEA0IABBVx5WUJX1vbRd8bxrYbbkr5DVh+TzFiur/Cqc0qTIm9GO5QUld2\n\
 +tqWqGA/eCbTv2U4dqLcMS+dbHkftzU5IHs=\n\
@@ -1484,7 +1484,7 @@ MFowFAYHKoZIzj0CAQYJKyQDAwIIAQEIA0IABAaGHi+UThhmfE3k0LBbSat/fZGP\n\
 E7oh5jCD6ErYtp8oddIIck1ryEU/Yjk6pB6gOTuD5akpqOg5SCJom0GpP9Y=\n\
 -----END PUBLIC KEY-----",
 				message: "6Wn6XpqsTTqHcw==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("6Wn6XpqsTTqHcw==","-----BEGIN EC PRIVATE KEY-----\n\
+				signature: asymSig.signMessageWithEcPemPrivKey("6Wn6XpqsTTqHcw==", null, "-----BEGIN EC PRIVATE KEY-----\n\
 MHgCAQEEICo5ipF78+V61XdlJs0ll21MSEEPhVwXIFGkSqo09BszoAsGCSskAwMC\n\
 CAEBCKFEA0IABAaGHi+UThhmfE3k0LBbSat/fZGPE7oh5jCD6ErYtp8oddIIck1r\n\
 yEU/Yjk6pB6gOTuD5akpqOg5SCJom0GpP9Y=\n\
@@ -1507,7 +1507,7 @@ MEkwEwYHKoZIzj0CAQYIKoZIzj0DAQEDMgAECk+a+Nc76d8ir3nlL15MA58H9ubH\n\
 AQMkVCkkk4VApnU4JbfSZwBecMIXYQPdNti7\n\
 -----END PUBLIC KEY-----",
 				message: "bu/BChQKxK59Ow==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("bu/BChQKxK59Ow==","-----BEGIN EC PRIVATE KEY-----\n\
+				signature: asymSig.signMessageWithEcPemPrivKey("bu/BChQKxK59Ow==", null, "-----BEGIN EC PRIVATE KEY-----\n\
 MF8CAQEEGAntpQZlpZFK5TY4qY+y7nI4JDdcSdU4u6AKBggqhkjOPQMBAaE0AzIA\n\
 BApPmvjXO+nfIq955S9eTAOfB/bmxwEDJFQpJJOFQKZ1OCW30mcAXnDCF2ED3TbY\n\
 uw==\n\
@@ -1530,7 +1530,7 @@ MEkwEwYHKoZIzj0CAQYIKoZIzj0DAQIDMgAE+cdmDQMfo0cDKxgMb4SmRNRVPTmu\n\
 zrD/csOZa8imuV8EI1sgXxHmYbGVLd2CYHAX\n\
 -----END PUBLIC KEY-----",
 				message: "j/+vyqkq3j/uHA==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("j/+vyqkq3j/uHA==","-----BEGIN EC PRIVATE KEY-----\n\
+				signature: asymSig.signMessageWithEcPemPrivKey("j/+vyqkq3j/uHA==", null, "-----BEGIN EC PRIVATE KEY-----\n\
 MF8CAQEEGDp4GFvvPaVsmRx+k55cfTasmBfN4MGqnaAKBggqhkjOPQMBAqE0AzIA\n\
 BPnHZg0DH6NHAysYDG+EpkTUVT05rs6w/3LDmWvIprlfBCNbIF8R5mGxlS3dgmBw\n\
 Fw==\n\
@@ -1553,7 +1553,7 @@ MEkwEwYHKoZIzj0CAQYIKoZIzj0DAQMDMgAElIDRb7/SJoeiaX7I+Z3X+CKSeMiA\n\
 /Yze7I+nVquw1PGotTCK1np8A9d7HPeZdmDm\n\
 -----END PUBLIC KEY-----",
 				message: "mjby08qYqOJPwQ==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("mjby08qYqOJPwQ==","-----BEGIN EC PRIVATE KEY-----\n\
+				signature: asymSig.signMessageWithEcPemPrivKey("mjby08qYqOJPwQ==", null, "-----BEGIN EC PRIVATE KEY-----\n\
 MF8CAQEEGIQK7Gg2jqAoPcyfcUD88Jbgzb3PFZ2MUqAKBggqhkjOPQMBA6E0AzIA\n\
 BJSA0W+/0iaHoml+yPmd1/giknjIgP2M3uyPp1arsNTxqLUwitZ6fAPXexz3mXZg\n\
 5g==\n\
@@ -1576,7 +1576,7 @@ MFUwEwYHKoZIzj0CAQYIKoZIzj0DAQQDPgAEIf2VE8RvqbKniwTWZFWQARZeD/99\n\
 0jRHiNoSlDc5Hjx76Gel0Y68sjbspv4vX6pbVIxhtjj83M18Jbsr\n\
 -----END PUBLIC KEY-----",
 				message: "uCwwuuTM//mADA==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("uCwwuuTM//mADA==","-----BEGIN EC PRIVATE KEY-----\n\
+				signature: asymSig.signMessageWithEcPemPrivKey("uCwwuuTM//mADA==", null, "-----BEGIN EC PRIVATE KEY-----\n\
 MHECAQEEHlUo688ZTyjgACeo7+dkLb0jZRVn2Wjw0PDxNZ0jdKAKBggqhkjOPQMB\n\
 BKFAAz4ABCH9lRPEb6myp4sE1mRVkAEWXg//fdI0R4jaEpQ3OR48e+hnpdGOvLI2\n\
 7Kb+L1+qW1SMYbY4/NzNfCW7Kw==\n\
@@ -1599,7 +1599,7 @@ MFUwEwYHKoZIzj0CAQYIKoZIzj0DAQUDPgAEGjv/thdrx+d49WfOIuzaG5qcvCLv\n\
 jLh6QyHuOMPFGUGdGzqpIy4dJzzrOKRcte2k8/b6iAOqH7VvzaHt\n\
 -----END PUBLIC KEY-----",
 				message: "AeU3D0LpW3SMvA==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("AeU3D0LpW3SMvA==","-----BEGIN EC PRIVATE KEY-----\n\
+				signature: asymSig.signMessageWithEcPemPrivKey("AeU3D0LpW3SMvA==", null, "-----BEGIN EC PRIVATE KEY-----\n\
 MHECAQEEHlQK7XxuDXlQfRLIO2eX5S34esRx5YRaRG1NC827H6AKBggqhkjOPQMB\n\
 BaFAAz4ABBo7/7YXa8fnePVnziLs2huanLwi74y4ekMh7jjDxRlBnRs6qSMuHSc8\n\
 6zikXLXtpPP2+ogDqh+1b82h7Q==\n\
@@ -1622,7 +1622,7 @@ MFUwEwYHKoZIzj0CAQYIKoZIzj0DAQYDPgAESVfWwJ1+TVULyuVQ4TKTwSDEbYHY\n\
 voMtjSnnEiR9IQSnjy5oWrfMYncSvFL+7ZYoofqNTJ9WkUSHTZRv\n\
 -----END PUBLIC KEY-----",
 				message: "GvTpKtMlArHf5g==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("GvTpKtMlArHf5g==","-----BEGIN EC PRIVATE KEY-----\n\
+				signature: asymSig.signMessageWithEcPemPrivKey("GvTpKtMlArHf5g==", null, "-----BEGIN EC PRIVATE KEY-----\n\
 MHECAQEEHkySSJmr5TYs6Y0p75XClywzOaIPgiZp4rz7TYO3s6AKBggqhkjOPQMB\n\
 BqFAAz4ABElX1sCdfk1VC8rlUOEyk8EgxG2B2L6DLY0p5xIkfSEEp48uaFq3zGJ3\n\
 ErxS/u2WKKH6jUyfVpFEh02Ubw==\n\
@@ -1645,7 +1645,7 @@ MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAESjc7uWTaaTKLPRVhCNw8/FGkIW3m\n\
 w/u13SI8Tcq+tG58sYTXo6XqSEJO8f9+EA2QWxGX+hO5VTVUZ8g4PyYe9w==\n\
 -----END PUBLIC KEY-----",
 				message: "OsJ1WYbqleP19Q==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("OsJ1WYbqleP19Q==","-----BEGIN EC PRIVATE KEY-----\n\
+				signature: asymSig.signMessageWithEcPemPrivKey("OsJ1WYbqleP19Q==", null, "-----BEGIN EC PRIVATE KEY-----\n\
 MHcCAQEEIFlnqtei6h4rQ99mW4hzB9l6VGuEKk/Xm9eVNVQ9cQw3oAoGCCqGSM49\n\
 AwEHoUQDQgAESjc7uWTaaTKLPRVhCNw8/FGkIW3mw/u13SI8Tcq+tG58sYTXo6Xq\n\
 SEJO8f9+EA2QWxGX+hO5VTVUZ8g4PyYe9w==\n\
@@ -1668,7 +1668,7 @@ MDIwEAYHKoZIzj0CAQYFK4EEAAYDHgAEt8avrLvM1oPUMJABPF2wxjQIUifoJuch\n\
 HuDfMA==\n\
 -----END PUBLIC KEY-----",
 				message: "SJOQV8cQaNJa8w==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("SJOQV8cQaNJa8w==","-----BEGIN EC PRIVATE KEY-----\n\
+				signature: asymSig.signMessageWithEcPemPrivKey("SJOQV8cQaNJa8w==", null, "-----BEGIN EC PRIVATE KEY-----\n\
 MD4CAQEEDjxHEMYZ5y2ughL6uU7XoAcGBSuBBAAGoSADHgAEt8avrLvM1oPUMJAB\n\
 PF2wxjQIUifoJuchHuDfMA==\n\
 -----END EC PRIVATE KEY-----")
@@ -1690,7 +1690,7 @@ MDIwEAYHKoZIzj0CAQYFK4EEAAcDHgAEYcVPzIZFm7lwjjYK0f1Oc+tw4eSn9Kqu\n\
 tSZ/vw==\n\
 -----END PUBLIC KEY-----",
 				message: "V149vQJY7QhrBQ==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("V149vQJY7QhrBQ==","-----BEGIN EC PRIVATE KEY-----\n\
+				signature: asymSig.signMessageWithEcPemPrivKey("V149vQJY7QhrBQ==", null, "-----BEGIN EC PRIVATE KEY-----\n\
 MD4CAQEEDhSv5IBto2+5e3Lvy5GVoAcGBSuBBAAHoSADHgAEYcVPzIZFm7lwjjYK\n\
 0f1Oc+tw4eSn9KqutSZ/vw==\n\
 -----END EC PRIVATE KEY-----")
@@ -1712,7 +1712,7 @@ MDYwEAYHKoZIzj0CAQYFK4EEABwDIgAE58yGZ7w7GFJCgL7hyWTvC8aaHb/CtjdS\n\
 y0YfKJXZ+OY=\n\
 -----END PUBLIC KEY-----",
 				message: "+HWnjTr4OBXsCw==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("+HWnjTr4OBXsCw==","-----BEGIN EC PRIVATE KEY-----\n\
+				signature: asymSig.signMessageWithEcPemPrivKey("+HWnjTr4OBXsCw==", null, "-----BEGIN EC PRIVATE KEY-----\n\
 MEQCAQEEEM9Dxiryj2BfHfZJEnaF56OgBwYFK4EEAByhJAMiAATnzIZnvDsYUkKA\n\
 vuHJZO8Lxpodv8K2N1LLRh8oldn45g==\n\
 -----END EC PRIVATE KEY-----")
@@ -1735,7 +1735,7 @@ MDYwEAYHKoZIzj0CAQYFK4EEAB0DIgAEW2AIxqUvKVutHmPng7GUr1ztAOtkeylP\n\
 -----END PUBLIC KEY-----\n\
 ",
 				message: "ZSxUNQm8kUg1Mg==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("ZSxUNQm8kUg1Mg==","-----BEGIN EC PRIVATE KEY-----\n\
+				signature: asymSig.signMessageWithEcPemPrivKey("ZSxUNQm8kUg1Mg==", null, "-----BEGIN EC PRIVATE KEY-----\n\
 MEQCAQEEECwRUefX+kOXlqsU035t1MqgBwYFK4EEAB2hJAMiAARbYAjGpS8pW60e\n\
 Y+eDsZSvXO0A62R7KU/V+RFE8kl0EQ==\n\
 -----END EC PRIVATE KEY-----")
@@ -1757,7 +1757,7 @@ MD4wEAYHKoZIzj0CAQYFK4EEAAkDKgAEi3zQ+KFa7irEphVVgvQimETcepubZSTD\n\
 z+lBkfnyZLGx+oPqQrugJw==\n\
 -----END PUBLIC KEY-----",
 				message: "w+n7Q+uC9isq+g==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("w+n7Q+uC9isq+g==","-----BEGIN EC PRIVATE KEY-----\n\
+				signature: asymSig.signMessageWithEcPemPrivKey("w+n7Q+uC9isq+g==", null, "-----BEGIN EC PRIVATE KEY-----\n\
 MFECAQEEFQBOmbCrnr0AVkS/bny3ZQRqwaUH76AHBgUrgQQACaEsAyoABIt80Pih\n\
 Wu4qxKYVVYL0IphE3Hqbm2Ukw8/pQZH58mSxsfqD6kK7oCc=\n\
 -----END EC PRIVATE KEY-----")
@@ -1779,7 +1779,7 @@ MD4wEAYHKoZIzj0CAQYFK4EEAAgDKgAES1dAvFlycx/zkyt7S2s798fPyxcC+o0V\n\
 2EpvstnYgNkBBEDux3Jo9A==\n\
 -----END PUBLIC KEY-----",
 				message: "IXLL456FZXZNIg==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("IXLL456FZXZNIg==","-----BEGIN EC PRIVATE KEY-----\n\
+				signature: asymSig.signMessageWithEcPemPrivKey("IXLL456FZXZNIg==", null, "-----BEGIN EC PRIVATE KEY-----\n\
 MFECAQEEFQAiUVh2vnM1+feCg4QLLfLUi/hNFKAHBgUrgQQACKEsAyoABEtXQLxZ\n\
 cnMf85Mre0trO/fHz8sXAvqNFdhKb7LZ2IDZAQRA7sdyaPQ=\n\
 -----END EC PRIVATE KEY-----")
@@ -1801,7 +1801,7 @@ MD4wEAYHKoZIzj0CAQYFK4EEAB4DKgAES983z8DP/kL8XJJnc5gUGvpm3hK88b0c\n\
 G82Ope396dy3LzW/Svl5ZA==\n\
 -----END PUBLIC KEY-----",
 				message: "fmrsX+OMA3ayMQ==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("fmrsX+OMA3ayMQ==","-----BEGIN EC PRIVATE KEY-----\n\
+				signature: asymSig.signMessageWithEcPemPrivKey("fmrsX+OMA3ayMQ==", null, "-----BEGIN EC PRIVATE KEY-----\n\
 MFECAQEEFQArISfTMTISV9Qqxj298ky4lhCOdaAHBgUrgQQAHqEsAyoABEvfN8/A\n\
 z/5C/FySZ3OYFBr6Zt4SvPG9HBvNjqXt/encty81v0r5eWQ=\n\
 -----END EC PRIVATE KEY-----")
@@ -1823,7 +1823,7 @@ MEYwEAYHKoZIzj0CAQYFK4EEAB8DMgAEU2ixhXRTKVY5mkRvQTg95P3VmX9c3zA+\n\
 Z7ukxzPWB/to/ifJiSeGkxh8elsH0PMS\n\
 -----END PUBLIC KEY-----",
 				message: "ytp0cUsLIyp+Lw==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("ytp0cUsLIyp+Lw==","-----BEGIN EC PRIVATE KEY-----\n\
+				signature: asymSig.signMessageWithEcPemPrivKey("ytp0cUsLIyp+Lw==", null, "-----BEGIN EC PRIVATE KEY-----\n\
 MFwCAQEEGL+duLTMkM7kD8m0Osl/L5F60940Gv3JrKAHBgUrgQQAH6E0AzIABFNo\n\
 sYV0UylWOZpEb0E4PeT91Zl/XN8wPme7pMcz1gf7aP4nyYknhpMYfHpbB9DzEg==\n\
 -----END EC PRIVATE KEY-----")
@@ -1845,7 +1845,7 @@ ME4wEAYHKoZIzj0CAQYFK4EEACADOgAE3DLYkMEQQRw78B+0D4C+cyVomvOB++1m\n\
 S4grpJd/xhXAhR5d5Uz7J8Z9BoJtX9hx9d/AV1hi9qw=\n\
 -----END PUBLIC KEY-----",
 				message: "8YBUoJ5tYNjUYw==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("8YBUoJ5tYNjUYw==","-----BEGIN EC PRIVATE KEY-----\n\
+				signature: asymSig.signMessageWithEcPemPrivKey("8YBUoJ5tYNjUYw==", null, "-----BEGIN EC PRIVATE KEY-----\n\
 MGkCAQEEHQDo/ZH/afEh5psKHjJIFyvpIAw+/OO/dqXCVgR3oAcGBSuBBAAgoTwD\n\
 OgAE3DLYkMEQQRw78B+0D4C+cyVomvOB++1mS4grpJd/xhXAhR5d5Uz7J8Z9BoJt\n\
 X9hx9d/AV1hi9qw=\n\
@@ -1868,7 +1868,7 @@ ME4wEAYHKoZIzj0CAQYFK4EEACEDOgAE3rs9juTaPZGfGVYXuagvE4SYuBt69UgA\n\
 HzKT3Q96Xs310tGwCSqfXhHmJiSuy+r5SX9Cg/Nx0XM=\n\
 -----END PUBLIC KEY-----",
 				message: "bOi+O5CaYSRy3A==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("bOi+O5CaYSRy3A==","-----BEGIN EC PRIVATE KEY-----\n\
+				signature: asymSig.signMessageWithEcPemPrivKey("bOi+O5CaYSRy3A==", null, "-----BEGIN EC PRIVATE KEY-----\n\
 MGgCAQEEHFCh5y4awaHiHmbespwaK7+/+fe6WD9M9ZWqsEygBwYFK4EEACGhPAM6\n\
 AATeuz2O5No9kZ8ZVhe5qC8ThJi4G3r1SAAfMpPdD3pezfXS0bAJKp9eEeYmJK7L\n\
 6vlJf0KD83HRcw==\n\
@@ -1892,7 +1892,7 @@ ZYQWvg4QIcOLSNKybwWOetAQ2n/RpGQ+s1IRrDqH0CbreueCYwrvhQ==\n\
 -----END PUBLIC KEY-----\n\
 ",
 				message: "i/2GHsVLuPMS1A==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("i/2GHsVLuPMS1A==","-----BEGIN EC PRIVATE KEY-----\n\
+				signature: asymSig.signMessageWithEcPemPrivKey("i/2GHsVLuPMS1A==", null, "-----BEGIN EC PRIVATE KEY-----\n\
 MHQCAQEEIGlXxOl6x+QE+bISiZ62J3+FpAFExGghr0LJAfNbYu/eoAcGBSuBBAAK\n\
 oUQDQgAEy0Qk1KKfeFo7uLGhWKrjB7nS1A/hlruyZYQWvg4QIcOLSNKybwWOetAQ\n\
 2n/RpGQ+s1IRrDqH0CbreueCYwrvhQ==\n\
@@ -1917,7 +1917,7 @@ RkYA0TA6hnv6MRTG3JDqvf2Ej34CnXkyia3c/OiLVQ5Eyf6DwgZLns0jxSUKG08r\n\
 GKigipJvGEcrsG4q/2B+ahkWG4x9x/KE\n\
 -----END PUBLIC KEY-----",
 				message: "RITUW1Lyy+Nd5g==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("RITUW1Lyy+Nd5g==","-----BEGIN EC PRIVATE KEY-----\n\
+				signature: asymSig.signMessageWithEcPemPrivKey("RITUW1Lyy+Nd5g==", null, "-----BEGIN EC PRIVATE KEY-----\n\
 MIGkAgEBBDCXu+sSLLS/bdSf7d+awNK9QJgfWTS2DKixt2LI1vbby1bWYpYDfpY1\n\
 68AsOQZ/j2WgBwYFK4EEACKhZANiAATOu5NL8Cg/mitVpg2r70dTn4NMU3LbrT9G\n\
 RgDRMDqGe/oxFMbckOq9/YSPfgKdeTKJrdz86ItVDkTJ/oPCBkuezSPFJQobTysY\n\
@@ -1941,7 +1941,7 @@ MDQwEAYHKoZIzj0CAQYFK4EEAAQDIAAEAfCq6/h+u9Jr+xJfRJHxAfDm5yidT0Nu\n\
 A5f6BdUL\n\
 -----END PUBLIC KEY-----",
 				message: "YEHGB6+1GhV7+w==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("YEHGB6+1GhV7+w==","-----BEGIN EC PRIVATE KEY-----MEECAQEEDwBN3++mR4p6tyUvFV4j46AHBgUrgQQABKEiAyAABAHwquv4frvSa/sSX0SR8QHw5uconU9DbgOX+gXVCw==-----END EC PRIVATE KEY-----")
+				signature: asymSig.signMessageWithEcPemPrivKey("YEHGB6+1GhV7+w==", null, "-----BEGIN EC PRIVATE KEY-----MEECAQEEDwBN3++mR4p6tyUvFV4j46AHBgUrgQQABKEiAyAABAHwquv4frvSa/sSX0SR8QHw5uconU9DbgOX+gXVCw==-----END EC PRIVATE KEY-----")
 			}
 	};
 	t.deepEqual(!!trigger.data.signature, true);
@@ -1961,7 +1961,7 @@ Ek1y55kZ\n\
 -----END PUBLIC KEY-----\n\
 ",
 				message: "4LB1rkIVESVHwA==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("4LB1rkIVESVHwA==","-----BEGIN EC PRIVATE KEY-----\n\
+				signature: asymSig.signMessageWithEcPemPrivKey("4LB1rkIVESVHwA==", null, "-----BEGIN EC PRIVATE KEY-----\n\
 MEECAQEEDwAEhQKL1UGiRfRjL99JF6AHBgUrgQQABaEiAyAABAAWjZ7zJxtN9Iq2\n\
 nCUKKwHWDw5RGCTXCxJNcueZGQ==\n\
 -----END EC PRIVATE KEY-----\n\
@@ -1985,7 +1985,7 @@ zSjFjE9ybpRo+w==\n\
 -----END PUBLIC KEY-----\n\
 ",
 				message: "mpZy1ydEz/g7fQ==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("mpZy1ydEz/g7fQ==","-----BEGIN EC PRIVATE KEY-----\n\
+				signature: asymSig.signMessageWithEcPemPrivKey("mpZy1ydEz/g7fQ==", null, "-----BEGIN EC PRIVATE KEY-----\n\
 MEcCAQEEEQI6aiidxX6Md5bBPfFtR+9MoAcGBSuBBAAWoSYDJAAEBOSQ+aUY98NF\n\
 1MGofMa95+MAItKsMs/ozSjFjE9ybpRo+w==\n\
 -----END EC PRIVATE KEY-----\n\
@@ -2009,7 +2009,7 @@ nYu/i1GmfiDQFg==\n\
 -----END PUBLIC KEY-----\n\
 ",
 				message: "QNqq1iOGVGIaIw==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("QNqq1iOGVGIaIw==","-----BEGIN EC PRIVATE KEY-----\n\
+				signature: asymSig.signMessageWithEcPemPrivKey("QNqq1iOGVGIaIw==", null, "-----BEGIN EC PRIVATE KEY-----\n\
 MEcCAQEEEQIaAZ/6tm/GTnH0F8fMPDeCoAcGBSuBBAAXoSYDJAAEB+Hctkiru2DR\n\
 YvYaQ8xGjRIFXDpwq8TCnYu/i1GmfiDQFg==\n\
 -----END EC PRIVATE KEY-----\n\
@@ -2033,7 +2033,7 @@ MDQwEAYHKoZIzj0CAQYFZysBBAEDIAAEAYZx7u5OU1KJte22Z0YLAXp/dIWIsso2\n\
 -----END PUBLIC KEY-----\n\
 ",
 				message: "WrKWkvIe2KHFKA==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("WrKWkvIe2KHFKA==","-----BEGIN EC PRIVATE KEY-----\n\
+				signature: asymSig.signMessageWithEcPemPrivKey("WrKWkvIe2KHFKA==", null, "-----BEGIN EC PRIVATE KEY-----\n\
 MEACAQEEDifylqCGRzs3hQzUpf1ioAcGBWcrAQQBoSIDIAAEAYZx7u5OU1KJte22\n\
 Z0YLAXp/dIWIsso2+5qPCmRX\n\
 -----END EC PRIVATE KEY-----\n\
@@ -2057,7 +2057,7 @@ cDFB3ROd\n\
 -----END PUBLIC KEY-----\n\
 ",
 				message: "JjCugnQ9d0gDkw==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("JjCugnQ9d0gDkw==","-----BEGIN EC PRIVATE KEY-----\n\
+				signature: asymSig.signMessageWithEcPemPrivKey("JjCugnQ9d0gDkw==", null, "-----BEGIN EC PRIVATE KEY-----\n\
 MEECAQEEDwCWF13YXcQJBf8nYoUAWaAHB            gVnKwEEBKEiAyAABACNkFkQrC6hQL+v\n\
 SmGurQB8gL/Lcr1t3nAxQd     				0TnQ==\n\
 -----END EC PRIVATE KEY-----\n\
@@ -2081,7 +2081,7 @@ IqHtwA==\n\
 -----END PUBLIC KEY-----\n\
 ",
 				message: "jPNJdo1VQMVEaQ==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("jPNJdo1VQMVEaQ==","-----BEGIN EC PRIVATE KEY-----\n\
+				signature: asymSig.signMessageWithEcPemPrivKey("jPNJdo1VQMVEaQ==", null, "-----BEGIN EC PRIVATE KEY-----\n\
 MD4CAQEEDgbLNazQhGyCVoAwpC+RoAcGBWcrAQQGoSADHgAEhr2YFSHSex0hNQfm\n\
 Qqtl6jIs3JUgrlRYIqHtwA==\n\
 -----END EC PRIVATE KEY-----\n\
@@ -2105,7 +2105,7 @@ ihXK/JlCOPpJFxCrK99MDQ==\n\
 -----END PUBLIC KEY-----\n\
 ",
 				message: "22b+Sy2xvG0RXQ==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("22b+Sy2xvG0RXQ==","-----BEGIN EC PRIVATE KEY-----\n\
+				signature: asymSig.signMessageWithEcPemPrivKey("22b+Sy2xvG0RXQ==", null, "-----BEGIN EC PRIVATE KEY-----\n\
 MFECAQEEFQAfZqOV4DDHPSHQ4AkW+LjHMJ7x96AHBgVnKwEEB6EsAyoABF/ZAB5s\n\
 za2hANRlctvPnTKTmuRxb3SW94oVyvyZQjj6SRcQqyvfTA0=\n\
 -----END EC PRIVATE KEY-----\n\
@@ -2129,7 +2129,7 @@ TdebqA==\n\
 -----END PUBLIC KEY-----\n\
 ",
 				message: "efTLqoi+pC0Fbw==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("efTLqoi+pC0Fbw==","-----BEGIN EC PRIVATE KEY-----\n\
+				signature: asymSig.signMessageWithEcPemPrivKey("efTLqoi+pC0Fbw==", null, "-----BEGIN EC PRIVATE KEY-----\n\
 MD8CAQEEDwDBBlwtuuA29sataZjDXaAHBgVnKwEECKEgAx4ABEyvKyQthRkFacqF\n\
 AxaBI4v92Oi4pU3Ws03Xm6g=\n\
 -----END EC PRIVATE KEY-----\n\
@@ -2153,7 +2153,7 @@ artOrKBvnfjmZJPRCNRXDA==\n\
 -----END PUBLIC KEY-----\n\
 ",
 				message: "cUfEcKX5l2rO8w==",
-				signature: ecdsaSig.signMessageWithEcPemPrivKey("cUfEcKX5l2rO8w==","-----BEGIN EC PRIVATE KEY-----\n\
+				signature: asymSig.signMessageWithEcPemPrivKey("cUfEcKX5l2rO8w==", null, "-----BEGIN EC PRIVATE KEY-----\n\
 MFECAQEEFQA2IZUNqctaMdZhyFuGcDjeoYqbc6AHBgVnKwEECaEsAyoABO2bZ7vGeMf0qWWiVRVPCyKInTpdQAWcy2q7Tqygb5345mST0QjUVww=\n\
 -----END EC PRIVATE KEY-----\n\
 ")
@@ -2168,7 +2168,7 @@ MFECAQEEFQA2IZUNqctaMdZhyFuGcDjeoYqbc6AHBgVnKwEECaEsAyoABO2bZ7vGeMf0qWWiVRVPCyKI
 });
 
 test.cb('sign message bad key 1', t => {
-	var signature = ecdsaSig.signMessageWithEcPemPrivKey("22b+Sy2xvG0RXQ==","-----BEGIN EC RIVATE KEY-----\n\
+	var signature = asymSig.signMessageWithEcPemPrivKey("22b+Sy2xvG0RXQ==", null, "-----BEGIN EC RIVATE KEY-----\n\
 MFECAQEEFQAfZqOV4DDHPSHQ4AkW+LjHMJ7x96AHBgVnKwEEB6EsAyoABF/ZAB5s\n\
 za2hANRlctvPnTKTmuRxb3SW94oVyvyZQjj6SRcQqyvfTA0=\n\
 -----END EC PRIVATE KEY-----\n\
@@ -2178,7 +2178,7 @@ za2hANRlctvPnTKTmuRxb3SW94oVyvyZQjj6SRcQqyvfTA0=\n\
 });
 
 test.cb('sign message bad key 2', t => {
-	var signature = ecdsaSig.signMessageWithEcPemPrivKey("22b+Sy2xvG0RXQ==","-----BEGIN EC PRIVATE KEY-----\n\
+	var signature = asymSig.signMessageWithEcPemPrivKey("22b+Sy2xvG0RXQ==", null, "-----BEGIN EC PRIVATE KEY-----\n\
 MFECAQEEFQAfZqOV4DDHPSHQ4AkW+LjHMJ7!96AHBgVnKwEEB6EsAyoABF/ZAB5s\n\
 za2hANRlctvPnTKTmuRxb3SW94oVyvyZQjj6SRcQqyvfTA0=\n\
 -----END EC PRIVATE KEY-----\n\
@@ -2189,7 +2189,7 @@ za2hANRlctvPnTKTmuRxb3SW94oVyvyZQjj6SRcQqyvfTA0=\n\
 
 
 test.cb('sign message with RSA 512 bits (deterministic)', t => {
-	var signature = ecdsaSig.signMessageWithRsaPemPrivKey("zouplaboom", "-----BEGIN RSA PRIVATE KEY-----\n\
+	var signature = asymSig.signMessageWithRsaPemPrivKey("zouplaboom", null, "-----BEGIN RSA PRIVATE KEY-----\n\
 	MIIBOgIBAAJBALpW4O8MZitz/kPWqqs0H/Rip69LH0a5isg2o7mFZJzirzmN2lA3\n\
 	eWNfiNkW1o9RFOsjQ9NpBDj6XHgyOMMU9PECAwEAAQJAXSsTTHLmotNcTo8GxpNJ\n\
 	Zufs77if6rzap0CqnBgWNlpG2YIPZqDO9ZmCtqZl4xxO8ynp74PFzu62kMP4nHcA\n\
@@ -2203,8 +2203,39 @@ test.cb('sign message with RSA 512 bits (deterministic)', t => {
 	t.end();
 });
 
+test.cb('sign message with RSA 512 bits (deterministic) base64', t => {
+	var signature = asymSig.signMessageWithRsaPemPrivKey("zouplaboom", 'base64', "-----BEGIN RSA PRIVATE KEY-----\n\
+	MIIBOgIBAAJBALpW4O8MZitz/kPWqqs0H/Rip69LH0a5isg2o7mFZJzirzmN2lA3\n\
+	eWNfiNkW1o9RFOsjQ9NpBDj6XHgyOMMU9PECAwEAAQJAXSsTTHLmotNcTo8GxpNJ\n\
+	Zufs77if6rzap0CqnBgWNlpG2YIPZqDO9ZmCtqZl4xxO8ynp74PFzu62kMP4nHcA\n\
+	AQIhANq7vgLgKzlrB4djg75kOJNtWAC2IkHrcWIGg74EYSmdAiEA2hY+BZ6r1MuH\n\
+	ENVA3xgUHV7ZiOprV6gf73K5Z/3UkmUCIHnpL9NMe+rps22LUo9YLoxE4kqrONbC\n\
+	0hQPi3fp2vmlAiEAjHp9UxNlLfo4M3Cai9ovwseBKn+Ny3YBtDTbFxBbKD0CIA5s\n\
+	8UgPeZrMh+R1uihikqny8p3KGeJopjerZ9IQpnN2\n\
+	-----END RSA PRIVATE KEY-----\n\
+")
+	t.deepEqual(signature, "as2PhM4+/GfvWZjmH7y3S5ZDm0+mW2y2u2TSSq8Ty3l61GH/kB8gHNrRaezLyrW7PTjOHjJdl8EH7GQ7DrgXlQ==");
+	t.end();
+});
+
+
+test.cb('sign message with RSA 512 bits (deterministic) hex', t => {
+	var signature = asymSig.signMessageWithRsaPemPrivKey("zouplaboom", 'hex', "-----BEGIN RSA PRIVATE KEY-----\n\
+	MIIBOgIBAAJBALpW4O8MZitz/kPWqqs0H/Rip69LH0a5isg2o7mFZJzirzmN2lA3\n\
+	eWNfiNkW1o9RFOsjQ9NpBDj6XHgyOMMU9PECAwEAAQJAXSsTTHLmotNcTo8GxpNJ\n\
+	Zufs77if6rzap0CqnBgWNlpG2YIPZqDO9ZmCtqZl4xxO8ynp74PFzu62kMP4nHcA\n\
+	AQIhANq7vgLgKzlrB4djg75kOJNtWAC2IkHrcWIGg74EYSmdAiEA2hY+BZ6r1MuH\n\
+	ENVA3xgUHV7ZiOprV6gf73K5Z/3UkmUCIHnpL9NMe+rps22LUo9YLoxE4kqrONbC\n\
+	0hQPi3fp2vmlAiEAjHp9UxNlLfo4M3Cai9ovwseBKn+Ny3YBtDTbFxBbKD0CIA5s\n\
+	8UgPeZrMh+R1uihikqny8p3KGeJopjerZ9IQpnN2\n\
+	-----END RSA PRIVATE KEY-----\n\
+")
+	t.deepEqual(signature, "6acd8f84ce3efc67ef5998e61fbcb74b96439b4fa65b6cb6bb64d24aaf13cb797ad461ff901f201cdad169eccbcab5bb3d38ce1e325d97c107ec643b0eb81795");
+	t.end();
+});
+
 test.cb('sign message with RSA 1024 bits (deterministic)', t => {
-	var signature = ecdsaSig.signMessageWithRsaPemPrivKey("zouplaboom", "-----BEGIN RSA PRIVATE KEY-----\n\
+	var signature = asymSig.signMessageWithRsaPemPrivKey("zouplaboom", null, "-----BEGIN RSA PRIVATE KEY-----\n\
 	MIICXQIBAAKBgQDgkqDUC9sneYkZ/lpSY4Ugsj8dfoMt4duj/Ng1KOaUB+kp1lDg\n\
 	Kdzmmjv8VTaoEE1XsmNHxERM4vIZdhIJS2O5LjbdQl+KxCpvktjnjBODntQH7xn9\n\
 	/CyRkd/Pn31uH8qRbPUcGOO58OBUTEZmpGaROMW2Odw0D9bDGja4crTrQQIDAQAB\n\
@@ -2225,7 +2256,7 @@ test.cb('sign message with RSA 1024 bits (deterministic)', t => {
 });
 
 test.cb('sign message with RSA 4096 bits (deterministic)', t => {
-	var signature = ecdsaSig.signMessageWithRsaPemPrivKey("zouplaboom", "-----BEGIN RSA PRIVATE KEY-----\n\
+	var signature = asymSig.signMessageWithRsaPemPrivKey("zouplaboom", null, "-----BEGIN RSA PRIVATE KEY-----\n\
 	MIIJKAIBAAKCAgEAtFy05oL+tRnpafoaA40cmxPpNBJqoIY/yD8tuhV3ncta7TaQ\n\
 	fk/BQxERAn1bGuhb2mVU0emWMdwRfP2iCmKCF3g99Ve71S/eynbTV1hGO5U6lJjW\n\
 	dIMvcGn6LLIlnJPfXk+kWVqQ1eDGvBESqlZIzgY1mcaU07SNs7clIg/vtYO4xC4K\n\
@@ -2279,4 +2310,256 @@ test.cb('sign message with RSA 4096 bits (deterministic)', t => {
 ")
 	t.deepEqual(signature, "AyR5fiIl48hJoZOa4Jon6mjKOoDYPTdnjBAqKMMCLTwz3Uy5dXMxLoVkx25x8/1yjOAwCpZjMVSnAmZyRenJroEM7aXUpO4Wjk4bKO4/cHhZ8whGKVC4zKnLaJU4GBatjvBUQyvzelTlMK5o6iDtt3x5WHbWssFzNrnErC9XtMwO8R0JU6HeF0TXZf/RoFs+uVx1dJGnkgzTAUs7XdIWMO1WnEukwR91F/3gjAey2wfe1vSgW6zTYk3ZG2KT/7jD7uBFpKcP8ot+3WR5PwpzfBCm7hayxddgUqC67JfKvZ3NzlBWQrfly1ZuplXX6kXvSpFAJHVLnxbl5kejLQ2zj6QAGbIvbTbdZGzN4yQf/rhC1biTB6lAg7qwVhyk6Zjm2InIT+EF8fb5pzjwk36OcEFBRkrhftMIdgHIuvyoq5MRbPpE2FveFu3jixYfMEwBzOwP1gbtRVtYka1POLMJqlBuT0ogeLpOMYoGxZO0HSOxPbwXTMvDQ1y1fICw5ogxaPjFdaWbTp4J4AK3peAKJRv74AzBvoqCL8EJS0OVW9JSavQRsDT9ZFcRHheVKsIVqgia6P3sl6MarXk63Lmjsh8uD2vrjMG0lR4FS9jjYx8UZqdgejdEtOOgxQf8PciPDiu6GPCRuCB01knguovcPU6ibsnrvvY8FxZv5ohVHL8=");
 	t.end();
+});
+
+
+test.cb('vrf generate with RSA 2048 bits', t => {
+	var signature = asymSig.vrfGenerate("thisIsAseed","\n\
+	-----BEGIN RSA PRIVATE KEY-----\n\
+	MIIEoQIBAAKCAQEAvb7LwrxSigIPYCCwGwvuA5vnv41v2z0LzI7iDqiuDrK4kQJn\n\
+	26kjpX9qDcnot15lAgLew9yysuPZ57GfUKRL4O9uk/pXaJGE0jV7+NLy//yL+udU\n\
+	648sfjKwxHhmT2AnbN41ZG1OCvSaFD+pZ+PTfi6ywfj+k2IPwpphd/1TD2Uut6J0\n\
+	8/gnUIWPsh05aegf8LJ/ZI/iRLQp1zcoGDvu9v2S+RBvdF4aTCVTRxk1vL5C0x2O\n\
+	7r+WBIGqnyKfcIyYLKaj0cLBU0LZHRJXferOryzjmAQukg0obJYek+WzrZ57BP7x\n\
+	J3AJV+hED/PY3PRwH6V+VP98a//QjcS0twcq+wIBEQKCAQA3zrRmc5/OPNdYghWt\n\
+	mhjT4o90kwLIAuVaSCReqhUTYb3QTABtyFXHQ5eps9sIwWkAl26yE7wWf0AW+AGu\n\
+	TnCrkbccds5qDK6YLdkrEN4PDgsNj1U2OSs0LQbQX6We4AuYfZc7p62KwGmNfCLE\n\
+	M/Lo4I7twbRJdzHP0w2bwvpP0fSBa/4DLfKd60wzpPd4Or5YkO+8TPrKuJKHl4Eh\n\
+	fjz8mteVsSq/3o7tDgeVLtVALRGUe6VmFpuvfGUKAVBZgnzlR5KfIVNUwY3Ps+0F\n\
+	QdVHtAjhDpEEcVu+kffsrO0ZEdL6ixktZZSB/SqcbS+0tV9B2wfqO8UL2UyBZtEe\n\
+	mM3hAoGBAPmLgN3wC7rFlC9W7UQG8HucUo1IfZrt/99eqzWiPT1tpszywKLXhEQL\n\
+	BfNnYecidpDFevmKYK5zGT+3PhkD00EOS1zdAAaRmKbV5PWwTaoUJDvNH1gOh8AR\n\
+	2tJxLy0xnOKM0btgGHUoVtjFvqVyo0bYA4pYw2kZPCS6AI5WRXtzAoGBAMKnTAQs\n\
+	UDOlN8OrmKv9Yx0nP/Y1cvKlc/HevAg3UXvIFRw8jwgQfr0bIt+xS0ZZrnZH/i/W\n\
+	Eglv9Kz5E0IJMOGsZ+4K6wXUsbaE/NWIihxA17zNs0/a0MoF/jRkapONK2S97eAs\n\
+	/jTcAXQDKF4D6H8BUtkTCnVdrae1ZpKSU8BZAoGAOrdpnaHkpGq5dIzsiHoad3AT\n\
+	bImG90cPB2GRskRKpQq91d7D6hSXl4ofhJDLven9x7X+0U28ZUhCLRwOnHle4iF7\n\
+	JOi0tkBgJ0FjDKH0KAS9Oz9Sq062h4u7BFbd7IQk6gMELBacV81BnGrDcjkXW/aX\n\
+	a9imcxT/F7NLbMkBSjkCgYAiWcIe2qS90dyqDzkPStVBYUeFzTJnDiOFCTA9r2i7\n\
+	falfVfsfinC39brcLliT8bVgKtKA6Yq2Xw0Pdz+iPdtzHmyxiXTEyy5rgOFS29wj\n\
+	GoBsnMVKU8p+AQ6985pWRha3bM+gB/Cf6pbYPMrjahn4S4cXP5hvEIgOiWx0N/Cp\n\
+	eQKBgQCxIt82bU9niJzs0jte2hz0xhtTdR0Bu5nZ8R0mGsAa+HG/zxYZNnIpPJpg\n\
+	BtlUz8RZ5M1Ffdq/Rf1NpC4XitnAqUzNPRzZW74ULIU3cqoLBWr2Nnfh7f6ZlKaw\n\
+	2WG490et25eJA4z3upgkvJc7O1XpRXLtm9XrE5bmWTKoJfNJjA==\n\
+	-----END RSA PRIVATE KEY-----")
+	t.deepEqual(signature, "33296bb4c9d56c36f9f9b877cf35becc63a99a9915016071027434aeac396b66aac2f93a59f4a49b8ca61c7e3e6ba072b76874c20363c6928c8ecfe317ae131e229d03d644c3a8577fd431c907e7536d5e89dacff244404fea8fe052371d483d52bea4bf31d8e4fa1c0608976c70d0f9686284454152104134988d32788b9b0d89c5b060a6aaf9b4744ad72ea1f63dd88531ad509758fc72ffa80de4730ab494b65cdc3c47aff09ed343c352c7c2a8a7c1d6d03a47eaf391d42f88d65d16800a5c527e3fa9364b82bc2796f807645a8d9842f267e74f7e594d31f8781ab81497ecf4c2a04ef978c0eb6e8fc0a2994dec191e8827574c0e8af0ab04c9ef2c1ea5");
+	t.end();
+});
+
+test.cb('vrf generate with ECDSA ', t => {
+	var signature = asymSig.vrfGenerate("thisIsAseed","-----BEGIN EC PRIVATE KEY-----\n\
+	MFQCAQEEFNzyc6dCke0GhI2ucAadDnCDaT1uoAsGCSskAwMCCAEBAaEsAyoABFna\n\
+	Ke/9gUiP7kmnq86iGFQN5kXPdsX7gtJq81qwr9o3A3OQvhdRkt4=\n\
+	-----END EC PRIVATE KEY-----\n\
+	")
+	t.deepEqual(signature, null);
+	t.end();
+});
+
+test.cb('vrf generate with RSA 4096 bits', t => {
+	var signature = asymSig.vrfGenerate("thisIsAseed","\n\
+	-----BEGIN RSA PRIVATE KEY-----\n\
+MIIJKQIBAAKCAgEAwneF/bxlr/5V42TyCPiroiTXSTvDIZ1AYE3XKCvh9E60jpWq\n\
+jlo5mdQCVapeSyJMgaszvWaCGQgc6HhmVZEYpc6Ivey/ac93uLT0nNnuFHingJgt\n\
+GOiucN1dENrexsdG9aXMHjCNfkaZevyOLHdxj343tdBg65bvpp3Y0A3QMUgW9cVX\n\
+7/xLGsS6BFGEPQRm1FIKAgJxPilVZuyc1yJRcmwYzCfPKAxAUhxh7dEoB8OD/pIL\n\
+S37qtzv0CzYr5A76jUyA56HCyBAnPQLYWM4oeLRmW7fFDavAZmJ0xpGAR1Bt0qc0\n\
+JncQJ7T+iFefLHGbIA8dBoptGxj9J1pwLL4Z964cFThZc2a0XzxiI/zggRLYoe1X\n\
+06pbYRXTywrxqTNGsxbFiW69m7vwjNZWVooG+ngbSFeIlDBtB6AEC7M5tDIrloSv\n\
+pIZI1VjKOAUxI9PghVxbKnje9IxKTSO90Ld+P+iD9+V4FcfXpKBarazgh+75iM8o\n\
+ZW708eJxLumC48MVH74K+3a5A2gtR/3R2PK1qAJ9pgpKQKauBy3rF8JpYaJ42XLx\n\
+sTADDNC28MQV5NnasN38Ctkh44FkTJccoJhhnf/ca5OX45ZkR2aYgdeoAtA0vzaP\n\
+nclTM1IseZoHOcBJMKupNtrZcC0wPG8IPSS38L4LyAb0w8LN7zsKZ0cgmBcCAwEA\n\
+AQKCAgEAhsATlLLLM5xlH2B/ZkAJjh1BIHnMyKoSRakqgaeGtqci7fo/aMyURUdn\n\
+Jr0bAa0OnntnKsKxO28nuN5U6s3T6nCmyBQYvtUH/HFHXriUB JNmXfEUrsHsvkBl\n\
+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\n\
+-----END RSA PRIVATE KEY-----")
+	t.deepEqual(signature, "571b947b0c0d93fcb691ccb7a50b64f208b72faf8c7b5ff859e7d0e0c711d5a31b6cfcbad6a3b09c733b32452d0ca2cb806cd938ddb3f6b461fbef4c303df985649e35b6c5e78c23e52af5d27d9c6e7970d4be5938db0298f1a5bfb110241c9a5effc77cd5ff56a5e783576bb9d139348be9e8237dd4fce1f64c48c293a4bceec4af703ab22e036b07979ba7ce7de3c31e03c604477df74a15575adc9c237800faf796cbd665e197dd2c990831f3fe24ed36befe6a865da6b8d6f038a2e4d7794c42e4194b83e25c5a8d1e473611503354f8cc588b54d7d71bff89fd801f72d31717f2f30846796f6c502f75a9af8b6dd5d9b338c25568e5c1cbb033450c868774f173cbbbeaed59d1a84b6c1b34eaa208ddae20489fcc15bdad590da921c632af6257531c4a834d8da0888150795c8f12074d8ce43e01e810e39ff86b85891a26437218df27759c2a8e5a66a5690e8d1fb681739ac93e12a8cd0d1b34a05ac3d9379797be3e284564b0c0948871b4d9d30b6d6963083d12a9359bacb52d42f8ea0a9b90d0cb9b56a34d0edb4d401566e4b1c466b0103aeecf6f49d97e99f20b1cf3dc8799bbba6ac62e5e5d7e788af4437e52ce08b012a9e534a1bafe8e6395a47d0019990700d96c8d70da7f4ef425ce616348c971d943d234af0b38da149a4f814bae48384fceac3914eaa0c7d84c1821ff58a09048f289cec8aac5013af2");
+	t.end();
+});
+
+test.cb('vrf generate with ECDSA ', t => {
+	var signature = asymSig.vrfGenerate("thisIsAseed","-----BEGIN EC PRIVATE KEY-----\n\
+	MFQCAQEEFNzyc6dCke0GhI2ucAadDnCDaT1uoAsGCSskAwMCCAEBAaEsAyoABFna\n\
+	Ke/9gUiP7kmnq86iGFQN5kXPdsX7gtJq81qwr9o3A3OQvhdRkt4=\n\
+	-----END EC PRIVATE KEY-----\n\
+	")
+	t.deepEqual(signature, null);
+	t.end();
+});
+
+
+test.cb('vrf_verify RSA 2048 bits', t => {
+	var trigger = { data: 
+	{
+		pem_key: "-----BEGIN PUBLIC KEY-----\n\
+		MIIBIDANBgkqhkiG9w0BAQEFAAOCAQ0AMIIBCAKCAQEAvb7LwrxSigIPYCCwGwvu\n\
+		A5vnv41v2z0LzI7iDqiuDrK4kQJn26kjpX9qDcnot15lAgLew9yysuPZ57GfUKRL\n\
+		4O9uk/pXaJGE0jV7+NLy//yL+udU648sfjKwxHhmT2AnbN41ZG1OCvSaFD+pZ+PT\n\
+		fi6ywfj+k2IPwpphd/1TD2Uut6J08/gnUIWPsh05aegf8LJ/ZI/iRLQp1zcoGDvu\n\
+		9v2S+RBvdF4aTCVTRxk1vL5C0x2O7r+WBIGqnyKfcIyYLKaj0cLBU0LZHRJXferO\n\
+		ryzjmAQukg0obJYek+WzrZ57BP7xJ3AJV+hED/PY3PRwH6V+VP98a//QjcS0twcq\n\
+		+wIBEQ==\n\
+		-----END PUBLIC KEY-----",
+		seed: "thisIsAseed",
+		pseudorandom_value: "33296bb4c9d56c36f9f9b877cf35becc63a99a9915016071027434aeac396b66aac2f93a59f4a49b8ca61c7e3e6ba072b76874c20363c6928c8ecfe317ae131e229d03d644c3a8577fd431c907e7536d5e89dacff244404fea8fe052371d483d52bea4bf31d8e4fa1c0608976c70d0f9686284454152104134988d32788b9b0d89c5b060a6aaf9b4744ad72ea1f63dd88531ad509758fc72ffa80de4730ab494b65cdc3c47aff09ed343c352c7c2a8a7c1d6d03a47eaf391d42f88d65d16800a5c527e3fa9364b82bc2796f807645a8d9842f267e74f7e594d31f8781ab81497ecf4c2a04ef978c0eb6e8fc0a2994dec191e8827574c0e8af0ab04c9ef2c1ea5"}
+	};
+	
+	evalFormulaWithVars({ conn: null, formula:  "vrf_verify(trigger.data.seed, trigger.data.pseudorandom_value, trigger.data.pem_key)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, true);
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});
+
+
+test.cb('vrf_verify RSA 2048 bits wrong value', t => {
+	var trigger = { data: 
+	{
+		pem_key: "-----BEGIN PUBLIC KEY-----\n\
+		MIIBIDANBgkqhkiG9w0BAQEFAAOCAQ0AMIIBCAKCAQEAvb7LwrxSigIPYCCwGwvu\n\
+		A5vnv41v2z0LzI7iDqiuDrK4kQJn26kjpX9qDcnot15lAgLew9yysuPZ57GfUKRL\n\
+		4O9uk/pXaJGE0jV7+NLy//yL+udU648sfjKwxHhmT2AnbN41ZG1OCvSaFD+pZ+PT\n\
+		fi6ywfj+k2IPwpphd/1TD2Uut6J08/gnUIWPsh05aegf8LJ/ZI/iRLQp1zcoGDvu\n\
+		9v2S+RBvdF4aTCVTRxk1vL5C0x2O7r+WBIGqnyKfcIyYLKaj0cLBU0LZHRJXferO\n\
+		ryzjmAQukg0obJYek+WzrZ57BP7xJ3AJV+hED/PY3PRwH6V+VP98a//QjcS0twcq\n\
+		+wIBEQ==\n\
+		-----END PUBLIC KEY-----",
+		seed: "thisIsAseed",
+		pseudorandom_value: "13296bb4c9d56c36f9f9b877cf35becc63a99a9915016071027434aeac396b66aac2f93a59f4a49b8ca61c7e3e6ba072b76874c20363c6928c8ecfe317ae131e229d03d644c3a8577fd431c907e7536d5e89dacff244404fea8fe052371d483d52bea4bf31d8e4fa1c0608976c70d0f9686284454152104134988d32788b9b0d89c5b060a6aaf9b4744ad72ea1f63dd88531ad509758fc72ffa80de4730ab494b65cdc3c47aff09ed343c352c7c2a8a7c1d6d03a47eaf391d42f88d65d16800a5c527e3fa9364b82bc2796f807645a8d9842f267e74f7e594d31f8781ab81497ecf4c2a04ef978c0eb6e8fc0a2994dec191e8827574c0e8af0ab04c9ef2c1ea5"}
+	};
+	
+	evalFormulaWithVars({ conn: null, formula:  "vrf_verify(trigger.data.seed, trigger.data.pseudorandom_value, trigger.data.pem_key)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, false);
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});
+
+
+test.cb('vrf_verify RSA 2048 bits base64', t => {
+	var trigger = { data: 
+	{
+		pem_key: "-----BEGIN PUBLIC KEY-----\n\
+		MIIBIDANBgkqhkiG9w0BAQEFAAOCAQ0AMIIBCAKCAQEAvb7LwrxSigIPYCCwGwvu\n\
+		A5vnv41v2z0LzI7iDqiuDrK4kQJn26kjpX9qDcnot15lAgLew9yysuPZ57GfUKRL\n\
+		4O9uk/pXaJGE0jV7+NLy//yL+udU648sfjKwxHhmT2AnbN41ZG1OCvSaFD+pZ+PT\n\
+		fi6ywfj+k2IPwpphd/1TD2Uut6J08/gnUIWPsh05aegf8LJ/ZI/iRLQp1zcoGDvu\n\
+		9v2S+RBvdF4aTCVTRxk1vL5C0x2O7r+WBIGqnyKfcIyYLKaj0cLBU0LZHRJXferO\n\
+		ryzjmAQukg0obJYek+WzrZ57BP7xJ3AJV+hED/PY3PRwH6V+VP98a//QjcS0twcq\n\
+		+wIBEQ==\n\
+		-----END PUBLIC KEY-----",
+		seed: "thisIsAseed",
+		pseudorandom_value: "MylrtMnVbDb5+bh3zzW+zGOpmpkVAWBxAnQ0rqw5a2aqwvk6WfSkm4ymHH4+a6Byt2h0wgNjxpKMjs/jF64THiKdA9ZEw6hXf9QxyQfnU21eidrP8kRAT+qP4FI3HUg9Ur6kvzHY5PocBgiXbHDQ+WhihEVBUhBBNJiNMniLmw2JxbBgpqr5tHRK1y6h9j3YhTGtUJdY/HL/qA3kcwq0lLZc3DxHr/Ce00PDUsfCqKfB1tA6R+rzkdQviNZdFoAKXFJ+P6k2S4K8J5b4B2RajZhC8mfnT35ZTTH4eBq4FJfs9MKgTvl4wOtuj8CimU3sGR6IJ1dMDorwqwTJ7ywepQ=="}
+	};
+	
+	evalFormulaWithVars({ conn: null, formula:  "vrf_verify(trigger.data.seed, trigger.data.pseudorandom_value, trigger.data.pem_key)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, null);
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});
+
+test.cb('vrf_verify RSA 2048 bits empty seed', t => {
+	var trigger = { data: 
+	{
+		pem_key: "-----BEGIN PUBLIC KEY-----\n\
+		MIIBIDANBgkqhkiG9w0BAQEFAAOCAQ0AMIIBCAKCAQEAvb7LwrxSigIPYCCwGwvu\n\
+		A5vnv41v2z0LzI7iDqiuDrK4kQJn26kjpX9qDcnot15lAgLew9yysuPZ57GfUKRL\n\
+		4O9uk/pXaJGE0jV7+NLy//yL+udU648sfjKwxHhmT2AnbN41ZG1OCvSaFD+pZ+PT\n\
+		fi6ywfj+k2IPwpphd/1TD2Uut6J08/gnUIWPsh05aegf8LJ/ZI/iRLQp1zcoGDvu\n\
+		9v2S+RBvdF4aTCVTRxk1vL5C0x2O7r+WBIGqnyKfcIyYLKaj0cLBU0LZHRJXferO\n\
+		ryzjmAQukg0obJYek+WzrZ57BP7xJ3AJV+hED/PY3PRwH6V+VP98a//QjcS0twcq\n\
+		+wIBEQ==\n\
+		-----END PUBLIC KEY-----",
+		seed: "",
+		pseudorandom_value: "33296bb4c9d56c36f9f9b877cf35becc63a99a9915016071027434aeac396b66aac2f93a59f4a49b8ca61c7e3e6ba072b76874c20363c6928c8ecfe317ae131e229d03d644c3a8577fd431c907e7536d5e89dacff244404fea8fe052371d483d52bea4bf31d8e4fa1c0608976c70d0f9686284454152104134988d32788b9b0d89c5b060a6aaf9b4744ad72ea1f63dd88531ad509758fc72ffa80de4730ab494b65cdc3c47aff09ed343c352c7c2a8a7c1d6d03a47eaf391d42f88d65d16800a5c527e3fa9364b82bc2796f807645a8d9842f267e74f7e594d31f8781ab81497ecf4c2a04ef978c0eb6e8fc0a2994dec191e8827574c0e8af0ab04c9ef2c1ea5"}
+	};
+	
+	evalFormulaWithVars({ conn: null, formula:  "vrf_verify(trigger.data.seed, trigger.data.pseudorandom_value, trigger.data.pem_key)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, null);
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});
+
+test.cb('vrf_verify RSA 2048 bits empty random value', t => {
+	var trigger = { data: 
+	{
+		pem_key: "-----BEGIN PUBLIC KEY-----\n\
+		MIIBIDANBgkqhkiG9w0BAQEFAAOCAQ0AMIIBCAKCAQEAvb7LwrxSigIPYCCwGwvu\n\
+		A5vnv41v2z0LzI7iDqiuDrK4kQJn26kjpX9qDcnot15lAgLew9yysuPZ57GfUKRL\n\
+		4O9uk/pXaJGE0jV7+NLy//yL+udU648sfjKwxHhmT2AnbN41ZG1OCvSaFD+pZ+PT\n\
+		fi6ywfj+k2IPwpphd/1TD2Uut6J08/gnUIWPsh05aegf8LJ/ZI/iRLQp1zcoGDvu\n\
+		9v2S+RBvdF4aTCVTRxk1vL5C0x2O7r+WBIGqnyKfcIyYLKaj0cLBU0LZHRJXferO\n\
+		ryzjmAQukg0obJYek+WzrZ57BP7xJ3AJV+hED/PY3PRwH6V+VP98a//QjcS0twcq\n\
+		+wIBEQ==\n\
+		-----END PUBLIC KEY-----",
+		seed: "thisIsAseed",
+		pseudorandom_value: ""}
+	};
+	
+	evalFormulaWithVars({ conn: null, formula:  "vrf_verify(trigger.data.seed, trigger.data.pseudorandom_value, trigger.data.pem_key)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, null);
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});
+
+test.cb('vrf_verify RSA 2048 bits bad key', t => {
+	var trigger = { data: 
+	{
+		pem_key: "-----BEGIN PUBLIC KEY-----\n\
+		MIIBADANBgkqhkiG9w0BAQEFAAOCAQ0AMIIBCAKCAQEAvb7LwrxSigIPYCCwGwvu\n\
+		A5vnv41v2z0LzI7iDqiuDrK4kQJn26kjpX9qDcnot15lAgLew9yysuPZ57GfUKRL\n\
+		4O9uk/pXaJGE0jV7+NLy//yL+udU648sfjKwxHhmT2AnbN41ZG1OCvSaFD+pZ+PT\n\
+		fi6ywfj+k2IPwpphd/1TD2Uut6J08/gnUIWPsh05aegf8LJ/ZI/iRLQp1zcoGDvu\n\
+		9v2S+RBvdF4aTCVTRxk1vL5C0x2O7r+WBIGqnyKfcIyYLKaj0cLBU0LZHRJXferO\n\
+		ryzjmAQukg0obJYek+WzrZ57BP7xJ3AJV+hED/PY3PRwH6V+VP98a//QjcS0twcq\n\
+		+wIBEQ==\n\
+		-----END PUBLIC KEY-----",
+		seed: "thisIsAseed",
+		pseudorandom_value: "33296bb4c9d56c36f9f9b877cf35becc63a99a9915016071027434aeac396b66aac2f93a59f4a49b8ca61c7e3e6ba072b76874c20363c6928c8ecfe317ae131e229d03d644c3a8577fd431c907e7536d5e89dacff244404fea8fe052371d483d52bea4bf31d8e4fa1c0608976c70d0f9686284454152104134988d32788b9b0d89c5b060a6aaf9b4744ad72ea1f63dd88531ad509758fc72ffa80de4730ab494b65cdc3c47aff09ed343c352c7c2a8a7c1d6d03a47eaf391d42f88d65d16800a5c527e3fa9364b82bc2796f807645a8d9842f267e74f7e594d31f8781ab81497ecf4c2a04ef978c0eb6e8fc0a2994dec191e8827574c0e8af0ab04c9ef2c1ea5"}
+	};
+	
+	evalFormulaWithVars({ conn: null, formula:  "vrf_verify(trigger.data.seed, trigger.data.pseudorandom_value, trigger.data.pem_key)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, false);
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
 });
