@@ -648,6 +648,22 @@ exports.validate = function (opts, callback) {
 				});
 				break;
 
+			case 'vrf_verify':
+				complexity+=1;
+				var seed = arr[1];
+				var pseudorandom_value = arr[2];
+				var pem_key = arr[3];
+				evaluate(seed, function (err) {
+					if (err)
+						return cb(err);
+					evaluate(pem_key, function (err) {
+						if (err)
+							return cb(err);
+						evaluate(pseudorandom_value, cb);
+					});
+				});
+				break;
+
 			case 'sha256':
 				complexity++;
 				var expr = arr[1];

@@ -1444,12 +1444,16 @@ exports.evaluate = function (opts, callback) {
 					evaluate(sig, function (evaluated_signature) {
 						if (fatal_error)
 							return cb(false);
+						if (!ValidationUtils.isNonemptyString(evaluated_signature))
+							return setFatalError("bad signature string in is_valid_sig", cb, false);
+						if (evaluated_signature.length > 1024)
+							return setFatalError("signature is too large", cb, false);
 						if (!ValidationUtils.isValidHexadecimal(evaluated_signature) && !ValidationUtils.isValidBase64(evaluated_signature))
 							return setFatalError("bad signature string in is_valid_sig", cb, false);
 						evaluate(pem_key, function (evaluated_pem_key) {
 							if (fatal_error)
 								return cb(false);
-							signature.validateAndFormatPemPubKey(evaluated_pem_key, function (error, formatted_pem_key){
+							signature.validateAndFormatPemPubKey(evaluated_pem_key, "any", function (error, formatted_pem_key){
 								if (error)
 									return setFatalError("bad PEM key in is_valid_sig: " + error, cb, false);
 								var result = signature.verifyMessageWithPemPubKey(evaluated_message, evaluated_signature, formatted_pem_key);
@@ -1459,6 +1463,38 @@ exports.evaluate = function (opts, callback) {
 					});
 				});
 				break;
+
+				case 'vrf_verify':
+					var seed = arr[1];
+					var pseudorandom_value = arr[2];
+					var pem_key = arr[3];
+					evaluate(seed, function (evaluated_seed) {
+						if (fatal_error)
+							return cb(false);
+						if (!ValidationUtils.isNonemptyString(evaluated_seed))
+							return setFatalError("bad seed in vrf_verify", cb, false);
+						evaluate(pseudorandom_value, function (evaluated_pseudorandom_value) {
+							if (fatal_error)
+								return cb(false);
+							if (!ValidationUtils.isNonemptyString(evaluated_pseudorandom_value))
+								return setFatalError("bad pseudorandom_value string in vrf_verify", cb, false);
+							if (evaluated_pseudorandom_value.length > 1024)
+								return setFatalError("pseudorandom_value is too large", cb, false);
+							if (!ValidationUtils.isValidHexadecimal(evaluated_pseudorandom_value))
+								return setFatalError("bad signature string in vrf_verify", cb, false);
+							evaluate(pem_key, function (evaluated_pem_key) {
+								if (fatal_error)
+									return cb(false);
+								signature.validateAndFormatPemPubKey(evaluated_pem_key, "RSA", function (error, formatted_pem_key){
+									if (error)
+										return setFatalError("bad PEM key in vrf_verify: " + error, cb, false);
+									var result = signature.verifyMessageWithPemPubKey(evaluated_seed, evaluated_pseudorandom_value, formatted_pem_key);
+									return cb(result);
+								});
+							});
+						});
+					});
+					break;
 
 			case 'sha256':
 				var expr = arr[1];
