@@ -2573,6 +2573,15 @@ test('convert to number with +', t => {
 	})
 });
 
+test('boolean to number with +', t => {
+	var trigger = { };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `+trigger.data`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 0);
+		t.deepEqual(complexity, 1);
+	})
+});
+
 test('to_upper', t => {
 	var trigger = { };
 	var stateVars = {};
