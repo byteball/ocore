@@ -95,6 +95,7 @@ var objValidationState = {
 	mc_unit: "oXGOcA9TQx8Tl5Syjp1d5+mB4xicsRk3kbcE82YQAS0=",
 	storage_size: 200,
 	assocBalances: {},
+	number_of_responses: 0,
 	arrPreviousResponseUnits: [],
 	arrAugmentedMessages: [{
 		"app": "payment",
@@ -338,7 +339,7 @@ test('abs positive', t => {
 
 test('abs string', t => {
 	evalFormula(null, "abs(2 || '')", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
-		t.deepEqual(res, null);
+		t.deepEqual(res, 2);
 	});
 });
 
@@ -1519,6 +1520,32 @@ test('sha256 with numbers', t => {
 	})
 });
 
+test('sha256 hex', t => {
+	var str = 'abcd';
+	var hash = crypto.createHash("sha256").update(str, "utf8").digest("hex");
+	evalFormulaWithVars({ formula: "sha256(trigger.data.str, 'hex')", trigger: {data: {str: str}}, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, hash);
+		t.deepEqual(complexity, 2);
+	})
+});
+
+test('sha256 hex expr', t => {
+	var str = 'abcd';
+	var hash = crypto.createHash("sha256").update(str, "utf8").digest("hex");
+	evalFormulaWithVars({ formula: "sha256(trigger.data.str, 'he'||'x')", trigger: {data: {str: str}}, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, hash);
+		t.deepEqual(complexity, 2);
+	})
+});
+
+test('sha256 bad format', t => {
+	var str = 'abcd';
+	var hash = crypto.createHash("sha256").update(str, "utf8").digest("hex");
+	evalFormulaWithVars({ formula: "sha256(trigger.data.str, 'invalid')", trigger: {data: {str: str}}, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, null);
+	})
+});
+
 test.cb('signature verification', t => {
 	var db = require("../db");
 	var mnemonic = new Mnemonic();
@@ -2499,5 +2526,86 @@ test.cb('unit and response_unit', t => {
 		t.deepEqual(stateVars.MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU.x.value, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU 78');
 		t.deepEqual(complexity, 4);
 		t.end();
+	})
+});
+
+test('strings in arithmetic operations', t => {
+	var trigger = { };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `4 + substring('as3', 2)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 7);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('strings in max', t => {
+	var trigger = { };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `max(4, substring('as5', 2))`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 5);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('strings in round', t => {
+	var trigger = { };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `round(substring('as5.7', 2))`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 6);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('non-number strings in round', t => {
+	var trigger = { };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `round(substring('as5.7', 1))`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('convert to number with +', t => {
+	var trigger = { };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `typeof(+substring('as5.7', 2))`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'number');
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('to_upper', t => {
+	var trigger = { };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `to_upper(!trigger.data)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'TRUE');
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('to_lower', t => {
+	var trigger = { };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `to_lower('aSdF')`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'asdf');
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test.cb('exists', t => {
+	var trigger = { data: {x: 0} };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `$x=false; exists('aSdF') || ' ' || exists(trigger.data.x) || ' ' || exists(trigger.data.y) || ' ' || exists(var['x']) || ' ' || exists($x) || ' ' || exists(!$x) || ' ' || exists($y)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'true true false false false true false');
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});
+
+test('number_of_responses', t => {
+	var trigger = { };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `number_of_responses`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 0);
+		t.deepEqual(complexity, 1);
 	})
 });

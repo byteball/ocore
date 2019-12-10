@@ -226,6 +226,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 		last_ball_timestamp: objMcUnit.timestamp,
 		mc_unit: objMcUnit.unit,
 		assocBalances: {},
+		number_of_responses: arrResponses.length,
 		arrPreviousResponseUnits: arrResponses.map(objAAResponse => objAAResponse.objResponseUnit)
 	};
 	var byte_balance;
@@ -1202,7 +1203,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 	updateInitialAABalances(function () {
 
 		// these errors must be thrown after updating the balances
-		if (arrResponses.length >= 10) // max number of responses per primary trigger
+		if (arrResponses.length >= constants.MAX_RESPONSES_PER_PRIMARY_TRIGGER) // max number of responses per primary trigger, over all branches stemming from the primary trigger
 			return bounce("max number of responses per trigger exceeded");
 		// being able to pay for bounce fees is not required for secondary triggers as they never actually send any bounce response or change state when bounced
 		if (!bSecondary) {

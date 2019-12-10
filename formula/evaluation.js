@@ -24,6 +24,8 @@ var toDoubleRange = require('./common.js').toDoubleRange;
 if (!Number.MAX_SAFE_INTEGER)
 	Number.MAX_SAFE_INTEGER = Math.pow(2, 53) - 1; // 9007199254740991
 
+var testnetStringToNumberInArithmeticUpgradeMci = 1151000;
+
 var decimalE = new Decimal(Math.E);
 var decimalPi = new Decimal(Math.PI);
 
@@ -89,9 +91,9 @@ exports.evaluate = function (opts, callback) {
 			return cb(true);
 		if (Decimal.isDecimal(arr)) {
 			if (!arr.isFinite())
-				setFatalError("bad decimal: " + arr, cb, false);
+				return setFatalError("bad decimal: " + arr, cb, false);
 			if (!isFinite(arr.toNumber()))
-				setFatalError("number overflow: " + arr, cb, false);
+				return setFatalError("number overflow: " + arr, cb, false);
 			return cb(toDoubleRange(arr));
 		}
 		if (arr instanceof wrappedObject) return cb(arr);
@@ -142,6 +144,11 @@ exports.evaluate = function (opts, callback) {
 							res = true;
 						if (typeof res === 'boolean')
 							res = new Decimal(res ? 1 : 0);
+						else if (typeof res === 'string' && (!constants.bTestnet || objValidationState.last_ball_mci > testnetStringToNumberInArithmeticUpgradeMci)) {
+							var float = string_utils.getNumericFeedValue(res);
+							if (float !== null)
+								res = new Decimal(res).times(1);
+						}
 						if (isFiniteDecimal(res)) {
 							res = toDoubleRange(res);
 							if (prevV === undefined) {
@@ -196,13 +203,18 @@ exports.evaluate = function (opts, callback) {
 						res = true;
 					if (typeof res === 'boolean')
 						res = new Decimal(res ? 1 : 0);
+					else if (typeof res === 'string') {
+						var float = string_utils.getNumericFeedValue(res);
+						if (float !== null)
+							res = new Decimal(res).times(1);
+					}
 					if (isFiniteDecimal(res)) {
 						res = toDoubleRange(res);
 						if (op === 'abs')
 							return cb(toDoubleRange(res.abs()));
 						if (res.isNegative())
 							return setFatalError(op + " of negative", cb, false);
-						cb(toDoubleRange(op === 'sqrt' ? res.sqrt() : res.ln()));
+						evaluate(toDoubleRange(op === 'sqrt' ? res.sqrt() : res.ln()), cb);
 					} else {
 						return setFatalError('not a decimal in '+op, cb, false);
 					}
@@ -222,6 +234,11 @@ exports.evaluate = function (opts, callback) {
 						dp_res = true;
 					if (typeof dp_res === 'boolean')
 						dp_res = new Decimal(dp_res ? 1 : 0);
+					else if (typeof dp_res === 'string') {
+						var float = string_utils.getNumericFeedValue(dp_res);
+						if (float !== null)
+							dp_res = toDoubleRange(new Decimal(dp_res).times(1));
+					}
 					if (Decimal.isDecimal(dp_res) && dp_res.isInteger() && !dp_res.isNegative() && dp_res.lte(15))
 						dp = dp_res;
 					else{
@@ -246,9 +263,14 @@ exports.evaluate = function (opts, callback) {
 							res = true;
 						if (typeof res === 'boolean')
 							res = new Decimal(res ? 1 : 0);
+						else if (typeof res === 'string') {
+							var float = string_utils.getNumericFeedValue(res);
+							if (float !== null)
+								res = new Decimal(res).times(1);
+						}
 						if (isFiniteDecimal(res)) {
 							res = toDoubleRange(res);
-							cb(res.toDecimalPlaces(dp.toNumber(), roundingMode));
+							evaluate(res.toDecimalPlaces(dp.toNumber(), roundingMode), cb);
 						} else {
 							return setFatalError('not a decimal in '+op, cb, false);
 						}
@@ -268,6 +290,11 @@ exports.evaluate = function (opts, callback) {
 							res = true;
 						if (typeof res === 'boolean')
 							res = new Decimal(res ? 1 : 0);
+						else if (typeof res === 'string') {
+							var float = string_utils.getNumericFeedValue(res);
+							if (float !== null)
+								res = new Decimal(res).times(1);
+						}
 						if (isFiniteDecimal(res)) {
 							res = toDoubleRange(res);
 							vals.push(res);
@@ -280,7 +307,7 @@ exports.evaluate = function (opts, callback) {
 					if (err) {
 						return cb(false);
 					}
-					cb(Decimal[op].apply(Decimal, vals));
+					evaluate(Decimal[op].apply(Decimal, vals), cb);
 				});
 				break;
 
@@ -922,7 +949,7 @@ exports.evaluate = function (opts, callback) {
 								if (type === 'auto') {
 									var f = string_utils.getNumericFeedValue(value);
 									if (f !== null)
-										value = new Decimal(value).times(1);
+										value = toDoubleRange(new Decimal(value).times(1));
 								}
 								return cb(value);
 							}
@@ -1011,6 +1038,10 @@ exports.evaluate = function (opts, callback) {
 
 			case 'mc_unit':
 				cb(objValidationState.mc_unit);
+				break;
+
+			case 'number_of_responses':
+				cb(new Decimal(objValidationState.number_of_responses));
 				break;
 
 			case 'this_address':
@@ -1413,12 +1444,16 @@ exports.evaluate = function (opts, callback) {
 					evaluate(sig, function (evaluated_signature) {
 						if (fatal_error)
 							return cb(false);
+						if (!ValidationUtils.isNonemptyString(evaluated_signature))
+							return setFatalError("bad signature string in is_valid_sig", cb, false);
+						if (evaluated_signature.length > 1024)
+							return setFatalError("signature is too large", cb, false);
 						if (!ValidationUtils.isValidHexadecimal(evaluated_signature) && !ValidationUtils.isValidBase64(evaluated_signature))
 							return setFatalError("bad signature string in is_valid_sig", cb, false);
 						evaluate(pem_key, function (evaluated_pem_key) {
 							if (fatal_error)
 								return cb(false);
-							signature.validateAndFormatPemPubKey(evaluated_pem_key, function (error, formatted_pem_key){
+							signature.validateAndFormatPemPubKey(evaluated_pem_key, "any", function (error, formatted_pem_key){
 								if (error)
 									return setFatalError("bad PEM key in is_valid_sig: " + error, cb, false);
 								var result = signature.verifyMessageWithPemPubKey(evaluated_message, evaluated_signature, formatted_pem_key);
@@ -1428,6 +1463,38 @@ exports.evaluate = function (opts, callback) {
 					});
 				});
 				break;
+
+				case 'vrf_verify':
+					var seed = arr[1];
+					var proof = arr[2];
+					var pem_key = arr[3];
+					evaluate(seed, function (evaluated_seed) {
+						if (fatal_error)
+							return cb(false);
+						if (!ValidationUtils.isNonemptyString(evaluated_seed))
+							return setFatalError("bad seed in vrf_verify", cb, false);
+						evaluate(proof, function (evaluated_proof) {
+							if (fatal_error)
+								return cb(false);
+							if (!ValidationUtils.isNonemptyString(evaluated_proof))
+								return setFatalError("bad proof string in vrf_verify", cb, false);
+							if (evaluated_proof.length > 1024)
+								return setFatalError("proof is too large", cb, false);
+							if (!ValidationUtils.isValidHexadecimal(evaluated_proof))
+								return setFatalError("bad signature string in vrf_verify", cb, false);
+							evaluate(pem_key, function (evaluated_pem_key) {
+								if (fatal_error)
+									return cb(false);
+								signature.validateAndFormatPemPubKey(evaluated_pem_key, "RSA", function (error, formatted_pem_key){
+									if (error)
+										return setFatalError("bad PEM key in vrf_verify: " + error, cb, false);
+									var result = signature.verifyMessageWithPemPubKey(evaluated_seed, evaluated_proof, formatted_pem_key);
+									return cb(result);
+								});
+							});
+						});
+					});
+					break;
 
 			case 'sha256':
 				var expr = arr[1];
@@ -1440,7 +1507,16 @@ exports.evaluate = function (opts, callback) {
 						return setFatalError("invalid value in sha256: " + res, cb, false);
 					if (Decimal.isDecimal(res))
 						res = toDoubleRange(res);
-					cb(crypto.createHash("sha256").update(res.toString(), "utf8").digest("base64"));
+					var format_expr = arr[2];
+					if (format_expr === null || format_expr === 'base64')
+						return cb(crypto.createHash("sha256").update(res.toString(), "utf8").digest("base64"));
+					evaluate(format_expr, function (format) {
+						if (fatal_error)
+							return cb(false);
+						if (format !== 'base64' && format !== 'hex')
+							return setFatalError("bad format of sha256: " + format, cb, false);
+						cb(crypto.createHash("sha256").update(res.toString(), "utf8").digest(format));
+					});
 				});
 				break;
 
@@ -1516,7 +1592,7 @@ exports.evaluate = function (opts, callback) {
 					if (typeof json === 'object')
 						return cb(new wrappedObject(json));
 					if (typeof json === 'number')
-						return cb(new Decimal(json).times(1));
+						return evaluate(new Decimal(json).times(1), cb);
 					if (typeof json === 'string' || typeof json === 'boolean')
 						return cb(json);
 					throw Error("unknown type of json parse: " + (typeof json));
@@ -1545,13 +1621,21 @@ exports.evaluate = function (opts, callback) {
 				break;
 
 			case 'length':
+			case 'to_upper':
+			case 'to_lower':
 				var expr = arr[1];
 				evaluate(expr, function (res) {
 					if (fatal_error)
 						return cb(false);
 					if (res instanceof wrappedObject)
 						res = true;
-					cb(new Decimal(res.toString().length));
+					if (op === 'length')
+						return cb(new Decimal(res.toString().length));
+					if (op === 'to_upper')
+						return cb(res.toString().toUpperCase());
+					if (op === 'to_lower')
+						return cb(res.toString().toLowerCase());
+					throw Error("unknown op: " + op);
 				});
 				break;
 
@@ -1661,12 +1745,15 @@ exports.evaluate = function (opts, callback) {
 				});
 				break;
 
+			case 'exists':
 			case 'is_array':
 			case 'is_assoc':
 				var expr = arr[1];
 				evaluate(expr, function (res) {
 					if (fatal_error)
 						return cb(false);
+					if (op === 'exists')
+						return cb(res !== false);
 					if (!(res instanceof wrappedObject))
 						return cb(false);
 					var obj = res.obj;
@@ -1842,7 +1929,7 @@ exports.evaluate = function (opts, callback) {
 			}
 			var f = string_utils.getNumericFeedValue(value);
 			if (f !== null)
-				value = new Decimal(value).times(1);
+				value = toDoubleRange(new Decimal(value).times(1));
 			stateVars[param_address][var_name] = {value: value, old_value: value, original_old_value: value};
 			cb2(value);
 		});
@@ -1893,7 +1980,7 @@ exports.evaluate = function (opts, callback) {
 						return setFatalError("string value too long: " + value, cb, false);
 					// convert to number if possible
 					var f = string_utils.getNumericFeedValue(value);
-					(f === null) ? cb(value) : cb(new Decimal(value).times(1));
+					(f === null) ? cb(value) : cb(toDoubleRange(new Decimal(value).times(1)));
 				}
 				else if (typeof value === 'object')
 					cb(new wrappedObject(value));
