@@ -521,9 +521,7 @@ exports.evaluate = function (opts, callback) {
 			function getDataFeed(params, cb) {
 				if (typeof params.oracles.value !== 'string')
 					return cb("oracles not a string "+params.oracles.value);
-				var arrAddresses = params.oracles.value.split(':').map(function(addr){
-					return (addr === 'this address') ? address : addr;
-				});
+				var arrAddresses = params.oracles.value.split(':');
 				if (!arrAddresses.every(ValidationUtils.isValidAddress))
 					return cb("bad oracles "+arrAddresses);
 				var feed_name = params.feed_name.value;
@@ -704,9 +702,7 @@ exports.evaluate = function (opts, callback) {
 							return cb(false);
 						if (typeof evaluated_params.oracles.value !== 'string')
 							return setFatalError('oracles is not a string', cb, false);
-						var arrAddresses = evaluated_params.oracles.value.split(':').map(function(addr){
-							return (addr === 'this address') ? address : addr;
-						});
+						var arrAddresses = evaluated_params.oracles.value.split(':');
 						if (!arrAddresses.every(ValidationUtils.isValidAddress)) // even if some addresses are ok
 							return setFatalError('bad oracles', cb, false);
 						var feed_name = evaluated_params.feed_name.value;
@@ -753,18 +749,6 @@ exports.evaluate = function (opts, callback) {
 					return '';
 				}
 				if (objParams.address) {
-					if (objParams.address.value === 'this address')
-						objParams.address.value = address;
-
-					if (objParams.address.value === 'other address') {
-						objParams.address.value = address;
-						if (objParams.address.operator === '=') {
-							objParams.address.operator = '!=';
-						} else {
-							objParams.address.operator = '=';
-						}
-					}
-
 					puts = puts.filter(function (put) {
 						if (objParams.address.operator === '=') {
 							return put.address === objParams.address.value;
@@ -832,7 +816,7 @@ exports.evaluate = function (opts, callback) {
 							return cb(false);
 						if (evaluated_params.address){
 							var v = evaluated_params.address.value;
-							if (!ValidationUtils.isValidAddress(v) && v !== 'this address' && v !== 'other address')
+							if (!ValidationUtils.isValidAddress(v))
 								return setFatalError('bad address in '+op+': '+v, cb, false);
 						}
 						if (evaluated_params.asset){
@@ -894,14 +878,12 @@ exports.evaluate = function (opts, callback) {
 
 						if (typeof params.attestors.value !== 'string')
 							return setFatalError('attestors is not a string', cb, false);
-						var arrAttestorAddresses = params.attestors.value.split(':').map(function(addr){
-							return (addr === 'this address') ? address : addr;
-						});
+						var arrAttestorAddresses = params.attestors.value.split(':');
 						if (!arrAttestorAddresses.every(ValidationUtils.isValidAddress)) // even if some addresses are ok
 							return setFatalError('bad attestors', cb, false);
 
 						var v = params.address.value;
-						if (!ValidationUtils.isValidAddress(v) && v !== 'this address')
+						if (!ValidationUtils.isValidAddress(v))
 							return setFatalError('bad address in attestation: ' + v, cb, false);
 
 						var ifseveral = 'last';
@@ -1289,10 +1271,8 @@ exports.evaluate = function (opts, callback) {
 						return ((op === 'var') ? readVar(address, evaluated_param1, cb) : readBalance(address, evaluated_param1, cb));
 					// then, the 1st param is the address of an AA whose state or balance we are going to query
 					var param_address = evaluated_param1;
-					if (param_address !== 'this address' && !ValidationUtils.isValidAddress(param_address))
+					if (!ValidationUtils.isValidAddress(param_address))
 						return setFatalError("var address is invalid: " + param_address, cb, false);
-					if (param_address === 'this address')
-						param_address = address;
 					evaluate(param2, function (evaluated_param2) {
 						if (fatal_error)
 							return cb(false);

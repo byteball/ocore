@@ -62,7 +62,7 @@
 		response: 'response',
 		bounce: 'bounce',
 		return: 'return',
-		addressValue: ['this address', 'other address', /\b[2-7A-Z]{32}\b/],
+		addressValue: /\b[2-7A-Z]{32}\b/,
 		trigger_address: /\btrigger\.address\b/,
 		trigger_initial_address: /\btrigger\.initial_address\b/,
 		trigger_unit: /\btrigger\.unit\b/,

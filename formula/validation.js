@@ -36,9 +36,7 @@ function validateDataFeed(params) {
 					var addresses = value.split(':');
 					if (addresses.length === 0) return {error: 'empty oracle list', complexity};
 				//	complexity += addresses.length;
-					if (!addresses.every(function (address) {
-						return ValidationUtils.isValidAddress(address) || address === 'this address';
-					})) return {error: 'oracle address not valid', complexity};
+					if (!addresses.every(ValidationUtils.isValidAddress)) return {error: 'oracle address not valid', complexity};
 					break;
 
 				case 'feed_name':
@@ -100,9 +98,7 @@ function validateDataFeedExists(params) {
 				var addresses = value.split(':');
 				if (addresses.length === 0) return {error: 'empty oracles list', complexity};
 			//	complexity += addresses.length;
-				if (!addresses.every(function (address) {
-					return ValidationUtils.isValidAddress(address) || address === 'this address';
-				})) return {error: 'not valid oracle address', complexity};
+				if (!addresses.every(ValidationUtils.isValidAddress)) return {error: 'not valid oracle address', complexity};
 				break;
 
 			case 'feed_name':
@@ -146,13 +142,11 @@ function getAttestationError(params) {
 				if (!value)
 					return 'empty attestors';
 				var attestor_addresses = value.split(':');
-				if (!attestor_addresses.every(function (attestor_address) {
-					return ValidationUtils.isValidAddress(attestor_address) || attestor_address === 'this address';
-				})) return 'bad attestor address: ' + value;
+				if (!attestor_addresses.every(ValidationUtils.isValidAddress)) return 'bad attestor address: ' + value;
 				break;
 
 			case 'address':
-				if (!ValidationUtils.isValidAddress(value) && value !== 'this address')
+				if (!ValidationUtils.isValidAddress(value))
 					return 'bad address: ' + value;
 				break;
 
@@ -195,7 +189,7 @@ function getInputOrOutputError(params) {
 			continue;
 		switch (name) {
 			case 'address':
-				if (!(value === 'this address' || value === 'other address' || ValidationUtils.isValidAddress(value))) return 'bad address: ' + value;
+				if (!ValidationUtils.isValidAddress(value)) return 'bad address: ' + value;
 				break;
 			case 'amount':
 				if (!(/^\d+$/.test(value) && ValidationUtils.isPositiveInteger(parseInt(value)))) return 'bad amount: ' + value;
@@ -388,10 +382,10 @@ exports.validate = function (opts, callback) {
 
 			case 'mci':
 			case 'timestamp':
+			case 'this_address':
 				cb();
 				break;
 
-			case 'this_address':
 			case 'trigger.address':
 			case 'trigger.initial_address':
 			case 'trigger.unit':
@@ -568,7 +562,7 @@ exports.validate = function (opts, callback) {
 						return cb(err);
 					if (param2 === null) // single argument
 						return cb(isValidVarNameOrAsset(param1) ? undefined : 'invalid param1');
-					if (typeof param1 === 'string' && param1 !== 'this address' && !ValidationUtils.isValidAddress(param1))
+					if (typeof param1 === 'string' && !ValidationUtils.isValidAddress(param1))
 						return cb('bad param1: ' + param1);
 					evaluate(param2, function (err) {
 						if (err)
