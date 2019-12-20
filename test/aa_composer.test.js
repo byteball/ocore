@@ -115,7 +115,7 @@ test.cb.serial('less than bounce fees', t => {
 	aa_composer.dryRunPrimaryAATrigger(trigger, address, aa, (arrResponses) => {
 		t.deepEqual(arrResponses.length, 1);
 		t.deepEqual(arrResponses[0].aa_address, address);
-		t.deepEqual(arrResponses[0].bounced, false);
+		t.deepEqual(arrResponses[0].bounced, true);
 		t.deepEqual(arrResponses[0].response_unit, null);
 		t.deepEqual(arrResponses[0].objResponseUnit, null);
 		t.deepEqual(arrResponses[0].response.error, "received bytes are not enough to cover bounce fees");

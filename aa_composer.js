@@ -1212,13 +1212,11 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 		// being able to pay for bounce fees is not required for secondary triggers as they never actually send any bounce response or change state when bounced
 		if (!bSecondary) {
 			if ((trigger.outputs.base || 0) < bounce_fees.base) {
-				error_message = 'received bytes are not enough to cover bounce fees';
-				return finish(null);
+				return bounce('received bytes are not enough to cover bounce fees');
 			}
 			for (var asset in trigger.outputs) { // if not enough asset received to pay for bounce fees, ignore silently
 				if (bounce_fees[asset] && trigger.outputs[asset] < bounce_fees[asset]) {
-					error_message = 'received ' + asset + ' is not enough to cover bounce fees';
-					return finish(null);
+					return bounce('received ' + asset + ' is not enough to cover bounce fees');
 				}
 			}
 		}
