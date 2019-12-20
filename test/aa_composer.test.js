@@ -405,3 +405,110 @@ test.cb.serial('recently defined asset', t => {
 		t.end();
 	});
 });
+
+
+test.cb.serial('issue recently defined asset', t => {
+	var trigger_address = "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT";
+	var trigger = { outputs: { base: 10000 }, data: { define: true }, address: trigger_address };
+
+	// a chain of 3 AA responses
+	// 1. define asset, save var['asset'] state var, and send bytes to bouncer AA
+	// 2. bouncer reflects the bytes back
+	// 3. the 1st AA acts again, it reads the state var and issues the asset
+
+	var bouncer_aa = ['autonomous agent', {
+		messages: [
+			{
+				app: 'payment',
+				payload: {
+					asset: 'base',
+					outputs: [
+						{address: "{trigger.address}", amount: "{trigger.output[[asset=base]] - 1000}"}
+					]
+				}
+			},
+		]
+	}];
+	var bouncer_address = objectHash.getChash160(bouncer_aa);
+	addAA(bouncer_aa);
+
+	var asset_aa = ['autonomous agent', {
+		messages: {
+			cases: [
+				{
+					if: "{trigger.data.define}",
+					messages: [
+						{
+							app: 'asset',
+							payload: {
+								cap: 1e6,
+								is_private: false,
+								is_transferrable: true,
+								auto_destroy: false,
+								fixed_denominations: false,
+								issued_by_definer_only: true,
+								cosigned_by_definer: false,
+								spender_attested: false,
+							}
+						},
+						{
+							app: 'payment',
+							payload: {
+								asset: 'base',
+								outputs: [
+									{address: bouncer_address, amount: "{trigger.output[[asset=base]] - 1000}"}
+								]
+							}
+						},
+						{
+							app: 'state',
+							state: `{
+								var['asset'] = response_unit;
+							}`
+						}
+					]
+				},
+				{
+					if: `{trigger.address == '${bouncer_address}' AND var['asset']}`,
+					messages: [{
+						app: 'payment',
+						payload: {
+							asset: "{var['asset']}",
+							outputs: [
+								{address: "{trigger.initial_address}", amount: "{asset[var['asset']].cap}"}
+							]
+						}
+					}]
+				},
+			]
+		}
+	}];
+	var asset_address = objectHash.getChash160(asset_aa);
+	addAA(asset_aa);
+	
+	aa_composer.dryRunPrimaryAATrigger(trigger, asset_address, asset_aa, (arrResponses) => {
+		t.deepEqual(arrResponses.length, 3);
+		t.deepEqual(arrResponses[0].aa_address, asset_address);
+		t.deepEqual(arrResponses[0].bounced, false);
+		t.deepEqual(arrResponses[0].response.error, undefined);
+		t.deepEqual(arrResponses[0].objResponseUnit.messages.find(function (message) { return (message.app === 'payment'); }).payload.outputs.find(function (output) { return (output.address === bouncer_address); }).amount, 9000);
+		let asset = arrResponses[0].updatedStateVars[asset_address].asset.value;
+		
+		t.deepEqual(arrResponses[1].aa_address, bouncer_address);
+		t.deepEqual(arrResponses[1].bounced, false);
+		t.deepEqual(arrResponses[1].response.error, undefined);
+		
+		t.deepEqual(arrResponses[2].aa_address, asset_address);
+		t.deepEqual(arrResponses[2].bounced, false);
+		t.deepEqual(arrResponses[2].response.error, undefined);
+		t.deepEqual(arrResponses[2].objResponseUnit.messages.find(function (message) { return (message.app === 'payment' && message.payload.asset === asset); }).payload.outputs.find(function (output) { return (output.address === trigger_address); }).amount, 1e6);
+		
+		fixCache();
+		t.deepEqual(storage.assocUnstableUnits, old_cache.assocUnstableUnits);
+		t.deepEqual(storage.assocStableUnits, old_cache.assocStableUnits);
+		t.deepEqual(storage.assocUnstableMessages, old_cache.assocUnstableMessages);
+		t.deepEqual(storage.assocBestChildren, old_cache.assocBestChildren);
+		t.deepEqual(storage.assocStableUnitsByMci, old_cache.assocStableUnitsByMci);
+		t.end();
+	});
+});

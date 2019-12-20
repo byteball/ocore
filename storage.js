@@ -1108,49 +1108,62 @@ function readAssetInfo(conn, asset, handleAssetInfo){
 	);
 }
 
-function readAsset(conn, asset, last_ball_mci, handleAsset){
+function readAsset(conn, asset, last_ball_mci, bAcceptUnconfirmedAA, handleAsset) {
+	if (arguments.length === 4) {
+		handleAsset = bAcceptUnconfirmedAA;
+		bAcceptUnconfirmedAA = false;
+	}
 	if (last_ball_mci === null){
 		if (conf.bLight)
 			last_ball_mci = MAX_INT32;
 		else
 			return readLastStableMcIndex(conn, function(last_stable_mci){
-				readAsset(conn, asset, last_stable_mci, handleAsset);
+				readAsset(conn, asset, last_stable_mci, bAcceptUnconfirmedAA, handleAsset);
 			});
 	}
-	readAssetInfo(conn, asset, function(objAsset){
+	readAssetInfo(conn, asset, function (objAsset) {
 		if (!objAsset)
-			return handleAsset("asset "+asset+" not found");
-		if (objAsset.main_chain_index > last_ball_mci)
-			return handleAsset("asset definition must be before last ball");
+			return handleAsset("asset " + asset + " not found");
 		if (objAsset.sequence !== "good")
 			return handleAsset("asset definition is not serial");
-		if (!objAsset.spender_attested)
-			return handleAsset(null, objAsset);
+		
+		function addAttestorsIfNecessary(){
+			if (!objAsset.spender_attested)
+				return handleAsset(null, objAsset);
 
-		// find latest list of attestors
-		conn.query(
-			"SELECT unit FROM asset_attestors CROSS JOIN units USING(unit) \n\
-			WHERE asset=? AND main_chain_index<=? AND is_stable=1 AND sequence='good' ORDER BY "+(conf.bLight ? "units.rowid" : "level")+" DESC LIMIT 1", 
-			[asset, last_ball_mci],
-			function(latest_rows){
-				if (latest_rows.length === 0)
-					throw Error("no latest attestor list");
-				var latest_attestor_list_unit = latest_rows[0].unit;
+			// find latest list of attestors
+			conn.query(
+				"SELECT unit FROM asset_attestors CROSS JOIN units USING(unit) \n\
+				WHERE asset=? AND main_chain_index<=? AND is_stable=1 AND sequence='good' ORDER BY "+ (conf.bLight ? "units.rowid" : "level") + " DESC LIMIT 1",
+				[asset, last_ball_mci],
+				function (latest_rows) {
+					if (latest_rows.length === 0)
+						throw Error("no latest attestor list");
+					var latest_attestor_list_unit = latest_rows[0].unit;
 
-				// read the list
-				conn.query(
-					"SELECT attestor_address FROM asset_attestors CROSS JOIN units USING(unit) \n\
-					WHERE asset=? AND unit=? AND main_chain_index<=? AND is_stable=1 AND sequence='good'",
-					[asset, latest_attestor_list_unit, last_ball_mci],
-					function(att_rows){
-						if (att_rows.length === 0)
-							throw Error("no attestors?");
-						objAsset.arrAttestorAddresses = att_rows.map(function(att_row){ return att_row.attestor_address; });
-						handleAsset(null, objAsset);
-					}
-				);
-			}
-		);
+					// read the list
+					conn.query(
+						"SELECT attestor_address FROM asset_attestors CROSS JOIN units USING(unit) \n\
+						WHERE asset=? AND unit=? AND main_chain_index<=? AND is_stable=1 AND sequence='good'",
+						[asset, latest_attestor_list_unit, last_ball_mci],
+						function (att_rows) {
+							if (att_rows.length === 0)
+								throw Error("no attestors?");
+							objAsset.arrAttestorAddresses = att_rows.map(function (att_row) { return att_row.attestor_address; });
+							handleAsset(null, objAsset);
+						}
+					);
+				}
+			);
+		}
+
+		if (objAsset.main_chain_index !== null && objAsset.main_chain_index <= last_ball_mci)
+			return addAttestorsIfNecessary();
+		if (!bAcceptUnconfirmedAA)
+			return handleAsset("asset definition must be before last ball");
+		readAADefinition(conn, objAsset.definer_address, function (arrDefinition) {
+			arrDefinition ? addAttestorsIfNecessary() : handleAsset("asset definition must be before last ball (AA)");
+		});
 	});
 }
 
@@ -1172,8 +1185,12 @@ function filterAttestedAddresses(conn, objAsset, last_ball_mci, arrAddresses, ha
 }
 
 // note that light clients cannot check attestations
-function loadAssetWithListOfAttestedAuthors(conn, asset, last_ball_mci, arrAuthorAddresses, handleAsset){
-	readAsset(conn, asset, last_ball_mci, function(err, objAsset){
+function loadAssetWithListOfAttestedAuthors(conn, asset, last_ball_mci, arrAuthorAddresses, bAcceptUnconfirmedAA, handleAsset){
+	if (arguments.length === 5) {
+		handleAsset = bAcceptUnconfirmedAA;
+		bAcceptUnconfirmedAA = false;
+	}
+	readAsset(conn, asset, last_ball_mci, bAcceptUnconfirmedAA, function(err, objAsset){
 		if (err)
 			return handleAsset(err);
 		if (!objAsset.spender_attested)

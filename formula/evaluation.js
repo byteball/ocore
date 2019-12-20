@@ -2041,8 +2041,8 @@ exports.evaluate = function (opts, callback) {
 			if (objAsset.main_chain_index !== null && objAsset.main_chain_index <= objValidationState.last_ball_mci)
 				return handleAssetInfo(objAsset);
 			// defined later than last ball, check if defined by AA
-			conn.query("SELECT 1 FROM aa_addresses WHERE address=?", [objAsset.definer_address], function (rows) {
-				if (rows.length > 0)
+			storage.readAADefinition(conn, objAsset.definer_address, function(arrDefinition) {
+				if (arrDefinition)
 					return handleAssetInfo(objAsset);
 				handleAssetInfo(null); // defined later by non-AA
 			});

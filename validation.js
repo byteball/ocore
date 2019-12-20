@@ -1492,7 +1492,7 @@ function validatePayment(conn, payload, message_index, objUnit, objValidationSta
 	
 	var arrAuthorAddresses = objUnit.authors.map(function(author) { return author.address; } );
 	// note that light clients cannot check attestations
-	storage.loadAssetWithListOfAttestedAuthors(conn, payload.asset, objValidationState.last_ball_mci, arrAuthorAddresses, function(err, objAsset){
+	storage.loadAssetWithListOfAttestedAuthors(conn, payload.asset, objValidationState.last_ball_mci, arrAuthorAddresses, objValidationState.bAA, function(err, objAsset){
 		if (err)
 			return callback(err);
 		if (hasFieldsExcept(payload, ["inputs", "outputs", "asset", "denomination"]))
@@ -2200,7 +2200,7 @@ function validateAttestorListUpdate(conn, payload, objUnit, objValidationState, 
 		return callback("foreign fields in attestor list update");
 	if (!isStringOfLength(payload.asset, constants.HASH_LENGTH))
 		return callback("invalid asset in attestor list update");
-	storage.readAsset(conn, payload.asset, objValidationState.last_ball_mci, function(err, objAsset){
+	storage.readAsset(conn, payload.asset, objValidationState.last_ball_mci, false, function(err, objAsset){
 		if (err)
 			return callback(err);
 		if (!objAsset.spender_attested)

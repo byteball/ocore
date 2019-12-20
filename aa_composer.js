@@ -830,7 +830,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 					objBasePaymentMessage = message;
 					return cb(); // skip it for now, we can estimate the fees only after all other messages are in place
 				}
-				storage.loadAssetWithListOfAttestedAuthors(conn, asset, mci, [address], function (err, objAsset) {
+				storage.loadAssetWithListOfAttestedAuthors(conn, asset, mci, [address], true, function (err, objAsset) {
 					if (err)
 						return cb(err);
 					assetInfos[asset] = objAsset;
