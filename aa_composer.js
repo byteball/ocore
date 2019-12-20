@@ -1027,8 +1027,12 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 		var response = {};
 		if (!bBouncing && Object.keys(responseVars).length > 0)
 			response.responseVars = responseVars;
-		if (error_message)
-			response.error = error_message;
+		if (error_message) {
+			if (bBouncing)
+				response.error = error_message;
+			else
+				response.info = error_message;
+		}
 		var objAAResponse = {
 			mci: mci,
 			trigger_address: trigger.address,
