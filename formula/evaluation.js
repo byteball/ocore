@@ -1323,10 +1323,8 @@ exports.evaluate = function (opts, callback) {
 								return cb(false);
 							return setFatalError("bad asset in asset[]: " + asset, cb, false);
 						}
-						storage.readAssetInfo(conn, asset, function (objAsset) {
+						readAssetInfoPossiblyDefinedByAA(asset, function (objAsset) {
 							if (!objAsset)
-								return cb(false);
-							if (objAsset.main_chain_index > objValidationState.last_ball_mci)
 								return cb(false);
 							if (objAsset.sequence !== "good")
 								return cb(false);
@@ -2034,6 +2032,21 @@ exports.evaluate = function (opts, callback) {
 				handleResult(null, filtered_array);
 			}
 		);
+	}
+
+	function readAssetInfoPossiblyDefinedByAA(asset, handleAssetInfo) {
+		storage.readAssetInfo(conn, asset, function (objAsset) {
+			if (!objAsset)
+				return handleAssetInfo(null);
+			if (objAsset.main_chain_index !== null && objAsset.main_chain_index <= objValidationState.last_ball_mci)
+				return handleAssetInfo(objAsset);
+			// defined later than last ball, check if defined by AA
+			conn.query("SELECT 1 FROM aa_addresses WHERE address=?", [objAsset.definer_address], function (rows) {
+				if (rows.length > 0)
+					return handleAssetInfo(objAsset);
+				handleAssetInfo(null); // defined later by non-AA
+			});
+		});
 	}
 
 	function unwrapOneElementArrays(value) {

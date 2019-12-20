@@ -324,3 +324,84 @@ test.cb.serial('AA with storage < 60 bytes', t => {
 	});
 });
 
+
+test.cb.serial('recently defined asset', t => {
+	var trigger_address = "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT";
+	var trigger = { outputs: { base: 40000 }, data: { x: 333 }, address: trigger_address };
+
+	var secondary_aa = ['autonomous agent', {
+		messages: [
+			{
+				app: 'state',
+				state: `{
+					$asset = var[trigger.address]['asset'];
+					var['asset'] = $asset;
+					var['exists'] = asset[$asset].exists;
+					var['is_issued'] = asset[$asset].is_issued;
+				}`
+			}
+		]
+	}];
+	var secondary_address = objectHash.getChash160(secondary_aa);
+	addAA(secondary_aa);
+
+	var primary_aa = ['autonomous agent', {
+		messages: [
+			{
+				app: 'asset',
+				payload: {
+					cap: 1e6,
+					is_private: false,
+					is_transferrable: true,
+					auto_destroy: false,
+					fixed_denominations: false,
+					issued_by_definer_only: true,
+					cosigned_by_definer: false,
+					spender_attested: false,
+				}
+			},
+			{
+				app: 'payment',
+				payload: {
+					asset: 'base',
+					outputs: [
+						{address: secondary_address, amount: "{trigger.output[[asset=base]] - 1000}"}
+					]
+				}
+			},
+			{
+				app: 'state',
+				state: `{
+					var['asset'] = response_unit;
+				}`
+			}
+		]
+	}];
+	var primary_address = objectHash.getChash160(primary_aa);
+	addAA(primary_aa);
+	
+	aa_composer.dryRunPrimaryAATrigger(trigger, primary_address, primary_aa, (arrResponses) => {
+		t.deepEqual(arrResponses.length, 2);
+		t.deepEqual(arrResponses[0].aa_address, primary_address);
+		t.deepEqual(arrResponses[0].bounced, false);
+		t.deepEqual(arrResponses[0].response.error, undefined);
+		t.deepEqual(arrResponses[0].objResponseUnit.messages.find(function (message) { return (message.app === 'payment'); }).payload.outputs.find(function (output) { return (output.address === secondary_address); }).amount, 39000);
+		let asset = arrResponses[0].updatedStateVars[primary_address].asset.value;
+		
+		t.deepEqual(arrResponses[1].aa_address, secondary_address);
+		t.deepEqual(arrResponses[1].bounced, false);
+		t.deepEqual(arrResponses[1].response.error, undefined);
+		t.deepEqual(arrResponses[1].response.info, 'no messages after filtering');
+		t.deepEqual(arrResponses[0].updatedStateVars[secondary_address].asset.value, asset);
+		t.deepEqual(arrResponses[0].updatedStateVars[secondary_address].exists.value, 1); // converted from true
+		t.deepEqual(arrResponses[0].updatedStateVars[secondary_address].is_issued.value, false); // false=deleted
+		
+		fixCache();
+		t.deepEqual(storage.assocUnstableUnits, old_cache.assocUnstableUnits);
+		t.deepEqual(storage.assocStableUnits, old_cache.assocStableUnits);
+		t.deepEqual(storage.assocUnstableMessages, old_cache.assocUnstableMessages);
+		t.deepEqual(storage.assocBestChildren, old_cache.assocBestChildren);
+		t.deepEqual(storage.assocStableUnitsByMci, old_cache.assocStableUnitsByMci);
+		t.end();
+	});
+});
