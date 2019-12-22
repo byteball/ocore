@@ -766,7 +766,7 @@ function insertAADefinitions(conn, arrPayloads, unit, mci, onDone) {
 					SELECT address, IFNULL(asset, 'base'), SUM(amount) AS balance \n\
 					FROM outputs CROSS JOIN units USING(unit) \n\
 					WHERE address=? AND is_spent=0 AND (main_chain_index<? " + or_sent_by_aa + ") \n\
-					GROUP BY address", // not including the outputs on the current mci, which will trigger the AA and be accounted for separately
+					GROUP BY address, asset", // not including the outputs on the current mci, which will trigger the AA and be accounted for separately
 					[address, mci],
 					function () {
 						conn.query(
