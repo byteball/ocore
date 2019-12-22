@@ -609,7 +609,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 		for (var asset in trigger.outputs) {
 			var amount = trigger.outputs[asset];
 			if (bounce_fees[asset] && bounce_fees[asset] >= amount)
-				continue;
+				return finish(null);
 			var bounced_amount = amount - (bounce_fees[asset] || 0);
 			messages.push({app: 'payment', payload: {asset: asset, outputs: [{address: trigger.address, amount: bounced_amount}]}});
 		}
