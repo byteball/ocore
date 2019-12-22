@@ -1344,7 +1344,7 @@ function checkBalances() {
 				HAVING balance != calculated_balance";
 			async.eachSeries(
 				[sql_base, sql_assets_balances_to_outputs, sql_assets_outputs_to_balances],
-				function (sql) {
+				function (sql, cb) {
 					conn.query(sql, function (rows) {
 						if (rows.length > 0)
 							throw Error("checkBalances failed: sql:\n" + sql + "\n\nrows:\n" + rows.join("\n"));
