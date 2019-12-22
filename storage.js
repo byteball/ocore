@@ -11,6 +11,8 @@ var archiving = require('./archiving.js');
 var eventBus = require('./event_bus.js');
 var profiler = require('./profiler.js');
 
+var testnetAssetsDefinedByAAsAreVisibleImmediatelyUpgradeMci = 1167000;
+
 var bCordova = (typeof window === 'object' && window.cordova);
 
 var MAX_INT32 = Math.pow(2, 31) - 1;
@@ -1218,7 +1220,7 @@ function readAsset(conn, asset, last_ball_mci, bAcceptUnconfirmedAA, handleAsset
 
 		if (objAsset.main_chain_index !== null && objAsset.main_chain_index <= last_ball_mci)
 			return addAttestorsIfNecessary();
-		if (!bAcceptUnconfirmedAA)
+		if (!bAcceptUnconfirmedAA || constants.bTestnet && last_ball_mci < testnetAssetsDefinedByAAsAreVisibleImmediatelyUpgradeMci)
 			return handleAsset("asset definition must be before last ball");
 		readAADefinition(conn, objAsset.definer_address, function (arrDefinition) {
 			arrDefinition ? addAttestorsIfNecessary() : handleAsset("asset definition must be before last ball (AA)");
