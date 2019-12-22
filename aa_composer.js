@@ -1194,6 +1194,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 				validation_unlock();
 				objAAValidationState.conn = conn;
 				objAAValidationState.batch = batch;
+				objAAValidationState.initial_trigger_mci = mci;
 				writer.saveJoint(objJoint, objAAValidationState, null, function(err){
 					if (err)
 						throw Error('AA writer returned error: ' + err);

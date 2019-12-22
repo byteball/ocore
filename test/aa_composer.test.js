@@ -512,3 +512,98 @@ test.cb.serial('issue recently defined asset', t => {
 		t.end();
 	});
 });
+
+
+test.cb.serial('define new AA and activate it', t => {
+	var trigger_address = "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT";
+	var trigger = { outputs: { base: 10000 }, data: { define: true }, address: trigger_address };
+
+	// a chain of 3 AA responses
+	// 1. define new AA, save its address in var['new_aa'] state var, and send bytes to forwarder AA
+	// 2. forwarder sends the bytes to the new AA
+	// 3. the new AA posts data
+
+	var data_poster_hidden_definition = ['autonomous agent', {
+		messages: [
+			{
+				app: 'data',
+				payload: {
+					trigger_address: "{'{trigger.address}'}",
+					amount_received: "{'{trigger.output[[asset=base]]}'}",
+				}
+			},
+		]
+	}];
+
+	var forwarder_aa = ['autonomous agent', {
+		messages: [
+			{
+				app: 'payment',
+				payload: {
+					asset: 'base',
+					outputs: [
+						{address: "{var[trigger.address]['new_aa']}", amount: "{trigger.output[[asset=base]] - 1000}"}
+					]
+				}
+			},
+		]
+	}];
+	var forwarder_address = objectHash.getChash160(forwarder_aa);
+	addAA(forwarder_aa);
+
+
+	var definition_aa = ['autonomous agent', {
+		messages: [
+			{
+				app: 'definition',
+				payload: {
+					definition: data_poster_hidden_definition,
+				}
+			},
+			{
+				app: 'payment',
+				payload: {
+					asset: 'base',
+					outputs: [
+						{address: forwarder_address, amount: "{trigger.output[[asset=base]] - 1000}"}
+					]
+				}
+			},
+			{
+				app: 'state',
+				state: `{
+					var['new_aa'] = unit[response_unit].messages[[.app='definition']].payload.address;
+				}`
+			}
+		]
+	}];
+	var definition_aa_address = objectHash.getChash160(definition_aa);
+	addAA(definition_aa);
+	
+	aa_composer.dryRunPrimaryAATrigger(trigger, definition_aa_address, definition_aa, (arrResponses) => {
+		t.deepEqual(arrResponses.length, 3);
+		t.deepEqual(arrResponses[0].aa_address, definition_aa_address);
+		t.deepEqual(arrResponses[0].bounced, false);
+		t.deepEqual(arrResponses[0].response.error, undefined);
+		t.deepEqual(arrResponses[0].objResponseUnit.messages.find(function (message) { return (message.app === 'payment'); }).payload.outputs.find(function (output) { return (output.address === forwarder_address); }).amount, 9000);
+		let new_aa_address = arrResponses[0].updatedStateVars[definition_aa_address].new_aa.value;
+		t.deepEqual(arrResponses[0].objResponseUnit.messages.find(function (message) { return (message.app === 'definition'); }).payload.address, new_aa_address);
+		
+		t.deepEqual(arrResponses[1].aa_address, forwarder_address);
+		t.deepEqual(arrResponses[1].bounced, false);
+		t.deepEqual(arrResponses[1].response.error, undefined);
+		
+		t.deepEqual(arrResponses[2].aa_address, new_aa_address);
+		t.deepEqual(arrResponses[2].bounced, false);
+		t.deepEqual(arrResponses[2].response.error, undefined);
+		t.deepEqual(arrResponses[2].objResponseUnit.messages.find(function (message) { return (message.app === 'data'); }).payload, {trigger_address: forwarder_address, amount_received: 8000});
+		
+		fixCache();
+		t.deepEqual(storage.assocUnstableUnits, old_cache.assocUnstableUnits);
+		t.deepEqual(storage.assocStableUnits, old_cache.assocStableUnits);
+		t.deepEqual(storage.assocUnstableMessages, old_cache.assocUnstableMessages);
+		t.deepEqual(storage.assocBestChildren, old_cache.assocBestChildren);
+		t.deepEqual(storage.assocStableUnitsByMci, old_cache.assocStableUnitsByMci);
+		t.end();
+	});
+});

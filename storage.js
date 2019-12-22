@@ -724,6 +724,65 @@ function readAADefinition(conn, address, handleDefinition) {
 	});
 }
 
+// arrAddresses is an array of AA addresses whose definitions are posted by other AAs
+function getUnconfirmedAADefinitionsPostedByAAs(arrAddresses) {
+	var payloads = [];
+	for (var unit in assocUnstableMessages) {
+		var objUnit = assocUnstableUnits[unit] || assocStableUnits[unit]; // just stabilized
+		if (!objUnit)
+			throw Error("unstable unit " + unit + " not in assoc");
+		if (!objUnit.bAA)
+			continue;
+		assocUnstableMessages[unit].forEach(function (message) {
+			if (message.app !== 'definition')
+				return;
+			var payload = message.payload;
+			if (arrAddresses.indexOf(payload.address) >= 0)
+			payloads.push(payload);
+		});
+	}
+	return payloads;
+}
+
+function insertAADefinitions(conn, arrPayloads, unit, mci, onDone) {
+	async.eachSeries(
+		arrPayloads,
+		function (payload, cb) {
+			var address = payload.address;
+			var json = JSON.stringify(payload.definition);
+			var bAlreadyPostedByUnconfirmedAA = false;
+			conn.query("INSERT " + db.getIgnore() + " INTO aa_addresses (address, definition, unit, mci) VALUES (?,?,?,?)", [address, json, unit, mci], function (res) {
+				if (res.affectedRows === 0) { // already exists
+					var old_payloads = getUnconfirmedAADefinitionsPostedByAAs([address]);
+					if (old_payloads.length === 0)
+						return cb();
+					// we need to recalc the balances to reflect the payments received from non-AAs between definition and stabilization
+					bAlreadyPostedByUnconfirmedAA = true;
+				}
+				var verb = bAlreadyPostedByUnconfirmedAA ? "REPLACE" : "INSERT";
+				var or_sent_by_aa = bAlreadyPostedByUnconfirmedAA ? "OR EXISTS (SELECT 1 FROM unit_authors CROSS JOIN aa_addresses USING(address) WHERE unit_authors.unit=outputs.unit)" : "";
+				conn.query(
+					verb + " INTO aa_balances (address, asset, balance) \n\
+					SELECT address, IFNULL(asset, 'base'), SUM(amount) AS balance \n\
+					FROM outputs CROSS JOIN units USING(unit) \n\
+					WHERE address=? AND is_spent=0 AND (main_chain_index<? " + or_sent_by_aa + ") \n\
+					GROUP BY address", // not including the outputs on the current mci, which will trigger the AA and be accounted for separately
+					[address, mci],
+					function () {
+						conn.query(
+							"INSERT " + db.getIgnore() + " INTO addresses (address) VALUES (?)", [address],
+							function () { 
+								cb();
+							}
+						);
+					}
+				);
+			});
+		},
+		onDone
+	);
+}
+
 function readAAStateVar(address, var_name, handleResult) {
 	var kvstore = require('./kvstore.js');
 	kvstore.get("st\n" + address + "\n" + var_name, handleResult);
@@ -1669,6 +1728,8 @@ exports.readDefinitionChashByAddress = readDefinitionChashByAddress;
 exports.readDefinitionByAddress = readDefinitionByAddress;
 exports.readDefinition = readDefinition;
 exports.readAADefinition = readAADefinition;
+exports.getUnconfirmedAADefinitionsPostedByAAs = getUnconfirmedAADefinitionsPostedByAAs;
+exports.insertAADefinitions = insertAADefinitions;
 exports.readAAStateVar = readAAStateVar;
 exports.readAAStateVars = readAAStateVars;
 
