@@ -1350,6 +1350,9 @@ function checkBalances() {
 							throw Error("checkBalances failed: sql:\n" + sql + "\n\nrows:\n" + rows.join("\n"));
 						cb();
 					});
+				},
+				function () {
+					conn.release();
 				}
 			);
 		});
