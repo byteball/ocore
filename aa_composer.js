@@ -1316,8 +1316,10 @@ function checkStorageSizes() {
 function checkBalances() {
 	db.takeConnectionFromPool(function (conn) { // block conection for the entire duration of the check
 		conn.query("SELECT 1 FROM aa_triggers", function (rows) {
-			if (rows.length > 0)
+			if (rows.length > 0) {
+				conn.release();
 				return console.log("skipping checkBalances because there are unhandled triggers");
+			}
 			var stable_or_from_aa = "( \n\
 				(SELECT is_stable FROM units WHERE units.unit=outputs.unit)=1 \n\
 				OR EXISTS (SELECT 1 FROM unit_authors CROSS JOIN aa_addresses USING(address) WHERE unit_authors.unit=outputs.unit) \n\
