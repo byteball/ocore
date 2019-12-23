@@ -605,6 +605,8 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 		bBouncing = true;
 		if (bSecondary)
 			return finish(null);
+		if (trigger.outputs.base < bounce_fees.base)
+			return finish(null);
 		var messages = [];
 		for (var asset in trigger.outputs) {
 			var amount = trigger.outputs[asset];
