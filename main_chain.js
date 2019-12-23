@@ -1392,10 +1392,10 @@ function markMcIndexStable(conn, batch, mci, onDone){
 										else
 											throw Error("unrecognized app in unstable message: " + message.app);
 									});
-									delete storage.assocUnstableMessages[unit];
-									if (arrAADefinitionPayloads.length === 0)
-										return cb();
-									storage.insertAADefinitions(conn, arrAADefinitionPayloads, unit, mci, cb);
+									storage.insertAADefinitions(conn, arrAADefinitionPayloads, unit, mci, function () {
+										delete storage.assocUnstableMessages[unit];
+										cb();
+									});
 								}
 								
 								function addDataFeeds(payload){
