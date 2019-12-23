@@ -1354,7 +1354,7 @@ function checkBalances() {
 				function (sql, cb) {
 					conn.query(sql, function (rows) {
 						if (rows.length > 0)
-							throw Error("checkBalances failed: sql:\n" + sql + "\n\nrows:\n" + rows.join("\n"));
+							throw Error("checkBalances failed: sql:\n" + sql + "\n\nrows:\n" + JSON.stringify(rows, null, '\t'));
 						cb();
 					});
 				},
