@@ -22,6 +22,8 @@ var isNonnegativeInteger = ValidationUtils.isNonnegativeInteger;
 var isNonemptyArray = ValidationUtils.isNonemptyArray;
 var isNonemptyObject = ValidationUtils.isNonemptyObject;
 
+var testnetAAsDefinedByAAsAreActiveImmediatelyUpgradeMci = 1167000;
+
 var TRANSFER_INPUT_SIZE = 0 // type: "transfer" omitted
 	+ 44 // unit
 	+ 8 // message_index
@@ -1109,6 +1111,8 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 
 	function handleSecondaryTriggers(objUnit, arrOutputAddresses) {
 		conn.query("SELECT address, definition FROM aa_addresses WHERE address IN(?) AND mci<=? ORDER BY address", [arrOutputAddresses, mci], function (rows) {
+			if (rows.length > 0 && constants.bTestnet && mci < testnetAAsDefinedByAAsAreActiveImmediatelyUpgradeMci)
+				rows = rows.filter(function (row) { getUnconfirmedAADefinitionsPostedByAAs([row.address]).length === 0 });
 			if (rows.length === 0) {
 				saveStateVars();
 				addUpdatedStateVarsIntoPrimaryResponse();
