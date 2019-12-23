@@ -1112,7 +1112,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 	function handleSecondaryTriggers(objUnit, arrOutputAddresses) {
 		conn.query("SELECT address, definition FROM aa_addresses WHERE address IN(?) AND mci<=? ORDER BY address", [arrOutputAddresses, mci], function (rows) {
 			if (rows.length > 0 && constants.bTestnet && mci < testnetAAsDefinedByAAsAreActiveImmediatelyUpgradeMci)
-				rows = rows.filter(function (row) { getUnconfirmedAADefinitionsPostedByAAs([row.address]).length === 0 });
+				rows = rows.filter(function (row) { storage.getUnconfirmedAADefinitionsPostedByAAs([row.address]).length === 0 });
 			if (rows.length === 0) {
 				saveStateVars();
 				addUpdatedStateVarsIntoPrimaryResponse();
