@@ -746,7 +746,7 @@ function getUnconfirmedAADefinitionsPostedByAAs(arrAddresses) {
 	return payloads;
 }
 
-function insertAADefinitions(conn, arrPayloads, unit, mci, onDone) {
+function insertAADefinitions(conn, arrPayloads, unit, mci, bForAAsOnly, onDone) {
 	async.eachSeries(
 		arrPayloads,
 		function (payload, cb) {
@@ -755,11 +755,18 @@ function insertAADefinitions(conn, arrPayloads, unit, mci, onDone) {
 			var bAlreadyPostedByUnconfirmedAA = false;
 			conn.query("INSERT " + db.getIgnore() + " INTO aa_addresses (address, definition, unit, mci) VALUES (?,?,?,?)", [address, json, unit, mci], function (res) {
 				if (res.affectedRows === 0) { // already exists
-					var old_payloads = getUnconfirmedAADefinitionsPostedByAAs([address]);
-					if (old_payloads.length === 0)
+					if (bForAAsOnly){
+						console.log("ignoring repeated definition of AA " + address + " in AA unit " + unit);
 						return cb();
+					}
+					var old_payloads = getUnconfirmedAADefinitionsPostedByAAs([address]);
+					if (old_payloads.length === 0) {
+						console.log("ignoring repeated definition of AA " + address + " in unit " + unit);
+						return cb();
+					}
 					// we need to recalc the balances to reflect the payments received from non-AAs between definition and stabilization
 					bAlreadyPostedByUnconfirmedAA = true;
+					console.log("will recalc balances after repeated definition of AA " + address + " in unit " + unit);
 				}
 				var verb = bAlreadyPostedByUnconfirmedAA ? "REPLACE" : "INSERT";
 				var or_sent_by_aa = bAlreadyPostedByUnconfirmedAA ? "OR EXISTS (SELECT 1 FROM unit_authors CROSS JOIN aa_addresses USING(address) WHERE unit_authors.unit=outputs.unit)" : "";
