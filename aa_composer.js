@@ -249,6 +249,8 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 				var arrQueries = [];
 				// 1. update balances of existing assets
 				rows.forEach(function (row) {
+					if (constants.bTestnet && mci < testnetAAsDefinedByAAsAreActiveImmediatelyUpgradeMci)
+						reproduceBalanceBug(address, row);
 					conn.addQuery(
 						arrQueries,
 						"UPDATE aa_balances SET balance=balance+? WHERE address=? AND asset=? ",
@@ -1373,6 +1375,23 @@ function checkBalances() {
 			);
 		});
 	});
+}
+
+function reproduceBalanceBug(address, row) {
+	if (address === 'XM3EMLR3D3VLKDNPSZSJTSKPKFFXDDHV') row.balance -= 3125;
+	if (address === 'FSEIUKVQNYNF5BQE5S46R7ERQDVROVJL') row.balance -= 3337;
+	if (address === 'BCHGVAJRLHS3HMA7NMKZ4BO6JQKUW3Q5') row.balance -= 2173;
+	if (address === 'H4KE7UKFJOMMBXSQ6YPWNF66AK4WCIHI') row.balance -= 2200;
+	if (address === 'W4BXAP5B6CB3VUBTTEWILHDLBH32GW77') row.balance -= 2200;
+	if (address === '5MUADPAHD5HODQ2H2I4VJK7LIJP2UWEM') row.balance -= 2173;
+	if (address === 'R5XIX3LV56SXLDL2RRU3MTMDEX7KMG7E') row.balance -= 2096;
+	if (address === '5G6AIA2SNEKZCHL4CWGRCG6U4YJEMMEG') row.balance -= 2123;
+	if (address === 'DVPC3PRVQ52DDBSHMRFOFRDDPG5CUKKG') row.balance -= 2055;
+	if (address === 'ZZEC7WHPGVAPHB6TZY5EQNDFMRA3PBFB') row.balance -= 2028;
+	if (address === 'X5ZRXFN27AS5AXALITEBJGJAJCGB3HFK') row.balance -= 2019;
+	if (address === 'CPTSL3OUMDIEKQ2LJWRO2BDJVRUTH7TZ') row.balance -= 1992;
+	if (address === 'AE7RCCPDR2DOSEOSTQA4XP7CSR5SY3WM') row.balance -= 1959;
+	if (address === '7SBOUY5ERICX4XHFS42FJJVVAN4YJ3BZ') row.balance -= 1932;
 }
 
 if (!conf.bLight) {
