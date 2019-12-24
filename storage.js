@@ -1227,7 +1227,8 @@ function readAsset(conn, asset, last_ball_mci, bAcceptUnconfirmedAA, handleAsset
 
 		if (objAsset.main_chain_index !== null && objAsset.main_chain_index <= last_ball_mci)
 			return addAttestorsIfNecessary();
-		if (!bAcceptUnconfirmedAA || constants.bTestnet && last_ball_mci < testnetAssetsDefinedByAAsAreVisibleImmediatelyUpgradeMci)
+		// && objAsset.main_chain_index !== null below is for bug compatibility with the old version
+		if (!bAcceptUnconfirmedAA || constants.bTestnet && last_ball_mci < testnetAssetsDefinedByAAsAreVisibleImmediatelyUpgradeMci && objAsset.main_chain_index !== null)
 			return handleAsset("asset definition must be before last ball");
 		readAADefinition(conn, objAsset.definer_address, function (arrDefinition) {
 			arrDefinition ? addAttestorsIfNecessary() : handleAsset("asset definition must be before last ball (AA)");
