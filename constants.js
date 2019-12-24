@@ -56,6 +56,7 @@ exports.MAX_AA_STRING_LENGTH = 4096;
 exports.MAX_STATE_VAR_NAME_LENGTH = 128;
 exports.MAX_STATE_VAR_VALUE_LENGTH = 1024;
 exports.MAX_OPS = 2000;
+exports.MAX_RESPONSES_PER_PRIMARY_TRIGGER = 10;
 
 exports.TEXTCOIN_CLAIM_FEE = 548;
 exports.TEXTCOIN_ASSET_CLAIM_FEE = 750;
@@ -66,7 +67,7 @@ exports.TEXTCOIN_PRIVATE_ASSET_CLAIM_MESSAGE_FEE = 99;
 exports.MIN_BYTES_BOUNCE_FEE = 10000;
 
 exports.minCoreVersion = exports.bTestnet ? '0.3.0' : '0.2.0';
-exports.minCoreVersionForFullNodes = exports.bTestnet ? '0.3.2' : '0.2.94';
+exports.minCoreVersionForFullNodes = exports.bTestnet ? '0.3.3' : '0.2.94';
 
 exports.lastBallStableInParentsUpgradeMci = 1300000;
 exports.witnessedLevelMustNotRetreatUpgradeMci = exports.bTestnet ? 684000 : 1400000;

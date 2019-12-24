@@ -4,7 +4,7 @@ var eventBus = require('./event_bus.js');
 var constants = require("./constants.js");
 var conf = require("./conf.js");
 
-var VERSION = 34;
+var VERSION = 35;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -362,7 +362,21 @@ function migrateDb(connection, onDone){
 					initStorageSizes(connection, arrQueries, cb);
 				else
 					cb();
-			}
+			},
+			function (cb) {
+				if (version < 35)
+					connection.addQuery(arrQueries, "REPLACE INTO aa_balances (address, asset, balance) \n\
+						SELECT address, IFNULL(asset, 'base'), SUM(amount) AS balance \n\
+						FROM aa_addresses \n\
+						CROSS JOIN outputs USING(address) \n\
+						CROSS JOIN units USING(unit) \n\
+						WHERE is_spent=0 AND ( \n\
+							is_stable=1 \n\
+							OR EXISTS (SELECT 1 FROM unit_authors CROSS JOIN aa_addresses USING(address) WHERE unit_authors.unit=outputs.unit) \n\
+						) \n\
+						GROUP BY address, asset");
+				cb();
+			},
 		],
 		function(){
 			connection.addQuery(arrQueries, "PRAGMA user_version="+VERSION);

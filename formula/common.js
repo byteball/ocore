@@ -39,6 +39,11 @@ function toDoubleRange(val) {
 	return (val.toNumber() === 0) ? new Decimal(0) : val;
 }
 
+// reduces precision to 15 digits to calculate the same result as Oscript would calculate
+function toOscriptPrecision(num) {
+	return (new Decimal(num).times(1)).toString();
+}
+
 exports.cache = cache;
 exports.formulasInCache = formulasInCache;
 exports.cacheLimit = cacheLimit;
@@ -48,3 +53,4 @@ exports.objBaseAssetInfo = objBaseAssetInfo;
 
 exports.isFiniteDecimal = isFiniteDecimal;
 exports.toDoubleRange = toDoubleRange;
+exports.toOscriptPrecision = toOscriptPrecision;

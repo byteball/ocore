@@ -83,7 +83,7 @@ test('formula - validate formula (data_feed, input, output) - ok', t => {
 });
 
 test('formula - validate formula (data_feed, input, output) 2 oracles - ok', t => {
-	validateFormula("data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:this address\", feed_name=\"Test\", min_mci=\"1\"]] * input[[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU]].amount == 20 / output[[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU]].amount", 0, (result) => {
+	validateFormula("data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:\"||this_address, feed_name=\"Test\", min_mci=\"1\"]] * input[[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU]].amount == 20 / output[[address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU]].amount", 0, (result) => {
 		t.is(result.error, false);
 		t.deepEqual(result.complexity, 1);
 	});
@@ -95,7 +95,7 @@ test('formula - validate calculation 1 - ok', t => {
 	});
 });
 
-test('formula - validate this address - ok', async (t) => {
+test('formula - validate this_address - ok', async (t) => {
 	var signature = require('../signature');
 	signature.verify = function () {
 		return true;
@@ -105,7 +105,7 @@ test('formula - validate this address - ok', async (t) => {
 			['and',
 				[
 					['sig', {pubkey: 'AoKzoVEoN6CpH1Vfi6Vnn0PS9BBJ9Ld92Nh8RCeOAqQI'}],
-					['formula', "input[[address=this address]].amount == 20000"]
+					['formula', "input[[address=this_address]].amount == 20000"]
 				]
 			], objUnit, objValidationState, {'r.0': 'AoKzoVEoN6CpH1Vfi6Vnn0PS9BBJ9Ld92Nh8RCeOAqQI'}, function (err, res) {
 				return resolve({err, res});
@@ -454,47 +454,47 @@ test('formula - incorrect operator in address in output - error - 3', t => {
 	});
 });
 
-test('formula - this address in input - ok', t => {
-	validateFormula("input[[address=this address]].amount == 20", 0, (result) => {
+test('formula - this_address in input - ok', t => {
+	validateFormula("input[[address=this_address]].amount == 20", 0, (result) => {
 		t.is(result.error, false);
 		t.deepEqual(result.complexity, 0);
 	});
 });
 
 test('formula - other address in input - ok', t => {
-	validateFormula("input[[address=other address]].amount == 20", 3, (result) => {
+	validateFormula("input[[address!=this_address]].amount == 20", 3, (result) => {
 		t.is(result.error, false);
 		t.deepEqual(result.complexity, 3);
 	});
 });
 
-test('formula - this address in output - error', t => {
-	validateFormula("output[[address=this address]] == 20", 3, (result) => {
+test('formula - this_address in output - error', t => {
+	validateFormula("output[[address=this_address]] == 20", 3, (result) => {
 		t.not(result.error.match(/parse error/), null);
 		t.deepEqual(result.complexity, 3);
 	});
 });
-test('formula - this address in output - ok', t => {
-	validateFormula("output[[address=this address]].amount == 20", 0, (result) => {
+test('formula - this_address in output - ok', t => {
+	validateFormula("output[[address=this_address]].amount == 20", 0, (result) => {
 		t.is(result.error, false);
 		t.deepEqual(result.complexity, 0);
 	});
 });
-test('formula - this address in input - error', t => {
-	validateFormula("input[[address=this address]] == 20", 0, (result) => {
+test('formula - this_address in input - error', t => {
+	validateFormula("input[[address=this_address]] == 20", 0, (result) => {
 		t.not(result.error.match(/parse error/), null);
 		t.deepEqual(result.complexity, 0);
 	});
 });
-test('formula - this address in input - ok', t => {
-	validateFormula("input[[address=this address]].address == \"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\"", 0, (result) => {
+test('formula - this_address in input - ok', t => {
+	validateFormula("input[[address=this_address]].address == \"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\"", 0, (result) => {
 		t.is(result.error, false);
 		t.deepEqual(result.complexity, 0);
 	});
 });
 
 test('formula - other address in output - ok', t => {
-	validateFormula("output[[address=other address]].amount == 20", 0, (result) => {
+	validateFormula("output[[address!=this_address]].amount == 20", 0, (result) => {
 		t.is(result.error, false);
 		t.deepEqual(result.complexity, 0);
 	});

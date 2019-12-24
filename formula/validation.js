@@ -36,9 +36,7 @@ function validateDataFeed(params) {
 					var addresses = value.split(':');
 					if (addresses.length === 0) return {error: 'empty oracle list', complexity};
 				//	complexity += addresses.length;
-					if (!addresses.every(function (address) {
-						return ValidationUtils.isValidAddress(address) || address === 'this address';
-					})) return {error: 'oracle address not valid', complexity};
+					if (!addresses.every(ValidationUtils.isValidAddress)) return {error: 'oracle address not valid', complexity};
 					break;
 
 				case 'feed_name':
@@ -100,9 +98,7 @@ function validateDataFeedExists(params) {
 				var addresses = value.split(':');
 				if (addresses.length === 0) return {error: 'empty oracles list', complexity};
 			//	complexity += addresses.length;
-				if (!addresses.every(function (address) {
-					return ValidationUtils.isValidAddress(address) || address === 'this address';
-				})) return {error: 'not valid oracle address', complexity};
+				if (!addresses.every(ValidationUtils.isValidAddress)) return {error: 'not valid oracle address', complexity};
 				break;
 
 			case 'feed_name':
@@ -146,13 +142,11 @@ function getAttestationError(params) {
 				if (!value)
 					return 'empty attestors';
 				var attestor_addresses = value.split(':');
-				if (!attestor_addresses.every(function (attestor_address) {
-					return ValidationUtils.isValidAddress(attestor_address) || attestor_address === 'this address';
-				})) return 'bad attestor address: ' + value;
+				if (!attestor_addresses.every(ValidationUtils.isValidAddress)) return 'bad attestor address: ' + value;
 				break;
 
 			case 'address':
-				if (!ValidationUtils.isValidAddress(value) && value !== 'this address')
+				if (!ValidationUtils.isValidAddress(value))
 					return 'bad address: ' + value;
 				break;
 
@@ -195,7 +189,7 @@ function getInputOrOutputError(params) {
 			continue;
 		switch (name) {
 			case 'address':
-				if (!(value === 'this address' || value === 'other address' || ValidationUtils.isValidAddress(value))) return 'bad address: ' + value;
+				if (!ValidationUtils.isValidAddress(value)) return 'bad address: ' + value;
 				break;
 			case 'amount':
 				if (!(/^\d+$/.test(value) && ValidationUtils.isPositiveInteger(parseInt(value)))) return 'bad amount: ' + value;
@@ -388,15 +382,16 @@ exports.validate = function (opts, callback) {
 
 			case 'mci':
 			case 'timestamp':
+			case 'this_address':
 				cb();
 				break;
 
-			case 'this_address':
 			case 'trigger.address':
 			case 'trigger.initial_address':
 			case 'trigger.unit':
 			case 'mc_unit':
 			case 'storage_size':
+			case 'number_of_responses':
 				cb(bAA ? undefined : op + ' in non-AA');
 				break;
 
@@ -546,7 +541,7 @@ exports.validate = function (opts, callback) {
 
 			case 'var':
 			case 'balance':
-				if (!bAA)
+				if (!bAA) // we cannot allow even var[aa_address][name] in non-AAs because the var would have to be taken at some past time that corresponds to the unit's last_ball_unit but we know only the current (last) value of the var
 					return cb(op + ' in non-AA');
 				function isValidVarNameOrAsset(param) {
 					if (op === 'var')
@@ -567,7 +562,7 @@ exports.validate = function (opts, callback) {
 						return cb(err);
 					if (param2 === null) // single argument
 						return cb(isValidVarNameOrAsset(param1) ? undefined : 'invalid param1');
-					if (typeof param1 === 'string' && param1 !== 'this address' && !ValidationUtils.isValidAddress(param1))
+					if (typeof param1 === 'string' && !ValidationUtils.isValidAddress(param1))
 						return cb('bad param1: ' + param1);
 					evaluate(param2, function (err) {
 						if (err)
@@ -647,10 +642,37 @@ exports.validate = function (opts, callback) {
 				});
 				break;
 
+			case 'vrf_verify':
+				complexity+=1;
+				var seed = arr[1];
+				var proof = arr[2];
+				var pem_key = arr[3];
+				evaluate(seed, function (err) {
+					if (err)
+						return cb(err);
+					evaluate(pem_key, function (err) {
+						if (err)
+							return cb(err);
+						evaluate(proof, cb);
+					});
+				});
+				break;
+
 			case 'sha256':
 				complexity++;
 				var expr = arr[1];
-				evaluate(expr, cb);
+				evaluate(expr, function (err) {
+					if (err)
+						return cb(err);
+					var format_expr = arr[2];
+					if (format_expr === null || format_expr === 'hex' || format_expr === 'base64')
+						return cb();
+					if (typeof format_expr === 'boolean' || Decimal.isDecimal(format_expr))
+						return cb("format of sha256 must be string");
+					if (typeof format_expr === 'string')
+						return cb("wrong format of sha256: " + format_expr);
+					evaluate(format_expr, cb);
+				});
 				break;
 
 			case 'number_from_seed':
@@ -695,6 +717,7 @@ exports.validate = function (opts, callback) {
 				evaluate(expr, cb);
 				break;
 
+			case 'exists':
 			case 'is_array':
 			case 'is_assoc':
 			case 'array_length':
@@ -706,6 +729,8 @@ exports.validate = function (opts, callback) {
 			case 'typeof':
 			case 'length':
 			case 'parse_date':
+			case 'to_upper':
+			case 'to_lower':
 				var expr = arr[1];
 				evaluate(expr, cb);
 				break;

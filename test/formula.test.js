@@ -8,6 +8,7 @@ desktop_app.getAppDataDir = function() { return __dirname + '/.testdata-' + path
 
 var Decimal = require('decimal.js');
 var formulaParser = require('../formula/index');
+var formulaCommon = require('../formula/common.js');
 var test = require('ava');
 require('./_init_datafeeds.js');
 
@@ -94,6 +95,7 @@ var objValidationState = {
 	mc_unit: "oXGOcA9TQx8Tl5Syjp1d5+mB4xicsRk3kbcE82YQAS0=",
 	storage_size: 200,
 	assocBalances: {},
+	number_of_responses: 0,
 	arrPreviousResponseUnits: [],
 	arrAugmentedMessages: [{
 		"app": "payment",
@@ -135,6 +137,11 @@ var objValidationState = {
 
 test.after.always(t => {
 	console.log('***** formula.test done');
+});
+
+test('toOscriptPrecision(0.018600000000000002)', t => {
+	var res = formulaCommon.toOscriptPrecision(0.018600000000000002);
+	t.deepEqual(res, '0.0186');
 });
 
 test('1 + 1', t => {
@@ -332,7 +339,7 @@ test('abs positive', t => {
 
 test('abs string', t => {
 	evalFormula(null, "abs(2 || '')", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
-		t.deepEqual(res, null);
+		t.deepEqual(res, 2);
 	});
 });
 
@@ -746,134 +753,134 @@ test.cb('formula - datafeed not found', t => {
 	});
 });
 
-test.cb('formula - datafeed with this address', t => {
-	evalFormula({}, "data_feed[[oracles=\"KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA:this address\", feed_name=\"test\", ifseveral=\"last\", min_mci = 10]] == 10", objValidationState.arrAugmentedMessages, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
+test.cb('formula - datafeed with this_address', t => {
+	evalFormula({}, "data_feed[[oracles=\"KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA:\"||this_address, feed_name=\"test\", ifseveral=\"last\", min_mci = 10]] == 10", objValidationState.arrAugmentedMessages, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
 		t.deepEqual(res, true);
 		t.end();
 	});
 });
 
 test.cb('formula - datafeed3 te"st', t => {
-	evalFormula({}, 'data_feed[[oracles="MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:this address", feed_name="te\\"st", ifseveral="last", min_mci = 10]] == 11', objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
+	evalFormula({}, 'data_feed[[oracles="MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:"||this_address, feed_name="te\\"st", ifseveral="last", min_mci = 10]] == 11', objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
 		t.deepEqual(res, true);
 		t.end();
 	});
 });
 
 test.cb('formula - datafeed4', t => {
-	evalFormula({}, "data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:this address\", feed_name='test', ifseveral=\"last\", min_mci = 10]] == 10", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
+	evalFormula({}, "data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:\"||this_address, feed_name='test', ifseveral=\"last\", min_mci = 10]] == 10", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
 		t.deepEqual(res, true);
 		t.end();
 	});
 });
 
 test.cb('formula - datafeed te\"st', t => {
-	evalFormula({}, "data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:this address\", feed_name='te\"st', ifseveral=\"last\", min_mci = 10]] == 11", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
+	evalFormula({}, "data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:\"||this_address, feed_name='te\"st', ifseveral=\"last\", min_mci = 10]] == 11", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
 		t.deepEqual(res, true);
 		t.end();
 	});
 });
 
 test.cb('formula - datafeed te\'st', t => {
-	evalFormula({}, "data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:this address\", feed_name='te\\'st', ifseveral=\"last\", min_mci = 10]] == 15", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
+	evalFormula({}, "data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:\"||this_address, feed_name='te\\'st', ifseveral=\"last\", min_mci = 10]] == 15", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
 		t.deepEqual(res, true);
 		t.end();
 	});
 });
 
 test.cb('formula - datafeed t,e(s)[],\'t', t => {
-	evalFormula({}, "data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:this address\", feed_name='t,e(s)[],\\'t', ifseveral=\"last\", min_mci = 10]] == 20", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
+	evalFormula({}, "data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:\"||this_address, feed_name='t,e(s)[],\\'t', ifseveral=\"last\", min_mci = 10]] == 20", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
 		t.deepEqual(res, true);
 		t.end();
 	});
 });
 
 test.cb('formula - datafeed +', t => {
-	evalFormula({}, "1 + data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:this address\", feed_name='t,e(s)[],\\'t', ifseveral=\"last\", min_mci = 10]]", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
+	evalFormula({}, "1 + data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:\"||this_address, feed_name='t,e(s)[],\\'t', ifseveral=\"last\", min_mci = 10]]", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
 		t.deepEqual(res, 21);
 		t.end();
 	});
 });
 
 test.cb('formula - datafeed concat', t => {
-	evalFormula({}, "1 || data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:this address\", feed_name='t,e(s)[],\\'t', ifseveral=\"last\", min_mci = 10]]", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
+	evalFormula({}, "1 || data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:\"||this_address, feed_name='t,e(s)[],\\'t', ifseveral=\"last\", min_mci = 10]]", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
 		t.deepEqual(res, "120");
 		t.end();
 	});
 });
 
 test.cb('formula - in datafeed', t => {
-	evalFormula({}, "in_data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:this address\", feed_name='test', feed_value > 5, min_mci = 10]]", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
+	evalFormula({}, "in_data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:\"||this_address, feed_name='test', feed_value > 5, min_mci = 10]]", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
 		t.deepEqual(res, true);
 		t.end();
 	});
 });
 
 test.cb('formula - in datafeed large mci', t => {
-	evalFormula({}, "in_data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:this address\", feed_name='test', feed_value > 5, min_mci = 10000]] ? 'yes' : 'no'", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
+	evalFormula({}, "in_data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:\"||this_address, feed_name='test', feed_value > 5, min_mci = 10000]] ? 'yes' : 'no'", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
 		t.deepEqual(res, 'no');
 		t.end();
 	});
 });
 
 test.cb('formula - in datafeed !=', t => {
-	evalFormula({}, "in_data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:this address\", feed_name='te\"st', feed_value != 11, min_mci = 10]] ? 'yes' : 'no'", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
+	evalFormula({}, "in_data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:\"||this_address, feed_name='te\"st', feed_value != 11, min_mci = 10]] ? 'yes' : 'no'", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
 		t.deepEqual(res, 'no');
 		t.end();
 	});
 });
 
 test.cb('formula - not in datafeed', t => {
-	evalFormula({}, "in_data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:this address\", feed_name='test', feed_value < 5, min_mci = 10]]", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
+	evalFormula({}, "in_data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:\"||this_address, feed_name='test', feed_value < 5, min_mci = 10]]", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
 		t.deepEqual(res, false);
 		t.end();
 	});
 });
 
 test.cb('formula - not in datafeed concat', t => {
-	evalFormula({}, "60 || in_data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:this address\", feed_name='test', feed_value > 5, min_mci = 10]]", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
+	evalFormula({}, "60 || in_data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:\"||this_address, feed_name='test', feed_value > 5, min_mci = 10]]", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
 		t.deepEqual(res, "60true");
 		t.end();
 	});
 });
 
 test.cb('formula - not in datafeed ternary true', t => {
-	evalFormula({}, "in_data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:this address\", feed_name='test', feed_value > 5, min_mci = 10]] ? 'yes' : 55", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
+	evalFormula({}, "in_data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:\"||this_address, feed_name='test', feed_value > 5, min_mci = 10]] ? 'yes' : 55", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
 		t.deepEqual(res, "yes");
 		t.end();
 	});
 });
 
 test.cb('formula - not in datafeed ternary false', t => {
-	evalFormula({}, "in_data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:this address\", feed_name='test', feed_value < 5]] ? 'yes' : 55", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
+	evalFormula({}, "in_data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:\"||this_address, feed_name='test', feed_value < 5]] ? 'yes' : 55", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
 		t.deepEqual(res, 55);
 		t.end();
 	});
 });
 
 test.cb('formula - not in datafeed, not ternary false', t => {
-	evalFormula({}, "!in_data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:this address\", feed_name='test', feed_value < 5]] ? 'yes' : 55", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
+	evalFormula({}, "!in_data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:\"||this_address, feed_name='test', feed_value < 5]] ? 'yes' : 55", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
 		t.deepEqual(res, 'yes');
 		t.end();
 	});
 });
 
 test.cb('formula - what value', t => {
-	evalFormula({}, "data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:this address\", feed_name='test', what='value']] == 10", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
+	evalFormula({}, "data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:\"||this_address, feed_name='test', what='value']] == 10", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
 		t.deepEqual(res, true);
 		t.end();
 	});
 });
 
 test.cb('formula - what unit', t => {
-	evalFormula({}, "data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:this address\", feed_name='test', what='unit']] || 'aaa' == 'unit2aaa'", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
+	evalFormula({}, "data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:\"||this_address, feed_name='test', what='unit']] || 'aaa' == 'unit2aaa'", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
 		t.deepEqual(res, true);
 		t.end();
 	});
 });
 
 test.cb('formula - invalid what', t => {
-	evalFormula({}, "data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:this address\", feed_name='test', what='bbb']] || 'aaa'", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
+	evalFormula({}, "data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU:\"||this_address, feed_name='test', what='bbb']] || 'aaa'", objValidationState.arrAugmentedMessages, objValidationState, 'KRPWY2QQBLWPCFK3DZGDZYALSWCOEDWA', res => {
 		t.deepEqual(res, null);
 		t.end();
 	});
@@ -886,35 +893,35 @@ test('validate 1 + 1', t => {
 });
 
 test.cb('validate datafeed ok', t => {
-	validateFormula("data_feed[[oracles=\"this address\", feed_name=\"test\"]]", 0, res => {
+	validateFormula("data_feed[[oracles=this_address, feed_name=\"test\"]]", 0, res => {
 		t.deepEqual(res.error, false);
 		t.end();
 	})
 });
 
-test.cb('validate datafeed this address', t => {
-	validateFormula("data_feed[[oracles=this address, feed_name=\"test\"]]", 0, res => {
+test.cb('validate datafeed this_address', t => {
+	validateFormula("data_feed[[oracles=this_address||'', feed_name=\"test\"]]", 0, res => {
 		t.deepEqual(res.error, false);
 		t.end();
 	})
 });
 
 test.cb('validate datafeed error', t => {
-	validateFormula("data_feed[[oracles=\"this address\"]]", 0, res => {
+	validateFormula("data_feed[[oracles=this_address]]", 0, res => {
 		t.deepEqual(res.error, 'no oracles or feed name');
 		t.end();
 	})
 });
 
 test.cb('validate 1 + datafeed ok', t => {
-	validateFormula("1 + data_feed[[oracles=\"this address\", feed_name=\"test\"]]", 0, res => {
+	validateFormula("1 + data_feed[[oracles=this_address, feed_name=\"test\"]]", 0, res => {
 		t.deepEqual(res.error, false);
 		t.end();
 	});
 });
 
 test.cb('validate 1 + datafeed error', t => {
-	validateFormula("1 + data_feed[[oracles=\"this address\"]]", 0, res => {
+	validateFormula("1 + data_feed[[oracles=this_address]]", 0, res => {
 		t.deepEqual(res.error, 'no oracles or feed name');
 		t.end();
 	})
@@ -945,7 +952,7 @@ test('eval ternary ok', t => {
 });
 
 test.cb('validate max datafeed error only oracles', t => {
-	validateFormula("max(data_feed[[oracles=\"this address\"]], 2)", 0, res => {
+	validateFormula("max(data_feed[[oracles=this_address]], 2)", 0, res => {
 		t.deepEqual(res.error, 'no oracles or feed name');
 		t.end();
 	})
@@ -958,25 +965,25 @@ test('1=1 assignment without var', t => {
 });
 
 test('inp', t => {
-	validateFormula("input[[address=this address, amount>10]].amount", 0, res => {
+	validateFormula("input[[address=this_address, amount>10]].amount", 0, res => {
 		t.deepEqual(res.error, false);
 	})
 });
 
 test('inp', t => {
-	validateFormula("input[[address=this address]].amount == 20000", 0, res => {
+	validateFormula("input[[address=this_address]].amount == 20000", 0, res => {
 		t.deepEqual(res.error, false);
 	})
 });
 
 test('max ternary input', t => {
-	evalFormula(null, "max(2>1 ? 5 : 6, input[[address=this address]].amount > 10000 ? input[[address=this address]].amount + 1 : -1, 2)", objValidationState.arrAugmentedMessages, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
+	evalFormula(null, "max(2>1 ? 5 : 6, input[[address=this_address]].amount > 10000 ? input[[address=this_address]].amount + 1 : -1, 2)", objValidationState.arrAugmentedMessages, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
 		t.deepEqual(res, 20001);
 	})
 });
 
 test('formula in input', t => {
-	evalFormula(null, "input[[address='this '||'address', amount=3*10*1000-10000]].amount - 5000", objValidationState.arrAugmentedMessages, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
+	evalFormula(null, "input[[address='MXMEKGN37H5QO'||'2AWHT7XRG6LHJVVTAWU', amount=3*10*1000-10000]].amount - 5000", objValidationState.arrAugmentedMessages, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
 		t.deepEqual(res, 15000);
 	})
 });
@@ -994,7 +1001,7 @@ test('bad address evaluated from nested output in input', t => {
 });
 
 test.cb('nested data feed in input', t => {
-	evalFormula(null, "input[[address=data_feed[[oracles=\"this address\", feed_name='test']]==10 ? 'this address' : 'bad address', amount=3*10*1000-10000]].amount - 5000", objValidationState.arrAugmentedMessages, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
+	evalFormula(null, "input[[address=data_feed[[oracles=this_address, feed_name='test']]==10 ? this_address : 'bad address', amount=3*10*1000-10000]].amount - 5000", objValidationState.arrAugmentedMessages, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
 		t.deepEqual(res, 15000);
 		t.end();
 	})
@@ -1173,7 +1180,7 @@ test.cb('attestation ifnone with field', t => {
 
 test.cb('attestation ifnone no field', t => {
 	var db = require("../db");
-	evalAAFormula(db, "attestation[[attestors=this address, address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU, ifseveral='last', ifnone=333, type='string']]", {}, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', (res, complexity) => {
+	evalAAFormula(db, "attestation[[attestors=this_address, address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU, ifseveral='last', ifnone=333, type='string']]", {}, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', (res, complexity) => {
 		t.deepEqual(res, 333);
 		t.deepEqual(complexity, 2);
 		t.end();
@@ -1182,7 +1189,7 @@ test.cb('attestation ifnone no field', t => {
 
 test.cb('attestation ifnone fractional no field', t => {
 	var db = require("../db");
-	evalAAFormula(db, "attestation[[attestors=this address, address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU, ifseveral='last', ifnone=33.3, type='auto']]", {}, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', (res, complexity) => {
+	evalAAFormula(db, "attestation[[attestors=this_address, address=MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU, ifseveral='last', ifnone=33.3, type='auto']]", {}, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', (res, complexity) => {
 		t.deepEqual(res, '33.3');
 		t.deepEqual(complexity, 2);
 		t.end();
@@ -1271,7 +1278,7 @@ test.cb('balance with expr and trigger', t => {
 
 test.cb('balance with expr', t => {
 	var db = require("../db");
-	evalAAFormula(db, "balance[(2==1) ? 'bad address' : 'this address']['ba'||'se']", {}, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
+	evalAAFormula(db, "balance[(2==1) ? 'bad address' : this_address]['ba'||'se']", {}, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
 		t.deepEqual(res, 10000);
 		t.end();
 	})
@@ -1279,7 +1286,7 @@ test.cb('balance with expr', t => {
 
 test.cb('balance with bad expr', t => {
 	var db = require("../db");
-	evalAAFormula(db, "balance[(2==2) ? 'bad address' : 'this address']['ba'||'se'] + 1", {}, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
+	evalAAFormula(db, "balance[(2==2) ? 'bad address' : this_address]['ba'||'se'] + 1", {}, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
 		t.deepEqual(res, null);
 		t.end();
 	})
@@ -1287,7 +1294,7 @@ test.cb('balance with bad expr', t => {
 
 test.cb('balance with expr and concat', t => {
 	var db = require("../db");
-	evalAAFormula(db, "balance[this address]['ba'||'se'] || ''", {}, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
+	evalAAFormula(db, "balance[this_address]['ba'||'se'] || ''", {}, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
 		t.deepEqual(res, '10000');
 		t.end();
 	})
@@ -1413,7 +1420,7 @@ test.cb('state var', t => {
 });
 
 test.cb('state var with address and with math', t => {
-	evalFormulaWithVars({ formula: "$name='points'; var[$name] - 2 * var[this address]['poi'||'nts'] + var[I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT]['temperature'] + var['nonexistent']", trigger: {}, locals: {volume: 100}, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+	evalFormulaWithVars({ formula: "$name='points'; var[$name] - 2 * var[this_address]['poi'||'nts'] + var[I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT]['temperature'] + var['nonexistent']", trigger: {}, locals: {volume: 100}, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, (-1.2345 + 18.5).toString());
 		t.deepEqual(complexity, 5);
 		t.end();
@@ -1510,6 +1517,32 @@ test('sha256 with numbers', t => {
 	evalFormulaWithVars({ formula: "sha256(1+1)", trigger: {}, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, hash);
 		t.deepEqual(complexity, 2);
+	})
+});
+
+test('sha256 hex', t => {
+	var str = 'abcd';
+	var hash = crypto.createHash("sha256").update(str, "utf8").digest("hex");
+	evalFormulaWithVars({ formula: "sha256(trigger.data.str, 'hex')", trigger: {data: {str: str}}, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, hash);
+		t.deepEqual(complexity, 2);
+	})
+});
+
+test('sha256 hex expr', t => {
+	var str = 'abcd';
+	var hash = crypto.createHash("sha256").update(str, "utf8").digest("hex");
+	evalFormulaWithVars({ formula: "sha256(trigger.data.str, 'he'||'x')", trigger: {data: {str: str}}, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, hash);
+		t.deepEqual(complexity, 2);
+	})
+});
+
+test('sha256 bad format', t => {
+	var str = 'abcd';
+	var hash = crypto.createHash("sha256").update(str, "utf8").digest("hex");
+	evalFormulaWithVars({ formula: "sha256(trigger.data.str, 'invalid')", trigger: {data: {str: str}}, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, null);
 	})
 });
 
@@ -2493,5 +2526,95 @@ test.cb('unit and response_unit', t => {
 		t.deepEqual(stateVars.MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU.x.value, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU 78');
 		t.deepEqual(complexity, 4);
 		t.end();
+	})
+});
+
+test('strings in arithmetic operations', t => {
+	var trigger = { };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `4 + substring('as3', 2)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 7);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('strings in max', t => {
+	var trigger = { };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `max(4, substring('as5', 2))`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 5);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('strings in round', t => {
+	var trigger = { };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `round(substring('as5.7', 2))`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 6);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('non-number strings in round', t => {
+	var trigger = { };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `round(substring('as5.7', 1))`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('convert to number with +', t => {
+	var trigger = { };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `typeof(+substring('as5.7', 2))`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'number');
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('boolean to number with +', t => {
+	var trigger = { };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `+trigger.data`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 0);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('to_upper', t => {
+	var trigger = { };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `to_upper(!trigger.data)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'TRUE');
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('to_lower', t => {
+	var trigger = { };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `to_lower('aSdF')`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'asdf');
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test.cb('exists', t => {
+	var trigger = { data: {x: 0} };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `$x=false; exists('aSdF') || ' ' || exists(trigger.data.x) || ' ' || exists(trigger.data.y) || ' ' || exists(var['x']) || ' ' || exists($x) || ' ' || exists(!$x) || ' ' || exists($y)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'true true false false false true false');
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});
+
+test('number_of_responses', t => {
+	var trigger = { };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `number_of_responses`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 0);
+		t.deepEqual(complexity, 1);
 	})
 });

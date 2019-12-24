@@ -22,6 +22,8 @@ var isNonnegativeInteger = ValidationUtils.isNonnegativeInteger;
 var isNonemptyArray = ValidationUtils.isNonemptyArray;
 var isNonemptyObject = ValidationUtils.isNonemptyObject;
 
+var testnetAAsDefinedByAAsAreActiveImmediatelyUpgradeMci = 1167000;
+
 var TRANSFER_INPUT_SIZE = 0 // type: "transfer" omitted
 	+ 44 // unit
 	+ 8 // message_index
@@ -226,6 +228,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 		last_ball_timestamp: objMcUnit.timestamp,
 		mc_unit: objMcUnit.unit,
 		assocBalances: {},
+		number_of_responses: arrResponses.length,
 		arrPreviousResponseUnits: arrResponses.map(objAAResponse => objAAResponse.objResponseUnit)
 	};
 	var byte_balance;
@@ -604,12 +607,17 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 		bBouncing = true;
 		if (bSecondary)
 			return finish(null);
+		if ((trigger.outputs.base || 0) < bounce_fees.base)
+			return finish(null);
 		var messages = [];
 		for (var asset in trigger.outputs) {
 			var amount = trigger.outputs[asset];
-			if (bounce_fees[asset] && bounce_fees[asset] >= amount)
+			var fee = bounce_fees[asset] || 0;
+			if (fee > amount)
+				return finish(null);
+			if (fee === amount)
 				continue;
-			var bounced_amount = amount - (bounce_fees[asset] || 0);
+			var bounced_amount = amount - fee;
 			messages.push({app: 'payment', payload: {asset: asset, outputs: [{address: trigger.address, amount: bounced_amount}]}});
 		}
 		if (messages.length === 0)
@@ -829,7 +837,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 					objBasePaymentMessage = message;
 					return cb(); // skip it for now, we can estimate the fees only after all other messages are in place
 				}
-				storage.loadAssetWithListOfAttestedAuthors(conn, asset, mci, [address], function (err, objAsset) {
+				storage.loadAssetWithListOfAttestedAuthors(conn, asset, mci, [address], true, function (err, objAsset) {
 					if (err)
 						return cb(err);
 					assetInfos[asset] = objAsset;
@@ -1026,8 +1034,12 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 		var response = {};
 		if (!bBouncing && Object.keys(responseVars).length > 0)
 			response.responseVars = responseVars;
-		if (error_message)
-			response.error = error_message;
+		if (error_message) {
+			if (bBouncing)
+				response.error = error_message;
+			else
+				response.info = error_message;
+		}
 		var objAAResponse = {
 			mci: mci,
 			trigger_address: trigger.address,
@@ -1099,6 +1111,13 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 
 	function handleSecondaryTriggers(objUnit, arrOutputAddresses) {
 		conn.query("SELECT address, definition FROM aa_addresses WHERE address IN(?) AND mci<=? ORDER BY address", [arrOutputAddresses, mci], function (rows) {
+			if (rows.length > 0 && constants.bTestnet && mci < testnetAAsDefinedByAAsAreActiveImmediatelyUpgradeMci)
+				rows = rows.filter(function (row) {
+					var len = storage.getUnconfirmedAADefinitionsPostedByAAs([row.address]).length;
+					if (len > 0)
+						console.log("not calling secondary trigger from unit " + objUnit.unit + " to AA " + row.address);
+					return (len === 0);
+				});
 			if (rows.length === 0) {
 				saveStateVars();
 				addUpdatedStateVarsIntoPrimaryResponse();
@@ -1189,6 +1208,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 				validation_unlock();
 				objAAValidationState.conn = conn;
 				objAAValidationState.batch = batch;
+				objAAValidationState.initial_trigger_mci = mci;
 				writer.saveJoint(objJoint, objAAValidationState, null, function(err){
 					if (err)
 						throw Error('AA writer returned error: ' + err);
@@ -1202,18 +1222,16 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 	updateInitialAABalances(function () {
 
 		// these errors must be thrown after updating the balances
-		if (arrResponses.length >= 10) // max number of responses per primary trigger
+		if (arrResponses.length >= constants.MAX_RESPONSES_PER_PRIMARY_TRIGGER) // max number of responses per primary trigger, over all branches stemming from the primary trigger
 			return bounce("max number of responses per trigger exceeded");
 		// being able to pay for bounce fees is not required for secondary triggers as they never actually send any bounce response or change state when bounced
 		if (!bSecondary) {
 			if ((trigger.outputs.base || 0) < bounce_fees.base) {
-				error_message = 'received bytes are not enough to cover bounce fees';
-				return finish(null);
+				return bounce('received bytes are not enough to cover bounce fees');
 			}
 			for (var asset in trigger.outputs) { // if not enough asset received to pay for bounce fees, ignore silently
 				if (bounce_fees[asset] && trigger.outputs[asset] < bounce_fees[asset]) {
-					error_message = 'received ' + asset + ' is not enough to cover bounce fees';
-					return finish(null);
+					return bounce('received ' + asset + ' is not enough to cover bounce fees');
 				}
 			}
 		}
@@ -1272,7 +1290,7 @@ function revertResponsesInCaches(arrResponses) {
 }
 
 function checkStorageSizes() {
-	db.takeConnectionFromPool(function (conn) { // block conection for the etire duration of the check
+	db.takeConnectionFromPool(function (conn) { // block conection for the entire duration of the check
 		var options = {};
 		options.gte = "st\n";
 		options.lte = "st\n\uFFFF";
@@ -1304,9 +1322,64 @@ function checkStorageSizes() {
 	});
 }
 
+function checkBalances() {
+	db.takeConnectionFromPool(function (conn) { // block conection for the entire duration of the check
+		conn.query("SELECT 1 FROM aa_triggers", function (rows) {
+			if (rows.length > 0) {
+				conn.release();
+				return console.log("skipping checkBalances because there are unhandled triggers");
+			}
+			var stable_or_from_aa = "( \n\
+				(SELECT is_stable FROM units WHERE units.unit=outputs.unit)=1 \n\
+				OR EXISTS (SELECT 1 FROM unit_authors CROSS JOIN aa_addresses USING(address) WHERE unit_authors.unit=outputs.unit) \n\
+			)";
+			var sql_base = "SELECT aa_addresses.address, balance, SUM(amount) AS calculated_balance \n\
+				FROM aa_addresses \n\
+				LEFT JOIN aa_balances ON aa_addresses.address = aa_balances.address AND aa_balances.asset = 'base' \n\
+				LEFT JOIN outputs \n\
+					ON aa_addresses.address = outputs.address AND is_spent = 0 AND outputs.asset IS NULL \n\
+					AND " + stable_or_from_aa + " \n\
+				GROUP BY aa_addresses.address \n\
+				HAVING balance != calculated_balance";
+			var sql_assets_balances_to_outputs = "SELECT aa_balances.address, aa_balances.asset, balance, SUM(amount) AS calculated_balance \n\
+				FROM aa_balances \n\
+				LEFT JOIN outputs " + db.forceIndex('outputsByAddressSpent') + " \n\
+					ON aa_balances.address=outputs.address AND is_spent=0 AND outputs.asset=aa_balances.asset \n\
+					AND " + stable_or_from_aa + " \n\
+				WHERE aa_balances.asset!='base' \n\
+				GROUP BY aa_balances.address, aa_balances.asset \n\
+				HAVING balance != calculated_balance";
+			var sql_assets_outputs_to_balances = "SELECT aa_addresses.address, outputs.asset, balance, SUM(amount) AS calculated_balance \n\
+				FROM aa_addresses \n\
+				LEFT JOIN outputs \n\
+					ON aa_addresses.address=outputs.address AND is_spent=0 \n\
+					AND " + stable_or_from_aa + " \n\
+				LEFT JOIN aa_balances ON aa_addresses.address=aa_balances.address AND aa_balances.asset=outputs.asset \n\
+				WHERE outputs.asset IS NOT NULL \n\
+				GROUP BY aa_addresses.address, outputs.asset \n\
+				HAVING balance != calculated_balance";
+			async.eachSeries(
+				[sql_base, sql_assets_balances_to_outputs, sql_assets_outputs_to_balances],
+				function (sql, cb) {
+					conn.query(sql, function (rows) {
+						if (rows.length > 0)
+							throw Error("checkBalances failed: sql:\n" + sql + "\n\nrows:\n" + JSON.stringify(rows, null, '\t'));
+						cb();
+					});
+				},
+				function () {
+					conn.release();
+				}
+			);
+		});
+	});
+}
+
 if (!conf.bLight) {
 	setTimeout(checkStorageSizes, 1000);
 	setInterval(checkStorageSizes, 600 * 1000);
+	setTimeout(checkBalances, 2000);
+	setInterval(checkBalances, 600 * 1000);
 }
 
 exports.handleAATriggers = handleAATriggers;

@@ -1381,52 +1381,21 @@ function markMcIndexStable(conn, batch, mci, onDone){
 										delete storage.assocUnstableMessages[unit];
 										return cb();
 									}
-									var assocDefinitionByAddress = {};
+									var arrAADefinitionPayloads = [];
 									storage.assocUnstableMessages[unit].forEach(function (message) {
 										if (message.app === 'data_feed')
 											addDataFeeds(message.payload);
 										else if (message.app === 'definition') {
-											var address = message.payload.address;
-											var json = JSON.stringify(message.payload.definition);
-											assocDefinitionByAddress[address] = json;
+											arrAADefinitionPayloads.push(message.payload);
 										//	batch.put('d\n' + address, json);
 										}
 										else
 											throw Error("unrecognized app in unstable message: " + message.app);
 									});
-									delete storage.assocUnstableMessages[unit];
-									if (Object.keys(assocDefinitionByAddress).length === 0)
-										return cb();
-									var arrValues = [];
-									for (var address in assocDefinitionByAddress)
-										arrValues.push("(" + conn.escape(address) + ", " + conn.escape(assocDefinitionByAddress[address]) + ", " + conn.escape(unit) + ", "+mci+")");
-									conn.query(
-										"INSERT " + db.getIgnore() + " INTO aa_addresses (address, definition, unit, mci) VALUES " + arrValues.join(', '),
-										function (res) {
-											if (res.affectedRows === 0) // repeated definition
-												return cb();
-											// fill the initial balances accumulated before it became known that this address is an AA
-											var arrAddresses = Object.keys(assocDefinitionByAddress);
-											conn.query(
-												"INSERT INTO aa_balances (address, asset, balance) \n\
-												SELECT address, IFNULL(asset, 'base'), SUM(amount) AS balance \n\
-												FROM outputs CROSS JOIN units USING(unit) \n\
-												WHERE address IN(" + arrAddresses.map(conn.escape).join(', ') + ") AND is_spent=0 AND main_chain_index<? \n\
-												GROUP BY address", // not including the outputs on the current mci, which will trigger the AA and be accounted for separately
-												[mci],
-												function () {
-													var arrAddressValues = arrAddresses.map(function (address) { return "(" + conn.escape(address) + ")"; });
-													conn.query(
-														"INSERT " + db.getIgnore() + " INTO addresses (address) \n\
-														VALUES " + arrAddressValues.join(', '),
-														function () { 
-															cb();
-														}
-													);
-												}
-											);
-										}
-									);
+									storage.insertAADefinitions(conn, arrAADefinitionPayloads, unit, mci, false, function () {
+										delete storage.assocUnstableMessages[unit];
+										cb();
+									});
 								}
 								
 								function addDataFeeds(payload){
@@ -1496,11 +1465,16 @@ function markMcIndexStable(conn, batch, mci, onDone){
 		// a single unit can have multiple outputs to the same AA address, even in the same asset
 		conn.query(
 			"SELECT DISTINCT address, definition, units.unit \n\
-			FROM units CROSS JOIN outputs USING(unit) CROSS JOIN aa_addresses USING(address) LEFT JOIN assets ON asset=assets.unit \n\
-			WHERE main_chain_index = ? AND sequence = 'good' AND (outputs.asset IS NULL OR is_private=0) \n\
+			FROM units \n\
+			CROSS JOIN outputs USING(unit) \n\
+			CROSS JOIN aa_addresses USING(address) \n\
+			LEFT JOIN assets ON asset=assets.unit \n\
+			CROSS JOIN units AS aa_definition_units ON aa_addresses.unit=aa_definition_units.unit \n\
+			WHERE units.main_chain_index = ? AND units.sequence = 'good' AND (outputs.asset IS NULL OR is_private=0) \n\
 				AND NOT EXISTS (SELECT 1 FROM unit_authors CROSS JOIN aa_addresses USING(address) WHERE unit_authors.unit=units.unit) \n\
-			ORDER BY level, units.unit, address", // deterministic order
-			[mci],
+				AND aa_definition_units.main_chain_index<=? \n\
+			ORDER BY units.level, units.unit, address", // deterministic order
+			[mci, mci],
 			function (rows) {
 				if (rows.length === 0)
 					return finishMarkMcIndexStable();

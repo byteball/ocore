@@ -41,7 +41,7 @@ function validateAADefinition(arrDefinition, callback) {
 					var attestor = attestors[i];
 					if (!isNonemptyString(attestor))
 						return cb3("bad attestor: " + attestor);
-					if (attestor !== 'this address' && !isValidAddress(attestor)) {
+					if (!isValidAddress(attestor)) {
 						var f = getFormula(attestor);
 						if (f === null)
 							return cb3("bad formula in attestor");
