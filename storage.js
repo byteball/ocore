@@ -797,10 +797,14 @@ function readAAStateVar(address, var_name, handleResult) {
 	kvstore.get("st\n" + address + "\n" + var_name, handleResult);
 }
 
-function readAAStateVars(address, handle){
+function readAAStateVars(address, prefix, handle) {
+	if (arguments.length === 2) {
+		handle = prefix;
+		prefix = '';
+	}
 	var options = {};
-	options.gte = "st\n" + address + "\n";
-	options.lte = "st\n" + address + "\n\uFFFF";
+	options.gte = "st\n" + address + "\n" + prefix;
+	options.lte = "st\n" + address + "\n" + prefix + "\uFFFF";
 
 	var objStateVars = {}
 	var handleData = function (data){

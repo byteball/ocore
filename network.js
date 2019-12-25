@@ -3189,10 +3189,12 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "no params in light/get_aa_state_vars");
 			if (!ValidationUtils.isValidAddress(params.address))
 				return sendErrorResponse(ws, tag, "address not valid");
+			if ('prefix' in params && typeof params.prefix !== 'string')
+				return sendErrorResponse(ws, tag, "prefix must be string");
 			storage.readAADefinition(db, params.address, function (arrDefinition) {
 				if (!arrDefinition)
 					return sendErrorResponse(ws, tag, "not an AA");
-				storage.readAAStateVars(params.address, function (objStateVars) {
+				storage.readAAStateVars(params.address, params.prefix || '', function (objStateVars) {
 					sendResponse(ws, tag, objStateVars);
 				});
 			});
