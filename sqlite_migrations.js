@@ -4,7 +4,7 @@ var eventBus = require('./event_bus.js');
 var constants = require("./constants.js");
 var conf = require("./conf.js");
 
-var VERSION = 35;
+var VERSION = 36;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -375,6 +375,16 @@ function migrateDb(connection, onDone){
 							OR EXISTS (SELECT 1 FROM unit_authors CROSS JOIN aa_addresses USING(address) WHERE unit_authors.unit=outputs.unit) \n\
 						) \n\
 						GROUP BY address, asset");
+				if (version < 36) {
+					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS CREATE TABLE watched_light_aas (  \n\
+						peer VARCHAR(100) NOT NULL, \n\
+						aa CHAR(32) NOT NULL, \n\
+						address CHAR(32) NULL, \n\
+						creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, \n\
+						PRIMARY KEY (peer, aa, address) \n\
+					)");
+					connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS wlaabyAA ON watched_light_aas(aa)");
+				}
 				cb();
 			},
 		],

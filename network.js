@@ -1348,9 +1348,10 @@ function notifyWatchersAboutUnitsGettingBadSequence(arrUnits){
 }
 
 function getAllAuthorsAndOutputAddresses(objUnit){
-	var arrAddresses = objUnit.authors.map(function(author){ return author.address; });
+	var arrAuthorAddresses = objUnit.authors.map(function(author){ return author.address; });
 	if (!objUnit.messages) // voided unit
 		return null;
+	var arrOutputAddresses = [];
 	for (var i=0; i<objUnit.messages.length; i++){
 		var message = objUnit.messages[i];
 		if (message.app !== "payment" || !message.payload)
@@ -1358,11 +1359,12 @@ function getAllAuthorsAndOutputAddresses(objUnit){
 		var payload = message.payload;
 		for (var j=0; j<payload.outputs.length; j++){
 			var address = payload.outputs[j].address;
-			if (arrAddresses.indexOf(address) === -1)
-				arrAddresses.push(address);
+			if (arrOutputAddresses.indexOf(address) === -1)
+			arrOutputAddresses.push(address);
 		}
 	}
-	return arrAddresses;
+	var arrAddresses = _.union(arrAuthorAddresses, arrOutputAddresses);
+	return {author_addresses: arrAuthorAddresses, output_addresses: arrOutputAddresses, addresses: arrAddresses};
 }
 
 // if any of the watched addresses are affected, notifies:  1. own UI  2. light clients
@@ -1370,9 +1372,10 @@ function notifyWatchers(objJoint, bGoodSequence, source_ws){
 	var bAA = objJoint.new_aa;
 	delete objJoint.new_aa;
 	var objUnit = objJoint.unit;
-	var arrAddresses = getAllAuthorsAndOutputAddresses(objUnit);
-	if (!arrAddresses) // voided unit
+	var objAddresses = getAllAuthorsAndOutputAddresses(objUnit);
+	if (!objAddresses) // voided unit
 		return;
+	var arrAddresses = objAddresses.addresses;
 
 	if (_.intersection(arrWatchedAddresses, arrAddresses).length > 0){
 		eventBus.emit("new_my_transactions", [objJoint.unit.unit]);
@@ -1411,6 +1414,21 @@ function notifyWatchers(objJoint, bGoodSequence, source_ws){
 					sendJoint(ws, objJoint);
 			}
 		});
+	});
+
+	// look for transactions sent to watched AAs
+	if (bAA) // skip secondary triggers, we'll see their responses in a moment
+		return;
+	var arrOutputAddresses = objAddresses.output_addresses;
+	var arrAuthorAddresses = objAddresses.author_addresses;
+	db.query("SELECT peer, address FROM watched_light_aas WHERE aa IN(?)", [arrOutputAddresses], function (rows) {
+		rows.forEach(function (row) {
+			if (!row.address || arrAuthorAddresses.includes(row.address)) {
+				var ws = getPeerWebSocket(row.peer);
+				if (ws && ws.readyState === ws.OPEN && ws !== source_ws)
+					sendJustsaying(ws, 'light/aa_request', objUnit);
+			}
+		});		
 	});
 }
 
@@ -1497,6 +1515,50 @@ function notifyLocalWatchedAddressesAboutStableJoints(mci){
 		handleRows
 	);
 }
+
+function aaResponseAffectsAddress(objAAResponse, address) {
+	if (objAAResponse.trigger_address === address)
+		return true;
+	if (objAAResponse.objResponseUnit && objAAResponse.objResponseUnit.messages.find(function (message) {
+		return message.app === 'payment' && message.payload.outputs.find(function (output) {
+			return output.address === address;
+		});
+	}))
+		return true;
+	// check if any updated state variable name contains our address
+	var aa_address = objAAResponse.aa_address;
+	if (objAAResponse.updatedStateVars && objAAResponse.updatedStateVars[aa_address]) {
+		for (var_name in objAAResponse.updatedStateVars[aa_address]) {
+			if (var_name.indexOf(address) >= 0)
+				return true;
+		}
+	}
+	// check if the error message contains our address
+	if (objAAResponse.response.error && objAAResponse.response.error.indexOf(address) >= 0)
+		return true;
+	// check if any response variable name contains our address
+	if (objAAResponse.response.responseVars) {
+		for (var_name in objAAResponse.response.responseVars) {
+			if (var_name.indexOf(address) >= 0)
+				return true;
+		}
+	}
+	return false;
+}
+
+eventBus.on('aa_response', function (objAAResponse) {
+	if (!bWatchingForLight)
+		return;
+	db.query("SELECT peer, address FROM watched_light_aas WHERE aa=?", [objAAResponse.aa_address], function (rows) {
+		rows.forEach(function (row) {
+			if (!row.address || aaResponseAffectsAddress(objAAResponse, row.address)) {
+				var ws = getPeerWebSocket(row.peer);
+				if (ws && ws.readyState === ws.OPEN)
+					sendJustsaying(ws, 'light/aa_response', objAAResponse);
+			}
+		});
+	});
+});
 
 function addLightWatchedAddress(address){
 	if (!conf.bLight || !exports.light_vendor_url)
@@ -2497,6 +2559,25 @@ function handleJustsaying(ws, subject, body){
 			});            
 			break;
 			
+		case 'light/new_aa_to_watch':
+			if (conf.bLight)
+				return sendError(ws, "I'm light myself, can't serve you");
+			if (ws.bOutbound)
+				return sendError(ws, "light clients have to be inbound");
+			if (!ValidationUtils.isValidAddress(body.aa))
+				return sendError(ws, "invalid AA: " + body.aa);
+			if ("address" in body && !ValidationUtils.isValidAddress(body.address))
+				return sendError(ws, "invalid address: " + body.address);
+			storage.readAADefinition(db, body.aa, function (arrDefinition) {
+				if (!arrDefinition)
+					return sendError(ws, "not an AA: " + body.aa);
+				bWatchingForLight = true;
+				db.query("INSERT " + db.getIgnore() + " INTO watched_light_aas (peer, aa, address) VALUES (?,?,?)", [ws.peer, body.aa, body.address], function () {
+					sendInfo(ws, "now watching AA " + body.aa + " address " + (body.address || 'all'));
+				});
+			});
+			break;
+			
 		case 'exchange_rates':
 			if (!ws.bLoggingIn && !ws.bLoggedIn) // accept from hub only
 				return;
@@ -3210,6 +3291,7 @@ function handleUpgradeConnection(incomingRequest, socket, head) {
 
 function startAcceptingConnections(){
 	db.query("DELETE FROM watched_light_addresses");
+	db.query("DELETE FROM watched_light_aas");
 	db.query("DELETE FROM watched_light_units");
 	//db.query("DELETE FROM light_peer_witnesses");
 	setInterval(unblockPeers, 10*60*1000);
@@ -3272,6 +3354,7 @@ function startAcceptingConnections(){
 		ws.on('close', function(){
 			if (bWatchingForLight){
 				db.query("DELETE FROM watched_light_addresses WHERE peer=?", [ws.peer]);
+				db.query("DELETE FROM watched_light_aas WHERE peer=?", [ws.peer]);
 				db.query("DELETE FROM watched_light_units WHERE peer=?", [ws.peer]);
 				//db.query("DELETE FROM light_peer_witnesses WHERE peer=?", [ws.peer]);
 			}

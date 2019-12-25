@@ -84,6 +84,10 @@ function handlePrimaryAATrigger(mci, unit, address, arrDefinition, arrPostedUnit
 									throw Error("AA composer: batch write failed: "+err);
 								conn.query("COMMIT", function () {
 									conn.release();
+									// copy updatedStateVars to all responses
+									if (arrResponses.length > 1 && arrResponses[0].updatedStateVars)
+										for (var i = 1; i < arrResponses.length; i++)
+											arrResponses[i].updatedStateVars = arrResponses[0].updatedStateVars;
 									arrResponses.forEach(function (objAAResponse) {
 										if (objAAResponse.objResponseUnit)
 											arrPostedUnits.push(objAAResponse.objResponseUnit);

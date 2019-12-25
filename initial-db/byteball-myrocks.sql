@@ -809,3 +809,12 @@ CREATE INDEX aaResponsesByTriggerAddress ON aa_responses(trigger_address);
 CREATE INDEX aaResponsesByAAAddress ON aa_responses(aa_address);
 CREATE INDEX aaResponsesByMci ON aa_responses(mci);
 
+CREATE TABLE watched_light_aas (
+	peer VARCHAR(100) NOT NULL,
+	aa CHAR(32) NOT NULL,
+	address CHAR(32) NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	PRIMARY KEY (peer, aa, address)
+);
+CREATE INDEX wlaabyAA ON watched_light_aas(aa);
+
