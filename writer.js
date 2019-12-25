@@ -15,8 +15,6 @@ var profiler = require('./profiler.js');
 var breadcrumbs = require('./breadcrumbs.js');
 var kvstore = require('./kvstore.js');
 
-var testnetAAsDefinedByAAsAreActiveImmediatelyUpgradeMci = 1167000;
-
 var bCordova = (typeof window === 'object' && window.cordova);
 
 var count_writes = 0;
@@ -571,7 +569,7 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 					var arrOps = [];
 					if (objUnit.parent_units){
 						if (!conf.bLight){
-							if (objValidationState.bAA /*&& (!constants.bTestnet || objValidationState.initial_trigger_mci > testnetAAsDefinedByAAsAreActiveImmediatelyUpgradeMci)*/) {
+							if (objValidationState.bAA) {
 								if (!objValidationState.initial_trigger_mci)
 									throw Error("no initial_trigger_mci");
 								var arrAADefinitionPayloads = objUnit.messages.filter(function (message) { return (message.app === 'definition'); }).map(function (message) { return message.payload; });
