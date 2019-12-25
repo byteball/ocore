@@ -376,7 +376,7 @@ function migrateDb(connection, onDone){
 						) \n\
 						GROUP BY address, asset");
 				if (version < 36) {
-					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS CREATE TABLE watched_light_aas (  \n\
+					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS watched_light_aas (  \n\
 						peer VARCHAR(100) NOT NULL, \n\
 						aa CHAR(32) NOT NULL, \n\
 						address CHAR(32) NULL, \n\
