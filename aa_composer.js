@@ -250,7 +250,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 				// 1. update balances of existing assets
 				rows.forEach(function (row) {
 					if (constants.bTestnet && mci < testnetAAsDefinedByAAsAreActiveImmediatelyUpgradeMci)
-						reproduceBalanceBug(address, row);
+						reintroduceBalanceBug(address, row);
 					conn.addQuery(
 						arrQueries,
 						"UPDATE aa_balances SET balance=balance+? WHERE address=? AND asset=? ",
@@ -1377,7 +1377,7 @@ function checkBalances() {
 	});
 }
 
-function reproduceBalanceBug(address, row) {
+function reintroduceBalanceBug(address, row) {
 	if (address === 'XM3EMLR3D3VLKDNPSZSJTSKPKFFXDDHV') row.balance -= 3125;
 	if (address === 'FSEIUKVQNYNF5BQE5S46R7ERQDVROVJL') row.balance -= 3337;
 	if (address === 'BCHGVAJRLHS3HMA7NMKZ4BO6JQKUW3Q5') row.balance -= 2173;
