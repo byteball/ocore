@@ -386,7 +386,7 @@ function migrateDb(connection, onDone){
 					connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS wlaabyAA ON watched_light_aas(aa)");
 				}
 				if (version < 37) {
-					connection.addQuery(arrQueries, "ALTER TABLE aa_addresses ADD COLUMN base_aa CHAR(32) NULL CONSTRAINT aaAddressesByBaseAA REFERENCES aa_addresses(address)");
+					connection.addQuery(arrQueries, "ALTER TABLE aa_addresses ADD COLUMN base_aa CHAR(32) NULL" + (conf.bLight ? "" : " CONSTRAINT aaAddressesByBaseAA REFERENCES aa_addresses(address)"));
 					connection.addQuery(arrQueries, "PRAGMA user_version=37");
 				}
 				if (version < 38)

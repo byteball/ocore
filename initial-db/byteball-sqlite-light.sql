@@ -803,8 +803,8 @@ CREATE TABLE aa_addresses (
 	storage_size INT NOT NULL DEFAULT 0,
 	base_aa CHAR(32) NULL,
 	definition TEXT NOT NULL,
-	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	CONSTRAINT aaAddressesByBaseAA FOREIGN KEY (base_aa) REFERENCES aa_addresses(address)
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+--	CONSTRAINT aaAddressesByBaseAA FOREIGN KEY (base_aa) REFERENCES aa_addresses(address)
 );
 CREATE INDEX byBaseAA ON aa_addresses(base_aa);
 
