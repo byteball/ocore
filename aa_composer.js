@@ -75,7 +75,7 @@ function handlePrimaryAATrigger(mci, unit, address, arrDefinition, arrPostedUnit
 					var arrResponses = [];
 					var trigger = getTrigger(objUnit, address);
 					trigger.initial_address = trigger.address;
-					handleTrigger(conn, batch, null, trigger, {}, arrDefinition, address, mci, objMcUnit, false, arrResponses, function(){
+					handleTrigger(conn, batch, null, trigger, {}, {}, arrDefinition, address, mci, objMcUnit, false, arrResponses, function(){
 						conn.query("DELETE FROM aa_triggers WHERE mci=? AND unit=? AND address=?", [mci, unit, address], function(){
 							var batch_start_time = Date.now();
 							batch.write(function(err){
@@ -130,7 +130,7 @@ function dryRunPrimaryAATrigger(trigger, address, arrDefinition, onDone) {
 				};
 				fPrepare(function () {
 					var arrResponses = [];
-					handleTrigger(conn, batch, fPrepare, trigger, {}, arrDefinition, address, mci, objMcUnit, false, arrResponses, function () {
+					handleTrigger(conn, batch, fPrepare, trigger, {}, {}, arrDefinition, address, mci, objMcUnit, false, arrResponses, function () {
 						revertResponsesInCaches(arrResponses);
 						batch.clear();
 						conn.query("ROLLBACK", function () {
@@ -215,7 +215,7 @@ function getTrigger(objUnit, receiving_address) {
 }
 
 // the result is onDone(objResponseUnit, bBounced)
-function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition, address, mci, objMcUnit, bSecondary, arrResponses, onDone) {
+function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDefinition, address, mci, objMcUnit, bSecondary, arrResponses, onDone) {
 	if (arrDefinition[0] !== 'autonomous agent')
 		throw Error('bad AA definition ' + arrDefinition);
 	if (!trigger.initial_address)
@@ -223,6 +223,17 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 	var error_message = '';
 	var responseVars = {};
 	var template = arrDefinition[1];
+	if (template.base_aa) { // parameterized AA
+		if (params && Object.keys(params).length > 0)
+			throw Error("unexpected params");
+		storage.readAADefinition(conn, template.base_aa, function (arrBaseDefinition) {
+			if (!arrBaseDefinition)
+				throw Error("base AA not found");
+			console.log("redirecting to base AA " + template.base_aa + " with params " + JSON.stringify(template.params));
+			handleTrigger(conn, batch, null, trigger, template.params, stateVars, arrBaseDefinition, address, mci, objMcUnit, bSecondary, arrResponses, onDone);
+		});
+		return;
+	}
 	var bounce_fees = template.bounce_fees || {base: constants.MIN_BYTES_BOUNCE_FEE};
 	if (!bounce_fees.base)
 		bounce_fees.base = constants.MIN_BYTES_BOUNCE_FEE;
@@ -339,6 +350,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 					conn: conn,
 					formula: f,
 					trigger: trigger,
+					params: params,
 					locals: _.clone(locals),
 					stateVars: stateVars,
 					responseVars: responseVars,
@@ -380,6 +392,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 				conn: conn,
 				formula: f,
 				trigger: trigger,
+				params: params,
 				locals: locals,
 				stateVars: stateVars,
 				responseVars: responseVars,
@@ -419,6 +432,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 						conn: conn,
 						formula: f,
 						trigger: trigger,
+						params: params,
 						locals: locals_tmp,
 						stateVars: stateVars,
 						responseVars: responseVars,
@@ -454,6 +468,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 						conn: conn,
 						formula: f,
 						trigger: trigger,
+						params: params,
 						locals: locals,
 						stateVars: stateVars,
 						responseVars: responseVars,
@@ -480,6 +495,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 					conn: conn,
 					formula: f,
 					trigger: trigger,
+					params: params,
 					locals: locals,
 					stateVars: stateVars,
 					responseVars: responseVars,
@@ -510,6 +526,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 					conn: conn,
 					formula: f,
 					trigger: trigger,
+					params: params,
 					locals: locals,
 					stateVars: stateVars,
 					responseVars: responseVars,
@@ -929,6 +946,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 			conn: conn,
 			formula: objStateUpdate.formula,
 			trigger: trigger,
+			params: params,
 			locals: objStateUpdate.locals,
 			stateVars: stateVars,
 			responseVars: responseVars,
@@ -1137,7 +1155,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 					var child_trigger = getTrigger(objUnit, row.address);
 					child_trigger.initial_address = trigger.initial_address;
 					var arrChildDefinition = JSON.parse(row.definition);
-					handleTrigger(conn, batch, null, child_trigger, stateVars, arrChildDefinition, row.address, mci, objMcUnit, true, arrResponses, function (objSecondaryUnit, bounce_message) {
+					handleTrigger(conn, batch, null, child_trigger, {}, stateVars, arrChildDefinition, row.address, mci, objMcUnit, true, arrResponses, function (objSecondaryUnit, bounce_message) {
 						if (bounce_message)
 							return cb(bounce_message);
 						cb();

@@ -62,6 +62,7 @@
 		response: 'response',
 		bounce: 'bounce',
 		return: 'return',
+		params: 'params',
 		addressValue: /\b[2-7A-Z]{32}\b/,
 		trigger_address: /\btrigger\.address\b/,
 		trigger_initial_address: /\btrigger\.initial_address\b/,
@@ -351,7 +352,7 @@ N -> float          {% id %}
 	| "trigger.address"  {% function(d) {return ['trigger.address']; }  %}
 	| "trigger.initial_address"  {% function(d) {return ['trigger.initial_address']; }  %}
 	| "trigger.unit"  {% function(d) {return ['trigger.unit']; }  %}
-	| "trigger.data" (%dotSelector|"[" "[" search_param_list "]" "]"|"[" expr "]"):*  {% function(d) {
+	| ("trigger.data"|"params") (%dotSelector|"[" "[" search_param_list "]" "]"|"[" expr "]"):*  {% function(d) {
 		var selectors = d[1].map(function(item){
 			if (item[0].type === 'dotSelector')
 				return item[0].value.substr(1);
@@ -360,7 +361,7 @@ N -> float          {% id %}
 			else
 				return item[1]; 
 		});
-		return ['trigger.data', selectors]; }  
+		return [d[0][0].value, selectors]; }  
 	%}
 	| "trigger.output" ("[" "[") "asset" comparisonOperator (expr|%base) ("]" "]") %dotSelector:?  {% function(d) {
 		var value = d[4][0];

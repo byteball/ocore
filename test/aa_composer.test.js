@@ -23,7 +23,7 @@ var test = require('ava');
 function addAA(aa) {
 	var address = objectHash.getChash160(aa);
 	db.query("INSERT " + db.getIgnore() + " INTO addresses (address) VALUES(?)", [address]);
-	db.query("INSERT " + db.getIgnore() + " INTO aa_addresses (address, definition, unit, mci) VALUES(?, ?, ?, ?)", [address, JSON.stringify(aa), constants.GENESIS_UNIT, 0]);
+	db.query("INSERT " + db.getIgnore() + " INTO aa_addresses (address, definition, unit, mci, base_aa) VALUES(?, ?, ?, ?, ?)", [address, JSON.stringify(aa), constants.GENESIS_UNIT, 0, aa[1].base_aa]);
 }
 
 var old_cache = {};
@@ -598,6 +598,66 @@ test.cb.serial('define new AA and activate it', t => {
 		t.deepEqual(arrResponses[2].response.error, undefined);
 		t.deepEqual(arrResponses[2].objResponseUnit.messages.find(function (message) { return (message.app === 'data'); }).payload, {trigger_address: forwarder_address, amount_received: 8000});
 		
+		fixCache();
+		t.deepEqual(storage.assocUnstableUnits, old_cache.assocUnstableUnits);
+		t.deepEqual(storage.assocStableUnits, old_cache.assocStableUnits);
+		t.deepEqual(storage.assocUnstableMessages, old_cache.assocUnstableMessages);
+		t.deepEqual(storage.assocBestChildren, old_cache.assocBestChildren);
+		t.deepEqual(storage.assocStableUnitsByMci, old_cache.assocStableUnitsByMci);
+		t.end();
+	});
+});
+
+
+test.cb.serial('parameterized AA', t => {
+	var trigger_address = "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT";
+	var trigger = { outputs: { base: 10000 }, data: { define: true }, address: trigger_address };
+
+	var base_aa = ['autonomous agent', {
+		messages: [
+			{
+				app: 'data',
+				payload: {
+					expiry: `{params.expiry}`,
+				}
+			},
+			{
+				app: 'payment',
+				payload: {
+					asset: 'base',
+					outputs: [
+						{address: `{trigger.address}`, amount: "{trigger.output[[asset=base]] - params.fee}"}
+					]
+				}
+			},
+			{
+				app: 'state',
+				state: `{
+					var['me'] = this_address;
+				}`
+			}
+		]
+	}];
+	var base_aa_address = objectHash.getChash160(base_aa);
+	addAA(base_aa);
+
+	var parameterized_aa = ['autonomous agent', {
+		base_aa: base_aa_address,
+		params: {expiry: '2020-01-31', fee: 2000},
+	}]
+	var parameterized_aa_address = objectHash.getChash160(parameterized_aa);
+	addAA(parameterized_aa);
+	
+	aa_composer.dryRunPrimaryAATrigger(trigger, parameterized_aa_address, parameterized_aa, (arrResponses) => {
+		t.deepEqual(arrResponses.length, 1);
+		t.deepEqual(arrResponses[0].aa_address, parameterized_aa_address);
+		t.deepEqual(arrResponses[0].bounced, false);
+		t.deepEqual(arrResponses[0].response.error, undefined);
+		t.deepEqual(arrResponses[0].objResponseUnit.messages.find(function (message) { return (message.app === 'payment'); }).payload.outputs.find(function (output) { return (output.address === trigger_address); }).amount, 8000);
+		let me = arrResponses[0].updatedStateVars[parameterized_aa_address].me.value;
+		t.deepEqual(me, parameterized_aa_address);
+		t.deepEqual(arrResponses[0].objResponseUnit.messages.find(function (message) { return (message.app === 'data'); }).payload, {expiry: '2020-01-31'});
+				
 		fixCache();
 		t.deepEqual(storage.assocUnstableUnits, old_cache.assocUnstableUnits);
 		t.deepEqual(storage.assocStableUnits, old_cache.assocStableUnits);

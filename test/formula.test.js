@@ -2618,3 +2618,33 @@ test('number_of_responses', t => {
 		t.deepEqual(complexity, 1);
 	})
 });
+
+test('params', t => {
+	var trigger = { };
+	var params = { abc: 'qqq'};
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `params.abc`, trigger: trigger, params, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'qqq');
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('params deep', t => {
+	var trigger = { };
+	var params = { abc: ['xx', 'yy']};
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `params.abc[1]`, trigger: trigger, params, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'yy');
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('params very deep', t => {
+	var trigger = { };
+	var params = { abc: ['xx', {zz: {dd: 8}}]};
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `params.abc[2] || params.abc.1['z'||'z'].dd`, trigger: trigger, params, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'false8');
+		t.deepEqual(complexity, 1);
+	})
+});

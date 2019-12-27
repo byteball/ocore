@@ -798,9 +798,11 @@ CREATE TABLE aa_addresses (
 	unit CHAR(44) NOT NULL, -- where it is first defined.  No index for better speed
 	mci INT NOT NULL, -- it is available since this mci (mci of the above unit)
 	storage_size INT NOT NULL DEFAULT 0,
+	base_aa CHAR(32) NULL,
 	definition TEXT NOT NULL,
-	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	CONSTRAINT aaAddressesByBaseAA FOREIGN KEY (base_aa) REFERENCES aa_addresses(address)
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 -- the table is a queue, it is almost always empty and any entries are short-lived
 -- INSERTs are wrapped in the same SQL transactions that write the triggering units
@@ -812,7 +814,7 @@ CREATE TABLE aa_triggers (
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (mci, unit, address),
 	FOREIGN KEY (address) REFERENCES aa_addresses(address)
-);
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 -- SQL is more convenient for +- the balances
 CREATE TABLE aa_balances (
@@ -823,7 +825,7 @@ CREATE TABLE aa_balances (
 	PRIMARY KEY (address, asset),
 	FOREIGN KEY (address) REFERENCES aa_addresses(address)
 --	FOREIGN KEY (asset) REFERENCES assets(unit)
-);
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 -- this is basically a log.  It has many indexes to be searchable by various fields
 CREATE TABLE aa_responses (
@@ -840,7 +842,7 @@ CREATE TABLE aa_responses (
 	FOREIGN KEY (aa_address) REFERENCES aa_addresses(address),
 	FOREIGN KEY (trigger_unit) REFERENCES units(unit)
 --	FOREIGN KEY (response_unit) REFERENCES units(unit)
-);
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 CREATE INDEX aaResponsesByTriggerAddress ON aa_responses(trigger_address);
 CREATE INDEX aaResponsesByAAAddress ON aa_responses(aa_address);
 CREATE INDEX aaResponsesByMci ON aa_responses(mci);
@@ -851,6 +853,6 @@ CREATE TABLE watched_light_aas (
 	address CHAR(32) NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (peer, aa, address)
-);
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 CREATE INDEX wlaabyAA ON watched_light_aas(aa);
 

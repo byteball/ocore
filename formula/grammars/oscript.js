@@ -66,6 +66,7 @@ function id(x) { return x[0]; }
 		response: 'response',
 		bounce: 'bounce',
 		return: 'return',
+		params: 'params',
 		addressValue: /\b[2-7A-Z]{32}\b/,
 		trigger_address: /\btrigger\.address\b/,
 		trigger_initial_address: /\btrigger\.initial_address\b/,
@@ -434,12 +435,14 @@ var grammar = {
     {"name": "N", "symbols": [{"literal":"trigger.address"}], "postprocess": function(d) {return ['trigger.address']; }},
     {"name": "N", "symbols": [{"literal":"trigger.initial_address"}], "postprocess": function(d) {return ['trigger.initial_address']; }},
     {"name": "N", "symbols": [{"literal":"trigger.unit"}], "postprocess": function(d) {return ['trigger.unit']; }},
+    {"name": "N$subexpression$10", "symbols": [{"literal":"trigger.data"}]},
+    {"name": "N$subexpression$10", "symbols": [{"literal":"params"}]},
     {"name": "N$ebnf$10", "symbols": []},
     {"name": "N$ebnf$10$subexpression$1", "symbols": [(lexer.has("dotSelector") ? {type: "dotSelector"} : dotSelector)]},
     {"name": "N$ebnf$10$subexpression$1", "symbols": [{"literal":"["}, {"literal":"["}, "search_param_list", {"literal":"]"}, {"literal":"]"}]},
     {"name": "N$ebnf$10$subexpression$1", "symbols": [{"literal":"["}, "expr", {"literal":"]"}]},
     {"name": "N$ebnf$10", "symbols": ["N$ebnf$10", "N$ebnf$10$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
-    {"name": "N", "symbols": [{"literal":"trigger.data"}, "N$ebnf$10"], "postprocess":  function(d) {
+    {"name": "N", "symbols": ["N$subexpression$10", "N$ebnf$10"], "postprocess":  function(d) {
         var selectors = d[1].map(function(item){
         	if (item[0].type === 'dotSelector')
         		return item[0].value.substr(1);
@@ -448,15 +451,15 @@ var grammar = {
         	else
         		return item[1]; 
         });
-        return ['trigger.data', selectors]; }  
+        return [d[0][0].value, selectors]; }  
         	},
-    {"name": "N$subexpression$10", "symbols": [{"literal":"["}, {"literal":"["}]},
-    {"name": "N$subexpression$11", "symbols": ["expr"]},
-    {"name": "N$subexpression$11", "symbols": [(lexer.has("base") ? {type: "base"} : base)]},
-    {"name": "N$subexpression$12", "symbols": [{"literal":"]"}, {"literal":"]"}]},
+    {"name": "N$subexpression$11", "symbols": [{"literal":"["}, {"literal":"["}]},
+    {"name": "N$subexpression$12", "symbols": ["expr"]},
+    {"name": "N$subexpression$12", "symbols": [(lexer.has("base") ? {type: "base"} : base)]},
+    {"name": "N$subexpression$13", "symbols": [{"literal":"]"}, {"literal":"]"}]},
     {"name": "N$ebnf$11", "symbols": [(lexer.has("dotSelector") ? {type: "dotSelector"} : dotSelector)], "postprocess": id},
     {"name": "N$ebnf$11", "symbols": [], "postprocess": function(d) {return null;}},
-    {"name": "N", "symbols": [{"literal":"trigger.output"}, "N$subexpression$10", {"literal":"asset"}, "comparisonOperator", "N$subexpression$11", "N$subexpression$12", "N$ebnf$11"], "postprocess":  function(d) {
+    {"name": "N", "symbols": [{"literal":"trigger.output"}, "N$subexpression$11", {"literal":"asset"}, "comparisonOperator", "N$subexpression$12", "N$subexpression$13", "N$ebnf$11"], "postprocess":  function(d) {
         	var value = d[4][0];
         	var field = d[6] ? d[6].value.substr(1) : 'amount';
         	if (value.type === 'base')

@@ -3200,6 +3200,44 @@ function handleRequest(ws, tag, command, params){
 			});
 			break;
 			
+		case 'light/get_aas_by_base_aa':
+			if (conf.bLight)
+				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
+			if (ws.bOutbound)
+				return sendErrorResponse(ws, tag, "light clients have to be inbound");
+			if (!params)
+				return sendErrorResponse(ws, tag, "no params in light/get_aas_by_base_aa");
+			if (!ValidationUtils.isValidAddress(params.base_aa))
+				return sendErrorResponse(ws, tag, "base_aa not valid");
+			var aa_params = params.params || {};
+			for (var name in aa_params) {
+				var value = aa_params[name];
+				if (typeof value === 'object') {
+					if (!ValidationUtils.isArrayOfLength(value, 2))
+						return sendErrorResponse(ws, tag, "invalid value of param " + name + ": " + value);
+					var comp = value[0];
+					value = value[1];
+					if (!['=', '!=', '>', '>=', '<', '<='].includes(comp))
+						return sendErrorResponse(ws, tag, "invalid comparison of param " + name + ": " + comp);
+					if (!['string', 'number', 'boolean'].includes(typeof value))
+						return sendErrorResponse(ws, tag, "invalid type of param " + name + ": " + (typeof value));
+				}
+			}
+			db.query("SELECT address, definition FROM aa_addresses WHERE base_aa=?", [params.base_aa], function (rows) {
+				var arrAAs = [];
+				rows.forEach(function (row) {
+					var arrDefinition = JSON.parse(row.definition);
+					var this_aa_params = arrDefinition[1].params;
+					for (var name in aa_params) {
+						if (!satisfiesSearchCriteria(this_aa_params[name], aa_params[name]))
+							return;
+					}
+					arrAAs.push({ address: row.address, definition: arrDefinition });
+				});
+				sendResponse(ws, tag, arrAAs);
+			});
+			break;
+			
 		// I'm a hub, the peer wants to enable push notifications
 		case 'hub/enable_notification':
 			if(ws.device_address)
@@ -3234,6 +3272,25 @@ function handleRequest(ws, tag, command, params){
 		case 'custom':
 			eventBus.emit('custom_request', ws, params,tag);
 		break;
+	}
+}
+
+function satisfiesSearchCriteria(this_param_value, searched_param_value) {
+	var comp = '=';
+	if (typeof searched_param_value === 'object') {
+		comp = searched_param_value[0];
+		searched_param_value = searched_param_value[1];
+	}
+	if (typeof this_param_value !== typeof searched_param_value)
+		return (comp === '!=');
+	switch (comp) {
+		case '=':  return this_param_value === searched_param_value;
+		case '!=': return this_param_value !== searched_param_value;
+		case '>':  return this_param_value > searched_param_value;
+		case '>=': return this_param_value >= searched_param_value;
+		case '<':  return this_param_value < searched_param_value;
+		case '<=': return this_param_value <= searched_param_value;
+		default: throw Error("unknown comp: " + comp);
 	}
 }
 

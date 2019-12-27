@@ -4,7 +4,7 @@ var eventBus = require('./event_bus.js');
 var constants = require("./constants.js");
 var conf = require("./conf.js");
 
-var VERSION = 36;
+var VERSION = 38;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -385,6 +385,12 @@ function migrateDb(connection, onDone){
 					)");
 					connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS wlaabyAA ON watched_light_aas(aa)");
 				}
+				if (version < 37) {
+					connection.addQuery(arrQueries, "ALTER TABLE aa_addresses ADD COLUMN base_aa CHAR(32) NULL CONSTRAINT aaAddressesByBaseAA REFERENCES aa_addresses(address)");
+					connection.addQuery(arrQueries, "PRAGMA user_version=37");
+				}
+				if (version < 38)
+					connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS byBaseAA ON aa_addresses(base_aa)");
 				cb();
 			},
 		],

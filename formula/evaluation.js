@@ -42,6 +42,7 @@ exports.evaluate = function (opts, callback) {
 	var formula = opts.formula;
 	var messages = opts.messages || [];
 	var trigger = opts.trigger || {};
+	var aa_params = opts.params || {};
 	var locals = opts.locals || {};
 	var stateVars = opts.stateVars || {};
 	var responseVars = opts.responseVars || {};
@@ -1043,9 +1044,10 @@ exports.evaluate = function (opts, callback) {
 				break;
 
 			case 'trigger.data':
+			case 'params':
 				var arrKeys = arr[1]; // can be 0-length array
 			//	console.log('keys', arrKeys);
-				var value = trigger.data;
+				var value = (op === 'params') ? aa_params : trigger.data;
 				if (!value || Object.keys(value).length === 0)
 					return cb(false);
 				selectSubobject(value, arrKeys, cb);
@@ -2087,3 +2089,47 @@ exports.evaluate = function (opts, callback) {
 		}
 	}
 };
+
+exports.extractInitParams = function (formula) {
+	var parser = {};
+	if(cache[formula])
+		parser.results = cache[formula];
+	else {
+		parser = new nearley.Parser(nearley.Grammar.fromCompiled(grammar));
+		parser.feed(formula);
+		formulasInCache.push(formula);
+		cache[formula] = parser.results;
+		if (formulasInCache.length > cacheLimit) {
+			var f = formulasInCache.shift();
+			delete cache[f];
+		}
+	}
+	if (parser.results.length !== 1)
+		throw Error("ambiguous formula in already validated init");
+	var arr = parser.results[0];
+	if (arr[0] !== 'main')
+		throw Error("no main in already parsed init");
+	if (arr[2])
+		throw Error("expr in already parsed init");
+	var params = {};
+	var arrStatements = arr[1];
+	var arrLocalVarAssignmentStatements = arr[1].filter(a => a[0] === 'local_var_assignment');
+	var arrRemainingStatements = arrStatements.filter(a => {
+		if (a[0] !== 'local_var_assignment')
+			return true;
+		var var_name = a[1][1];
+		if (typeof var_name !== 'string') // ${expr} not accepted
+			return true;
+		var rhs = a[2];
+		var value;
+		if (typeof rhs !== 'string' || typeof rhs !== 'boolean')
+			value = rhs;
+		else if (!Decimal.isDecimal(rhs))
+			value = rhs.toNumber();
+		else
+			return true;
+		params[var_name] = value;
+		return false;
+	});
+	return { params, arrRemainingStatements };
+}

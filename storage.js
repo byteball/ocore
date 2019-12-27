@@ -752,8 +752,9 @@ function insertAADefinitions(conn, arrPayloads, unit, mci, bForAAsOnly, onDone) 
 		function (payload, cb) {
 			var address = payload.address;
 			var json = JSON.stringify(payload.definition);
+			var base_aa = payload.definition[1].base_aa;
 			var bAlreadyPostedByUnconfirmedAA = false;
-			conn.query("INSERT " + db.getIgnore() + " INTO aa_addresses (address, definition, unit, mci) VALUES (?,?,?,?)", [address, json, unit, mci], function (res) {
+			conn.query("INSERT " + db.getIgnore() + " INTO aa_addresses (address, definition, unit, mci, base_aa) VALUES (?,?, ?,?, ?)", [address, json, unit, mci, base_aa], function (res) {
 				if (res.affectedRows === 0) { // already exists
 					if (bForAAsOnly){
 						console.log("ignoring repeated definition of AA " + address + " in AA unit " + unit);
