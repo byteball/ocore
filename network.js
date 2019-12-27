@@ -3200,15 +3200,20 @@ function handleRequest(ws, tag, command, params){
 			});
 			break;
 			
-		case 'light/get_aas_by_base_aa':
+		case 'light/get_aas_by_base_aas':
 			if (conf.bLight)
 				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
 			if (ws.bOutbound)
 				return sendErrorResponse(ws, tag, "light clients have to be inbound");
 			if (!params)
-				return sendErrorResponse(ws, tag, "no params in light/get_aas_by_base_aa");
-			if (!ValidationUtils.isValidAddress(params.base_aa))
-				return sendErrorResponse(ws, tag, "base_aa not valid");
+				return sendErrorResponse(ws, tag, "no params in light/get_aas_by_base_aas");
+			var base_aas = params.base_aas || [params.base_aa];
+			if (!ValidationUtils.isNonemptyArray(base_aas))
+				return sendErrorResponse(ws, tag, "no base_aas in light/get_aas_by_base_aas");
+			if (base_aas.length > 20)
+				return sendErrorResponse(ws, tag, "too many base_aas in light/get_aas_by_base_aas, max 20");
+			if (!base_aas.every(ValidationUtils.isValidAddress))
+				return sendErrorResponse(ws, tag, "base_aa address not valid");
 			var aa_params = params.params || {};
 			for (var name in aa_params) {
 				var value = aa_params[name];
@@ -3223,7 +3228,7 @@ function handleRequest(ws, tag, command, params){
 						return sendErrorResponse(ws, tag, "invalid type of param " + name + ": " + (typeof value));
 				}
 			}
-			db.query("SELECT address, definition FROM aa_addresses WHERE base_aa=?", [params.base_aa], function (rows) {
+			db.query("SELECT address, definition FROM aa_addresses WHERE base_aa IN(?)", [base_aas], function (rows) {
 				var arrAAs = [];
 				rows.forEach(function (row) {
 					var arrDefinition = JSON.parse(row.definition);
@@ -3245,12 +3250,17 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "light clients have to be inbound");
 			if (!params)
 				return sendErrorResponse(ws, tag, "no params in light/get_aa_responses");
-			if (!ValidationUtils.isValidAddress(params.aa))
+			var aas = params.aas || [params.aa];
+			if (!ValidationUtils.isNonemptyArray(aas))
+				return sendErrorResponse(ws, tag, "no aas in light/get_aa_responses");
+			if (aas.length > 20)
+				return sendErrorResponse(ws, tag, "too many aas in light/get_aa_responses, max 20");
+			if (!aas.every(ValidationUtils.isValidAddress))
 				return sendErrorResponse(ws, tag, "aa address not valid");
 			db.query(
 				"SELECT mci, trigger_address, aa_address, trigger_unit, bounced, response_unit, response \n\
-				FROM aa_responses WHERE aa_address=? ORDER BY aa_response_id DESC LIMIT 30",
-				[params.aa],
+				FROM aa_responses WHERE aa_address IN(?) ORDER BY aa_response_id DESC LIMIT 30",
+				[aas],
 				function (rows) {
 					async.eachSeries(
 						rows,
