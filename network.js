@@ -3238,6 +3238,44 @@ function handleRequest(ws, tag, command, params){
 			});
 			break;
 			
+		case 'light/get_aa_responses':
+			if (conf.bLight)
+				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
+			if (ws.bOutbound)
+				return sendErrorResponse(ws, tag, "light clients have to be inbound");
+			if (!params)
+				return sendErrorResponse(ws, tag, "no params in light/get_aa_responses");
+			if (!ValidationUtils.isValidAddress(params.aa))
+				return sendErrorResponse(ws, tag, "aa address not valid");
+			db.query(
+				"SELECT mci, trigger_address, aa_address, trigger_unit, bounced, response_unit, response \n\
+				FROM aa_responses WHERE aa_address=? ORDER BY aa_response_id DESC LIMIT 30",
+				[params.aa],
+				function (rows) {
+					async.eachSeries(
+						rows,
+						function (row, cb) {
+							row.response = JSON.parse(row.response);
+							if (!row.response_unit)
+								return cb();
+							storage.readJoint(db, row.response_unit, {
+								ifNotFound: function () {
+									throw Error("response unit " + row.response_unit + " not found");
+								},
+								ifFound: function (objJoint) {
+									row.objResponseUnit = objJoint.unit;
+									cb();
+								}
+							});
+						},
+						function () {
+							sendResponse(ws, tag, rows);
+						}
+					);
+				}
+			);
+			break;
+
 		// I'm a hub, the peer wants to enable push notifications
 		case 'hub/enable_notification':
 			if(ws.device_address)
