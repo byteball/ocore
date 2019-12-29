@@ -3190,10 +3190,18 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "no params in light/get_aa_state_vars");
 			if (!ValidationUtils.isValidAddress(params.address))
 				return sendErrorResponse(ws, tag, "address not valid");
-			if ('var_name_from' in params && typeof params.var_name_from !== 'string')
-				return sendErrorResponse(ws, tag, "var_name_from must be string");
-			if ('var_name_to' in params && typeof params.var_name_to !== 'string')
-				return sendErrorResponse(ws, tag, "var_name_to must be string");
+			if ('var_prefix_from' in params && typeof params.var_prefix_from !== 'string')
+				return sendErrorResponse(ws, tag, "var_prefix_from must be string");
+			if ('var_prefix_to' in params && typeof params.var_prefix_to !== 'string')
+				return sendErrorResponse(ws, tag, "var_prefix_to must be string");
+			if ('var_prefix' in params && typeof params.var_prefix !== 'string')
+				return sendErrorResponse(ws, tag, "var_prefix must be string");
+			if ('var_prefix' in params && ('var_prefix_from' in params || 'var_prefix_to' in params))
+				return sendErrorResponse(ws, tag, "var_prefix cannot be used with var_prefix_from or var_prefix_to");
+			if ('var_prefix' in params) {
+				params.var_prefix_from = params.var_prefix;
+				params.var_prefix_to = params.var_prefix;
+			}
 			if ('limit' in params && !ValidationUtils.isPositiveInteger(params.limit))
 				return sendErrorResponse(ws, tag, "limit must be a positive integer");
 			if ('limit' in params && params.limit > MAX_STATE_VARS)
@@ -3201,7 +3209,7 @@ function handleRequest(ws, tag, command, params){
 			storage.readAADefinition(db, params.address, function (arrDefinition) {
 				if (!arrDefinition)
 					return sendErrorResponse(ws, tag, "not an AA");
-				storage.readAAStateVars(params.address, params.var_name_from || '', params.var_name_to || '', params.limit || MAX_STATE_VARS, function (objStateVars) {
+				storage.readAAStateVars(params.address, params.var_prefix_from || '', params.var_prefix_to || '', params.limit || MAX_STATE_VARS, function (objStateVars) {
 					sendResponse(ws, tag, objStateVars);
 				});
 			});
