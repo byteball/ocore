@@ -30,7 +30,7 @@ function MissingBounceFeesErrorMessage(obj) {
 
 
 function readAADefinitions(arrAddresses, handleRows) {
-	db.query("SELECT definition, address FROM aa_addresses WHERE address IN (" + arrAddresses.map(db.escape).join(', ') + ")", function (rows) {
+	db.query("SELECT definition, address, base_aa FROM aa_addresses WHERE address IN (" + arrAddresses.map(db.escape).join(', ') + ")", function (rows) {
 		if (!conf.bLight || arrAddresses.length === rows.length)
 			return handleRows(rows);
 		var arrKnownAAAdresses = rows.map(function (row) { return row.address; });
@@ -83,8 +83,9 @@ function readAADefinitions(arrAddresses, handleRows) {
 							var strDefinition = JSON.stringify(arrDefinition);
 							var bAA = (arrDefinition[0] === 'autonomous agent');
 							if (bAA) {
-								rows.push({ address: address, definition: strDefinition });
-								db.query("INSERT " + db.getIgnore() + " INTO aa_addresses (address, definition, unit, mci) VALUES(?, ?, ?, ?)", [address, strDefinition, constants.GENESIS_UNIT, 0], insert_cb);
+								var base_aa = arrDefinition[1].base_aa;
+								rows.push({ address: address, definition: strDefinition, base_aa: base_aa });
+								db.query("INSERT " + db.getIgnore() + " INTO aa_addresses (address, definition, unit, mci, base_aa) VALUES(?, ?, ?, ?, ?)", [address, strDefinition, constants.GENESIS_UNIT, 0, base_aa], insert_cb);
 							}
 							else
 								db.query("INSERT " + db.getIgnore() + " INTO definitions (definition_chash, definition, has_references) VALUES (?,?,?)", [address, strDefinition, Definition.hasReferences(arrDefinition) ? 1 : 0], insert_cb);

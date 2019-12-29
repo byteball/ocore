@@ -395,6 +395,10 @@ exports.validate = function (opts, callback) {
 				cb(bAA ? undefined : op + ' in non-AA');
 				break;
 
+			case 'params':
+				if (!bAA)
+					return cb("params in non-AA");
+				// fall through
 			case 'trigger.data':
 				// for non-AAs too
 				var arrKeys = arr[1];

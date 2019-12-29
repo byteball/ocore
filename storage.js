@@ -752,8 +752,9 @@ function insertAADefinitions(conn, arrPayloads, unit, mci, bForAAsOnly, onDone) 
 		function (payload, cb) {
 			var address = payload.address;
 			var json = JSON.stringify(payload.definition);
+			var base_aa = payload.definition[1].base_aa;
 			var bAlreadyPostedByUnconfirmedAA = false;
-			conn.query("INSERT " + db.getIgnore() + " INTO aa_addresses (address, definition, unit, mci) VALUES (?,?,?,?)", [address, json, unit, mci], function (res) {
+			conn.query("INSERT " + db.getIgnore() + " INTO aa_addresses (address, definition, unit, mci, base_aa) VALUES (?,?, ?,?, ?)", [address, json, unit, mci, base_aa], function (res) {
 				if (res.affectedRows === 0) { // already exists
 					if (bForAAsOnly){
 						console.log("ignoring repeated definition of AA " + address + " in AA unit " + unit);
@@ -797,10 +798,17 @@ function readAAStateVar(address, var_name, handleResult) {
 	kvstore.get("st\n" + address + "\n" + var_name, handleResult);
 }
 
-function readAAStateVars(address, handle){
+function readAAStateVars(address, prefix, limit, handle) {
+	if (arguments.length === 2) {
+		handle = prefix;
+		prefix = '';
+		limit = 0;
+	}
 	var options = {};
-	options.gte = "st\n" + address + "\n";
-	options.lte = "st\n" + address + "\n\uFFFF";
+	options.gte = "st\n" + address + "\n" + prefix;
+	options.lte = "st\n" + address + "\n" + prefix + "\uFFFF";
+	if (limit)
+		options.limit = limit;
 
 	var objStateVars = {}
 	var handleData = function (data){
@@ -1227,7 +1235,8 @@ function readAsset(conn, asset, last_ball_mci, bAcceptUnconfirmedAA, handleAsset
 
 		if (objAsset.main_chain_index !== null && objAsset.main_chain_index <= last_ball_mci)
 			return addAttestorsIfNecessary();
-		if (!bAcceptUnconfirmedAA || constants.bTestnet && last_ball_mci < testnetAssetsDefinedByAAsAreVisibleImmediatelyUpgradeMci)
+		// && objAsset.main_chain_index !== null below is for bug compatibility with the old version
+		if (!bAcceptUnconfirmedAA || constants.bTestnet && last_ball_mci < testnetAssetsDefinedByAAsAreVisibleImmediatelyUpgradeMci && objAsset.main_chain_index !== null)
 			return handleAsset("asset definition must be before last ball");
 		readAADefinition(conn, objAsset.definer_address, function (arrDefinition) {
 			arrDefinition ? addAttestorsIfNecessary() : handleAsset("asset definition must be before last ball (AA)");

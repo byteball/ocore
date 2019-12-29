@@ -801,9 +801,12 @@ CREATE TABLE aa_addresses (
 	unit CHAR(44) NULL, -- where it is first defined.  No index for better speed, NULL for light
 	mci INT NULL, -- it is available since this mci (mci of the above unit), NULL for light
 	storage_size INT NOT NULL DEFAULT 0,
+	base_aa CHAR(32) NULL,
 	definition TEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+--	CONSTRAINT aaAddressesByBaseAA FOREIGN KEY (base_aa) REFERENCES aa_addresses(address)
 );
+CREATE INDEX byBaseAA ON aa_addresses(base_aa);
 
 -- the table is a queue, it is almost always empty and any entries are short-lived
 -- INSERTs are wrapped in the same SQL transactions that write the triggering units
@@ -848,5 +851,14 @@ CREATE INDEX aaResponsesByTriggerAddress ON aa_responses(trigger_address);
 CREATE INDEX aaResponsesByAAAddress ON aa_responses(aa_address);
 CREATE INDEX aaResponsesByMci ON aa_responses(mci);
 
+CREATE TABLE watched_light_aas (
+	peer VARCHAR(100) NOT NULL,
+	aa CHAR(32) NOT NULL,
+	address CHAR(32) NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	PRIMARY KEY (peer, aa, address)
+);
+CREATE INDEX wlaabyAA ON watched_light_aas(aa);
 
-PRAGMA user_version=34;
+
+PRAGMA user_version=38;

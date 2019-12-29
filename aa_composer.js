@@ -75,7 +75,7 @@ function handlePrimaryAATrigger(mci, unit, address, arrDefinition, arrPostedUnit
 					var arrResponses = [];
 					var trigger = getTrigger(objUnit, address);
 					trigger.initial_address = trigger.address;
-					handleTrigger(conn, batch, null, trigger, {}, arrDefinition, address, mci, objMcUnit, false, arrResponses, function(){
+					handleTrigger(conn, batch, null, trigger, {}, {}, arrDefinition, address, mci, objMcUnit, false, arrResponses, function(){
 						conn.query("DELETE FROM aa_triggers WHERE mci=? AND unit=? AND address=?", [mci, unit, address], function(){
 							var batch_start_time = Date.now();
 							batch.write(function(err){
@@ -84,6 +84,10 @@ function handlePrimaryAATrigger(mci, unit, address, arrDefinition, arrPostedUnit
 									throw Error("AA composer: batch write failed: "+err);
 								conn.query("COMMIT", function () {
 									conn.release();
+									// copy updatedStateVars to all responses
+									if (arrResponses.length > 1 && arrResponses[0].updatedStateVars)
+										for (var i = 1; i < arrResponses.length; i++)
+											arrResponses[i].updatedStateVars = arrResponses[0].updatedStateVars;
 									arrResponses.forEach(function (objAAResponse) {
 										if (objAAResponse.objResponseUnit)
 											arrPostedUnits.push(objAAResponse.objResponseUnit);
@@ -126,7 +130,7 @@ function dryRunPrimaryAATrigger(trigger, address, arrDefinition, onDone) {
 				};
 				fPrepare(function () {
 					var arrResponses = [];
-					handleTrigger(conn, batch, fPrepare, trigger, {}, arrDefinition, address, mci, objMcUnit, false, arrResponses, function () {
+					handleTrigger(conn, batch, fPrepare, trigger, {}, {}, arrDefinition, address, mci, objMcUnit, false, arrResponses, function () {
 						revertResponsesInCaches(arrResponses);
 						batch.clear();
 						conn.query("ROLLBACK", function () {
@@ -211,7 +215,7 @@ function getTrigger(objUnit, receiving_address) {
 }
 
 // the result is onDone(objResponseUnit, bBounced)
-function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition, address, mci, objMcUnit, bSecondary, arrResponses, onDone) {
+function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDefinition, address, mci, objMcUnit, bSecondary, arrResponses, onDone) {
 	if (arrDefinition[0] !== 'autonomous agent')
 		throw Error('bad AA definition ' + arrDefinition);
 	if (!trigger.initial_address)
@@ -219,6 +223,17 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 	var error_message = '';
 	var responseVars = {};
 	var template = arrDefinition[1];
+	if (template.base_aa) { // parameterized AA
+		if (params && Object.keys(params).length > 0)
+			throw Error("unexpected params");
+		storage.readAADefinition(conn, template.base_aa, function (arrBaseDefinition) {
+			if (!arrBaseDefinition)
+				throw Error("base AA not found");
+			console.log("redirecting to base AA " + template.base_aa + " with params " + JSON.stringify(template.params));
+			handleTrigger(conn, batch, null, trigger, template.params, stateVars, arrBaseDefinition, address, mci, objMcUnit, bSecondary, arrResponses, onDone);
+		});
+		return;
+	}
 	var bounce_fees = template.bounce_fees || {base: constants.MIN_BYTES_BOUNCE_FEE};
 	if (!bounce_fees.base)
 		bounce_fees.base = constants.MIN_BYTES_BOUNCE_FEE;
@@ -249,6 +264,8 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 				var arrQueries = [];
 				// 1. update balances of existing assets
 				rows.forEach(function (row) {
+					if (constants.bTestnet && mci < testnetAAsDefinedByAAsAreActiveImmediatelyUpgradeMci)
+						reintroduceBalanceBug(address, row);
 					conn.addQuery(
 						arrQueries,
 						"UPDATE aa_balances SET balance=balance+? WHERE address=? AND asset=? ",
@@ -333,6 +350,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 					conn: conn,
 					formula: f,
 					trigger: trigger,
+					params: params,
 					locals: _.clone(locals),
 					stateVars: stateVars,
 					responseVars: responseVars,
@@ -374,6 +392,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 				conn: conn,
 				formula: f,
 				trigger: trigger,
+				params: params,
 				locals: locals,
 				stateVars: stateVars,
 				responseVars: responseVars,
@@ -413,6 +432,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 						conn: conn,
 						formula: f,
 						trigger: trigger,
+						params: params,
 						locals: locals_tmp,
 						stateVars: stateVars,
 						responseVars: responseVars,
@@ -448,6 +468,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 						conn: conn,
 						formula: f,
 						trigger: trigger,
+						params: params,
 						locals: locals,
 						stateVars: stateVars,
 						responseVars: responseVars,
@@ -474,6 +495,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 					conn: conn,
 					formula: f,
 					trigger: trigger,
+					params: params,
 					locals: locals,
 					stateVars: stateVars,
 					responseVars: responseVars,
@@ -504,6 +526,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 					conn: conn,
 					formula: f,
 					trigger: trigger,
+					params: params,
 					locals: locals,
 					stateVars: stateVars,
 					responseVars: responseVars,
@@ -923,6 +946,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 			conn: conn,
 			formula: objStateUpdate.formula,
 			trigger: trigger,
+			params: params,
 			locals: objStateUpdate.locals,
 			stateVars: stateVars,
 			responseVars: responseVars,
@@ -1131,7 +1155,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, stateVars, arrDefinition,
 					var child_trigger = getTrigger(objUnit, row.address);
 					child_trigger.initial_address = trigger.initial_address;
 					var arrChildDefinition = JSON.parse(row.definition);
-					handleTrigger(conn, batch, null, child_trigger, stateVars, arrChildDefinition, row.address, mci, objMcUnit, true, arrResponses, function (objSecondaryUnit, bounce_message) {
+					handleTrigger(conn, batch, null, child_trigger, {}, stateVars, arrChildDefinition, row.address, mci, objMcUnit, true, arrResponses, function (objSecondaryUnit, bounce_message) {
 						if (bounce_message)
 							return cb(bounce_message);
 						cb();
@@ -1373,6 +1397,23 @@ function checkBalances() {
 			);
 		});
 	});
+}
+
+function reintroduceBalanceBug(address, row) {
+	if (address === 'XM3EMLR3D3VLKDNPSZSJTSKPKFFXDDHV') row.balance -= 3125;
+	if (address === 'FSEIUKVQNYNF5BQE5S46R7ERQDVROVJL') row.balance -= 3337;
+	if (address === 'BCHGVAJRLHS3HMA7NMKZ4BO6JQKUW3Q5') row.balance -= 2173;
+	if (address === 'H4KE7UKFJOMMBXSQ6YPWNF66AK4WCIHI') row.balance -= 2200;
+	if (address === 'W4BXAP5B6CB3VUBTTEWILHDLBH32GW77') row.balance -= 2200;
+	if (address === '5MUADPAHD5HODQ2H2I4VJK7LIJP2UWEM') row.balance -= 2173;
+	if (address === 'R5XIX3LV56SXLDL2RRU3MTMDEX7KMG7E') row.balance -= 2096;
+	if (address === '5G6AIA2SNEKZCHL4CWGRCG6U4YJEMMEG') row.balance -= 2123;
+	if (address === 'DVPC3PRVQ52DDBSHMRFOFRDDPG5CUKKG') row.balance -= 2055;
+	if (address === 'ZZEC7WHPGVAPHB6TZY5EQNDFMRA3PBFB') row.balance -= 2028;
+	if (address === 'X5ZRXFN27AS5AXALITEBJGJAJCGB3HFK') row.balance -= 2019;
+	if (address === 'CPTSL3OUMDIEKQ2LJWRO2BDJVRUTH7TZ') row.balance -= 1992;
+	if (address === 'AE7RCCPDR2DOSEOSTQA4XP7CSR5SY3WM') row.balance -= 1959;
+	if (address === '7SBOUY5ERICX4XHFS42FJJVVAN4YJ3BZ') row.balance -= 1932;
 }
 
 if (!conf.bLight) {
