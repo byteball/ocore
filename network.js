@@ -3194,7 +3194,7 @@ function handleRequest(ws, tag, command, params){
 			storage.readAADefinition(db, params.address, function (arrDefinition) {
 				if (!arrDefinition)
 					return sendErrorResponse(ws, tag, "not an AA");
-				storage.readAAStateVars(params.address, params.prefix || '', 100, function (objStateVars) {
+				storage.readAAStateVars(params.address, params.prefix || '', 2000, function (objStateVars) {
 					sendResponse(ws, tag, objStateVars);
 				});
 			});
