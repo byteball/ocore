@@ -59,6 +59,7 @@
 		mc_unit: 'mc_unit',
 		response_unit: 'response_unit',
 		unit: 'unit',
+		definition: 'definition',
 		response: 'response',
 		bounce: 'bounce',
 		return: 'return',
@@ -328,7 +329,7 @@ N -> float          {% id %}
 			field = field[1];
 		return ['asset', d[2], field];
 	} %}
-	| "unit" "[" expr "]" (%dotSelector|"[" "[" search_param_list "]" "]"|"[" expr "]"):*  {% function(d) {
+	| ("unit"|"definition") "[" expr "]" (%dotSelector|"[" "[" search_param_list "]" "]"|"[" expr "]"):*  {% function(d) {
 		var selectors = null;
 		if (d[4] && d[4].length){
 			selectors = d[4].map(function(item){
@@ -340,7 +341,7 @@ N -> float          {% id %}
 					return item[1]; 
 			});
 		}
-		return ['unit', d[2], selectors]; }  
+		return [d[0][0].value, d[2], selectors]; }  
 	%}
 	| "storage_size"  {% function(d) {return ['storage_size']; }  %}
 	| "mci"  {% function(d) {return ['mci']; }  %}

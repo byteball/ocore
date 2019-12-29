@@ -2648,3 +2648,24 @@ test('params very deep', t => {
 		t.deepEqual(complexity, 1);
 	})
 });
+
+test.cb('definition', t => {
+	var db = require("../db");
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: db, formula: `definition[this_address][1].bounce_fees`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 20000);
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});
+
+test.cb('definition invalid', t => {
+	var db = require("../db");
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: db, formula: `definition['non-addr'][1].bounce_fees`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, false);
+		t.end();
+	})
+});

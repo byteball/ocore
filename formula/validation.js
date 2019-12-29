@@ -602,11 +602,12 @@ exports.validate = function (opts, callback) {
 				break;
 
 			case 'unit':
+			case 'definition':
 				// for non-AAs too
 				complexity++;
-				var unit_expr = arr[1];
+				var expr = arr[1];
 				var arrKeys = arr[2];
-				evaluate(unit_expr, function (err) {
+				evaluate(expr, function (err) {
 					if (err)
 						return cb(err);
 					async.eachSeries(

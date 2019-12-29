@@ -1383,6 +1383,30 @@ exports.evaluate = function (opts, callback) {
 				});
 				break;
 
+			case 'definition':
+				var address_expr = arr[1];
+				var arrKeys = arr[2];
+				evaluate(address_expr, function (addr) {
+					console.log('---- definition', addr);
+					if (fatal_error)
+						return cb(false);
+					if (!ValidationUtils.isValidAddress(addr))
+						return cb(false);
+					storage.readAADefinition(conn, addr, function (arrDefinition) {
+						if (arrDefinition)
+							return selectSubobject(arrDefinition, arrKeys, cb);
+						storage.readDefinitionByAddress(conn, addr, objValidationState.last_ball_mci, {
+							ifDefinitionNotFound: function () {
+								cb(false);
+							},
+							ifFound: function (arrDefinition) {
+								selectSubobject(arrDefinition, arrKeys, cb);
+							}
+						});
+					});
+				});
+				break;
+
 			case 'is_valid_signed_package':
 				var signed_package_expr = arr[1];
 				var address_expr = arr[2];
