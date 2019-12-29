@@ -34,6 +34,7 @@ var RESPONSE_TIMEOUT = 300*1000; // after this timeout, the request is abandoned
 var HEARTBEAT_TIMEOUT = conf.HEARTBEAT_TIMEOUT || 10*1000;
 var HEARTBEAT_RESPONSE_TIMEOUT = 60*1000;
 var PAUSE_TIMEOUT = 2*HEARTBEAT_TIMEOUT;
+var MAX_STATE_VARS = 2000;
 
 var wss;
 var arrOutboundPeers = [];
@@ -3189,12 +3190,18 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "no params in light/get_aa_state_vars");
 			if (!ValidationUtils.isValidAddress(params.address))
 				return sendErrorResponse(ws, tag, "address not valid");
-			if ('prefix' in params && typeof params.prefix !== 'string')
-				return sendErrorResponse(ws, tag, "prefix must be string");
+			if ('var_name_from' in params && typeof params.var_name_from !== 'string')
+				return sendErrorResponse(ws, tag, "var_name_from must be string");
+			if ('var_name_to' in params && typeof params.var_name_to !== 'string')
+				return sendErrorResponse(ws, tag, "var_name_to must be string");
+			if ('limit' in params && !ValidationUtils.isPositiveInteger(params.limit))
+				return sendErrorResponse(ws, tag, "limit must be a positive integer");
+			if ('limit' in params && params.limit > MAX_STATE_VARS)
+				return sendErrorResponse(ws, tag, "limit cannot be greater than " + MAX_STATE_VARS);
 			storage.readAADefinition(db, params.address, function (arrDefinition) {
 				if (!arrDefinition)
 					return sendErrorResponse(ws, tag, "not an AA");
-				storage.readAAStateVars(params.address, params.prefix || '', 2000, function (objStateVars) {
+				storage.readAAStateVars(params.address, params.var_name_from || '', params.var_name_to || '', params.limit || MAX_STATE_VARS, function (objStateVars) {
 					sendResponse(ws, tag, objStateVars);
 				});
 			});
