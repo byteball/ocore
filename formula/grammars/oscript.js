@@ -119,7 +119,7 @@ var grammar = {
         	var else_block = d[5] ? d[5][1] : null;
         	return ['ifelse', d[2], d[4], else_block];
         } },
-    {"name": "block$ebnf$1", "symbols": ["statement"]},
+    {"name": "block$ebnf$1", "symbols": []},
     {"name": "block$ebnf$1", "symbols": ["block$ebnf$1", "statement"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
     {"name": "block", "symbols": [{"literal":"{"}, "block$ebnf$1", {"literal":"}"}], "postprocess": function(d){ return ['block', d[1]]; }},
     {"name": "block", "symbols": ["statement"], "postprocess": id},

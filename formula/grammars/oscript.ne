@@ -112,7 +112,7 @@ ifelse -> "if" "(" expr ")" block ("else" block):?  {% function(d){
 	return ['ifelse', d[2], d[4], else_block];
 } %}
 
-block -> "{" statement:+ "}" {% function(d){ return ['block', d[1]]; } %}
+block -> "{" statement:* "}" {% function(d){ return ['block', d[1]]; } %}
 	| statement {% id %}
 
 bounce_expr -> "bounce" "(" expr ")"    {% function(d) { return ['bounce', d[2]]; } %}

@@ -1381,6 +1381,12 @@ test('if else block', t => {
 	})
 });
 
+test('if else with empty block', t => {
+	evalFormulaWithVars({ formula: "if ($volume != 100) {} else $price = 1; $x=10; $price * $x", trigger: {}, locals: {volume: 100}, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, res => {
+		t.deepEqual(res, 10);
+	})
+});
+
 test('if true block', t => {
 	evalFormulaWithVars({ formula: "if ($volume == 100) $price = 1; $x=10; $price * $x", trigger: {}, locals: {volume: 100}, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, res => {
 		t.deepEqual(res, 10);
