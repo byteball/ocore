@@ -798,15 +798,16 @@ function readAAStateVar(address, var_name, handleResult) {
 	kvstore.get("st\n" + address + "\n" + var_name, handleResult);
 }
 
-function readAAStateVars(address, prefix, limit, handle) {
+function readAAStateVars(address, var_prefix_from, var_prefix_to, limit, handle) {
 	if (arguments.length === 2) {
-		handle = prefix;
-		prefix = '';
+		handle = var_prefix_from;
+		var_prefix_from = '';
+		var_prefix_to = '';
 		limit = 0;
 	}
 	var options = {};
-	options.gte = "st\n" + address + "\n" + prefix;
-	options.lte = "st\n" + address + "\n" + prefix + "\uFFFF";
+	options.gte = "st\n" + address + "\n" + var_prefix_from;
+	options.lte = "st\n" + address + "\n" + var_prefix_to + "\uFFFF";
 	if (limit)
 		options.limit = limit;
 

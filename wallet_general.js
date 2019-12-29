@@ -5,7 +5,7 @@ var db = require('./db.js');
 var device = require('./device.js');
 var conf = require('./conf.js');
 var network = require('./network.js');
-
+var ValidationUtils = require("./validation_utils.js");
 
 
 function sendOfferToSign(device_address, address, signing_path, objUnsignedUnit, assocPrivatePayloads){
@@ -56,6 +56,8 @@ function readMyAddresses(handleAddresses){
 }
 
 function addWatchedAddress(address, handle){
+	if (!ValidationUtils.isValidAddress(address))
+		return handle("not a valid address");
 	db.query("INSERT "+db.getIgnore()+" INTO my_watched_addresses (address) VALUES (?)", [address], function(){
 		if (conf.bLight)
 			network.addLightWatchedAddress(address);
