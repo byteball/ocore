@@ -716,13 +716,13 @@ function readDefinition(conn, definition_chash, callbacks){
 }
 
 function readAADefinition(conn, address, handleDefinition) {
-	conn.query("SELECT definition FROM aa_addresses WHERE address=?", [address], function (rows) {
+	conn.query("SELECT definition, unit FROM aa_addresses WHERE address=?", [address], function (rows) {
 		if (rows.length !== 1)
 			return handleDefinition(null);
 		var arrDefinition = JSON.parse(rows[0].definition);
 		if (arrDefinition[0] !== 'autonomous agent')
 			throw Error("non-AA definition in AA unit");
-		handleDefinition(arrDefinition);
+		handleDefinition(arrDefinition, rows[0].unit);
 	});
 }
 
