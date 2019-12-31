@@ -116,6 +116,31 @@ var lightBatch = {
 	}
 };
 
+function validateAATriggerObject(trigger, handle) {
+	if (!ValidationUtils.isNonemptyObject(trigger))
+		return handle("no trigger");
+	if (!ValidationUtils.isNonemptyObject(trigger.outputs))
+		return handle("no trigger outputs");
+	if (!ValidationUtils.isValidAddress(trigger.address))
+		return handle("bad trigger address");
+	var arrAssets = Object.keys(trigger.outputs).filter(function(asset) {return asset !== 'base'});
+	if (arrAssets.length >= constants.MAX_MESSAGES_PER_UNIT)
+		return handle("too many assets");
+	if (!ValidationUtils.isPositiveInteger(trigger.outputs.base))
+		return handle("no base payment");
+	if (arrAssets.length === 0)
+		return handle();
+	if (!arrAssets.every(function(asset){return ValidationUtils.isPositiveInteger(trigger.outputs[asset])}))
+		return handle("invalid output amount")
+	// we have to check that assets exist otherwise foreign key constraint would fail when inserting fake outputs
+	db.query("SELECT 1 FROM assets WHERE unit IN (?)", [arrAssets], function(rows) {
+		if (rows.length !== arrAssets.length)
+			return handle("unknown asset");
+		else
+			return handle();
+	});
+}
+
 function dryRunPrimaryAATrigger(trigger, address, arrDefinition, onDone) {
 	db.takeConnectionFromPool(function (conn) {
 		conn.query("BEGIN", function () {
@@ -1425,4 +1450,5 @@ if (!conf.bLight) {
 
 exports.handleAATriggers = handleAATriggers;
 exports.handleTrigger = handleTrigger;
+exports.validateAATriggerObject = validateAATriggerObject;
 exports.dryRunPrimaryAATrigger = dryRunPrimaryAATrigger;

@@ -2481,6 +2481,8 @@ function handleJustsaying(ws, subject, body){
 			
 		// I'm a hub, the peer wants update settings for a correspondent device
 		case 'hub/update_correspondent_settings':
+			if (!body)
+				return;
 			if (!conf.bServeAsHub)
 				return sendError(ws, "I'm not a hub");
 			if (!ws.device_address)
@@ -2561,6 +2563,8 @@ function handleJustsaying(ws, subject, body){
 			break;
 			
 		case 'light/new_aa_to_watch':
+			if (!body)
+				return;
 			if (conf.bLight)
 				return sendError(ws, "I'm light myself, can't serve you");
 			if (ws.bOutbound)
@@ -3161,23 +3165,22 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "no params in light/dry_run_aa");
 			if (!ValidationUtils.isValidAddress(params.address))
 				return sendErrorResponse(ws, tag, "address not valid");
-			if (!ValidationUtils.isNonemptyObject(params.trigger))
-				return sendErrorResponse(ws, tag, "no trigger");
-			if (!ValidationUtils.isNonemptyObject(params.trigger.outputs))
-				return sendErrorResponse(ws, tag, "no trigger outputs");
-			if (!ValidationUtils.isValidAddress(params.trigger.address))
-				return sendErrorResponse(ws, tag, "bad trigger address");
+		
 			storage.readAADefinition(db, params.address, function (arrDefinition) {
 				if (!arrDefinition)
 					return sendErrorResponse(ws, tag, "not an AA");
-				aa_composer.dryRunPrimaryAATrigger(params.trigger, params.address, arrDefinition, function (arrResponses) {
-					if (constants.COUNT_WITNESSES === 1) { // the temp unit might have rebuilt the MC
-						db.executeInTransaction(function (conn, onDone) {
-							storage.resetMemory(conn, onDone);
-						});
-					}
-					sendResponse(ws, tag, arrResponses);
-				});
+				aa_composer.validateAATriggerObject(params.trigger, function(error){
+					if (error)
+						return sendErrorResponse(ws, tag, error);
+					aa_composer.dryRunPrimaryAATrigger(params.trigger, params.address, arrDefinition, function (arrResponses) {
+						if (constants.COUNT_WITNESSES === 1) { // the temp unit might have rebuilt the MC
+							db.executeInTransaction(function (conn, onDone) {
+								storage.resetMemory(conn, onDone);
+							});
+						}
+						sendResponse(ws, tag, arrResponses);
+					});
+				})
 			});
 			break;
 
@@ -3198,7 +3201,7 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "var_prefix must be string");
 			if ('var_prefix' in params && ('var_prefix_from' in params || 'var_prefix_to' in params))
 				return sendErrorResponse(ws, tag, "var_prefix cannot be used with var_prefix_from or var_prefix_to");
-			if ('var_prefix' in params) {
+			if ('var_prefix' in params){
 				params.var_prefix_from = params.var_prefix;
 				params.var_prefix_to = params.var_prefix;
 			}
