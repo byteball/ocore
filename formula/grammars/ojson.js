@@ -20,8 +20,6 @@ let lexer = moo.states({
 		']': ']',
 		':': ':',
 		',': ',',
-		true: 'true',
-		false: 'false',
 		base64: [
 			/'(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{4})'/,
 			/"(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{4})"/,
@@ -31,8 +29,14 @@ let lexer = moo.states({
 		"'": "'",
 		'`': '`',
 		decimal: /(?:[+-])?(?:[0-9]*[.])?[0-9]+/,
-		autonomous_agent: 'autonomous agent',
-		str: /[a-zA-Z_0-9 =+*/@-]+/,
+		str: {
+      match: /[a-zA-Z_0-9 =+*/@><-]+/,
+      type: moo.keywords({
+        autonomous_agent: 'autonomous agent',
+        false: 'false',
+        true: 'true',
+    	}),
+		},
 	},
 	formulaDouble: {
 		formulaDoubleEnd: { match: '}"', pop: 1 },
@@ -46,7 +50,7 @@ let lexer = moo.states({
 		formulaBackEnd: { match: '}`', pop: 1 },
 		formula: {match: /[\s\S]+?(?=}`)/, lineBreaks: true},
 	},
-	})
+})
 
 const TYPES = {
 	STR: 'STR',
@@ -114,6 +118,12 @@ const quotedFormula = (d) => ([{
 const str = (d) => ({
 	type: TYPES.STR,
 	value: d[0].text,
+	context: c(d[0])
+})
+
+const prefixedStr = (d) => ({
+	type: TYPES.STR,
+	value: d[0].text + (d[1] ? d[1].value : ''),
 	context: c(d[0])
 })
 
@@ -187,23 +197,18 @@ var grammar = {
     {"name": "value", "symbols": ["false"]},
     {"name": "value", "symbols": ["array"]},
     {"name": "value", "symbols": ["object"]},
+    {"name": "value", "symbols": ["base64"]},
+    {"name": "value", "symbols": ["decimal"]},
     {"name": "value$macrocall$2", "symbols": ["str"]},
     {"name": "value$macrocall$1", "symbols": [{"literal":"'"}, "value$macrocall$2", {"literal":"'"}], "postprocess": quoted},
     {"name": "value$macrocall$1", "symbols": [{"literal":"`"}, "value$macrocall$2", {"literal":"`"}], "postprocess": quoted},
     {"name": "value$macrocall$1", "symbols": [{"literal":"\""}, "value$macrocall$2", {"literal":"\""}], "postprocess": quoted},
     {"name": "value", "symbols": ["value$macrocall$1"]},
-    {"name": "value", "symbols": ["base64"]},
-    {"name": "value", "symbols": ["decimal"]},
-    {"name": "value$macrocall$4", "symbols": ["decimal"]},
+    {"name": "value$macrocall$4", "symbols": ["formula"]},
     {"name": "value$macrocall$3", "symbols": [{"literal":"'"}, "value$macrocall$4", {"literal":"'"}], "postprocess": quoted},
     {"name": "value$macrocall$3", "symbols": [{"literal":"`"}, "value$macrocall$4", {"literal":"`"}], "postprocess": quoted},
     {"name": "value$macrocall$3", "symbols": [{"literal":"\""}, "value$macrocall$4", {"literal":"\""}], "postprocess": quoted},
-    {"name": "value", "symbols": ["value$macrocall$3"], "postprocess": valueDecimal},
-    {"name": "value$macrocall$6", "symbols": ["formula"]},
-    {"name": "value$macrocall$5", "symbols": [{"literal":"'"}, "value$macrocall$6", {"literal":"'"}], "postprocess": quoted},
-    {"name": "value$macrocall$5", "symbols": [{"literal":"`"}, "value$macrocall$6", {"literal":"`"}], "postprocess": quoted},
-    {"name": "value$macrocall$5", "symbols": [{"literal":"\""}, "value$macrocall$6", {"literal":"\""}], "postprocess": quoted},
-    {"name": "value", "symbols": ["value$macrocall$5"], "postprocess": quotedFormula},
+    {"name": "value", "symbols": ["value$macrocall$3"], "postprocess": quotedFormula},
     {"name": "array", "symbols": [{"literal":"["}, "_", "arrayContent", "_", {"literal":"]"}], "postprocess": array},
     {"name": "arrayContent$macrocall$2$subexpression$1", "symbols": ["object"]},
     {"name": "arrayContent$macrocall$2$subexpression$1", "symbols": ["formula"]},
@@ -244,6 +249,11 @@ var grammar = {
     {"name": "_", "symbols": ["_", (lexer.has("blockComment") ? {type: "blockComment"} : blockComment), "_"], "postprocess": (d) => null},
     {"name": "str", "symbols": [(lexer.has("str") ? {type: "str"} : str)], "postprocess": str},
     {"name": "str", "symbols": [(lexer.has("autonomous_agent") ? {type: "autonomous_agent"} : autonomous_agent)], "postprocess": str},
+    {"name": "str", "symbols": [(lexer.has("true") ? {type: "true"} : true)], "postprocess": str},
+    {"name": "str", "symbols": [(lexer.has("false") ? {type: "false"} : false)], "postprocess": str},
+    {"name": "str$ebnf$1", "symbols": ["str"], "postprocess": id},
+    {"name": "str$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
+    {"name": "str", "symbols": [(lexer.has("decimal") ? {type: "decimal"} : decimal), "str$ebnf$1"], "postprocess": prefixedStr},
     {"name": "true", "symbols": [(lexer.has("true") ? {type: "true"} : true)], "postprocess": trueP},
     {"name": "base64", "symbols": [(lexer.has("base64") ? {type: "base64"} : base64)], "postprocess": base64ToStr},
     {"name": "false", "symbols": [(lexer.has("false") ? {type: "false"} : false)], "postprocess": falseP},

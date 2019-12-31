@@ -319,6 +319,7 @@ function processHistory(objResponse, arrWitnesses, callbacks){
 										eventBus.emit('aa_response_to_unit-'+objAAResponse.trigger_unit, objAAResponse);
 										eventBus.emit('aa_response_to_address-'+objAAResponse.trigger_address, objAAResponse);
 										eventBus.emit('aa_response_from_aa-'+objAAResponse.aa_address, objAAResponse);
+										return cb3();
 									}
 								);
 							});
