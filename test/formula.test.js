@@ -1544,6 +1544,16 @@ test('sha256 hex expr', t => {
 	})
 });
 
+test('sha256 base32 expr', t => {
+	var base32 = require('thirty-two');
+	var str = 'abcd';
+	var hash = base32.encode(crypto.createHash("sha256").update(str, "utf8").digest()).toString();
+	evalFormulaWithVars({ formula: "sha256(trigger.data.str, 'base32')", trigger: {data: {str: str}}, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, hash);
+		t.deepEqual(complexity, 2);
+	})
+});
+
 test('sha256 bad format', t => {
 	var str = 'abcd';
 	var hash = crypto.createHash("sha256").update(str, "utf8").digest("hex");

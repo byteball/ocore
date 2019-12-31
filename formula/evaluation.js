@@ -3,6 +3,7 @@ var grammar = require("./grammars/oscript.js");
 var async = require('async');
 var crypto = require('crypto');
 var _ = require('lodash');
+var base32 = require('thirty-two');
 var ValidationUtils = require("../validation_utils.js");
 var string_utils = require("../string_utils.js");
 var constants = require('../constants');
@@ -1534,9 +1535,13 @@ exports.evaluate = function (opts, callback) {
 					evaluate(format_expr, function (format) {
 						if (fatal_error)
 							return cb(false);
-						if (format !== 'base64' && format !== 'hex')
+						if (format !== 'base64' && format !== 'hex' && format !== 'base32')
 							return setFatalError("bad format of sha256: " + format, cb, false);
-						cb(crypto.createHash("sha256").update(res.toString(), "utf8").digest(format));
+						var h = crypto.createHash("sha256").update(res.toString(), "utf8");
+						if (format === 'base32')
+							cb(base32.encode(h.digest()).toString());
+						else
+							cb(h.digest(format));
 					});
 				});
 				break;
