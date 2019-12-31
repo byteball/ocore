@@ -2481,6 +2481,8 @@ function handleJustsaying(ws, subject, body){
 			
 		// I'm a hub, the peer wants update settings for a correspondent device
 		case 'hub/update_correspondent_settings':
+			if (!body)
+				return;
 			if (!conf.bServeAsHub)
 				return sendError(ws, "I'm not a hub");
 			if (!ws.device_address)
@@ -2561,6 +2563,8 @@ function handleJustsaying(ws, subject, body){
 			break;
 			
 		case 'light/new_aa_to_watch':
+			if (!body)
+				return;
 			if (conf.bLight)
 				return sendError(ws, "I'm light myself, can't serve you");
 			if (ws.bOutbound)
