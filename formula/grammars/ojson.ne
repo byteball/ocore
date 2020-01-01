@@ -26,7 +26,7 @@ let lexer = moo.states({
 		'`': '`',
 		decimal: /(?:[+-])?(?:[0-9]*[.])?[0-9]+/,
 		str: {
-      match: /[a-zA-Z_0-9 =+*/@><-]+/,
+      match: /[a-zA-Z_0-9 =+*/@><!;&%~^$?#|\\.,\[\]()-]+/,
       type: moo.keywords({
         autonomous_agent: 'autonomous agent',
         false: 'false',
