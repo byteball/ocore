@@ -201,7 +201,7 @@ function readDataFeedValue(arrAddresses, feed_name, value, min_mci, max_mci, bAA
 				if (message.app !== 'data_feed')
 					return;
 				var payload = message.payload;
-				if (!(feed_name in payload))
+				if (!payload.hasOwnProperty(feed_name))
 					return;
 				var feed_value = payload[feed_name];
 				if (value === null || value === feed_value || value.toString() === feed_value.toString())
