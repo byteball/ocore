@@ -1943,7 +1943,7 @@ exports.evaluate = function (opts, callback) {
 	function readVar(param_address, var_name, cb2) {
 		if (!stateVars[param_address])
 			stateVars[param_address] = {};
-		if (var_name in stateVars[param_address]) {
+		if (stateVars[param_address].hasOwnProperty(var_name)) {
 			console.log('using cache for var '+var_name);
 			return cb2(stateVars[param_address][var_name].value);
 		}
