@@ -594,7 +594,7 @@ exports.validate = function (opts, callback) {
 							if (asset !== 'base' && !ValidationUtils.isValidBase64(asset, constants.HASH_LENGTH))
 								return cb("bad asset in asset[]: " + asset);
 						}
-						if (typeof field === 'string' && !(field in objBaseAssetInfo))
+						if (typeof field === 'string' && !objBaseAssetInfo.hasOwnProperty(field))
 							return cb("bad field in asset[]: " + field);
 						cb();
 					}
