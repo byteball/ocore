@@ -602,11 +602,12 @@ exports.validate = function (opts, callback) {
 				break;
 
 			case 'unit':
+			case 'definition':
 				// for non-AAs too
 				complexity++;
-				var unit_expr = arr[1];
+				var expr = arr[1];
 				var arrKeys = arr[2];
-				evaluate(unit_expr, function (err) {
+				evaluate(expr, function (err) {
 					if (err)
 						return cb(err);
 					async.eachSeries(
@@ -669,7 +670,7 @@ exports.validate = function (opts, callback) {
 					if (err)
 						return cb(err);
 					var format_expr = arr[2];
-					if (format_expr === null || format_expr === 'hex' || format_expr === 'base64')
+					if (format_expr === null || format_expr === 'hex' || format_expr === 'base64' || format_expr === 'base32')
 						return cb();
 					if (typeof format_expr === 'boolean' || Decimal.isDecimal(format_expr))
 						return cb("format of sha256 must be string");

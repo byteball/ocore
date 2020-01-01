@@ -54,7 +54,7 @@ test.before.cb(t => {
 	db.query("INSERT " + db.getIgnore() + " INTO attestations (unit, message_index, attestor_address, address) VALUES ('unit2', 0, 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT', 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU')");
 	db.query("INSERT " + db.getIgnore() + " INTO attested_fields (unit, message_index, attestor_address, address, field, value) VALUES ('unit2', 0, 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT', 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', 'email', 'smith@matrix.com')");
 
-	db.query("INSERT " + db.getIgnore() + " INTO aa_addresses (address, unit, mci, definition, storage_size) VALUES ('MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', 'def-unit', 100, 'some definition', 27)");
+	db.query("INSERT " + db.getIgnore() + " INTO aa_addresses (address, unit, mci, definition, storage_size) VALUES ('MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', 'def-unit', 100, '[\"autonomous agent\", {\"bounce_fees\": 20000}]', 27)");
 	db.query("INSERT " + db.getIgnore() + " INTO aa_balances (address, asset, balance) VALUES ('MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', 'base', 10000)");
 
 	db.query("INSERT " + db.getIgnore() + " INTO units (unit, headers_commission, payload_commission, is_free, main_chain_index, is_stable) VALUES ('oj8yEksX9Ubq7lLc+p6F2uyHUuynugeVq4+ikT67X6E=', 300, 300, 0, 0, 1)");

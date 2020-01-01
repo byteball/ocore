@@ -1381,6 +1381,12 @@ test('if else block', t => {
 	})
 });
 
+test('if else with empty block', t => {
+	evalFormulaWithVars({ formula: "if ($volume != 100) {} else $price = 1; $x=10; $price * $x", trigger: {}, locals: {volume: 100}, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, res => {
+		t.deepEqual(res, 10);
+	})
+});
+
 test('if true block', t => {
 	evalFormulaWithVars({ formula: "if ($volume == 100) $price = 1; $x=10; $price * $x", trigger: {}, locals: {volume: 100}, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, res => {
 		t.deepEqual(res, 10);
@@ -1533,6 +1539,16 @@ test('sha256 hex expr', t => {
 	var str = 'abcd';
 	var hash = crypto.createHash("sha256").update(str, "utf8").digest("hex");
 	evalFormulaWithVars({ formula: "sha256(trigger.data.str, 'he'||'x')", trigger: {data: {str: str}}, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, hash);
+		t.deepEqual(complexity, 2);
+	})
+});
+
+test('sha256 base32 expr', t => {
+	var base32 = require('thirty-two');
+	var str = 'abcd';
+	var hash = base32.encode(crypto.createHash("sha256").update(str, "utf8").digest()).toString();
+	evalFormulaWithVars({ formula: "sha256(trigger.data.str, 'base32')", trigger: {data: {str: str}}, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, hash);
 		t.deepEqual(complexity, 2);
 	})
@@ -2646,5 +2662,26 @@ test('params very deep', t => {
 	evalFormulaWithVars({ conn: null, formula: `params.abc[2] || params.abc.1['z'||'z'].dd`, trigger: trigger, params, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
 		t.deepEqual(res, 'false8');
 		t.deepEqual(complexity, 1);
+	})
+});
+
+test.cb('definition', t => {
+	var db = require("../db");
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: db, formula: `definition[this_address][1].bounce_fees`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 20000);
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});
+
+test.cb('definition invalid', t => {
+	var db = require("../db");
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: db, formula: `definition['non-addr'][1].bounce_fees`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, false);
+		t.end();
 	})
 });

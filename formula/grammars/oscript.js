@@ -63,6 +63,7 @@ function id(x) { return x[0]; }
 		mc_unit: 'mc_unit',
 		response_unit: 'response_unit',
 		unit: 'unit',
+		definition: 'definition',
 		response: 'response',
 		bounce: 'bounce',
 		return: 'return',
@@ -118,7 +119,7 @@ var grammar = {
         	var else_block = d[5] ? d[5][1] : null;
         	return ['ifelse', d[2], d[4], else_block];
         } },
-    {"name": "block$ebnf$1", "symbols": ["statement"]},
+    {"name": "block$ebnf$1", "symbols": []},
     {"name": "block$ebnf$1", "symbols": ["block$ebnf$1", "statement"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
     {"name": "block", "symbols": [{"literal":"{"}, "block$ebnf$1", {"literal":"}"}], "postprocess": function(d){ return ['block', d[1]]; }},
     {"name": "block", "symbols": ["statement"], "postprocess": id},
@@ -406,12 +407,14 @@ var grammar = {
         		field = field[1];
         	return ['asset', d[2], field];
         } },
+    {"name": "N$subexpression$10", "symbols": [{"literal":"unit"}]},
+    {"name": "N$subexpression$10", "symbols": [{"literal":"definition"}]},
     {"name": "N$ebnf$9", "symbols": []},
     {"name": "N$ebnf$9$subexpression$1", "symbols": [(lexer.has("dotSelector") ? {type: "dotSelector"} : dotSelector)]},
     {"name": "N$ebnf$9$subexpression$1", "symbols": [{"literal":"["}, {"literal":"["}, "search_param_list", {"literal":"]"}, {"literal":"]"}]},
     {"name": "N$ebnf$9$subexpression$1", "symbols": [{"literal":"["}, "expr", {"literal":"]"}]},
     {"name": "N$ebnf$9", "symbols": ["N$ebnf$9", "N$ebnf$9$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
-    {"name": "N", "symbols": [{"literal":"unit"}, {"literal":"["}, "expr", {"literal":"]"}, "N$ebnf$9"], "postprocess":  function(d) {
+    {"name": "N", "symbols": ["N$subexpression$10", {"literal":"["}, "expr", {"literal":"]"}, "N$ebnf$9"], "postprocess":  function(d) {
         var selectors = null;
         if (d[4] && d[4].length){
         	selectors = d[4].map(function(item){
@@ -423,7 +426,7 @@ var grammar = {
         			return item[1]; 
         	});
         }
-        return ['unit', d[2], selectors]; }  
+        return [d[0][0].value, d[2], selectors]; }  
         	},
     {"name": "N", "symbols": [{"literal":"storage_size"}], "postprocess": function(d) {return ['storage_size']; }},
     {"name": "N", "symbols": [{"literal":"mci"}], "postprocess": function(d) {return ['mci']; }},
@@ -435,14 +438,14 @@ var grammar = {
     {"name": "N", "symbols": [{"literal":"trigger.address"}], "postprocess": function(d) {return ['trigger.address']; }},
     {"name": "N", "symbols": [{"literal":"trigger.initial_address"}], "postprocess": function(d) {return ['trigger.initial_address']; }},
     {"name": "N", "symbols": [{"literal":"trigger.unit"}], "postprocess": function(d) {return ['trigger.unit']; }},
-    {"name": "N$subexpression$10", "symbols": [{"literal":"trigger.data"}]},
-    {"name": "N$subexpression$10", "symbols": [{"literal":"params"}]},
+    {"name": "N$subexpression$11", "symbols": [{"literal":"trigger.data"}]},
+    {"name": "N$subexpression$11", "symbols": [{"literal":"params"}]},
     {"name": "N$ebnf$10", "symbols": []},
     {"name": "N$ebnf$10$subexpression$1", "symbols": [(lexer.has("dotSelector") ? {type: "dotSelector"} : dotSelector)]},
     {"name": "N$ebnf$10$subexpression$1", "symbols": [{"literal":"["}, {"literal":"["}, "search_param_list", {"literal":"]"}, {"literal":"]"}]},
     {"name": "N$ebnf$10$subexpression$1", "symbols": [{"literal":"["}, "expr", {"literal":"]"}]},
     {"name": "N$ebnf$10", "symbols": ["N$ebnf$10", "N$ebnf$10$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
-    {"name": "N", "symbols": ["N$subexpression$10", "N$ebnf$10"], "postprocess":  function(d) {
+    {"name": "N", "symbols": ["N$subexpression$11", "N$ebnf$10"], "postprocess":  function(d) {
         var selectors = d[1].map(function(item){
         	if (item[0].type === 'dotSelector')
         		return item[0].value.substr(1);
@@ -453,13 +456,13 @@ var grammar = {
         });
         return [d[0][0].value, selectors]; }  
         	},
-    {"name": "N$subexpression$11", "symbols": [{"literal":"["}, {"literal":"["}]},
-    {"name": "N$subexpression$12", "symbols": ["expr"]},
-    {"name": "N$subexpression$12", "symbols": [(lexer.has("base") ? {type: "base"} : base)]},
-    {"name": "N$subexpression$13", "symbols": [{"literal":"]"}, {"literal":"]"}]},
+    {"name": "N$subexpression$12", "symbols": [{"literal":"["}, {"literal":"["}]},
+    {"name": "N$subexpression$13", "symbols": ["expr"]},
+    {"name": "N$subexpression$13", "symbols": [(lexer.has("base") ? {type: "base"} : base)]},
+    {"name": "N$subexpression$14", "symbols": [{"literal":"]"}, {"literal":"]"}]},
     {"name": "N$ebnf$11", "symbols": [(lexer.has("dotSelector") ? {type: "dotSelector"} : dotSelector)], "postprocess": id},
     {"name": "N$ebnf$11", "symbols": [], "postprocess": function(d) {return null;}},
-    {"name": "N", "symbols": [{"literal":"trigger.output"}, "N$subexpression$11", {"literal":"asset"}, "comparisonOperator", "N$subexpression$12", "N$subexpression$13", "N$ebnf$11"], "postprocess":  function(d) {
+    {"name": "N", "symbols": [{"literal":"trigger.output"}, "N$subexpression$12", {"literal":"asset"}, "comparisonOperator", "N$subexpression$13", "N$subexpression$14", "N$ebnf$11"], "postprocess":  function(d) {
         	var value = d[4][0];
         	var field = d[6] ? d[6].value.substr(1) : 'amount';
         	if (value.type === 'base')

@@ -3,6 +3,7 @@ var grammar = require("./grammars/oscript.js");
 var async = require('async');
 var crypto = require('crypto');
 var _ = require('lodash');
+var base32 = require('thirty-two');
 var ValidationUtils = require("../validation_utils.js");
 var string_utils = require("../string_utils.js");
 var constants = require('../constants');
@@ -950,6 +951,8 @@ exports.evaluate = function (opts, callback) {
 								ORDER BY latest_included_mc_index DESC, level DESC, units.unit LIMIT ?",
 								[params.address.value, objValidationState.last_ball_mci, (ifseveral === 'abort') ? 2 : 1],
 								function (rows) {
+									if (!bAA)
+										rows = []; // discard any results
 									count_rows += rows.length;
 									if (count_rows > 1 && ifseveral === 'abort')
 										return setFatalError("several attestations found for " + params.address.value, cb, false);
@@ -1355,14 +1358,16 @@ exports.evaluate = function (opts, callback) {
 						return cb(false);
 					if (!ValidationUtils.isValidBase64(unit, constants.HASH_LENGTH))
 						return cb(false);
-					// 1. check the current response unit
-					if (objResponseUnit && objResponseUnit.unit === unit)
-						return selectSubobject(objResponseUnit, arrKeys, cb);
-					// 2. check previous response units from the same primary trigger, they are not in the db yet
-					for (var i = 0; i < objValidationState.arrPreviousResponseUnits.length; i++){
-						var objPreviousResponseUnit = objValidationState.arrPreviousResponseUnits[i];
-						if (objPreviousResponseUnit && objPreviousResponseUnit.unit === unit)
-							return selectSubobject(objPreviousResponseUnit, arrKeys, cb);
+					if (bAA) {
+						// 1. check the current response unit
+						if (objResponseUnit && objResponseUnit.unit === unit)
+							return selectSubobject(objResponseUnit, arrKeys, cb);
+						// 2. check previous response units from the same primary trigger, they are not in the db yet
+						for (var i = 0; i < objValidationState.arrPreviousResponseUnits.length; i++) {
+							var objPreviousResponseUnit = objValidationState.arrPreviousResponseUnits[i];
+							if (objPreviousResponseUnit && objPreviousResponseUnit.unit === unit)
+								return selectSubobject(objPreviousResponseUnit, arrKeys, cb);
+						}
 					}
 					// 3. check the units from the db
 					console.log('---- reading', unit);
@@ -1375,10 +1380,47 @@ exports.evaluate = function (opts, callback) {
 							var objUnit = objJoint.unit;
 							var mci = objUnit.main_chain_index;
 							// ignore non-AA units that are not stable or created at a later mci
-							if ((mci === null || mci > objValidationState.last_ball_mci) && objUnit.authors[0].authentifiers)
-								return cb(false);
+							if (mci === null || mci > objValidationState.last_ball_mci) {
+								if (bAA && objUnit.authors[0].authentifiers) // non-AA unit
+									return cb(false);
+								if (!bAA)
+									return cb(false);
+							}
 							selectSubobject(objUnit, arrKeys, cb);
 						}
+					});
+				});
+				break;
+
+			case 'definition':
+				var address_expr = arr[1];
+				var arrKeys = arr[2];
+				evaluate(address_expr, function (addr) {
+					console.log('---- definition', addr);
+					if (fatal_error)
+						return cb(false);
+					if (!ValidationUtils.isValidAddress(addr))
+						return cb(false);
+					storage.readAADefinition(conn, addr, function (arrDefinition, definition_unit) {
+						if (arrDefinition) {
+							if (bAA)
+								return selectSubobject(arrDefinition, arrKeys, cb);
+							// could by defined later, e.g. by fresh AA
+							storage.readUnitProps(conn, definition_unit, function (props) {
+								if (props.main_chain_index === null || props.main_chain_index > objValidationState.main_chain_index)
+									return cb(false);
+								selectSubobject(arrDefinition, arrKeys, cb);
+							});
+							return;
+						}
+						storage.readDefinitionByAddress(conn, addr, objValidationState.last_ball_mci, {
+							ifDefinitionNotFound: function () {
+								cb(false);
+							},
+							ifFound: function (arrDefinition) {
+								selectSubobject(arrDefinition, arrKeys, cb);
+							}
+						});
 					});
 				});
 				break;
@@ -1493,9 +1535,13 @@ exports.evaluate = function (opts, callback) {
 					evaluate(format_expr, function (format) {
 						if (fatal_error)
 							return cb(false);
-						if (format !== 'base64' && format !== 'hex')
+						if (format !== 'base64' && format !== 'hex' && format !== 'base32')
 							return setFatalError("bad format of sha256: " + format, cb, false);
-						cb(crypto.createHash("sha256").update(res.toString(), "utf8").digest(format));
+						var h = crypto.createHash("sha256").update(res.toString(), "utf8");
+						if (format === 'base32')
+							cb(base32.encode(h.digest()).toString());
+						else
+							cb(h.digest(format));
 					});
 				});
 				break;
@@ -2042,6 +2088,8 @@ exports.evaluate = function (opts, callback) {
 				return handleAssetInfo(null);
 			if (objAsset.main_chain_index !== null && objAsset.main_chain_index <= objValidationState.last_ball_mci)
 				return handleAssetInfo(objAsset);
+			if (!bAA) // we are not an AA and can't see assets defined by fresh AAs
+				return handleAssetInfo(null);
 			// defined later than last ball, check if defined by AA
 			storage.readAADefinition(conn, objAsset.definer_address, function(arrDefinition) {
 				if (arrDefinition)

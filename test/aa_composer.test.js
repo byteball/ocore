@@ -667,3 +667,65 @@ test.cb.serial('parameterized AA', t => {
 		t.end();
 	});
 });
+
+
+test.cb.serial('reading definition in parameterized AA', t => {
+	var trigger_address = "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT";
+	var trigger = { outputs: { base: 10000 }, data: { define: true }, address: trigger_address };
+
+	var base_aa = ['autonomous agent', {
+		messages: [
+			{
+				app: 'data',
+				payload: {
+					expiry: `{params.expiry}`,
+					base: `{definition[this_address].1.base_aa}`,
+					deep: `{definition[definition[this_address][1].base_aa].1.messages[[.app='data']].payload.expiry}`,
+				}
+			},
+			{
+				app: 'payment',
+				payload: {
+					asset: 'base',
+					outputs: [
+						{address: `{trigger.address}`, amount: "{trigger.output[[asset=base]] - params.fee}"}
+					]
+				}
+			},
+			{
+				app: 'state',
+				state: `{
+					var['me'] = this_address;
+				}`
+			}
+		]
+	}];
+	var base_aa_address = objectHash.getChash160(base_aa);
+	addAA(base_aa);
+
+	var parameterized_aa = ['autonomous agent', {
+		base_aa: base_aa_address,
+		params: {expiry: '2020-01-31', fee: 2000},
+	}]
+	var parameterized_aa_address = objectHash.getChash160(parameterized_aa);
+	addAA(parameterized_aa);
+	
+	aa_composer.dryRunPrimaryAATrigger(trigger, parameterized_aa_address, parameterized_aa, (arrResponses) => {
+		t.deepEqual(arrResponses.length, 1);
+		t.deepEqual(arrResponses[0].aa_address, parameterized_aa_address);
+		t.deepEqual(arrResponses[0].bounced, false);
+		t.deepEqual(arrResponses[0].response.error, undefined);
+		t.deepEqual(arrResponses[0].objResponseUnit.messages.find(function (message) { return (message.app === 'payment'); }).payload.outputs.find(function (output) { return (output.address === trigger_address); }).amount, 8000);
+		let me = arrResponses[0].updatedStateVars[parameterized_aa_address].me.value;
+		t.deepEqual(me, parameterized_aa_address);
+		t.deepEqual(arrResponses[0].objResponseUnit.messages.find(function (message) { return (message.app === 'data'); }).payload, {expiry: '2020-01-31', base: base_aa_address, deep: '{params.expiry}'});
+				
+		fixCache();
+		t.deepEqual(storage.assocUnstableUnits, old_cache.assocUnstableUnits);
+		t.deepEqual(storage.assocStableUnits, old_cache.assocStableUnits);
+		t.deepEqual(storage.assocUnstableMessages, old_cache.assocUnstableMessages);
+		t.deepEqual(storage.assocBestChildren, old_cache.assocBestChildren);
+		t.deepEqual(storage.assocStableUnitsByMci, old_cache.assocStableUnitsByMci);
+		t.end();
+	});
+});

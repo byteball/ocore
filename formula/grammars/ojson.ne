@@ -16,8 +16,6 @@ let lexer = moo.states({
 		']': ']',
 		':': ':',
 		',': ',',
-		true: 'true',
-		false: 'false',
 		base64: [
 			/'(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{4})'/,
 			/"(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{4})"/,
@@ -27,8 +25,14 @@ let lexer = moo.states({
 		"'": "'",
 		'`': '`',
 		decimal: /(?:[+-])?(?:[0-9]*[.])?[0-9]+/,
-		autonomous_agent: 'autonomous agent',
-		str: /[a-zA-Z_0-9 =+*/@-]+/,
+		str: {
+      match: /[a-zA-Z_0-9 =+*/@><-]+/,
+      type: moo.keywords({
+        autonomous_agent: 'autonomous agent',
+        false: 'false',
+        true: 'true',
+    	}),
+		},
 	},
 	formulaDouble: {
 		formulaDoubleEnd: { match: '}"', pop: 1 },
@@ -42,7 +46,7 @@ let lexer = moo.states({
 		formulaBackEnd: { match: '}`', pop: 1 },
 		formula: {match: /[\s\S]+?(?=}`)/, lineBreaks: true},
 	},
-	})
+})
 
 const TYPES = {
 	STR: 'STR',
@@ -110,6 +114,12 @@ const quotedFormula = (d) => ([{
 const str = (d) => ({
 	type: TYPES.STR,
 	value: d[0].text,
+	context: c(d[0])
+})
+
+const prefixedStr = (d) => ({
+	type: TYPES.STR,
+	value: d[0].text + (d[1] ? d[1].value : ''),
 	context: c(d[0])
 })
 
@@ -181,10 +191,9 @@ value ->
 	| false
 	| array
 	| object
-	| quoted[str]
 	| base64
 	| decimal
-	| quoted[decimal] {% valueDecimal %}
+	| quoted[str]
 	| quoted[formula] {% quotedFormula %}
 
 array -> "[" _ arrayContent _ "]" {% array %}
@@ -203,6 +212,10 @@ _ -> null
 str ->
 		%str {% str %}
 	| %autonomous_agent {% str %}
+	| %true {% str %}
+	| %false {% str %}
+	| %decimal str:? {% prefixedStr %}
+
 true -> %true {% trueP %}
 base64 -> %base64 {% base64ToStr %}
 false -> %false {% falseP %}
