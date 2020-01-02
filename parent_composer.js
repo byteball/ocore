@@ -317,6 +317,7 @@ function findLastBallAndAdjust(conn, arrWitnesses, arrParentUnits, onDone){
 						var objFakeUnit = {parent_units: arrTrimmedParentUnits};
 						if (witness_list_unit)
 							objFakeUnit.witness_list_unit = witness_list_unit;
+						console.log('determineIfHasWitnessListMutationsAlongMc last_stable_unit '+last_stable_unit+', parents '+arrParentUnits.join(', '));
 						storage.determineIfHasWitnessListMutationsAlongMc(conn, objFakeUnit, last_stable_unit, arrWitnesses, function(err){
 							if (err)
 								return onDone(err); // if first arg is not array, it is error
