@@ -248,7 +248,7 @@ function processHistory(objResponse, arrWitnesses, callbacks){
 							var unit = objUnit.unit;
 							// assocProvenUnitsNonserialness[unit] is true for non-serials, false for serials, undefined for unstable
 							var sequence = assocProvenUnitsNonserialness[unit] ? 'final-bad' : 'good';
-							if (unit in assocProvenUnitsNonserialness)
+							if (assocProvenUnitsNonserialness.hasOwnProperty(unit))
 								arrProvenUnits.push(unit);
 							if (assocExistingUnits[unit]){
 								//if (!assocProvenUnitsNonserialness[objUnit.unit]) // not stable yet

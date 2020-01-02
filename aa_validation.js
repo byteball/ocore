@@ -523,7 +523,7 @@ function validateAADefinition(arrDefinition, callback) {
 			depth = 0;
 		if (depth > 100)
 			return cb("cases for " + field + " go too deep");
-		var value = obj[field];
+		var value = obj.hasOwnProperty(field) ? obj[field] : undefined;
 		var bCases = hasCases(value);
 		if (!bCases)
 			return validateField(value, cb);
@@ -543,7 +543,7 @@ function validateAADefinition(arrDefinition, callback) {
 				async.eachSeries(
 					['if', 'init'],
 					function (key, cb3) {
-						if (!(key in acase))
+						if (!acase.hasOwnProperty(key))
 							return cb3();
 						var f = getFormula(acase[key]);
 						if (f === null)

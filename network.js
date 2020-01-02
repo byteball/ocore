@@ -1529,7 +1529,7 @@ function aaResponseAffectsAddress(objAAResponse, address) {
 	// check if any updated state variable name contains our address
 	var aa_address = objAAResponse.aa_address;
 	if (objAAResponse.updatedStateVars && objAAResponse.updatedStateVars[aa_address]) {
-		for (var_name in objAAResponse.updatedStateVars[aa_address]) {
+		for (var var_name in objAAResponse.updatedStateVars[aa_address]) {
 			if (var_name.indexOf(address) >= 0)
 				return true;
 		}
@@ -1539,7 +1539,7 @@ function aaResponseAffectsAddress(objAAResponse, address) {
 		return true;
 	// check if any response variable name contains our address
 	if (objAAResponse.response.responseVars) {
-		for (var_name in objAAResponse.response.responseVars) {
+		for (var var_name in objAAResponse.response.responseVars) {
 			if (var_name.indexOf(address) >= 0)
 				return true;
 		}

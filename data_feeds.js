@@ -34,7 +34,7 @@ function dataFeedExists(arrAddresses, feed_name, relation, value, min_mci, max_m
 				if (message.app !== 'data_feed')
 					return;
 				var payload = message.payload;
-				if (!(feed_name in payload))
+				if (!payload.hasOwnProperty(feed_name))
 					return;
 				var feed_value = payload[feed_name];
 				if (relation === '=') {

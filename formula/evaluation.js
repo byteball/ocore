@@ -1098,7 +1098,7 @@ exports.evaluate = function (opts, callback) {
 					if (typeof var_name !== 'string')
 						return setFatalError("var name evaluated to " + var_name, cb, false);
 					var value = locals[var_name];
-					if (value === undefined)
+					if (value === undefined || !locals.hasOwnProperty(var_name))
 						return cb(false);
 					if (typeof value === 'number')
 						value = new Decimal(value);
@@ -1134,7 +1134,7 @@ exports.evaluate = function (opts, callback) {
 						return cb(false);
 					if (typeof var_name !== 'string')
 						return setFatalError("assignment: var name "+var_name_or_expr+" evaluated to " + var_name, cb, false);
-					if (bLocal && locals[var_name] !== undefined)
+					if (bLocal && locals.hasOwnProperty(var_name))
 						return setFatalError("reassignment to " + var_name + ", old value " + locals[var_name], cb, false);
 					evaluate(rhs, function (res) {
 						if (fatal_error)
@@ -1144,7 +1144,7 @@ exports.evaluate = function (opts, callback) {
 						if (Decimal.isDecimal(res))
 							res = toDoubleRange(res);
 						if (bLocal) {
-							if (locals[var_name] !== undefined)
+							if (locals.hasOwnProperty(var_name))
 								return setFatalError("reassignment to " + var_name + " after evaluation", cb, false);
 							locals[var_name] = res; // can be wrappedObject too
 							return cb(true);
@@ -1319,7 +1319,7 @@ exports.evaluate = function (opts, callback) {
 					evaluate(field_expr, function (field) {
 						if (fatal_error)
 							return cb(false);
-						if (typeof field !== 'string' || !(field in objBaseAssetInfo))
+						if (typeof field !== 'string' || !objBaseAssetInfo.hasOwnProperty(field))
 							return setFatalError("bad field in asset[]: " + field, cb, false);
 						if (asset === 'base')
 							return cb(objBaseAssetInfo[field]);
@@ -1988,9 +1988,9 @@ exports.evaluate = function (opts, callback) {
 						return setFatalError("result of " + key + " is not a string or number: " + evaluated_key, cb2);
 					if (typeof evaluated_key === 'string')
 						value = unwrapOneElementArrays(value);
-					value = value[evaluated_key];
-					if (value === undefined)
+					if (!value.hasOwnProperty(evaluated_key))
 						return cb2("no such key in data");
+					value = value[evaluated_key];
 					cb2();
 				});
 			},
@@ -2053,7 +2053,7 @@ exports.evaluate = function (opts, callback) {
 						for (var i = 0; i < fields.length; i++) {
 							if (typeof val !== 'object')
 								return (search_value === null ? comp === '=' : comp === '!=');
-							val = val[fields[i]];
+							val = val.hasOwnProperty(fields[i]) ? val[fields[i]] : undefined;
 						}
 						if (search_value === null)
 							return (comp === '=' ? val === undefined : val !== undefined);
