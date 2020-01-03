@@ -589,6 +589,7 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 	function validateWitnessListMutations(arrWitnesses){
 		if (!objUnit.parent_units) // genesis
 			return callback();
+		console.log('validation determineIfHasWitnessListMutationsAlongMc last_ball_unit '+last_ball_unit+', parents '+objUnit.parent_units.join(', ')+', unit '+objUnit.unit);
 		storage.determineIfHasWitnessListMutationsAlongMc(conn, objUnit, last_ball_unit, arrWitnesses, function(err){
 			if (err && objValidationState.last_ball_mci >= 512000) // do not enforce before the || bug was fixed
 				return callback(err);
