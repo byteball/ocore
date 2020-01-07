@@ -41,6 +41,7 @@ var arrOutboundPeers = [];
 var assocConnectingOutboundWebsockets = {};
 var assocUnitsInWork = {};
 var assocRequestedUnits = {};
+var bStarted = false;
 var bCatchingUp = false;
 var bWaitingForCatchupChain = false;
 var bWaitingTillIdle = false;
@@ -543,6 +544,8 @@ function findOutboundPeerOrConnect(url, onOpen){
 		throw Error('no url');
 	if (!onOpen)
 		onOpen = function(){};
+	if (!bStarted)
+		return onOpen("[internal] network not started yet");
 	url = url.toLowerCase();
 	var ws = getOutboundPeerWsByUrl(url);
 	if (ws)
@@ -3495,6 +3498,18 @@ function startAcceptingConnections(){
 	console.log('WSS running at port ' + conf.port);
 }
 
+
+function startPeerExchange() {
+	if (conf.bWantNewPeers){
+		// outbound connections
+		addOutboundPeers();
+		// retry lost and failed connections every 1 minute
+		setInterval(addOutboundPeers, 60*1000);
+		setTimeout(checkIfHaveEnoughOutboundPeersAndAdd, 30*1000);
+		setInterval(purgeDeadPeers, 30*60*1000);
+	}
+}
+
 function startRelay(){
 	if (process.browser || !conf.port) // no listener on mobile
 		wss = {clients: []};
@@ -3505,14 +3520,8 @@ function startRelay(){
 	joint_storage.initUnhandledAndKnownBad();
 	checkCatchupLeftovers();
 
-	if (conf.bWantNewPeers){
-		// outbound connections
-		addOutboundPeers();
-		// retry lost and failed connections every 1 minute
-		setInterval(addOutboundPeers, 60*1000);
-		setTimeout(checkIfHaveEnoughOutboundPeersAndAdd, 30*1000);
-		setInterval(purgeDeadPeers, 30*60*1000);
-	}
+	startPeerExchange();
+
 	// purge peer_events every 6 hours, removing those older than 0.5 days ago.
 	setInterval(purgePeerEvents, 6*60*60*1000);
 	setInterval(function(){flushEvents(true)}, 1000 * 60);
@@ -3539,17 +3548,25 @@ function startLightClient(){
 }
 
 function start(){
+	if (bStarted)
+		return console.log("network already started");
+	bStarted = true;
 	console.log("starting network");
 	conf.bLight ? startLightClient() : startRelay();
 	setInterval(printConnectionStatus, 6*1000);
 	// if we have exactly same intervals on two clints, they might send heartbeats to each other at the same time
 	setInterval(heartbeat, 3*1000 + getRandomInt(0, 1000));
+	eventBus.emit('network_started');
 }
 
 function closeAllWsConnections() {
 	arrOutboundPeers.forEach(function(ws) {
 		ws.close(1000,'Re-connect');
 	});
+}
+
+function isStarted(){
+	return bStarted;
 }
 
 function isConnected(){
@@ -3565,6 +3582,9 @@ if (!conf.explicitStart) {
 }
 
 exports.start = start;
+exports.startAcceptingConnections = startAcceptingConnections;
+exports.startPeerExchange = startPeerExchange;
+
 exports.postJointToLightVendor = postJointToLightVendor;
 exports.broadcastJoint = broadcastJoint;
 exports.sendPrivatePayment = sendPrivatePayment;
@@ -3596,6 +3616,7 @@ exports.addLightWatchedAddress = addLightWatchedAddress;
 
 exports.getConnectionStatus = getConnectionStatus;
 exports.closeAllWsConnections = closeAllWsConnections;
+exports.isStarted = isStarted;
 exports.isConnected = isConnected;
 exports.isCatchingUp = isCatchingUp;
 exports.requestHistoryFor = requestHistoryFor;
