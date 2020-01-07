@@ -764,7 +764,7 @@ function rerequestLostJoints(){
 	if (bCatchingUp)
 		return;
 	joint_storage.findLostJoints(function(arrUnits){
-		console.log("lost units", arrUnits);
+		console.log("lost units", arrUnits.length > 0 ? arrUnits : 'none');
 		tryFindNextPeer(null, function(ws){
 			if (!ws)
 				return;
