@@ -196,23 +196,25 @@ function checkWitnessedLevelNotRetreatingAndLookLower(conn, arrWitnesses, timest
 	});
 }
 
-function findLastStableMcBall(conn, arrWitnesses, onDone){
-	conn.query(
-		"SELECT ball, unit, main_chain_index FROM units JOIN balls USING(unit) \n\
-		WHERE is_on_main_chain=1 AND is_stable=1 AND +sequence='good' AND ( \n\
-			SELECT COUNT(*) \n\
-			FROM unit_witnesses \n\
-			WHERE unit_witnesses.unit IN(units.unit, units.witness_list_unit) AND address IN(?) \n\
-		)>=? \n\
-		ORDER BY main_chain_index DESC LIMIT 1", 
-		[arrWitnesses, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS], 
-		function(rows){
-			if (rows.length === 0)
-				return onDone("failed to find last stable ball");
-			console.log('last stable unit: ' + rows[0].unit);
-			onDone(null, rows[0].ball, rows[0].unit, rows[0].main_chain_index);
-		}
-	);
+function findLastStableMcBall(conn, arrWitnesses, arrParentUnits, onDone) {
+	storage.readMaxLastBallMci(conn, arrParentUnits, function (max_parent_last_ball_mci) {
+		conn.query(
+			"SELECT ball, unit, main_chain_index FROM units JOIN balls USING(unit) \n\
+			WHERE is_on_main_chain=1 AND is_stable=1 AND +sequence='good' AND main_chain_index>=? AND ( \n\
+				SELECT COUNT(*) \n\
+				FROM unit_witnesses \n\
+				WHERE unit_witnesses.unit IN(units.unit, units.witness_list_unit) AND address IN(?) \n\
+			)>=? \n\
+			ORDER BY main_chain_index DESC LIMIT 1",
+			[max_parent_last_ball_mci, arrWitnesses, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS],
+			function (rows) {
+				if (rows.length === 0)
+					return onDone("failed to find last stable ball");
+				console.log('last stable unit: ' + rows[0].unit);
+				onDone(null, rows[0].ball, rows[0].unit, rows[0].main_chain_index);
+			}
+		);
+	});
 }
 
 function adjustLastStableMcBallAndParents(conn, last_stable_mc_ball_unit, arrParentUnits, arrWitnesses, handleAdjustedLastStableUnit){
@@ -309,7 +311,7 @@ function pickParentUnitsAndLastBall(conn, arrWitnesses, timestamp, onDone){
 
 function findLastBallAndAdjust(conn, arrWitnesses, arrParentUnits, onDone){
 
-	findLastStableMcBall(conn, arrWitnesses, function(err, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
+	findLastStableMcBall(conn, arrWitnesses, arrParentUnits, function(err, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
 		if (err)
 			return onDone(err);
 		adjustLastStableMcBallAndParents(
