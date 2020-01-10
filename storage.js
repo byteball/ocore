@@ -1196,10 +1196,9 @@ function determineIfHasWitnessListMutationsAlongMc(conn, objUnit, last_ball_unit
 			FROM units CROSS JOIN unit_witnesses ON (units.unit=unit_witnesses.unit OR units.witness_list_unit=unit_witnesses.unit) AND address IN(?) \n\
 			WHERE units.unit IN("+arrMcUnits.map(db.escape).join(', ')+") \n\
 			GROUP BY units.unit \n\
-			HAVING count_matching_witnesses<?",
+			HAVING count_matching_witnesses<? LIMIT 1",
 			[arrWitnesses, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS],
 			function(rows){
-				console.log(rows);
 				if (rows.length > 0)
 					return handleResult("too many ("+(constants.COUNT_WITNESSES - rows[0].count_matching_witnesses)+") witness list mutations relative to MC unit "+rows[0].unit);
 				handleResult();
