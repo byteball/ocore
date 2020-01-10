@@ -200,13 +200,16 @@ function findLastStableMcBall(conn, arrWitnesses, arrParentUnits, onDone) {
 	storage.readMaxLastBallMci(conn, arrParentUnits, function (max_parent_last_ball_mci) {
 		conn.query(
 			"SELECT ball, unit, main_chain_index FROM units JOIN balls USING(unit) \n\
-			WHERE is_on_main_chain=1 AND is_stable=1 AND +sequence='good' AND main_chain_index>=? AND ( \n\
-				SELECT COUNT(*) \n\
-				FROM unit_witnesses \n\
-				WHERE unit_witnesses.unit IN(units.unit, units.witness_list_unit) AND address IN(?) \n\
-			)>=? \n\
+			WHERE is_on_main_chain=1 AND is_stable=1 AND +sequence='good' \n\
+				AND main_chain_index>=? AND unit NOT IN(?) \n\
+				AND ( \n\
+					SELECT COUNT(*) \n\
+					FROM unit_witnesses \n\
+					WHERE unit_witnesses.unit IN(units.unit, units.witness_list_unit) AND address IN(?) \n\
+				)>=? \n\
 			ORDER BY main_chain_index DESC LIMIT 1",
-			[max_parent_last_ball_mci, arrWitnesses, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS],
+			[max_parent_last_ball_mci, arrParentUnits,
+			arrWitnesses, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS],
 			function (rows) {
 				if (rows.length === 0)
 					return onDone("failed to find last stable ball");
