@@ -861,6 +861,18 @@ function findLastBallMciOfMci(conn, mci, handleLastBallMci){
 	);
 }
 
+function readMaxLastBallMci(conn, arrUnits, handleResult) {
+	conn.query(
+		"SELECT MAX(lb_units.main_chain_index) AS max_last_ball_mci \n\
+		FROM units JOIN units AS lb_units ON units.last_ball_unit=lb_units.unit \n\
+		WHERE units.unit IN(?)",
+		[arrUnits],
+		function(rows) {
+			handleResult(rows[0].max_last_ball_mci);
+		}
+	);
+}
+
 function getMinRetrievableMci(){
 	return min_retrievable_mci;
 }
@@ -1507,6 +1519,7 @@ exports.readLastStableMcIndex = readLastStableMcIndex;
 
 
 exports.findLastBallMciOfMci = findLastBallMciOfMci;
+exports.readMaxLastBallMci = readMaxLastBallMci;
 exports.getMinRetrievableMci = getMinRetrievableMci;
 exports.updateMinRetrievableMciAfterStabilizingMci = updateMinRetrievableMciAfterStabilizingMci;
 

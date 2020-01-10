@@ -216,7 +216,7 @@ function findLastStableMcBall(conn, arrWitnesses, onDone){
 }
 
 function adjustLastStableMcBallAndParents(conn, last_stable_mc_ball_unit, arrParentUnits, arrWitnesses, handleAdjustedLastStableUnit){
-	main_chain.determineIfStableInLaterUnits(conn, last_stable_mc_ball_unit, arrParentUnits, function(bStable){
+	main_chain.determineIfStableInLaterUnitsWithMaxLastBallMciFastPath(conn, last_stable_mc_ball_unit, arrParentUnits, function(bStable){
 		console.log("stability of " + last_stable_mc_ball_unit + " in " + arrParentUnits.join(', ') + ": " + bStable);
 		if (bStable) {
 			conn.query("SELECT ball, main_chain_index FROM units JOIN balls USING(unit) WHERE unit=?", [last_stable_mc_ball_unit], function(rows){

@@ -696,6 +696,18 @@ function determineMaxAltLevel(conn, first_unstable_mc_index, first_unstable_mc_l
 }
 
 
+function determineIfStableInLaterUnitsWithMaxLastBallMciFastPath(conn, earlier_unit, arrLaterUnits, handleResult) {
+	storage.readUnitProps(conn, earlier_unit, function (objEarlierUnitProps) {
+		if (objEarlierUnitProps.is_free === 1 || objEarlierUnitProps.main_chain_index === null)
+			return handleResult(false);
+		storage.readMaxLastBallMci(conn, arrLaterUnits, function (max_last_ball_mci) {
+			if (objEarlierUnitProps.main_chain_index <= max_last_ball_mci)
+				return handleResult(true);
+			determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handleResult);
+		});
+	});
+}
+
 function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handleResult){
 	if (storage.isGenesisUnit(earlier_unit))
 		return handleResult(true);
@@ -1405,6 +1417,7 @@ function throwError(msg){
 exports.updateMainChain = updateMainChain;
 exports.determineIfStableInLaterUnitsAndUpdateStableMcFlag = determineIfStableInLaterUnitsAndUpdateStableMcFlag;
 exports.determineIfStableInLaterUnits = determineIfStableInLaterUnits;
+exports.determineIfStableInLaterUnitsWithMaxLastBallMciFastPath = determineIfStableInLaterUnitsWithMaxLastBallMciFastPath;
 
 /*
 determineIfStableInLaterUnits(db, "oeS2p87yO9DFkpjj+z+mo+RNoieaTN/8vOPGn/cUHhM=", [ '8vh0/buS3NaknEjBF/+vyLS3X5T0t5imA2mg8juVmJQ=', 'oO/INGsFr8By+ggALCdVkiT8GIPzB2k3PQ3TxPWq8Ac='], function(bStable){

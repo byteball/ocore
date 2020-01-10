@@ -467,18 +467,11 @@ function validateParents(conn, objJoint, objValidationState, callback){
 	}
 	
 	function readMaxParentLastBallMci(handleResult){
-		conn.query(
-			"SELECT MAX(lb_units.main_chain_index) AS max_parent_last_ball_mci \n\
-			FROM units JOIN units AS lb_units ON units.last_ball_unit=lb_units.unit \n\
-			WHERE units.unit IN(?)",
-			[objUnit.parent_units],
-			function(rows){
-				var max_parent_last_ball_mci = rows[0].max_parent_last_ball_mci;
-				if (max_parent_last_ball_mci > objValidationState.last_ball_mci)
-					return callback("last ball mci must not retreat, parents: "+objUnit.parent_units.join(', '));
-				handleResult(max_parent_last_ball_mci);
-			}
-		);
+		storage.readMaxLastBallMci(conn, objUnit.parent_units, function(max_parent_last_ball_mci) {
+			if (max_parent_last_ball_mci > objValidationState.last_ball_mci)
+				return callback("last ball mci must not retreat, parents: "+objUnit.parent_units.join(', '));
+			handleResult(max_parent_last_ball_mci);
+		});
 	}
 	
 	var objUnit = objJoint.unit;
