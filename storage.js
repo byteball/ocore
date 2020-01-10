@@ -1175,7 +1175,8 @@ function determineIfHasWitnessListMutationsAlongMc(conn, objUnit, last_ball_unit
 	buildListOfMcUnitsWithPotentiallyDifferentWitnesslists(conn, objUnit, last_ball_unit, arrWitnesses, function(bHasBestParent, arrMcUnits){
 		if (!bHasBestParent)
 			return handleResult("no compatible best parent");
-		console.log("###### MC units ", arrMcUnits);
+		if (arrMcUnits.length > 0)
+			console.log("###### MC units with potential mutations from " + objUnit.unit + " to " + last_ball_unit + ":", arrMcUnits);
 		if (arrMcUnits.length === 0)
 			return handleResult();
 		conn.query(
