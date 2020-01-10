@@ -155,6 +155,7 @@ function pickDeepParentUnits(conn, arrWitnesses, timestamp, max_wl, onDone){
 			if (rows.length === 0)
 				return onDone("failed to find compatible parents: no deep units");
 			var arrParentUnits = rows.map(function(row){ return row.unit; });
+			console.log('found deep parents: ' + arrParentUnits.join(', '));
 			checkWitnessedLevelNotRetreatingAndLookLower(conn, arrWitnesses, timestamp, arrParentUnits, true, onDone);
 		}
 	);
@@ -208,6 +209,7 @@ function findLastStableMcBall(conn, arrWitnesses, onDone){
 		function(rows){
 			if (rows.length === 0)
 				return onDone("failed to find last stable ball");
+			console.log('last stable unit: ' + rows[0].unit);
 			onDone(null, rows[0].ball, rows[0].unit, rows[0].main_chain_index);
 		}
 	);
@@ -215,7 +217,8 @@ function findLastStableMcBall(conn, arrWitnesses, onDone){
 
 function adjustLastStableMcBallAndParents(conn, last_stable_mc_ball_unit, arrParentUnits, arrWitnesses, handleAdjustedLastStableUnit){
 	main_chain.determineIfStableInLaterUnits(conn, last_stable_mc_ball_unit, arrParentUnits, function(bStable){
-		if (bStable){
+		console.log("stability of " + last_stable_mc_ball_unit + " in " + arrParentUnits.join(', ') + ": " + bStable);
+		if (bStable) {
 			conn.query("SELECT ball, main_chain_index FROM units JOIN balls USING(unit) WHERE unit=?", [last_stable_mc_ball_unit], function(rows){
 				if (rows.length !== 1)
 					throw Error("not 1 ball by unit "+last_stable_mc_ball_unit);
