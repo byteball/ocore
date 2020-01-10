@@ -707,10 +707,12 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 		return handleResult(true);
 	var start_time = Date.now();
 	storage.readPropsOfUnits(conn, earlier_unit, arrLaterUnits, function(objEarlierUnitProps, arrLaterUnitProps){
-		if (objEarlierUnitProps.is_free === 1)
+		if (objEarlierUnitProps.is_free === 1 || objEarlierUnitProps.main_chain_index === null)
 			return handleResult(false);
 		var max_later_limci = Math.max.apply(
 			null, arrLaterUnitProps.map(function(objLaterUnitProps){ return objLaterUnitProps.latest_included_mc_index; }));
+		if (max_later_limci < objEarlierUnitProps.main_chain_index) // the earlier unit is actually later
+			return handleResult(false);
 		var max_later_level = Math.max.apply(
 			null, arrLaterUnitProps.map(function(objLaterUnitProps){ return objLaterUnitProps.level; }));
 		var max_later_witnessed_level = Math.max.apply(
