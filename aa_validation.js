@@ -603,6 +603,18 @@ function validateAADefinition(arrDefinition, callback) {
 	if (arrDefinition[0] !== 'autonomous agent')
 		return callback("not an AA");
 	var template = arrDefinition[1];
+	if (template.base_aa) { // parameterized AA
+		if (hasFieldsExcept(template, ['base_aa', 'params']))
+			return callback("foreign fields in parameterized AA definition");
+		if (!ValidationUtils.isNonemptyObject(template.params))
+			return callback("no params in parameterized AA");
+		if (!variableHasStringsOfAllowedLength(template.params))
+			return callback("some strings in params are too long");
+		if (!isValidAddress(template.base_aa))
+			return callback("base_aa is not a valid address");
+		return callback();
+	}
+	// else regular AA
 	if (hasFieldsExcept(template, ['bounce_fees', 'messages', 'init', 'doc_url']))
 		return callback("foreign fields in AA definition");
 	if ('bounce_fees' in template){
@@ -698,6 +710,33 @@ function hasCases(value) {
 	return (typeof value === 'object' && Object.keys(value).length === 1 && isNonemptyArray(value.cases));
 }
 
+
+function variableHasStringsOfAllowedLength(x) {
+	switch (typeof x) {
+		case 'number':
+		case 'boolean':
+			return true;
+		case 'string':
+			return (x.length <= constants.MAX_AA_STRING_LENGTH);
+		case 'object':
+			if (Array.isArray(x)) {
+				for (var i = 0; i < x.length; i++)
+					if (!variableHasStringsOfAllowedLength(x[i]))
+						return false;
+			}
+			else {
+				for (var key in x) {
+					if (key.length > constants.MAX_AA_STRING_LENGTH)
+						return false;
+					if (!variableHasStringsOfAllowedLength(x[key]))
+						return false;
+				}
+			}
+			return true;
+		default:
+			throw Error("unknown type " + (typeof x) + " of " + x);
+	}
+}
 
 exports.validateAADefinition = validateAADefinition;
 exports.getFormula = getFormula;
