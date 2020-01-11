@@ -781,7 +781,11 @@ function insertAADefinitions(conn, arrPayloads, unit, mci, bForAAsOnly, onDone) 
 					function () {
 						conn.query(
 							"INSERT " + db.getIgnore() + " INTO addresses (address) VALUES (?)", [address],
-							function () { 
+							function () {
+								// can emit again if bAlreadyPostedByUnconfirmedAA, that's ok, the watchers will learn that the AA became now available to non-AAs
+								process.nextTick(function () { // don't call it synchronously with event emitter
+									eventBus.emit("aa_definition_saved", payload, unit);
+								});
 								cb();
 							}
 						);

@@ -1356,19 +1356,27 @@ function getAllAuthorsAndOutputAddresses(objUnit){
 	if (!objUnit.messages) // voided unit
 		return null;
 	var arrOutputAddresses = [];
+	var arrBaseAAAddresses = [];
 	for (var i=0; i<objUnit.messages.length; i++){
 		var message = objUnit.messages[i];
-		if (message.app !== "payment" || !message.payload)
-			continue;
 		var payload = message.payload;
-		for (var j=0; j<payload.outputs.length; j++){
-			var address = payload.outputs[j].address;
-			if (arrOutputAddresses.indexOf(address) === -1)
-			arrOutputAddresses.push(address);
+		if (message.app === "payment" && payload) {
+			for (var j = 0; j < payload.outputs.length; j++) {
+				var address = payload.outputs[j].address;
+				if (arrOutputAddresses.indexOf(address) === -1)
+					arrOutputAddresses.push(address);
+			}
 		}
+		else if (message.app === 'definition' && payload.definition[1].base_aa)
+			arrBaseAAAddresses.push(payload.definition[1].base_aa);
 	}
-	var arrAddresses = _.union(arrAuthorAddresses, arrOutputAddresses);
-	return {author_addresses: arrAuthorAddresses, output_addresses: arrOutputAddresses, addresses: arrAddresses};
+	var arrAddresses = _.union(arrAuthorAddresses, arrOutputAddresses, arrBaseAAAddresses);
+	return {
+		author_addresses: arrAuthorAddresses,
+		output_addresses: arrOutputAddresses,
+		base_aa_addresses: arrBaseAAAddresses,
+		addresses: arrAddresses,
+	};
 }
 
 // if any of the watched addresses are affected, notifies:  1. own UI  2. light clients
@@ -1425,14 +1433,21 @@ function notifyWatchers(objJoint, bGoodSequence, source_ws){
 		return;
 	var arrOutputAddresses = objAddresses.output_addresses;
 	var arrAuthorAddresses = objAddresses.author_addresses;
-	db.query("SELECT peer, address FROM watched_light_aas WHERE aa IN(?)", [arrOutputAddresses], function (rows) {
+	var arrBaseAAAddresses = objAddresses.base_aa_addresses;
+	var arrAllAAAddresses = arrOutputAddresses.concat(arrBaseAAAddresses);
+	db.query("SELECT peer, address, aa FROM watched_light_aas WHERE aa IN(?)", [arrAllAAAddresses], function (rows) {
 		rows.forEach(function (row) {
-			if (!row.address || arrAuthorAddresses.includes(row.address)) {
+			if ((!row.address || arrAuthorAddresses.includes(row.address)) && arrOutputAddresses.length > 0) {
 				var ws = getPeerWebSocket(row.peer);
 				if (ws && ws.readyState === ws.OPEN && ws !== source_ws)
 					sendJustsaying(ws, 'light/aa_request', objUnit);
 			}
-		});		
+			if (arrBaseAAAddresses.includes(row.aa)) {
+				var ws = getPeerWebSocket(row.peer);
+				if (ws && ws.readyState === ws.OPEN && ws !== source_ws)
+					sendJustsaying(ws, 'light/aa_definition', objUnit);
+			}
+		});
 	});
 }
 
@@ -1561,6 +1576,34 @@ eventBus.on('aa_response', function (objAAResponse) {
 					sendJustsaying(ws, 'light/aa_response', objAAResponse);
 			}
 		});
+	});
+});
+
+eventBus.on('aa_definition_saved', function (payload, unit) {
+	if (!bWatchingForLight)
+		return;
+	var base_aa = payload.definition[1].base_aa;
+	if (!base_aa)
+		return;
+	db.query("SELECT peer FROM watched_light_aas WHERE aa=?", [base_aa], function (rows) {
+		var arrWses = [];
+		rows.forEach(function (row) {
+			var ws = getPeerWebSocket(row.peer);
+			if (ws && ws.readyState === ws.OPEN)
+				arrWses.push(ws);
+		});
+		if (arrWses.length === 0)
+			return;
+		storage.readJoint(db, unit, {
+			ifNotFound: function () {
+				throw Error('recently saved unit ' + unit + ' not found');
+			},
+			ifFound: function (objJoint) {
+				arrWses.forEach(function (ws) {
+					sendJustsaying(ws, 'light/aa_definition_saved', objJoint.unit);
+				});
+			}
+		})
 	});
 });
 
