@@ -492,18 +492,11 @@ function validateParents(conn, objJoint, objValidationState, callback){
 	}
 	
 	function readMaxParentLastBallMci(handleResult){
-		conn.query(
-			"SELECT MAX(lb_units.main_chain_index) AS max_parent_last_ball_mci \n\
-			FROM units JOIN units AS lb_units ON units.last_ball_unit=lb_units.unit \n\
-			WHERE units.unit IN(?)",
-			[objUnit.parent_units],
-			function(rows){
-				var max_parent_last_ball_mci = rows[0].max_parent_last_ball_mci;
-				if (max_parent_last_ball_mci > objValidationState.last_ball_mci)
-					return callback("last ball mci must not retreat, parents: "+objUnit.parent_units.join(', '));
-				handleResult(max_parent_last_ball_mci);
-			}
-		);
+		storage.readMaxLastBallMci(conn, objUnit.parent_units, function(max_parent_last_ball_mci) {
+			if (max_parent_last_ball_mci > objValidationState.last_ball_mci)
+				return callback("last ball mci must not retreat, parents: "+objUnit.parent_units.join(', '));
+			handleResult(max_parent_last_ball_mci);
+		});
 	}
 	
 	var objUnit = objJoint.unit;
@@ -1336,28 +1329,20 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 			}
 			if (constants.bTestnet && ['BD7RTYgniYtyCX0t/a/mmAAZEiK/ZhTvInCMCPG5B1k=', 'EHEkkpiLVTkBHkn8NhzZG/o4IphnrmhRGxp4uQdEkco=', 'bx8VlbNQm2WA2ruIhx04zMrlpQq3EChK6o3k5OXJ130=', '08t8w/xuHcsKlMpPWajzzadmMGv+S4AoeV/QL1F3kBM='].indexOf(objUnit.unit) >= 0)
 				return callback();
-			if (!ValidationUtils.isArrayOfLength(payload.definition, 2))
-				return callback("AA definition must be 2-element array");
-			if (payload.definition[0] !== 'autonomous agent')
-				return callback("not an AA");
-			var template = payload.definition[1];
-			if (template.messages) // standard AA
-				return aa_validation.validateAADefinition(payload.definition, callback);
-			// else, based on another AA
-			if (hasFieldsExcept(template, ['base_aa', 'params']))
-				return callback("foreign fields in parameterized AA definition");
-			if (!ValidationUtils.isNonemptyObject(template.params))
-				return callback("no params in parameterized AA");
-			if (!variableHasStringsOfAllowedLength(template.params))
-				return callback("some strings in params are too long");
-			if (!isValidAddress(template.base_aa))
-				return callback("base_aa is not a valid address");
-			storage.readAADefinition(conn, template.base_aa, function (arrBaseDefinition) {
-				if (!arrBaseDefinition)
-					return callback("base AA not found");
-				if (!arrBaseDefinition[1].messages)
-					return callback("base AA must be a regular AA");
-				callback();
+			aa_validation.validateAADefinition(payload.definition, function (err) {
+				if (err)
+					return callback(err);
+				var template = payload.definition[1];
+				if (template.messages)
+					return callback(); // regular AA
+				// else parameterized AA
+				storage.readAADefinition(conn, template.base_aa, function (arrBaseDefinition) {
+					if (!arrBaseDefinition)
+						return callback("base AA not found");
+					if (!arrBaseDefinition[1].messages)
+						return callback("base AA must be a regular AA");
+					callback();
+				});
 			});
 			break;
 
@@ -2273,33 +2258,6 @@ function validateAuthorSignaturesWithoutReferences(objAuthor, objUnit, arrAddres
 	);
 }
 
-
-function variableHasStringsOfAllowedLength(x) {
-	switch (typeof x) {
-		case 'number':
-		case 'boolean':
-			return true;
-		case 'string':
-			return (x.length <= constants.MAX_AA_STRING_LENGTH);
-		case 'object':
-			if (Array.isArray(x)) {
-				for (var i = 0; i < x.length; i++)
-					if (!variableHasStringsOfAllowedLength(x[i]))
-						return false;
-			}
-			else {
-				for (var key in x) {
-					if (key.length > constants.MAX_AA_STRING_LENGTH)
-						return false;
-					if (!variableHasStringsOfAllowedLength(x[key]))
-						return false;
-				}
-			}
-			return true;
-		default:
-			throw Error("unknown type " + (typeof x) + " of " + x);
-	}
-}
 
 function createTransientError(err){
 	return {

@@ -288,6 +288,18 @@ test('10 - 5 + 1', t => {
 	});
 });
 
+test('10 - 5 - 2', t => {
+	evalFormula(null, "10 - 5 - 2", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
+		t.deepEqual(res, 3);
+	});
+});
+
+test('40 / 4 / 2', t => {
+	evalFormula(null, "40 / 4 / 2", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
+		t.deepEqual(res, 5);
+	});
+});
+
 test('15 - 5 + 2*3', t => {
 	evalFormula(null, "15 - 5 + 2*3", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, 16);
@@ -476,6 +488,54 @@ test('1 == 1 or 1 == 2', t => {
 
 test('1 == 2 or 1 == 2', t => {
 	evalFormula(null, "1 == 2 or 1 == 2", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
+		t.deepEqual(res, false);
+	});
+});
+
+test('1 == 1 or 1 < false', t => {
+	evalFormula(null, "1 == 1 or 1 < false", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
+		t.deepEqual(res, true);
+	});
+});
+
+test('1 < false or 1 == 1', t => {
+	evalFormula(null, "1 < false or 1 == 1", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
+		t.deepEqual(res, null);
+	});
+});
+
+test('1 == 1 and 1 < false', t => {
+	evalFormula(null, "1 == 1 and 1 < false", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
+		t.deepEqual(res, null);
+	});
+});
+
+test('1 == 2 and 1 < false', t => {
+	evalFormula(null, "1 == 2 and 1 < false", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
+		t.deepEqual(res, false);
+	});
+});
+
+test('1 == 2 and 2 == 3 and 1 < false', t => {
+	evalFormula(null, "1 == 2 and 2== 3 and 1 < false", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
+		t.deepEqual(res, false);
+	});
+});
+
+test("1 == 2 or 2 == 3 or 1 < false", t => {
+	evalFormula(null, "1 == 2 or 2 == 3 or 1 < false", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
+		t.deepEqual(res, null);
+	});
+});
+
+test('1 == 2 and 2 == 3 and 1 < false and 2 < false', t => {
+	evalFormula(null, "1 == 2 and 2 == 3 and 1 < false and 2 < false", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
+		t.deepEqual(res, false);
+	});
+});
+
+test('1 == 2 and 2 == 2 and 1 < false', t => {
+	evalFormula(null, "1 == 2 and 2 == 2 and 1 < false", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
 		t.deepEqual(res, false);
 	});
 });

@@ -11,6 +11,7 @@ var storage = require('./storage.js');
 var composer = require('./composer.js');
 var Definition = require("./definition.js");
 var ValidationUtils = require("./validation_utils.js");
+var eventBus = require("./event_bus.js");
 
 
 function repeatString(str, times){
@@ -158,12 +159,19 @@ function validateSignedMessage(conn, objSignedMessage, address, handleResult) {
 		if (bNetworkAware) {
 			conn.query("SELECT main_chain_index, timestamp FROM units WHERE unit=?", [objSignedMessage.last_ball_unit], function (rows) {
 				if (rows.length === 0) {
-					if (!conf.bLight || bRetrying)
-						return handleResult("last_ball_unit " + objSignedMessage.last_ball_unit + " not found");
 					var network = require('./network.js');
-					return network.requestHistoryFor([objSignedMessage.last_ball_unit], [objAuthor.address], function () {
-						validateOrReadDefinition(cb, true);
-					});
+					if (!conf.bLight && !network.isCatchingUp() || bRetrying)
+						return handleResult("last_ball_unit " + objSignedMessage.last_ball_unit + " not found");
+					if (conf.bLight)
+						network.requestHistoryFor([objSignedMessage.last_ball_unit], [objAuthor.address], function () {
+							validateOrReadDefinition(cb, true);
+						});
+					else
+						eventBus.once('catching_up_done', function () {
+							// no retry flag, will retry multiple times until the catchup is over
+							validateOrReadDefinition(cb);
+						});
+					return;
 				}
 				bRetrying = false;
 				var last_ball_mci = rows[0].main_chain_index;

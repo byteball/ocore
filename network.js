@@ -41,6 +41,7 @@ var arrOutboundPeers = [];
 var assocConnectingOutboundWebsockets = {};
 var assocUnitsInWork = {};
 var assocRequestedUnits = {};
+var bStarted = false;
 var bCatchingUp = false;
 var bWaitingForCatchupChain = false;
 var bWaitingTillIdle = false;
@@ -54,6 +55,7 @@ var assocBlockedPeers = {};
 var exchangeRates = {};
 var knownWitnesses = {};
 var bWatchingForLight = false;
+var prev_bugreport_hash = '';
 
 if (process.browser){ // browser
 	console.log("defining .on() on ws");
@@ -543,6 +545,8 @@ function findOutboundPeerOrConnect(url, onOpen){
 		throw Error('no url');
 	if (!onOpen)
 		onOpen = function(){};
+	if (!bStarted)
+		return onOpen("[internal] network not started yet");
 	url = url.toLowerCase();
 	var ws = getOutboundPeerWsByUrl(url);
 	if (ws)
@@ -765,7 +769,7 @@ function rerequestLostJoints(){
 	if (bCatchingUp)
 		return;
 	joint_storage.findLostJoints(function(arrUnits){
-		console.log("lost units", arrUnits);
+		console.log("lost units", arrUnits.length > 0 ? arrUnits : 'none');
 		tryFindNextPeer(null, function(ws){
 			if (!ws)
 				return;
@@ -1353,19 +1357,27 @@ function getAllAuthorsAndOutputAddresses(objUnit){
 	if (!objUnit.messages) // voided unit
 		return null;
 	var arrOutputAddresses = [];
+	var arrBaseAAAddresses = [];
 	for (var i=0; i<objUnit.messages.length; i++){
 		var message = objUnit.messages[i];
-		if (message.app !== "payment" || !message.payload)
-			continue;
 		var payload = message.payload;
-		for (var j=0; j<payload.outputs.length; j++){
-			var address = payload.outputs[j].address;
-			if (arrOutputAddresses.indexOf(address) === -1)
-			arrOutputAddresses.push(address);
+		if (message.app === "payment" && payload) {
+			for (var j = 0; j < payload.outputs.length; j++) {
+				var address = payload.outputs[j].address;
+				if (arrOutputAddresses.indexOf(address) === -1)
+					arrOutputAddresses.push(address);
+			}
 		}
+		else if (message.app === 'definition' && payload.definition[1].base_aa)
+			arrBaseAAAddresses.push(payload.definition[1].base_aa);
 	}
-	var arrAddresses = _.union(arrAuthorAddresses, arrOutputAddresses);
-	return {author_addresses: arrAuthorAddresses, output_addresses: arrOutputAddresses, addresses: arrAddresses};
+	var arrAddresses = _.union(arrAuthorAddresses, arrOutputAddresses, arrBaseAAAddresses);
+	return {
+		author_addresses: arrAuthorAddresses,
+		output_addresses: arrOutputAddresses,
+		base_aa_addresses: arrBaseAAAddresses,
+		addresses: arrAddresses,
+	};
 }
 
 // if any of the watched addresses are affected, notifies:  1. own UI  2. light clients
@@ -1422,14 +1434,21 @@ function notifyWatchers(objJoint, bGoodSequence, source_ws){
 		return;
 	var arrOutputAddresses = objAddresses.output_addresses;
 	var arrAuthorAddresses = objAddresses.author_addresses;
-	db.query("SELECT peer, address FROM watched_light_aas WHERE aa IN(?)", [arrOutputAddresses], function (rows) {
+	var arrBaseAAAddresses = objAddresses.base_aa_addresses;
+	var arrAllAAAddresses = arrOutputAddresses.concat(arrBaseAAAddresses);
+	db.query("SELECT peer, address, aa FROM watched_light_aas WHERE aa IN(?)", [arrAllAAAddresses], function (rows) {
 		rows.forEach(function (row) {
-			if (!row.address || arrAuthorAddresses.includes(row.address)) {
+			if ((!row.address || arrAuthorAddresses.includes(row.address)) && arrOutputAddresses.length > 0) {
 				var ws = getPeerWebSocket(row.peer);
 				if (ws && ws.readyState === ws.OPEN && ws !== source_ws)
 					sendJustsaying(ws, 'light/aa_request', objUnit);
 			}
-		});		
+			if (arrBaseAAAddresses.includes(row.aa)) {
+				var ws = getPeerWebSocket(row.peer);
+				if (ws && ws.readyState === ws.OPEN && ws !== source_ws)
+					sendJustsaying(ws, 'light/aa_definition', objUnit);
+			}
+		});
 	});
 }
 
@@ -1558,6 +1577,34 @@ eventBus.on('aa_response', function (objAAResponse) {
 					sendJustsaying(ws, 'light/aa_response', objAAResponse);
 			}
 		});
+	});
+});
+
+eventBus.on('aa_definition_saved', function (payload, unit) {
+	if (!bWatchingForLight)
+		return;
+	var base_aa = payload.definition[1].base_aa;
+	if (!base_aa)
+		return;
+	db.query("SELECT peer FROM watched_light_aas WHERE aa=?", [base_aa], function (rows) {
+		var arrWses = [];
+		rows.forEach(function (row) {
+			var ws = getPeerWebSocket(row.peer);
+			if (ws && ws.readyState === ws.OPEN)
+				arrWses.push(ws);
+		});
+		if (arrWses.length === 0)
+			return;
+		storage.readJoint(db, unit, {
+			ifNotFound: function () {
+				throw Error('recently saved unit ' + unit + ' not found');
+			},
+			ifFound: function (objJoint) {
+				arrWses.forEach(function (ws) {
+					sendJustsaying(ws, 'light/aa_definition_saved', objJoint.unit);
+				});
+			}
+		})
 	});
 });
 
@@ -2298,7 +2345,13 @@ function handleJustsaying(ws, subject, body){
 		case 'bugreport':
 			if (!body)
 				return;
-			if (conf.ignoreBugreportRegexp && new RegExp(conf.ignoreBugreportRegexp).test(body.message+' '+body.exception.toString()))
+			var arrParts = body.exception.toString().split("Breadcrumbs", 2);
+			var text = body.message + ' ' + arrParts[0];
+			var hash = crypto.createHash("sha256").update(text, "utf8").digest("base64");
+			if (hash === prev_bugreport_hash)
+				return console.log("ignoring known bug report");
+			prev_bugreport_hash = hash;
+			if (conf.ignoreBugreportRegexp && new RegExp(conf.ignoreBugreportRegexp).test(text))
 				return console.log('ignoring bugreport');
 			mail.sendBugEmail(body.message, body.exception);
 			break;
@@ -3246,7 +3299,7 @@ function handleRequest(ws, tag, command, params){
 						return sendErrorResponse(ws, tag, "invalid type of param " + name + ": " + (typeof value));
 				}
 			}
-			db.query("SELECT address, definition FROM aa_addresses WHERE base_aa IN(?)", [base_aas], function (rows) {
+			db.query("SELECT address, definition, creation_date FROM aa_addresses WHERE base_aa IN(?)", [base_aas], function (rows) {
 				var arrAAs = [];
 				rows.forEach(function (row) {
 					var arrDefinition = JSON.parse(row.definition);
@@ -3255,7 +3308,7 @@ function handleRequest(ws, tag, command, params){
 						if (!satisfiesSearchCriteria(this_aa_params[name], aa_params[name]))
 							return;
 					}
-					arrAAs.push({ address: row.address, definition: arrDefinition });
+					arrAAs.push({ address: row.address, definition: arrDefinition, creation_date: row.creation_date });
 				});
 				sendResponse(ws, tag, arrAAs);
 			});
@@ -3495,6 +3548,18 @@ function startAcceptingConnections(){
 	console.log('WSS running at port ' + conf.port);
 }
 
+
+function startPeerExchange() {
+	if (conf.bWantNewPeers){
+		// outbound connections
+		addOutboundPeers();
+		// retry lost and failed connections every 1 minute
+		setInterval(addOutboundPeers, 60*1000);
+		setTimeout(checkIfHaveEnoughOutboundPeersAndAdd, 30*1000);
+		setInterval(purgeDeadPeers, 30*60*1000);
+	}
+}
+
 function startRelay(){
 	if (process.browser || !conf.port) // no listener on mobile
 		wss = {clients: []};
@@ -3505,14 +3570,8 @@ function startRelay(){
 	joint_storage.initUnhandledAndKnownBad();
 	checkCatchupLeftovers();
 
-	if (conf.bWantNewPeers){
-		// outbound connections
-		addOutboundPeers();
-		// retry lost and failed connections every 1 minute
-		setInterval(addOutboundPeers, 60*1000);
-		setTimeout(checkIfHaveEnoughOutboundPeersAndAdd, 30*1000);
-		setInterval(purgeDeadPeers, 30*60*1000);
-	}
+	startPeerExchange();
+
 	// purge peer_events every 6 hours, removing those older than 0.5 days ago.
 	setInterval(purgePeerEvents, 6*60*60*1000);
 	setInterval(function(){flushEvents(true)}, 1000 * 60);
@@ -3539,17 +3598,25 @@ function startLightClient(){
 }
 
 function start(){
+	if (bStarted)
+		return console.log("network already started");
+	bStarted = true;
 	console.log("starting network");
 	conf.bLight ? startLightClient() : startRelay();
 	setInterval(printConnectionStatus, 6*1000);
 	// if we have exactly same intervals on two clints, they might send heartbeats to each other at the same time
 	setInterval(heartbeat, 3*1000 + getRandomInt(0, 1000));
+	eventBus.emit('network_started');
 }
 
 function closeAllWsConnections() {
 	arrOutboundPeers.forEach(function(ws) {
 		ws.close(1000,'Re-connect');
 	});
+}
+
+function isStarted(){
+	return bStarted;
 }
 
 function isConnected(){
@@ -3565,6 +3632,9 @@ if (!conf.explicitStart) {
 }
 
 exports.start = start;
+exports.startAcceptingConnections = startAcceptingConnections;
+exports.startPeerExchange = startPeerExchange;
+
 exports.postJointToLightVendor = postJointToLightVendor;
 exports.broadcastJoint = broadcastJoint;
 exports.sendPrivatePayment = sendPrivatePayment;
@@ -3596,6 +3666,7 @@ exports.addLightWatchedAddress = addLightWatchedAddress;
 
 exports.getConnectionStatus = getConnectionStatus;
 exports.closeAllWsConnections = closeAllWsConnections;
+exports.isStarted = isStarted;
 exports.isConnected = isConnected;
 exports.isCatchingUp = isCatchingUp;
 exports.requestHistoryFor = requestHistoryFor;
