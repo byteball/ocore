@@ -1091,6 +1091,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 		}
 		var objAAResponse = {
 			mci: mci,
+			timestamp: objMcUnit.timestamp,
 			trigger_address: trigger.address,
 			trigger_initial_address: trigger.initial_address,
 			trigger_unit: trigger.unit,
