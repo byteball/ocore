@@ -1441,7 +1441,7 @@ function notifyWatchers(objJoint, bGoodSequence, source_ws){
 			if ((!row.address || arrAuthorAddresses.includes(row.address)) && arrOutputAddresses.length > 0) {
 				var ws = getPeerWebSocket(row.peer);
 				if (ws && ws.readyState === ws.OPEN && ws !== source_ws)
-					sendJustsaying(ws, 'light/aa_request', objUnit);
+					sendJustsaying(ws, 'light/aa_request', { aa_address: row.aa, unit: objUnit });
 			}
 			if (arrBaseAAAddresses.includes(row.aa)) {
 				var ws = getPeerWebSocket(row.peer);
