@@ -1441,7 +1441,7 @@ function notifyWatchers(objJoint, bGoodSequence, source_ws){
 			if ((!row.address || arrAuthorAddresses.includes(row.address)) && arrOutputAddresses.length > 0) {
 				var ws = getPeerWebSocket(row.peer);
 				if (ws && ws.readyState === ws.OPEN && ws !== source_ws)
-					sendJustsaying(ws, 'light/aa_request', objUnit);
+					sendJustsaying(ws, 'light/aa_request', { aa_address: row.aa, unit: objUnit });
 			}
 			if (arrBaseAAAddresses.includes(row.aa)) {
 				var ws = getPeerWebSocket(row.peer);
@@ -3329,8 +3329,9 @@ function handleRequest(ws, tag, command, params){
 			if (!aas.every(ValidationUtils.isValidAddress))
 				return sendErrorResponse(ws, tag, "aa address not valid");
 			db.query(
-				"SELECT mci, trigger_address, aa_address, trigger_unit, bounced, response_unit, response \n\
-				FROM aa_responses WHERE aa_address IN(?) ORDER BY aa_response_id DESC LIMIT 30",
+				"SELECT mci, trigger_address, aa_address, trigger_unit, bounced, response_unit, response, timestamp \n\
+				FROM aa_responses CROSS JOIN units ON trigger_unit=unit \n\
+				WHERE aa_address IN(?) ORDER BY aa_response_id DESC LIMIT 30",
 				[aas],
 				function (rows) {
 					async.eachSeries(
