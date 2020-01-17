@@ -1449,6 +1449,7 @@ if (!conf.bLight) {
 	setInterval(checkBalances, 600 * 1000);
 }
 
+exports.getTrigger = getTrigger;
 exports.handleAATriggers = handleAATriggers;
 exports.handleTrigger = handleTrigger;
 exports.validateAATriggerObject = validateAATriggerObject;
