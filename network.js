@@ -1280,9 +1280,10 @@ function notifyWatchersAboutUnitsGettingBadSequence(arrUnits){
 	async.each(arrUnits, function(unit, cb){
 		storage.readJoint(db, unit, {
 			ifFound: function(objJoint) {
-				var arrAddresses = getAllAuthorsAndOutputAddresses(objJoint.unit);
-				if (!arrAddresses) // voided unit
+				var objAddresses = getAllAuthorsAndOutputAddresses(objJoint.unit);
+				if (!objAddresses) // voided unit
 					return cb();
+				var arrAddresses = objAddresses.addresses;
 				assocAddressesByUnit[unit] = arrAddresses;
 				arrAddresses.forEach(function(address){
 					if (!assocUnitsByAddress[address])
