@@ -1278,26 +1278,25 @@ function notifyWatchersAboutUnitsGettingBadSequence(arrUnits){
 	var assocAddressesByUnit = {};
 	var assocUnitsByAddress = {};
 	async.each(arrUnits, function(unit, cb){
-		storage.readJoint(db, unit, 
-			{
-				ifFound: function(objUnit){
-					var arrAddresses = getAllAuthorsAndOutputAddresses(objUnit.unit);
-					if (!arrAddresses) // voided unit
-						return cb();
-					assocAddressesByUnit[unit] = arrAddresses;
-					arrAddresses.forEach(function(address){
-						if (!assocUnitsByAddress[address])
-							assocUnitsByAddress[address] = [];
-						assocUnitsByAddress[address].push(unit);
-					});
-					cb();
-				},
-				ifNotFound: function(){
+		storage.readJoint(db, unit, {
+			ifFound: function(objUnit){
+				var arrAddresses = getAllAuthorsAndOutputAddresses(objUnit.unit);
+				if (!arrAddresses) // voided unit
 					return cb();
-				}
-			});
-		},
-		function(){
+				assocAddressesByUnit[unit] = arrAddresses;
+				arrAddresses.forEach(function(address){
+					if (!assocUnitsByAddress[address])
+						assocUnitsByAddress[address] = [];
+					assocUnitsByAddress[address].push(unit);
+				});
+				cb();
+			},
+			ifNotFound: function(){
+				return cb();
+			}
+		});
+	},
+	function () {	
 		// notify local watchers
 		var assocUniqueUnits = {};
 		for (var unit in assocAddressesByUnit){
