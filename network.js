@@ -1279,8 +1279,8 @@ function notifyWatchersAboutUnitsGettingBadSequence(arrUnits){
 	var assocUnitsByAddress = {};
 	async.each(arrUnits, function(unit, cb){
 		storage.readJoint(db, unit, {
-			ifFound: function(objUnit){
-				var arrAddresses = getAllAuthorsAndOutputAddresses(objUnit.unit);
+			ifFound: function(objJoint) {
+				var arrAddresses = getAllAuthorsAndOutputAddresses(objJoint.unit);
 				if (!arrAddresses) // voided unit
 					return cb();
 				assocAddressesByUnit[unit] = arrAddresses;
@@ -1292,7 +1292,7 @@ function notifyWatchersAboutUnitsGettingBadSequence(arrUnits){
 				cb();
 			},
 			ifNotFound: function(){
-				return cb();
+				cb();
 			}
 		});
 	},
