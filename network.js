@@ -2627,8 +2627,11 @@ function handleJustsaying(ws, subject, body){
 			if ("address" in body && !ValidationUtils.isValidAddress(body.address))
 				return sendError(ws, "invalid address: " + body.address);
 			storage.readAADefinition(db, body.aa, function (arrDefinition) {
-				if (!arrDefinition)
-					return sendError(ws, "not an AA: " + body.aa);
+				if (!arrDefinition) {
+					arrDefinition = storage.getUnconfirmedAADefinition(body.aa);
+					if (!arrDefinition)
+						return sendError(ws, "not an AA: " + body.aa);
+				}
 				bWatchingForLight = true;
 				db.query("INSERT " + db.getIgnore() + " INTO watched_light_aas (peer, aa, address) VALUES (?,?,?)", [ws.peer, body.aa, body.address], function () {
 					sendInfo(ws, "now watching AA " + body.aa + " address " + (body.address || 'all'));

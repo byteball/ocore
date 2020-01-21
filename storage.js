@@ -726,6 +726,24 @@ function readAADefinition(conn, address, handleDefinition) {
 	});
 }
 
+function getUnconfirmedAADefinition(address) {
+	for (var unit in assocUnstableMessages) {
+		var objUnit = assocUnstableUnits[unit] || assocStableUnits[unit]; // just stabilized
+		if (!objUnit)
+			throw Error("unstable unit " + unit + " not in assoc");
+		var messages = assocUnstableMessages[unit];
+		for (var i = 0; i < messages.length; i++) {
+			var message = messages[i];
+			if (message.app !== 'definition')
+				continue;
+			var payload = message.payload;
+			if (payload.address === address)
+				return payload.definition;
+		}
+	}
+	return null;
+}
+
 // arrAddresses is an array of AA addresses whose definitions are posted by other AAs
 function getUnconfirmedAADefinitionsPostedByAAs(arrAddresses) {
 	var payloads = [];
@@ -1763,6 +1781,7 @@ exports.readDefinitionChashByAddress = readDefinitionChashByAddress;
 exports.readDefinitionByAddress = readDefinitionByAddress;
 exports.readDefinition = readDefinition;
 exports.readAADefinition = readAADefinition;
+exports.getUnconfirmedAADefinition = getUnconfirmedAADefinition;
 exports.getUnconfirmedAADefinitionsPostedByAAs = getUnconfirmedAADefinitionsPostedByAAs;
 exports.insertAADefinitions = insertAADefinitions;
 exports.readAAStateVar = readAAStateVar;
