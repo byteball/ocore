@@ -4,6 +4,7 @@ var async = require('async');
 var storage = require('./storage.js');
 var archiving = require('./archiving.js');
 var objectHash = require("./object_hash.js");
+var conf = require('./conf.js');
 var db = require('./db.js');
 var mutex = require('./mutex.js');
 var constants = require("./constants.js");
@@ -120,7 +121,7 @@ function prepareHistory(historyRequest, callbacks){
 							if (objResponse.proofchain_balls.length === 0)
 								delete objResponse.proofchain_balls;
 							var arrUnits = objResponse.joints.map(function (objJoint) { return objJoint.unit.unit; });
-							db.query("SELECT mci, trigger_address, aa_address, trigger_unit, bounced, response_unit, response, creation_date FROM aa_responses WHERE trigger_unit IN(" + arrUnits.map(db.escape).join(', ') + ")", function (aa_rows) {
+							db.query("SELECT mci, trigger_address, aa_address, trigger_unit, bounced, response_unit, response, creation_date FROM aa_responses WHERE trigger_unit IN(" + arrUnits.map(db.escape).join(', ') + ") ORDER BY " + (conf.storage === 'sqlite' ? 'rowid' : 'mci'), function (aa_rows) {
 								// there is nothing to prove that responses are authentic
 								if (aa_rows.length > 0)
 									objResponse.aa_responses = aa_rows.map(function (aa_row) {
