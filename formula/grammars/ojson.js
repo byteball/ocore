@@ -6,7 +6,7 @@ function id(x) { return x[0]; }
 
 const moo = require('moo')
 
-let lexer = moo.states({
+const lexer = moo.states({
 	main: {
 		space: {match: /\s+/, lineBreaks: true},
 		comment: /\/\/.*$/,
@@ -14,29 +14,30 @@ let lexer = moo.states({
 		formulaDoubleStart: { match: '"{', push: 'formulaDouble' },
 		formulaSingleStart: { match: "'{", push: 'formulaSingle' },
 		formulaBackStart: { match: '`{', push: 'formulaBack' },
+		decimal: /(?:[+-])?(?:[0-9]*[.])?[0-9]+/,
+		word: {
+			match: /[a-zA-Z0-9_]+/,
+			type: moo.keywords({
+        false: 'false',
+        true: 'true',
+    	}),
+		},
+		autonomous_agent: [
+			/'autonomous agent'/,
+			/"autonomous agent"/,
+			/`autonomous agent`/,
+		],
+		quotedString: [
+			/'(?:[^'\\]|\\.)*'/,
+			/"(?:[^"\\]|\\.)*"/,
+			/`(?:[^`\\]|\\.)*`/,
+		],
 		'{': '{',
 		'}': '}',
 		'[': '[',
 		']': ']',
 		':': ':',
-		',': ',',
-		base64: [
-			/'(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{4})'/,
-			/"(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{4})"/,
-			/`(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{4})`/,
-		],
-		'"': '"',
-		"'": "'",
-		'`': '`',
-		decimal: /(?:[+-])?(?:[0-9]*[.])?[0-9]+/,
-		str: {
-      match: /[a-zA-Z_0-9 =+*/@><!;&%~^$?#|\\.\[\]()-]+/,
-      type: moo.keywords({
-        autonomous_agent: 'autonomous agent',
-        false: 'false',
-        true: 'true',
-    	}),
-		},
+		',': ','
 	},
 	formulaDouble: {
 		formulaDoubleEnd: { match: '}"', pop: 1 },
@@ -51,6 +52,21 @@ let lexer = moo.states({
 		formula: {match: /[\s\S]+?(?=}`)/, lineBreaks: true},
 	},
 })
+
+var origNext = lexer.next;
+	lexer.next = function () {
+	var tok = origNext.call(this);
+	if (tok) {
+		switch (tok.type) {
+			case 'space':
+			case 'comment':
+			case 'blockComment':
+				return lexer.next();
+		}
+		return tok;
+	}
+	return undefined;
+};
 
 const TYPES = {
 	STR: 'STR',
@@ -79,23 +95,21 @@ const formula = (d) => ({
 const pair = (d) => ({
 	type: TYPES.PAIR,
 	key: d[0],
-	value: d[3][0],
+	value: d[2][0],
 	context: c(d[1])
 })
 
 const objectP = (d) => ({
 	type: TYPES.OBJECT,
-	value: d[2],
+	value: d[1],
 	context: c(d[0])
 })
 
 const array = (d) => ({
 	type: TYPES.ARRAY,
-	value: d[2],
+	value: d[1].map(e => e[0]),
 	context: c(d[0])
 })
-
-const arrayContent = (d) => d[0].map(e => e[0])
 
 const decimal = (d) => ({
 	type: TYPES.DECIMAL,
@@ -103,31 +117,13 @@ const decimal = (d) => ({
 	context: c(d[0])
 })
 
-const valueDecimal = (d) => ([{
-	type: TYPES.STR,
-	value: '' + d[0].value,
-	context: d[0].context
-}])
-
-const quotedFormula = (d) => ([{
-	type: TYPES.STR,
-	value: "'{" + d[0].value + "}'",
-	context: d[0].contex
-}])
-
-const str = (d) => ({
+const word = (d) => ({
 	type: TYPES.STR,
 	value: d[0].text,
 	context: c(d[0])
 })
 
-const prefixedStr = (d) => ({
-	type: TYPES.STR,
-	value: d[0].text + (d[1] ? d[1].value : ''),
-	context: c(d[0])
-})
-
-const base64ToStr = (d) => ({
+const quotedString = (d) => ({
 	type: TYPES.STR,
 	value: d[0].text.slice(1, -1),
 	context: c(d[0])
@@ -147,12 +143,10 @@ const falseP = (d) => ({
 
 const commaOptionalSingle = (d) => d[0]
 const commaOptionalMany = (d) => {
-	let array = d[1].map(e => e[2][0])
+	let array = d[1].map(e => e[1][0])
 	array.unshift(d[0][0])
 	return array
 }
-
-const quoted = (d) => d[1][0]
 
 const log = cb => {
 	return (d) => {
@@ -164,73 +158,44 @@ const log = cb => {
 var grammar = {
     Lexer: lexer,
     ParserRules: [
-    {"name": "start", "symbols": ["_", "object", "_"], "postprocess": (d) => d[1]},
+    {"name": "start", "symbols": ["object"], "postprocess": (d) => d[0]},
     {"name": "start", "symbols": ["startWithAA"], "postprocess": (d) => d[0]},
-    {"name": "startWithAA$macrocall$2", "symbols": [(lexer.has("autonomous_agent") ? {type: "autonomous_agent"} : autonomous_agent)]},
-    {"name": "startWithAA$macrocall$1", "symbols": [{"literal":"'"}, "startWithAA$macrocall$2", {"literal":"'"}], "postprocess": quoted},
-    {"name": "startWithAA$macrocall$1", "symbols": [{"literal":"`"}, "startWithAA$macrocall$2", {"literal":"`"}], "postprocess": quoted},
-    {"name": "startWithAA$macrocall$1", "symbols": [{"literal":"\""}, "startWithAA$macrocall$2", {"literal":"\""}], "postprocess": quoted},
-    {"name": "startWithAA", "symbols": ["_", {"literal":"["}, "_", "startWithAA$macrocall$1", {"literal":","}, "_", "object", "_", {"literal":"]"}, "_"], "postprocess": (d) => d[6]},
+    {"name": "startWithAA", "symbols": [{"literal":"["}, (lexer.has("autonomous_agent") ? {type: "autonomous_agent"} : autonomous_agent), {"literal":","}, "object", {"literal":"]"}], "postprocess": (d) => d[3]},
     {"name": "object$macrocall$2", "symbols": ["pair"]},
     {"name": "object$macrocall$1$ebnf$1", "symbols": [{"literal":","}], "postprocess": id},
     {"name": "object$macrocall$1$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
     {"name": "object$macrocall$1", "symbols": ["object$macrocall$2", "object$macrocall$1$ebnf$1"], "postprocess": commaOptionalSingle},
-    {"name": "object$macrocall$1$ebnf$2$subexpression$1", "symbols": [{"literal":","}, "_", "object$macrocall$2"]},
+    {"name": "object$macrocall$1$ebnf$2$subexpression$1", "symbols": [{"literal":","}, "object$macrocall$2"]},
     {"name": "object$macrocall$1$ebnf$2", "symbols": ["object$macrocall$1$ebnf$2$subexpression$1"]},
-    {"name": "object$macrocall$1$ebnf$2$subexpression$2", "symbols": [{"literal":","}, "_", "object$macrocall$2"]},
+    {"name": "object$macrocall$1$ebnf$2$subexpression$2", "symbols": [{"literal":","}, "object$macrocall$2"]},
     {"name": "object$macrocall$1$ebnf$2", "symbols": ["object$macrocall$1$ebnf$2", "object$macrocall$1$ebnf$2$subexpression$2"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
     {"name": "object$macrocall$1$ebnf$3", "symbols": [{"literal":","}], "postprocess": id},
     {"name": "object$macrocall$1$ebnf$3", "symbols": [], "postprocess": function(d) {return null;}},
     {"name": "object$macrocall$1", "symbols": ["object$macrocall$2", "object$macrocall$1$ebnf$2", "object$macrocall$1$ebnf$3"], "postprocess": commaOptionalMany},
-    {"name": "object", "symbols": [{"literal":"{"}, "_", "object$macrocall$1", "_", {"literal":"}"}], "postprocess": objectP},
-    {"name": "pair", "symbols": ["key", {"literal":":"}, "_", "value"], "postprocess": pair},
+    {"name": "object", "symbols": [{"literal":"{"}, "object$macrocall$1", {"literal":"}"}], "postprocess": objectP},
+    {"name": "pair", "symbols": ["key", {"literal":":"}, "value"], "postprocess": pair},
+    {"name": "key", "symbols": ["word"], "postprocess": (d) => d[0]},
     {"name": "key", "symbols": ["str"], "postprocess": (d) => d[0]},
-    {"name": "key$macrocall$2", "symbols": ["str"]},
-    {"name": "key$macrocall$1", "symbols": [{"literal":"'"}, "key$macrocall$2", {"literal":"'"}], "postprocess": quoted},
-    {"name": "key$macrocall$1", "symbols": [{"literal":"`"}, "key$macrocall$2", {"literal":"`"}], "postprocess": quoted},
-    {"name": "key$macrocall$1", "symbols": [{"literal":"\""}, "key$macrocall$2", {"literal":"\""}], "postprocess": quoted},
-    {"name": "key", "symbols": ["key$macrocall$1"], "postprocess": (d) => d[0]},
     {"name": "key", "symbols": ["formula"], "postprocess": (d) => d[0]},
-    {"name": "key", "symbols": ["base64"], "postprocess": (d) => d[0]},
     {"name": "value", "symbols": ["formula"]},
     {"name": "value", "symbols": ["true"]},
     {"name": "value", "symbols": ["false"]},
     {"name": "value", "symbols": ["array"]},
     {"name": "value", "symbols": ["object"]},
-    {"name": "value", "symbols": ["base64"]},
     {"name": "value", "symbols": ["decimal"]},
-    {"name": "value$macrocall$2", "symbols": ["str"]},
-    {"name": "value$macrocall$1", "symbols": [{"literal":"'"}, "value$macrocall$2", {"literal":"'"}], "postprocess": quoted},
-    {"name": "value$macrocall$1", "symbols": [{"literal":"`"}, "value$macrocall$2", {"literal":"`"}], "postprocess": quoted},
-    {"name": "value$macrocall$1", "symbols": [{"literal":"\""}, "value$macrocall$2", {"literal":"\""}], "postprocess": quoted},
-    {"name": "value", "symbols": ["value$macrocall$1"]},
-    {"name": "value$macrocall$4", "symbols": ["formula"]},
-    {"name": "value$macrocall$3", "symbols": [{"literal":"'"}, "value$macrocall$4", {"literal":"'"}], "postprocess": quoted},
-    {"name": "value$macrocall$3", "symbols": [{"literal":"`"}, "value$macrocall$4", {"literal":"`"}], "postprocess": quoted},
-    {"name": "value$macrocall$3", "symbols": [{"literal":"\""}, "value$macrocall$4", {"literal":"\""}], "postprocess": quoted},
-    {"name": "value", "symbols": ["value$macrocall$3"], "postprocess": quotedFormula},
-    {"name": "array", "symbols": [{"literal":"["}, "_", "arrayContent", "_", {"literal":"]"}], "postprocess": array},
-    {"name": "arrayContent$macrocall$2$subexpression$1", "symbols": ["object"]},
-    {"name": "arrayContent$macrocall$2$subexpression$1", "symbols": ["formula"]},
-    {"name": "arrayContent$macrocall$2$subexpression$1$macrocall$2", "symbols": ["str"]},
-    {"name": "arrayContent$macrocall$2$subexpression$1$macrocall$1", "symbols": [{"literal":"'"}, "arrayContent$macrocall$2$subexpression$1$macrocall$2", {"literal":"'"}], "postprocess": quoted},
-    {"name": "arrayContent$macrocall$2$subexpression$1$macrocall$1", "symbols": [{"literal":"`"}, "arrayContent$macrocall$2$subexpression$1$macrocall$2", {"literal":"`"}], "postprocess": quoted},
-    {"name": "arrayContent$macrocall$2$subexpression$1$macrocall$1", "symbols": [{"literal":"\""}, "arrayContent$macrocall$2$subexpression$1$macrocall$2", {"literal":"\""}], "postprocess": quoted},
-    {"name": "arrayContent$macrocall$2$subexpression$1", "symbols": ["arrayContent$macrocall$2$subexpression$1$macrocall$1"]},
-    {"name": "arrayContent$macrocall$2$subexpression$1", "symbols": ["base64"]},
-    {"name": "arrayContent$macrocall$2$subexpression$1", "symbols": ["array"]},
-    {"name": "arrayContent$macrocall$2", "symbols": ["arrayContent$macrocall$2$subexpression$1"]},
-    {"name": "arrayContent$macrocall$1$ebnf$1", "symbols": [{"literal":","}], "postprocess": id},
-    {"name": "arrayContent$macrocall$1$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
-    {"name": "arrayContent$macrocall$1", "symbols": ["arrayContent$macrocall$2", "arrayContent$macrocall$1$ebnf$1"], "postprocess": commaOptionalSingle},
-    {"name": "arrayContent$macrocall$1$ebnf$2$subexpression$1", "symbols": [{"literal":","}, "_", "arrayContent$macrocall$2"]},
-    {"name": "arrayContent$macrocall$1$ebnf$2", "symbols": ["arrayContent$macrocall$1$ebnf$2$subexpression$1"]},
-    {"name": "arrayContent$macrocall$1$ebnf$2$subexpression$2", "symbols": [{"literal":","}, "_", "arrayContent$macrocall$2"]},
-    {"name": "arrayContent$macrocall$1$ebnf$2", "symbols": ["arrayContent$macrocall$1$ebnf$2", "arrayContent$macrocall$1$ebnf$2$subexpression$2"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
-    {"name": "arrayContent$macrocall$1$ebnf$3", "symbols": [{"literal":","}], "postprocess": id},
-    {"name": "arrayContent$macrocall$1$ebnf$3", "symbols": [], "postprocess": function(d) {return null;}},
-    {"name": "arrayContent$macrocall$1", "symbols": ["arrayContent$macrocall$2", "arrayContent$macrocall$1$ebnf$2", "arrayContent$macrocall$1$ebnf$3"], "postprocess": commaOptionalMany},
-    {"name": "arrayContent", "symbols": ["arrayContent$macrocall$1"], "postprocess": arrayContent},
+    {"name": "value", "symbols": ["str"]},
+    {"name": "array$macrocall$2", "symbols": ["value"]},
+    {"name": "array$macrocall$1$ebnf$1", "symbols": [{"literal":","}], "postprocess": id},
+    {"name": "array$macrocall$1$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
+    {"name": "array$macrocall$1", "symbols": ["array$macrocall$2", "array$macrocall$1$ebnf$1"], "postprocess": commaOptionalSingle},
+    {"name": "array$macrocall$1$ebnf$2$subexpression$1", "symbols": [{"literal":","}, "array$macrocall$2"]},
+    {"name": "array$macrocall$1$ebnf$2", "symbols": ["array$macrocall$1$ebnf$2$subexpression$1"]},
+    {"name": "array$macrocall$1$ebnf$2$subexpression$2", "symbols": [{"literal":","}, "array$macrocall$2"]},
+    {"name": "array$macrocall$1$ebnf$2", "symbols": ["array$macrocall$1$ebnf$2", "array$macrocall$1$ebnf$2$subexpression$2"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
+    {"name": "array$macrocall$1$ebnf$3", "symbols": [{"literal":","}], "postprocess": id},
+    {"name": "array$macrocall$1$ebnf$3", "symbols": [], "postprocess": function(d) {return null;}},
+    {"name": "array$macrocall$1", "symbols": ["array$macrocall$2", "array$macrocall$1$ebnf$2", "array$macrocall$1$ebnf$3"], "postprocess": commaOptionalMany},
+    {"name": "array", "symbols": [{"literal":"["}, "array$macrocall$1", {"literal":"]"}], "postprocess": array},
     {"name": "formula$ebnf$1", "symbols": [(lexer.has("formula") ? {type: "formula"} : formula)], "postprocess": id},
     {"name": "formula$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
     {"name": "formula", "symbols": [(lexer.has("formulaDoubleStart") ? {type: "formulaDoubleStart"} : formulaDoubleStart), "formula$ebnf$1", (lexer.has("formulaDoubleEnd") ? {type: "formulaDoubleEnd"} : formulaDoubleEnd)], "postprocess": formula},
@@ -240,22 +205,12 @@ var grammar = {
     {"name": "formula$ebnf$3", "symbols": [(lexer.has("formula") ? {type: "formula"} : formula)], "postprocess": id},
     {"name": "formula$ebnf$3", "symbols": [], "postprocess": function(d) {return null;}},
     {"name": "formula", "symbols": [(lexer.has("formulaBackStart") ? {type: "formulaBackStart"} : formulaBackStart), "formula$ebnf$3", (lexer.has("formulaBackEnd") ? {type: "formulaBackEnd"} : formulaBackEnd)], "postprocess": formula},
-    {"name": "_", "symbols": []},
-    {"name": "_$ebnf$1$subexpression$1", "symbols": [(lexer.has("comment") ? {type: "comment"} : comment), "_"]},
-    {"name": "_$ebnf$1", "symbols": ["_$ebnf$1$subexpression$1"], "postprocess": id},
-    {"name": "_$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
-    {"name": "_", "symbols": [(lexer.has("space") ? {type: "space"} : space), "_$ebnf$1"], "postprocess": (d) => null},
-    {"name": "_", "symbols": [(lexer.has("comment") ? {type: "comment"} : comment), "_"], "postprocess": (d) => null},
-    {"name": "_", "symbols": ["_", (lexer.has("blockComment") ? {type: "blockComment"} : blockComment), "_"], "postprocess": (d) => null},
-    {"name": "str", "symbols": [(lexer.has("str") ? {type: "str"} : str)], "postprocess": str},
-    {"name": "str", "symbols": [(lexer.has("autonomous_agent") ? {type: "autonomous_agent"} : autonomous_agent)], "postprocess": str},
-    {"name": "str", "symbols": [(lexer.has("true") ? {type: "true"} : true)], "postprocess": str},
-    {"name": "str", "symbols": [(lexer.has("false") ? {type: "false"} : false)], "postprocess": str},
-    {"name": "str$ebnf$1", "symbols": ["str"], "postprocess": id},
-    {"name": "str$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
-    {"name": "str", "symbols": [(lexer.has("decimal") ? {type: "decimal"} : decimal), "str$ebnf$1"], "postprocess": prefixedStr},
+    {"name": "word", "symbols": [(lexer.has("word") ? {type: "word"} : word)], "postprocess": word},
+    {"name": "word", "symbols": [(lexer.has("true") ? {type: "true"} : true)], "postprocess": word},
+    {"name": "word", "symbols": [(lexer.has("false") ? {type: "false"} : false)], "postprocess": word},
+    {"name": "str", "symbols": [(lexer.has("quotedString") ? {type: "quotedString"} : quotedString)], "postprocess": quotedString},
+    {"name": "str", "symbols": [(lexer.has("autonomous_agent") ? {type: "autonomous_agent"} : autonomous_agent)], "postprocess": quotedString},
     {"name": "true", "symbols": [(lexer.has("true") ? {type: "true"} : true)], "postprocess": trueP},
-    {"name": "base64", "symbols": [(lexer.has("base64") ? {type: "base64"} : base64)], "postprocess": base64ToStr},
     {"name": "false", "symbols": [(lexer.has("false") ? {type: "false"} : false)], "postprocess": falseP},
     {"name": "decimal", "symbols": [(lexer.has("decimal") ? {type: "decimal"} : decimal)], "postprocess": decimal}
 ]

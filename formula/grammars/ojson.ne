@@ -2,7 +2,7 @@
 
 const moo = require('moo')
 
-let lexer = moo.states({
+const lexer = moo.states({
 	main: {
 		space: {match: /\s+/, lineBreaks: true},
 		comment: /\/\/.*$/,
@@ -10,29 +10,30 @@ let lexer = moo.states({
 		formulaDoubleStart: { match: '"{', push: 'formulaDouble' },
 		formulaSingleStart: { match: "'{", push: 'formulaSingle' },
 		formulaBackStart: { match: '`{', push: 'formulaBack' },
+		decimal: /(?:[+-])?(?:[0-9]*[.])?[0-9]+/,
+		word: {
+			match: /[a-zA-Z0-9_]+/,
+			type: moo.keywords({
+        false: 'false',
+        true: 'true',
+    	}),
+		},
+		autonomous_agent: [
+			/'autonomous agent'/,
+			/"autonomous agent"/,
+			/`autonomous agent`/,
+		],
+		quotedString: [
+			/'(?:[^'\\]|\\.)*'/,
+			/"(?:[^"\\]|\\.)*"/,
+			/`(?:[^`\\]|\\.)*`/,
+		],
 		'{': '{',
 		'}': '}',
 		'[': '[',
 		']': ']',
 		':': ':',
-		',': ',',
-		base64: [
-			/'(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{4})'/,
-			/"(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{4})"/,
-			/`(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{4})`/,
-		],
-		'"': '"',
-		"'": "'",
-		'`': '`',
-		decimal: /(?:[+-])?(?:[0-9]*[.])?[0-9]+/,
-		str: {
-      match: /[a-zA-Z_0-9 =+*/@><!;&%~^$?#|\\.\[\]()-]+/,
-      type: moo.keywords({
-        autonomous_agent: 'autonomous agent',
-        false: 'false',
-        true: 'true',
-    	}),
-		},
+		',': ','
 	},
 	formulaDouble: {
 		formulaDoubleEnd: { match: '}"', pop: 1 },
@@ -47,6 +48,21 @@ let lexer = moo.states({
 		formula: {match: /[\s\S]+?(?=}`)/, lineBreaks: true},
 	},
 })
+
+var origNext = lexer.next;
+	lexer.next = function () {
+	var tok = origNext.call(this);
+	if (tok) {
+		switch (tok.type) {
+			case 'space':
+			case 'comment':
+			case 'blockComment':
+				return lexer.next();
+		}
+		return tok;
+	}
+	return undefined;
+};
 
 const TYPES = {
 	STR: 'STR',
@@ -75,23 +91,21 @@ const formula = (d) => ({
 const pair = (d) => ({
 	type: TYPES.PAIR,
 	key: d[0],
-	value: d[3][0],
+	value: d[2][0],
 	context: c(d[1])
 })
 
 const objectP = (d) => ({
 	type: TYPES.OBJECT,
-	value: d[2],
+	value: d[1],
 	context: c(d[0])
 })
 
 const array = (d) => ({
 	type: TYPES.ARRAY,
-	value: d[2],
+	value: d[1].map(e => e[0]),
 	context: c(d[0])
 })
-
-const arrayContent = (d) => d[0].map(e => e[0])
 
 const decimal = (d) => ({
 	type: TYPES.DECIMAL,
@@ -99,31 +113,13 @@ const decimal = (d) => ({
 	context: c(d[0])
 })
 
-const valueDecimal = (d) => ([{
-	type: TYPES.STR,
-	value: '' + d[0].value,
-	context: d[0].context
-}])
-
-const quotedFormula = (d) => ([{
-	type: TYPES.STR,
-	value: "'{" + d[0].value + "}'",
-	context: d[0].contex
-}])
-
-const str = (d) => ({
+const word = (d) => ({
 	type: TYPES.STR,
 	value: d[0].text,
 	context: c(d[0])
 })
 
-const prefixedStr = (d) => ({
-	type: TYPES.STR,
-	value: d[0].text + (d[1] ? d[1].value : ''),
-	context: c(d[0])
-})
-
-const base64ToStr = (d) => ({
+const quotedString = (d) => ({
 	type: TYPES.STR,
 	value: d[0].text.slice(1, -1),
 	context: c(d[0])
@@ -143,12 +139,10 @@ const falseP = (d) => ({
 
 const commaOptionalSingle = (d) => d[0]
 const commaOptionalMany = (d) => {
-	let array = d[1].map(e => e[2][0])
+	let array = d[1].map(e => e[1][0])
 	array.unshift(d[0][0])
 	return array
 }
-
-const quoted = (d) => d[1][0]
 
 const log = cb => {
 	return (d) => {
@@ -161,29 +155,23 @@ const log = cb => {
 
 @lexer lexer
 
-quoted[X] ->
-		"'" $X "'" 		{% quoted %}
-	| "`" $X "`" 		{% quoted %}
-	| "\"" $X "\"" 	{% quoted %}
-
 commaOptional[X] ->
 		$X ",":?							{% commaOptionalSingle %}
-	| $X ("," _ $X):+ ",":?	{% commaOptionalMany %}
+	| $X ("," $X):+ ",":?	{% commaOptionalMany %}
 
-start -> _ object _ {% (d) => d[1] %}
+start -> object {% (d) => d[0] %}
 	| startWithAA {% (d) => d[0] %}
 
-startWithAA -> _ "[" _ quoted[%autonomous_agent] "," _ object _ "]" _ {% (d) => d[6] %}
+startWithAA -> "[" %autonomous_agent "," object "]" {% (d) => d[3] %}
 
-object -> "{" _ commaOptional[pair] _ "}" {% objectP %}
+object -> "{" commaOptional[pair] "}" {% objectP %}
 
-pair -> key ":" _ value {% pair %}
+pair -> key ":" value {% pair %}
 
 key ->
-		str 				{% (d) => d[0] %}
-	| quoted[str]	{% (d) => d[0] %}
+		word 				{% (d) => d[0] %}
+	| str					{% (d) => d[0] %}
 	| formula			{% (d) => d[0] %}
-	| base64			{% (d) => d[0] %}
 
 value ->
 		formula
@@ -191,32 +179,24 @@ value ->
 	| false
 	| array
 	| object
-	| base64
 	| decimal
-	| quoted[str]
-	| quoted[formula] {% quotedFormula %}
+	| str
 
-array -> "[" _ arrayContent _ "]" {% array %}
-arrayContent -> commaOptional[(object | formula | quoted[str] | base64 | array)] {% arrayContent %}
+array -> "[" commaOptional[value] "]" {% array %}
 
 formula ->
 		%formulaDoubleStart %formula:? %formulaDoubleEnd {% formula %}
 	|	%formulaSingleStart %formula:? %formulaSingleEnd {% formula %}
 	|	%formulaBackStart %formula:? %formulaBackEnd		 {% formula %}
 
-_ -> null
-	| %space (%comment _):? {% (d) => null %}
-	| %comment _ {% (d) => null %}
-	| _ %blockComment _ {% (d) => null %}
+word ->
+		%word {% word %}
+	| %true {% word %}
+	| %false {% word %}
 
 str ->
-		%str {% str %}
-	| %autonomous_agent {% str %}
-	| %true {% str %}
-	| %false {% str %}
-	| %decimal str:? {% prefixedStr %}
-
+		%quotedString {% quotedString %}
+	|	%autonomous_agent {% quotedString %}
 true -> %true {% trueP %}
-base64 -> %base64 {% base64ToStr %}
 false -> %false {% falseP %}
 decimal -> %decimal {% decimal %}
