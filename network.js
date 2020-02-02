@@ -3065,6 +3065,8 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "last_ball_mci is not valid");
 			if (!ValidationUtils.isPositiveInteger(params.amount))
 				return sendErrorResponse(ws, tag, "amount is not valid");
+			if (params.amount > constants.MAX_CAP)
+				return sendErrorResponse(ws, tag, "amount is too large");
 			var getAssetInfoOrNull = function(asset, cb){
 				if (!asset)
 					return cb(null, null);
