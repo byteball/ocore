@@ -26,6 +26,7 @@ var inputs = require('./inputs.js');
 var breadcrumbs = require('./breadcrumbs.js');
 var mail = require('./mail.js');
 var aa_composer = require('./aa_composer.js');
+var dataFeeds = require('./data_feeds.js');
 var libraryPackageJson = require('./package.json');
 
 var FORWARDING_TIMEOUT = 10*1000; // don't forward if the joint was received more than FORWARDING_TIMEOUT ms ago
@@ -3212,6 +3213,20 @@ function handleRequest(ws, tag, command, params){
 					sendResponse(ws, tag, units);
 				}
 			);
+			break;
+
+		case 'light/get_data_feed':
+			if (conf.bLight)
+				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
+			if (ws.bOutbound)
+				return sendErrorResponse(ws, tag, "light clients have to be inbound");
+			if (!params)
+				return sendErrorResponse(ws, tag, "no params in light/get_data_feed");
+			dataFeeds.readDataFeedValueByParams(params, 1e15, true, function (err, value) {
+				if (err)
+					return sendErrorResponse(ws, tag, err);
+				sendResponse(ws, tag, value);
+			});
 			break;
 
 		case 'light/dry_run_aa':

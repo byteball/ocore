@@ -5,6 +5,7 @@ var _ = require('lodash');
 var kvstore = require('./kvstore.js');
 var string_utils = require('./string_utils.js');
 var storage = require('./storage.js');
+var ValidationUtils = require("./validation_utils.js");
 
 
 function dataFeedExists(arrAddresses, feed_name, relation, value, min_mci, max_mci, bAA, handleResult){
@@ -311,6 +312,72 @@ function readDataFeedByAddress(address, feed_name, value, min_mci, max_mci, ifse
 }
 
 
+function readDataFeedValueByParams(params, max_mci, bAA, cb) {
+	var oracles = params.oracles;
+	if (!oracles)
+		return cb("no params in light/get_profiles_units");
+	if (!ValidationUtils.isNonemptyArray(oracles))
+		return cb("oracles must be non-empty array");
+	if (!oracles.every(ValidationUtils.isValidAddress))
+		return cb("some oracle addresses are not valid");
+	if (oracles.length > 10)
+		return cb("too many oracles");
+	var feed_name = params.feed_name;
+	if (!feed_name || typeof feed_name !== 'string')
+		return cb("empty feed_name or not a string");
+	var value = null;
+	if ('feed_value' in params) {
+		value = params.feed_value;
+		if (!isValidValue(value))
+			return cb("bad feed_value: " + value);
+	}
+	var min_mci = 0;
+	if ('min_mci' in params) {
+		min_mci = params.min_mci;
+		if (!ValidationUtils.isNonnegativeInteger(min_mci))
+			return cb("bad min_mci: " + min_mci);
+	}
+	var ifseveral = 'last';
+	if ('ifseveral' in params) {
+		ifseveral = params.ifseveral;
+		if (ifseveral !== 'abort' && ifseveral !== 'last')
+			return cb("bad ifseveral: " + ifseveral);
+	}
+	var what = 'value';
+	if ('what' in params) {
+		what = params.what;
+		if (what !== 'unit' && what !== 'value')
+			return cb("bad what: " + what);
+	}
+	var type = 'auto';
+	if ('type' in params) {
+		type = params.type;
+		if (type !== 'string' && type !== 'auto')
+			return cb("bad df type: " + type);
+	}
+	if ('ifnone' in params && !isValidValue(params.ifnone))
+		return cb("bad ifnone: " + params.ifnone);
+	readDataFeedValue(oracles, feed_name, value, min_mci, max_mci, bAA, ifseveral, function (objResult) {
+		if (objResult.bAbortedBecauseOfSeveral)
+			return cb("several values found");
+		if (objResult.value !== undefined) {
+			if (what === 'unit')
+				return cb(null, objResult.unit);
+			if (type === 'string')
+				return cb(null, objResult.value.toString());
+			return cb(null, objResult.value);
+		}
+		if ('ifnone' in params && params.ifnone !== 'abort') {
+			return cb(null, params.ifnone); // the type of ifnone (string, number, boolean) is preserved
+		}
+		cb("data feed " + feed_name + " not found");
+	});
+}
+
+function isValidValue(val){
+	return (typeof val === 'string' || typeof val === 'boolean' || typeof val === 'number');
+}
 
 exports.dataFeedExists = dataFeedExists;
 exports.readDataFeedValue = readDataFeedValue;
+exports.readDataFeedValueByParams = readDataFeedValueByParams;
