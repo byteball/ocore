@@ -927,8 +927,11 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 										arrNotIncludedTips.push(row.unit);
 										cb2();
 									}
-									else
+									else {
+										if (arrBestChildren.length % 100 === 0)
+											return setImmediate(goDownAndCollectBestChildrenFast, [row.unit], cb2);
 										goDownAndCollectBestChildrenFast([row.unit], cb2);
+									}
 								},
 								cb
 							);
