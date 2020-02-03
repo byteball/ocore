@@ -479,6 +479,7 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 		// The unit itself is not counted even if it is authored by a witness
 		function updateWitnessedLevelByWitnesslist(arrWitnesses, cb){
 			var arrCollectedWitnesses = [];
+			var count = 0;
 			
 			function setWitnessedLevel(witnessed_level){
 				profiler.start();
@@ -492,6 +493,9 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 			}
 			
 			function addWitnessesAndGoUp(start_unit){
+				count++;
+				if (count % 100 === 0)
+					return setImmediate(addWitnessesAndGoUp, start_unit);
 				profiler.start();
 				storage.readStaticUnitProps(conn, start_unit, function(props){
 					profiler.stop('write-wl-select-bp');
