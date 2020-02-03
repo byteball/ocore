@@ -622,9 +622,13 @@ function determineIfWitnessAddressDefinitionsHaveReferences(conn, arrWitnesses, 
 function determineWitnessedLevelAndBestParent(conn, arrParentUnits, arrWitnesses, handleWitnessedLevelAndBestParent){
 	var arrCollectedWitnesses = [];
 	var my_best_parent_unit;
+	var count = 0;
 
 	function addWitnessesAndGoUp(start_unit){
-		readStaticUnitProps(conn, start_unit, function(props){
+		count++;
+		if (count % 100 === 0)
+			return setImmediate(addWitnessesAndGoUp, start_unit);
+		readStaticUnitProps(conn, start_unit, function (props) {
 			var best_parent_unit = props.best_parent_unit;
 			var level = props.level;
 			if (level === null)
