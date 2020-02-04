@@ -14,6 +14,33 @@ var TYPES = {
 	FORMULA: 'FORMULA'
 };
 
+
+
+function formulaValidator (formula, parserResults, context) {
+	function searchNewlineRecursive (st) {
+		if (_.isArray(st)) {
+			for (var i = 0; i < st.length; i++) {
+				searchNewlineRecursive(st[i])
+			}
+		} else if (st && _.isPlainObject(st)) {
+			var keys = Object.keys(st)
+			for (var i = 0; i < keys.length; i++) {
+				searchNewlineRecursive(st[keys[i]])
+			}
+		} else if (_.isString(st) && st.includes('\n')) {
+			throw new Error(`Error parsing formula starting at line ${context.line} column ${context.col}: newline is not allowed in string '${st}'`)
+		}
+	}
+
+	if (!_.isArray(parserResults)) {
+		throw new Error(`Error parsing formula starting at line ${context.line} column ${context.col}`)
+	} else if (parserResults.length !== 1) {
+		throw new Error(`Error parsing formula starting at line ${context.line} column ${context.col}: ambiguous parser result`)
+	} else {
+		searchNewlineRecursive(parserResults[0])
+	}
+}
+
 exports.parse = function (text, callback) {
 	var parser = {};
 	try {
@@ -53,13 +80,16 @@ exports.parse = function (text, callback) {
 			try {
 				parser = new nearley.Parser(nearley.Grammar.fromCompiled(oscriptGrammar));
 				parser.feed(formula);
+				formulaValidator(formula, parser.results, tree.context)
 				return '{' + formula + '}';
 			} catch (e) {
 				var msg = e.message;
 				var match = msg.match(/invalid syntax at line ([\d]+) col ([\d]+):([\s\S]+)/m);
 				if (match) {
 					throw new Error(`Invalid formula syntax at line ${tree.context.line + Number(match[1]) - 1} col ${tree.context.col + Number(match[2]) - 1}:${match[3]}`);
-				} else {
+				} else if (msg.startsWith('Error parsing formula starting at line')) {
+					throw new Error(msg)
+			  } else {
 					throw new Error(`Invalid formula starting at line ${tree.context.line} col ${tree.context.col}`);
 				}
 			}
