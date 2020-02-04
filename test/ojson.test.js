@@ -364,6 +364,27 @@ test('Back quoted string with escape', t => {
 	)});
 });
 
+test('Disallow newline in string single quoted', t => {
+	var ojson = `{ string: 'newline shall not
+pass' }`
+
+	parseOjson(ojson, (err, res) => { t.regex(err, /^ojson parsing failed: Error: invalid syntax at line 1 col 11:/)});
+});
+
+test('Disallow newline in string double quoted', t => {
+	var ojson = `{ string: "newline shall not
+pass" }`
+
+	parseOjson(ojson, (err, res) => { t.regex(err, /^ojson parsing failed: Error: invalid syntax at line 1 col 11:/)});
+});
+
+test('Disallow newline in string back quoted', t => {
+	var ojson = `{ string: \`newline shall not
+pass\` }`
+
+	parseOjson(ojson, (err, res) => { t.regex(err, /^ojson parsing failed: Error: invalid syntax at line 1 col 11:/)});
+});
+
 test('Simple message', t => {
 	var ojson = `
 {
@@ -390,7 +411,7 @@ test('Wrong formula', t => {
 	key: '{$wrong $formula}',
 }
 `
-	parseOjson(ojson, (err, res) => { t.true(err.startsWith('Invalid formula syntax at'))})
+	parseOjson(ojson, (err, res) => { t.regex(err, /^Invalid formula syntax at/)})
 });
 
 test('Single line array', t => {
@@ -941,14 +962,14 @@ test('Bank with deposits without interest', t => {
 						if (trigger.output[[asset=base]] > 10000){
 							$base_key = 'balance_'||trigger.address||'_'||'base';
 							var[$base_key] = var[$base_key] + trigger.output[[asset=base]];
-							$response_base = trigger.output[[asset=base]] || ' bytes\n';
+							$response_base = trigger.output[[asset=base]] || ' bytes\\n';
 						}
 						if ($asset != 'none'){
 							$asset_key = 'balance_'||trigger.address||'_'||$asset;
 							var[$asset_key] = var[$asset_key] + trigger.output[[asset=$asset]];
-							$response_asset = trigger.output[[asset=$asset]] || ' of ' || $asset || '\n';
+							$response_asset = trigger.output[[asset=$asset]] || ' of ' || $asset || '\\n';
 						}
-						response['message'] = 'accepted coins:\n' || ($response_base otherwise '') || ($response_asset otherwise '');
+						response['message'] = 'accepted coins:\\n' || ($response_base otherwise '') || ($response_asset otherwise '');
 					}\`
 				}]
 			},
@@ -999,14 +1020,14 @@ test('Bank with deposits without interest', t => {
 						if (trigger.output[[asset=base]] > 10000){
 							$base_key = 'balance_'||trigger.address||'_'||'base';
 							var[$base_key] = var[$base_key] + trigger.output[[asset=base]];
-							$response_base = trigger.output[[asset=base]] || ' bytes\n';
+							$response_base = trigger.output[[asset=base]] || ' bytes\\n';
 						}
 						if ($asset != 'none'){
 							$asset_key = 'balance_'||trigger.address||'_'||$asset;
 							var[$asset_key] = var[$asset_key] + trigger.output[[asset=$asset]];
-							$response_asset = trigger.output[[asset=$asset]] || ' of ' || $asset || '\n';
+							$response_asset = trigger.output[[asset=$asset]] || ' of ' || $asset || '\\n';
 						}
-						response['message'] = 'accepted coins:\n' || ($response_base otherwise '') || ($response_asset otherwise '');
+						response['message'] = 'accepted coins:\\n' || ($response_base otherwise '') || ($response_asset otherwise '');
 					}`
 							}]
 						},
@@ -1838,14 +1859,14 @@ test('Order book exchange', t => {
 						if (trigger.output[[asset=base]] > 10000){
 							$base_key = 'balance_'||trigger.address||'_'||'base';
 							var[$base_key] = var[$base_key] + trigger.output[[asset=base]];
-							$response_base = trigger.output[[asset=base]] || ' bytes\n';
+							$response_base = trigger.output[[asset=base]] || ' bytes\\n';
 						}
 						if ($asset != 'none'){
 							$asset_key = 'balance_'||trigger.address||'_'||$asset;
 							var[$asset_key] = var[$asset_key] + trigger.output[[asset=$asset]];
-							$response_asset = trigger.output[[asset=$asset]] || ' of ' || $asset || '\n';
+							$response_asset = trigger.output[[asset=$asset]] || ' of ' || $asset || '\\n';
 						}
-						response['message'] = 'accepted coins:\n' || ($response_base otherwise '') || ($response_asset otherwise '');
+						response['message'] = 'accepted coins:\\n' || ($response_base otherwise '') || ($response_asset otherwise '');
 					}\`
 				}]
 			},
@@ -1965,14 +1986,14 @@ test('Order book exchange', t => {
 						if (trigger.output[[asset=base]] > 10000){
 							$base_key = 'balance_'||trigger.address||'_'||'base';
 							var[$base_key] = var[$base_key] + trigger.output[[asset=base]];
-							$response_base = trigger.output[[asset=base]] || ' bytes\n';
+							$response_base = trigger.output[[asset=base]] || ' bytes\\n';
 						}
 						if ($asset != 'none'){
 							$asset_key = 'balance_'||trigger.address||'_'||$asset;
 							var[$asset_key] = var[$asset_key] + trigger.output[[asset=$asset]];
-							$response_asset = trigger.output[[asset=$asset]] || ' of ' || $asset || '\n';
+							$response_asset = trigger.output[[asset=$asset]] || ' of ' || $asset || '\\n';
 						}
-						response['message'] = 'accepted coins:\n' || ($response_base otherwise '') || ($response_asset otherwise '');
+						response['message'] = 'accepted coins:\\n' || ($response_base otherwise '') || ($response_asset otherwise '');
 					}`
 							}]
 						},
