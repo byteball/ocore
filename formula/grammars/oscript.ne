@@ -4,10 +4,10 @@
 
 	var lexer = moo.compile({
 		string: [
-			{match: /"(?:\\["\\rn]|[\\\rn]|[^"\\])*?"/, lineBreaks: true, value: function(v){
+			{match: /"(?:[^"\\]|\\.)*"/, lineBreaks: true, value: function(v){
 				return v.slice(1, -1).replace(/\\\"/g, '"').replace(/\\\\/g, '\\');
 			}},
-			{match: /'(?:\\['\\rn]|[\\\rn]|[^'\\])*?'/, lineBreaks: true, value: function(v){
+			{match: /'(?:[^'\\]|\\.)*'/, lineBreaks: true, value: function(v){
 				return v.slice(1, -1).replace(/\\\'/g, "'").replace(/\\\\/g, '\\');
 			}}
 		],
@@ -159,7 +159,7 @@ local_var -> (%local_var_name|local_var_expr) (%dotSelector|"[" "[" search_param
 			else if (item.length === 5)
 				return ['search_param_list', item[2]];
 			else
-				return item[1]; 
+				return item[1];
 		});
 	return ['local_var', v, selectors];
 }  %}
@@ -339,10 +339,10 @@ N -> float          {% id %}
 				else if (item.length === 5)
 					return ['search_param_list', item[2]];
 				else
-					return item[1]; 
+					return item[1];
 			});
 		}
-		return [d[0][0].value, d[2], selectors]; }  
+		return [d[0][0].value, d[2], selectors]; }
 	%}
 	| "storage_size"  {% function(d) {return ['storage_size']; }  %}
 	| "mci"  {% function(d) {return ['mci']; }  %}
@@ -361,9 +361,9 @@ N -> float          {% id %}
 			else if (item.length === 5)
 				return ['search_param_list', item[2]];
 			else
-				return item[1]; 
+				return item[1];
 		});
-		return [d[0][0].value, selectors]; }  
+		return [d[0][0].value, selectors]; }
 	%}
 	| "trigger.output" ("[" "[") "asset" comparisonOperator (expr|%base) ("]" "]") %dotSelector:?  {% function(d) {
 		var value = d[4][0];

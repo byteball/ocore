@@ -8,10 +8,10 @@ function id(x) { return x[0]; }
 
 	var lexer = moo.compile({
 		string: [
-			{match: /"(?:\\["\\rn]|[\\\rn]|[^"\\])*?"/, lineBreaks: true, value: function(v){
+			{match: /"(?:[^"\\]|\\.)*"/, lineBreaks: true, value: function(v){
 				return v.slice(1, -1).replace(/\\\"/g, '"').replace(/\\\\/g, '\\');
 			}},
-			{match: /'(?:\\['\\rn]|[\\\rn]|[^'\\])*?'/, lineBreaks: true, value: function(v){
+			{match: /'(?:[^'\\]|\\.)*'/, lineBreaks: true, value: function(v){
 				return v.slice(1, -1).replace(/\\\'/g, "'").replace(/\\\\/g, '\\');
 			}}
 		],
@@ -169,7 +169,7 @@ var grammar = {
         			else if (item.length === 5)
         				return ['search_param_list', item[2]];
         			else
-        				return item[1]; 
+        				return item[1];
         		});
         	return ['local_var', v, selectors];
         }  },
@@ -424,10 +424,10 @@ var grammar = {
         		else if (item.length === 5)
         			return ['search_param_list', item[2]];
         		else
-        			return item[1]; 
+        			return item[1];
         	});
         }
-        return [d[0][0].value, d[2], selectors]; }  
+        return [d[0][0].value, d[2], selectors]; }
         	},
     {"name": "N", "symbols": [{"literal":"storage_size"}], "postprocess": function(d) {return ['storage_size']; }},
     {"name": "N", "symbols": [{"literal":"mci"}], "postprocess": function(d) {return ['mci']; }},
@@ -453,9 +453,9 @@ var grammar = {
         	else if (item.length === 5)
         		return ['search_param_list', item[2]];
         	else
-        		return item[1]; 
+        		return item[1];
         });
-        return [d[0][0].value, selectors]; }  
+        return [d[0][0].value, selectors]; }
         	},
     {"name": "N$subexpression$12", "symbols": [{"literal":"["}, {"literal":"["}]},
     {"name": "N$subexpression$13", "symbols": ["expr"]},
