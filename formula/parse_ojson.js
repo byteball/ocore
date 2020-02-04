@@ -16,7 +16,7 @@ var TYPES = {
 
 
 
-function formulaValidator (formula, parserResults, context) {
+function validateFormula (formula, parserResults, context) {
 	function searchNewlineRecursive (st) {
 		if (_.isArray(st)) {
 			for (var i = 0; i < st.length; i++) {
@@ -80,7 +80,7 @@ exports.parse = function (text, callback) {
 			try {
 				parser = new nearley.Parser(nearley.Grammar.fromCompiled(oscriptGrammar));
 				parser.feed(formula);
-				formulaValidator(formula, parser.results, tree.context)
+				validateFormula(formula, parser.results, tree.context)
 				return '{' + formula + '}';
 			} catch (e) {
 				var msg = e.message;
