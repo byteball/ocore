@@ -2,6 +2,7 @@ var path = require('path');
 var crypto = require('crypto');
 var Mnemonic = require('bitcore-mnemonic');
 var objectHash = require("../object_hash.js");
+var merkle = require('../merkle.js');
 var ecdsaSig = require('../signature.js');
 var desktop_app = require('../desktop_app.js');
 desktop_app.getAppDataDir = function() { return __dirname + '/.testdata-' + path.basename(__filename); }
@@ -2743,5 +2744,58 @@ test.cb('definition invalid', t => {
 	evalFormulaWithVars({ conn: db, formula: `definition['non-addr'][1].bounce_fees`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
 		t.deepEqual(res, false);
 		t.end();
+	})
+});
+
+function getRandomString(){
+	return crypto.randomBytes(12).toString("base64");
+}
+
+function getRandomInt(min, max) {
+	return Math.floor(Math.random() * (max+1 - min)) + min;
+}
+	
+function createMerkleSet() {
+	var len = getRandomInt(1, 10000);
+	var index = getRandomInt(0, len-1);
+	var arrElements = [];
+	for (var i = 0; i < len; i++)
+		arrElements.push(getRandomString());
+	return {
+		element: arrElements[index],
+		proof: merkle.getMerkleProof(arrElements, index)
+	};
+}
+
+test('is_valid_merkle_proof obj', t => {
+
+	var merkleSet = createMerkleSet();
+	var trigger = { data: { proof: merkleSet.proof, element: merkleSet.element } };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `is_valid_merkle_proof(trigger.data.element, trigger.data.proof)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, true);
+		t.deepEqual(complexity, 2);
+	})
+});
+
+test('is_valid_merkle_proof string', t => {
+
+	var merkleSet = createMerkleSet();
+	var trigger = { data: { proof: merkle.serializeMerkleProof(merkleSet.proof), element: merkleSet.element } };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `is_valid_merkle_proof(trigger.data.element, trigger.data.proof)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, true);
+		t.deepEqual(complexity, 2);
+	})
+});
+
+test('is_valid_merkle_proof string invalid', t => {
+
+	var merkleSet = createMerkleSet();
+	var trigger = { data: { proof: merkle.serializeMerkleProof(merkleSet.proof), element: merkleSet.element+'X' } };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `is_valid_merkle_proof(trigger.data.element, trigger.data.proof)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, false);
+		t.deepEqual(complexity, 2);
 	})
 });

@@ -663,6 +663,17 @@ exports.validate = function (opts, callback) {
 				});
 				break;
 
+			case 'is_valid_merkle_proof':
+				complexity++;
+				var element = arr[1];
+				var proof = arr[2];
+				evaluate(element, function (err) {
+					if (err)
+						return cb(err);
+					evaluate(proof, cb);
+				});
+				break;
+
 			case 'sha256':
 				complexity++;
 				var expr = arr[1];

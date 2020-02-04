@@ -6,6 +6,7 @@ var _ = require('lodash');
 var base32 = require('thirty-two');
 var ValidationUtils = require("../validation_utils.js");
 var string_utils = require("../string_utils.js");
+var merkle = require('../merkle.js');
 var constants = require('../constants');
 var dataFeeds = require('../data_feeds.js');
 var storage = require('../storage.js');
@@ -1517,6 +1518,34 @@ exports.evaluate = function (opts, callback) {
 						});
 					});
 					break;
+
+			case 'is_valid_merkle_proof':
+				var element_expr = arr[1];
+				var proof_expr = arr[2];
+				evaluate(element_expr, function (element) {
+					if (fatal_error)
+						return cb(false);
+					if (typeof element === 'boolean' || isFiniteDecimal(element))
+						element = element.toString();
+					if (!ValidationUtils.isNonemptyString(element))
+						return setFatalError("bad element in is_valid_merkle_proof", cb, false);
+					evaluate(proof_expr, function (proof) {
+						if (fatal_error)
+							return cb(false);
+						var objProof;
+						if (proof instanceof wrappedObject)
+							objProof = proof.obj;
+						else if (typeof proof === 'string') {
+							if (proof.length > 1024)
+								return setFatalError("proof is too large", cb, false);
+							objProof = merkle.deserializeMerkleProof(proof);
+						}
+						else // can't be valid proof
+							return cb(false);
+						cb(merkle.verifyMerkleProof(element, objProof));
+					});
+				});
+				break;
 
 			case 'sha256':
 				var expr = arr[1];
