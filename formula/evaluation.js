@@ -1487,37 +1487,37 @@ exports.evaluate = function (opts, callback) {
 				});
 				break;
 
-				case 'vrf_verify':
-					var seed = arr[1];
-					var proof = arr[2];
-					var pem_key = arr[3];
-					evaluate(seed, function (evaluated_seed) {
+			case 'vrf_verify':
+				var seed = arr[1];
+				var proof = arr[2];
+				var pem_key = arr[3];
+				evaluate(seed, function (evaluated_seed) {
+					if (fatal_error)
+						return cb(false);
+					if (!ValidationUtils.isNonemptyString(evaluated_seed))
+						return setFatalError("bad seed in vrf_verify", cb, false);
+					evaluate(proof, function (evaluated_proof) {
 						if (fatal_error)
 							return cb(false);
-						if (!ValidationUtils.isNonemptyString(evaluated_seed))
-							return setFatalError("bad seed in vrf_verify", cb, false);
-						evaluate(proof, function (evaluated_proof) {
+						if (!ValidationUtils.isNonemptyString(evaluated_proof))
+							return setFatalError("bad proof string in vrf_verify", cb, false);
+						if (evaluated_proof.length > 1024)
+							return setFatalError("proof is too large", cb, false);
+						if (!ValidationUtils.isValidHexadecimal(evaluated_proof))
+							return setFatalError("bad signature string in vrf_verify", cb, false);
+						evaluate(pem_key, function (evaluated_pem_key) {
 							if (fatal_error)
 								return cb(false);
-							if (!ValidationUtils.isNonemptyString(evaluated_proof))
-								return setFatalError("bad proof string in vrf_verify", cb, false);
-							if (evaluated_proof.length > 1024)
-								return setFatalError("proof is too large", cb, false);
-							if (!ValidationUtils.isValidHexadecimal(evaluated_proof))
-								return setFatalError("bad signature string in vrf_verify", cb, false);
-							evaluate(pem_key, function (evaluated_pem_key) {
-								if (fatal_error)
-									return cb(false);
-								signature.validateAndFormatPemPubKey(evaluated_pem_key, "RSA", function (error, formatted_pem_key){
-									if (error)
-										return setFatalError("bad PEM key in vrf_verify: " + error, cb, false);
-									var result = signature.verifyMessageWithPemPubKey(evaluated_seed, evaluated_proof, formatted_pem_key);
-									return cb(result);
-								});
+							signature.validateAndFormatPemPubKey(evaluated_pem_key, "RSA", function (error, formatted_pem_key){
+								if (error)
+									return setFatalError("bad PEM key in vrf_verify: " + error, cb, false);
+								var result = signature.verifyMessageWithPemPubKey(evaluated_seed, evaluated_proof, formatted_pem_key);
+								return cb(result);
 							});
 						});
 					});
-					break;
+				});
+				break;
 
 			case 'is_valid_merkle_proof':
 				var element_expr = arr[1];
