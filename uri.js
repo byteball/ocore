@@ -168,6 +168,11 @@ function parseUri(uri, callbacks){
 		if (base64data){
 			objRequest.base64data = base64data;
 		}
+		if (assocParams.from_address) {
+			objRequest.from_address = assocParams.from_address;
+			if (!ValidationUtils.isValidAddress(objRequest.from_address))
+				return callbacks.ifError('invalid from address: '+objRequest.from_address);
+		}
 	}
 	callbacks.ifOk(objRequest);
 }
