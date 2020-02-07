@@ -20,54 +20,64 @@ function migrate(conn, onDone){
 }
 
 function migrateUnits(conn, onDone){
-	conn.query("SELECT unit FROM units", function(rows){
-		if (rows.length === 0)
-			return onDone();
-		var start_time = Date.now();
-		var reading_time = 0;
-		var batch = bCordova ? null : kvstore.batch();
-		async.forEachOfSeries(
-			rows,
-			function(row, i, cb){
-				var unit = row.unit;
-				var time = process.hrtime();
-				storage.readJoint(conn, unit, {
-					ifNotFound: function(){
-						throw Error("not found: "+unit);
+	if (conf.storage !== 'sqlite')
+		throw Error('only sqlite migration supported');
+	var count = 0;
+	var offset = 0;
+	var CHUNK_SIZE = 10000;
+	var start_time = Date.now();
+	var reading_time = 0;
+	async.forever(
+		function(next){
+			conn.query("SELECT unit FROM units WHERE rowid>=? AND rowid<? ORDER BY rowid", [offset, offset + CHUNK_SIZE], function(rows){
+				if (rows.length === 0)
+					return next("done");
+				var batch = bCordova ? null : kvstore.batch();
+				async.forEachOfSeries(
+					rows,
+					function(row, i, cb){
+						count++;
+						var unit = row.unit;
+						var time = process.hrtime();
+						storage.readJoint(conn, unit, {
+							ifNotFound: function(){
+								throw Error("not found: "+unit);
+							},
+							ifFound: function(objJoint){
+								reading_time += getTimeDifference(time);
+								if (!conf.bLight){
+									if (objJoint.unit.version === constants.versionWithoutTimestamp)
+										delete objJoint.unit.timestamp;
+									delete objJoint.unit.main_chain_index;
+								}
+								if (bCordova)
+									return conn.query("INSERT " + conn.getIgnore() + " INTO joints (unit, json) VALUES (?,?)", [unit, JSON.stringify(objJoint)], function(){ cb(); });
+								batch.put('j\n'+unit, JSON.stringify(objJoint));
+								cb();
+							}
+						}, true);
 					},
-					ifFound: function(objJoint){
-						reading_time += getTimeDifference(time);
-						if (!conf.bLight){
-							if (objJoint.unit.version === constants.versionWithoutTimestamp)
-								delete objJoint.unit.timestamp;
-							delete objJoint.unit.main_chain_index;
-						}
+					function(){
+						offset += CHUNK_SIZE;
 						if (bCordova)
-							return conn.query("INSERT " + conn.getIgnore() + " INTO joints (unit, json) VALUES (?,?)", [unit, JSON.stringify(objJoint)], function(){ cb(); });
-						batch.put('j\n'+unit, JSON.stringify(objJoint));
-						if (i%1000 > 0)
-							return cb();
+							return next();
 						commitBatch(batch, function(){
-							console.error('units '+i);
-							// open a new batch
-							batch = kvstore.batch();
-							cb();
+							console.error('units ' + count);
+							next();
 						});
 					}
-				}, true);
-			},
-			function(){
-				if (bCordova)
-					return onDone();
-				commitBatch(batch, function(){
-					var consumed_time = Date.now()-start_time;
-					console.error('units done in '+consumed_time+'ms, avg '+(consumed_time/rows.length)+'ms');
-					console.error('reading time '+reading_time+'ms, avg '+(reading_time/rows.length)+'ms');
-					onDone();
-				});
-			}
-		);
-	});
+				);
+			});
+		},
+		function(err){
+			if (count === 0)
+				return onDone();
+			var consumed_time = Date.now()-start_time;
+			console.error('units done in '+consumed_time+'ms, avg '+(consumed_time/count)+'ms');
+			console.error('reading time '+reading_time+'ms, avg '+(reading_time/count)+'ms');
+			onDone();
+		}
+	);
 }
 
 function migrateDataFeeds(conn, onDone){
