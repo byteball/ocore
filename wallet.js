@@ -26,6 +26,7 @@ var balances = require('./balances');
 var Mnemonic = require('bitcore-mnemonic');
 var inputs = require('./inputs.js');
 var prosaic_contract = require('./prosaic_contract.js');
+var arbiter_contract = require('./arbiter_contract.js');
 
 var message_counter = 0;
 var assocLastFailedAssetMetadataTimestamps = {};
@@ -512,6 +513,27 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			);
 			break;
 
+		case 'arbiter_contract_shared':
+			if (!body.title || !body.text || !body.creation_date || !body.arbiter_address || typeof body.me_is_payer === "undefined" || !body.peer_pairing_code || !body.amount || body.amount <= 0)
+				return callbacks.ifError("not all contract fields submitted");
+			if (!ValidationUtils.isValidAddress(body.peer_address) || !ValidationUtils.isValidAddress(body.my_address) || !ValidationUtils.isValidAddress(body.arbiter_address))
+				return callbacks.ifError("either peer_address or address or arbiter_address is not valid in contract");
+			if (body.hash !== arbiter_contract.getHash(body))
+				return callbacks.ifError("wrong contract hash");
+			if (!/^\d{4}\-\d{2}\-\d{2} \d{2}:\d{2}:\d{2}$/.test(body.creation_date))
+				return callbacks.ifError("wrong contract creation date");
+			db.query("SELECT 1 FROM my_addresses \n\
+					JOIN wallet_signing_paths USING(wallet)\n\
+					WHERE my_addresses.address=? AND wallet_signing_paths.device_address=?",[body.my_address, from_address],
+				function(rows) {
+					if (!rows.length)
+						return callbacks.ifError("contract does not contain my address");
+					arbiter_contract.store(body);
+					callbacks.ifOk();
+				}
+			);
+			break;
+
 		case 'prosaic_contract_response':
 			var validation = require('./validation.js');
 
@@ -575,6 +597,73 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			});
 			break;
 
+		case 'arbiter_contract_response':
+			var validation = require('./validation.js');
+
+			if (body.status !== "accepted" && body.status !== "declined")
+				return callbacks.ifError("wrong status supplied");
+
+			arbiter_contract.getByHash(body.hash, function(objContract){
+				if (!objContract)
+					return callbacks.ifError("wrong contract hash");
+				if (body.status === "accepted" && !body.signed_message)
+					return callbacks.ifError("response is not signed");
+				var processResponse = function(objSignedMessage) {
+					if (body.authors && body.authors.length) {
+						if (body.authors.length !== 1)
+							return callbacks.ifError("wrong number of authors received");
+						var author = body.authors[0];
+						if (author.definition && (author.address !== objectHash.getChash160(author.definition)))
+							return callbacks.ifError("incorrect definition received");
+						if (!ValidationUtils.isValidAddress(author.address) || author.address !== objContract.peer_address)
+							return callbacks.ifError("incorrect author address");
+						// this can happen when acceptor and offerer have same device in cosigners
+						db.query('SELECT 1 FROM my_addresses WHERE address=? \n\
+							UNION SELECT 1 FROM shared_addresses WHERE shared_address=?', [author.address, author.address], function(rows) {
+								if (rows.length)
+									return;
+								db.query("INSERT "+db.getIgnore()+" INTO peer_addresses (address, device_address, signing_paths, definition) VALUES (?, ?, ?, ?)",
+									[author.address, from_address, JSON.stringify(Object.keys(objSignedMessage.authors[0].authentifiers)), JSON.stringify(author.definition)],
+									function(res) {
+										if (res.affectedRows == 0)
+											db.query("UPDATE peer_addresses SET signing_paths=?, definition=? WHERE address=?", [JSON.stringify(Object.keys(objSignedMessage.authors[0].authentifiers)), JSON.stringify(author.definition), author.address]);
+									}
+								);
+							}
+						);
+					}
+					if (objContract.status !== 'pending')
+						return callbacks.ifError("contract is not active, current status: " + objContract.status);
+					var objDateCopy = new Date(objContract.creation_date_obj);
+					if (objDateCopy.setHours(objDateCopy.getHours() + objContract.ttl) < Date.now())
+						return callbacks.ifError("contract already expired");
+					if (body.peer_pairing_code)
+						arbiter_contract.setField(objContract.hash, "peer_pairing_code", body.peer_pairing_code);
+					if (body.peer_contact_info)
+						arbiter_contract.setField(objContract.hash, "peer_contact_info", body.peer_contact_info);
+					arbiter_contract.setField(objContract.hash, "status", body.status);
+					eventBus.emit("text", from_address, "contract \""+objContract.title+"\" " + body.status, ++message_counter);
+					eventBus.emit("arbiter_contract_response_received" + body.hash, (body.status === "accepted"), body.authors);
+					callbacks.ifOk();
+				};
+				if (body.signed_message) {
+					var signedMessageJson = Buffer.from(body.signed_message, 'base64').toString('utf8');
+					try{
+						var objSignedMessage = JSON.parse(signedMessageJson);
+					}
+					catch(e){
+						return callbacks.ifError("wrong signed message");
+					}
+					validation.validateSignedMessage(objSignedMessage, function(err) {
+						if (err || objSignedMessage.authors[0].address !== objContract.peer_address || objSignedMessage.signed_message != objContract.title)
+							return callbacks.ifError("wrong contract signature");
+						processResponse(objSignedMessage);
+					});
+				} else
+					processResponse();
+			});
+			break;
+
 		case 'prosaic_contract_update':
 			prosaic_contract.getByHash(body.hash, function(objContract){
 				if (!objContract || objContract.peer_device_address !== from_address)
@@ -600,6 +689,56 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					return callbacks.ifError("wrong field");
 				}
 				prosaic_contract.setField(objContract.hash, body.field, body.value);
+				callbacks.ifOk();
+			});
+			break;
+
+		case 'arbiter_contract_update':
+			arbiter_contract.getByHash(body.hash, function(objContract){
+				if (!objContract || objContract.peer_device_address !== from_address)
+					return callbacks.ifError("wrong contract hash or not an owner");
+				if (body.field == "status") {
+					if (body.value !== "revoked" || objContract.status !== "pending")
+							return callbacks.ifError("wrong status for contract supplied");
+				} else 
+				if (body.field == "unit") {
+					if (objContract.status !== "accepted")
+						return callbacks.ifError("contract was not accepted");
+					if (objContract.unit)
+							return callbacks.ifError("unit was already provided for this contract");
+				} else
+				if (body.field == "shared_address") {
+					if (objContract.status !== "accepted")
+						return callbacks.ifError("contract was not accepted");
+					if (objContract.shared_address)
+							return callbacks.ifError("shared_address was already provided for this contract");
+						if (!ValidationUtils.isValidAddress(body.value))
+							return callbacks.ifError("invalid address provided");
+				} else {
+					return callbacks.ifError("wrong field");
+				}
+				arbiter_contract.setField(objContract.hash, body.field, body.value);
+				callbacks.ifOk();
+			});
+			break;
+
+		case 'arbiter_contract_offer':
+			body.peer_device_address = from_address;
+			if (!body.title || !body.text || !body.creation_date || !body.arbiter_address || typeof body.me_is_payer === "undefined" || !body.peer_pairing_code || !body.amount || body.amount <= 0)
+				return callbacks.ifError("not all contract fields submitted");
+			if (!ValidationUtils.isValidAddress(body.peer_address) || !ValidationUtils.isValidAddress(body.my_address) || !ValidationUtils.isValidAddress(body.arbiter_address))
+				return callbacks.ifError("either peer_address or address or arbiter_address is not valid in contract");
+			if (body.hash !== arbiter_contract.getHash(body)) {
+				return callbacks.ifError("wrong contract hash");
+			}
+			if (!/^\d{4}\-\d{2}\-\d{2} \d{2}:\d{2}:\d{2}$/.test(body.creation_date))
+				return callbacks.ifError("wrong contract creation date");
+			db.query("SELECT 1 FROM my_addresses WHERE address=?", [body.my_address], function(rows) {
+				if (!rows.length)
+					return callbacks.ifError("contract does not contain my address");
+				arbiter_contract.store(body);
+				var chat_message = "(arbiter-contract:" + Buffer.from(JSON.stringify(body), 'utf8').toString('base64') + ")";
+				eventBus.emit("text", from_address, chat_message, ++message_counter);
 				callbacks.ifOk();
 			});
 			break;
@@ -1525,25 +1664,27 @@ function getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey) {
 					});
 					walletGeneral.sendOfferToSign(device_address, address, signing_path, objUnsignedUnit, assocPrivatePayloads);
 
-					// filter out prosaic contract txs to change/suppress popup messages
+					// filter out prosaic and arbiter contract txs to change/suppress popup messages
 					async.series([function(cb) { // step 1: prosaic contract shared address deposit
 						var payment_msg = _.find(objUnsignedUnit.messages, function(m){return m.app=="payment"});
 						if (!payment_msg)
 							return cb();
-						var possible_contract_output = _.find(payment_msg.payload.outputs, function(o){return o.amount==prosaic_contract.CHARGE_AMOUNT});
+						var possible_contract_output = _.find(payment_msg.payload.outputs, function(o){return o.amount==prosaic_contract.CHARGE_AMOUNT || o.amount==arbiter_contract.CHARGE_AMOUNT});
 						if (!possible_contract_output)
 							return cb();
-						db.query("SELECT 1 FROM prosaic_contracts WHERE shared_address=?", [possible_contract_output.address], function(rows) {
+						var table = possible_contract_output.amount==prosaic_contract.CHARGE_AMOUNT ? 'prosaic' : 'arbiter';
+						db.query("SELECT 1 FROM "+table+"_contracts WHERE shared_address=?", [possible_contract_output.address], function(rows) {
 							if (!rows.length)
 								return cb();
 							if (!bRequestedConfirmation) {
-								eventBus.emit("confirm_prosaic_contract_deposit");
+								eventBus.emit("confirm_contract_deposit");
 								bRequestedConfirmation = true;
 							}
 							return cb(true);
 						});
-					}, function(cb) { // step 2: posting unit with contract hash (or not a prosaic contract / not a tx at all)
-						db.query("SELECT peer_device_address FROM prosaic_contracts WHERE shared_address=? OR peer_address=?", [address, address], function(rows) {
+					}, function(cb) { // step 2: posting unit with contract hash (or not a prosaic and arbiter contract / not a tx at all)
+						db.query("SELECT peer_device_address FROM prosaic_contracts WHERE shared_address=? OR peer_address=?\n\
+							UNION SELECT peer_device_address FROM arbiter_contracts WHERE shared_address=? OR peer_address=?", [address, address, address, address], function(rows) {
 							if (!rows.length) 
 								return cb();
 							// do not show alert for peer address in prosaic contracts
@@ -1551,7 +1692,7 @@ function getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey) {
 								return cb(true);
 							// co-signers on our side
 							if (!bRequestedConfirmation) {
-								eventBus.emit("confirm_prosaic_contract_post");
+								eventBus.emit("confirm_contract_post");
 								bRequestedConfirmation = true;
 							}
 							return cb(true);

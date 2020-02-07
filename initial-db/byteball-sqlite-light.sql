@@ -789,4 +789,10 @@ CREATE TABLE correspondent_settings (
 	PRIMARY KEY (device_address, correspondent_address)
 );
 
-PRAGMA user_version=28;
+CREATE TABLE arbiter_locations (
+	arbiter_address CHAR(32) NOT NULL PRIMARY KEY,
+	arbstore_host VARCHAR(100) NOT NULL,
+	unit CHAR(44) NULL
+)
+
+PRAGMA user_version=30;

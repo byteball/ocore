@@ -2993,11 +2993,11 @@ function handleRequest(ws, tag, command, params){
 			});
 			break;
 
-		case 'hub/get_arbstore_url':
+		case 'hub/get_arbstore_host':
 			var arbiter_address = params;
-			db.query("SELECT arbstore_address FROM arbiter_locations WHERE arbiter_address=?", [arbiter_address], function(rows){
-				var address = rows.length ? conf.ArbRegistries[rows[0].arbstore_address] : '';
-				sendResponse(ws, tag, address);
+			db.query("SELECT arbstore_address FROM arbiters_locations WHERE arbiter_address=?", [arbiter_address], function(rows){
+				var host = rows.length ? conf.ArbRegistries[rows[0].arbstore_address] : '';
+				sendResponse(ws, tag, host);
 			});
 			break;
 			

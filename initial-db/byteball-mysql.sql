@@ -790,3 +790,9 @@ CREATE TABLE IF NOT EXISTS arbiter_associations (
 	arbstore_address CHAR(32) NOT NULL,
 	unit CHAR(44) NOT NULL UNIQUE
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
+
+CREATE TABLE arbiter_locations (
+	arbiter_address CHAR(32) NOT NULL PRIMARY KEY,
+	arbstore_host VARCHAR(100) NOT NULL,
+	unit CHAR(44) NOT NULL UNIQUE
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;

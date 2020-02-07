@@ -7,19 +7,19 @@ var objectHash = require('./object_hash.js');
 var crypto = require('crypto');
 
 var status_PENDING = 'pending';
-exports.CHARGE_AMOUNT = 2000;
+exports.CHARGE_AMOUNT = 4000;
 
-function createAndSend(hash, peer_address, peer_device_address, my_address, creation_date, ttl, title, text, cosigners, cb) {
-	db.query("INSERT INTO prosaic_contracts (hash, peer_address, peer_device_address, my_address, is_incoming, creation_date, ttl, status, title, text, cosigners) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [hash, peer_address, peer_device_address, my_address, false, creation_date, ttl, status_PENDING, title, text, JSON.stringify(cosigners)], function() {
-		var objContract = {title: title, text: text, creation_date: creation_date, hash: hash, peer_address: my_address, ttl: ttl, my_address: peer_address};
-		device.sendMessageToDevice(peer_device_address, "prosaic_contract_offer", objContract);
+function createAndSend(hash, peer_address, peer_device_address, my_address, arbiter_address, me_is_payer, amount, creation_date, ttl, title, text, cosigners, pairing_code, myContactInfo, cb) {
+	db.query("INSERT INTO arbiter_contracts (hash, peer_address, peer_device_address, my_address, arbiter_address, me_is_payer, amount, is_incoming, creation_date, ttl, status, title, text, my_contact_info, cosigners) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [hash, peer_address, peer_device_address, my_address, arbiter_address, me_is_payer, amount, false, creation_date, ttl, status_PENDING, title, text, myContactInfo, JSON.stringify(cosigners)], function() {
+		var objContract = {title: title, text: text, creation_date: creation_date, hash: hash, peer_address: my_address, ttl: ttl, my_address: peer_address, arbiter_address: arbiter_address, me_is_payer: !me_is_payer, amount: amount, peer_pairing_code: pairing_code, peer_contact_info: myContactInfo};
+		device.sendMessageToDevice(peer_device_address, "arbiter_contract_offer", objContract);
 		if (cb)
 			cb(objContract);
 	});
 }
 
 function getByHash(hash, cb) {
-	db.query("SELECT * FROM prosaic_contracts WHERE hash=?", [hash], function(rows){
+	db.query("SELECT * FROM arbiter_contracts WHERE hash=?", [hash], function(rows){
 		if (!rows.length)
 			return cb(null);
 		var contract = rows[0];
@@ -27,7 +27,7 @@ function getByHash(hash, cb) {
 	});
 }
 function getBySharedAddress(address, cb) {
-	db.query("SELECT * FROM prosaic_contracts WHERE shared_address=?", [address], function(rows){
+	db.query("SELECT * FROM arbiter_contracts WHERE shared_address=?", [address], function(rows){
 		if (!rows.length)
 			return cb(null);
 		var contract = rows[0];
@@ -45,18 +45,18 @@ function getAllByStatus(status, cb) {
 }
 
 function setField(hash, field, value, cb) {
-	if (!["status", "shared_address", "unit"].includes(field))
+	if (!["status", "shared_address", "unit", "my_contact_info", "peer_contact_info", "peer_pairing_code"].includes(field))
 		throw new Error("wrong field for setField method");
-	db.query("UPDATE prosaic_contracts SET " + field + "=? WHERE hash=?", [value, hash], function(res) {
+	db.query("UPDATE arbiter_contracts SET " + field + "=? WHERE hash=?", [value, hash], function(res) {
 		if (cb)
 			cb(res);
 	});
 }
 
 function store(objContract, cb) {
-	var fields = '(hash, peer_address, peer_device_address, my_address, is_incoming, creation_date, ttl, status, title, text';
-	var placeholders = '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?';
-	var values = [objContract.hash, objContract.peer_address, objContract.peer_device_address, objContract.my_address, true, objContract.creation_date, objContract.ttl, objContract.status || status_PENDING, objContract.title, objContract.text];
+	var fields = '(hash, peer_address, peer_device_address, my_address, arbiter_address, me_is_payer, amount, is_incoming, creation_date, ttl, status, title, text, peer_pairing_code, peer_contact_info';
+	var placeholders = '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?';
+	var values = [objContract.hash, objContract.peer_address, objContract.peer_device_address, objContract.my_address, objContract.arbiter_address, objContract.me_is_payer, objContract.amount, true, objContract.creation_date, objContract.ttl, objContract.status || status_PENDING, objContract.title, objContract.text, objContract.peer_pairing_code, objContract.peer_contact_info];
 	if (objContract.shared_address) {
 		fields += ', shared_address';
 		placeholders += ', ?';
@@ -64,20 +64,20 @@ function store(objContract, cb) {
 	}
 	fields += ')';
 	placeholders += ')';
-	db.query("INSERT "+db.getIgnore()+" INTO prosaic_contracts "+fields+" VALUES "+placeholders, values, function(res) {
+	db.query("INSERT "+db.getIgnore()+" INTO arbiter_contracts "+fields+" VALUES "+placeholders, values, function(res) {
 		if (cb)
 			cb(res);
 	});
 }
 
-function respond(objContract, status, signedMessageBase64, signer, cb) {
+function respond(objContract, status, signedMessageBase64, pairing_code, my_contact_info, signer, cb) {
 	if (!cb)
 		cb = function(){};
 	var send = function(authors) {
-		var response = {hash: objContract.hash, status: status, signed_message: signedMessageBase64};
+		var response = {hash: objContract.hash, status: status, signed_message: signedMessageBase64, peer_pairing_code: pairing_code, peer_contact_info: my_contact_info};
 		if (authors)
 			response.authors = authors;
-		device.sendMessageToDevice(objContract.peer_device_address, "prosaic_contract_response", response);
+		device.sendMessageToDevice(objContract.peer_device_address, "arbiter_contract_response", response);
 		cb();
 	}
 	if (status === "accepted") {
@@ -92,16 +92,12 @@ function respond(objContract, status, signedMessageBase64, signer, cb) {
 
 function share(hash, device_address) {
 	getByHash(hash, function(objContract){
-		device.sendMessageToDevice(device_address, "prosaic_contract_shared", objContract);
+		device.sendMessageToDevice(device_address, "arbiter_contract_shared", objContract);
 	})
 }
 
 function getHash(contract) {
-	return crypto.createHash("sha256").update(contract.title + contract.text + contract.creation_date, "utf8").digest("base64");
-}
-
-function getHashV1(contract) {
-	return objectHash.getBase64Hash(contract.title + contract.text + contract.creation_date);
+	return crypto.createHash("sha256").update(contract.title + contract.text + contract.creation_date + contract.arbiter_address + contract.amount, "utf8").digest("base64");
 }
 
 function decodeRow(row) {
@@ -119,5 +115,4 @@ exports.getAllByStatus = getAllByStatus;
 exports.setField = setField;
 exports.store = store;
 exports.getHash = getHash;
-exports.getHashV1 = getHashV1;
 exports.share = share;

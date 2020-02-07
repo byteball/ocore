@@ -594,15 +594,21 @@ function startWaitingForPairing(handlePairingInfo){
 	});
 }
 
-function generatePermanentPairingInfo(handlePairingInfo){
-	var pairing_secret = crypto.randomBytes(9).toString("base64");
-	var pairingInfo = {
-		pairing_secret: pairing_secret,
-		device_pubkey: objMyPermanentDeviceKey.pub_b64,
-		device_address: my_device_address,
-		hub: my_device_hub
-	};
-	db.query("INSERT INTO pairing_secrets (pairing_secret, is_permanent, expiry_date) VALUES(?, 1, '2038-01-01')", [pairing_secret], function(){
+function getOrGeneratePermanentPairingInfo(handlePairingInfo){
+	db.query("SELECT pairing_secret FROM pairing_secrets WHERE is_permanent=1 ORDER BY expiry_date DESC LIMIT 1", [], function(rows){
+		var pairing_secret;
+		if (rows.length) {
+			pairing_secret = rows[0].pairing_secret;
+		} else {
+			pairing_secret = crypto.randomBytes(9).toString("base64");
+			db.query("INSERT INTO pairing_secrets (pairing_secret, is_permanent, expiry_date) VALUES(?, 1, '2038-01-01')", [pairing_secret]);
+		}
+		var pairingInfo = {
+			pairing_secret: pairing_secret,
+			device_pubkey: objMyPermanentDeviceKey.pub_b64,
+			device_address: my_device_address,
+			hub: my_device_hub
+		};
 		handlePairingInfo(pairingInfo);
 	});
 }
@@ -801,7 +807,7 @@ exports.sendMessageToDevice = sendMessageToDevice;
 
 exports.sendPairingMessage = sendPairingMessage;
 exports.startWaitingForPairing = startWaitingForPairing;
-exports.generatePermanentPairingInfo = generatePermanentPairingInfo;
+exports.getOrGeneratePermanentPairingInfo = getOrGeneratePermanentPairingInfo;
 exports.handlePairingMessage = handlePairingMessage;
 
 exports.addUnconfirmedCorrespondent = addUnconfirmedCorrespondent;
