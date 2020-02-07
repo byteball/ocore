@@ -155,6 +155,7 @@ function pickDeepParentUnits(conn, arrWitnesses, timestamp, max_wl, onDone){
 			if (rows.length === 0)
 				return onDone("failed to find compatible parents: no deep units");
 			var arrParentUnits = rows.map(function(row){ return row.unit; });
+			console.log('found deep parents: ' + arrParentUnits.join(', '));
 			checkWitnessedLevelNotRetreatingAndLookLower(conn, arrWitnesses, timestamp, arrParentUnits, true, onDone);
 		}
 	);
@@ -195,27 +196,35 @@ function checkWitnessedLevelNotRetreatingAndLookLower(conn, arrWitnesses, timest
 	});
 }
 
-function findLastStableMcBall(conn, arrWitnesses, onDone){
-	conn.query(
-		"SELECT ball, unit, main_chain_index FROM units JOIN balls USING(unit) \n\
-		WHERE is_on_main_chain=1 AND is_stable=1 AND +sequence='good' AND ( \n\
-			SELECT COUNT(*) \n\
-			FROM unit_witnesses \n\
-			WHERE unit_witnesses.unit IN(units.unit, units.witness_list_unit) AND address IN(?) \n\
-		)>=? \n\
-		ORDER BY main_chain_index DESC LIMIT 1", 
-		[arrWitnesses, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS], 
-		function(rows){
-			if (rows.length === 0)
-				return onDone("failed to find last stable ball");
-			onDone(null, rows[0].ball, rows[0].unit, rows[0].main_chain_index);
-		}
-	);
+function findLastStableMcBall(conn, arrWitnesses, arrParentUnits, onDone) {
+	storage.readMaxLastBallMci(conn, arrParentUnits, function (max_parent_last_ball_mci) {
+		conn.query(
+			"SELECT ball, unit, main_chain_index FROM units JOIN balls USING(unit) \n\
+			WHERE is_on_main_chain=1 AND is_stable=1 AND +sequence='good' \n\
+				AND main_chain_index>=? \n\
+				AND main_chain_index<=(SELECT MAX(latest_included_mc_index) FROM units WHERE unit IN(?)) \n\
+				AND ( \n\
+					SELECT COUNT(*) \n\
+					FROM unit_witnesses \n\
+					WHERE unit_witnesses.unit IN(units.unit, units.witness_list_unit) AND address IN(?) \n\
+				)>=? \n\
+			ORDER BY main_chain_index DESC LIMIT 1",
+			[max_parent_last_ball_mci, arrParentUnits,
+			arrWitnesses, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS],
+			function (rows) {
+				if (rows.length === 0)
+					return onDone("failed to find last stable ball");
+				console.log('last stable unit: ' + rows[0].unit);
+				onDone(null, rows[0].ball, rows[0].unit, rows[0].main_chain_index);
+			}
+		);
+	});
 }
 
 function adjustLastStableMcBallAndParents(conn, last_stable_mc_ball_unit, arrParentUnits, arrWitnesses, handleAdjustedLastStableUnit){
-	main_chain.determineIfStableInLaterUnits(conn, last_stable_mc_ball_unit, arrParentUnits, function(bStable){
-		if (bStable){
+	main_chain.determineIfStableInLaterUnitsWithMaxLastBallMciFastPath(conn, last_stable_mc_ball_unit, arrParentUnits, function(bStable){
+		console.log("stability of " + last_stable_mc_ball_unit + " in " + arrParentUnits.join(', ') + ": " + bStable);
+		if (bStable) {
 			conn.query("SELECT ball, main_chain_index FROM units JOIN balls USING(unit) WHERE unit=?", [last_stable_mc_ball_unit], function(rows){
 				if (rows.length !== 1)
 					throw Error("not 1 ball by unit "+last_stable_mc_ball_unit);
@@ -306,7 +315,7 @@ function pickParentUnitsAndLastBall(conn, arrWitnesses, timestamp, onDone){
 
 function findLastBallAndAdjust(conn, arrWitnesses, arrParentUnits, onDone){
 
-	findLastStableMcBall(conn, arrWitnesses, function(err, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
+	findLastStableMcBall(conn, arrWitnesses, arrParentUnits, function(err, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
 		if (err)
 			return onDone(err);
 		adjustLastStableMcBallAndParents(
@@ -317,6 +326,7 @@ function findLastBallAndAdjust(conn, arrWitnesses, arrParentUnits, onDone){
 						var objFakeUnit = {parent_units: arrTrimmedParentUnits};
 						if (witness_list_unit)
 							objFakeUnit.witness_list_unit = witness_list_unit;
+						console.log('determineIfHasWitnessListMutationsAlongMc last_stable_unit '+last_stable_unit+', parents '+arrParentUnits.join(', '));
 						storage.determineIfHasWitnessListMutationsAlongMc(conn, objFakeUnit, last_stable_unit, arrWitnesses, function(err){
 							if (err)
 								return onDone(err); // if first arg is not array, it is error

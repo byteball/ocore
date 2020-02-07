@@ -147,7 +147,7 @@ function archiveDoublespendUnits(){
 	var col = (conf.storage === 'sqlite') ? 'rowid' : 'creation_date';
 	db.query("SELECT unit FROM units WHERE is_stable=0 AND creation_date<"+db.addTime('-1 DAY')+" ORDER BY "+col+" DESC", function(rows){
 		var arrUnits = rows.map(function(row){ return row.unit; });
-		breadcrumbs.add("units still unstable after 1 day: "+arrUnits.join(', '));
+		breadcrumbs.add("units still unstable after 1 day: "+(arrUnits.join(', ') || 'none'));
 		arrUnits.forEach(function(unit){
 			network.requestFromLightVendor('get_joint', unit, function(ws, request, response){
 				if (response.error)

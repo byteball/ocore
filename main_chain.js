@@ -696,6 +696,18 @@ function determineMaxAltLevel(conn, first_unstable_mc_index, first_unstable_mc_l
 }
 
 
+function determineIfStableInLaterUnitsWithMaxLastBallMciFastPath(conn, earlier_unit, arrLaterUnits, handleResult) {
+	storage.readUnitProps(conn, earlier_unit, function (objEarlierUnitProps) {
+		if (objEarlierUnitProps.is_free === 1 || objEarlierUnitProps.main_chain_index === null)
+			return handleResult(false);
+		storage.readMaxLastBallMci(conn, arrLaterUnits, function (max_last_ball_mci) {
+			if (objEarlierUnitProps.main_chain_index <= max_last_ball_mci)
+				return handleResult(true);
+			determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handleResult);
+		});
+	});
+}
+
 function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handleResult){
 	if (storage.isGenesisUnit(earlier_unit))
 		return handleResult(true);
@@ -707,10 +719,12 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 		return handleResult(true);
 	var start_time = Date.now();
 	storage.readPropsOfUnits(conn, earlier_unit, arrLaterUnits, function(objEarlierUnitProps, arrLaterUnitProps){
-		if (objEarlierUnitProps.is_free === 1)
+		if (objEarlierUnitProps.is_free === 1 || objEarlierUnitProps.main_chain_index === null)
 			return handleResult(false);
 		var max_later_limci = Math.max.apply(
 			null, arrLaterUnitProps.map(function(objLaterUnitProps){ return objLaterUnitProps.latest_included_mc_index; }));
+		if (max_later_limci < objEarlierUnitProps.main_chain_index) // the earlier unit is actually later
+			return handleResult(false);
 		var max_later_level = Math.max.apply(
 			null, arrLaterUnitProps.map(function(objLaterUnitProps){ return objLaterUnitProps.level; }));
 		var max_later_witnessed_level = Math.max.apply(
@@ -1403,6 +1417,7 @@ function throwError(msg){
 exports.updateMainChain = updateMainChain;
 exports.determineIfStableInLaterUnitsAndUpdateStableMcFlag = determineIfStableInLaterUnitsAndUpdateStableMcFlag;
 exports.determineIfStableInLaterUnits = determineIfStableInLaterUnits;
+exports.determineIfStableInLaterUnitsWithMaxLastBallMciFastPath = determineIfStableInLaterUnitsWithMaxLastBallMciFastPath;
 
 /*
 determineIfStableInLaterUnits(db, "oeS2p87yO9DFkpjj+z+mo+RNoieaTN/8vOPGn/cUHhM=", [ '8vh0/buS3NaknEjBF/+vyLS3X5T0t5imA2mg8juVmJQ=', 'oO/INGsFr8By+ggALCdVkiT8GIPzB2k3PQ3TxPWq8Ac='], function(bStable){
