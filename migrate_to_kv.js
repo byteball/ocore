@@ -22,6 +22,8 @@ function migrate(conn, onDone){
 function migrateUnits(conn, onDone){
 	if (conf.storage !== 'sqlite')
 		throw Error('only sqlite migration supported');
+	if (!conf.bLight)
+		conn.query("PRAGMA cache_size=-400000", function(){});
 	var count = 0;
 	var offset = 0;
 	var CHUNK_SIZE = 10000;
