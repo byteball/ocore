@@ -335,7 +335,7 @@ function checkDuplicate(conn, objUnit, cb){
 		if (rows.length === 0) 
 			return cb();
 		var row = rows[0];
-		if (row.sequence === 'final-bad' && row.main_chain_index < storage.getMinRetrievableMci() && objUnit.messages && !objUnit.content_hash) // already stripped locally but received a full version
+		if (row.sequence === 'final-bad' && row.main_chain_index !== null && row.main_chain_index < storage.getMinRetrievableMci() && objUnit.messages && !objUnit.content_hash) // already stripped locally but received a full version
 			return cb();
 		cb(createTransientError("unit "+unit+" already exists"));
 	});

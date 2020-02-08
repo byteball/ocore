@@ -1343,12 +1343,8 @@ function readFullSigningPaths(conn, address, arrSigningDeviceAddresses, handleSi
 
 function readAssetProps(asset, handleResult){
 	if (!asset)
-		return handleResult({fixed_denominations: false, cap: constants.TOTAL_WHITEBYTES, issued_by_definer_only: true});
-	storage.readAsset(db, asset, null, function(err, objAsset){
-		if (err)
-			throw Error(err);
-		handleResult(objAsset);
-	});
+		return handleResult(null, {fixed_denominations: false, cap: constants.TOTAL_WHITEBYTES, issued_by_definer_only: true});
+	storage.readAsset(db, asset, null, handleResult);
 }
 
 function readFundedAddresses(asset, wallet, estimated_amount, spend_unconfirmed, handleFundedAddresses){
@@ -1374,7 +1370,11 @@ function readFundedAddresses(asset, wallet, estimated_amount, spend_unconfirmed,
 		)",
 		asset ? [wallet, asset] : [wallet],
 		function(rows){
-			readAssetProps(asset, function(objAsset){
+			readAssetProps(asset, function (err, objAsset) {
+				if (err) {
+					console.log(err);
+					return handleFundedAddresses([]);
+				}
 				if (objAsset.fixed_denominations)
 					estimated_amount = 0; // don't shorten the list of addresses, indivisible_asset.js will do it later according to denominations
 				if (!objAsset.cap){ // uncapped asset: can be issued from definer_address or from any address

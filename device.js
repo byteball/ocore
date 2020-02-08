@@ -559,9 +559,9 @@ function sendMessageToHub(ws, recipient_device_pubkey, subject, body, callbacks,
 function sendMessageToDevice(device_address, subject, body, callbacks, conn){
 	conn = conn || db;
 	conn.query("SELECT hub, pubkey, is_blackhole FROM correspondent_devices WHERE device_address=?", [device_address], function(rows){
-		if (rows.length !== 1)
+		if (rows.length !== 1 && !conf.bIgnoreMissingCorrespondents)
 			throw Error("correspondent not found");
-		if (rows[0].is_blackhole){
+		if (rows.length === 0 && conf.bIgnoreMissingCorrespondents || rows[0].is_blackhole){
 			if (callbacks && callbacks.onSaved)
 				callbacks.onSaved();
 			if (callbacks && callbacks.ifOk)
