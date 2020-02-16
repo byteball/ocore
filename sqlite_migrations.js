@@ -22,10 +22,12 @@ function migrateDb(connection, onDone){
 			throw Error("user version "+version+" > "+VERSION+": looks like you are using a new database with an old client");
 		if (version === VERSION)
 			return onDone();
-		eventBus.emit('started_db_upgrade');
+		var bLongUpgrade = (version < 31 && !conf.bLight);
+		eventBus.emit('started_db_upgrade', bLongUpgrade);
 		if (typeof window === 'undefined'){
-			console.error("=== will upgrade the database, it can take some time");
-			console.log("=== will upgrade the database, it can take some time");
+			var message = bLongUpgrade ? "=== will upgrade the database, it will take several hours" : "=== will upgrade the database, it can take some time";
+			console.error(message);
+			console.log(message);
 		}
 		var arrQueries = [];
 		async.series([
