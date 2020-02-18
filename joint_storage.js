@@ -124,19 +124,22 @@ function readDependentJointsThatAreReady(unit, handleDependentJoint){
 
 function findLostJoints(handleLostJoints){
 	//console.log("findLostJoints");
-	db.query(
-		"SELECT DISTINCT depends_on_unit \n\
-		FROM dependencies \n\
-		LEFT JOIN unhandled_joints ON depends_on_unit=unhandled_joints.unit \n\
-		LEFT JOIN units ON depends_on_unit=units.unit \n\
-		WHERE unhandled_joints.unit IS NULL AND units.unit IS NULL AND dependencies.creation_date < " + db.addTime("-8 SECOND"), 
-		function(rows){
-			//console.log(rows.length+" lost joints");
-			if (rows.length === 0)
-				return;
-			handleLostJoints(rows.map(function(row){ return row.depends_on_unit; })); 
-		}
-	);
+	mutex.lockOrSkip(['findLostJoints'], function (unlock) {
+		db.query(
+			"SELECT DISTINCT depends_on_unit \n\
+			FROM dependencies \n\
+			LEFT JOIN unhandled_joints ON depends_on_unit=unhandled_joints.unit \n\
+			LEFT JOIN units ON depends_on_unit=units.unit \n\
+			WHERE unhandled_joints.unit IS NULL AND units.unit IS NULL AND dependencies.creation_date < " + db.addTime("-8 SECOND"),
+			function (rows) {
+				//console.log(rows.length+" lost joints");
+				unlock();
+				if (rows.length === 0)
+					return;
+				handleLostJoints(rows.map(function (row) { return row.depends_on_unit; }));
+			}
+		);
+	});
 }
 
 // onPurgedDependentJoint called for each purged dependent unit

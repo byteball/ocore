@@ -1340,87 +1340,94 @@ function revertResponsesInCaches(arrResponses) {
 }
 
 function checkStorageSizes() {
-	db.takeConnectionFromPool(function (conn) { // block conection for the entire duration of the check
-		var options = {};
-		options.gte = "st\n";
-		options.lte = "st\n\uFFFF";
+	mutex.lockOrSkip(['checkStorageSizes'], function (unlock) {
+		db.takeConnectionFromPool(function (conn) { // block conection for the entire duration of the check
+			var options = {};
+			options.gte = "st\n";
+			options.lte = "st\n\uFFFF";
 
-		var assocSizes = {};
-		var handleData = function (data) {
-			var address = data.key.substr(3, 32);
-			var var_name = data.key.substr(36);
-			if (!assocSizes[address])
-				assocSizes[address] = 0;
-			assocSizes[address] += var_name.length + data.value.length;
-		}
-		var stream = kvstore.createReadStream(options);
-		stream.on('data', handleData)
-			.on('end', function () {
-				conn.query("SELECT address, storage_size FROM aa_addresses", function (rows) {
-					rows.forEach(function (row) {
-						if (!assocSizes[row.address])
-							assocSizes[row.address] = 0;
-						if (row.storage_size !== assocSizes[row.address])
-							throw Error("storage size mismatch on " + row.address + ": db=" + row.storage_size + ", kv=" + assocSizes[row.address]);
+			var assocSizes = {};
+			var handleData = function (data) {
+				var address = data.key.substr(3, 32);
+				var var_name = data.key.substr(36);
+				if (!assocSizes[address])
+					assocSizes[address] = 0;
+				assocSizes[address] += var_name.length + data.value.length;
+			}
+			var stream = kvstore.createReadStream(options);
+			stream.on('data', handleData)
+				.on('end', function () {
+					conn.query("SELECT address, storage_size FROM aa_addresses", function (rows) {
+						rows.forEach(function (row) {
+							if (!assocSizes[row.address])
+								assocSizes[row.address] = 0;
+							if (row.storage_size !== assocSizes[row.address])
+								throw Error("storage size mismatch on " + row.address + ": db=" + row.storage_size + ", kv=" + assocSizes[row.address]);
+						});
+						conn.release();
+						unlock();
 					});
-					conn.release();
+				})
+				.on('error', function (error) {
+					throw Error('error from data stream: ' + error);
 				});
-			})
-			.on('error', function (error) {
-				throw Error('error from data stream: ' + error);
-			});
+		});
 	});
 }
 
 function checkBalances() {
-	db.takeConnectionFromPool(function (conn) { // block conection for the entire duration of the check
-		conn.query("SELECT 1 FROM aa_triggers", function (rows) {
-			if (rows.length > 0) {
-				conn.release();
-				return console.log("skipping checkBalances because there are unhandled triggers");
-			}
-			var stable_or_from_aa = "( \n\
-				(SELECT is_stable FROM units WHERE units.unit=outputs.unit)=1 \n\
-				OR EXISTS (SELECT 1 FROM unit_authors CROSS JOIN aa_addresses USING(address) WHERE unit_authors.unit=outputs.unit) \n\
-			)";
-			var sql_base = "SELECT aa_addresses.address, balance, SUM(amount) AS calculated_balance \n\
-				FROM aa_addresses \n\
-				LEFT JOIN aa_balances ON aa_addresses.address = aa_balances.address AND aa_balances.asset = 'base' \n\
-				LEFT JOIN outputs \n\
-					ON aa_addresses.address = outputs.address AND is_spent = 0 AND outputs.asset IS NULL \n\
-					AND " + stable_or_from_aa + " \n\
-				GROUP BY aa_addresses.address \n\
-				HAVING balance != calculated_balance";
-			var sql_assets_balances_to_outputs = "SELECT aa_balances.address, aa_balances.asset, balance, SUM(amount) AS calculated_balance \n\
-				FROM aa_balances \n\
-				LEFT JOIN outputs " + db.forceIndex('outputsByAddressSpent') + " \n\
-					ON aa_balances.address=outputs.address AND is_spent=0 AND outputs.asset=aa_balances.asset \n\
-					AND " + stable_or_from_aa + " \n\
-				WHERE aa_balances.asset!='base' \n\
-				GROUP BY aa_balances.address, aa_balances.asset \n\
-				HAVING balance != calculated_balance";
-			var sql_assets_outputs_to_balances = "SELECT aa_addresses.address, outputs.asset, balance, SUM(amount) AS calculated_balance \n\
-				FROM aa_addresses \n\
-				LEFT JOIN outputs \n\
-					ON aa_addresses.address=outputs.address AND is_spent=0 \n\
-					AND " + stable_or_from_aa + " \n\
-				LEFT JOIN aa_balances ON aa_addresses.address=aa_balances.address AND aa_balances.asset=outputs.asset \n\
-				WHERE outputs.asset IS NOT NULL \n\
-				GROUP BY aa_addresses.address, outputs.asset \n\
-				HAVING balance != calculated_balance";
-			async.eachSeries(
-				[sql_base, sql_assets_balances_to_outputs, sql_assets_outputs_to_balances],
-				function (sql, cb) {
-					conn.query(sql, function (rows) {
-						if (rows.length > 0)
-							throw Error("checkBalances failed: sql:\n" + sql + "\n\nrows:\n" + JSON.stringify(rows, null, '\t'));
-						cb();
-					});
-				},
-				function () {
+	mutex.lockOrSkip(['checkBalances'], function (unlock) {
+		db.takeConnectionFromPool(function (conn) { // block conection for the entire duration of the check
+			conn.query("SELECT 1 FROM aa_triggers", function (rows) {
+				if (rows.length > 0) {
+					console.log("skipping checkBalances because there are unhandled triggers");
 					conn.release();
+					return unlock();
 				}
-			);
+				var stable_or_from_aa = "( \n\
+					(SELECT is_stable FROM units WHERE units.unit=outputs.unit)=1 \n\
+					OR EXISTS (SELECT 1 FROM unit_authors CROSS JOIN aa_addresses USING(address) WHERE unit_authors.unit=outputs.unit) \n\
+				)";
+				var sql_base = "SELECT aa_addresses.address, balance, SUM(amount) AS calculated_balance \n\
+					FROM aa_addresses \n\
+					LEFT JOIN aa_balances ON aa_addresses.address = aa_balances.address AND aa_balances.asset = 'base' \n\
+					LEFT JOIN outputs \n\
+						ON aa_addresses.address = outputs.address AND is_spent = 0 AND outputs.asset IS NULL \n\
+						AND " + stable_or_from_aa + " \n\
+					GROUP BY aa_addresses.address \n\
+					HAVING balance != calculated_balance";
+				var sql_assets_balances_to_outputs = "SELECT aa_balances.address, aa_balances.asset, balance, SUM(amount) AS calculated_balance \n\
+					FROM aa_balances \n\
+					LEFT JOIN outputs " + db.forceIndex('outputsByAddressSpent') + " \n\
+						ON aa_balances.address=outputs.address AND is_spent=0 AND outputs.asset=aa_balances.asset \n\
+						AND " + stable_or_from_aa + " \n\
+					WHERE aa_balances.asset!='base' \n\
+					GROUP BY aa_balances.address, aa_balances.asset \n\
+					HAVING balance != calculated_balance";
+				var sql_assets_outputs_to_balances = "SELECT aa_addresses.address, outputs.asset, balance, SUM(amount) AS calculated_balance \n\
+					FROM aa_addresses \n\
+					CROSS JOIN outputs \n\
+						ON aa_addresses.address=outputs.address AND is_spent=0 \n\
+						AND " + stable_or_from_aa + " \n\
+					LEFT JOIN aa_balances ON aa_addresses.address=aa_balances.address AND aa_balances.asset=outputs.asset \n\
+					WHERE outputs.asset IS NOT NULL \n\
+					GROUP BY aa_addresses.address, outputs.asset \n\
+					HAVING balance != calculated_balance";
+				async.eachSeries(
+					[sql_base, sql_assets_balances_to_outputs, sql_assets_outputs_to_balances],
+					function (sql, cb) {
+						conn.query(sql, function (rows) {
+							if (rows.length > 0)
+								throw Error("checkBalances failed: sql:\n" + sql + "\n\nrows:\n" + JSON.stringify(rows, null, '\t'));
+							cb();
+						});
+					},
+					function () {
+						conn.release();
+						unlock();
+					}
+				);
+			});
 		});
 	});
 }
