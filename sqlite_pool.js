@@ -125,8 +125,8 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 				//		profiler.add_result(sql.substr(0, 40).replace(/\n/, '\\n'), consumed_time);
 					if (consumed_time > 25)
 						console.log("long query took "+consumed_time+"ms:\n"+new_args.filter(function(a, i){ return (i<new_args.length-1); }).join(", ")+"\nload avg: "+require('os').loadavg().join(', '));
-					this.start_ts = 0;
-					this.currentQuery = null;
+					self.start_ts = 0;
+					self.currentQuery = null;
 					last_arg(result);
 				});
 				
