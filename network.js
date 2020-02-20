@@ -3114,9 +3114,9 @@ function handleRequest(ws, tag, command, params){
 			if (!ValidationUtils.isValidAddress(params))
 				return sendErrorResponse(ws, tag, "address not valid");
 			db.query("SELECT definition FROM definitions WHERE definition_chash=? UNION SELECT definition FROM aa_addresses WHERE address=? LIMIT 1", [params, params], function(rows){
-				if (!rows[0])
-					return sendResponse(ws, tag, null);
-				var arrDefinition = JSON.parse(rows[0].definition);
+				var arrDefinition = rows[0]
+					? JSON.parse(rows[0].definition)
+					: storage.getUnconfirmedAADefinition(params);
 				sendResponse(ws, tag, arrDefinition);
 			});
 			break;
