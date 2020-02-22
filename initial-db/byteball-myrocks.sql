@@ -548,7 +548,7 @@ CREATE TABLE wallet_signing_paths (
 CREATE TABLE my_watched_addresses (
 	address CHAR(32) BINARY NOT NULL PRIMARY KEY,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-); ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
+) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 -- addresses composed of several other addresses (such as ["and", [["address", "ADDRESS1"], ["address", "ADDRESS2"]]]),
 -- member addresses live on different devices, member addresses themselves may be composed of several keys
@@ -777,7 +777,7 @@ CREATE TABLE aa_triggers (
 	address CHAR(32) NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (mci, unit, address)
---	FOREIGN KEY (address) REFERENCES aa_addresses(address)
+	-- FOREIGN KEY (address) REFERENCES aa_addresses(address)
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 -- SQL is more convenient for +- the balances
@@ -787,8 +787,8 @@ CREATE TABLE aa_balances (
 	balance BIGINT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (address, asset)
---	FOREIGN KEY (address) REFERENCES aa_addresses(address)
---	FOREIGN KEY (asset) REFERENCES assets(unit)
+	-- FOREIGN KEY (address) REFERENCES aa_addresses(address)
+	-- FOREIGN KEY (asset) REFERENCES assets(unit)
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 -- this is basically a log.  It has many indexes to be searchable by various fields
@@ -797,15 +797,15 @@ CREATE TABLE aa_responses (
 	mci INT NOT NULL, -- mci of the trigger unit
 	trigger_address CHAR(32) NOT NULL, -- trigger address
 	aa_address CHAR(32) NOT NULL,
-	trigger_unit CHAR(44) NOT NULL,
+	trigger_unit CHAR(44) BINARY NOT NULL,
 	bounced TINYINT NOT NULL,
-	response_unit CHAR(44) NULL UNIQUE,
+	response_unit CHAR(44) BINARY NULL UNIQUE,
 	response TEXT NULL, -- json
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	UNIQUE (trigger_unit, aa_address)
---	FOREIGN KEY (aa_address) REFERENCES aa_addresses(address),
---	FOREIGN KEY (trigger_unit) REFERENCES units(unit)
---	FOREIGN KEY (response_unit) REFERENCES units(unit)
+	-- FOREIGN KEY (aa_address) REFERENCES aa_addresses(address),
+	-- FOREIGN KEY (trigger_unit) REFERENCES units(unit)
+	-- FOREIGN KEY (response_unit) REFERENCES units(unit)
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 CREATE INDEX aaResponsesByTriggerAddress ON aa_responses(trigger_address);
 CREATE INDEX aaResponsesByAAAddress ON aa_responses(aa_address);
@@ -814,7 +814,7 @@ CREATE INDEX aaResponsesByMci ON aa_responses(mci);
 CREATE TABLE watched_light_aas (
 	peer VARCHAR(100) NOT NULL,
 	aa CHAR(32) NOT NULL,
-	address CHAR(32) NULL,
+	address CHAR(32), -- no field of primary key can be null
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (peer, aa, address)
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
