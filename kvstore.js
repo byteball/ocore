@@ -17,7 +17,7 @@ catch(e){
 
 var db = rocksdb(path, {}, function (err) {
 	if (err)
-		throw Error("rocksdb open failed: " + err);
+		throw Error("rocksdb open failed (is the app already running?): " + err);
 });
 if (!db)
 	throw Error("no rocksdb instance");
