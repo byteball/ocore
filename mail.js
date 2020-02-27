@@ -111,6 +111,8 @@ function sendMailThroughRelay(params, cb){
 }
 
 function sendBugEmail(error_message, exception){
+	if (!conf.bug_sink_email || !conf.bugs_from_email)
+		return console.log("not sending bug email " + error_message.substr(0, 50).replace(/\s/g, ' '));
 	sendmail({
 		to: conf.bug_sink_email,
 		from: conf.bugs_from_email,
