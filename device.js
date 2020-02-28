@@ -136,6 +136,8 @@ function handleChallenge(ws, challenge){
 }
 
 function loginToHub(){
+	if (!network.isStarted())
+		return console.log("network not started yet");
 	if (!objMyPermanentDeviceKey)
 		return console.log("objMyPermanentDeviceKey not set yet, can't log in");
 	if (!objMyTempDeviceKey)
@@ -373,6 +375,8 @@ function readMessageInChunksFromOutbox(message_hash, len, handleMessage){
 function resendStalledMessages(delay){
 	var delay = delay || 0;
 	console.log("resending stalled messages delayed by "+delay+" minute");
+	if (!network.isStarted())
+		return console.log("resendStalledMessages: network not started yet");
 	if (!objMyPermanentDeviceKey)
 		return console.log("objMyPermanentDeviceKey not set yet, can't resend stalled messages");
 	mutex.lockOrSkip(['stalled'], function(unlock){
@@ -555,9 +559,9 @@ function sendMessageToHub(ws, recipient_device_pubkey, subject, body, callbacks,
 function sendMessageToDevice(device_address, subject, body, callbacks, conn){
 	conn = conn || db;
 	conn.query("SELECT hub, pubkey, is_blackhole FROM correspondent_devices WHERE device_address=?", [device_address], function(rows){
-		if (rows.length !== 1)
+		if (rows.length !== 1 && !conf.bIgnoreMissingCorrespondents)
 			throw Error("correspondent not found");
-		if (rows[0].is_blackhole){
+		if (rows.length === 0 && conf.bIgnoreMissingCorrespondents || rows[0].is_blackhole){
 			if (callbacks && callbacks.onSaved)
 				callbacks.onSaved();
 			if (callbacks && callbacks.ifOk)

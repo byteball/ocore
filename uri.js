@@ -102,15 +102,28 @@ function parseUri(uri, callbacks){
 		if (!query_string)
 			return callbacks.ifError("data without query string");
 		var assocParams = parseQueryString(query_string);
+		objRequest = assocParams;
+		objRequest.type = 'data';
 		var app = assocParams.app;
-		if (app !== 'data' && app !== 'data_feed' && app !== 'attestation' && app !== 'profile' && app !== 'poll' && app !== 'vote')
+		if (app !== 'data' && app !== 'data_feed' && app !== 'attestation' && app !== 'profile' && app !== 'poll' && app !== 'vote' && app !== 'definition' && app !== 'text')
 			return callbacks.ifError("invalid app: " + app);
 		if (app === 'attestation' && !ValidationUtils.isValidAddress(assocParams.address))
 			return callbacks.ifError("invalid attested address: "+assocParams.address);
 		if (app === 'vote' && !ValidationUtils.isValidBase64(assocParams.unit, constants.HASH_LENGTH))
 			return callbacks.ifError("invalid poll unit: " + assocParams.unit);
-		objRequest = assocParams;
-		objRequest.type = 'data';
+		if (app === 'definition') {
+			var definition = assocParams.definition;
+			if (!definition)
+				return callbacks.ifError("no definition");
+			if (definition.substr(0, 8) === 'https://') {
+				return fetchUrl(definition, function (err, response) {
+					if (err)
+						return callbacks.ifError(err);
+					assocParams.definition = response;
+					callbacks.ifOk(objRequest);
+				});
+			}
+		}
 		return callbacks.ifOk(objRequest);
 	}
 
@@ -144,6 +157,22 @@ function parseUri(uri, callbacks){
 				return callbacks.ifError('invalid device address: '+device_address);
 			objRequest.device_address = device_address;
 		}
+		var single_address = assocParams.single_address;
+		if (single_address) {
+			single_address = single_address.replace(/^single/, '');
+			if (single_address && !ValidationUtils.isValidAddress(single_address))
+				single_address = 1;
+			objRequest.single_address = single_address;
+		}
+		var base64data = assocParams.base64data;
+		if (base64data){
+			objRequest.base64data = base64data;
+		}
+		if (assocParams.from_address) {
+			objRequest.from_address = assocParams.from_address;
+			if (!ValidationUtils.isValidAddress(objRequest.from_address))
+				return callbacks.ifError('invalid from address: '+objRequest.from_address);
+		}
 	}
 	callbacks.ifOk(objRequest);
 }
@@ -164,7 +193,43 @@ function parseQueryString(str, delimiter){
 	return assocParams;
 }
 
+function fetchUrl(url, cb) {
+	var https = require('https');
+	var bDone = false;
+	function returnError(err) {
+		console.log(err);
+		if (bDone)
+			return;
+		bDone = true;
+		cb(err);
+	}
+	https.get(url, function (resp) {
+		if (resp.statusCode !== 200)
+			return returnError("non-200 response while trying to fetch " + url);
+		var data = '';
 
+		// A chunk of data has been recieved.
+		resp.on('data', function(chunk) {
+			data += chunk;
+		});
+
+		// aborted before the whole response has been received
+		resp.on('aborted', function () {
+			returnError("connection aborted while trying to fetch " + url);
+		});
+
+		// The whole response has been received
+		resp.on('end', function () {
+			if (bDone)
+				return;
+			bDone = true;
+			cb(null, data);
+		});
+	}).on("error", function(err) {
+		returnError("non-200 response while trying to fetch " + url + ": " + err.message);
+	});
+}
 
 exports.parseQueryString = parseQueryString;
 exports.parseUri = parseUri;
+exports.fetchUrl = fetchUrl;

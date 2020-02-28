@@ -3,6 +3,10 @@ const { check, gen, property } = require('testcheck');
 
 var ValidationUtils = require("../validation_utils.js");
 
+test.after.always(t => {
+	console.log('***** validation_utils.test done');
+});
+
 /**
  * hasFieldsExcept
  */

@@ -11,6 +11,10 @@ var archiving = require('./archiving.js');
 var eventBus = require('./event_bus.js');
 var profiler = require('./profiler.js');
 
+var testnetAssetsDefinedByAAsAreVisibleImmediatelyUpgradeMci = 1167000;
+
+var bCordova = (typeof window === 'object' && window.cordova);
+
 var MAX_INT32 = Math.pow(2, 31) - 1;
 
 var genesis_ball = objectHash.getBallHash(constants.GENESIS_UNIT);
@@ -28,12 +32,40 @@ var assocStableUnitsByMci = {};
 var assocBestChildren = {};
 
 var assocHashTreeUnitsByBall = {};
+var assocUnstableMessages = {};
 
 var min_retrievable_mci = null;
 initializeMinRetrievableMci();
 
+function readJointJsonFromStorage(conn, unit, cb) {
+	var kvstore = require('./kvstore.js');
+	if (!bCordova)
+		return kvstore.get('j\n' + unit, cb);
+	conn.query("SELECT json FROM joints WHERE unit=?", [unit], function (rows) {
+		cb((rows.length === 0) ? null : rows[0].json);
+	});
+}
 
-function readJoint(conn, unit, callbacks) {
+function readJoint(conn, unit, callbacks, bSql) {
+	if (bSql)
+		return readJointDirectly(conn, unit, callbacks);
+	readJointJsonFromStorage(conn, unit, function(strJoint){
+		if (!strJoint)
+			return callbacks.ifNotFound();
+		var objJoint = JSON.parse(strJoint);
+		if (!isCorrectHash(objJoint.unit, unit))
+			throw Error("wrong hash of unit "+unit);
+		conn.query("SELECT main_chain_index, "+conn.getUnixTimestamp("creation_date")+" AS timestamp FROM units WHERE unit=?", [unit], function(rows){
+			if (rows.length === 0)
+				throw Error("unit found in kv but not in sql: "+unit);
+			var row = rows[0];
+			if (objJoint.unit.version === constants.versionWithoutTimestamp)
+				objJoint.unit.timestamp = parseInt(row.timestamp);
+			objJoint.unit.main_chain_index = row.main_chain_index;
+			callbacks.ifFound(objJoint);
+		});
+	});
+	/*
 	if (!conf.bSaveJointJson)
 		return readJointDirectly(conn, unit, callbacks);
 	conn.query("SELECT json FROM joints WHERE unit=?", [unit], function(rows){
@@ -46,10 +78,11 @@ function readJoint(conn, unit, callbacks) {
 		}
 		callbacks.ifFound(objJoint);
 	});
+	*/
 }
 
 function readJointDirectly(conn, unit, callbacks, bRetrying) {
-	console.log("\nreading unit "+unit);
+//	console.log("\nreading unit "+unit);
 	if (min_retrievable_mci === null){
 		console.log("min_retrievable_mci not known yet");
 		setTimeout(function(){
@@ -589,9 +622,13 @@ function determineIfWitnessAddressDefinitionsHaveReferences(conn, arrWitnesses, 
 function determineWitnessedLevelAndBestParent(conn, arrParentUnits, arrWitnesses, handleWitnessedLevelAndBestParent){
 	var arrCollectedWitnesses = [];
 	var my_best_parent_unit;
+	var count = 0;
 
 	function addWitnessesAndGoUp(start_unit){
-		readStaticUnitProps(conn, start_unit, function(props){
+		count++;
+		if (count % 100 === 0)
+			return setImmediate(addWitnessesAndGoUp, start_unit);
+		readStaticUnitProps(conn, start_unit, function (props) {
 			var best_parent_unit = props.best_parent_unit;
 			var level = props.level;
 			if (level === null)
@@ -682,6 +719,139 @@ function readDefinition(conn, definition_chash, callbacks){
 	});
 }
 
+function readAADefinition(conn, address, handleDefinition) {
+	conn.query("SELECT definition, unit FROM aa_addresses WHERE address=?", [address], function (rows) {
+		if (rows.length !== 1)
+			return handleDefinition(null);
+		var arrDefinition = JSON.parse(rows[0].definition);
+		if (arrDefinition[0] !== 'autonomous agent')
+			throw Error("non-AA definition in AA unit");
+		handleDefinition(arrDefinition, rows[0].unit);
+	});
+}
+
+function getUnconfirmedAADefinition(address) {
+	for (var unit in assocUnstableMessages) {
+		var objUnit = assocUnstableUnits[unit] || assocStableUnits[unit]; // just stabilized
+		if (!objUnit)
+			throw Error("unstable unit " + unit + " not in assoc");
+		var messages = assocUnstableMessages[unit];
+		for (var i = 0; i < messages.length; i++) {
+			var message = messages[i];
+			if (message.app !== 'definition')
+				continue;
+			var payload = message.payload;
+			if (payload.address === address)
+				return payload.definition;
+		}
+	}
+	return null;
+}
+
+// arrAddresses is an array of AA addresses whose definitions are posted by other AAs
+function getUnconfirmedAADefinitionsPostedByAAs(arrAddresses) {
+	var payloads = [];
+	for (var unit in assocUnstableMessages) {
+		var objUnit = assocUnstableUnits[unit] || assocStableUnits[unit]; // just stabilized
+		if (!objUnit)
+			throw Error("unstable unit " + unit + " not in assoc");
+		if (!objUnit.bAA)
+			continue;
+		assocUnstableMessages[unit].forEach(function (message) {
+			if (message.app !== 'definition')
+				return;
+			var payload = message.payload;
+			if (arrAddresses.indexOf(payload.address) >= 0)
+			payloads.push(payload);
+		});
+	}
+	return payloads;
+}
+
+function insertAADefinitions(conn, arrPayloads, unit, mci, bForAAsOnly, onDone) {
+	async.eachSeries(
+		arrPayloads,
+		function (payload, cb) {
+			var address = payload.address;
+			var json = JSON.stringify(payload.definition);
+			var base_aa = payload.definition[1].base_aa;
+			var bAlreadyPostedByUnconfirmedAA = false;
+			conn.query("INSERT " + db.getIgnore() + " INTO aa_addresses (address, definition, unit, mci, base_aa) VALUES (?,?, ?,?, ?)", [address, json, unit, mci, base_aa], function (res) {
+				if (res.affectedRows === 0) { // already exists
+					if (bForAAsOnly){
+						console.log("ignoring repeated definition of AA " + address + " in AA unit " + unit);
+						return cb();
+					}
+					var old_payloads = getUnconfirmedAADefinitionsPostedByAAs([address]);
+					if (old_payloads.length === 0) {
+						console.log("ignoring repeated definition of AA " + address + " in unit " + unit);
+						return cb();
+					}
+					// we need to recalc the balances to reflect the payments received from non-AAs between definition and stabilization
+					bAlreadyPostedByUnconfirmedAA = true;
+					console.log("will recalc balances after repeated definition of AA " + address + " in unit " + unit);
+				}
+				var verb = bAlreadyPostedByUnconfirmedAA ? "REPLACE" : "INSERT";
+				var or_sent_by_aa = bAlreadyPostedByUnconfirmedAA ? "OR EXISTS (SELECT 1 FROM unit_authors CROSS JOIN aa_addresses USING(address) WHERE unit_authors.unit=outputs.unit)" : "";
+				conn.query(
+					verb + " INTO aa_balances (address, asset, balance) \n\
+					SELECT address, IFNULL(asset, 'base'), SUM(amount) AS balance \n\
+					FROM outputs CROSS JOIN units USING(unit) \n\
+					WHERE address=? AND is_spent=0 AND (main_chain_index<? " + or_sent_by_aa + ") \n\
+					GROUP BY address, asset", // not including the outputs on the current mci, which will trigger the AA and be accounted for separately
+					[address, mci],
+					function () {
+						conn.query(
+							"INSERT " + db.getIgnore() + " INTO addresses (address) VALUES (?)", [address],
+							function () {
+								// can emit again if bAlreadyPostedByUnconfirmedAA, that's ok, the watchers will learn that the AA became now available to non-AAs
+								process.nextTick(function () { // don't call it synchronously with event emitter
+									eventBus.emit("aa_definition_saved", payload, unit);
+								});
+								cb();
+							}
+						);
+					}
+				);
+			});
+		},
+		onDone
+	);
+}
+
+function readAAStateVar(address, var_name, handleResult) {
+	var kvstore = require('./kvstore.js');
+	kvstore.get("st\n" + address + "\n" + var_name, handleResult);
+}
+
+function readAAStateVars(address, var_prefix_from, var_prefix_to, limit, handle) {
+	if (arguments.length === 2) {
+		handle = var_prefix_from;
+		var_prefix_from = '';
+		var_prefix_to = '';
+		limit = 0;
+	}
+	var options = {};
+	options.gte = "st\n" + address + "\n" + var_prefix_from;
+	options.lte = "st\n" + address + "\n" + var_prefix_to + "\uFFFF";
+	if (limit)
+		options.limit = limit;
+
+	var objStateVars = {}
+	var handleData = function (data){
+		objStateVars[data.key.slice(36)] = data.value;
+	}
+	var kvstore = require('./kvstore.js');
+	var stream = kvstore.createReadStream(options);
+	stream.on('data', handleData)
+	.on('end', function(){
+		handle(objStateVars);
+	})
+	.on('error', function(error){
+		throw Error('error from data stream: '+error);
+	});
+}
+
 function readFreeJoints(ifFoundFreeBall, onDone){
 	db.query("SELECT units.unit FROM units LEFT JOIN archived_joints USING(unit) WHERE is_free=1 AND archived_joints.unit IS NULL", function(rows){
 		async.each(rows, function(row, cb){
@@ -726,7 +896,7 @@ function readUnitProps(conn, unit, handleProps){
 		[unit], 
 		function(rows){
 			if (rows.length !== 1)
-				throw Error("not 1 row");
+				throw Error("not 1 row, unit "+unit);
 			var props = rows[0];
 			props.author_addresses = props.author_addresses.split(',');
 			if (props.is_stable) {
@@ -740,6 +910,7 @@ function readUnitProps(conn, unit, handleProps){
 				var props2 = _.cloneDeep(assocUnstableUnits[unit]);
 				delete props2.parent_units;
 				delete props2.earned_headers_commission_recipients;
+				delete props2.bAA;
 				if (!_.isEqual(props, props2)) {
 					debugger;
 					throw Error("different props of "+unit+", mem: "+JSON.stringify(props2)+", db: "+JSON.stringify(props)+", stack "+stack);
@@ -787,6 +958,7 @@ function readPropsOfUnits(conn, earlier_unit, arrLaterUnits, handleProps){
 					delete props.payload_commission;
 					delete props.sequence;
 					delete props.witness_list_unit;
+					delete props.bAA;
 				});
 				if (!_.isEqual(objEarlierUnitProps, objEarlierUnitProps2cmp))
 					throwError("different earlier, db "+JSON.stringify(objEarlierUnitProps)+", mem "+JSON.stringify(objEarlierUnitProps2cmp));
@@ -861,11 +1033,23 @@ function findLastBallMciOfMci(conn, mci, handleLastBallMci){
 	);
 }
 
+function readMaxLastBallMci(conn, arrUnits, handleResult) {
+	conn.query(
+		"SELECT MAX(lb_units.main_chain_index) AS max_last_ball_mci \n\
+		FROM units JOIN units AS lb_units ON units.last_ball_unit=lb_units.unit \n\
+		WHERE units.unit IN(?)",
+		[arrUnits],
+		function(rows) {
+			handleResult(rows[0].max_last_ball_mci);
+		}
+	);
+}
+
 function getMinRetrievableMci(){
 	return min_retrievable_mci;
 }
 
-function updateMinRetrievableMciAfterStabilizingMci(conn, last_stable_mci, handleMinRetrievableMci){
+function updateMinRetrievableMciAfterStabilizingMci(conn, batch, last_stable_mci, handleMinRetrievableMci){
 	console.log("updateMinRetrievableMciAfterStabilizingMci "+last_stable_mci);
 	findLastBallMciOfMci(conn, last_stable_mci, function(last_ball_mci){
 		if (last_ball_mci <= min_retrievable_mci) // nothing new
@@ -893,6 +1077,23 @@ function updateMinRetrievableMciAfterStabilizingMci(conn, last_stable_mci, handl
 								throw Error("bad unit not found: "+unit);
 							},
 							ifFound: function(objJoint){
+								var objUnit = objJoint.unit;
+								var objStrippedUnit = {
+									unit: unit,
+									content_hash: unit_row.content_hash,
+									version: objUnit.version,
+									alt: objUnit.alt,
+									parent_units: objUnit.parent_units,
+									last_ball: objUnit.last_ball,
+									last_ball_unit: objUnit.last_ball_unit,
+									authors: objUnit.authors.map(function(author){ return {address: author.address}; }) // already sorted
+								};
+								if (objUnit.witness_list_unit)
+									objStrippedUnit.witness_list_unit = objUnit.witness_list_unit;
+								else
+									objStrippedUnit.witnesses = objUnit.witnesses;
+								var objStrippedJoint = {unit: objStrippedUnit, ball: objJoint.ball};
+								batch.put('j\n'+unit, JSON.stringify(objStrippedJoint));
 								archiving.generateQueriesToArchiveJoint(conn, objJoint, 'voided', arrQueries, cb);
 							}
 						});
@@ -973,6 +1174,8 @@ function archiveJointAndDescendants(from_unit){
 				},
 				function(){
 					conn.addQuery(arrQueries, "DELETE FROM known_bad_joints");
+					conn.addQuery(arrQueries, "UPDATE units SET is_free=1 WHERE is_free=0 AND is_stable=0 \n\
+						AND (SELECT 1 FROM parenthoods WHERE parent_unit=unit LIMIT 1) IS NULL");
 					console.log('will execute '+arrQueries.length+' queries to archive');
 					async.series(arrQueries, function(){
 						arrUnits.forEach(forgetUnit);
@@ -1020,49 +1223,63 @@ function readAssetInfo(conn, asset, handleAssetInfo){
 	);
 }
 
-function readAsset(conn, asset, last_ball_mci, handleAsset){
+function readAsset(conn, asset, last_ball_mci, bAcceptUnconfirmedAA, handleAsset) {
+	if (arguments.length === 4) {
+		handleAsset = bAcceptUnconfirmedAA;
+		bAcceptUnconfirmedAA = false;
+	}
 	if (last_ball_mci === null){
 		if (conf.bLight)
 			last_ball_mci = MAX_INT32;
 		else
 			return readLastStableMcIndex(conn, function(last_stable_mci){
-				readAsset(conn, asset, last_stable_mci, handleAsset);
+				readAsset(conn, asset, last_stable_mci, bAcceptUnconfirmedAA, handleAsset);
 			});
 	}
-	readAssetInfo(conn, asset, function(objAsset){
+	readAssetInfo(conn, asset, function (objAsset) {
 		if (!objAsset)
-			return handleAsset("asset "+asset+" not found");
-		if (objAsset.main_chain_index > last_ball_mci)
-			return handleAsset("asset definition must be before last ball");
+			return handleAsset("asset " + asset + " not found");
 		if (objAsset.sequence !== "good")
 			return handleAsset("asset definition is not serial");
-		if (!objAsset.spender_attested)
-			return handleAsset(null, objAsset);
+		
+		function addAttestorsIfNecessary(){
+			if (!objAsset.spender_attested)
+				return handleAsset(null, objAsset);
 
-		// find latest list of attestors
-		conn.query(
-			"SELECT unit FROM asset_attestors CROSS JOIN units USING(unit) \n\
-			WHERE asset=? AND main_chain_index<=? AND is_stable=1 AND sequence='good' ORDER BY "+(conf.bLight ? "units.rowid" : "level")+" DESC LIMIT 1", 
-			[asset, last_ball_mci],
-			function(latest_rows){
-				if (latest_rows.length === 0)
-					throw Error("no latest attestor list");
-				var latest_attestor_list_unit = latest_rows[0].unit;
+			// find latest list of attestors
+			conn.query(
+				"SELECT unit FROM asset_attestors CROSS JOIN units USING(unit) \n\
+				WHERE asset=? AND main_chain_index<=? AND is_stable=1 AND sequence='good' ORDER BY "+ (conf.bLight ? "units.rowid" : "level") + " DESC LIMIT 1",
+				[asset, last_ball_mci],
+				function (latest_rows) {
+					if (latest_rows.length === 0)
+						throw Error("no latest attestor list");
+					var latest_attestor_list_unit = latest_rows[0].unit;
 
-				// read the list
-				conn.query(
-					"SELECT attestor_address FROM asset_attestors CROSS JOIN units USING(unit) \n\
-					WHERE asset=? AND unit=? AND main_chain_index<=? AND is_stable=1 AND sequence='good'",
-					[asset, latest_attestor_list_unit, last_ball_mci],
-					function(att_rows){
-						if (att_rows.length === 0)
-							throw Error("no attestors?");
-						objAsset.arrAttestorAddresses = att_rows.map(function(att_row){ return att_row.attestor_address; });
-						handleAsset(null, objAsset);
-					}
-				);
-			}
-		);
+					// read the list
+					conn.query(
+						"SELECT attestor_address FROM asset_attestors CROSS JOIN units USING(unit) \n\
+						WHERE asset=? AND unit=? AND main_chain_index<=? AND is_stable=1 AND sequence='good'",
+						[asset, latest_attestor_list_unit, last_ball_mci],
+						function (att_rows) {
+							if (att_rows.length === 0)
+								throw Error("no attestors?");
+							objAsset.arrAttestorAddresses = att_rows.map(function (att_row) { return att_row.attestor_address; });
+							handleAsset(null, objAsset);
+						}
+					);
+				}
+			);
+		}
+
+		if (objAsset.main_chain_index !== null && objAsset.main_chain_index <= last_ball_mci)
+			return addAttestorsIfNecessary();
+		// && objAsset.main_chain_index !== null below is for bug compatibility with the old version
+		if (!bAcceptUnconfirmedAA || constants.bTestnet && last_ball_mci < testnetAssetsDefinedByAAsAreVisibleImmediatelyUpgradeMci && objAsset.main_chain_index !== null)
+			return handleAsset("asset definition must be before last ball");
+		readAADefinition(conn, objAsset.definer_address, function (arrDefinition) {
+			arrDefinition ? addAttestorsIfNecessary() : handleAsset("asset definition must be before last ball (AA)");
+		});
 	});
 }
 
@@ -1084,8 +1301,12 @@ function filterAttestedAddresses(conn, objAsset, last_ball_mci, arrAddresses, ha
 }
 
 // note that light clients cannot check attestations
-function loadAssetWithListOfAttestedAuthors(conn, asset, last_ball_mci, arrAuthorAddresses, handleAsset){
-	readAsset(conn, asset, last_ball_mci, function(err, objAsset){
+function loadAssetWithListOfAttestedAuthors(conn, asset, last_ball_mci, arrAuthorAddresses, bAcceptUnconfirmedAA, handleAsset){
+	if (arguments.length === 5) {
+		handleAsset = bAcceptUnconfirmedAA;
+		bAcceptUnconfirmedAA = false;
+	}
+	readAsset(conn, asset, last_ball_mci, bAcceptUnconfirmedAA, function(err, objAsset){
 		if (err)
 			return handleAsset(err);
 		if (!objAsset.spender_attested)
@@ -1175,7 +1396,8 @@ function determineIfHasWitnessListMutationsAlongMc(conn, objUnit, last_ball_unit
 	buildListOfMcUnitsWithPotentiallyDifferentWitnesslists(conn, objUnit, last_ball_unit, arrWitnesses, function(bHasBestParent, arrMcUnits){
 		if (!bHasBestParent)
 			return handleResult("no compatible best parent");
-		console.log("###### MC units ", arrMcUnits);
+		if (arrMcUnits.length > 0)
+			console.log("###### MC units with potential mutations from parents " + objUnit.parent_units.join(', ') + " to last unit " + last_ball_unit + ":", arrMcUnits);
 		if (arrMcUnits.length === 0)
 			return handleResult();
 		conn.query(
@@ -1183,10 +1405,9 @@ function determineIfHasWitnessListMutationsAlongMc(conn, objUnit, last_ball_unit
 			FROM units CROSS JOIN unit_witnesses ON (units.unit=unit_witnesses.unit OR units.witness_list_unit=unit_witnesses.unit) AND address IN(?) \n\
 			WHERE units.unit IN("+arrMcUnits.map(db.escape).join(', ')+") \n\
 			GROUP BY units.unit \n\
-			HAVING count_matching_witnesses<?",
+			HAVING count_matching_witnesses<? LIMIT 1",
 			[arrWitnesses, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS],
 			function(rows){
-				console.log(rows);
 				if (rows.length > 0)
 					return handleResult("too many ("+(constants.COUNT_WITNESSES - rows[0].count_matching_witnesses)+") witness list mutations relative to MC unit "+rows[0].unit);
 				handleResult();
@@ -1223,6 +1444,8 @@ function buildListOfMcUnitsWithPotentiallyDifferentWitnesslists(conn, objUnit, l
 
 
 function readStaticUnitProps(conn, unit, handleProps, bReturnNullIfNotFound){
+	if (!unit)
+		throw Error("no unit");
 	var props = assocCachedUnits[unit];
 	if (props)
 		return handleProps(props);
@@ -1230,7 +1453,7 @@ function readStaticUnitProps(conn, unit, handleProps, bReturnNullIfNotFound){
 		if (rows.length !== 1){
 			if (bReturnNullIfNotFound)
 				return handleProps(null);
-			throw Error("not 1 unit");
+			throw Error("not 1 unit "+unit);
 		}
 		props = rows[0];
 		assocCachedUnits[unit] = props;
@@ -1244,7 +1467,7 @@ function readUnitAuthors(conn, unit, handleAuthors){
 		return handleAuthors(arrAuthors);
 	conn.query("SELECT address FROM unit_authors WHERE unit=?", [unit], function(rows){
 		if (rows.length === 0)
-			throw Error("no authors");
+			throw Error("no authors, unit "+unit);
 		var arrAuthors2 = rows.map(function(row){ return row.address; }).sort();
 	//	if (arrAuthors && arrAuthors.join('-') !== arrAuthors2.join('-'))
 	//		throw Error('cache is corrupt');
@@ -1282,6 +1505,24 @@ function forgetUnit(unit){
 	if (!conf.bLight && assocStableUnits[unit])
 		throw Error("trying to forget stable unit "+unit);
 	delete assocStableUnits[unit];
+	delete assocUnstableMessages[unit];
+	delete assocBestChildren[unit];
+}
+
+// parent_units are parent units of the forgotten unit
+function fixIsFreeAfterForgettingUnit(parent_units) {
+	parent_units.forEach(function(parent_unit){
+		if (!assocUnstableUnits[parent_unit]) // the parent is already stable
+			return;
+		var bHasChildren = false;
+		for (var unit in assocUnstableUnits){
+			var o = assocUnstableUnits[unit];
+			if (o.parent_units.indexOf(parent_unit) >= 0)
+				bHasChildren = true;
+		}
+		if (!bHasChildren)
+			assocUnstableUnits[parent_unit].is_free = 1;
+	});
 }
 
 function shrinkCache(){
@@ -1433,6 +1674,51 @@ function initHashTreeBalls(conn, onDone){
 	});
 }
 
+function initUnstableMessages(conn, onDone){
+	var conn = conn || db;
+	conn.query("SELECT unit FROM units CROSS JOIN messages USING(unit) WHERE is_stable=0 AND app IN('data_feed', 'definition')", function(rows){
+		async.eachSeries(
+			rows,
+			function(row, cb){
+				readJoint(conn, row.unit, {
+					ifNotFound: function(){
+						throw Error("unit not found: "+row.unit);
+					},
+					ifFound: function(objJoint){
+						objJoint.unit.messages.forEach(function(message){
+							if (message.app === 'data_feed' || message.app === 'definition') {
+								if (!assocUnstableMessages[row.unit])
+									assocUnstableMessages[row.unit] = [];
+								assocUnstableMessages[row.unit].push(message);
+							}
+						});
+						cb();
+					}
+				});
+			},
+			function(){
+				console.log('initUnstableMessages done, '+Object.keys(assocUnstableMessages).length+' messages found');
+				if (onDone)
+					onDone();
+			}
+		);
+	});
+}
+
+/*
+function initLastUnstableAAUnit(conn, onDone) {
+	conn.query(
+		"SELECT units.unit FROM units CROSS JOIN unit_authors USING(unit) CROSS JOIN aa_addresses USING(address) \n\
+		WHERE is_stable=0 ORDER BY latest_included_mc_index DESC, level DESC LIMIT 1",
+		function (rows) {
+			if (rows.length > 0)
+				exports.last_unstable_aa_unit = rows[0].unit;
+			console.log('last_unstable_aa_unit = ' + exports.last_unstable_aa_unit);
+			onDone();
+		}
+	);
+}*/
+
 function resetUnstableUnits(conn, onDone){
 	Object.keys(assocBestChildren).forEach(function(unit){
 		delete assocBestChildren[unit];
@@ -1466,18 +1752,18 @@ function initCaches(){
 	console.log('initCaches');
 	db.executeInTransaction(function(conn, onDone){
 		mutex.lock(['write'], function(unlock) {
-			initUnstableUnits(conn, initStableUnits.bind(this, conn, initHashTreeBalls.bind(this, conn, function(){
+			initUnstableUnits(conn, initStableUnits.bind(this, conn, initUnstableMessages.bind(this, conn, initHashTreeBalls.bind(this, conn, function(){
 				console.log('initCaches done');
+				if (!conf.bLight && constants.bTestnet)
+					archiveJointAndDescendantsIfExists('K6OAWrAQkKkkTgfvBb/4GIeN99+6WSHtfVUd30sen1M=');
 				unlock();
 				onDone();
 				eventBus.emit('caches_ready');
-			})));
+			}))));
 		});
 	});
 }
 
-if (!conf.bLight)
-	archiveJointAndDescendantsIfExists('N6QadI9yg3zLxPMphfNGJcPfddW4yHPkoGMbbGZsWa0=');
 
 
 exports.isGenesisUnit = isGenesisUnit;
@@ -1498,6 +1784,12 @@ exports.readFreeJoints = readFreeJoints;
 exports.readDefinitionChashByAddress = readDefinitionChashByAddress;
 exports.readDefinitionByAddress = readDefinitionByAddress;
 exports.readDefinition = readDefinition;
+exports.readAADefinition = readAADefinition;
+exports.getUnconfirmedAADefinition = getUnconfirmedAADefinition;
+exports.getUnconfirmedAADefinitionsPostedByAAs = getUnconfirmedAADefinitionsPostedByAAs;
+exports.insertAADefinitions = insertAADefinitions;
+exports.readAAStateVar = readAAStateVar;
+exports.readAAStateVars = readAAStateVars;
 
 exports.readLastMainChainIndex = readLastMainChainIndex;
 
@@ -1506,6 +1798,7 @@ exports.readLastStableMcIndex = readLastStableMcIndex;
 
 
 exports.findLastBallMciOfMci = findLastBallMciOfMci;
+exports.readMaxLastBallMci = readMaxLastBallMci;
 exports.getMinRetrievableMci = getMinRetrievableMci;
 exports.updateMinRetrievableMciAfterStabilizingMci = updateMinRetrievableMciAfterStabilizingMci;
 
@@ -1528,6 +1821,7 @@ exports.readUnitAuthors = readUnitAuthors;
 exports.isKnownUnit = isKnownUnit;
 exports.setUnitIsKnown = setUnitIsKnown;
 exports.forgetUnit = forgetUnit;
+exports.fixIsFreeAfterForgettingUnit = fixIsFreeAfterForgettingUnit;
 
 exports.sliceAndExecuteQuery = sliceAndExecuteQuery;
 
@@ -1536,5 +1830,7 @@ exports.assocStableUnits = assocStableUnits;
 exports.assocStableUnitsByMci = assocStableUnitsByMci;
 exports.assocBestChildren = assocBestChildren;
 exports.assocHashTreeUnitsByBall = assocHashTreeUnitsByBall;
+exports.assocUnstableMessages = assocUnstableMessages;
 exports.initCaches = initCaches;
 exports.resetMemory = resetMemory;
+exports.initializeMinRetrievableMci = initializeMinRetrievableMci;

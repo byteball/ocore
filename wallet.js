@@ -13,6 +13,7 @@ var storage = require('./storage.js');
 var device = require('./device.js');
 var walletGeneral = require('./wallet_general.js');
 var lightWallet = require('./light_wallet.js');
+var light = require('./light.js');
 var walletDefinedByKeys = require('./wallet_defined_by_keys.js');
 var walletDefinedByAddresses = require('./wallet_defined_by_addresses.js');
 var eventBus = require('./event_bus.js');
@@ -27,6 +28,8 @@ var Mnemonic = require('bitcore-mnemonic');
 var inputs = require('./inputs.js');
 var prosaic_contract = require('./prosaic_contract.js');
 var arbiter_contract = require('./arbiter_contract.js');
+var signed_message = require('./signed_message.js');
+var aa_addresses = require('./aa_addresses.js');
 
 var message_counter = 0;
 var assocLastFailedAssetMetadataTimestamps = {};
@@ -133,6 +136,9 @@ function handleJustsaying(ws, subject, body){
 			
 		case 'light/have_updates':
 			lightWallet.refreshLightClientHistory();
+			break;
+		case 'light/sequence_became_bad':
+			light.updateAndEmitBadSequenceUnits(body);
 			break;
 	}
 }
@@ -587,7 +593,9 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					catch(e){
 						return callbacks.ifError("wrong signed message");
 					}
-					validation.validateSignedMessage(objSignedMessage, function(err) {
+					if (objSignedMessage.version !== constants.version)
+						return callbacks.ifError("wrong version in signed message: " + objSignedMessage.version);
+					signed_message.validateSignedMessage(db, objSignedMessage, objContract.peer_address, function(err) {
 						if (err || objSignedMessage.authors[0].address !== objContract.peer_address || objSignedMessage.signed_message != objContract.title)
 							return callbacks.ifError("wrong contract signature");
 						processResponse(objSignedMessage);
@@ -1253,6 +1261,7 @@ function readTransactionHistory(opts, handleHistory){
 							[unit], 
 							function(address_rows){
 								var arrPayerAddresses = address_rows.map(function(address_row){ return address_row.address; });
+								var arrTransactionsOnUnit = [];
 								movement.arrMyRecipients.forEach(function(objRecipient){
 									var transaction = {
 										action: 'received',
@@ -1267,8 +1276,20 @@ function readTransactionHistory(opts, handleHistory){
 										mci: movement.mci
 									};
 									arrTransactions.push(transaction);
+									arrTransactionsOnUnit.push(transaction);
 								});
-								cb();
+								if (arrPayerAddresses.length > 1)
+									return cb();
+								db.query("SELECT aa_address FROM aa_responses WHERE response_unit=?", [unit], function (aa_rows) {
+									if (aa_rows.length === 0)
+										return cb();
+									if (aa_rows[0].aa_address !== arrPayerAddresses[0])
+										throw Error("payer is not AA");
+									arrTransactionsOnUnit.forEach(function (transaction) {
+										transaction.from_aa = true;
+									});
+									cb();
+								});
 							}
 						);
 					}
@@ -1335,9 +1356,26 @@ function readTransactionHistory(opts, handleHistory){
 												cb2();
 											}
 										);
-									} else {
-										arrTransactions.push(transaction);
-										cb2();
+									}
+									else {
+										db.query(
+											"SELECT bounced, response, response_unit FROM aa_responses \n\
+											WHERE trigger_unit=? AND aa_address=?",
+											[unit, payee.address],
+											function (rows) {
+												if (rows.length > 1)
+													throw Error(rows.length + " AA responses on " + JSON.stringify(transaction));
+												if (rows.length === 1) {
+													var row = rows[0];
+													transaction.to_aa = true;
+													transaction.bounced = row.bounced;
+													transaction.response = row.response;
+													transaction.response_unit = row.response_unit;
+												}
+												arrTransactions.push(transaction);
+												cb2();
+											}
+										);
 									}
 								}, function() {
 									cb();
@@ -1444,12 +1482,8 @@ function readFullSigningPaths(conn, address, arrSigningDeviceAddresses, handleSi
 
 function readAssetProps(asset, handleResult){
 	if (!asset)
-		return handleResult({fixed_denominations: false, cap: constants.TOTAL_WHITEBYTES, issued_by_definer_only: true});
-	storage.readAsset(db, asset, null, function(err, objAsset){
-		if (err)
-			throw Error(err);
-		handleResult(objAsset);
-	});
+		return handleResult(null, {fixed_denominations: false, cap: constants.TOTAL_WHITEBYTES, issued_by_definer_only: true});
+	storage.readAsset(db, asset, null, handleResult);
 }
 
 function readFundedAddresses(asset, wallet, estimated_amount, spend_unconfirmed, handleFundedAddresses){
@@ -1475,7 +1509,11 @@ function readFundedAddresses(asset, wallet, estimated_amount, spend_unconfirmed,
 		)",
 		asset ? [wallet, asset] : [wallet],
 		function(rows){
-			readAssetProps(asset, function(objAsset){
+			readAssetProps(asset, function (err, objAsset) {
+				if (err) {
+					console.log(err);
+					return handleFundedAddresses([]);
+				}
 				if (objAsset.fixed_denominations)
 					estimated_amount = 0; // don't shorten the list of addresses, indivisible_asset.js will do it later according to denominations
 				if (!objAsset.cap){ // uncapped asset: can be issued from definer_address or from any address
@@ -1758,6 +1796,16 @@ function sendMultiPayment(opts, handleResult)
 			throw Error('amount must be a number');
 		if (amount < 0)
 			throw Error('amount must be positive');
+	}
+	
+	if (!opts.aa_addresses_checked) {
+		aa_addresses.checkAAOutputs(asset, to_address, amount, base_outputs, asset_outputs, function (err) {
+			if (err)
+				return handleResult(err);
+			opts.aa_addresses_checked = true;
+			sendMultiPayment(opts, handleResult);
+		});
+		return;
 	}
 	
 	if (recipient_device_address === device.getMyDeviceAddress())
@@ -2072,7 +2120,7 @@ function forwardPrivateChainsToOtherMembersOfSharedAddresses(arrChainsOfCosigner
 }
 
 function sendTextcoinEmail(email, subject, amount, asset, mnemonic){
-	var mail = require('./mail.js'+'');
+	var mail = require('./mail.js');
 	var usd_amount_str = '';
 	if (!asset){
 		amount -= constants.TEXTCOIN_CLAIM_FEE;
@@ -2094,7 +2142,7 @@ function sendTextcoinEmail(email, subject, amount, asset, mnemonic){
 }
 
 function replaceInTextcoinTemplate(params, handleText){
-	var fs = require('fs'+'');
+	var fs = require('fs');
 	fs.readFile(__dirname + '/email_template.html', 'utf8', function(err, template) {
 		if (err)
 			throw Error("failed to read template: "+err);
@@ -2266,7 +2314,7 @@ function storePrivateAssetPayload(fullPath, cordovaPathObj, mnemonic, chains, cb
 	var zipParams = {type: "nodebuffer", compression: 'DEFLATE', compressionOptions: {level: 9}};
 	zip.generateAsync(zipParams).then(function(zipFile) {
 		if (!bCordova) {
-			var fs = require('fs'+'');
+			var fs = require('fs');
 			fs.writeFile(fullPath, zipFile, cb);
 		} else {
 			window.requestFileSystem(LocalFileSystem.TEMPORARY, 0, function(fs) {
@@ -2356,7 +2404,7 @@ function handlePrivatePaymentFile(fullPath, content, cb) {
 	}
 
 	if (!bCordova) {
-		var fs = require('fs'+'');
+		var fs = require('fs');
 		fs.readFile(decodeURIComponent(fullPath.replace('file://', '')), unzip);
 	} else {
 		window.requestFileSystem(LocalFileSystem.TEMPORARY, 0, function(fs) {
@@ -2415,9 +2463,14 @@ function determineIfDeviceCanBeRemoved(device_address, handleResult) {
 };
 
 
-function signMessage(from_address, message, arrSigningDeviceAddresses, signWithLocalPrivateKey, handleResult){
+function signMessage(message, from_address, arrSigningDeviceAddresses, signWithLocalPrivateKey, bNetworkAware, handleResult){
+	if (!ValidationUtils.isValidAddress(from_address) && ValidationUtils.isValidAddress(message)) {
+		var tmp = from_address;
+		from_address = message;
+		message = tmp;
+	}
 	var signer = getSigner({}, arrSigningDeviceAddresses, signWithLocalPrivateKey);
-	composer.signMessage(from_address, message, signer, handleResult);
+	signed_message.signMessage(message, from_address, signer, bNetworkAware, handleResult);
 }
 
 // todo, almost same as payment

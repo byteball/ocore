@@ -11,8 +11,9 @@ var ecdsaSig = require('./signature.js');
 var merkle = require('./merkle.js');
 var ValidationUtils = require("./validation_utils.js");
 var objectHash = require("./object_hash.js");
-var evalFormulaBB = process.browser ? null : require('./formula/index'+'');
-var BigNumber = require('bignumber.js');
+var formulaParser = require('./formula/index');
+var Decimal = require('decimal.js');
+var dataFeeds = require('./data_feeds.js');
 
 var hasFieldsExcept = ValidationUtils.hasFieldsExcept;
 var isStringOfLength = ValidationUtils.isStringOfLength;
@@ -21,6 +22,7 @@ var isInteger = ValidationUtils.isInteger;
 var isNonnegativeInteger = ValidationUtils.isNonnegativeInteger;
 var isPositiveInteger = ValidationUtils.isPositiveInteger;
 var isNonemptyArray = ValidationUtils.isNonemptyArray;
+var isNonemptyObject = ValidationUtils.isNonemptyObject;
 var isArrayOfLength = ValidationUtils.isArrayOfLength;
 var isValidAddress = ValidationUtils.isValidAddress;
 var isValidBase64 = ValidationUtils.isValidBase64;
@@ -94,8 +96,11 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 	
 	function evaluate(arr, path, bInNegation, cb){
 		complexity++;
+		count_ops++;
 		if (complexity > constants.MAX_COMPLEXITY)
 			return cb("complexity exceeded at "+path);
+		if (count_ops > constants.MAX_OPS)
+			return cb("number of ops exceeded at "+path);
 		if (!isArrayOfLength(arr, 2))
 			return cb("expression must be 2-element array");
 		var op = arr[0];
@@ -547,8 +552,9 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 			case 'formula':
 				if (objValidationState.last_ball_mci < constants.formulaUpgradeMci)
 					return cb("formulas not allowed at this mci yet");
-				evalFormulaBB.validate(args, complexity, function (result) {
+				formulaParser.validate({ formula: args, complexity: complexity, count_ops: count_ops }, function (result) {
 					complexity = result.complexity;
+					count_ops = result.count_ops;
 					cb(result.error);
 				});
 				break;
@@ -558,6 +564,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 	}
 	
 	var complexity = 0;
+	var count_ops = 0;
 	evaluate(arrDefinition, 'r', false, function(err, bHasSig){
 		if (err)
 			return handleResult(err);
@@ -565,6 +572,8 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 			return handleResult("each branch must have a signature");
 		if (complexity > constants.MAX_COMPLEXITY)
 			return handleResult("complexity exceeded");
+		if (count_ops > constants.MAX_OPS)
+			return handleResult("number of ops exceeded");
 		handleResult();
 	});
 }
@@ -847,6 +856,8 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				var relation = args[2];
 				var value = args[3];
 				var min_mci = args[4] || 0;
+				dataFeeds.dataFeedExists(arrAddresses, feed_name, relation, value, min_mci, objValidationState.last_ball_mci, false, cb2);
+				/*
 				var value_condition;
 				var index;
 				var params = [arrAddresses, feed_name];
@@ -906,6 +917,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 						cb2(rows.length > 0);
 					});
 				});
+				*/
 				break;
 				
 			case 'in merkle':
@@ -919,10 +931,13 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				var min_mci = args[3] || 0;
 				var serialized_proof = assocAuthentifiers[path];
 				var proof = merkle.deserializeMerkleProof(serialized_proof);
+			//	console.error('merkle root '+proof.root);
 				if (!merkle.verifyMerkleProof(element, proof)){
 					fatal_error = "bad merkle proof at path "+path;
 					return cb2(false);
 				}
+				dataFeeds.dataFeedExists(arrAddresses, feed_name, '=', proof.root, min_mci, objValidationState.last_ball_mci, false, cb2);
+				/*
 				conn.query(
 					"SELECT 1 FROM data_feeds CROSS JOIN units USING(unit) JOIN unit_authors USING(unit) \n\
 					WHERE address IN(?) AND feed_name=? AND value=? AND main_chain_index<=? AND main_chain_index>=? AND sequence='good' AND is_stable=1 \n\
@@ -934,6 +949,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 						cb2(rows.length > 0);
 					}
 				);
+				*/
 				break;
 				
 			case 'timestamp':
@@ -1075,15 +1091,30 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 			case 'formula':
 				var formula = args;
 				augmentMessagesOrIgnore(formula, function (messages) {
-					evalFormulaBB.evaluate(conn, formula, messages, objValidationState, address, function (result) {
+					var trigger = {};
+					objUnit.messages.forEach(function (message) {
+						if (message.app === 'data' && !trigger.data) // use the first data mesage, ignore the subsequent ones
+							trigger.data = message.payload;
+					});
+					var opts = {
+						conn: conn,
+						formula: formula,
+						messages: messages,
+						trigger: trigger,
+						objValidationState: objValidationState,
+						address: address
+					};
+					formulaParser.evaluate(opts, function (err, result) {
+						if (err)
+							return cb2(false);
 						if (typeof result === 'boolean') {
 							cb2(result);
 						} else if (typeof result === 'string') {
 							cb2(!!result);
-						} else if (BigNumber.isBigNumber(result)) {
+						} else if (Decimal.isDecimal(result)) {
 							cb2(!result.eq(0))
 						} else {
-							cb(false);
+							cb2(false);
 						}
 					});
 				});
@@ -1298,7 +1329,7 @@ function replaceInTemplate(arrTemplate, params){
 				if (x.charAt(0) !== '$')
 					return x;
 				var name = x.substring(1);
-				if (!(name in params))
+				if (!params.hasOwnProperty(name))
 					throw new NoVarException("variable "+name+" not specified, template "+JSON.stringify(arrTemplate)+", params "+JSON.stringify(params));
 				return params[name]; // may change type if params[name] is not a string
 			case 'object':

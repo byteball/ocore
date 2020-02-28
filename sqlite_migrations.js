@@ -4,7 +4,7 @@ var eventBus = require('./event_bus.js');
 var constants = require("./constants.js");
 var conf = require("./conf.js");
 
-var VERSION = 30;
+var VERSION = 39;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -22,6 +22,13 @@ function migrateDb(connection, onDone){
 			throw Error("user version "+version+" > "+VERSION+": looks like you are using a new database with an old client");
 		if (version === VERSION)
 			return onDone();
+		var bLongUpgrade = (version < 31 && !conf.bLight);
+		eventBus.emit('started_db_upgrade', bLongUpgrade);
+		if (typeof window === 'undefined'){
+			var message = bLongUpgrade ? "=== will upgrade the database, it will take several hours" : "=== will upgrade the database, it can take some time";
+			console.error(message);
+			console.log(message);
+		}
 		var arrQueries = [];
 		async.series([
 			function(cb){
@@ -272,10 +279,121 @@ function migrateDb(connection, onDone){
 				}
 				if (version < 28){
 					connection.addQuery(arrQueries, "ALTER TABLE units ADD COLUMN timestamp INT NOT NULL DEFAULT 0");
+					connection.addQuery(arrQueries, "PRAGMA user_version=28");
 				}
 				if (version < 29)
 					connection.addQuery(arrQueries, "DELETE FROM known_bad_joints");
 				if (version < 30) {
+					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS joints ( \n\
+						unit CHAR(44) NOT NULL PRIMARY KEY, \n\
+						json TEXT NOT NULL, \n\
+						creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP \n\
+					)");
+					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS aa_addresses ( \n\
+						address CHAR(32) NOT NULL PRIMARY KEY, \n\
+						unit CHAR(44) NOT NULL, -- where it is first defined.  No index for better speed \n\
+						mci INT NOT NULL, -- it is available since this mci (mci of the above unit) \n\
+						definition TEXT NOT NULL, \n\
+						creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP \n\
+					)");
+					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS aa_triggers ( \n\
+						mci INT NOT NULL, \n\
+						unit CHAR(44) NOT NULL, \n\
+						address CHAR(32) NOT NULL, \n\
+						creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, \n\
+						PRIMARY KEY (mci, unit, address), \n\
+						FOREIGN KEY (address) REFERENCES aa_addresses(address) \n\
+					)");
+					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS aa_balances ( \n\
+						address CHAR(32) NOT NULL, \n\
+						asset CHAR(44) NOT NULL, -- 'base' for bytes (NULL would not work for uniqueness of primary key) \n\
+						balance BIGINT NOT NULL, \n\
+						creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, \n\
+						PRIMARY KEY (address, asset), \n\
+						FOREIGN KEY (address) REFERENCES aa_addresses(address) \n\
+					--	FOREIGN KEY (asset) REFERENCES assets(unit) \n\
+					)");
+					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS aa_responses ( \n\
+						aa_response_id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \n\
+						mci INT NOT NULL, -- mci of the trigger unit \n\
+						trigger_address CHAR(32) NOT NULL, -- trigger address \n\
+						aa_address CHAR(32) NOT NULL, \n\
+						trigger_unit CHAR(44) NOT NULL, \n\
+						bounced TINYINT NOT NULL, \n\
+						response_unit CHAR(44) NULL UNIQUE, \n\
+						response TEXT NULL, -- json \n\
+						creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, \n\
+						UNIQUE (trigger_unit, aa_address), \n\
+						"+(conf.bLight ? "" : "FOREIGN KEY (aa_address) REFERENCES aa_addresses(address),")+" \n\
+						FOREIGN KEY (trigger_unit) REFERENCES units(unit) \n\
+					--	FOREIGN KEY (response_unit) REFERENCES units(unit) \n\
+					)");
+					connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS aaResponsesByTriggerAddress ON aa_responses(trigger_address)");
+					connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS aaResponsesByAAAddress ON aa_responses(aa_address)");
+					connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS aaResponsesByMci ON aa_responses(mci)");
+					connection.addQuery(arrQueries, "PRAGMA user_version=30");
+				}
+				cb();
+			},
+			function(cb){
+				if (version < 31) {
+					async.series(arrQueries, function () {
+						require('./migrate_to_kv.js')(connection, function () {
+							arrQueries = [];
+							cb();
+						});
+					});
+				}
+				else
+					cb();
+			}, 
+			function(cb){
+				if (version < 32)
+					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS my_watched_addresses (\n\
+						address CHAR(32) NOT NULL PRIMARY KEY,\n\
+						creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP\n\
+					)");
+				if (version < 33) {
+					connection.addQuery(arrQueries, "ALTER TABLE aa_addresses ADD COLUMN storage_size INT NOT NULL DEFAULT 0");
+					connection.addQuery(arrQueries, "PRAGMA user_version=33");
+				}
+				cb();
+			},
+			function (cb) {
+				if (version < 34)
+					initStorageSizes(connection, arrQueries, cb);
+				else
+					cb();
+			},
+			function (cb) {
+				if (version < 35)
+					connection.addQuery(arrQueries, "REPLACE INTO aa_balances (address, asset, balance) \n\
+						SELECT address, IFNULL(asset, 'base'), SUM(amount) AS balance \n\
+						FROM aa_addresses \n\
+						CROSS JOIN outputs USING(address) \n\
+						CROSS JOIN units USING(unit) \n\
+						WHERE is_spent=0 AND ( \n\
+							is_stable=1 \n\
+							OR EXISTS (SELECT 1 FROM unit_authors CROSS JOIN aa_addresses USING(address) WHERE unit_authors.unit=outputs.unit) \n\
+						) \n\
+						GROUP BY address, asset");
+				if (version < 36) {
+					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS watched_light_aas (  \n\
+						peer VARCHAR(100) NOT NULL, \n\
+						aa CHAR(32) NOT NULL, \n\
+						address CHAR(32) NULL, \n\
+						creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, \n\
+						PRIMARY KEY (peer, aa, address) \n\
+					)");
+					connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS wlaabyAA ON watched_light_aas(aa)");
+				}
+				if (version < 37) {
+					connection.addQuery(arrQueries, "ALTER TABLE aa_addresses ADD COLUMN base_aa CHAR(32) NULL" + (conf.bLight ? "" : " CONSTRAINT aaAddressesByBaseAA REFERENCES aa_addresses(address)"));
+					connection.addQuery(arrQueries, "PRAGMA user_version=37");
+				}
+				if (version < 38)
+					connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS byBaseAA ON aa_addresses(base_aa)");
+				if (version < 39) {
 					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS arbiters_locations ( -- table used in arbregistry \n\
 						arbiter_address CHAR(32) NOT NULL PRIMARY KEY, \n\
 						arbstore_address CHAR(32) NOT NULL, \n\
@@ -311,21 +429,49 @@ function migrateDb(connection, onDone){
 					)");
 				}
 				cb();
-			}
-		], function(){
+			},
+		],
+		function(){
 			connection.addQuery(arrQueries, "PRAGMA user_version="+VERSION);
-			eventBus.emit('started_db_upgrade');
-			if (typeof window === 'undefined')
-				console.error("=== will upgrade the database, it can take some time");
 			async.series(arrQueries, function(){
 				eventBus.emit('finished_db_upgrade');
-				if (typeof window === 'undefined')
+				if (typeof window === 'undefined'){
 					console.error("=== db upgrade finished");
+					console.log("=== db upgrade finished");
+				}
 				onDone();
 			});
 		});
 	});
 }
 
+
+function initStorageSizes(connection, arrQueries, cb){
+	if (bCordova)
+		return cb();
+	var options = {};
+	options.gte = "st\n";
+	options.lte = "st\n\uFFFF";
+
+	var assocSizes = {};
+	var handleData = function (data) {
+		var address = data.key.substr(3, 32);
+		var var_name = data.key.substr(36);
+		if (!assocSizes[address])
+			assocSizes[address] = 0;
+		assocSizes[address] += var_name.length + data.value.length;
+	}
+	var kvstore = require('./kvstore.js');
+	var stream = kvstore.createReadStream(options);
+	stream.on('data', handleData)
+		.on('end', function(){
+			for (var address in assocSizes)
+				connection.addQuery(arrQueries, "UPDATE aa_addresses SET storage_size=? WHERE address=?", [assocSizes[address], address]);
+			cb();
+		})
+		.on('error', function(error){
+			throw Error('error from data stream: '+error);
+		});
+}
 
 exports.migrateDb = migrateDb;

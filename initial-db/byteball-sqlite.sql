@@ -595,6 +595,10 @@ CREATE TABLE wallet_signing_paths (
 --    FOREIGN KEY byDeviceAddress(device_address) REFERENCES correspondent_devices(device_address)
 );
 
+CREATE TABLE my_watched_addresses (
+	address CHAR(32) NOT NULL PRIMARY KEY,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
 -- addresses composed of several other addresses (such as ["and", [["address", "ADDRESS1"], ["address", "ADDRESS2"]]]), 
 -- member addresses live on different devices, member addresses themselves may be composed of several keys
@@ -807,10 +811,108 @@ CREATE TABLE correspondent_settings (
 	PRIMARY KEY (device_address, correspondent_address)
 );
 
-CREATE TABLE arbiter_locations (
-	arbiter_address CHAR(32) NOT NULL PRIMARY KEY,
-	arbstore_host VARCHAR(100) NOT NULL,
-	unit CHAR(44) NULL
-)
+-- Autonomous agents
 
-PRAGMA user_version=30;
+CREATE TABLE aa_addresses (
+	address CHAR(32) NOT NULL PRIMARY KEY,
+	unit CHAR(44) NOT NULL, -- where it is first defined.  No index for better speed
+	mci INT NOT NULL, -- it is available since this mci (mci of the above unit)
+	base_aa CHAR(32) NULL,
+	storage_size INT NOT NULL DEFAULT 0,
+	definition TEXT NOT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	CONSTRAINT aaAddressesByBaseAA FOREIGN KEY (base_aa) REFERENCES aa_addresses(address)
+);
+CREATE INDEX byBaseAA ON aa_addresses(base_aa);
+
+-- the table is a queue, it is almost always empty and any entries are short-lived
+-- INSERTs are wrapped in the same SQL transactions that write the triggering units
+-- secondary triggers are not written here
+CREATE TABLE aa_triggers (
+	mci INT NOT NULL,
+	unit CHAR(44) NOT NULL,
+	address CHAR(32) NOT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	PRIMARY KEY (mci, unit, address),
+	FOREIGN KEY (address) REFERENCES aa_addresses(address)
+);
+
+-- SQL is more convenient for +- the balances
+CREATE TABLE aa_balances (
+	address CHAR(32) NOT NULL,
+	asset CHAR(44) NOT NULL, -- 'base' for bytes (NULL would not work for uniqueness of primary key)
+	balance BIGINT NOT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	PRIMARY KEY (address, asset),
+	FOREIGN KEY (address) REFERENCES aa_addresses(address)
+--	FOREIGN KEY (asset) REFERENCES assets(unit)
+);
+
+-- this is basically a log.  It has many indexes to be searchable by various fields
+CREATE TABLE aa_responses (
+	aa_response_id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+	mci INT NOT NULL, -- mci of the trigger unit
+	trigger_address CHAR(32) NOT NULL, -- trigger address
+	aa_address CHAR(32) NOT NULL,
+	trigger_unit CHAR(44) NOT NULL,
+	bounced TINYINT NOT NULL,
+	response_unit CHAR(44) NULL UNIQUE,
+	response TEXT NULL, -- json
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	UNIQUE (trigger_unit, aa_address),
+	FOREIGN KEY (aa_address) REFERENCES aa_addresses(address),
+	FOREIGN KEY (trigger_unit) REFERENCES units(unit)
+--	FOREIGN KEY (response_unit) REFERENCES units(unit)
+);
+CREATE INDEX aaResponsesByTriggerAddress ON aa_responses(trigger_address);
+CREATE INDEX aaResponsesByAAAddress ON aa_responses(aa_address);
+CREATE INDEX aaResponsesByMci ON aa_responses(mci);
+
+CREATE TABLE watched_light_aas (
+	peer VARCHAR(100) NOT NULL,
+	aa CHAR(32) NOT NULL,
+	address CHAR(32) NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	PRIMARY KEY (peer, aa, address)
+);
+CREATE INDEX wlaabyAA ON watched_light_aas(aa);
+
+-- arbiter contracts
+
+CREATE TABLE IF NOT EXISTS arbiters_locations (
+	arbiter_address CHAR(32) NOT NULL PRIMARY KEY,
+	arbstore_address CHAR(32) NOT NULL,
+	unit CHAR(44) NULL
+);
+
+CREATE TABLE IF NOT EXISTS arbiters_wallet (
+	arbiter_address CHAR(32) NOT NULL PRIMARY KEY,
+	real_name VARCHAR(250) NOT NULL,
+	device_pub_key VARCHAR(44) NULL
+);
+
+CREATE TABLE IF NOT EXISTS arbiter_contracts (
+	hash CHAR(44) NOT NULL PRIMARY KEY,
+	peer_address CHAR(32) NOT NULL,
+	peer_device_address CHAR(33) NOT NULL,
+	my_address  CHAR(32) NOT NULL,
+	arbiter_address CHAR(32) NOT NULL,
+	me_is_payer TINYINT NOT NULL,
+	amount BIGINT NULL,
+	asset CHAR(44) NULL,
+	is_incoming TINYINT NOT NULL,
+	creation_date TIMESTAMP NOT NULL,
+	ttl INT NOT NULL DEFAULT 168, -- 168 hours = 24 * 7 = 1 week \n\
+	status TEXT CHECK (status IN('pending', 'revoked', 'accepted', 'declined', 'paid')) NOT NULL DEFAULT 'active',
+	title VARCHAR(1000) NOT NULL,
+	text TEXT NOT NULL,
+	my_contact_info TEXT NULL,
+	peer_contact_info TEXT NULL,
+	peer_pairing_code VARCHAR(200) NULL,
+	shared_address CHAR(32),
+	unit CHAR(44),
+	cosigners VARCHAR(1500),
+	FOREIGN KEY (my_address) REFERENCES my_addresses(address)
+);
+
+PRAGMA user_version=39;

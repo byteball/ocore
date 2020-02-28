@@ -1,7 +1,7 @@
 /*jslint node: true */
 "use strict";
 var WebSocket = process.browser ? global.WebSocket : require('ws');
-var socks = process.browser ? null : require('socks'+'');
+var socks = process.browser ? null : require('socks');
 var WebSocketServer = WebSocket.Server;
 var crypto = require('crypto');
 var _ = require('lodash');
@@ -24,7 +24,9 @@ var eventBus = require('./event_bus.js');
 var light = require('./light.js');
 var inputs = require('./inputs.js');
 var breadcrumbs = require('./breadcrumbs.js');
-var mail = process.browser ? null : require('./mail.js'+'');
+var mail = require('./mail.js');
+var aa_composer = require('./aa_composer.js');
+var dataFeeds = require('./data_feeds.js');
 var libraryPackageJson = require('./package.json');
 
 var FORWARDING_TIMEOUT = 10*1000; // don't forward if the joint was received more than FORWARDING_TIMEOUT ms ago
@@ -33,12 +35,14 @@ var RESPONSE_TIMEOUT = 300*1000; // after this timeout, the request is abandoned
 var HEARTBEAT_TIMEOUT = conf.HEARTBEAT_TIMEOUT || 10*1000;
 var HEARTBEAT_RESPONSE_TIMEOUT = 60*1000;
 var PAUSE_TIMEOUT = 2*HEARTBEAT_TIMEOUT;
+var MAX_STATE_VARS = 2000;
 
 var wss;
 var arrOutboundPeers = [];
 var assocConnectingOutboundWebsockets = {};
 var assocUnitsInWork = {};
 var assocRequestedUnits = {};
+var bStarted = false;
 var bCatchingUp = false;
 var bWaitingForCatchupChain = false;
 var bWaitingTillIdle = false;
@@ -542,6 +546,8 @@ function findOutboundPeerOrConnect(url, onOpen){
 		throw Error('no url');
 	if (!onOpen)
 		onOpen = function(){};
+	if (!bStarted)
+		return onOpen("[internal] network not started yet");
 	url = url.toLowerCase();
 	var ws = getOutboundPeerWsByUrl(url);
 	if (ws)
@@ -764,7 +770,7 @@ function rerequestLostJoints(){
 	if (bCatchingUp)
 		return;
 	joint_storage.findLostJoints(function(arrUnits){
-		console.log("lost units", arrUnits);
+		console.log("lost units", arrUnits.length > 0 ? arrUnits : 'none');
 		tryFindNextPeer(null, function(ws){
 			if (!ws)
 				return;
@@ -938,6 +944,8 @@ function forwardJoint(ws, objJoint){
 }
 
 function handleJoint(ws, objJoint, bSaved, callbacks){
+	if ('aa' in objJoint)
+		return callbacks.ifJointError("AA unit cannot be broadcast");
 	var unit = objJoint.unit.unit;
 	if (assocUnitsInWork[unit])
 		return callbacks.ifUnitInWork();
@@ -1002,7 +1010,9 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 						unlock();
 						if (ws)
 							writeEvent((objValidationState.sequence !== 'good') ? 'nonserial' : 'new_good', ws.host);
-						notifyWatchers(objJoint, ws);
+						notifyWatchers(objJoint, objValidationState.sequence === 'good', ws);
+						if (objValidationState.arrUnitsGettingBadSequence)
+							notifyWatchersAboutUnitsGettingBadSequence(objValidationState.arrUnitsGettingBadSequence);
 						if (!bCatchingUp)
 							eventBus.emit('new_joint', objJoint);
 					});
@@ -1257,31 +1267,138 @@ function addWatchedAddress(address){
 	arrWatchedAddresses.push(address);
 }
 
-// if any of the watched addresses are affected, notifies:  1. own UI  2. light clients
-function notifyWatchers(objJoint, source_ws){
-	var objUnit = objJoint.unit;
-	var arrAddresses = objUnit.authors.map(function(author){ return author.address; });
+function notifyWatchersAboutUnitsGettingBadSequence(arrUnits){
+	if (conf.bLight)
+		throw Error("light node cannot notify about bad sequence");
+
+	// - one unit can concern several addresses
+	// - same address can be concerned by several units
+	// - several addresses can be watched locally or by same peer
+	// we have to sort that in order to provide duplicated units to sequence_became_bad event
+	arrUnits = _.uniq(arrUnits);
+	var assocAddressesByUnit = {};
+	var assocUnitsByAddress = {};
+	async.each(arrUnits, function(unit, cb){
+		storage.readJoint(db, unit, {
+			ifFound: function(objJoint) {
+				var objAddresses = getAllAuthorsAndOutputAddresses(objJoint.unit);
+				if (!objAddresses) // voided unit
+					return cb();
+				var arrAddresses = objAddresses.addresses;
+				assocAddressesByUnit[unit] = arrAddresses;
+				arrAddresses.forEach(function(address){
+					if (!assocUnitsByAddress[address])
+						assocUnitsByAddress[address] = [];
+					assocUnitsByAddress[address].push(unit);
+				});
+				cb();
+			},
+			ifNotFound: function(){
+				cb();
+			}
+		});
+	},
+	function () {	
+		// notify local watchers
+		var assocUniqueUnits = {};
+		for (var unit in assocAddressesByUnit){
+			if (_.intersection(arrWatchedAddresses, assocAddressesByUnit[unit]).length > 0){
+				assocUniqueUnits[unit] = true;
+			}
+		}
+		var arrConcernedAddresses = Object.keys(assocUnitsByAddress);
+		db.query(
+			"SELECT address FROM my_addresses WHERE address IN(?) UNION SELECT shared_address AS address FROM shared_addresses WHERE address IN(?) UNION SELECT address FROM my_watched_addresses WHERE address IN(?)",  
+			[arrConcernedAddresses, arrConcernedAddresses, arrConcernedAddresses],
+			function(rows){
+				if (rows.length > 0){
+					var arrMyConcernedAddresses = rows.map(function(row){return row.address});
+					for (var unit in assocAddressesByUnit){
+						if (_.intersection(arrMyConcernedAddresses, assocAddressesByUnit[unit]).length > 0)
+							assocUniqueUnits[unit] = true;
+					}
+				}
+				var arrUniqueUnits = Object.keys(assocUniqueUnits);
+				if (arrUniqueUnits.length > 0)
+					eventBus.emit("sequence_became_bad", arrUniqueUnits);
+			}
+		);
+		// notify light watchers
+		if (!bWatchingForLight)
+			return;
+		db.query("SELECT peer,address,null FROM watched_light_addresses WHERE address IN(?) UNION SELECT peer,null,unit FROM watched_light_units WHERE unit IN(?)", [arrConcernedAddresses, arrUnits], function(rows){
+			var assocUniqueUnitsByPeer = {};
+			rows.forEach(function(row){
+				if (row.address){
+					if (assocUnitsByAddress[row.address]){
+						assocUnitsByAddress[row.address].forEach(function(unit){
+							if (!assocUniqueUnitsByPeer[row.peer])
+								assocUniqueUnitsByPeer[row.peer] = {};
+							assocUniqueUnitsByPeer[row.peer][unit] = true;
+						});
+					}
+				}
+				if (row.unit){
+					if (!assocUniqueUnitsByPeer[row.peer])
+						assocUniqueUnitsByPeer[row.peer] = {};
+					assocUniqueUnitsByPeer[row.peer][row.unit] = true;
+				}
+			});
+			Object.keys(assocUniqueUnitsByPeer).forEach(function(peer){
+				var ws = getPeerWebSocket(peer);
+				if (ws && ws.readyState === ws.OPEN)
+					sendJustsaying(ws, 'light/sequence_became_bad', Object.keys(assocUniqueUnitsByPeer[peer]));
+			});
+		});
+	});
+}
+
+function getAllAuthorsAndOutputAddresses(objUnit){
+	var arrAuthorAddresses = objUnit.authors.map(function(author){ return author.address; });
 	if (!objUnit.messages) // voided unit
-		return;
+		return null;
+	var arrOutputAddresses = [];
+	var arrBaseAAAddresses = [];
 	for (var i=0; i<objUnit.messages.length; i++){
 		var message = objUnit.messages[i];
-		if (message.app !== "payment" || !message.payload)
-			continue;
 		var payload = message.payload;
-		for (var j=0; j<payload.outputs.length; j++){
-			var address = payload.outputs[j].address;
-			if (arrAddresses.indexOf(address) === -1)
-				arrAddresses.push(address);
+		if (message.app === "payment" && payload) {
+			for (var j = 0; j < payload.outputs.length; j++) {
+				var address = payload.outputs[j].address;
+				if (arrOutputAddresses.indexOf(address) === -1)
+					arrOutputAddresses.push(address);
+			}
 		}
+		else if (message.app === 'definition' && payload.definition[1].base_aa)
+			arrBaseAAAddresses.push(payload.definition[1].base_aa);
 	}
+	var arrAddresses = _.union(arrAuthorAddresses, arrOutputAddresses, arrBaseAAAddresses);
+	return {
+		author_addresses: arrAuthorAddresses,
+		output_addresses: arrOutputAddresses,
+		base_aa_addresses: arrBaseAAAddresses,
+		addresses: arrAddresses,
+	};
+}
+
+// if any of the watched addresses are affected, notifies:  1. own UI  2. light clients
+function notifyWatchers(objJoint, bGoodSequence, source_ws){
+	var bAA = objJoint.new_aa;
+	delete objJoint.new_aa;
+	var objUnit = objJoint.unit;
+	var objAddresses = getAllAuthorsAndOutputAddresses(objUnit);
+	if (!objAddresses) // voided unit
+		return;
+	var arrAddresses = objAddresses.addresses;
+
 	if (_.intersection(arrWatchedAddresses, arrAddresses).length > 0){
 		eventBus.emit("new_my_transactions", [objJoint.unit.unit]);
 		eventBus.emit("new_my_unit-"+objJoint.unit.unit, objJoint);
 	}
 	else
 		db.query(
-			"SELECT 1 FROM my_addresses WHERE address IN(?) UNION SELECT 1 FROM shared_addresses WHERE shared_address IN(?)", 
-			[arrAddresses, arrAddresses], 
+			"SELECT 1 FROM my_addresses WHERE address IN(?) UNION SELECT 1 FROM shared_addresses WHERE shared_address IN(?) UNION SELECT 1 FROM my_watched_addresses WHERE address IN(?)", 
+			[arrAddresses, arrAddresses, arrAddresses], 
 			function(rows){
 				if (rows.length > 0){
 					eventBus.emit("new_my_transactions", [objJoint.unit.unit]);
@@ -1292,7 +1409,7 @@ function notifyWatchers(objJoint, source_ws){
 	
 	if (conf.bLight)
 		return;
-	if (objJoint.ball) // already stable, light clients will require a proof
+	if (objJoint.ball || !bGoodSequence) // If already stable, light clients will require a proof. We notify them only good sequence unit.
 		return;
 	if (!bWatchingForLight)
 		return;
@@ -1304,8 +1421,34 @@ function notifyWatchers(objJoint, source_ws){
 			objUnit.timestamp = Math.round(Date.now()/1000); // light clients need timestamp
 		rows.forEach(function(row){
 			var ws = getPeerWebSocket(row.peer);
-			if (ws && ws.readyState === ws.OPEN && ws !== source_ws)
-				sendJoint(ws, objJoint);
+			if (ws && ws.readyState === ws.OPEN && ws !== source_ws) {
+				if (bAA) // trigger a get_history request to receive the aa_response
+					sendJustsaying(ws, 'light/have_updates');
+				else
+					sendJoint(ws, objJoint);
+			}
+		});
+	});
+
+	// look for transactions sent to watched AAs
+	if (bAA) // skip secondary triggers, we'll see their responses in a moment
+		return;
+	var arrOutputAddresses = objAddresses.output_addresses;
+	var arrAuthorAddresses = objAddresses.author_addresses;
+	var arrBaseAAAddresses = objAddresses.base_aa_addresses;
+	var arrAllAAAddresses = arrOutputAddresses.concat(arrBaseAAAddresses);
+	db.query("SELECT peer, address, aa FROM watched_light_aas WHERE aa IN(?)", [arrAllAAAddresses], function (rows) {
+		rows.forEach(function (row) {
+			if ((!row.address || arrAuthorAddresses.includes(row.address)) && arrOutputAddresses.length > 0) {
+				var ws = getPeerWebSocket(row.peer);
+				if (ws && ws.readyState === ws.OPEN && ws !== source_ws)
+					sendJustsaying(ws, 'light/aa_request', { aa_address: row.aa, unit: objUnit });
+			}
+			if (arrBaseAAAddresses.includes(row.aa)) {
+				var ws = getPeerWebSocket(row.peer);
+				if (ws && ws.readyState === ws.OPEN && ws !== source_ws)
+					sendJustsaying(ws, 'light/aa_definition', objUnit);
+			}
 		});
 	});
 }
@@ -1384,11 +1527,87 @@ function notifyLocalWatchedAddressesAboutStableJoints(mci){
 		UNION \n\
 		SELECT unit FROM units CROSS JOIN unit_authors USING(unit) CROSS JOIN shared_addresses ON address=shared_address WHERE main_chain_index=? AND sequence='good' \n\
 		UNION \n\
-		SELECT unit FROM units CROSS JOIN outputs USING(unit) CROSS JOIN shared_addresses ON address=shared_address WHERE main_chain_index=? AND sequence='good'",
-		[mci, mci, mci, mci],
+		SELECT unit FROM units CROSS JOIN outputs USING(unit) CROSS JOIN shared_addresses ON address=shared_address WHERE main_chain_index=? AND sequence='good'\n\
+		UNION \n\
+		SELECT unit FROM units CROSS JOIN unit_authors USING(unit) CROSS JOIN my_watched_addresses USING(address) WHERE main_chain_index=? AND sequence='good' \n\
+		UNION \n\
+		SELECT unit FROM units CROSS JOIN outputs USING(unit) CROSS JOIN my_watched_addresses USING(address) WHERE main_chain_index=? AND sequence='good'",
+		[mci, mci, mci, mci, mci, mci],
 		handleRows
 	);
 }
+
+function aaResponseAffectsAddress(objAAResponse, address) {
+	if (objAAResponse.trigger_address === address)
+		return true;
+	if (objAAResponse.objResponseUnit && objAAResponse.objResponseUnit.messages.find(function (message) {
+		return message.app === 'payment' && message.payload.outputs.find(function (output) {
+			return output.address === address;
+		});
+	}))
+		return true;
+	// check if any updated state variable name contains our address
+	var aa_address = objAAResponse.aa_address;
+	if (objAAResponse.updatedStateVars && objAAResponse.updatedStateVars[aa_address]) {
+		for (var var_name in objAAResponse.updatedStateVars[aa_address]) {
+			if (var_name.indexOf(address) >= 0)
+				return true;
+		}
+	}
+	// check if the error message contains our address
+	if (objAAResponse.response.error && objAAResponse.response.error.indexOf(address) >= 0)
+		return true;
+	// check if any response variable name contains our address
+	if (objAAResponse.response.responseVars) {
+		for (var var_name in objAAResponse.response.responseVars) {
+			if (var_name.indexOf(address) >= 0)
+				return true;
+		}
+	}
+	return false;
+}
+
+eventBus.on('aa_response', function (objAAResponse) {
+	if (!bWatchingForLight)
+		return;
+	db.query("SELECT peer, address FROM watched_light_aas WHERE aa=?", [objAAResponse.aa_address], function (rows) {
+		rows.forEach(function (row) {
+			if (!row.address || aaResponseAffectsAddress(objAAResponse, row.address)) {
+				var ws = getPeerWebSocket(row.peer);
+				if (ws && ws.readyState === ws.OPEN)
+					sendJustsaying(ws, 'light/aa_response', objAAResponse);
+			}
+		});
+	});
+});
+
+eventBus.on('aa_definition_saved', function (payload, unit) {
+	if (!bWatchingForLight)
+		return;
+	var base_aa = payload.definition[1].base_aa;
+	if (!base_aa)
+		return;
+	db.query("SELECT peer FROM watched_light_aas WHERE aa=?", [base_aa], function (rows) {
+		var arrWses = [];
+		rows.forEach(function (row) {
+			var ws = getPeerWebSocket(row.peer);
+			if (ws && ws.readyState === ws.OPEN)
+				arrWses.push(ws);
+		});
+		if (arrWses.length === 0)
+			return;
+		storage.readJoint(db, unit, {
+			ifNotFound: function () {
+				throw Error('recently saved unit ' + unit + ' not found');
+			},
+			ifFound: function (objJoint) {
+				arrWses.forEach(function (ws) {
+					sendJustsaying(ws, 'light/aa_definition_saved', objJoint.unit);
+				});
+			}
+		})
+	});
+});
 
 function addLightWatchedAddress(address){
 	if (!conf.bLight || !exports.light_vendor_url)
@@ -1449,7 +1668,7 @@ function writeEvent(event, host){
 }
 
 function determineIfPeerIsBlocked(host, handleResult){
-	if (constants.bTestnet)
+	if (constants.bTestnet || constants.bDevnet)
 		return handleResult(false);
 	handleResult(!!assocBlockedPeers[host]);
 }
@@ -1513,9 +1732,13 @@ function broadcastJoint(objJoint){
 			if (client.bSubscribed)
 				sendJoint(client, objJoint);
 		});
-	notifyWatchers(objJoint);
+	notifyWatchers(objJoint, true);
 }
 
+function onNewAA(objUnit) {
+	findAndHandleJointsThatAreReady(objUnit.unit);
+	notifyWatchers({ unit: objUnit, new_aa: true }, true);
+}
 
 
 // catchup
@@ -2123,7 +2346,8 @@ function handleJustsaying(ws, subject, body){
 		case 'bugreport':
 			if (!body)
 				return;
-			var text = body.message + ' ' + body.exception.toString();
+			var arrParts = body.exception.toString().split("Breadcrumbs", 2);
+			var text = body.message + ' ' + arrParts[0];
 			var hash = crypto.createHash("sha256").update(text, "utf8").digest("base64");
 			if (hash === prev_bugreport_hash)
 				return console.log("ignoring known bug report");
@@ -2311,6 +2535,8 @@ function handleJustsaying(ws, subject, body){
 			
 		// I'm a hub, the peer wants update settings for a correspondent device
 		case 'hub/update_correspondent_settings':
+			if (!body)
+				return;
 			if (!conf.bServeAsHub)
 				return sendError(ws, "I'm not a hub");
 			if (!ws.device_address)
@@ -2341,6 +2567,7 @@ function handleJustsaying(ws, subject, body){
 			
 		// I'm light client
 		case 'light/have_updates':
+		case 'light/sequence_became_bad':
 			if (!conf.bLight)
 				return sendError(ws, "I'm not light");
 			if (!ws.bLightVendor)
@@ -2387,6 +2614,30 @@ function handleJustsaying(ws, subject, body){
 					}
 				);
 			});            
+			break;
+			
+		case 'light/new_aa_to_watch':
+			if (!body)
+				return;
+			if (conf.bLight)
+				return sendError(ws, "I'm light myself, can't serve you");
+			if (ws.bOutbound)
+				return sendError(ws, "light clients have to be inbound");
+			if (!ValidationUtils.isValidAddress(body.aa))
+				return sendError(ws, "invalid AA: " + body.aa);
+			if ("address" in body && !ValidationUtils.isValidAddress(body.address))
+				return sendError(ws, "invalid address: " + body.address);
+			storage.readAADefinition(db, body.aa, function (arrDefinition) {
+				if (!arrDefinition) {
+					arrDefinition = storage.getUnconfirmedAADefinition(body.aa);
+					if (!arrDefinition)
+						return sendError(ws, "not an AA: " + body.aa);
+				}
+				bWatchingForLight = true;
+				db.query("INSERT " + db.getIgnore() + " INTO watched_light_aas (peer, aa, address) VALUES (?,?,?)", [ws.peer, body.aa, body.address], function () {
+					sendInfo(ws, "now watching AA " + body.aa + " address " + (body.address || 'all'));
+				});
+			});
 			break;
 			
 		case 'exchange_rates':
@@ -2815,6 +3066,8 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "last_ball_mci is not valid");
 			if (!ValidationUtils.isPositiveInteger(params.amount))
 				return sendErrorResponse(ws, tag, "amount is not valid");
+			if (params.amount > constants.MAX_CAP)
+				return sendErrorResponse(ws, tag, "amount is too large");
 			var getAssetInfoOrNull = function(asset, cb){
 				if (!asset)
 					return cb(null, null);
@@ -2860,10 +3113,10 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "no params in light/get_definition");
 			if (!ValidationUtils.isValidAddress(params))
 				return sendErrorResponse(ws, tag, "address not valid");
-			db.query("SELECT definition FROM definitions WHERE definition_chash=?", [params], function(rows){
-				if (!rows[0])
-					return sendResponse(ws, tag, null);
-				var arrDefinition = JSON.parse(rows[0].definition);
+			db.query("SELECT definition FROM definitions WHERE definition_chash=? UNION SELECT definition FROM aa_addresses WHERE address=? LIMIT 1", [params, params], function(rows){
+				var arrDefinition = rows[0]
+					? JSON.parse(rows[0].definition)
+					: storage.getUnconfirmedAADefinition(params);
 				sendResponse(ws, tag, arrDefinition);
 			});
 			break;
@@ -2962,6 +3215,169 @@ function handleRequest(ws, tag, command, params){
 			);
 			break;
 
+		case 'light/get_data_feed':
+			if (conf.bLight)
+				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
+			if (ws.bOutbound)
+				return sendErrorResponse(ws, tag, "light clients have to be inbound");
+			if (!params)
+				return sendErrorResponse(ws, tag, "no params in light/get_data_feed");
+			dataFeeds.readDataFeedValueByParams(params, 1e15, true, function (err, value) {
+				if (err)
+					return sendErrorResponse(ws, tag, err);
+				sendResponse(ws, tag, value);
+			});
+			break;
+
+		case 'light/dry_run_aa':
+			if (conf.bLight)
+				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
+			if (ws.bOutbound)
+				return sendErrorResponse(ws, tag, "light clients have to be inbound");
+			if (!params)
+				return sendErrorResponse(ws, tag, "no params in light/dry_run_aa");
+			if (!ValidationUtils.isValidAddress(params.address))
+				return sendErrorResponse(ws, tag, "address not valid");
+		
+			storage.readAADefinition(db, params.address, function (arrDefinition) {
+				if (!arrDefinition)
+					return sendErrorResponse(ws, tag, "not an AA");
+				aa_composer.validateAATriggerObject(params.trigger, function(error){
+					if (error)
+						return sendErrorResponse(ws, tag, error);
+					aa_composer.dryRunPrimaryAATrigger(params.trigger, params.address, arrDefinition, function (arrResponses) {
+						if (constants.COUNT_WITNESSES === 1) { // the temp unit might have rebuilt the MC
+							db.executeInTransaction(function (conn, onDone) {
+								storage.resetMemory(conn, onDone);
+							});
+						}
+						sendResponse(ws, tag, arrResponses);
+					});
+				})
+			});
+			break;
+
+		case 'light/get_aa_state_vars':
+			if (conf.bLight)
+				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
+			if (ws.bOutbound)
+				return sendErrorResponse(ws, tag, "light clients have to be inbound");
+			if (!params)
+				return sendErrorResponse(ws, tag, "no params in light/get_aa_state_vars");
+			if (!ValidationUtils.isValidAddress(params.address))
+				return sendErrorResponse(ws, tag, "address not valid");
+			if ('var_prefix_from' in params && typeof params.var_prefix_from !== 'string')
+				return sendErrorResponse(ws, tag, "var_prefix_from must be string");
+			if ('var_prefix_to' in params && typeof params.var_prefix_to !== 'string')
+				return sendErrorResponse(ws, tag, "var_prefix_to must be string");
+			if ('var_prefix' in params && typeof params.var_prefix !== 'string')
+				return sendErrorResponse(ws, tag, "var_prefix must be string");
+			if ('var_prefix' in params && ('var_prefix_from' in params || 'var_prefix_to' in params))
+				return sendErrorResponse(ws, tag, "var_prefix cannot be used with var_prefix_from or var_prefix_to");
+			if ('var_prefix' in params){
+				params.var_prefix_from = params.var_prefix;
+				params.var_prefix_to = params.var_prefix;
+			}
+			if ('limit' in params && !ValidationUtils.isPositiveInteger(params.limit))
+				return sendErrorResponse(ws, tag, "limit must be a positive integer");
+			if ('limit' in params && params.limit > MAX_STATE_VARS)
+				return sendErrorResponse(ws, tag, "limit cannot be greater than " + MAX_STATE_VARS);
+			storage.readAADefinition(db, params.address, function (arrDefinition) {
+				if (!arrDefinition)
+					return sendErrorResponse(ws, tag, "not an AA");
+				storage.readAAStateVars(params.address, params.var_prefix_from || '', params.var_prefix_to || '', params.limit || MAX_STATE_VARS, function (objStateVars) {
+					sendResponse(ws, tag, objStateVars);
+				});
+			});
+			break;
+			
+		case 'light/get_aas_by_base_aas':
+			if (conf.bLight)
+				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
+			if (ws.bOutbound)
+				return sendErrorResponse(ws, tag, "light clients have to be inbound");
+			if (!params)
+				return sendErrorResponse(ws, tag, "no params in light/get_aas_by_base_aas");
+			var base_aas = params.base_aas || [params.base_aa];
+			if (!ValidationUtils.isNonemptyArray(base_aas))
+				return sendErrorResponse(ws, tag, "no base_aas in light/get_aas_by_base_aas");
+			if (base_aas.length > 20)
+				return sendErrorResponse(ws, tag, "too many base_aas in light/get_aas_by_base_aas, max 20");
+			if (!base_aas.every(ValidationUtils.isValidAddress))
+				return sendErrorResponse(ws, tag, "base_aa address not valid");
+			var aa_params = params.params || {};
+			for (var name in aa_params) {
+				var value = aa_params[name];
+				if (typeof value === 'object') {
+					if (!ValidationUtils.isArrayOfLength(value, 2))
+						return sendErrorResponse(ws, tag, "invalid value of param " + name + ": " + value);
+					var comp = value[0];
+					value = value[1];
+					if (!['=', '!=', '>', '>=', '<', '<='].includes(comp))
+						return sendErrorResponse(ws, tag, "invalid comparison of param " + name + ": " + comp);
+					if (!['string', 'number', 'boolean'].includes(typeof value))
+						return sendErrorResponse(ws, tag, "invalid type of param " + name + ": " + (typeof value));
+				}
+			}
+			db.query("SELECT address, definition, creation_date FROM aa_addresses WHERE base_aa IN(?)", [base_aas], function (rows) {
+				var arrAAs = [];
+				rows.forEach(function (row) {
+					var arrDefinition = JSON.parse(row.definition);
+					var this_aa_params = arrDefinition[1].params;
+					for (var name in aa_params) {
+						if (!satisfiesSearchCriteria(this_aa_params[name], aa_params[name]))
+							return;
+					}
+					arrAAs.push({ address: row.address, definition: arrDefinition, creation_date: row.creation_date });
+				});
+				sendResponse(ws, tag, arrAAs);
+			});
+			break;
+			
+		case 'light/get_aa_responses':
+			if (conf.bLight)
+				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
+			if (ws.bOutbound)
+				return sendErrorResponse(ws, tag, "light clients have to be inbound");
+			if (!params)
+				return sendErrorResponse(ws, tag, "no params in light/get_aa_responses");
+			var aas = params.aas || [params.aa];
+			if (!ValidationUtils.isNonemptyArray(aas))
+				return sendErrorResponse(ws, tag, "no aas in light/get_aa_responses");
+			if (aas.length > 20)
+				return sendErrorResponse(ws, tag, "too many aas in light/get_aa_responses, max 20");
+			if (!aas.every(ValidationUtils.isValidAddress))
+				return sendErrorResponse(ws, tag, "aa address not valid");
+			db.query(
+				"SELECT mci, trigger_address, aa_address, trigger_unit, bounced, response_unit, response, timestamp \n\
+				FROM aa_responses CROSS JOIN units ON trigger_unit=unit \n\
+				WHERE aa_address IN(?) ORDER BY aa_response_id DESC LIMIT 30",
+				[aas],
+				function (rows) {
+					async.eachSeries(
+						rows,
+						function (row, cb) {
+							row.response = JSON.parse(row.response);
+							if (!row.response_unit)
+								return cb();
+							storage.readJoint(db, row.response_unit, {
+								ifNotFound: function () {
+									throw Error("response unit " + row.response_unit + " not found");
+								},
+								ifFound: function (objJoint) {
+									row.objResponseUnit = objJoint.unit;
+									cb();
+								}
+							});
+						},
+						function () {
+							sendResponse(ws, tag, rows);
+						}
+					);
+				}
+			);
+			break;
+
 		// I'm a hub, the peer wants to enable push notifications
 		case 'hub/enable_notification':
 			if(ws.device_address)
@@ -3004,6 +3420,25 @@ function handleRequest(ws, tag, command, params){
 		case 'custom':
 			eventBus.emit('custom_request', ws, params,tag);
 		break;
+	}
+}
+
+function satisfiesSearchCriteria(this_param_value, searched_param_value) {
+	var comp = '=';
+	if (typeof searched_param_value === 'object') {
+		comp = searched_param_value[0];
+		searched_param_value = searched_param_value[1];
+	}
+	if (typeof this_param_value !== typeof searched_param_value)
+		return (comp === '!=');
+	switch (comp) {
+		case '=':  return this_param_value === searched_param_value;
+		case '!=': return this_param_value !== searched_param_value;
+		case '>':  return this_param_value > searched_param_value;
+		case '>=': return this_param_value >= searched_param_value;
+		case '<':  return this_param_value < searched_param_value;
+		case '<=': return this_param_value <= searched_param_value;
+		default: throw Error("unknown comp: " + comp);
 	}
 }
 
@@ -3063,6 +3498,7 @@ function handleUpgradeConnection(incomingRequest, socket, head) {
 
 function startAcceptingConnections(){
 	db.query("DELETE FROM watched_light_addresses");
+	db.query("DELETE FROM watched_light_aas");
 	db.query("DELETE FROM watched_light_units");
 	//db.query("DELETE FROM light_peer_witnesses");
 	setInterval(unblockPeers, 10*60*1000);
@@ -3125,6 +3561,7 @@ function startAcceptingConnections(){
 		ws.on('close', function(){
 			if (bWatchingForLight){
 				db.query("DELETE FROM watched_light_addresses WHERE peer=?", [ws.peer]);
+				db.query("DELETE FROM watched_light_aas WHERE peer=?", [ws.peer]);
 				db.query("DELETE FROM watched_light_units WHERE peer=?", [ws.peer]);
 				//db.query("DELETE FROM light_peer_witnesses WHERE peer=?", [ws.peer]);
 			}
@@ -3140,6 +3577,18 @@ function startAcceptingConnections(){
 	console.log('WSS running at port ' + conf.port);
 }
 
+
+function startPeerExchange() {
+	if (conf.bWantNewPeers){
+		// outbound connections
+		addOutboundPeers();
+		// retry lost and failed connections every 1 minute
+		setInterval(addOutboundPeers, 60*1000);
+		setTimeout(checkIfHaveEnoughOutboundPeersAndAdd, 30*1000);
+		setInterval(purgeDeadPeers, 30*60*1000);
+	}
+}
+
 function startRelay(){
 	if (process.browser || !conf.port) // no listener on mobile
 		wss = {clients: []};
@@ -3150,14 +3599,8 @@ function startRelay(){
 	joint_storage.initUnhandledAndKnownBad();
 	checkCatchupLeftovers();
 
-	if (conf.bWantNewPeers){
-		// outbound connections
-		addOutboundPeers();
-		// retry lost and failed connections every 1 minute
-		setInterval(addOutboundPeers, 60*1000);
-		setTimeout(checkIfHaveEnoughOutboundPeersAndAdd, 30*1000);
-		setInterval(purgeDeadPeers, 30*60*1000);
-	}
+	startPeerExchange();
+
 	// purge peer_events every 6 hours, removing those older than 0.5 days ago.
 	setInterval(purgePeerEvents, 6*60*60*1000);
 	setInterval(function(){flushEvents(true)}, 1000 * 60);
@@ -3170,6 +3613,9 @@ function startRelay(){
 	setInterval(joint_storage.purgeUncoveredNonserialJointsUnderLock, 60*1000);
 	setInterval(handleSavedPrivatePayments, 5*1000);
 	joint_storage.readDependentJointsThatAreReady(null, handleSavedJoint);
+
+	eventBus.on('new_aa_unit', onNewAA);
+	aa_composer.handleAATriggers(); // in case anything's left from the previous run
 }
 
 function startLightClient(){
@@ -3181,17 +3627,25 @@ function startLightClient(){
 }
 
 function start(){
+	if (bStarted)
+		return console.log("network already started");
+	bStarted = true;
 	console.log("starting network");
 	conf.bLight ? startLightClient() : startRelay();
 	setInterval(printConnectionStatus, 6*1000);
 	// if we have exactly same intervals on two clints, they might send heartbeats to each other at the same time
 	setInterval(heartbeat, 3*1000 + getRandomInt(0, 1000));
+	eventBus.emit('network_started');
 }
 
 function closeAllWsConnections() {
 	arrOutboundPeers.forEach(function(ws) {
 		ws.close(1000,'Re-connect');
 	});
+}
+
+function isStarted(){
+	return bStarted;
 }
 
 function isConnected(){
@@ -3207,6 +3661,9 @@ if (!conf.explicitStart) {
 }
 
 exports.start = start;
+exports.startAcceptingConnections = startAcceptingConnections;
+exports.startPeerExchange = startPeerExchange;
+
 exports.postJointToLightVendor = postJointToLightVendor;
 exports.broadcastJoint = broadcastJoint;
 exports.sendPrivatePayment = sendPrivatePayment;
@@ -3238,6 +3695,7 @@ exports.addLightWatchedAddress = addLightWatchedAddress;
 
 exports.getConnectionStatus = getConnectionStatus;
 exports.closeAllWsConnections = closeAllWsConnections;
+exports.isStarted = isStarted;
 exports.isConnected = isConnected;
 exports.isCatchingUp = isCatchingUp;
 exports.requestHistoryFor = requestHistoryFor;

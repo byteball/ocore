@@ -16,6 +16,7 @@ var mutex = require('./mutex.js');
 var constants = require("./constants.js");
 var ValidationUtils = require("./validation_utils.js");
 var Definition = require("./definition.js");
+var aa_validation = require("./aa_validation.js");
 var conf = require('./conf.js');
 var profiler = require('./profiler.js');
 var breadcrumbs = require('./breadcrumbs.js');
@@ -47,7 +48,7 @@ function hasValidHashes(objJoint){
 	return true;
 }
 
-function validate(objJoint, callbacks) {
+function validate(objJoint, callbacks, external_conn) {
 	
 	var objUnit = objJoint.unit;
 	if (typeof objUnit !== "object" || objUnit === null)
@@ -67,6 +68,16 @@ function validate(objJoint, callbacks) {
 	}
 	catch(e){
 		return callbacks.ifJointError("failed to calc unit hash: "+e);
+	}
+
+	var bAA = false;
+	if (objJoint.aa) {
+		bAA = true;
+		delete objJoint.aa;
+	}
+	else {
+		if (ValidationUtils.isArrayOfLength(objUnit.authors, 1) && !ValidationUtils.isNonemptyObject(objUnit.authors[0].authentifiers) && !objUnit.content_hash)
+			return callbacks.ifTransientError("possible AA");
 	}
 	
 	if (objJoint.unsigned){
@@ -161,6 +172,8 @@ function validate(objJoint, callbacks) {
 	};
 	if (objJoint.unsigned)
 		objValidationState.bUnsigned = true;
+	if (bAA)
+		objValidationState.bAA = true;
 	
 	if (conf.bLight){
 		if (!isPositiveInteger(objUnit.timestamp) && !objJoint.unsigned)
@@ -179,14 +192,24 @@ function validate(objJoint, callbacks) {
 	mutex.lock(arrAuthorAddresses, function(unlock){
 		
 		var conn = null;
+		var commit_fn = null;
 		var start_time = null;
 
 		async.series(
 			[
 				function(cb){
+					if (external_conn) {
+						conn = external_conn;
+						start_time = Date.now();
+						commit_fn = function (cb2) { cb2(); };
+						return cb();
+					}
 					db.takeConnectionFromPool(function(new_conn){
 						conn = new_conn;
 						start_time = Date.now();
+						commit_fn = function (cb2) {
+							conn.query("COMMIT", function () { cb2(); });
+						};
 						conn.query("BEGIN", function(){cb();});
 					});
 				},
@@ -253,11 +276,12 @@ function validate(objJoint, callbacks) {
 					profiler.stop('validation-advanced-stability');
 					// We might have advanced the stability point and have to commit the changes as the caches are already updated.
 					// There are no other updates/inserts/deletes during validation
-					conn.query("COMMIT", function(){
+					commit_fn(function(){
 						var consumed_time = Date.now()-start_time;
 						profiler.add_result('failed validation', consumed_time);
 						console.log(objUnit.unit+" validation "+JSON.stringify(err)+" took "+consumed_time+"ms");
-						conn.release();
+						if (!external_conn)
+							conn.release();
 						unlock();
 						if (typeof err === "object"){
 							if (err.error_code === "unresolved_dependency")
@@ -278,11 +302,12 @@ function validate(objJoint, callbacks) {
 				else{
 					profiler.stop('validation-messages');
 					profiler.start();
-					conn.query("COMMIT", function(){
+					commit_fn(function(){
 						var consumed_time = Date.now()-start_time;
 						profiler.add_result('validation', consumed_time);
 						console.log(objUnit.unit+" validation ok took "+consumed_time+"ms");
-						conn.release();
+						if (!external_conn)
+							conn.release();
 						profiler.stop('validation-commit');
 						if (objJoint.unsigned){
 							unlock();
@@ -310,7 +335,7 @@ function checkDuplicate(conn, objUnit, cb){
 		if (rows.length === 0) 
 			return cb();
 		var row = rows[0];
-		if (row.sequence === 'final-bad' && row.main_chain_index < storage.getMinRetrievableMci() && objUnit.messages && !objUnit.content_hash) // already stripped locally but received a full version
+		if (row.sequence === 'final-bad' && row.main_chain_index !== null && row.main_chain_index < storage.getMinRetrievableMci() && objUnit.messages && !objUnit.content_hash) // already stripped locally but received a full version
 			return cb();
 		cb(createTransientError("unit "+unit+" already exists"));
 	});
@@ -467,21 +492,16 @@ function validateParents(conn, objJoint, objValidationState, callback){
 	}
 	
 	function readMaxParentLastBallMci(handleResult){
-		conn.query(
-			"SELECT MAX(lb_units.main_chain_index) AS max_parent_last_ball_mci \n\
-			FROM units JOIN units AS lb_units ON units.last_ball_unit=lb_units.unit \n\
-			WHERE units.unit IN(?)",
-			[objUnit.parent_units],
-			function(rows){
-				var max_parent_last_ball_mci = rows[0].max_parent_last_ball_mci;
-				if (max_parent_last_ball_mci > objValidationState.last_ball_mci)
-					return callback("last ball mci must not retreat, parents: "+objUnit.parent_units.join(', '));
-				handleResult(max_parent_last_ball_mci);
-			}
-		);
+		storage.readMaxLastBallMci(conn, objUnit.parent_units, function(max_parent_last_ball_mci) {
+			if (max_parent_last_ball_mci > objValidationState.last_ball_mci)
+				return callback("last ball mci must not retreat, parents: "+objUnit.parent_units.join(', '));
+			handleResult(max_parent_last_ball_mci);
+		});
 	}
 	
 	var objUnit = objJoint.unit;
+	if (objValidationState.bAA && objUnit.parent_units.length > 2)
+		throw Error("AA unit with more than 2 parents");
 	// obsolete: when handling a ball, we can't trust parent list before we verify ball hash
 	// obsolete: when handling a fresh unit, we can begin trusting parent list earlier, after we verify parents_hash
 	// after this point, we can trust parent list as it either agrees with parents_hash or agrees with hash tree
@@ -740,6 +760,8 @@ function validateHeadersCommissionRecipients(objUnit, cb){
 }
 
 function validateAuthors(conn, arrAuthors, objUnit, objValidationState, callback) {
+	if (objValidationState.bAA && arrAuthors.length !== 1)
+		throw Error("AA unit with multiple authors");
 	if (arrAuthors.length > constants.MAX_AUTHORS_PER_UNIT) // this is anti-spam. Otherwise an attacker would send nonserial balls signed by zillions of authors.
 		return callback("too many authors");
 	objValidationState.arrAddressesWithForkedPath = [];
@@ -761,21 +783,36 @@ function validateAuthors(conn, arrAuthors, objUnit, objValidationState, callback
 function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 	if (!isStringOfLength(objAuthor.address, 32))
 		return callback("wrong address length");
-	if (hasFieldsExcept(objAuthor, ["address", "authentifiers", "definition"]))
-		return callback("unknown fields in author");
-	if (!ValidationUtils.isNonemptyObject(objAuthor.authentifiers) && !objUnit.content_hash)
-		return callback("no authentifiers");
-	for (var path in objAuthor.authentifiers){
-		if (!isNonemptyString(objAuthor.authentifiers[path]))
-			return callback("authentifiers must be nonempty strings");
-		if (objAuthor.authentifiers[path].length > constants.MAX_AUTHENTIFIER_LENGTH)
-			return callback("authentifier too long");
+	if (objValidationState.bAA && hasFieldsExcept(objAuthor, ["address"]))
+		throw Error("unknown fields in AA author");
+	if (!objValidationState.bAA) {
+		if (hasFieldsExcept(objAuthor, ["address", "authentifiers", "definition"]))
+			return callback("unknown fields in author");
+		if (!ValidationUtils.isNonemptyObject(objAuthor.authentifiers) && !objUnit.content_hash)
+			return callback("no authentifiers");
+		for (var path in objAuthor.authentifiers) {
+			if (!isNonemptyString(objAuthor.authentifiers[path]))
+				return callback("authentifiers must be nonempty strings");
+			if (objAuthor.authentifiers[path].length > constants.MAX_AUTHENTIFIER_LENGTH)
+				return callback("authentifier too long");
+		}
 	}
 	
 	var bNonserial = false;
+
+	if (objValidationState.bAA) {
+		storage.readAADefinition(conn, objAuthor.address, function (arrDefinition) {
+			if (!arrDefinition)
+				throw Error("AA definition not found");
+			checkSerialAddressUse();
+		});
+		return;
+	}
 	
 	var arrAddressDefinition = objAuthor.definition;
 	if (isNonemptyArray(arrAddressDefinition)){
+		if (arrAddressDefinition[0] === 'autonomous agent')
+			return callback('AA cannot be defined in authors');
 		// todo: check that the address is really new?
 		validateAuthentifiers(arrAddressDefinition);
 	}
@@ -789,7 +826,11 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 		// we check signatures using the latest address definition before last ball
 		storage.readDefinitionByAddress(conn, objAuthor.address, objValidationState.last_ball_mci, {
 			ifDefinitionNotFound: function(definition_chash){
-				callback("definition "+definition_chash+" bound to address "+objAuthor.address+" is not defined");
+				storage.readAADefinition(conn, objAuthor.address, function (arrDefinition) {
+					if (arrDefinition)
+						return callback(createTransientError("will not validate unit signed by AA"));
+					callback("definition "+definition_chash+" bound to address "+objAuthor.address+" is not defined");
+				});
 			},
 			ifFound: function(arrAddressDefinition){
 				validateAuthentifiers(arrAddressDefinition);
@@ -886,10 +927,14 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 				return next();
 			if (arrUnstableConflictingUnits.length === 0)
 				return next();
-			// we don't modify the db during validation, schedule the update for the write
-			objValidationState.arrAdditionalQueries.push(
+			conn.query("SELECT unit FROM units WHERE unit IN(?) AND +sequence='good'",[arrUnstableConflictingUnits],function(rows){
+				if (rows.length > 0)
+					objValidationState.arrUnitsGettingBadSequence = (objValidationState.arrUnitsGettingBadSequence || []).concat(rows.map(function(row){return row.unit}));
+				// we don't modify the db during validation, schedule the update for the write
+				objValidationState.arrAdditionalQueries.push(
 				{sql: "UPDATE units SET sequence='temp-bad' WHERE unit IN(?) AND +sequence='good'", params: [arrUnstableConflictingUnits]});
-			next();
+				next();
+				});
 		});
 	}
 	
@@ -1067,6 +1112,8 @@ function validateMessage(conn, objMessage, message_index, objUnit, objValidation
 		return callback("unknown fields in message");
 	
 	if ("spend_proofs" in objMessage){
+		if (objValidationState.bAA)
+			throw Error("spend proofs in AA");
 		if (!Array.isArray(objMessage.spend_proofs) || objMessage.spend_proofs.length === 0 || objMessage.spend_proofs.length > constants.MAX_SPEND_PROOFS_PER_MESSAGE)
 			return callback("spend_proofs must be non-empty array max "+constants.MAX_SPEND_PROOFS_PER_MESSAGE+" elements");
 		var arrAuthorAddresses = objUnit.authors.map(function(author) { return author.address; } );
@@ -1140,7 +1187,7 @@ function validateMessage(conn, objMessage, message_index, objUnit, objValidation
 			return callback("private payment must come with spend proof(s)");
 	}
 	
-	var arrInlineOnlyApps = ["address_definition_change", "data_feed", "definition_template", "asset", "asset_attestors", "attestation", "poll", "vote"];
+	var arrInlineOnlyApps = ["address_definition_change", "data_feed", "definition_template", "asset", "asset_attestors", "attestation", "poll", "vote", "definition"];
 	if (arrInlineOnlyApps.indexOf(objMessage.app) >= 0 && objMessage.payload_location !== "inline")
 		return callback(objMessage.app+" must be inline");
 
@@ -1269,6 +1316,35 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 			if (!isValidAddress(payload.definition_chash))
 				return callback("bad new definition_chash");
 			return callback();
+
+		case "definition": // for AAs only
+			if (hasFieldsExcept(payload, ["address", "definition"])) // AA definition cannot be changed and its address is also its definition_chash
+				return callback("unknown fields in app definition");
+			try{
+				if (payload.address !== objectHash.getChash160(payload.definition))
+					return callback("definition doesn't match the chash");
+			}
+			catch(e){
+				return callback("bad definition");
+			}
+			if (constants.bTestnet && ['BD7RTYgniYtyCX0t/a/mmAAZEiK/ZhTvInCMCPG5B1k=', 'EHEkkpiLVTkBHkn8NhzZG/o4IphnrmhRGxp4uQdEkco=', 'bx8VlbNQm2WA2ruIhx04zMrlpQq3EChK6o3k5OXJ130=', '08t8w/xuHcsKlMpPWajzzadmMGv+S4AoeV/QL1F3kBM='].indexOf(objUnit.unit) >= 0)
+				return callback();
+			aa_validation.validateAADefinition(payload.definition, function (err) {
+				if (err)
+					return callback(err);
+				var template = payload.definition[1];
+				if (template.messages)
+					return callback(); // regular AA
+				// else parameterized AA
+				storage.readAADefinition(conn, template.base_aa, function (arrBaseDefinition) {
+					if (!arrBaseDefinition)
+						return callback("base AA not found");
+					if (!arrBaseDefinition[1].messages)
+						return callback("base AA must be a regular AA");
+					callback();
+				});
+			});
+			break;
 
 		case "poll":
 			if (objValidationState.bHasPoll)
@@ -1424,7 +1500,7 @@ function validatePayment(conn, payload, message_index, objUnit, objValidationSta
 	
 	var arrAuthorAddresses = objUnit.authors.map(function(author) { return author.address; } );
 	// note that light clients cannot check attestations
-	storage.loadAssetWithListOfAttestedAuthors(conn, payload.asset, objValidationState.last_ball_mci, arrAuthorAddresses, function(err, objAsset){
+	storage.loadAssetWithListOfAttestedAuthors(conn, payload.asset, objValidationState.last_ball_mci, arrAuthorAddresses, objValidationState.bAA, function(err, objAsset){
 		if (err)
 			return callback(err);
 		if (hasFieldsExcept(payload, ["inputs", "outputs", "asset", "denomination"]))
@@ -1481,7 +1557,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 	var arrInputAddresses = []; // used for non-transferrable assets only
 	var arrOutputAddresses = [];
 	var total_input = 0;
-	if (payload.inputs.length > constants.MAX_INPUTS_PER_PAYMENT_MESSAGE)
+	if (payload.inputs.length > constants.MAX_INPUTS_PER_PAYMENT_MESSAGE && !objValidationState.bAA)
 		return callback("too many inputs");
 	if (payload.outputs.length > constants.MAX_OUTPUTS_PER_PAYMENT_MESSAGE)
 		return callback("too many outputs");
@@ -1853,6 +1929,8 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 
 				case "headers_commission":
 				case "witnessing":
+					if (objValidationState.bAA)
+						throw Error(type+" in AA");
 					if (type === "headers_commission"){
 						if (bHaveWitnessings)
 							return cb("all headers commissions must come before witnessings");
@@ -2057,6 +2135,8 @@ function validateAssetDefinition(conn, payload, objUnit, objValidationState, cal
 	// denominations
 	if (payload.fixed_denominations && !isNonemptyArray(payload.denominations))
 		return callback("denominations not defined");
+	if (!payload.fixed_denominations && "denominations" in payload)
+		return callback("denominations should not be defined when fixed");
 	if (payload.denominations){
 		if (payload.denominations.length > constants.MAX_DENOMINATIONS_PER_ASSET_DEFINITION)
 			return callback("too many denominations");
@@ -2124,9 +2204,11 @@ function validateAssetDefinition(conn, payload, objUnit, objValidationState, cal
 function validateAttestorListUpdate(conn, payload, objUnit, objValidationState, callback){
 	if (objUnit.authors.length !== 1)
 		return callback("attestor list must be single-authored");
+	if (hasFieldsExcept(payload, ['asset', 'attestors']))
+		return callback("foreign fields in attestor list update");
 	if (!isStringOfLength(payload.asset, constants.HASH_LENGTH))
 		return callback("invalid asset in attestor list update");
-	storage.readAsset(conn, payload.asset, objValidationState.last_ball_mci, function(err, objAsset){
+	storage.readAsset(conn, payload.asset, objValidationState.last_ball_mci, false, function(err, objAsset){
 		if (err)
 			return callback(err);
 		if (!objAsset.spender_attested)
@@ -2192,68 +2274,15 @@ function createJointError(err){
 	};
 }
 
-
+// the function is here for compatibility only, it'll be eventually removed, use its counterpart in signed_message.js instead
 function validateSignedMessage(objSignedMessage, handleResult){
-	if (typeof objSignedMessage !== 'object')
-		return handleResult("not an object");
-	if (ValidationUtils.hasFieldsExcept(objSignedMessage, ["signed_message", "authors", "last_ball_unit", "timestamp"]))
-		return handleResult("unknown fields");
-	if (typeof objSignedMessage.signed_message !== 'string')
-		return handleResult("signed message not a string");
-	if (!Array.isArray(objSignedMessage.authors))
-		return handleResult("authors not an array");
-	if (!ValidationUtils.isArrayOfLength(objSignedMessage.authors, 1))
-		return handleResult("authors not an array of len 1");
-	var objAuthor = objSignedMessage.authors[0];
-	if (!objAuthor)
-		return handleResult("no authors[0]");
-	if (!ValidationUtils.isValidAddress(objAuthor.address))
-		return handleResult("not valid address");
-	if (typeof objAuthor.authentifiers !== 'object')
-		return handleResult("not valid authentifiers");
-	var arrAddressDefinition = objAuthor.definition;
-	try{
-		if (objectHash.getChash160(arrAddressDefinition) !== objAuthor.address)
-			return handleResult("wrong definition: "+objectHash.getChash160(arrAddressDefinition) +"!=="+ objAuthor.address);
-	} catch(e) {
-		return handleResult("failed to calc address definition hash: " +e);
-	}
-	var objUnit = _.clone(objSignedMessage);
-	objUnit.messages = []; // some ops need it
-	try{
-		var objValidationState = {
-			unit_hash_to_sign: objectHash.getUnitHashToSign(objSignedMessage),
-			last_ball_mci: -1,
-			bNoReferences: true
-		};
-	}
-	catch(e) {
-		return handleResult("failed to calc unit_hash_to_sign: " +e);
-	}
-	// passing db as null
-	Definition.validateAuthentifiers(
-		null, objAuthor.address, null, arrAddressDefinition, objUnit, objValidationState, objAuthor.authentifiers, 
-		function(err, res){
-			if (err) // error in address definition
-				return handleResult(err);
-			if (!res) // wrong signature or the like
-				return handleResult("authentifier verification failed");
-			handleResult();
-		}
-	);
+	var signed_message = require('./signed_message.js');
+	signed_message.validateSignedMessage(objSignedMessage, handleResult);
 }
 
-// inconsistent for multisig addresses
 function validateSignedMessageSync(objSignedMessage){
-	var err;
-	var bCalledBack = false;
-	validateSignedMessage(objSignedMessage, function(_err){
-		err = _err;
-		bCalledBack = true;
-	});
-	if (!bCalledBack)
-		throw Error("validateSignedMessage is not sync");
-	return err;
+	var signed_message = require('./signed_message.js');
+	return signed_message.validateSignedMessageSync(objSignedMessage);
 }
 
 exports.validate = validate;

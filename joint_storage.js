@@ -3,6 +3,7 @@
 var _ = require('lodash');
 var async = require('async');
 var storage = require('./storage.js');
+var kvstore = require('./kvstore.js');
 var archiving = require('./archiving.js');
 var db = require('./db.js');
 var constants = require("./constants.js");
@@ -28,7 +29,7 @@ function checkIfNewUnit(unit, callbacks) {
 	db.query("SELECT sequence, main_chain_index FROM units WHERE unit=?", [unit], function(rows){
 		if (rows.length > 0){
 			var row = rows[0];
-			if (row.sequence === 'final-bad' && row.main_chain_index < storage.getMinRetrievableMci()) // already stripped
+			if (row.sequence === 'final-bad' && row.main_chain_index !== null && row.main_chain_index < storage.getMinRetrievableMci()) // already stripped
 				return callbacks.ifNew();
 			storage.setUnitIsKnown(unit);
 			return callbacks.ifKnown();
@@ -123,19 +124,22 @@ function readDependentJointsThatAreReady(unit, handleDependentJoint){
 
 function findLostJoints(handleLostJoints){
 	//console.log("findLostJoints");
-	db.query(
-		"SELECT DISTINCT depends_on_unit \n\
-		FROM dependencies \n\
-		LEFT JOIN unhandled_joints ON depends_on_unit=unhandled_joints.unit \n\
-		LEFT JOIN units ON depends_on_unit=units.unit \n\
-		WHERE unhandled_joints.unit IS NULL AND units.unit IS NULL AND dependencies.creation_date < " + db.addTime("-8 SECOND"), 
-		function(rows){
-			//console.log(rows.length+" lost joints");
-			if (rows.length === 0)
-				return;
-			handleLostJoints(rows.map(function(row){ return row.depends_on_unit; })); 
-		}
-	);
+	mutex.lockOrSkip(['findLostJoints'], function (unlock) {
+		db.query(
+			"SELECT DISTINCT depends_on_unit \n\
+			FROM dependencies \n\
+			LEFT JOIN unhandled_joints ON depends_on_unit=unhandled_joints.unit \n\
+			LEFT JOIN units ON depends_on_unit=units.unit \n\
+			WHERE unhandled_joints.unit IS NULL AND units.unit IS NULL AND dependencies.creation_date < " + db.addTime("-8 SECOND"),
+			function (rows) {
+				//console.log(rows.length+" lost joints");
+				unlock();
+				if (rows.length === 0)
+					return;
+				handleLostJoints(rows.map(function (row) { return row.depends_on_unit; }));
+			}
+		);
+	});
 }
 
 // onPurgedDependentJoint called for each purged dependent unit
@@ -251,24 +255,15 @@ function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 									conn.addQuery(arrQueries, "BEGIN");
 									archiving.generateQueriesToArchiveJoint(conn, objJoint, 'uncovered', arrQueries, function(){
 										conn.addQuery(arrQueries, "COMMIT");
-										async.series(arrQueries, function(){
-											breadcrumbs.add("------- done archiving "+row.unit);
-											var parent_units = storage.assocUnstableUnits[row.unit].parent_units;
-											storage.forgetUnit(row.unit);
-											parent_units.forEach(function(parent_unit){
-												if (!storage.assocUnstableUnits[parent_unit]) // the parent is already stable
-													return;
-												var bHasChildren = false;
-												for (var unit in storage.assocUnstableUnits){
-													var o = storage.assocUnstableUnits[unit];
-													if (o.parent_units.indexOf(parent_unit) >= 0)
-														bHasChildren = true;
-												}
-												if (!bHasChildren)
-													storage.assocUnstableUnits[parent_unit].is_free = 1;
+										kvstore.del('j\n'+row.unit, function(){
+											async.series(arrQueries, function(){
+												breadcrumbs.add("------- done archiving "+row.unit);
+												var parent_units = storage.assocUnstableUnits[row.unit].parent_units;
+												storage.forgetUnit(row.unit);
+												storage.fixIsFreeAfterForgettingUnit(parent_units);
+												unlock();
+												cb();
 											});
-											unlock();
-											cb();
 										});
 									});
 								});
