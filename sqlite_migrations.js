@@ -294,6 +294,7 @@ function migrateDb(connection, onDone){
 						arbiter_address CHAR(32) NOT NULL, \n\
 						me_is_payer TINYINT NOT NULL, \n\
 						amount BIGINT NULL, \n\
+						asset CHAR(44) NULL, \n\
 						is_incoming TINYINT NOT NULL, \n\
 						creation_date TIMESTAMP NOT NULL, \n\
 						ttl INT NOT NULL DEFAULT 168, -- 168 hours = 24 * 7 = 1 week \n\

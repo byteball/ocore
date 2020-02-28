@@ -9,9 +9,9 @@ var crypto = require('crypto');
 var status_PENDING = 'pending';
 exports.CHARGE_AMOUNT = 4000;
 
-function createAndSend(hash, peer_address, peer_device_address, my_address, arbiter_address, me_is_payer, amount, creation_date, ttl, title, text, cosigners, pairing_code, myContactInfo, cb) {
-	db.query("INSERT INTO arbiter_contracts (hash, peer_address, peer_device_address, my_address, arbiter_address, me_is_payer, amount, is_incoming, creation_date, ttl, status, title, text, my_contact_info, cosigners) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [hash, peer_address, peer_device_address, my_address, arbiter_address, me_is_payer, amount, false, creation_date, ttl, status_PENDING, title, text, myContactInfo, JSON.stringify(cosigners)], function() {
-		var objContract = {title: title, text: text, creation_date: creation_date, hash: hash, peer_address: my_address, ttl: ttl, my_address: peer_address, arbiter_address: arbiter_address, me_is_payer: !me_is_payer, amount: amount, peer_pairing_code: pairing_code, peer_contact_info: myContactInfo};
+function createAndSend(hash, peer_address, peer_device_address, my_address, arbiter_address, me_is_payer, amount, asset, creation_date, ttl, title, text, cosigners, pairing_code, myContactInfo, cb) {
+	db.query("INSERT INTO arbiter_contracts (hash, peer_address, peer_device_address, my_address, arbiter_address, me_is_payer, amount, asset, is_incoming, creation_date, ttl, status, title, text, my_contact_info, cosigners) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [hash, peer_address, peer_device_address, my_address, arbiter_address, me_is_payer, amount, asset, false, creation_date, ttl, status_PENDING, title, text, myContactInfo, JSON.stringify(cosigners)], function() {
+		var objContract = {title: title, text: text, creation_date: creation_date, hash: hash, peer_address: my_address, ttl: ttl, my_address: peer_address, arbiter_address: arbiter_address, me_is_payer: !me_is_payer, amount: amount, asset: asset, peer_pairing_code: pairing_code, peer_contact_info: myContactInfo};
 		device.sendMessageToDevice(peer_device_address, "arbiter_contract_offer", objContract);
 		if (cb)
 			cb(objContract);
@@ -36,7 +36,7 @@ function getBySharedAddress(address, cb) {
 }
 
 function getAllByStatus(status, cb) {
-	db.query("SELECT hash, title, my_address, peer_address, peer_device_address, cosigners, creation_date FROM prosaic_contracts WHERE status=? ORDER BY creation_date DESC", [status], function(rows){
+	db.query("SELECT hash, title, my_address, peer_address, status, peer_device_address, cosigners, creation_date FROM arbiter_contracts WHERE status IN (?) ORDER BY creation_date DESC", [status], function(rows){
 		rows.forEach(function(row) {
 			row = decodeRow(row);
 		});
@@ -54,9 +54,9 @@ function setField(hash, field, value, cb) {
 }
 
 function store(objContract, cb) {
-	var fields = '(hash, peer_address, peer_device_address, my_address, arbiter_address, me_is_payer, amount, is_incoming, creation_date, ttl, status, title, text, peer_pairing_code, peer_contact_info';
-	var placeholders = '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?';
-	var values = [objContract.hash, objContract.peer_address, objContract.peer_device_address, objContract.my_address, objContract.arbiter_address, objContract.me_is_payer, objContract.amount, true, objContract.creation_date, objContract.ttl, objContract.status || status_PENDING, objContract.title, objContract.text, objContract.peer_pairing_code, objContract.peer_contact_info];
+	var fields = '(hash, peer_address, peer_device_address, my_address, arbiter_address, me_is_payer, amount, asset, is_incoming, creation_date, ttl, status, title, text, peer_pairing_code, peer_contact_info';
+	var placeholders = '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?';
+	var values = [objContract.hash, objContract.peer_address, objContract.peer_device_address, objContract.my_address, objContract.arbiter_address, objContract.me_is_payer, objContract.amount, objContract.asset, true, objContract.creation_date, objContract.ttl, objContract.status || status_PENDING, objContract.title, objContract.text, objContract.peer_pairing_code, objContract.peer_contact_info];
 	if (objContract.shared_address) {
 		fields += ', shared_address';
 		placeholders += ', ?';
