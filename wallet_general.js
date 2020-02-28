@@ -3,7 +3,9 @@
 var async = require('async');
 var db = require('./db.js');
 var device = require('./device.js');
-
+var conf = require('./conf.js');
+var network = require('./network.js');
+var ValidationUtils = require("./validation_utils.js");
 
 
 function sendOfferToSign(device_address, address, signing_path, objUnsignedUnit, assocPrivatePayloads){
@@ -46,10 +48,21 @@ function sendPaymentNotification(device_address, unit){
 function readMyAddresses(handleAddresses){
 	db.query("SELECT address FROM my_addresses \n\
 		UNION SELECT shared_address AS address FROM shared_addresses \n\
-		UNION SELECT address FROM sent_mnemonics LEFT JOIN unit_authors USING(address) WHERE unit_authors.unit IS NULL", function(rows){
+		UNION SELECT address FROM sent_mnemonics LEFT JOIN unit_authors USING(address) WHERE unit_authors.unit IS NULL\n\
+		UNION SELECT address FROM my_watched_addresses", function(rows){
 		var arrAddresses = rows.map(function(row){ return row.address; });
 		handleAddresses(arrAddresses);
 	});
+}
+
+function addWatchedAddress(address, handle){
+	if (!ValidationUtils.isValidAddress(address))
+		return handle("not a valid address");
+	db.query("INSERT "+db.getIgnore()+" INTO my_watched_addresses (address) VALUES (?)", [address], function(){
+		if (conf.bLight)
+			network.addLightWatchedAddress(address);
+		handle();
+	})
 }
 
 exports.sendOfferToSign = sendOfferToSign;
@@ -57,3 +70,4 @@ exports.sendPrivatePayments = sendPrivatePayments;
 exports.forwardPrivateChainsToDevices = forwardPrivateChainsToDevices;
 exports.sendPaymentNotification = sendPaymentNotification;
 exports.readMyAddresses = readMyAddresses;
+exports.addWatchedAddress = addWatchedAddress;

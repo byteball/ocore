@@ -136,6 +136,8 @@ function handleChallenge(ws, challenge){
 }
 
 function loginToHub(){
+	if (!network.isStarted())
+		return console.log("network not started yet");
 	if (!objMyPermanentDeviceKey)
 		return console.log("objMyPermanentDeviceKey not set yet, can't log in");
 	if (!objMyTempDeviceKey)
@@ -373,6 +375,8 @@ function readMessageInChunksFromOutbox(message_hash, len, handleMessage){
 function resendStalledMessages(delay){
 	var delay = delay || 0;
 	console.log("resending stalled messages delayed by "+delay+" minute");
+	if (!network.isStarted())
+		return console.log("resendStalledMessages: network not started yet");
 	if (!objMyPermanentDeviceKey)
 		return console.log("objMyPermanentDeviceKey not set yet, can't resend stalled messages");
 	mutex.lockOrSkip(['stalled'], function(unlock){

@@ -39,7 +39,7 @@ function sendMailThroughUnixSendmail(params, cb){
 }
 
 function sendMailDirectly(params, cb) {
-	var nodemailer = require('node4mailer'+'');
+	var nodemailer = require('node4mailer');
 	var hostname = params.to.slice(params.to.indexOf("@")+1);
 	DNS.resolveMx(hostname, function(err, exchanges){
 		var exchange = hostname;
@@ -76,7 +76,7 @@ function sendMailDirectly(params, cb) {
 }
 
 function sendMailThroughRelay(params, cb){
-	var nodemailer = require('node4mailer'+'');
+	var nodemailer = require('node4mailer');
 	var transportOpts = {
 		host: conf.smtpRelay,
 		port: conf.smtpPort || null, // custom port
