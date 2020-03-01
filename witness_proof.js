@@ -41,7 +41,7 @@ function prepareWitnessProof(arrWitnesses, last_stable_mci, handleResult){
 							}
 							// collect last balls of majority witnessed units
 							// (genesis lacks last_ball_unit)
-							if (objJoint.unit.last_ball_unit && arrFoundWitnesses.length >= constants.MAJORITY_OF_WITNESSES)
+							if (objJoint.unit.last_ball_unit && arrFoundWitnesses.length >= constants.MAJORITY_OF_WITNESSES && arrLastBallUnits.indexOf(objJoint.unit.last_ball_unit) === -1)
 								arrLastBallUnits.push(objJoint.unit.last_ball_unit);
 							cb2();
 						});

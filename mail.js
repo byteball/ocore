@@ -39,7 +39,7 @@ function sendMailThroughUnixSendmail(params, cb){
 }
 
 function sendMailDirectly(params, cb) {
-	var nodemailer = require('node4mailer'+'');
+	var nodemailer = require('node4mailer');
 	var hostname = params.to.slice(params.to.indexOf("@")+1);
 	DNS.resolveMx(hostname, function(err, exchanges){
 		var exchange = hostname;
@@ -76,7 +76,7 @@ function sendMailDirectly(params, cb) {
 }
 
 function sendMailThroughRelay(params, cb){
-	var nodemailer = require('node4mailer'+'');
+	var nodemailer = require('node4mailer');
 	var transportOpts = {
 		host: conf.smtpRelay,
 		port: conf.smtpPort || null, // custom port
@@ -111,6 +111,8 @@ function sendMailThroughRelay(params, cb){
 }
 
 function sendBugEmail(error_message, exception){
+	if (!conf.bug_sink_email || !conf.bugs_from_email)
+		return console.log("not sending bug email " + error_message.substr(0, 50).replace(/\s/g, ' '));
 	sendmail({
 		to: conf.bug_sink_email,
 		from: conf.bugs_from_email,

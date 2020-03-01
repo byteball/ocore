@@ -8,7 +8,8 @@ var getSourceString = require('./string_utils').getSourceString;
 var getJsonSourceString = require('./string_utils').getJsonSourceString;
 
 function getChash160(obj) {
-	return chash.getChash160(getSourceString(obj));
+	var sourceString = (Array.isArray(obj) && obj.length === 2 && obj[0] === 'autonomous agent') ? getJsonSourceString(obj) : getSourceString(obj);
+	return chash.getChash160(sourceString);
 }
 
 function getChash288(obj) {
@@ -78,6 +79,14 @@ function getUnitHashToSign(objUnit) {
 	for (var i=0; i<objNakedUnit.authors.length; i++)
 		delete objNakedUnit.authors[i].authentifiers;
 	var sourceString = (typeof objUnit.version === 'undefined' || objUnit.version === constants.versionWithoutTimestamp) ? getSourceString(objNakedUnit) : getJsonSourceString(objNakedUnit);
+	return crypto.createHash("sha256").update(sourceString, "utf8").digest();
+}
+
+function getSignedPackageHashToSign(signedPackage) {
+	var unsignedPackage = _.cloneDeep(signedPackage);
+	for (var i=0; i<unsignedPackage.authors.length; i++)
+		delete unsignedPackage.authors[i].authentifiers;
+	var sourceString = (typeof signedPackage.version === 'undefined' || signedPackage.version === constants.versionWithoutTimestamp) ? getSourceString(unsignedPackage) : getJsonSourceString(unsignedPackage);
 	return crypto.createHash("sha256").update(sourceString, "utf8").digest();
 }
 
@@ -151,5 +160,6 @@ exports.cleanNullsDeep = cleanNullsDeep;
 
 exports.getDeviceAddress = getDeviceAddress;
 exports.getDeviceMessageHashToSign = getDeviceMessageHashToSign;
+exports.getSignedPackageHashToSign = getSignedPackageHashToSign;
 
 

@@ -1,7 +1,7 @@
 /*jslint node: true */
 "use strict";
-var fs = require('fs'+'');
-var path = require('path'+''); // make browserify skip it
+var fs = require('fs');
+var path = require('path'); // make browserify skip it
 
 function getAppsDataDir(){
 	switch(process.platform){
@@ -14,6 +14,8 @@ function getAppsDataDir(){
 
 function getPackageJsonDir(start_dir){
 	try{
+		if (start_dir === __dirname)
+			throw Error("still in core");
 		fs.accessSync(start_dir + '/package.json');
 		return start_dir;
 	}

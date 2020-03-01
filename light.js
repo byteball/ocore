@@ -4,6 +4,7 @@ var async = require('async');
 var storage = require('./storage.js');
 var archiving = require('./archiving.js');
 var objectHash = require("./object_hash.js");
+var conf = require('./conf.js');
 var db = require('./db.js');
 var mutex = require('./mutex.js');
 var constants = require("./constants.js");
@@ -16,6 +17,7 @@ var parentComposer = require('./parent_composer.js');
 var breadcrumbs = require('./breadcrumbs.js');
 var eventBus = require('./event_bus.js');
 var proofChain = require('./proof_chain.js');
+var _ = require('lodash');
 
 var MAX_HISTORY_ITEMS = 2000;
 
@@ -60,7 +62,10 @@ function prepareHistory(historyRequest, callbacks){
 			WHERE address IN("+strAddressList+") AND (+sequence='good' OR is_stable=1) \n\
 			UNION \n\
 			SELECT DISTINCT unit, main_chain_index, level FROM unit_authors JOIN units USING(unit) \n\
-			WHERE address IN("+strAddressList+") AND (+sequence='good' OR is_stable=1) \n"];
+			WHERE address IN(" + strAddressList + ") AND (+sequence='good' OR is_stable=1) \n\
+			UNION \n\
+			SELECT DISTINCT unit, main_chain_index, level FROM aa_responses JOIN units ON trigger_unit=unit \n\
+			WHERE aa_address IN(" + strAddressList + ")"];
 	}
 	if (arrRequestedJoints){
 		var strUnitList = arrRequestedJoints.map(db.escape).join(', ');
@@ -115,9 +120,18 @@ function prepareHistory(historyRequest, callbacks){
 							//    throw "no proofs";
 							if (objResponse.proofchain_balls.length === 0)
 								delete objResponse.proofchain_balls;
-							callbacks.ifOk(objResponse);
-							console.log("prepareHistory for addresses "+(arrAddresses || []).join(', ')+" and joints "+(arrRequestedJoints || []).join(', ')+" took "+(Date.now()-start_ts)+'ms');
-							unlock();
+							var arrUnits = objResponse.joints.map(function (objJoint) { return objJoint.unit.unit; });
+							db.query("SELECT mci, trigger_address, aa_address, trigger_unit, bounced, response_unit, response, creation_date FROM aa_responses WHERE trigger_unit IN(" + arrUnits.map(db.escape).join(', ') + ") ORDER BY " + (conf.storage === 'sqlite' ? 'rowid' : 'mci'), function (aa_rows) {
+								// there is nothing to prove that responses are authentic
+								if (aa_rows.length > 0)
+									objResponse.aa_responses = aa_rows.map(function (aa_row) {
+										objectHash.cleanNulls(aa_row);
+										return aa_row;
+									});
+								callbacks.ifOk(objResponse);
+								console.log("prepareHistory for addresses "+(arrAddresses || []).join(', ')+" and joints "+(arrRequestedJoints || []).join(', ')+" took "+(Date.now()-start_ts)+'ms');
+								unlock();
+							});
 						}
 					);
 				}
@@ -188,6 +202,35 @@ function processHistory(objResponse, arrWitnesses, callbacks){
 				//    return callbacks.ifError("proofchain doesn't prove unit "+objUnit.unit);
 			}
 
+			if (objResponse.aa_responses) {
+				// AA responses are trusted without proof
+				if (!ValidationUtils.isNonemptyArray(objResponse.aa_responses))
+					return callbacks.ifError("aa_responses must be non-empty array");
+				for (var i = 0; i < objResponse.aa_responses.length; i++){
+					var aa_response = objResponse.aa_responses[i];
+					if (!ValidationUtils.isPositiveInteger(aa_response.mci))
+						return callbacks.ifError("bad mci");
+					if (!ValidationUtils.isValidAddress(aa_response.trigger_address))
+						return callbacks.ifError("bad trigger_address");
+					if (!ValidationUtils.isValidAddress(aa_response.aa_address))
+						return callbacks.ifError("bad aa_address");
+					if (!ValidationUtils.isValidBase64(aa_response.trigger_unit, constants.HASH_LENGTH))
+						return callbacks.ifError("bad trigger_unit");
+					if (aa_response.bounced !== 0 && aa_response.bounced !== 1)
+						return callbacks.ifError("bad bounced");
+					if ("response_unit" in aa_response && !ValidationUtils.isValidBase64(aa_response.response_unit, constants.HASH_LENGTH))
+						return callbacks.ifError("bad response_unit");
+					try {
+						JSON.parse(aa_response.response);
+					}
+					catch (e) {
+						return callbacks.ifError("bad response json");
+					}
+					if (objResponse.joints.filter(function (objJoint) { return (objJoint.unit.unit === aa_response.trigger_unit) }).length === 0)
+						return callbacks.ifError("foreign trigger_unit");
+				}
+			}
+
 			// save joints that pay to/from me and joints that I explicitly requested
 			mutex.lock(["light_joints"], function(unlock){
 				var arrUnits = objResponse.joints.map(function(objJoint){ return objJoint.unit.unit; });
@@ -206,7 +249,7 @@ function processHistory(objResponse, arrWitnesses, callbacks){
 							var unit = objUnit.unit;
 							// assocProvenUnitsNonserialness[unit] is true for non-serials, false for serials, undefined for unstable
 							var sequence = assocProvenUnitsNonserialness[unit] ? 'final-bad' : 'good';
-							if (unit in assocProvenUnitsNonserialness)
+							if (assocProvenUnitsNonserialness.hasOwnProperty(unit))
 								arrProvenUnits.push(unit);
 							if (assocExistingUnits[unit]){
 								//if (!assocProvenUnitsNonserialness[objUnit.unit]) // not stable yet
@@ -249,14 +292,41 @@ function processHistory(objResponse, arrWitnesses, callbacks){
 									unlock();
 									return callbacks.ifOk(true);
 								}
-								db.query("UPDATE units SET is_stable=1, is_free=0 WHERE unit IN("+arrProvenUnits.map(db.escape).join(', ')+")", function(){
-									unlock();
-									arrProvenUnits = arrProvenUnits.filter(function(unit){ return !assocProvenUnitsNonserialness[unit]; });
-									if (arrProvenUnits.length === 0)
-										return callbacks.ifOk(true);
-									emitStability(arrProvenUnits, function(bEmitted){
-										callbacks.ifOk(!bEmitted);
+								var sqlProvenUnits = arrProvenUnits.map(db.escape).join(', ');
+								db.query("UPDATE inputs SET is_unique=1 WHERE unit IN("+sqlProvenUnits+")", function(){
+									db.query("UPDATE units SET is_stable=1, is_free=0 WHERE unit IN("+sqlProvenUnits+")", function(){
+										unlock();
+										arrProvenUnits = arrProvenUnits.filter(function(unit){ return !assocProvenUnitsNonserialness[unit]; });
+										if (arrProvenUnits.length === 0)
+											return callbacks.ifOk(true);
+										emitStability(arrProvenUnits, function(bEmitted){
+											callbacks.ifOk(!bEmitted);
+										});
 									});
+								});
+							});
+							// this can execute after callbacks
+							if (!objResponse.aa_responses)
+								return;
+							var arrAAResponsesToEmit = [];
+							async.eachSeries(objResponse.aa_responses, function (objAAResponse, cb3) {
+								db.query(
+									"INSERT " + db.getIgnore() + " INTO aa_responses (mci, trigger_address, aa_address, trigger_unit, bounced, response_unit, response, creation_date) VALUES (?, ?,?, ?, ?, ?,?, ?)",
+									[objAAResponse.mci, objAAResponse.trigger_address, objAAResponse.aa_address, objAAResponse.trigger_unit, objAAResponse.bounced, objAAResponse.response_unit, objAAResponse.response, objAAResponse.creation_date],
+									function (res) {
+										if (res.affectedRows === 0) // don't emit events again
+											return cb3();
+										objAAResponse.response = JSON.parse(objAAResponse.response);
+										arrAAResponsesToEmit.push(objAAResponse);
+										return cb3();
+									}
+								);
+							}, function () {
+								arrAAResponsesToEmit.forEach(function (objAAResponse) {
+									eventBus.emit('aa_response', objAAResponse);
+									eventBus.emit('aa_response_to_unit-'+objAAResponse.trigger_unit, objAAResponse);
+									eventBus.emit('aa_response_to_address-'+objAAResponse.trigger_address, objAAResponse);
+									eventBus.emit('aa_response_from_aa-'+objAAResponse.aa_address, objAAResponse);
 								});
 							});
 						}
@@ -344,7 +414,11 @@ function getSqlToFilterMyUnits(arrUnits){
 		UNION \n\
 		SELECT unit FROM unit_authors JOIN shared_addresses ON address=shared_address WHERE unit IN("+strUnitList+") \n\
 		UNION \n\
-		SELECT unit FROM outputs JOIN shared_addresses ON address=shared_address WHERE unit IN("+strUnitList+")";
+		SELECT unit FROM outputs JOIN shared_addresses ON address=shared_address WHERE unit IN("+strUnitList+")\n\
+		UNION \n\
+		SELECT unit FROM unit_authors JOIN my_watched_addresses USING(address) WHERE unit IN("+strUnitList+") \n\
+		UNION \n\
+		SELECT unit FROM outputs JOIN my_watched_addresses USING(address) WHERE unit IN("+strUnitList+")";
 }
 
 function emitStability(arrProvenUnits, onDone){
@@ -374,6 +448,31 @@ function emitNewMyTransactions(arrNewUnits){
 			}
 		}
 	);
+}
+
+function updateAndEmitBadSequenceUnits(arrBadSequenceUnits, retryDelay){
+	if (!ValidationUtils.isNonemptyArray(arrBadSequenceUnits))
+		return console.log("arrBadSequenceUnits not array or empty");
+	if (!retryDelay)
+		retryDelay = 100;
+	if (retryDelay > 6400)
+		return;
+	db.query("SELECT unit FROM units WHERE unit IN (?)", [arrBadSequenceUnits], function(rows){
+		var arrAlreadySavedUnits = rows.map(function(row){return row.unit});
+		var arrNotSavedUnits = _.difference(arrBadSequenceUnits, arrAlreadySavedUnits);
+		if (arrNotSavedUnits.length > 0)
+			setTimeout(function(){
+				updateAndEmitBadSequenceUnits(arrNotSavedUnits, retryDelay*2); // we retry later for units that are not validated and saved yet
+			}, retryDelay);
+		if (arrAlreadySavedUnits.length > 0)
+			db.query("UPDATE units SET sequence='temp-bad' WHERE is_stable=0 AND unit IN (?)", [arrAlreadySavedUnits], function(){
+				db.query(getSqlToFilterMyUnits(arrAlreadySavedUnits),
+				function(arrMySavedUnitsRows){
+					if (arrMySavedUnitsRows.length > 0)
+						eventBus.emit('sequence_became_bad', arrMySavedUnitsRows.map(function(row){ return row.unit; }));
+				});
+			});
+	});
 }
 
 
@@ -610,5 +709,5 @@ exports.prepareLinkProofs = prepareLinkProofs;
 exports.processLinkProofs = processLinkProofs;
 exports.determineIfHaveUnstableJoints = determineIfHaveUnstableJoints;
 exports.prepareParentsAndLastBallAndWitnessListUnit = prepareParentsAndLastBallAndWitnessListUnit;
-
+exports.updateAndEmitBadSequenceUnits = updateAndEmitBadSequenceUnits;
 

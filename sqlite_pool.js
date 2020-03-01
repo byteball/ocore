@@ -16,7 +16,7 @@ if (bCordova){
 }
 else{
 	sqlite3 = require('sqlite3');//.verbose();
-	path = require('./desktop_app.js'+'').getAppDataDir() + '/';
+	path = require('./desktop_app.js').getAppDataDir() + '/';
 	console.log("path="+path);
 }
 
@@ -66,6 +66,8 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 		var connection = {
 			db: db,
 			bInUse: true,
+			currentQuery: null,
+			start_ts: 0,
 			
 			release: function(){
 				//console.log("released connection");
@@ -123,10 +125,14 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 				//		profiler.add_result(sql.substr(0, 40).replace(/\n/, '\\n'), consumed_time);
 					if (consumed_time > 25)
 						console.log("long query took "+consumed_time+"ms:\n"+new_args.filter(function(a, i){ return (i<new_args.length-1); }).join(", ")+"\nload avg: "+require('os').loadavg().join(', '));
+					self.start_ts = 0;
+					self.currentQuery = null;
 					last_arg(result);
 				});
 				
 				var start_ts = Date.now();
+				this.start_ts = start_ts;
+				this.currentQuery = new_args;
 				if (bCordova)
 					self.db.query.apply(self.db, new_args);
 				else
@@ -138,6 +144,12 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 				if (conf.bFaster)
 					return arguments[arguments.length - 1]();
 				this.query.apply(this, arguments);
+			},
+
+			printLongQuery: function () {
+				if (!this.start_ts || this.start_ts > Date.now() - 60 * 1000)
+					return;
+				console.log("in long query", this.currentQuery);
 			},
 			
 			addQuery: addQuery,
@@ -152,6 +164,7 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 			dropTemporaryTable: dropTemporaryTable
 			
 		};
+		setInterval(connection.printLongQuery.bind(connection), 60 * 1000);
 		arrConnections.push(connection);
 	}
 
@@ -434,19 +447,21 @@ function createDatabaseIfNecessary(db_name, onDbReady){
 		}, false);
 	}
 	else{ // copy initial db to app folder
-		var fs = require('fs'+'');
+		var fs = require('fs');
 		fs.stat(path + db_name, function(err, stats){
 			console.log("stat "+err);
 			if (!err) // already exists
 				return onDbReady();
 			console.log("will copy initial db");
 			var mode = parseInt('700', 8);
-			var parent_dir = require('path'+'').dirname(path);
+			var parent_dir = require('path').dirname(path);
 			fs.mkdir(parent_dir, mode, function(err){
 				console.log('mkdir '+parent_dir+': '+err);
 				fs.mkdir(path, mode, function(err){
 					console.log('mkdir '+path+': '+err);
-					fs.createReadStream(__dirname + '/initial-db/' + initial_db_filename).pipe(fs.createWriteStream(path + db_name)).on('finish', onDbReady);
+				//	fs.createReadStream(__dirname + '/initial-db/' + initial_db_filename).pipe(fs.createWriteStream(path + db_name)).on('finish', onDbReady);
+					fs.writeFileSync(path + db_name, fs.readFileSync(__dirname + '/initial-db/' + initial_db_filename));
+					onDbReady();
 				});
 			});
 		});
