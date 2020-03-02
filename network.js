@@ -379,12 +379,15 @@ function connectToPeer(url, onOpen) {
 				port: conf.socksPort,
 				type: 5,
 				authentication: {
-					username: conf.socksUsername || "dummy",
-					password: conf.socksPassword || "dummy"
+					username: typeof conf.socksUsername === 'undefined' ? "dummy" : conf.socksUsername,
+					password: typeof conf.socksPassword === 'undefined' ? "dummy" : conf.socksPassword
 				}
 			}
 		}, /^wss/i.test(url));
-		console.log('Using proxy: ' + (conf.socksUsername ? conf.socksUsername : '') + (conf.socksPassword ? ':'+ conf.socksPassword : '') + (conf.socksUsername ? '@' : '') + conf.socksHost + ':' + conf.socksPort);
+		console.log('Using socksHost: ' + conf.socksHost);
+		console.log('Using socksPort: ' + conf.socksPort);
+		console.log('Using socksUsername: ' + typeof conf.socksUsername === 'undefined' ? "dummy" : conf.socksUsername);
+		console.log('Using socksPassword: ' + typeof conf.socksPassword === 'undefined' ? "dummy" : conf.socksPassword);
 	}
 	var ws = options.agent ? new WebSocket(url,options) : new WebSocket(url);
 	assocConnectingOutboundWebsockets[url] = ws;
