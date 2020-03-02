@@ -41,6 +41,8 @@ exports.port = null;
 // Connects through socks v5 proxy without auth, WS_PROTOCOL has to be 'wss'
 // exports.socksHost = 'localhost';
 // exports.socksPort = 9050;
+// exports.socksUsername = 'dummy';
+// exports.socksPassword = 'dummy';
 // For better security you should not use local DNS with socks proxy
 // exports.socksLocalDNS = false;
 
