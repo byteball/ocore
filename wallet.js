@@ -586,8 +586,8 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					callbacks.ifOk();
 				};
 				if (body.signed_message) {
-					var signedMessageJson = Buffer.from(body.signed_message, 'base64').toString('utf8');
 					try{
+						var signedMessageJson = Buffer.from(body.signed_message, 'base64').toString('utf8');
 						var objSignedMessage = JSON.parse(signedMessageJson);
 					}
 					catch(e){
@@ -655,8 +655,8 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					callbacks.ifOk();
 				};
 				if (body.signed_message) {
-					var signedMessageJson = Buffer.from(body.signed_message, 'base64').toString('utf8');
 					try{
+						var signedMessageJson = Buffer.from(body.signed_message, 'base64').toString('utf8');
 						var objSignedMessage = JSON.parse(signedMessageJson);
 					}
 					catch(e){
