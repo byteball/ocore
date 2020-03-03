@@ -27,6 +27,17 @@ var isArrayOfLength = ValidationUtils.isArrayOfLength;
 var isValidAddress = ValidationUtils.isValidAddress;
 var isValidBase64 = ValidationUtils.isValidBase64;
 
+function pathIncludesOneOfAuthentifiers(path, arrAuthentifierPaths, bAssetCondition){
+	if (bAssetCondition)
+		throw Error('pathIncludesOneOfAuthentifiers called in asset condition');
+	for (var i=0; i<arrAuthentifierPaths.length; i++){
+		var authentifier_path = arrAuthentifierPaths[i];
+		if (authentifier_path.substr(0, path.length) === path)
+			return true;
+	}
+	return false;
+}
+
 // validate definition of address or asset spending conditions
 function validateDefinition(conn, arrDefinition, objUnit, objValidationState, arrAuthentifierPaths, bAssetCondition, handleResult){
 	
@@ -73,24 +84,12 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 		});
 	}
 	
-	
-	function pathIncludesOneOfAuthentifiers(path){
-		if (bAssetCondition)
-			throw Error('pathIncludesOneOfAuthentifiers called in asset condition');
-		for (var i=0; i<arrAuthentifierPaths.length; i++){
-			var authentifier_path = arrAuthentifierPaths[i];
-			if (authentifier_path.substr(0, path.length) === path)
-				return true;
-		}
-		return false;
-	}
-	
 	function needToEvaluateNestedAddress(path){
 		if (!arrAuthentifierPaths) // no signatures, just validating a new definition
 			return true;
 		if (objValidationState.last_ball_mci < 1400000) // skipping is enabled after this mci
 			return true;
-		return pathIncludesOneOfAuthentifiers(path);
+		return pathIncludesOneOfAuthentifiers(path, arrAuthentifierPaths, bAssetCondition);
 	}
 	
 	
@@ -705,6 +704,8 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				
 			case 'address':
 				// ['address', 'BASE32']
+				if (!pathIncludesOneOfAuthentifiers(path, arrAuthentifierPaths, bAssetCondition))
+					return cb(false);
 				var other_address = args;
 				storage.readDefinitionByAddress(conn, other_address, objValidationState.last_ball_mci, {
 					ifFound: function(arrInnerAddressDefinition){
