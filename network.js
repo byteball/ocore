@@ -2519,6 +2519,8 @@ function handleJustsaying(ws, subject, body){
 				return sendError(ws, "I'm not a hub");
 			if (!ws.device_address)
 				return sendError(ws, "please log in first");
+			if (ws.blockChat)
+				return sendError(ws, "chat is blocked, please upgrade");
 			sendStoredDeviceMessages(ws, ws.device_address);
 			break;
 			
@@ -2843,7 +2845,7 @@ function handleRequest(ws, tag, command, params){
 					function(){
 						// if the addressee is connected, deliver immediately
 						wss.clients.concat(arrOutboundPeers).forEach(function(client){
-							if (client.device_address === objDeviceMessage.to && (!client.max_message_length || message_string.length <= client.max_message_length)) {
+							if (client.device_address === objDeviceMessage.to && (!client.max_message_length || message_string.length <= client.max_message_length) && !ws.blockChat) {
 								sendJustsaying(client, 'hub/message', {
 									message_hash: message_hash,
 									message: objDeviceMessage
