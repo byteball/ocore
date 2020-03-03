@@ -781,6 +781,8 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 			case 'seen':
 				// ['seen', {what: 'input', asset: 'asset or base', type: 'transfer'|'issue', amount_at_least: 123, amount_at_most: 123, amount: 123, address: 'BASE32'}]
 				var filter = args;
+				if (filter.what !== 'input' && filter.what !== 'output')
+					throw Error("invalid what: " + filter.what);
 				var sql = "SELECT 1 FROM "+filter.what+"s CROSS JOIN units USING(unit) \n\
 					LEFT JOIN assets ON asset=assets.unit \n\
 					WHERE main_chain_index<=? AND sequence='good' AND is_stable=1 AND (asset IS NULL OR is_private=0) ";
@@ -984,6 +986,8 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 			case 'age':
 				var relation = args[0];
 				var age = args[1];
+				if (["=", ">", "<", ">=", "<=", "!="].indexOf(relation) === -1)
+					throw Error("invalid relation in age: "+relation);
 				augmentMessagesAndContinue(function(){
 					var arrSrcUnits = [];
 					for (var i=0; i<objValidationState.arrAugmentedMessages.length; i++){
