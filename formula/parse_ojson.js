@@ -28,14 +28,14 @@ function validateFormula (formula, parserResults, context) {
 				searchNewlineRecursive(st[keys[i]])
 			}
 		} else if (_.isString(st) && st.includes('\n')) {
-			throw new Error(`Error parsing formula starting at line ${context.line} column ${context.col}: newline is not allowed in string '${st}'`)
+			throw new Error(`Error parsing formula starting at line ${context.line} col ${context.col}: newline is not allowed in string '${st}'`)
 		}
 	}
 
 	if (!_.isArray(parserResults)) {
-		throw new Error(`Error parsing formula starting at line ${context.line} column ${context.col}`)
+		throw new Error(`Error parsing formula starting at line ${context.line} col ${context.col}`)
 	} else if (parserResults.length !== 1) {
-		throw new Error(`Error parsing formula starting at line ${context.line} column ${context.col}: ambiguous parser result`)
+		throw new Error(`Error parsing formula starting at line ${context.line} col ${context.col}: ambiguous parser result`)
 	} else {
 		searchNewlineRecursive(parserResults[0])
 	}
