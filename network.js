@@ -473,8 +473,8 @@ function addOutboundPeers(multiplier){
 		LEFT JOIN peer_host_urls ON peer=url AND is_active=1 \n\
 		WHERE (count_invalid_joints/count_new_good_joints<? \n\
 			OR count_new_good_joints=0 AND count_nonserial_joints=0 AND count_invalid_joints=0) \n\
-			"+((arrOutboundPeerUrls.length > 0) ? "AND peer NOT IN("+db.escape(arrOutboundPeerUrls)+") \n" : "")+"\n\
-			"+((arrInboundHosts.length > 0) ? "AND (peer_host_urls.peer_host IS NULL OR peer_host_urls.peer_host NOT IN("+db.escape(arrInboundHosts)+")) \n": "")+"\n\
+			"+((arrOutboundPeerUrls.length > 0) ? "AND peer NOT IN("+arrOutboundPeerUrls.map(db.escape).join(', ')+") \n" : "")+"\n\
+			"+((arrInboundHosts.length > 0) ? "AND (peer_host_urls.peer_host IS NULL OR peer_host_urls.peer_host NOT IN("+arrInboundHosts.map(db.escape).join(', ')+")) \n" : "")+"\n\
 			AND peer_hosts.peer_host != 'byteball.org' \n\
 			AND is_self=0 \n\
 		ORDER BY "+order_by+" LIMIT ?", 
