@@ -243,9 +243,10 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 						FROM messages WHERE unit=? ORDER BY message_index", [unit], 
 						function(rows){
 							if (rows.length === 0){
-								if (conf.bLight)
-									throw new Error("no messages in unit "+unit);
-								return callback(); // any errors will be caught by verifying unit hash
+								// likely voided
+							//	if (conf.bLight)
+							//		throw new Error("no messages in unit "+unit);
+								return callback(); // in full clients, any errors will be caught by verifying unit hash
 							}
 							objUnit.messages = [];
 							async.eachSeries(
