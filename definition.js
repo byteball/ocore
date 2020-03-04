@@ -705,7 +705,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 			case 'address':
 				// ['address', 'BASE32']
 				if (!pathIncludesOneOfAuthentifiers(path, arrAuthentifierPaths, bAssetCondition))
-					return cb(false);
+					return cb2(false);
 				var other_address = args;
 				storage.readDefinitionByAddress(conn, other_address, objValidationState.last_ball_mci, {
 					ifFound: function(arrInnerAddressDefinition){
