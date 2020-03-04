@@ -2794,7 +2794,7 @@ function handleRequest(ws, tag, command, params){
 			break;
 			
 		case 'get_peers':
-			var arrPeerUrls = arrOutboundPeers.filter(function(ws){ return (ws.host !== 'byteball.org'); }).map(function(ws){ return ws.peer; });
+			var arrPeerUrls = arrOutboundPeers.filter(function(ws){ return (ws.host !== 'byteball.org' && ws.readyState === ws.OPEN && ws.bSubscribed && ws.bSource); }).map(function(ws){ return ws.peer; });
 			// empty array is ok
 			sendResponse(ws, tag, arrPeerUrls);
 			break;
