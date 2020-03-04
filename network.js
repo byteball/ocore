@@ -2331,6 +2331,10 @@ function handleJustsaying(ws, subject, body){
 					return ws.close(1000, "old core (full)");
 				}
 			}
+			if (version2int(ws.library_version) < version2int(constants.minCoreVersionToSharePeers)){
+				ws.dontSharePeers = true;
+				sendJustsaying(ws, "please upgrade the core to at least " + constants.minCoreVersionToSharePeers);
+			}
 			eventBus.emit('peer_version', ws, body); // handled elsewhere
 			break;
 
@@ -2795,6 +2799,8 @@ function handleRequest(ws, tag, command, params){
 			
 		case 'get_peers':
 			var arrPeerUrls = arrOutboundPeers.filter(function(ws){ return (ws.host !== 'byteball.org' && ws.readyState === ws.OPEN && ws.bSubscribed && ws.bSource); }).map(function(ws){ return ws.peer; });
+			if (ws.dontSharePeers)
+				arrPeerUrls = [];
 			// empty array is ok
 			sendResponse(ws, tag, arrPeerUrls);
 			break;
