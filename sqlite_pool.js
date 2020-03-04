@@ -309,7 +309,7 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 
 	function escape(str){
 		if (typeof str === 'string')
-			return "'"+str.replace(/'/g, "''")+"'";
+			return str.indexOf('\0') === -1 ? "'"+str.replace(/'/g, "''")+"'" : "CAST (X'" + Buffer.from(str, 'utf8').toString('hex') + "' AS TEXT)";
 		else if (Array.isArray(str))
 			return str.map(function(member){ return escape(member); }).join(",");
 		else
