@@ -87,7 +87,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 	function needToEvaluateNestedAddress(path){
 		if (!arrAuthentifierPaths) // no signatures, just validating a new definition
 			return true;
-		if (objValidationState.last_ball_mci < 1400000) // skipping is enabled after this mci
+		if (objValidationState.last_ball_mci < constants.skipEvaluationOfUnusedNestedAddressUpgradeMci) // skipping is enabled after this mci
 			return true;
 		return pathIncludesOneOfAuthentifiers(path, arrAuthentifierPaths, bAssetCondition);
 	}

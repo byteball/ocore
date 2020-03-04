@@ -72,6 +72,7 @@ exports.minCoreVersionToSharePeers = exports.bTestnet ? '0.3.9' : '0.3.9';
 
 exports.lastBallStableInParentsUpgradeMci = 1300000;
 exports.witnessedLevelMustNotRetreatUpgradeMci = exports.bTestnet ? 684000 : 1400000;
+exports.skipEvaluationOfUnusedNestedAddressUpgradeMci = exports.bTestnet ? 1400000 : 1400000;
 exports.spendUnconfirmedUpgradeMci = exports.bTestnet ? 589000 : 2909000;
 exports.branchedMinMcWlUpgradeMci = exports.bTestnet ? 593000 : 2909000;
 exports.otherAddressInDefinitionUpgradeMci = exports.bTestnet ? 602000 : 2909000;
