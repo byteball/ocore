@@ -344,7 +344,13 @@ function decryptPackage(objEncryptedPackage){
 	var decrypted_message_buf = Buffer.concat([decrypted1, decrypted2]);
 	var decrypted_message = decrypted_message_buf.toString("utf8");
 	console.log("decrypted: "+decrypted_message);
-	var json = JSON.parse(decrypted_message);
+	try {
+		var json = JSON.parse(decrypted_message);
+	}
+	catch (e) {
+		console.log("failed to parse decrypted message: " + e);
+		return null;
+	}
 	if (json.encrypted_package){ // strip another layer of encryption
 		console.log("inner encryption");
 		return decryptPackage(json.encrypted_package);
