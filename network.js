@@ -988,8 +988,8 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 					unlock();
 					console.log("############################## transient error "+error);
 					joint_storage.removeUnhandledJointAndDependencies(unit, function(){
-						if (objJoint.ball)
-							db.query("DELETE FROM hash_tree_balls WHERE ball=? AND unit=?", [objJoint.ball, objJoint.unit.unit]);
+					//	if (objJoint.ball)
+					//		db.query("DELETE FROM hash_tree_balls WHERE ball=? AND unit=?", [objJoint.ball, objJoint.unit.unit]);
 						delete assocUnitsInWork[unit];
 					});
 				},
