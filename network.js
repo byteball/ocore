@@ -1943,6 +1943,12 @@ function handleOnlinePrivatePayment(ws, arrPrivateElements, bViaHub, callbacks){
 	var unit = arrPrivateElements[0].unit;
 	var message_index = arrPrivateElements[0].message_index;
 	var output_index = arrPrivateElements[0].payload.denomination ? arrPrivateElements[0].output_index : -1;
+	if (!ValidationUtils.isValidBase64(unit, constants.HASH_LENGTH))
+		return callbacks.ifError("invalid unit " + unit);
+	if (!ValidationUtils.isNonnegativeInteger(message_index))
+		return callbacks.ifError("invalid message_index " + message_index);
+	if (!(ValidationUtils.isNonnegativeInteger(output_index) || output_index === -1))
+		return callbacks.ifError("invalid output_index " + output_index);
 
 	var savePrivatePayment = function(cb){
 		// we may receive the same unit and message index but different output indexes if recipient and cosigner are on the same device.
