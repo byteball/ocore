@@ -83,7 +83,7 @@ function isValidBase64(b64, len){
 
 function isValidHexadecimal(hex, len){
 	try {
-		return (typeof hex === "string" && (!len || hex.length === len) && hex === (new Buffer(hex, "hex")).toString("hex"));
+		return (typeof hex === "string" && (!len || hex.length === len) && hex === (new Buffer.from(hex, "hex")).toString("hex"));
 	}
 	catch (e) {
 		return false;

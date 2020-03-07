@@ -41,7 +41,7 @@ async function insertJoint(unit, value){
 }
 
 test.before(async t => {
-//	console.log('===== before');
+	console.log('===== before _init_datafeeds for ' + app_data_dir);
 	await insertDataFeed('MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', 'test', 8, 90, 'unit1');
 	await insertDataFeed('MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', 'test', 10, 100, 'unit2');
 	await insertDataFeed('MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', 'te"st', 11, 100, 'unit3');
@@ -109,7 +109,7 @@ test.after.always.cb(t => {
 		rocksdb.destroy(path, function(err){
 			console.log('db destroy result: '+(err || 'ok'));
 			db.close(() => {
-				shell('rm -r ' + app_data_dir);
+				// shell('rm -r ' + app_data_dir); // was throwing errors on Windows, now old data gets deleted before each run
 				t.end();
 			});
 		});
