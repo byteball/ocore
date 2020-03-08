@@ -23,8 +23,8 @@ if (process.platform === 'win32') {
 var db = rocksdb(path, {}, function (err) {
 	if (err)
 		throw Error("rocksdb open failed (is the app already running?): " + err);
-	if (process.platform === 'win32') // restore current working directory on windows
-		process.chdir(cwd);
+	// if (process.platform === 'win32') // restore current working directory on windows
+	// 	process.chdir(cwd);
 });
 if (!db)
 	throw Error("no rocksdb instance");

@@ -11,8 +11,8 @@ function sign(hash, priv_key){
 
 function verify(hash, b64_sig, b64_pub_key){
 	try{
-		var signature = new Buffer.from(b64_sig, "base64"); // 64 bytes (32+32)
-		return ecdsa.verify(hash, signature, new Buffer.from(b64_pub_key, "base64"));
+		var signature = Buffer.from(b64_sig, "base64"); // 64 bytes (32+32)
+		return ecdsa.verify(hash, signature, Buffer.from(b64_pub_key, "base64"));
 	}
 	catch(e){
 		console.log('signature verification exception: '+e.toString());

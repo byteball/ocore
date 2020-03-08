@@ -1,12 +1,16 @@
+var shell = require('child_process').execSync;
 var path = require('path');
 var desktop_app = require('../desktop_app.js');
 desktop_app.getAppDataDir = function() { return __dirname + '/.testdata-' + path.basename(__filename); }
 
-var test = require('ava');
+// cleanup, if last time failed
+var dst_dir = __dirname + '/.testdata-' + path.basename(__filename);
+shell('rm -rf ' + dst_dir);
 
 var definition = require("../definition");
 var formulaParser = require("../formula/index");
 var constants = require('../constants.js');
+var test = require('ava');
 require('./_init_datafeeds.js');
 constants.formulaUpgradeMci = 0;
 
@@ -531,7 +535,7 @@ test('formula - y == x', t => {
 });
 
 
-test.cb('formula - data_feed == 10', t => {
+test.cb('formula - data_feed == 10 - found', t => {
 	definition.validateAuthentifiers({}, null, 'base',
 		['formula', "data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name=\"test\"]] == 10"], objUnit, objValidationState, null,
 		function (err, res) {
@@ -540,7 +544,7 @@ test.cb('formula - data_feed == 10', t => {
 		});
 });
 
-test.cb('formula - not found', t => {
+test.cb('formula - data_feed == 10 - not found', t => {
 	definition.validateAuthentifiers({}, null, 'base',
 		['formula', "data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name=\"test2\"]] == 10"], objUnit, objValidationState, null,
 		function (err, res) {
@@ -550,7 +554,7 @@ test.cb('formula - not found', t => {
 		});
 });
 
-test.cb('formula - data_feed == 10', t => {
+test.cb('formula - data_feed == 10 - found with min_mci', t => {
 	definition.validateAuthentifiers({}, null, 'base',
 		['formula', "data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name=\"test\", min_mci=1]] == 10"], objUnit, objValidationState, null,
 		function (err, res) {
@@ -559,7 +563,7 @@ test.cb('formula - data_feed == 10', t => {
 		});
 });
 
-test.cb('formula - not found with min_mci', t => {
+test.cb('formula - data_feed == 10 - not found with min_mci', t => {
 	definition.validateAuthentifiers({}, null, 'base',
 		['formula', "data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name=\"test2\", min_mci=1]] == 10"], objUnit, objValidationState, null,
 		function (err, res) {
@@ -569,7 +573,7 @@ test.cb('formula - not found with min_mci', t => {
 		});
 });
 
-test.cb('formula - 2 rows, take last', t => {
+test.cb('formula - data_feed == 10 - 2 rows, take last', t => {
 	definition.validateAuthentifiers({}, null, 'base',
 		['formula', "data_feed[[oracles=\"MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU\", feed_name=\"test\", min_mci=1]] == 10"], objUnit, objValidationState, null,
 		function (err, res) {

@@ -550,6 +550,7 @@ function isCorrectHash(objUnit, unit){
 		return (objectHash.getUnitHash(objUnit) === unit);
 	}
 	catch(e){
+		console.log('storage.isCorrectHash: '+ e.message);
 		return false;
 	}
 }
