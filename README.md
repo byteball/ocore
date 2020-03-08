@@ -1,4 +1,4 @@
-# O<sub>byte</sub> core library (Ocore)
+# O<sub>byte</sub> core library (O<sub>core</sub>)
 
 This is a library used in [O<sub>byte</sub>](https://obyte.org) clients.  Never used directly.  Some of the clients that require the library:
 
