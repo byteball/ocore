@@ -742,6 +742,7 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 	if (earlier_unit === 'LGFzduLJNQNzEqJqUXdkXr58wDYx77V8WurDF3+GIws=' && arrLaterUnits.join(',') === '6O4t3j8kW0/Lo7n2nuS8ITDv2UbOhlL9fF1M6j/PrJ4='
 		|| earlier_unit === 'VLdMzBDVpwqu+3OcZrBrmkT0aUb/mZ0O1IveDmGqIP0=' && arrLaterUnits.join(',') === 'pAfErVAA5CSPeh1KoLidDTgdt5Blu7k2rINtxVTMq4k='
 		|| earlier_unit === 'P2gqiei+7dur/gS1KOFHg0tiEq2+7l321AJxM3o0f5Q=' && arrLaterUnits.join(',') === '9G8kctAVAiiLf4/cyU2f4gdtD+XvKd1qRp0+k3qzR8o='
+		|| constants.bTestnet && earlier_unit === 'zAytsscSjo+N9dQ/VLio4ZDgZS91wfUk0IOnzzrXcYU=' && arrLaterUnits.join(',') === 'ZSQgpR326LEU4jW+1hQ5ZwnHAVnGLV16Kyf/foVeFOc='
 	)
 		return handleResult(true);
 	var start_time = Date.now();
