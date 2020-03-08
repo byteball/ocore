@@ -1,15 +1,15 @@
-# Obyte core library (Ocore)
+# O<sub>byte</sub> core library (Ocore)
 
-This is a library used in [Obyte](https://obyte.org) clients.  Never used directly.  Some of the clients that require the library:
+This is a library used in [O<sub>byte</sub>](https://obyte.org) clients.  Never used directly.  Some of the clients that require the library:
 
 * [GUI wallet](https://github.com/byteball/obyte-gui-wallet) - GUI wallet for Mac, Windows, Linux, iOS, and Android.
 * [Headless wallet](https://github.com/byteball/headless-obyte) - headless wallet, primarily for server side use.
-* [Obyte Relay](https://github.com/byteball/obyte-relay) - relay node for Obyte network.  It doesn't hold any private keys.
-* [Obyte Hub](https://github.com/byteball/obyte-hub) - hub for Obyte network.  Includes the relay, plus can store and forward end-to-end encrypted messages among devices on the Obyte network.
+* [O<sub>byte</sub> Relay](https://github.com/byteball/obyte-relay) - relay node for O<sub>byte</sub> network.  It doesn't hold any private keys.
+* [O<sub>byte</sub> Hub](https://github.com/byteball/obyte-hub) - hub for O<sub>byte</sub> network.  Includes the relay, plus can store and forward end-to-end encrypted messages among devices on the O<sub>byte</sub> network.
 
 ## Developer guides
 
-See the [Developer resources site](https://developer.obyte.org).  Also, you'll find loads of examples in other [Obyte repositories](https://github.com/byteball). For internal APIs, see the `exports` of node.js modules.
+See the [Developer resources site](https://developer.obyte.org).  Also, you'll find loads of examples in other [O<sub>byte</sub> repositories](https://github.com/byteball). For internal APIs, see the `exports` of node.js modules.
 
 This repo is normally used as a library and not installed on its own, but if you are contributing to this project then fork, `git pull`, `npm install`, and `npm test` to run the tests.
 
@@ -29,7 +29,7 @@ This is the list of some of the settings that the library understands (your app 
 
 #### conf.port
 
-The port to listen on.  If you don't want to accept incoming connections at all, set port to `null`, which is the default.  If you do want to listen, you will usually have a proxy, such as nginx, accept websocket connections on standard port 443 and forward them to your Obyte daemon that listens on port 6611 on the local interface.
+The port to listen on.  If you don't want to accept incoming connections at all, set port to `null`, which is the default.  If you do want to listen, you will usually have a proxy, such as nginx, accept websocket connections on standard port 443 and forward them to your O<sub>byte</sub> daemon that listens on port 6611 on the local interface.
 
 #### conf.storage
 
@@ -54,7 +54,7 @@ Work as light client (`true`) or full node (`false`).  The default is full clien
 
 #### conf.bServeAsHub
 
-Whether to serve as hub on the Obyte network (store and forward e2e-encrypted messages for devices that connect to your hub).  The default is `false`.
+Whether to serve as hub on the O<sub>byte</sub> network (store and forward e2e-encrypted messages for devices that connect to your hub).  The default is `false`.
 
 #### conf.myUrl
 
@@ -74,7 +74,7 @@ To lower disk load and increase sync speed, you can optionally disable flushing 
 
 ## Accepting incoming connections
 
-Obyte network works over secure WebSocket protocol wss://.  To accept incoming connections, you'll need a valid TLS certificate (you can get a free one from [letsencrypt.org](https://letsencrypt.org)) and a domain name (you can get a free domain from [Freenom](http://www.freenom.com/)).  Then you accept connections on standard port 443 and proxy them to your locally running Obyte daemon.
+O<sub>byte</sub> network works over secure WebSocket protocol wss://.  To accept incoming connections, you'll need a valid TLS certificate (you can get a free one from [letsencrypt.org](https://letsencrypt.org)) and a domain name (you can get a free domain from [Freenom](http://www.freenom.com/)).  Then you accept connections on standard port 443 and proxy them to your locally running O<sub>byte</sub> daemon.
 
 This is an example configuration for nginx to accept websocket connections at wss://byteball.one/bb and forward them to locally running daemon that listens on port 6611:
 
