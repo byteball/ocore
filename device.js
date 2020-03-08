@@ -168,10 +168,14 @@ function getHubWs(cb) {
 setInterval(loginToHub, RECONNECT_TO_HUB_PERIOD);
 eventBus.on('connected', loginToHub);
 
+function loginMessage(challenge, priv, pubkey){
+ var objLogin = {challenge: challenge, pubkey: pubkey};
+ objLogin.signature = ecdsaSig.sign(objectHash.getDeviceMessageHashToSign(objLogin), priv);
+ return objLogin;
+}
+
 function sendLoginCommand(ws, challenge){
-	var objLogin = {challenge: challenge, pubkey: objMyPermanentDeviceKey.pub_b64};
-	objLogin.signature = ecdsaSig.sign(objectHash.getDeviceMessageHashToSign(objLogin), objMyPermanentDeviceKey.priv);
-	network.sendJustsaying(ws, 'hub/login', objLogin);
+	network.sendJustsaying(ws, 'hub/login', loginMessage(challenge, objMyPermanentDeviceKey.priv, objMyPermanentDeviceKey.pub_b64));
 	ws.bLoggedIn = true;
 	sendTempPubkey(ws, objMyTempDeviceKey.pub_b64);
 	network.initWitnessesIfNecessary(ws);
@@ -790,6 +794,7 @@ exports.scheduleTempDeviceKeyRotation = scheduleTempDeviceKeyRotation;
 
 exports.decryptPackage = decryptPackage;
 
+exports.loginMessage = loginMessage;
 exports.handleChallenge = handleChallenge;
 exports.loginToHub = loginToHub;
 
