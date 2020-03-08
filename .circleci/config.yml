@@ -29,4 +29,4 @@ jobs:
           key: v1-dependencies-{{ checksum "package.json" }}
 
       # run tests!
-      - run: yarn test --timeout="60s" --concurrency=1
+      - run: yarn ava --timeout=60s --concurrency=1
