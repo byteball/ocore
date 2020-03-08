@@ -12,7 +12,7 @@ var ecdsaSig = require('../signature.js');
 // other implementations can cross reference these tests as long as the key
 // doesn't change
 const challenge = "bUSwwUmABqPGAyRteUPKdaaq/wDM5Rqr+UL3sO/a";
-const priv = new Buffer.from("18d8bc95d3b4ae8e7dd5aaa77158f72d7ec4e8556a11e69b20a87ee7d6ac70b4", "hex");
+const priv = Buffer.from("18d8bc95d3b4ae8e7dd5aaa77158f72d7ec4e8556a11e69b20a87ee7d6ac70b4", "hex");
 const pubkey = "AqUMbbXfZg6uw506M9lbiJU/f74X5BhKdovkMPkspfNo"
 
 test.after.always(t => {
@@ -35,11 +35,11 @@ test('message hash is correct', t => {
   );
 });
 
-test('challenge can be converted to loginMessage', t => {
+test('challenge can be converted to getLoginMessage', t => {
   var expected = {challenge: "bUSwwUmABqPGAyRteUPKdaaq/wDM5Rqr+UL3sO/a",
                   pubkey: "AqUMbbXfZg6uw506M9lbiJU/f74X5BhKdovkMPkspfNo",
                   signature: "cAT/c5zn4nb+5UnT5B++9ePvYdEE24qmPFTXbxYd2IE+4gQQNiHogRbyQRlXOLNto09JmRK0jHOyGeIttELkNA=="};
-  var result = Device.loginMessage(challenge, priv, pubkey);
+  var result = Device.getLoginMessage(challenge, priv, pubkey);
   t.is(result.challenge, expected.challenge);
   t.is(result.pubkey, expected.pubkey);
   t.is(result.signature, expected.signature);
