@@ -497,15 +497,17 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStability
 						markMcIndexStable(conn, batch, first_unstable_mc_index, updateStableMcFlag);
 					}
 
-					var arrFreeUnits = [];
-					for (var unit in storage.assocUnstableUnits)
-						if (storage.assocUnstableUnits[unit].is_free === 1)
-							arrFreeUnits.push(unit);
-					determineIfStableInLaterUnits(conn, first_unstable_mc_unit, arrFreeUnits, function (bStable) {
-						console.log(first_unstable_mc_unit + ' stable in free units ' + arrFreeUnits.join(', ') + ' ? ' + bStable);
-						bStable ? advanceLastStableMcUnitAndTryNext() : finish();
-					});
-					return;
+					if (first_unstable_mc_index > constants.lastBallStableInParentsUpgradeMci) {
+						var arrFreeUnits = [];
+						for (var unit in storage.assocUnstableUnits)
+							if (storage.assocUnstableUnits[unit].is_free === 1)
+								arrFreeUnits.push(unit);
+						determineIfStableInLaterUnits(conn, first_unstable_mc_unit, arrFreeUnits, function (bStable) {
+							console.log(first_unstable_mc_unit + ' stable in free units ' + arrFreeUnits.join(', ') + ' ? ' + bStable);
+							bStable ? advanceLastStableMcUnitAndTryNext() : finish();
+						});
+						return;
+					}
 				
 					conn.query("SELECT unit FROM units WHERE is_free=1 AND is_on_main_chain=1", function(tip_rows){
 						if (tip_rows.length !== 1)
