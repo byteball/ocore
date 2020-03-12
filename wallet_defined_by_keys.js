@@ -72,6 +72,7 @@ function handleOfferToCreateNewWallet(body, from_address, callbacks){
 		return callbacks.ifError("wallet too long");
 	if (body.wallet_name.length > 200)
 		return callbacks.ifError("wallet_name too long");
+	body.wallet_name = body.wallet_name.replace(/[<>]/g, '');
 	if (!ValidationUtils.isArrayOfLength(body.wallet_definition_template, 2))
 		return callbacks.ifError("no definition template");
 	if (!ValidationUtils.isNonemptyArray(body.other_cosigners))
@@ -97,6 +98,7 @@ function handleOfferToCreateNewWallet(body, from_address, callbacks){
 				return callbacks.ifError("no cosigner name");
 			if (cosigner.name.length > 100)
 				return callbacks.ifError("cosigner name too long");
+			cosigner.name = cosigner.name.replace(/[<>]/g, '');
 			if (!ValidationUtils.isNonemptyString(cosigner.hub))
 				return callbacks.ifError("no cosigner hub");
 			if (cosigner.hub.length > 100)

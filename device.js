@@ -120,7 +120,7 @@ function setDeviceHub(device_hub){
 }
 
 function isValidPubKey(b64_pubkey){
-	return ecdsa.publicKeyVerify(new Buffer.from(b64_pubkey, 'base64'));
+	return ecdsa.publicKeyVerify(Buffer.from(b64_pubkey, 'base64'));
 }
 
 // -------------------------
@@ -168,10 +168,14 @@ function getHubWs(cb) {
 setInterval(loginToHub, RECONNECT_TO_HUB_PERIOD);
 eventBus.on('connected', loginToHub);
 
+function getLoginMessage(challenge, priv, pubkey){
+ var objLogin = {challenge: challenge, pubkey: pubkey};
+ objLogin.signature = ecdsaSig.sign(objectHash.getDeviceMessageHashToSign(objLogin), priv);
+ return objLogin;
+}
+
 function sendLoginCommand(ws, challenge){
-	var objLogin = {challenge: challenge, pubkey: objMyPermanentDeviceKey.pub_b64};
-	objLogin.signature = ecdsaSig.sign(objectHash.getDeviceMessageHashToSign(objLogin), objMyPermanentDeviceKey.priv);
-	network.sendJustsaying(ws, 'hub/login', objLogin);
+	network.sendJustsaying(ws, 'hub/login', getLoginMessage(challenge, objMyPermanentDeviceKey.priv, objMyPermanentDeviceKey.pub_b64));
 	ws.bLoggedIn = true;
 	sendTempPubkey(ws, objMyTempDeviceKey.pub_b64);
 	network.initWitnessesIfNecessary(ws);
@@ -320,9 +324,9 @@ function decryptPackage(objEncryptedPackage){
 		ecdh.generateKeys("base64", "compressed");
 	ecdh.setPrivateKey(priv_key);
 	var shared_secret = deriveSharedSecret(ecdh, objEncryptedPackage.dh.sender_ephemeral_pubkey);
-	var iv = new Buffer.from(objEncryptedPackage.iv, 'base64');
+	var iv = Buffer.from(objEncryptedPackage.iv, 'base64');
 	var decipher = crypto.createDecipheriv('aes-128-gcm', shared_secret, iv);
-	var authtag = new Buffer.from(objEncryptedPackage.authtag, 'base64');
+	var authtag = Buffer.from(objEncryptedPackage.authtag, 'base64');
 	decipher.setAuthTag(authtag);
 	var enc_buf = Buffer.from(objEncryptedPackage.encrypted_message, "base64");
 //	var decrypted1 = decipher.update(enc_buf);
@@ -344,7 +348,13 @@ function decryptPackage(objEncryptedPackage){
 	var decrypted_message_buf = Buffer.concat([decrypted1, decrypted2]);
 	var decrypted_message = decrypted_message_buf.toString("utf8");
 	console.log("decrypted: "+decrypted_message);
-	var json = JSON.parse(decrypted_message);
+	try {
+		var json = JSON.parse(decrypted_message);
+	}
+	catch (e) {
+		console.log("failed to parse decrypted message: " + e);
+		return null;
+	}
 	if (json.encrypted_package){ // strip another layer of encryption
 		console.log("inner encryption");
 		return decryptPackage(json.encrypted_package);
@@ -784,6 +794,7 @@ exports.scheduleTempDeviceKeyRotation = scheduleTempDeviceKeyRotation;
 
 exports.decryptPackage = decryptPackage;
 
+exports.getLoginMessage = getLoginMessage;
 exports.handleChallenge = handleChallenge;
 exports.loginToHub = loginToHub;
 

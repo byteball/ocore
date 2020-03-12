@@ -21,6 +21,9 @@ var _ = require('lodash');
 
 var MAX_HISTORY_ITEMS = 2000;
 
+function isValidUnitHash(unit) {
+	return ValidationUtils.isValidBase64(unit, constants.HASH_LENGTH);
+}
 
 function prepareHistory(historyRequest, callbacks){
 	if (!historyRequest)
@@ -37,19 +40,26 @@ function prepareHistory(historyRequest, callbacks){
 			return callbacks.ifError("no addresses");
 		if (!arrAddresses.every(ValidationUtils.isValidAddress))
 			return callbacks.ifError("some addresses are not valid");
-		if (arrKnownStableUnits && !ValidationUtils.isNonemptyArray(arrKnownStableUnits))
-			return callbacks.ifError("known_stable_units must be non-empty array");
 	}
-	if (arrRequestedJoints && !ValidationUtils.isNonemptyArray(arrRequestedJoints))
-		return callbacks.ifError("no requested joints");
+	if (arrRequestedJoints) {
+		if (!ValidationUtils.isNonemptyArray(arrRequestedJoints))
+			return callbacks.ifError("no requested joints");
+		if (!arrRequestedJoints.every(isValidUnitHash))
+			return callbacks.ifError("invalid requested joints");
+	}
 	if (!ValidationUtils.isArrayOfLength(arrWitnesses, constants.COUNT_WITNESSES))
 		return callbacks.ifError("wrong number of witnesses");
 		
 	var assocKnownStableUnits = {};
-	if (arrKnownStableUnits)
-		arrKnownStableUnits.forEach(function(unit){
+	if (arrKnownStableUnits) {
+		if (!ValidationUtils.isNonemptyArray(arrKnownStableUnits))
+			return callbacks.ifError("known_stable_units must be non-empty array");
+		if (!arrKnownStableUnits.every(isValidUnitHash))
+			return callbacks.ifError("invalid known stable units");
+		arrKnownStableUnits.forEach(function (unit) {
 			assocKnownStableUnits[unit] = true;
 		});
+	}
 	
 	var objResponse = {};
 
