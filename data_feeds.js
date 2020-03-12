@@ -22,7 +22,7 @@ function dataFeedExists(arrAddresses, feed_name, relation, value, min_mci, max_m
 			}
 		}
 		for (var unit in storage.assocUnstableMessages) {
-			var objUnit = storage.assocUnstableUnits[unit];
+			var objUnit = storage.assocUnstableUnits[unit] || storage.assocStableUnits[unit];
 			if (!objUnit)
 				throw Error("unstable unit " + unit + " not in assoc");
 			if (!objUnit.bAA)
@@ -189,7 +189,7 @@ function readDataFeedValue(arrAddresses, feed_name, value, min_mci, max_mci, bAA
 	if (bAA) {
 		var arrCandidates = [];
 		for (var unit in storage.assocUnstableMessages) {
-			var objUnit = storage.assocUnstableUnits[unit];
+			var objUnit = storage.assocUnstableUnits[unit] || storage.assocStableUnits[unit];
 			if (!objUnit)
 				throw Error("unstable unit " + unit + " not in assoc");
 			if (!objUnit.bAA)

@@ -379,12 +379,15 @@ function connectToPeer(url, onOpen) {
 				port: conf.socksPort,
 				type: 5,
 				authentication: {
-					username: "dummy",
-					password: "dummy"
+					username: typeof conf.socksUsername === 'undefined' ? "dummy" : conf.socksUsername,
+					password: typeof conf.socksPassword === 'undefined' ? "dummy" : conf.socksPassword
 				}
 			}
 		}, /^wss/i.test(url));
-		console.log('Using proxy: ' + conf.socksHost + ':' + conf.socksPort);
+		console.log('Using socksHost: ' + conf.socksHost);
+		console.log('Using socksPort: ' + conf.socksPort);
+		console.log('Using socksUsername: ' + typeof conf.socksUsername === 'undefined' ? "dummy" : conf.socksUsername);
+		console.log('Using socksPassword: ' + typeof conf.socksPassword === 'undefined' ? "dummy" : conf.socksPassword);
 	}
 	var ws = options.agent ? new WebSocket(url,options) : new WebSocket(url);
 	assocConnectingOutboundWebsockets[url] = ws;
@@ -470,8 +473,8 @@ function addOutboundPeers(multiplier){
 		LEFT JOIN peer_host_urls ON peer=url AND is_active=1 \n\
 		WHERE (count_invalid_joints/count_new_good_joints<? \n\
 			OR count_new_good_joints=0 AND count_nonserial_joints=0 AND count_invalid_joints=0) \n\
-			"+((arrOutboundPeerUrls.length > 0) ? "AND peer NOT IN("+db.escape(arrOutboundPeerUrls)+") \n" : "")+"\n\
-			"+((arrInboundHosts.length > 0) ? "AND (peer_host_urls.peer_host IS NULL OR peer_host_urls.peer_host NOT IN("+db.escape(arrInboundHosts)+")) \n": "")+"\n\
+			"+((arrOutboundPeerUrls.length > 0) ? "AND peer NOT IN("+arrOutboundPeerUrls.map(db.escape).join(', ')+") \n" : "")+"\n\
+			"+((arrInboundHosts.length > 0) ? "AND (peer_host_urls.peer_host IS NULL OR peer_host_urls.peer_host NOT IN("+arrInboundHosts.map(db.escape).join(', ')+")) \n" : "")+"\n\
 			AND peer_hosts.peer_host != 'byteball.org' \n\
 			AND is_self=0 \n\
 		ORDER BY "+order_by+" LIMIT ?", 
@@ -985,6 +988,8 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 					unlock();
 					console.log("############################## transient error "+error);
 					joint_storage.removeUnhandledJointAndDependencies(unit, function(){
+					//	if (objJoint.ball)
+					//		db.query("DELETE FROM hash_tree_balls WHERE ball=? AND unit=?", [objJoint.ball, objJoint.unit.unit]);
 						delete assocUnitsInWork[unit];
 					});
 				},
@@ -1938,6 +1943,12 @@ function handleOnlinePrivatePayment(ws, arrPrivateElements, bViaHub, callbacks){
 	var unit = arrPrivateElements[0].unit;
 	var message_index = arrPrivateElements[0].message_index;
 	var output_index = arrPrivateElements[0].payload.denomination ? arrPrivateElements[0].output_index : -1;
+	if (!ValidationUtils.isValidBase64(unit, constants.HASH_LENGTH))
+		return callbacks.ifError("invalid unit " + unit);
+	if (!ValidationUtils.isNonnegativeInteger(message_index))
+		return callbacks.ifError("invalid message_index " + message_index);
+	if (!(ValidationUtils.isNonnegativeInteger(output_index) || output_index === -1))
+		return callbacks.ifError("invalid output_index " + output_index);
 
 	var savePrivatePayment = function(cb){
 		// we may receive the same unit and message index but different output indexes if recipient and cosigner are on the same device.
@@ -2326,6 +2337,10 @@ function handleJustsaying(ws, subject, body){
 					return ws.close(1000, "old core (full)");
 				}
 			}
+			if (version2int(ws.library_version) < version2int(constants.minCoreVersionToSharePeers)){
+				ws.dontSharePeers = true;
+				sendJustsaying(ws, "please upgrade the core to at least " + constants.minCoreVersionToSharePeers);
+			}
 			eventBus.emit('peer_version', ws, body); // handled elsewhere
 			break;
 
@@ -2516,6 +2531,8 @@ function handleJustsaying(ws, subject, body){
 				return sendError(ws, "I'm not a hub");
 			if (!ws.device_address)
 				return sendError(ws, "please log in first");
+			if (ws.blockChat)
+				return sendError(ws, "chat is blocked, please upgrade");
 			sendStoredDeviceMessages(ws, ws.device_address);
 			break;
 			
@@ -2787,7 +2804,9 @@ function handleRequest(ws, tag, command, params){
 			break;
 			
 		case 'get_peers':
-			var arrPeerUrls = arrOutboundPeers.filter(function(ws){ return (ws.host !== 'byteball.org'); }).map(function(ws){ return ws.peer; });
+			var arrPeerUrls = arrOutboundPeers.filter(function(ws){ return (ws.host !== 'byteball.org' && ws.readyState === ws.OPEN && ws.bSubscribed && ws.bSource); }).map(function(ws){ return ws.peer; });
+			if (ws.dontSharePeers)
+				arrPeerUrls = [];
 			// empty array is ok
 			sendResponse(ws, tag, arrPeerUrls);
 			break;
@@ -2840,7 +2859,7 @@ function handleRequest(ws, tag, command, params){
 					function(){
 						// if the addressee is connected, deliver immediately
 						wss.clients.concat(arrOutboundPeers).forEach(function(client){
-							if (client.device_address === objDeviceMessage.to && (!client.max_message_length || message_string.length <= client.max_message_length)) {
+							if (client.device_address === objDeviceMessage.to && (!client.max_message_length || message_string.length <= client.max_message_length) && !ws.blockChat) {
 								sendJustsaying(client, 'hub/message', {
 									message_hash: message_hash,
 									message: objDeviceMessage

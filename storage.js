@@ -243,9 +243,10 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 						FROM messages WHERE unit=? ORDER BY message_index", [unit], 
 						function(rows){
 							if (rows.length === 0){
-								if (conf.bLight)
-									throw new Error("no messages in unit "+unit);
-								return callback(); // any errors will be caught by verifying unit hash
+								// likely voided
+							//	if (conf.bLight)
+							//		throw new Error("no messages in unit "+unit);
+								return callback(); // in full clients, any errors will be caught by verifying unit hash
 							}
 							objUnit.messages = [];
 							async.eachSeries(
@@ -549,6 +550,7 @@ function isCorrectHash(objUnit, unit){
 		return (objectHash.getUnitHash(objUnit) === unit);
 	}
 	catch(e){
+		console.log('storage.isCorrectHash: '+ e.message);
 		return false;
 	}
 }
@@ -1143,6 +1145,7 @@ function archiveJointAndDescendantsIfExists(from_unit){
 }
 
 function archiveJointAndDescendants(from_unit){
+	var kvstore = require('./kvstore.js');
 	db.executeInTransaction(function doWork(conn, cb){
 		
 		function addChildren(arrParentUnits){
@@ -1178,8 +1181,14 @@ function archiveJointAndDescendants(from_unit){
 						AND (SELECT 1 FROM parenthoods WHERE parent_unit=unit LIMIT 1) IS NULL");
 					console.log('will execute '+arrQueries.length+' queries to archive');
 					async.series(arrQueries, function(){
-						arrUnits.forEach(forgetUnit);
-						cb();
+						arrUnits.forEach(function (unit) {
+							var parent_units = assocUnstableUnits[unit].parent_units;
+							forgetUnit(unit);
+							fixIsFreeAfterForgettingUnit(parent_units);
+						});
+						async.eachSeries(arrUnits, function (unit, cb2) {
+							kvstore.del('j\n' + unit, cb2);
+						}, cb);
 					});
 				}
 			);

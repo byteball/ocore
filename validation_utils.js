@@ -78,12 +78,12 @@ function isNonemptyObject(obj){
 }
 
 function isValidBase64(b64, len){
-	return (typeof b64 === "string" && (!len || b64.length === len) && b64 === (new Buffer.from(b64, "base64")).toString("base64"));
+	return (typeof b64 === "string" && (!len || b64.length === len) && b64 === (Buffer.from(b64, "base64")).toString("base64"));
 }
 
 function isValidHexadecimal(hex, len){
 	try {
-		return (typeof hex === "string" && (!len || hex.length === len) && hex === (new Buffer(hex, "hex")).toString("hex"));
+		return (typeof hex === "string" && (!len || hex.length === len) && hex === (Buffer.from(hex, "hex")).toString("hex"));
 	}
 	catch (e) {
 		return false;

@@ -68,9 +68,11 @@ exports.MIN_BYTES_BOUNCE_FEE = 10000;
 
 exports.minCoreVersion = exports.bTestnet ? '0.3.0' : '0.3.8';
 exports.minCoreVersionForFullNodes = exports.bTestnet ? '0.3.8' : '0.3.8';
+exports.minCoreVersionToSharePeers = exports.bTestnet ? '0.3.9' : '0.3.9';
 
-exports.lastBallStableInParentsUpgradeMci = 1300000;
+exports.lastBallStableInParentsUpgradeMci =  exports.bTestnet ? 0 : 1300000;
 exports.witnessedLevelMustNotRetreatUpgradeMci = exports.bTestnet ? 684000 : 1400000;
+exports.skipEvaluationOfUnusedNestedAddressUpgradeMci = exports.bTestnet ? 1400000 : 1400000;
 exports.spendUnconfirmedUpgradeMci = exports.bTestnet ? 589000 : 2909000;
 exports.branchedMinMcWlUpgradeMci = exports.bTestnet ? 593000 : 2909000;
 exports.otherAddressInDefinitionUpgradeMci = exports.bTestnet ? 602000 : 2909000;

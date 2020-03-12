@@ -27,6 +27,17 @@ var isArrayOfLength = ValidationUtils.isArrayOfLength;
 var isValidAddress = ValidationUtils.isValidAddress;
 var isValidBase64 = ValidationUtils.isValidBase64;
 
+function pathIncludesOneOfAuthentifiers(path, arrAuthentifierPaths, bAssetCondition){
+	if (bAssetCondition)
+		throw Error('pathIncludesOneOfAuthentifiers called in asset condition');
+	for (var i=0; i<arrAuthentifierPaths.length; i++){
+		var authentifier_path = arrAuthentifierPaths[i];
+		if (authentifier_path.substr(0, path.length) === path)
+			return true;
+	}
+	return false;
+}
+
 // validate definition of address or asset spending conditions
 function validateDefinition(conn, arrDefinition, objUnit, objValidationState, arrAuthentifierPaths, bAssetCondition, handleResult){
 	
@@ -73,24 +84,12 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 		});
 	}
 	
-	
-	function pathIncludesOneOfAuthentifiers(path){
-		if (bAssetCondition)
-			throw Error('pathIncludesOneOfAuthentifiers called in asset condition');
-		for (var i=0; i<arrAuthentifierPaths.length; i++){
-			var authentifier_path = arrAuthentifierPaths[i];
-			if (authentifier_path.substr(0, path.length) === path)
-				return true;
-		}
-		return false;
-	}
-	
 	function needToEvaluateNestedAddress(path){
 		if (!arrAuthentifierPaths) // no signatures, just validating a new definition
 			return true;
-		if (objValidationState.last_ball_mci < 1400000) // skipping is enabled after this mci
+		if (objValidationState.last_ball_mci < constants.skipEvaluationOfUnusedNestedAddressUpgradeMci) // skipping is enabled after this mci
 			return true;
-		return pathIncludesOneOfAuthentifiers(path);
+		return pathIncludesOneOfAuthentifiers(path, arrAuthentifierPaths, bAssetCondition);
 	}
 	
 	
@@ -705,6 +704,8 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				
 			case 'address':
 				// ['address', 'BASE32']
+				if (!pathIncludesOneOfAuthentifiers(path, arrAuthentifierPaths, bAssetCondition))
+					return cb2(false);
 				var other_address = args;
 				storage.readDefinitionByAddress(conn, other_address, objValidationState.last_ball_mci, {
 					ifFound: function(arrInnerAddressDefinition){
@@ -780,6 +781,8 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 			case 'seen':
 				// ['seen', {what: 'input', asset: 'asset or base', type: 'transfer'|'issue', amount_at_least: 123, amount_at_most: 123, amount: 123, address: 'BASE32'}]
 				var filter = args;
+				if (filter.what !== 'input' && filter.what !== 'output')
+					throw Error("invalid what: " + filter.what);
 				var sql = "SELECT 1 FROM "+filter.what+"s CROSS JOIN units USING(unit) \n\
 					LEFT JOIN assets ON asset=assets.unit \n\
 					WHERE main_chain_index<=? AND sequence='good' AND is_stable=1 AND (asset IS NULL OR is_private=0) ";
@@ -983,6 +986,8 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 			case 'age':
 				var relation = args[0];
 				var age = args[1];
+				if (["=", ">", "<", ">=", "<=", "!="].indexOf(relation) === -1)
+					throw Error("invalid relation in age: "+relation);
 				augmentMessagesAndContinue(function(){
 					var arrSrcUnits = [];
 					for (var i=0; i<objValidationState.arrAugmentedMessages.length; i++){

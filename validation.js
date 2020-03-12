@@ -208,7 +208,7 @@ function validate(objJoint, callbacks, external_conn) {
 						conn = new_conn;
 						start_time = Date.now();
 						commit_fn = function (cb2) {
-							conn.query("COMMIT", function () { cb2(); });
+							conn.query(objValidationState.bAdvancedLastStableMci ? "COMMIT" : "ROLLBACK", function () { cb2(); });
 						};
 						conn.query("BEGIN", function(){cb();});
 					});

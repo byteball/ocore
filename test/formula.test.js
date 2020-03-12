@@ -1,3 +1,4 @@
+var shell = require('child_process').execSync;
 var path = require('path');
 var crypto = require('crypto');
 var Mnemonic = require('bitcore-mnemonic');
@@ -6,6 +7,10 @@ var merkle = require('../merkle.js');
 var ecdsaSig = require('../signature.js');
 var desktop_app = require('../desktop_app.js');
 desktop_app.getAppDataDir = function() { return __dirname + '/.testdata-' + path.basename(__filename); }
+
+// cleanup, if last time failed
+var dst_dir = __dirname + '/.testdata-' + path.basename(__filename);
+shell('rm -rf ' + dst_dir);
 
 var Decimal = require('decimal.js');
 var formulaParser = require('../formula/index');
