@@ -910,6 +910,8 @@ function purgeJunkUnhandledJoints(){
 function purgeJointAndDependenciesAndNotifyPeers(objJoint, error, onDone){
 	if (error.indexOf('is not stable in view of your parents') >= 0){ // give it a chance to be retried after adding other units
 		eventBus.emit('nonfatal_error', "error on unit "+objJoint.unit.unit+": "+error+"; "+JSON.stringify(objJoint), new Error());
+		// schedule a retry
+		setTimeout(function () { joint_storage.readDependentJointsThatAreReady(null, handleSavedJoint); }, 60 * 1000);
 		return onDone();
 	}
 	joint_storage.purgeJointAndDependencies(
