@@ -1042,7 +1042,7 @@ function readMaxLastBallMci(conn, arrUnits, handleResult) {
 		WHERE units.unit IN(?)",
 		[arrUnits],
 		function(rows) {
-			handleResult(rows[0].max_last_ball_mci);
+			handleResult(rows[0].max_last_ball_mci || 0);
 		}
 	);
 }
