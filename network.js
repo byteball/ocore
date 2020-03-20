@@ -768,9 +768,9 @@ function requestNewJoints(ws){
 	});
 }
 
-function rerequestLostJoints(){
+function rerequestLostJoints(bForce){
 	//console.log("rerequestLostJoints");
-	if (bCatchingUp)
+	if (bCatchingUp && !bForce)
 		return;
 	joint_storage.findLostJoints(function(arrUnits){
 		console.log("lost units", arrUnits.length > 0 ? arrUnits : 'none');
@@ -911,7 +911,12 @@ function purgeJointAndDependenciesAndNotifyPeers(objJoint, error, onDone){
 	if (error.indexOf('is not stable in view of your parents') >= 0){ // give it a chance to be retried after adding other units
 		eventBus.emit('nonfatal_error', "error on unit "+objJoint.unit.unit+": "+error+"; "+JSON.stringify(objJoint), new Error());
 		// schedule a retry
-		setTimeout(function () { joint_storage.readDependentJointsThatAreReady(null, handleSavedJoint); }, 60 * 1000);
+		console.log("will schedule a retry of " + objJoint.unit.unit);
+		setTimeout(function () {
+			console.log("retrying " + objJoint.unit.unit);
+			rerequestLostJoints(true);
+			joint_storage.readDependentJointsThatAreReady(null, handleSavedJoint);
+		}, 60 * 1000);
 		return onDone();
 	}
 	joint_storage.purgeJointAndDependencies(
