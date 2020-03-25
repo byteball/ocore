@@ -496,6 +496,18 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStability
 						profiler.stop('mc-stableFlag');
 						markMcIndexStable(conn, batch, first_unstable_mc_index, updateStableMcFlag);
 					}
+
+					if (first_unstable_mc_index > constants.lastBallStableInParentsUpgradeMci) {
+						var arrFreeUnits = [];
+						for (var unit in storage.assocUnstableUnits)
+							if (storage.assocUnstableUnits[unit].is_free === 1)
+								arrFreeUnits.push(unit);
+						determineIfStableInLaterUnits(conn, first_unstable_mc_unit, arrFreeUnits, function (bStable) {
+							console.log(first_unstable_mc_unit + ' stable in free units ' + arrFreeUnits.join(', ') + ' ? ' + bStable);
+							bStable ? advanceLastStableMcUnitAndTryNext() : finish();
+						});
+						return;
+					}
 				
 					conn.query("SELECT unit FROM units WHERE is_free=1 AND is_on_main_chain=1", function(tip_rows){
 						if (tip_rows.length !== 1)
@@ -714,6 +726,8 @@ function determineMaxAltLevel(conn, first_unstable_mc_index, first_unstable_mc_l
 
 
 function determineIfStableInLaterUnitsWithMaxLastBallMciFastPath(conn, earlier_unit, arrLaterUnits, handleResult) {
+	if (storage.isGenesisUnit(earlier_unit))
+		return handleResult(true);
 	storage.readUnitProps(conn, earlier_unit, function (objEarlierUnitProps) {
 		if (objEarlierUnitProps.is_free === 1 || objEarlierUnitProps.main_chain_index === null)
 			return handleResult(false);
@@ -732,10 +746,15 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 	if (earlier_unit === 'LGFzduLJNQNzEqJqUXdkXr58wDYx77V8WurDF3+GIws=' && arrLaterUnits.join(',') === '6O4t3j8kW0/Lo7n2nuS8ITDv2UbOhlL9fF1M6j/PrJ4='
 		|| earlier_unit === 'VLdMzBDVpwqu+3OcZrBrmkT0aUb/mZ0O1IveDmGqIP0=' && arrLaterUnits.join(',') === 'pAfErVAA5CSPeh1KoLidDTgdt5Blu7k2rINtxVTMq4k='
 		|| earlier_unit === 'P2gqiei+7dur/gS1KOFHg0tiEq2+7l321AJxM3o0f5Q=' && arrLaterUnits.join(',') === '9G8kctAVAiiLf4/cyU2f4gdtD+XvKd1qRp0+k3qzR8o='
+		|| constants.bTestnet && earlier_unit === 'zAytsscSjo+N9dQ/VLio4ZDgZS91wfUk0IOnzzrXcYU=' && arrLaterUnits.join(',') === 'ZSQgpR326LEU4jW+1hQ5ZwnHAVnGLV16Kyf/foVeFOc='
+		|| constants.bTestnet && ['XbS1+l33sIlcBQ//2/ZyPsRV7uhnwOPvvuQ5IzB+vC0=', 'TMTkvkXOL8CxnuDzw36xDWI6bO5PrhicGLBR3mwrAxE=', '7s8y/32r+3ew1jmunq1ZVyH+MQX9HUADZDHu3otia9U='].includes(earlier_unit) && arrLaterUnits.includes('39SDVpHJuzdDChPRerH0bFQOE5sudJCndQTaD4H8bms=')
+		|| constants.bTestnet && earlier_unit === 'N6Va5P0GgJorezFzwHiZ5HuF6p6HhZ29rx+eebAu0J0=' && arrLaterUnits.includes('mKwL1PTcWY783sHiCuDRcb6nojQAkwbeSL/z2a7uE6g=')
 	)
 		return handleResult(true);
 	var start_time = Date.now();
 	storage.readPropsOfUnits(conn, earlier_unit, arrLaterUnits, function(objEarlierUnitProps, arrLaterUnitProps){
+		if (constants.bTestnet && objEarlierUnitProps.main_chain_index <= 1220148 && objEarlierUnitProps.is_on_main_chain && arrLaterUnits.includes('qwKGj0w8P/jscAyQxSOSx2sUZCRFq22hsE6bSiqgUyk='))
+			return handleResult(true);
 		if (objEarlierUnitProps.is_free === 1 || objEarlierUnitProps.main_chain_index === null)
 			return handleResult(false);
 		var max_later_limci = Math.max.apply(

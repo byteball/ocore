@@ -1,8 +1,6 @@
 const test = require('ava');
 const crypto = require('crypto');
-
 const merkle = require('../merkle.js');
-
 
 function getRandomString(){
 	return crypto.randomBytes(12).toString("base64");
@@ -11,6 +9,10 @@ function getRandomString(){
 function hash(str){
 	return crypto.createHash("sha256").update(str, "utf8").digest("base64");
 }
+
+test.after.always(t => {
+	console.log('***** merkle.test done');
+});
 
 test('proofs', t => {
 	for (var len = 1; len < 100; len++) {

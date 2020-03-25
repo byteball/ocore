@@ -16,12 +16,15 @@ catch(e){
 }
 
 if (process.platform === 'win32') {
+	var cwd = process.cwd();
 	process.chdir(app_data_dir); // workaround non-latin characters in path
 	path = 'rocksdb';
 }
 var db = rocksdb(path, {}, function (err) {
 	if (err)
 		throw Error("rocksdb open failed (is the app already running?): " + err);
+	// if (process.platform === 'win32') // restore current working directory on windows
+	// 	process.chdir(cwd);
 });
 if (!db)
 	throw Error("no rocksdb instance");
@@ -67,7 +70,13 @@ module.exports = {
 		return db.createKeyStream(options);
 	},
 	
+	open: function(cb){
+		if (db.isOpen()) return cb('already open');
+		db.open(cb);
+	},
+
 	close: function(cb){
+		if (db.isClosed()) return cb('already closed');
 		db.close(cb);
 	}
 };

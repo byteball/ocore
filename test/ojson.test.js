@@ -20,6 +20,10 @@ function parseOjsonRaw (text) {
 	}
 }
 
+test.after.always(t => {
+	console.log('***** ojson.test done');
+});
+
 test('Key names', t => {
 	var text = `{
 	true: "somestr",

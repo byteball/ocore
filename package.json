@@ -2,7 +2,7 @@
   "name": "ocore",
   "description": "Obyte Core",
   "author": "Obyte",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "keywords": [
     "obyte",
     "byteball",
@@ -45,7 +45,7 @@
     "ws": "^1.0.1"
   },
   "scripts": {
-    "test": "yarn ava",
+    "test": "yarn ava --timeout=60s --concurrency=1 --fail-fast --verbose",
     "compileGrammar:oscript": "nearleyc ./formula/grammars/oscript.ne -o ./formula/grammars/oscript.js",
     "compileGrammar:ojson": "nearleyc ./formula/grammars/ojson.ne -o ./formula/grammars/ojson.js"
   },

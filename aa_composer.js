@@ -760,8 +760,8 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 			//	console.log('--- readUnstableOutputsSentByAAs');
 				conn.query(
 					"SELECT outputs.unit, message_index, output_index, amount, output_id \n\
-					FROM units \n\
-					CROSS JOIN outputs USING(unit) \n\
+					FROM outputs \n\
+					CROSS JOIN units USING(unit) \n\
 					CROSS JOIN unit_authors USING(unit) \n\
 					CROSS JOIN aa_addresses ON unit_authors.address=aa_addresses.address \n\
 					WHERE outputs.address=? AND asset"+(asset ? "="+conn.escape(asset) : " IS NULL AND amount>=60")+" AND is_spent=0 \n\

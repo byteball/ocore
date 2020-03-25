@@ -58,9 +58,9 @@ exports.MAX_STATE_VAR_VALUE_LENGTH = 1024;
 exports.MAX_OPS = 2000;
 exports.MAX_RESPONSES_PER_PRIMARY_TRIGGER = 10;
 
-exports.TEXTCOIN_CLAIM_FEE = 548;
-exports.TEXTCOIN_ASSET_CLAIM_FEE = 750;
-exports.TEXTCOIN_ASSET_CLAIM_HEADER_FEE = 391;
+exports.TEXTCOIN_CLAIM_FEE = 556;
+exports.TEXTCOIN_ASSET_CLAIM_FEE = 758;
+exports.TEXTCOIN_ASSET_CLAIM_HEADER_FEE = 399;
 exports.TEXTCOIN_ASSET_CLAIM_MESSAGE_FEE = 209;
 exports.TEXTCOIN_ASSET_CLAIM_BASE_MSG_FEE = 158;
 exports.TEXTCOIN_PRIVATE_ASSET_CLAIM_MESSAGE_FEE = 99;
@@ -68,9 +68,11 @@ exports.MIN_BYTES_BOUNCE_FEE = 10000;
 
 exports.minCoreVersion = exports.bTestnet ? '0.3.0' : '0.3.8';
 exports.minCoreVersionForFullNodes = exports.bTestnet ? '0.3.8' : '0.3.8';
+exports.minCoreVersionToSharePeers = exports.bTestnet ? '0.3.9' : '0.3.9';
 
-exports.lastBallStableInParentsUpgradeMci = 1300000;
+exports.lastBallStableInParentsUpgradeMci =  exports.bTestnet ? 0 : 1300000;
 exports.witnessedLevelMustNotRetreatUpgradeMci = exports.bTestnet ? 684000 : 1400000;
+exports.skipEvaluationOfUnusedNestedAddressUpgradeMci = exports.bTestnet ? 1400000 : 1400000;
 exports.spendUnconfirmedUpgradeMci = exports.bTestnet ? 589000 : 2909000;
 exports.branchedMinMcWlUpgradeMci = exports.bTestnet ? 593000 : 2909000;
 exports.otherAddressInDefinitionUpgradeMci = exports.bTestnet ? 602000 : 2909000;

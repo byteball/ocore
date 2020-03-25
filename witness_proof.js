@@ -11,6 +11,8 @@ var validation = require('./validation.js');
 
 
 function prepareWitnessProof(arrWitnesses, last_stable_mci, handleResult){
+	if (typeof last_stable_mci !== 'number')
+		throw Error('bad last_stable_mci: ' + last_stable_mci);
 	var arrWitnessChangeAndDefinitionJoints = [];
 	var arrUnstableMcJoints = [];
 	
