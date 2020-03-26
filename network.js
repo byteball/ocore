@@ -1631,6 +1631,16 @@ function addLightWatchedAddress(address){
 	});
 }
 
+function addLightWatchedAa(aa, address){
+	if (!conf.bLight || !exports.light_vendor_url)
+		return;
+	findOutboundPeerOrConnect(exports.light_vendor_url, function(err, ws){
+		if (err)
+			return;
+		sendJustsaying(ws, 'light/new_aa_to_watch', {aa: aa, address: address});
+	});
+}
+
 function flushEvents(forceFlushing) {
 	if (peer_events_buffer.length == 0 || (!forceFlushing && peer_events_buffer.length != 100)) {
 		return;
@@ -2592,6 +2602,9 @@ function handleJustsaying(ws, subject, body){
 		// I'm light client
 		case 'light/have_updates':
 		case 'light/sequence_became_bad':
+		case 'light/aa_request':
+		case 'light/aa_definition':
+		case 'light/aa_response':
 			if (!conf.bLight)
 				return sendError(ws, "I'm not light");
 			if (!ws.bLightVendor)
@@ -3710,6 +3723,7 @@ exports.setMyDeviceProps = setMyDeviceProps;
 exports.setWatchedAddresses = setWatchedAddresses;
 exports.addWatchedAddress = addWatchedAddress;
 exports.addLightWatchedAddress = addLightWatchedAddress;
+exports.addLightWatchedAa = addLightWatchedAa;
 
 exports.getConnectionStatus = getConnectionStatus;
 exports.closeAllWsConnections = closeAllWsConnections;
