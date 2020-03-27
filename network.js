@@ -114,6 +114,27 @@ function sendMessage(ws, type, content) {
 	}
 }
 
+
+function sendJustsayingToLightVendor(subject, body, handle){
+	if (!handle)
+		handle = function(){};
+	if (!conf.bLight)
+		return handle("sendJustsayingToLightVendor cannot be called as full node")
+	if (!exports.light_vendor_url){
+		console.log("light_vendor_url not set yet");
+		return setTimeout(function(){
+			sendJustsayingToLightVendor(subject, body, handle);
+		}, 1000);
+	}
+	findOutboundPeerOrConnect(exports.light_vendor_url, function(err, ws){
+		if (err)
+			return handle("connect to light vendor failed: "+err);
+		sendMessage(ws, 'justsaying', {subject: subject, body: body});
+		return handle(null);
+	});
+}
+
+
 function sendJustsaying(ws, subject, body){
 	sendMessage(ws, 'justsaying', {subject: subject, body: body});
 }
@@ -1621,24 +1642,12 @@ eventBus.on('aa_definition_saved', function (payload, unit) {
 	});
 });
 
-function addLightWatchedAddress(address){
-	if (!conf.bLight || !exports.light_vendor_url)
-		return;
-	findOutboundPeerOrConnect(exports.light_vendor_url, function(err, ws){
-		if (err)
-			return;
-		sendJustsaying(ws, 'light/new_address_to_watch', address);
-	});
+function addLightWatchedAddress(address, handle){
+	sendJustsayingToLightVendor('light/new_address_to_watch', address, handle);
 }
 
-function addLightWatchedAa(aa, address){
-	if (!conf.bLight || !exports.light_vendor_url)
-		return;
-	findOutboundPeerOrConnect(exports.light_vendor_url, function(err, ws){
-		if (err)
-			return;
-		sendJustsaying(ws, 'light/new_aa_to_watch', {aa: aa, address: address});
-	});
+function addLightWatchedAa(aa, address, handle){
+	sendJustsayingToLightVendor('light/new_aa_to_watch', {aa: aa , address: address}, handle);
 }
 
 function flushEvents(forceFlushing) {
