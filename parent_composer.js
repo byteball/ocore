@@ -202,7 +202,7 @@ function findLastStableMcBall(conn, arrWitnesses, arrParentUnits, onDone) {
 			"SELECT ball, unit, main_chain_index FROM units JOIN balls USING(unit) \n\
 			WHERE is_on_main_chain=1 AND is_stable=1 AND +sequence='good' \n\
 				AND main_chain_index>=? \n\
-				AND main_chain_index<=(SELECT MAX(latest_included_mc_index) FROM units WHERE unit IN(?)) \n\
+				AND main_chain_index<=IFNULL((SELECT MAX(latest_included_mc_index) FROM units WHERE unit IN(?)), 0) \n\
 				AND ( \n\
 					SELECT COUNT(*) \n\
 					FROM unit_witnesses \n\
