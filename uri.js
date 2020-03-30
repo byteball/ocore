@@ -165,7 +165,7 @@ function parseUri(uri, callbacks){
 			objRequest.single_address = single_address;
 		}
 		var base64data = assocParams.base64data;
-		if (base64data){
+		if (base64data && ValidationUtils.isValidBase64(base64data)){
 			objRequest.base64data = base64data;
 		}
 		if (assocParams.from_address) {

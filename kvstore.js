@@ -70,7 +70,13 @@ module.exports = {
 		return db.createKeyStream(options);
 	},
 	
+	open: function(cb){
+		if (db.isOpen()) return cb('already open');
+		db.open(cb);
+	},
+
 	close: function(cb){
+		if (db.isClosed()) return cb('already closed');
 		db.close(cb);
 	}
 };

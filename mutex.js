@@ -65,6 +65,10 @@ function handleQueue(){
 }
 
 function lock(arrKeys, proc, next_proc){
+	if (arguments.length === 1)
+		return new Promise(resolve => lock(arrKeys, resolve));
+	if (typeof arrKeys === 'string')
+		arrKeys = [arrKeys];
 	if (isAnyOfKeysLocked(arrKeys)){
 		console.log("queuing job held by keys", arrKeys);
 		arrQueuedJobs.push({arrKeys: arrKeys, proc: proc, next_proc: next_proc, ts:Date.now()});
@@ -74,6 +78,10 @@ function lock(arrKeys, proc, next_proc){
 }
 
 function lockOrSkip(arrKeys, proc, next_proc){
+	if (arguments.length === 1)
+		return new Promise(resolve => lockOrSkip(arrKeys, resolve));
+	if (typeof arrKeys === 'string')
+		arrKeys = [arrKeys];
 	if (isAnyOfKeysLocked(arrKeys)){
 		console.log("skipping job held by keys", arrKeys);
 		if (next_proc)
