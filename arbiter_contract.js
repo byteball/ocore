@@ -36,7 +36,7 @@ function getBySharedAddress(address, cb) {
 }
 
 function getAllByStatus(status, cb) {
-	db.query("SELECT hash, title, my_address, peer_address, status, peer_device_address, cosigners, creation_date FROM arbiter_contracts WHERE status IN (?) ORDER BY creation_date DESC", [status], function(rows){
+	db.query("SELECT hash, title, my_address, peer_address, status, amount, asset, peer_device_address, cosigners, creation_date FROM arbiter_contracts WHERE status IN (?) ORDER BY creation_date DESC", [status], function(rows){
 		rows.forEach(function(row) {
 			row = decodeRow(row);
 		});
