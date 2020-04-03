@@ -2449,8 +2449,11 @@ function handleJustsaying(ws, subject, body){
 			if (ws.bAdvertisedOwnUrl) // allow it only once per connection
 				break;
 			ws.bAdvertisedOwnUrl = true;
-			if (url.indexOf('ws://') !== 0 && url.indexOf('wss://') !== 0) // invalid url
+			var regexp = (conf.WS_PROTOCOL === 'wss://') ? /^wss:\/\// : /^wss?:\/\//;
+			if (!url.match(regexp)) {
+				console.log("ignoring peer's my_url " + url + " because of incompatible ws protocol");
 				break;
+			}
 			ws.claimed_url = url;
 			db.query("SELECT creation_date AS latest_url_change_date, url FROM peer_host_urls WHERE peer_host=? ORDER BY creation_date DESC LIMIT 1", [ws.host], function(rows){
 				var latest_change = rows[0];
