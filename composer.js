@@ -346,7 +346,11 @@ function composeJoint(params){
 				objUnit.version = constants.versionWithoutTimestamp;
 			// calc or fix payload_hash of non-payment messages
 			objUnit.messages.forEach(function (message) {
-				if (message.app !== 'payment' && message.payload_location === 'inline')
+				if (message.app === 'payment')
+					return;
+				if (!message.payload_location && message.payload)
+					message.payload_location = 'inline';
+				if (message.payload_location === 'inline')
 					message.payload_hash = objectHash.getBase64Hash(message.payload, bVersion2);
 			});
 			cb();
