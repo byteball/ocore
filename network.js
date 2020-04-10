@@ -2546,7 +2546,8 @@ function handleJustsaying(ws, subject, body){
 						finishLogin();
 					});
 				else {
-					sendStoredDeviceMessages(ws, ws.device_address);
+					if (!ws.blockChat)
+						sendStoredDeviceMessages(ws, ws.device_address);
 					finishLogin();
 				}
 			});
@@ -2891,7 +2892,7 @@ function handleRequest(ws, tag, command, params){
 					function(){
 						// if the addressee is connected, deliver immediately
 						wss.clients.concat(arrOutboundPeers).forEach(function(client){
-							if (client.device_address === objDeviceMessage.to && (!client.max_message_length || message_string.length <= client.max_message_length) && !ws.blockChat) {
+							if (client.device_address === objDeviceMessage.to && (!client.max_message_length || message_string.length <= client.max_message_length) && !client.blockChat) {
 								sendJustsaying(client, 'hub/message', {
 									message_hash: message_hash,
 									message: objDeviceMessage
