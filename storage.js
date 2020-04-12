@@ -53,7 +53,8 @@ function readJoint(conn, unit, callbacks, bSql) {
 		if (!strJoint)
 			return callbacks.ifNotFound();
 		var objJoint = JSON.parse(strJoint);
-		if (!isCorrectHash(objJoint.unit, unit))
+		// light wallets don't have last_ball, don't verify their hashes
+		if (!conf.bLight && !isCorrectHash(objJoint.unit, unit))
 			throw Error("wrong hash of unit "+unit);
 		conn.query("SELECT main_chain_index, "+conn.getUnixTimestamp("creation_date")+" AS timestamp FROM units WHERE unit=?", [unit], function(rows){
 			if (rows.length === 0)
@@ -550,6 +551,7 @@ function isCorrectHash(objUnit, unit){
 		return (objectHash.getUnitHash(objUnit) === unit);
 	}
 	catch(e){
+		//throw Error(e.message);
 		console.log('storage.isCorrectHash: '+ e.message);
 		return false;
 	}
