@@ -54,7 +54,7 @@ function readJoint(conn, unit, callbacks, bSql) {
 			return callbacks.ifNotFound();
 		var objJoint = JSON.parse(strJoint);
 		// light wallets don't have last_ball, don't verify their hashes
-		if (!conf.bLight && !isCorrectHash(objUnit, unit))
+		if (!conf.bLight && !isCorrectHash(objJoint.unit, unit))
 			throw Error("wrong hash of unit "+unit);
 		conn.query("SELECT main_chain_index, "+conn.getUnixTimestamp("creation_date")+" AS timestamp FROM units WHERE unit=?", [unit], function(rows){
 			if (rows.length === 0)
