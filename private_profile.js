@@ -77,7 +77,7 @@ function parseAndValidatePrivateProfile(objPrivateProfile, onDone){
 			var network = require('./network.js');
 			if (conf.bLight)
 				network.requestHistoryFor([objPrivateProfile.unit], [], function(err) {
-					if (err) return onDone(err);
+					return onDone(err || 'Close and try again');
 				});
 		},
 		ifFound: handleJoint
