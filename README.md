@@ -1,6 +1,6 @@
 # O<sub>byte</sub> core library (O<sub>core</sub>)
 
-This is a library used in [O<sub>byte</sub>](https://obyte.org) clients.  Never used directly.  Some of the clients that require the library:
+This is a library used in [O<sub>byte</sub>](https://obyte.org) clients.  Some of the clients that require the library:
 
 * [GUI wallet](https://github.com/byteball/obyte-gui-wallet) - GUI wallet for Mac, Windows, Linux, iOS, and Android.
 * [Headless wallet](https://github.com/byteball/headless-obyte) - headless wallet, primarily for server side use.
@@ -67,6 +67,13 @@ Whether your node wants to learn about new peers from its current peers (`true`,
 #### conf.socksHost, conf.socksPort, and conf.socksLocalDNS
 
 Settings for connecting through optional SOCKS5 proxy.  Use them to connect through TOR and hide your IP address from peers even when making outgoing connections.  This is useful and highly recommended when you are running an online wallet on your server and want to make it harder for potential attackers to learn the IP address of the target to attack.  Set `socksLocalDNS` to `false` to route DNS queries through TOR as well.
+
+#### conf.smtpTransport, conf.smtpRelay, conf.smtpPort, conf.smtpUser, and conf.smtpPassword
+
+Settings for sending email. They are used e.g. if your node needs to send notifications. `smtpTransport` can take one of three values:
+* `local`: send email using locally installed `sendmail`. Normally, `sendmail` is not installed by default and when installed, it needs to be properly configured to actually send emails. If you choose this option, no other conf settings are required for email. This is the default option.
+* `direct`: send email by connecting directly to the recipient's SMTP server. This option is not recommended.
+* `relay`: send email through a relay server, like most email apps do. You need to also configure the server's host `smtpRelay`, its port `smtpPort` if it differs from the default port 25, and `smtpUser` and `smtpPassword` for authentication to the server.
 
 #### MySQL conf for faster syncing
 
