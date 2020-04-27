@@ -151,27 +151,27 @@ function parseUri(uri, callbacks){
 		}
 		if (!objRequest.asset && objRequest.amount) // when amount is set, asset must be also set
 			objRequest.asset = 'base';
-		var device_address = assocParams.device_address;
-		if (device_address){
-			if (!ValidationUtils.isValidDeviceAddress(device_address))
-				return callbacks.ifError('invalid device address: '+device_address);
-			objRequest.device_address = device_address;
+		if (assocParams.device_address) {
+			objRequest.device_address = assocParams.device_address;
+			if (!ValidationUtils.isValidDeviceAddress(objRequest.device_address))
+				return callbacks.ifError('invalid device address: '+objRequest.device_address);
 		}
-		var single_address = assocParams.single_address;
-		if (single_address) {
-			single_address = single_address.replace(/^single/, '');
-			if (single_address && !ValidationUtils.isValidAddress(single_address))
-				single_address = 1;
-			objRequest.single_address = single_address;
-		}
-		var base64data = assocParams.base64data;
-		if (base64data && ValidationUtils.isValidBase64(base64data)){
-			objRequest.base64data = base64data;
+		if (assocParams.base64data) {
+			objRequest.base64data = assocParams.base64data;
+			if (!ValidationUtils.isValidBase64(objRequest.base64data))
+				return callbacks.ifError('invalid base64 data: '+objRequest.base64data);
 		}
 		if (assocParams.from_address) {
 			objRequest.from_address = assocParams.from_address;
 			if (!ValidationUtils.isValidAddress(objRequest.from_address))
 				return callbacks.ifError('invalid from address: '+objRequest.from_address);
+		}
+		var single_address = assocParams.single_address;
+		if (single_address) {
+			single_address = single_address.replace(/^single/, ''); // backward compatibility
+			if (single_address && ValidationUtils.isValidAddress(single_address))
+				objRequest.from_address = single_address;
+			objRequest.single_address = 1;
 		}
 	}
 	callbacks.ifOk(objRequest);
