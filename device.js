@@ -812,6 +812,7 @@ exports.setDeviceHub = setDeviceHub;
 exports.scheduleTempDeviceKeyRotation = scheduleTempDeviceKeyRotation;
 
 exports.decryptPackage = decryptPackage;
+exports.createEncryptedPackage = createEncryptedPackage;
 
 exports.getLoginMessage = getLoginMessage;
 exports.handleChallenge = handleChallenge;

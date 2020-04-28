@@ -5,6 +5,8 @@ var device = require('./device.js');
 var composer = require('./composer.js');
 var objectHash = require('./object_hash.js');
 var crypto = require('crypto');
+var arbiters = require('./arbiters.js');
+var http = require('http');
 
 var status_PENDING = 'pending';
 exports.CHARGE_AMOUNT = 4000;
@@ -107,6 +109,50 @@ function decodeRow(row) {
 	return row;
 }
 
+function openDispute(hash, cb) {
+	getByHash(hash, function(objContract){
+		//device.requestFromHub("hub/get_arbstore_host", objContract.arbiter_address, function(err, host){
+		var host = 'localhost';
+			arbiters.getInfo(objContract.arbiter_address, function(objArbiter) {
+				device.getOrGeneratePermanentPairingInfo(function(pairingInfo){
+					var my_pairing_code = pairingInfo.device_pubkey + "@" + pairingInfo.hub + "#" + pairingInfo.pairing_secret;
+					var data = JSON.stringify({
+						contract_hash: hash,
+						arbiter_address: objContract.arbiter_address,
+						my_address: objContract.my_address,
+						peer_address: objContract.peer_address,
+						me_is_payer: objContract.me_is_payer,
+						my_pairing_code: my_pairing_code,
+						peer_pairing_code: objContract.peer_pairing_code,
+						encrypted_contract: device.createEncryptedPackage({title: objContract.title, text: objContract.text, amount:objContract.amount, creation_date: objContract.creation_date}, objArbiter.device_pub_key)
+					});
+					var req = http.request({
+						hostname: host,
+						port: 9003,
+						path: '/api/dispute/new',
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/json',
+							'Content-Length': data.length
+						}}, function(resp){
+						var data = '';
+						resp.on('data', function(chunk){
+							data += chunk;
+						});
+						resp.on('end', function(){
+							cb(null, data);
+						});
+					}).on("error", cb);
+					req.write(data);
+					req.end();
+				});
+
+				//device.sendMessageToDevice(objContract.peer_device_address, "arbiter_contract_shared", objContract);
+			});
+		//});
+	})
+}
+
 exports.createAndSend = createAndSend;
 exports.getByHash = getByHash;
 exports.getBySharedAddress = getBySharedAddress;
@@ -116,3 +162,4 @@ exports.setField = setField;
 exports.store = store;
 exports.getHash = getHash;
 exports.share = share;
+exports.openDispute = openDispute;

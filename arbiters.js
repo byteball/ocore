@@ -2,7 +2,7 @@
 "use strict";
 var db = require('./db.js');
 var device = require('./device.js');
-var https = require('http');
+var http = require('http');
 
 function getInfo(address, cb) {
 	var cb = cb || function() {};
@@ -12,6 +12,10 @@ function getInfo(address, cb) {
 		} else {
 			device.requestFromHub("hub/get_arbstore_host", address, function(err, host){
 				requestInfoFromArbStore(address, host, function(err, info){
+					if (err) {
+						console.error(err);
+						return cb();
+					}
 					db.query("UPDATE arbiters_wallet SET device_pub_key=?, real_name=? WHERE arbiter_address=?", [info.device_pub_key, info.real_name, address]);
 					cb(info);
 				});
@@ -21,7 +25,7 @@ function getInfo(address, cb) {
 }
 
 function requestInfoFromArbStore(address, host, cb){
-	https.get('https://'+host+'/api/arbiter/'+address, function(resp){
+	http.get('http://'+host+'/api/arbiter/'+address, function(resp){
 		var data = '';
 		resp.on('data', function(chunk){
 			data += chunk;
