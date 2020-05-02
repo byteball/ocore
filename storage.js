@@ -37,6 +37,19 @@ var assocUnstableMessages = {};
 var min_retrievable_mci = null;
 initializeMinRetrievableMci();
 
+function readUnit(unit, cb) {
+	if (!cb)
+		return new Promise(resolve => readUnit(unit, resolve));
+	readJoint(db, unit, {
+		ifFound: function (objJoint) {
+			cb(objJoint.unit);
+		},
+		ifNotFound: function () {
+			cb(null);
+		}
+	});
+}
+
 function readJointJsonFromStorage(conn, unit, cb) {
 	var kvstore = require('./kvstore.js');
 	if (!bCordova)
@@ -1788,6 +1801,7 @@ exports.determineIfWitnessAddressDefinitionsHaveReferences = determineIfWitnessA
 exports.readUnitProps = readUnitProps;
 exports.readPropsOfUnits = readPropsOfUnits;
 
+exports.readUnit = readUnit;
 exports.readJoint = readJoint;
 exports.readJointWithBall = readJointWithBall;
 exports.readFreeJoints = readFreeJoints;
