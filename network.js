@@ -1631,7 +1631,7 @@ eventBus.on('aa_definition_saved', function (payload, unit) {
 			return;
 		storage.readJoint(db, unit, {
 			ifNotFound: function () {
-				throw Error('recently saved unit ' + unit + ' not found');
+				console.log('recently saved unit ' + unit + ' not found');
 			},
 			ifFound: function (objJoint) {
 				arrWses.forEach(function (ws) {
