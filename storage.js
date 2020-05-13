@@ -1164,7 +1164,7 @@ function archiveJointAndDescendants(from_unit){
 	db.executeInTransaction(function doWork(conn, cb){
 		
 		function addChildren(arrParentUnits){
-			conn.query("SELECT DISTINCT child_unit FROM parenthoods WHERE parent_unit IN(?)", [arrParentUnits], function(rows){
+			conn.query("SELECT DISTINCT child_unit FROM parenthoods WHERE parent_unit IN(" + arrParentUnits.map(db.escape).join(', ') + ")", function(rows){
 				if (rows.length === 0)
 					return archive();
 				var arrChildUnits = rows.map(function(row){ return row.child_unit; });
