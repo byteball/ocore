@@ -2618,6 +2618,7 @@ function handleJustsaying(ws, subject, body){
 		case 'light/aa_request':
 		case 'light/aa_definition':
 		case 'light/aa_response':
+		case 'light/aa_definition_saved':
 			if (!conf.bLight)
 				return sendError(ws, "I'm not light");
 			if (!ws.bLightVendor)
