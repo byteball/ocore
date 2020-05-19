@@ -76,7 +76,7 @@ function getValueFromDataFeedKey(key){
 	return (type === 's') ? value : decodeLexicographicToDouble(value);
 }
 
-function getNumericFeedValue(value){
+function getNumericFeedValue(value, bBySignificantDigits){
 	if (typeof value !== 'string')
 		throw Error("getNumericFeedValue of not a string: "+value);
 	var m = value.match(/^[+-]?(\d+(\.\d+)?)([eE][+-]?(\d+))?$/);
@@ -89,9 +89,18 @@ function getNumericFeedValue(value){
 	var abs_exp = m[4];
 	if (f === 0 && mantissa > 0 && abs_exp > 0) // too small number out of range such as 1.23e-700
 		return null;
-	// mantissa can also be 123.456, 00.123, 1.2300000000, 123000000000, anyway too long number indicates we want to keep it as a string
-	if (mantissa.length > 15) // including the point (if any), including 0. in 0.123
-		return null;
+	if (bBySignificantDigits) {
+		var significant_digits = mantissa.replace(/^0+/, '');
+		if (significant_digits.indexOf('.') >= 0)
+			significant_digits = significant_digits.replace(/0+$/, '').replace('.', '');
+		if (significant_digits.length > 16)
+			return null;
+	}
+	else {
+		// mantissa can also be 123.456, 00.123, 1.2300000000, 123000000000, anyway too long number indicates we want to keep it as a string
+		if (mantissa.length > 15) // including the point (if any), including 0. in 0.123
+			return null;
+	}
 	return f;
 }
 

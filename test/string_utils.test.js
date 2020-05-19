@@ -4,7 +4,7 @@ const StringUtils = require('../string_utils');
 
 const STRING_JOIN_CHAR = StringUtils.STRING_JOIN_CHAR;
 const getSourceString = StringUtils.getSourceString;
-const getNumericFeedValue = StringUtils.getNumericFeedValue;
+const getNumericFeedValue = value => StringUtils.getNumericFeedValue(value, true);
 const encodeDoubleInLexicograpicOrder = StringUtils.encodeDoubleInLexicograpicOrder;
 const decodeLexicographicToDouble = StringUtils.decodeLexicographicToDouble;
 const encodeMci = StringUtils.encodeMci;
@@ -84,12 +84,32 @@ test('getNumericFeedValue large int 15 digits long', t => {
     t.true(getNumericFeedValue('123456789012345') === 123456789012345);
 });
 
+test('getNumericFeedValue large int 16 digits long', t => {
+    t.true(getNumericFeedValue('1234567890123456') === 1234567890123456);
+});
+
+test('getNumericFeedValue large int 16 digits long with 0s', t => {
+    t.true(getNumericFeedValue('001234567890123400') === 1234567890123400);
+});
+
 test('getNumericFeedValue oversized int', t => {
-    t.true(getNumericFeedValue('1234567890123456') === null);
+    t.true(getNumericFeedValue('12345678901234567') === null);
+});
+
+test('getNumericFeedValue oversized int with 0s', t => {
+    t.true(getNumericFeedValue('12345678901234560') === null);
+});
+
+test('getNumericFeedValue long decimal', t => {
+    t.true(getNumericFeedValue('1234.567890123456') === 1234.567890123456);
+});
+
+test('getNumericFeedValue long decimal with 0s', t => {
+    t.true(getNumericFeedValue('0001234.567890123456000') === 1234.567890123456);
 });
 
 test('getNumericFeedValue oversized decimal', t => {
-    t.true(getNumericFeedValue('1234.56789012345') === null);
+    t.true(getNumericFeedValue('1234.5678901234567') === null);
 });
 
 test('getNumericFeedValue exponential decimal', t => {
