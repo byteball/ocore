@@ -583,65 +583,6 @@ exports.evaluate = function (opts, callback) {
 					}
 					cb("data feed " + feed_name + " not found");
 				});
-				/*
-				var ifseveral = 'ORDER BY main_chain_index DESC';
-				var abortIfSeveral = false;
-				if (params.ifseveral) {
-					if (params.ifseveral.value === 'first') {
-						ifseveral = 'ORDER BY main_chain_index ASC';
-					} else if (params.ifseveral.value === 'abort') {
-						ifseveral = '';
-						abortIfSeveral = true;
-					}
-				}
-				var ifnone = false;
-				if (params.ifnone && params.ifnone.value !== 'abort') {
-					ifnone = params.ifnone.value;
-				}
-
-				var value_condition = '';
-				var queryParams = [arrAddresses, feed_name];
-				if (value) {
-					if (Decimal.isDecimal(value)) {
-						var bForceNumericComparison = (['>', '>=', '<', '<='].indexOf(relation) >= 0);
-						var plus_0 = bForceNumericComparison ? '+0' : '';
-						value_condition = '(value' + plus_0 + relation + value.toString() +
-							' OR int_value' + relation + value.toString() + ')';
-					}
-					else {
-						value_condition = 'value' + relation + '?';
-						queryParams.push(value);
-					}
-				}
-				if (params.mci) {
-					queryParams.push(objValidationState.last_ball_mci, min_mci);
-				}
-				conn.query(
-					"SELECT value, int_value FROM data_feeds CROSS JOIN units USING(unit) CROSS JOIN unit_authors USING(unit) \n\
-							WHERE address IN(?) AND feed_name=? " + (value_condition ? ' AND ' + value_condition : '') + " \n\
-							AND " + (params.mci ? "main_chain_index<=? AND main_chain_index" + mci_relation + "? " : '') + " \n\
-							AND sequence='good' AND is_stable=1 " + ifseveral + " LIMIT " + (abortIfSeveral ? "2" : "1"),
-					queryParams,
-					function (rows) {
-						if (rows.length) {
-							if (abortIfSeveral && rows.length > 1) {
-								cb('abort');
-							} else {
-								if (rows[0].value === null) {
-									cb(null, new Decimal(rows[0].int_value));
-								} else {
-									cb(null, rows[0].value);
-								}
-							}
-						} else {
-							if (ifnone === false) {
-								cb('not found');
-							} else {
-								cb(null, ifnone);
-							}
-						}
-					}
-				);*/
 			}
 
 				var params = arr[1];
