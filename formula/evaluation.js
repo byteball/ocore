@@ -521,69 +521,69 @@ exports.evaluate = function (opts, callback) {
 
 			case 'data_feed':
 
-			function getDataFeed(params, cb) {
-				if (typeof params.oracles.value !== 'string')
-					return cb("oracles not a string "+params.oracles.value);
-				var arrAddresses = params.oracles.value.split(':');
-				if (!arrAddresses.every(ValidationUtils.isValidAddress))
-					return cb("bad oracles "+arrAddresses);
-				var feed_name = params.feed_name.value;
-				if (!feed_name || typeof feed_name !== 'string')
-					return cb("empty feed_name or not a string");
-				var value = null;
-				var relation = '';
-				var min_mci = 0;
-				if (params.feed_value) {
-					value = params.feed_value.value;
-					relation = params.feed_value.operator;
-					if (!isValidValue(value))
-						return cb("bad feed_value: "+value);
-				}
-				if (params.min_mci) {
-					min_mci = params.min_mci.value.toString();
-					if (!(/^\d+$/.test(min_mci) && ValidationUtils.isNonnegativeInteger(parseInt(min_mci))))
-						return cb("bad min_mci: "+min_mci);
-					min_mci = parseInt(min_mci);
-				}
-				var ifseveral = 'last';
-				if (params.ifseveral){
-					ifseveral = params.ifseveral.value;
-					if (ifseveral !== 'abort' && ifseveral !== 'last')
-						return cb("bad ifseveral: "+ifseveral);
-				}
-				var what = 'value';
-				if (params.what){
-					what = params.what.value;
-					if (what !== 'unit' && what !== 'value')
-						return cb("bad what: "+what);
-				}
-				var type = 'auto';
-				if (params.type){
-					type = params.type.value;
-					if (type !== 'string' && type !== 'auto')
-						return cb("bad df type: "+type);
-				}
-				if (params.ifnone && !isValidValue(params.ifnone.value))
-					return cb("bad ifnone: "+params.ifnone.value);
-				dataFeeds.readDataFeedValue(arrAddresses, feed_name, value, min_mci, objValidationState.last_ball_mci, bAA, ifseveral, function(objResult){
-				//	console.log(arrAddresses, feed_name, value, min_mci, ifseveral);
-				//	console.log('---- objResult', objResult);
-					if (objResult.bAbortedBecauseOfSeveral)
-						return cb("several values found");
-					if (objResult.value !== undefined){
-						if (what === 'unit')
-							return cb(null, objResult.unit);
-						if (type === 'string')
-							return cb(null, objResult.value.toString());
-						return cb(null, (typeof objResult.value === 'string') ? objResult.value : createDecimal(objResult.value));
+				function getDataFeed(params, cb) {
+					if (typeof params.oracles.value !== 'string')
+						return cb("oracles not a string "+params.oracles.value);
+					var arrAddresses = params.oracles.value.split(':');
+					if (!arrAddresses.every(ValidationUtils.isValidAddress))
+						return cb("bad oracles "+arrAddresses);
+					var feed_name = params.feed_name.value;
+					if (!feed_name || typeof feed_name !== 'string')
+						return cb("empty feed_name or not a string");
+					var value = null;
+					var relation = '';
+					var min_mci = 0;
+					if (params.feed_value) {
+						value = params.feed_value.value;
+						relation = params.feed_value.operator;
+						if (!isValidValue(value))
+							return cb("bad feed_value: "+value);
 					}
-					if (params.ifnone && params.ifnone.value !== 'abort'){
-					//	console.log('===== ifnone=', params.ifnone.value, typeof params.ifnone.value);
-						return cb(null, params.ifnone.value); // the type of ifnone (string, decimal, boolean) is preserved
+					if (params.min_mci) {
+						min_mci = params.min_mci.value.toString();
+						if (!(/^\d+$/.test(min_mci) && ValidationUtils.isNonnegativeInteger(parseInt(min_mci))))
+							return cb("bad min_mci: "+min_mci);
+						min_mci = parseInt(min_mci);
 					}
-					cb("data feed " + feed_name + " not found");
-				});
-			}
+					var ifseveral = 'last';
+					if (params.ifseveral){
+						ifseveral = params.ifseveral.value;
+						if (ifseveral !== 'abort' && ifseveral !== 'last')
+							return cb("bad ifseveral: "+ifseveral);
+					}
+					var what = 'value';
+					if (params.what){
+						what = params.what.value;
+						if (what !== 'unit' && what !== 'value')
+							return cb("bad what: "+what);
+					}
+					var type = 'auto';
+					if (params.type){
+						type = params.type.value;
+						if (type !== 'string' && type !== 'auto')
+							return cb("bad df type: "+type);
+					}
+					if (params.ifnone && !isValidValue(params.ifnone.value))
+						return cb("bad ifnone: "+params.ifnone.value);
+					dataFeeds.readDataFeedValue(arrAddresses, feed_name, value, min_mci, objValidationState.last_ball_mci, bAA, ifseveral, function(objResult){
+					//	console.log(arrAddresses, feed_name, value, min_mci, ifseveral);
+					//	console.log('---- objResult', objResult);
+						if (objResult.bAbortedBecauseOfSeveral)
+							return cb("several values found");
+						if (objResult.value !== undefined){
+							if (what === 'unit')
+								return cb(null, objResult.unit);
+							if (type === 'string')
+								return cb(null, objResult.value.toString());
+							return cb(null, (typeof objResult.value === 'string') ? objResult.value : createDecimal(objResult.value));
+						}
+						if (params.ifnone && params.ifnone.value !== 'abort'){
+						//	console.log('===== ifnone=', params.ifnone.value, typeof params.ifnone.value);
+							return cb(null, params.ifnone.value); // the type of ifnone (string, decimal, boolean) is preserved
+						}
+						cb("data feed " + feed_name + " not found");
+					});
+				}
 
 				var params = arr[1];
 				var evaluated_params = {};
@@ -672,66 +672,66 @@ exports.evaluate = function (opts, callback) {
 			case 'output':
 				var type = op + 's';
 
-			function findOutputOrInputAndReturnName(objParams) {
-				var asset = objParams.asset ? objParams.asset.value : null;
-				var operator = objParams.asset ? objParams.asset.operator : null;
-				var puts = [];
-				messages.forEach(function (message) {
-					if (message.payload && message.app === 'payment') {
-						var payload_asset = message.payload.asset || 'base';
-						if (!asset) { // no filter by asset
-							puts = puts.concat(message.payload[type]);
-						} else if (operator === '=' && asset === payload_asset) {
-							puts = puts.concat(message.payload[type]);
-						} else if (operator === '!=' && asset !== payload_asset) {
-							puts = puts.concat(message.payload[type]);
-						}
-					}
-				});
-				if (puts.length === 0){
-					console.log('no matching puts after filtering by asset');
-					return '';
-				}
-				if (objParams.address) {
-					puts = puts.filter(function (put) {
-						if (objParams.address.operator === '=') {
-							return put.address === objParams.address.value;
-						} else {
-							return put.address !== objParams.address.value;
+				function findOutputOrInputAndReturnName(objParams) {
+					var asset = objParams.asset ? objParams.asset.value : null;
+					var operator = objParams.asset ? objParams.asset.operator : null;
+					var puts = [];
+					messages.forEach(function (message) {
+						if (message.payload && message.app === 'payment') {
+							var payload_asset = message.payload.asset || 'base';
+							if (!asset) { // no filter by asset
+								puts = puts.concat(message.payload[type]);
+							} else if (operator === '=' && asset === payload_asset) {
+								puts = puts.concat(message.payload[type]);
+							} else if (operator === '!=' && asset !== payload_asset) {
+								puts = puts.concat(message.payload[type]);
+							}
 						}
 					});
-				}
-				if (objParams.amount) {
-					puts = puts.filter(function (put) {
-						put.amount = new Decimal(put.amount);
-						if (objParams.amount.operator === '=') {
-							return put.amount.eq(objParams.amount.value);
-						} else if (objParams.amount.operator === '>') {
-							return put.amount.gt(objParams.amount.value);
-						} else if (objParams.amount.operator === '<') {
-							return put.amount.lt(objParams.amount.value);
-						} else if (objParams.amount.operator === '<=') {
-							return put.amount.lte(objParams.amount.value);
-						} else if (objParams.amount.operator === '>=') {
-							return put.amount.gte(objParams.amount.value);
-						} else if (objParams.amount.operator === '!=') {
-							return !(put.amount.eq(objParams.amount.value));
-						}
-						else
-							throw Error("unknown operator: " + objParams.amount.operator);
-					});
-				}
-				if (puts.length) {
-					if (puts.length > 1){
-						console.log(puts.length+' matching puts');
+					if (puts.length === 0){
+						console.log('no matching puts after filtering by asset');
 						return '';
 					}
-					return puts[0];
-				} else {
-					console.log('no matching puts');
-					return '';
+					if (objParams.address) {
+						puts = puts.filter(function (put) {
+							if (objParams.address.operator === '=') {
+								return put.address === objParams.address.value;
+							} else {
+								return put.address !== objParams.address.value;
+							}
+						});
+					}
+					if (objParams.amount) {
+						puts = puts.filter(function (put) {
+							put.amount = new Decimal(put.amount);
+							if (objParams.amount.operator === '=') {
+								return put.amount.eq(objParams.amount.value);
+							} else if (objParams.amount.operator === '>') {
+								return put.amount.gt(objParams.amount.value);
+							} else if (objParams.amount.operator === '<') {
+								return put.amount.lt(objParams.amount.value);
+							} else if (objParams.amount.operator === '<=') {
+								return put.amount.lte(objParams.amount.value);
+							} else if (objParams.amount.operator === '>=') {
+								return put.amount.gte(objParams.amount.value);
+							} else if (objParams.amount.operator === '!=') {
+								return !(put.amount.eq(objParams.amount.value));
+							}
+							else
+								throw Error("unknown operator: " + objParams.amount.operator);
+						});
+					}
+					if (puts.length) {
+						if (puts.length > 1){
+							console.log(puts.length+' matching puts');
+							return '';
+						}
+						return puts[0];
+					} else {
+						console.log('no matching puts');
+						return '';
+					}
 				}
-			}
 
 
 				var params = arr[1];
