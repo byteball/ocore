@@ -22,6 +22,7 @@ var objBaseAssetInfo = require('./common.js').objBaseAssetInfo;
 
 var isFiniteDecimal = require('./common.js').isFiniteDecimal;
 var toDoubleRange = require('./common.js').toDoubleRange;
+var createDecimal = require('./common.js').createDecimal;
 
 if (!Number.MAX_SAFE_INTEGER)
 	Number.MAX_SAFE_INTEGER = Math.pow(2, 53) - 1; // 9007199254740991
@@ -30,6 +31,8 @@ var testnetStringToNumberInArithmeticUpgradeMci = 1151000;
 
 var decimalE = new Decimal(Math.E);
 var decimalPi = new Decimal(Math.PI);
+var dec0 = new Decimal(0);
+var dec1 = new Decimal(1);
 
 function isValidValue(val){
 	return (typeof val === 'string' || typeof val === 'boolean' || isFiniteDecimal(val));
@@ -146,11 +149,11 @@ exports.evaluate = function (opts, callback) {
 						if (res instanceof wrappedObject)
 							res = true;
 						if (typeof res === 'boolean')
-							res = new Decimal(res ? 1 : 0);
+							res = res ? dec1 : dec0;
 						else if (typeof res === 'string' && (!constants.bTestnet || objValidationState.last_ball_mci > testnetStringToNumberInArithmeticUpgradeMci)) {
 							var float = string_utils.getNumericFeedValue(res);
 							if (float !== null)
-								res = new Decimal(res).times(1);
+								res = createDecimal(res);
 						}
 						if (isFiniteDecimal(res)) {
 							res = toDoubleRange(res);
@@ -205,14 +208,13 @@ exports.evaluate = function (opts, callback) {
 					if (res instanceof wrappedObject)
 						res = true;
 					if (typeof res === 'boolean')
-						res = new Decimal(res ? 1 : 0);
+						res = res ? dec1 : dec0;
 					else if (typeof res === 'string') {
 						var float = string_utils.getNumericFeedValue(res);
 						if (float !== null)
-							res = new Decimal(res).times(1);
+							res = createDecimal(res);
 					}
 					if (isFiniteDecimal(res)) {
-						res = toDoubleRange(res);
 						if (op === 'abs')
 							return cb(toDoubleRange(res.abs()));
 						if (res.isNegative())
@@ -229,18 +231,18 @@ exports.evaluate = function (opts, callback) {
 			case 'round':
 				var dp = arr[2];
 				if (!dp)
-					dp = new Decimal(0);
+					dp = dec0;
 				evaluate(dp, function(dp_res){
 					if (fatal_error)
 						return cb(false);
 					if (dp_res instanceof wrappedObject)
 						dp_res = true;
 					if (typeof dp_res === 'boolean')
-						dp_res = new Decimal(dp_res ? 1 : 0);
+						dp_res = dp_res ? dec1 : dec0;
 					else if (typeof dp_res === 'string') {
 						var float = string_utils.getNumericFeedValue(dp_res);
 						if (float !== null)
-							dp_res = toDoubleRange(new Decimal(dp_res).times(1));
+							dp_res = createDecimal(dp_res);
 					}
 					if (Decimal.isDecimal(dp_res) && dp_res.isInteger() && !dp_res.isNegative() && dp_res.lte(15))
 						dp = dp_res;
@@ -265,14 +267,13 @@ exports.evaluate = function (opts, callback) {
 						if (res instanceof wrappedObject)
 							res = true;
 						if (typeof res === 'boolean')
-							res = new Decimal(res ? 1 : 0);
+							res = res ? dec1 : dec0;
 						else if (typeof res === 'string') {
 							var float = string_utils.getNumericFeedValue(res);
 							if (float !== null)
-								res = new Decimal(res).times(1);
+								res = createDecimal(res);
 						}
 						if (isFiniteDecimal(res)) {
-							res = toDoubleRange(res);
 							evaluate(res.toDecimalPlaces(dp.toNumber(), roundingMode), cb);
 						} else {
 							return setFatalError('not a decimal in '+op, cb, false);
@@ -292,14 +293,13 @@ exports.evaluate = function (opts, callback) {
 						if (res instanceof wrappedObject)
 							res = true;
 						if (typeof res === 'boolean')
-							res = new Decimal(res ? 1 : 0);
+							res = res ? dec1 : dec0;
 						else if (typeof res === 'string') {
 							var float = string_utils.getNumericFeedValue(res);
 							if (float !== null)
-								res = new Decimal(res).times(1);
+								res = createDecimal(res);
 						}
 						if (isFiniteDecimal(res)) {
-							res = toDoubleRange(res);
 							vals.push(res);
 							cb2();
 						} else {
@@ -575,7 +575,7 @@ exports.evaluate = function (opts, callback) {
 							return cb(null, objResult.unit);
 						if (type === 'string')
 							return cb(null, objResult.value.toString());
-						return cb(null, (typeof objResult.value === 'string') ? objResult.value : new Decimal(objResult.value).times(1));
+						return cb(null, (typeof objResult.value === 'string') ? objResult.value : createDecimal(objResult.value));
 					}
 					if (params.ifnone && params.ifnone.value !== 'abort'){
 					//	console.log('===== ifnone=', params.ifnone.value, typeof params.ifnone.value);
@@ -934,7 +934,7 @@ exports.evaluate = function (opts, callback) {
 								if (type === 'auto') {
 									var f = string_utils.getNumericFeedValue(value);
 									if (f !== null)
-										value = toDoubleRange(new Decimal(value).times(1));
+										value = createDecimal(value);
 								}
 								return cb(value);
 							}
@@ -1102,7 +1102,7 @@ exports.evaluate = function (opts, callback) {
 					if (value === undefined || !locals.hasOwnProperty(var_name))
 						return cb(false);
 					if (typeof value === 'number')
-						value = new Decimal(value);
+						value = createDecimal(value);
 					if (!arrKeys)
 						return cb(value);
 					// from now on, selectors exist
@@ -1167,7 +1167,7 @@ exports.evaluate = function (opts, callback) {
 						if (var_name.length > constants.MAX_STATE_VAR_NAME_LENGTH)
 							return setFatalError("state var name too long: " + var_name, cb, false);
 					//	if (typeof res === 'boolean')
-					//		res = new Decimal(res ? 1 : 0);
+					//		res = res ? dec1 : dec0;
 						if (!stateVars[address])
 							stateVars[address] = {};
 					//	console.log('---- assignment_op', assignment_op)
@@ -1186,15 +1186,15 @@ exports.evaluate = function (opts, callback) {
 							}
 							else {
 								if (typeof value === 'boolean')
-									value = new Decimal(value ? 1 : 0);
+									value = value ? dec1 : dec0;
 								if (typeof res === 'boolean')
-									res = new Decimal(res ? 1 : 0);
+									res = res ? dec1 : dec0;
 								if (!Decimal.isDecimal(value))
 									return setFatalError("current value is not decimal: " + value, cb, false);
 								if (!Decimal.isDecimal(res))
 									return setFatalError("rhs is not decimal: " + res, cb, false);
 								if ((assignment_op === '+=' || assignment_op === '-=') && stateVars[address][var_name].old_value === undefined)
-									stateVars[address][var_name].old_value = new Decimal(0);
+									stateVars[address][var_name].old_value = dec0;
 								if (assignment_op === '+=')
 									value = value.plus(res);
 								else if (assignment_op === '-=')
@@ -1604,7 +1604,7 @@ exports.evaluate = function (opts, callback) {
 						var num = nominator.div(denominator); // float from 0 to 1
 						if (evaluated_params.length === 1)
 							return cb(num);
-						var min = new Decimal(0);
+						var min = dec0;
 						var max;
 						if (evaluated_params.length === 2)
 							max = evaluated_params[1];
@@ -1647,7 +1647,7 @@ exports.evaluate = function (opts, callback) {
 					if (typeof json === 'object')
 						return cb(new wrappedObject(json));
 					if (typeof json === 'number')
-						return evaluate(new Decimal(json).times(1), cb);
+						return evaluate(createDecimal(json), cb);
 					if (typeof json === 'string' || typeof json === 'boolean')
 						return cb(json);
 					throw Error("unknown type of json parse: " + (typeof json));
@@ -1984,7 +1984,7 @@ exports.evaluate = function (opts, callback) {
 			}
 			var f = string_utils.getNumericFeedValue(value);
 			if (f !== null)
-				value = toDoubleRange(new Decimal(value).times(1));
+				value = createDecimal(value);
 			stateVars[param_address][var_name] = {value: value, old_value: value, original_old_value: value};
 			cb2(value);
 		});
@@ -2011,8 +2011,11 @@ exports.evaluate = function (opts, callback) {
 				evaluate(key, function (evaluated_key) {
 					if (fatal_error)
 						return cb2(fatal_error);
-					if (Decimal.isDecimal(evaluated_key))
+					if (Decimal.isDecimal(evaluated_key)) {
 						evaluated_key = evaluated_key.toNumber();
+						if (!ValidationUtils.isNonnegativeInteger(evaluated_key))
+							return setFatalError("bad selector key: " + evaluated_key, cb2);
+					}
 					else if (typeof evaluated_key !== 'string')
 						return setFatalError("result of " + key + " is not a string or number: " + evaluated_key, cb2);
 					if (typeof evaluated_key === 'string')
@@ -2029,13 +2032,13 @@ exports.evaluate = function (opts, callback) {
 				if (typeof value === 'boolean')
 					cb(value);
 				else if (typeof value === 'number')
-					cb(new Decimal(value).times(1));
+					cb(createDecimal(value));
 				else if (typeof value === 'string') {
 					if (value.length > constants.MAX_AA_STRING_LENGTH)
 						return setFatalError("string value too long: " + value, cb, false);
 					// convert to number if possible
 					var f = string_utils.getNumericFeedValue(value);
-					(f === null) ? cb(value) : cb(toDoubleRange(new Decimal(value).times(1)));
+					(f === null) ? cb(value) : cb(createDecimal(value));
 				}
 				else if (typeof value === 'object')
 					cb(new wrappedObject(value));
