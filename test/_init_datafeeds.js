@@ -1,5 +1,6 @@
 var shell = require('child_process').execSync;
 var test = require('ava');
+var constants = require("../constants.js");
 var kvstore = require("../kvstore");
 var string_utils = require("../string_utils");
 var db = require("../db");
@@ -13,8 +14,9 @@ async function insertDataFeed(address, feed_name, value, mci, unit){
 		var strValue = null;
 		var numValue = null;
 		if (typeof value === 'string'){
+			var bLimitedPrecision = (mci < constants.aa2UpgradeMci);
 			strValue = value;
-			var float = string_utils.getNumericFeedValue(value);
+			var float = string_utils.toNumber(value, bLimitedPrecision);
 			if (float !== null)
 				numValue = string_utils.encodeDoubleInLexicograpicOrder(float);
 		}

@@ -65,6 +65,8 @@ exports.evaluate = function (opts, callback) {
 	if (!bAA && (bStatementsOnly || bStateVarAssignmentAllowed || bObjectResultAllowed))
 		throw Error("bad opts for non-AA");
 
+	var bLimitedPrecision = (objValidationState.last_ball_mci < constants.aa2UpgradeMci);
+
 	var parser = {};
 	if(cache[formula]){
 		parser.results = cache[formula];
@@ -151,7 +153,7 @@ exports.evaluate = function (opts, callback) {
 						if (typeof res === 'boolean')
 							res = res ? dec1 : dec0;
 						else if (typeof res === 'string' && (!constants.bTestnet || objValidationState.last_ball_mci > testnetStringToNumberInArithmeticUpgradeMci)) {
-							var float = string_utils.getNumericFeedValue(res);
+							var float = string_utils.toNumber(res, bLimitedPrecision);
 							if (float !== null)
 								res = createDecimal(res);
 						}
@@ -210,7 +212,7 @@ exports.evaluate = function (opts, callback) {
 					if (typeof res === 'boolean')
 						res = res ? dec1 : dec0;
 					else if (typeof res === 'string') {
-						var float = string_utils.getNumericFeedValue(res);
+						var float = string_utils.toNumber(res, bLimitedPrecision);
 						if (float !== null)
 							res = createDecimal(res);
 					}
@@ -240,7 +242,7 @@ exports.evaluate = function (opts, callback) {
 					if (typeof dp_res === 'boolean')
 						dp_res = dp_res ? dec1 : dec0;
 					else if (typeof dp_res === 'string') {
-						var float = string_utils.getNumericFeedValue(dp_res);
+						var float = string_utils.toNumber(dp_res, bLimitedPrecision);
 						if (float !== null)
 							dp_res = createDecimal(dp_res);
 					}
@@ -269,7 +271,7 @@ exports.evaluate = function (opts, callback) {
 						if (typeof res === 'boolean')
 							res = res ? dec1 : dec0;
 						else if (typeof res === 'string') {
-							var float = string_utils.getNumericFeedValue(res);
+							var float = string_utils.toNumber(res, bLimitedPrecision);
 							if (float !== null)
 								res = createDecimal(res);
 						}
@@ -295,7 +297,7 @@ exports.evaluate = function (opts, callback) {
 						if (typeof res === 'boolean')
 							res = res ? dec1 : dec0;
 						else if (typeof res === 'string') {
-							var float = string_utils.getNumericFeedValue(res);
+							var float = string_utils.toNumber(res, bLimitedPrecision);
 							if (float !== null)
 								res = createDecimal(res);
 						}
@@ -873,7 +875,7 @@ exports.evaluate = function (opts, callback) {
 									return cb(true);
 								var value = rows[0].value;
 								if (type === 'auto') {
-									var f = string_utils.getNumericFeedValue(value);
+									var f = string_utils.toNumber(value, bLimitedPrecision);
 									if (f !== null)
 										value = createDecimal(value);
 								}
@@ -1923,7 +1925,7 @@ exports.evaluate = function (opts, callback) {
 				stateVars[param_address][var_name] = {value: false};
 				return cb2(false);
 			}
-			if (objValidationState.last_ball_mci < constants.aa2UpgradeMci) {
+			if (bLimitedPrecision) {
 				value = value.toString();
 				var f = string_utils.getNumericFeedValue(value);
 				if (f !== null)
@@ -1985,7 +1987,7 @@ exports.evaluate = function (opts, callback) {
 					if (value.length > constants.MAX_AA_STRING_LENGTH)
 						return setFatalError("string value too long: " + value, cb, false);
 					// convert to number if possible
-					var f = string_utils.getNumericFeedValue(value);
+					var f = string_utils.toNumber(value, bLimitedPrecision);
 					(f === null) ? cb(value) : cb(createDecimal(value));
 				}
 				else if (typeof value === 'object')
@@ -2038,7 +2040,7 @@ exports.evaluate = function (opts, callback) {
 						if (search_value === null)
 							return (comp === '=' ? val === undefined : val !== undefined);
 						if (typeof val === 'string' && typeof search_value === 'number') {
-							var f = string_utils.getNumericFeedValue(val);
+							var f = string_utils.toNumber(val, bLimitedPrecision);
 							if (f !== null)
 								val = f;
 						}

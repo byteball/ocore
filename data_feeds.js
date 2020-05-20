@@ -2,6 +2,7 @@
 "use strict";
 var async = require('async');
 var _ = require('lodash');
+var constants = require('./constants.js');
 var kvstore = require('./kvstore.js');
 var string_utils = require('./string_utils.js');
 var storage = require('./storage.js');
@@ -10,6 +11,7 @@ var ValidationUtils = require("./validation_utils.js");
 
 function dataFeedExists(arrAddresses, feed_name, relation, value, min_mci, max_mci, bAA, handleResult){
 	var start_time = Date.now();
+	var bLimitedPrecision = (max_mci < constants.aa2UpgradeMci);
 	if (bAA) {
 		var bFound = false;
 		function relationSatisfied(v1, v2) {
@@ -53,8 +55,8 @@ function dataFeedExists(arrAddresses, feed_name, relation, value, min_mci, max_m
 						bFound = true;
 					return;
 				}
-				var f_value = (typeof value === 'string') ? string_utils.getNumericFeedValue(value) : value;
-				var f_feed_value = (typeof feed_value === 'string') ? string_utils.getNumericFeedValue(feed_value) : feed_value;
+				var f_value = (typeof value === 'string') ? string_utils.toNumber(value, bLimitedPrecision) : value;
+				var f_feed_value = (typeof feed_value === 'string') ? string_utils.toNumber(feed_value, bLimitedPrecision) : feed_value;
 				if (f_value === null && f_feed_value === null) { // both are strings that don't look like numbers
 					if (relationSatisfied(feed_value, value))
 						bFound = true;
@@ -101,7 +103,8 @@ function dataFeedByAddressExists(address, feed_name, relation, value, min_mci, m
 	var prefixed_value;
 	var type;
 	if (typeof value === 'string'){
-		var float = string_utils.getNumericFeedValue(value);
+		var bLimitedPrecision = (max_mci < constants.aa2UpgradeMci);
+		var float = string_utils.toNumber(value, bLimitedPrecision);
 		if (float !== null){
 			prefixed_value = 'n\n'+string_utils.encodeDoubleInLexicograpicOrder(float);
 			type = 'n';
@@ -267,7 +270,8 @@ function readDataFeedByAddress(address, feed_name, value, min_mci, max_mci, ifse
 	else{
 		var prefixed_value;
 		if (typeof value === 'string'){
-			var float = string_utils.getNumericFeedValue(value);
+			var bLimitedPrecision = (max_mci < constants.aa2UpgradeMci);
+			var float = string_utils.toNumber(value, bLimitedPrecision);
 			if (float !== null)
 				prefixed_value = 'n\n'+string_utils.encodeDoubleInLexicograpicOrder(float);
 			else

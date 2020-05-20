@@ -1447,7 +1447,8 @@ function markMcIndexStable(conn, batch, mci, onDone){
 										var numValue = null;
 										if (typeof value === 'string'){
 											strValue = value;
-											var float = string_utils.getNumericFeedValue(value);
+											var bLimitedPrecision = (mci < constants.aa2UpgradeMci);
+											var float = string_utils.toNumber(value, bLimitedPrecision);
 											if (float !== null)
 												numValue = string_utils.encodeDoubleInLexicograpicOrder(float);
 										}

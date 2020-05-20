@@ -76,6 +76,25 @@ function getValueFromDataFeedKey(key){
 	return (type === 's') ? value : decodeLexicographicToDouble(value);
 }
 
+// returns a number if the value looks like a valid float
+function toNumber(value, bLimitedPrecision) {
+	if (bLimitedPrecision)
+		return getNumericFeedValue(value);
+	if (typeof value !== 'string')
+		throw Error("toNumber of not a string: "+value);
+	var m = value.match(/^[+-]?(\d+(\.\d+)?)([eE][+-]?(\d+))?$/);
+	if (!m)
+		return null;
+	var f = parseFloat(value);
+	if (!isFinite(f))
+		return null;
+	var mantissa = m[1];
+	var abs_exp = m[4];
+	if (f === 0 && mantissa > 0 && abs_exp > 0) // too small number out of range such as 1.23e-700
+		return null;
+	return f;
+}
+
 function getNumericFeedValue(value, bBySignificantDigits){
 	if (typeof value !== 'string')
 		throw Error("getNumericFeedValue of not a string: "+value);
@@ -199,6 +218,7 @@ exports.getSourceString = getSourceString;
 exports.encodeMci = encodeMci;
 exports.getMciFromDataFeedKey = getMciFromDataFeedKey;
 exports.getValueFromDataFeedKey = getValueFromDataFeedKey;
+exports.toNumber = toNumber;
 exports.getNumericFeedValue = getNumericFeedValue;
 exports.getFeedValue = getFeedValue;
 exports.encodeDoubleInLexicograpicOrder = encodeDoubleInLexicograpicOrder;
