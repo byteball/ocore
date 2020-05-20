@@ -459,6 +459,10 @@ exports.validate = function (opts, callback) {
 				var arrKeys = arr[2];
 				if (typeof var_name_or_expr === 'number' || typeof var_name_or_expr === 'boolean' || Decimal.isDecimal(var_name_or_expr))
 					return cb('bad var name: ' + var_name_or_expr);
+				if (typeof var_name_or_expr === 'string') {
+					if (mci < constants.aa2UpgradeMci && var_name_or_expr[0] === '_')
+						return cb("leading underscores not allowed in var names yet");
+				}
 				if (!arrKeys)
 					return evaluate(var_name_or_expr, cb);
 				async.eachSeries(

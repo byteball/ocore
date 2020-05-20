@@ -75,7 +75,7 @@ function id(x) { return x[0]; }
 		trigger_data: /\btrigger\.data\b/,
 		trigger_output: /\btrigger\.output\b/,
 		dotSelector: /\.\w+/,
-		local_var_name: /\$[a-zA-Z]\w*\b/,
+		local_var_name: /\$[a-zA-Z_]\w*\b/,
 	//	search_field: /[a-zA-Z]\w*\b/,
 		semi: ';',
 		comma: ',',
