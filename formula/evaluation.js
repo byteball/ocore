@@ -24,9 +24,6 @@ var isFiniteDecimal = require('./common.js').isFiniteDecimal;
 var toDoubleRange = require('./common.js').toDoubleRange;
 var createDecimal = require('./common.js').createDecimal;
 
-if (!Number.MAX_SAFE_INTEGER)
-	Number.MAX_SAFE_INTEGER = Math.pow(2, 53) - 1; // 9007199254740991
-
 var testnetStringToNumberInArithmeticUpgradeMci = 1151000;
 
 var decimalE = new Decimal(Math.E);
@@ -1707,6 +1704,35 @@ exports.evaluate = function (opts, callback) {
 							else
 								throw Error("unknown type of length in substring: " + length);
 							cb(str.substr(start, length));
+						});
+					});
+				});
+				break;
+
+			case 'replace':
+				var str_expr = arr[1];
+				var search_expr = arr[2];
+				var replacement_expr = arr[3];
+				evaluate(str_expr, function (str) {
+					if (fatal_error)
+						return cb(false);
+					if (str instanceof wrappedObject)
+						str = true;
+					str = str.toString();
+					evaluate(search_expr, function (search_str) {
+						if (fatal_error)
+							return cb(false);
+						if (search_str instanceof wrappedObject)
+							search_str = true;
+						search_str = search_str.toString();
+						evaluate(replacement_expr, function (replacement) {
+							if (fatal_error)
+								return cb(false);
+							if (replacement instanceof wrappedObject)
+								replacement = true;
+							replacement = replacement.toString();
+							var parts = str.split(search_str);
+							cb(parts.join(replacement));
 						});
 					});
 				});

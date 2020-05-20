@@ -19,7 +19,8 @@ function evalFormulaWithVars(opts, callback) {
 		count_ops: 0,
 		bAA: true,
 		bStateVarAssignmentAllowed: opts.bStateVarAssignmentAllowed,
-		bStatementsOnly: opts.bStatementsOnly
+		bStatementsOnly: opts.bStatementsOnly,
+		mci: opts.objValidationState.last_ball_mci,
 	};
 	formulaParser.validate(val_opts, function(validation_res){
 		if (validation_res.error) {

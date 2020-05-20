@@ -2,6 +2,10 @@ var shell = require('child_process').execSync;
 var path = require('path');
 var crypto = require('crypto');
 var Mnemonic = require('bitcore-mnemonic');
+
+var constants = require("../constants.js");
+constants.aa2UpgradeMci = 0;
+
 var objectHash = require("../object_hash.js");
 var merkle = require('../merkle.js');
 var ecdsaSig = require('../signature.js');
@@ -19,11 +23,11 @@ var test = require('ava');
 require('./_init_datafeeds.js');
 
 function validateFormula(formula, complexity, cb) {
-	formulaParser.validate({formula: formula, complexity: complexity}, cb);
+	formulaParser.validate({formula: formula, complexity: complexity, mci: Number.MAX_SAFE_INTEGER}, cb);
 }
 
 function evalFormula(conn, formula, messages, objValidationState, address, callback){
-	formulaParser.validate({ formula: formula, complexity: 1, count_ops: 0 }, function (res) {
+	formulaParser.validate({ formula: formula, complexity: 1, count_ops: 0, mci: objValidationState.last_ball_mci }, function (res) {
 		console.log('validation: ', res);
 		if (res.error)
 			return callback(null);
@@ -45,7 +49,7 @@ function evalFormula(conn, formula, messages, objValidationState, address, callb
 }
 
 function evalAAFormula(conn, formula, trigger, objValidationState, address, callback){
-	formulaParser.validate({ formula: formula, complexity: 1, count_ops: 0, bAA: true }, function(validation_res){
+	formulaParser.validate({ formula: formula, complexity: 1, count_ops: 0, bAA: true, mci: objValidationState.last_ball_mci }, function(validation_res){
 		if (validation_res.error) {
 			console.log("validation failed", validation_res);
 			return callback(null);
@@ -76,7 +80,8 @@ function evalFormulaWithVars(opts, callback) {
 		count_ops: 0,
 		bAA: true,
 		bStateVarAssignmentAllowed: opts.bStateVarAssignmentAllowed,
-		bStatementsOnly: opts.bStatementsOnly
+		bStatementsOnly: opts.bStatementsOnly,
+		mci: opts.objValidationState.last_ball_mci,
 	};
 	formulaParser.validate(val_opts, function(validation_res){
 		if (validation_res.error) {
@@ -2333,6 +2338,42 @@ test('substring with string index', t => {
 	var stateVars = {};
 	evalFormulaWithVars({ conn: null, formula: `substring("abcd", 'd'||'')`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
 		t.deepEqual(res, null);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('replace', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: 'xx', ww: '.'}  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `replace("abxxcdxx", trigger.data.z, trigger.data.ww)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, "ab.cd.");
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('replace number', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: 8, ww: 5}  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `replace("8ab8cd8", trigger.data.z, trigger.data.ww)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, "5ab5cd5");
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('replace to object', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: 'xx', ww: {dd: 'h', aa: 8}}  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `replace("abxxcdxx", trigger.data.z, trigger.data.ww)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, "abtruecdtrue");
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('replace none', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: 'xx', ww: 'w'}  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `replace("abxcdx", trigger.data.z, trigger.data.ww)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, "abxcdx");
 		t.deepEqual(complexity, 1);
 	})
 });

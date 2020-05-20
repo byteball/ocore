@@ -19,7 +19,7 @@ var isValidAddress = ValidationUtils.isValidAddress;
 var isValidBase64 = ValidationUtils.isValidBase64;
 
 
-function validateAADefinition(arrDefinition, callback) {
+function validateAADefinition(arrDefinition, mci, callback) {
 
 
 	function validateMessage(message, cb) {
@@ -577,7 +577,8 @@ function validateAADefinition(arrDefinition, callback) {
 			count_ops: count_ops,
 			bAA: true,
 			bStatementsOnly: bStatementsOnly,
-			bStateVarAssignmentAllowed: bStateVarAssignmentAllowed
+			bStateVarAssignmentAllowed: bStateVarAssignmentAllowed,
+			mci: mci,
 		};
 	//	console.log('--- validateFormula', formula);
 		formulaValidator.validate(opts, function (result) {
@@ -596,6 +597,10 @@ function validateAADefinition(arrDefinition, callback) {
 		});
 	}
 
+	if (callback === undefined) { // 2 arguments
+		callback = mci;
+		mci = Number.MAX_SAFE_INTEGER;
+	}
 	var complexity = 0;
 	var count_ops = 0;
 	if (!isArrayOfLength(arrDefinition, 2))

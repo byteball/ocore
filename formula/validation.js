@@ -212,6 +212,7 @@ exports.validate = function (opts, callback) {
 	var bAA = opts.bAA;
 	var complexity = opts.complexity;
 	var count_ops = opts.count_ops;
+	var mci = opts.mci;
 
 	var parser = {};
 	try {
@@ -777,6 +778,23 @@ exports.validate = function (opts, callback) {
 						if (err)
 							return cb(err);
 						length ? evaluate(length, cb) : cb();
+					});
+				});
+				break;
+
+			case 'replace':
+				if (mci < constants.aa2UpgradeMci)
+					return cb("replace function not supported yet");
+				var str = arr[1];
+				var search_str = arr[2];
+				var replacement = arr[3];
+				evaluate(str, function (err) {
+					if (err)
+						return cb(err);
+					evaluate(search_str, function (err) {
+						if (err)
+							return cb(err);
+						evaluate(replacement, cb);
 					});
 				});
 				break;

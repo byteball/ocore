@@ -7,6 +7,9 @@ if (typeof process === 'object' && typeof process.versions === 'object' && typeo
 	require('dotenv').config({path: appRootDir + '/.env'});
 }
 
+if (!Number.MAX_SAFE_INTEGER)
+	Number.MAX_SAFE_INTEGER = Math.pow(2, 53) - 1; // 9007199254740991
+
 exports.COUNT_WITNESSES = 12;
 exports.MAX_WITNESS_LIST_MUTATIONS = 1;
 exports.TOTAL_WHITEBYTES = 1e15;
