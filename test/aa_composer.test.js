@@ -151,6 +151,8 @@ test.cb.serial('chain of AAs', t => {
 				state: `{
 					var['who'] = trigger.address || timestamp;
 					var['initial'] = trigger.initial_address || timestamp;
+					var['large_num2'] = var[trigger.address]['large_num'] + 1;
+					var['long_num2'] = var[trigger.address]['long_num'] + 1;
 				}`
 			}
 		]
@@ -175,6 +177,8 @@ test.cb.serial('chain of AAs', t => {
 				state: `{
 					var['who'] = trigger.address || timestamp;
 					var['initial'] = trigger.initial_address || timestamp;
+					var['large_num'] = 1e15;
+					var['long_num'] = 0.000678901234567;
 				}`
 			}
 		]
@@ -191,10 +195,14 @@ test.cb.serial('chain of AAs', t => {
 		t.deepEqual(arrResponses[0].updatedStateVars[primary_address], {
 			who: { value: trigger_address + arrResponses[0].objResponseUnit.timestamp },
 			initial: { value: trigger_address + arrResponses[0].objResponseUnit.timestamp },
+			large_num: { value: 1e15 },
+			long_num: { value: 0.000678901234567 },
 		});
 		t.deepEqual(arrResponses[0].updatedStateVars[secondary_address], {
 			who: { value: primary_address + arrResponses[1].objResponseUnit.timestamp },
 			initial: { value: trigger_address + arrResponses[1].objResponseUnit.timestamp },
+			large_num2: { value: 1e15 }, // the same due to loss of precision
+			long_num2: { value: 1.00067890123457 }, // rounded to 15 significant digits (but uses cached vars)
 		});
 		
 		t.deepEqual(arrResponses[1].aa_address, secondary_address);

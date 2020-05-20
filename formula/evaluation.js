@@ -1923,9 +1923,16 @@ exports.evaluate = function (opts, callback) {
 				stateVars[param_address][var_name] = {value: false};
 				return cb2(false);
 			}
-			var f = string_utils.getNumericFeedValue(value);
-			if (f !== null)
-				value = createDecimal(value);
+			if (objValidationState.last_ball_mci < constants.aa2UpgradeMci) {
+				value = value.toString();
+				var f = string_utils.getNumericFeedValue(value);
+				if (f !== null)
+					value = createDecimal(value);
+			}
+			else {
+				if (typeof value === 'number')
+					value = createDecimal(value);
+			}
 			stateVars[param_address][var_name] = {value: value, old_value: value, original_old_value: value};
 			cb2(value);
 		});

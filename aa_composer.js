@@ -1017,9 +1017,18 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 				if (state.value === false) // false value signals that the var should be deleted
 					batch.del(key);
 				else
-					batch.put(key, state.value.toString()); // Decimal converted to string
+					batch.put(key, getType(state.value) + "\n" + state.value.toString()); // Decimal converted to string
 			}
 		}
+	}
+
+	function getType(value) {
+		if (typeof value === 'string')
+			return 's';
+		else if (typeof value === 'number' || Decimal.isDecimal(value))
+			return 'n';
+		else
+			throw Error("state var of unknown type: " + value);	
 	}
 
 	function updateStorageSize(cb) {
@@ -1352,7 +1361,7 @@ function checkStorageSizes() {
 				var var_name = data.key.substr(36);
 				if (!assocSizes[address])
 					assocSizes[address] = 0;
-				assocSizes[address] += var_name.length + data.value.length;
+				assocSizes[address] += var_name.length + data.value.length - 2; // -2 for type and \n
 			}
 			var stream = kvstore.createReadStream(options);
 			stream.on('data', handleData)

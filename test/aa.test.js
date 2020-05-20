@@ -2,6 +2,10 @@ var shell = require('child_process').execSync;
 var path = require('path');
 var crypto = require('crypto');
 var Mnemonic = require('bitcore-mnemonic');
+
+var constants = require("../constants.js");
+constants.aa2UpgradeMci = 0;
+
 var objectHash = require("../object_hash.js");
 var ecdsaSig = require('../signature.js');
 var desktop_app = require('../desktop_app.js');
@@ -666,7 +670,10 @@ test.cb.serial('compose complex AA', t => {
 						},
 						{
 							app: 'state',
-							state: "{ $c=3*$a; var['z'] = $c/200; }" // c=900, var[z] = 4.5
+							state: `{
+								$c=3 * $a; var['z'] = $c / 200;
+								var['long_num2'] = var['I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT']['price'] + 1; // should fail before aa2UpgradeMci
+							}` // c=900, var[z] = 4.5
 						}
 					]
 				},
@@ -693,6 +700,7 @@ test.cb.serial('compose complex AA', t => {
 			t.deepEqual(!!bPosted, true);
 			t.deepEqual(bBounced, false);
 			t.deepEqual(stateVars[address]['z'].value.toNumber(), 4.5);
+			t.deepEqual(stateVars[address]['long_num2'].value.toNumber(), 1.00067890123457);
 			t.deepEqual(objUnit.messages.find(function (message) { return (message.app === 'payment'); }).payload.outputs.find(function (output) { return (output.address === trigger.address); }).amount, 18150);
 			t.deepEqual(objUnit.messages.find(function (message) { return (message.app === 'data'); }).payload.zzz, undefined);
 			t.deepEqual(objUnit.messages.find(function (message) { return (message.app === 'data'); }).payload.val_300, 80000);

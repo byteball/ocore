@@ -836,9 +836,27 @@ function insertAADefinitions(conn, arrPayloads, unit, mci, bForAAsOnly, onDone) 
 	);
 }
 
+function parseStateVar(type_and_value) {
+	var arrParts = type_and_value.split("\n", 2);
+	if (arrParts.length !== 2)
+		throw Error("bad value: " + type_and_value);
+	var type = arrParts[0];
+	var value = arrParts[1];
+	if (type === 's')
+		return value;
+	else if (type === 'n')
+		return parseFloat(value);
+	else
+		throw Error("unknown type in " + type_and_value);
+}
+
 function readAAStateVar(address, var_name, handleResult) {
 	var kvstore = require('./kvstore.js');
-	kvstore.get("st\n" + address + "\n" + var_name, handleResult);
+	kvstore.get("st\n" + address + "\n" + var_name, function (type_and_value) {
+		if (type_and_value === undefined)
+			return handleResult();
+		handleResult(parseStateVar(type_and_value));
+	});
 }
 
 function readAAStateVars(address, var_prefix_from, var_prefix_to, limit, handle) {
@@ -856,7 +874,7 @@ function readAAStateVars(address, var_prefix_from, var_prefix_to, limit, handle)
 
 	var objStateVars = {}
 	var handleData = function (data){
-		objStateVars[data.key.slice(36)] = data.value;
+		objStateVars[data.key.slice(36)] = parseStateVar(data.value);
 	}
 	var kvstore = require('./kvstore.js');
 	var stream = kvstore.createReadStream(options);
