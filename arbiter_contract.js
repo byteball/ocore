@@ -64,6 +64,11 @@ function store(objContract, cb) {
 		placeholders += ', ?';
 		values.push(objContract.shared_address);
 	}
+	if (objContract.unit) {
+		fields += ', unit';
+		placeholders += ', ?';
+		values.push(objContract.unit);
+	}
 	fields += ')';
 	placeholders += ')';
 	db.query("INSERT "+db.getIgnore()+" INTO arbiter_contracts "+fields+" VALUES "+placeholders, values, function(res) {
@@ -118,13 +123,15 @@ function openDispute(hash, cb) {
 					var my_pairing_code = pairingInfo.device_pubkey + "@" + pairingInfo.hub + "#" + pairingInfo.pairing_secret;
 					var data = JSON.stringify({
 						contract_hash: hash,
-						arbiter_address: objContract.arbiter_address,
+						unit: objContract.unit,
 						my_address: objContract.my_address,
 						peer_address: objContract.peer_address,
 						me_is_payer: objContract.me_is_payer,
 						my_pairing_code: my_pairing_code,
 						peer_pairing_code: objContract.peer_pairing_code,
-						encrypted_contract: device.createEncryptedPackage({title: objContract.title, text: objContract.text, amount:objContract.amount, creation_date: objContract.creation_date}, objArbiter.device_pub_key)
+						encrypted_contract: device.createEncryptedPackage({title: objContract.title, text: objContract.text, creation_date: objContract.creation_date}, objArbiter.device_pub_key),
+						my_contact_info: objContract.my_contact_info,
+						peer_contact_info: objContract.peer_contact_info
 					});
 					var req = http.request({
 						hostname: host,
@@ -140,7 +147,15 @@ function openDispute(hash, cb) {
 							data += chunk;
 						});
 						resp.on('end', function(){
-							cb(null, data);
+							try {
+								data = JSON.parse(data);
+								if (data.error) {
+									return cb(data.error);
+								}
+								cb(null, data);
+							} catch (e) {
+								cb(e);
+							}
 						});
 					}).on("error", cb);
 					req.write(data);

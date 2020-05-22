@@ -750,6 +750,17 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				callbacks.ifOk();
 			});
 			break;
+		case 'arbiter_dispute_request':
+			var contractContent = device.decryptPackage(body.encrypted_contract);
+			if (!contractContent || !contractContent.creation_date || !contractContent.title || !contractContent.text)
+				return callbacks.ifError("wrong contract content");
+			if (conf.bLight)
+				network.requestHistoryFor([body.unit], [], function(){});
+			body.contract_content = contractContent;
+			var chat_message = "(arbiter-dispute:" + Buffer.from(JSON.stringify(body), 'utf8').toString('base64') + ")";
+				eventBus.emit("text", from_address, chat_message, ++message_counter);
+				callbacks.ifOk();
+			break;
 			
 		default:
 			callbacks.ifError("unknnown subject: "+subject);
