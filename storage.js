@@ -37,6 +37,19 @@ var assocUnstableMessages = {};
 var min_retrievable_mci = null;
 initializeMinRetrievableMci();
 
+function readUnit(unit, cb) {
+	if (!cb)
+		return new Promise(resolve => readUnit(unit, resolve));
+	readJoint(db, unit, {
+		ifFound: function (objJoint) {
+			cb(objJoint.unit);
+		},
+		ifNotFound: function () {
+			cb(null);
+		}
+	});
+}
+
 function readJointJsonFromStorage(conn, unit, cb) {
 	var kvstore = require('./kvstore.js');
 	if (!bCordova)
@@ -53,7 +66,8 @@ function readJoint(conn, unit, callbacks, bSql) {
 		if (!strJoint)
 			return callbacks.ifNotFound();
 		var objJoint = JSON.parse(strJoint);
-		if (!isCorrectHash(objJoint.unit, unit))
+		// light wallets don't have last_ball, don't verify their hashes
+		if (!conf.bLight && !isCorrectHash(objJoint.unit, unit))
 			throw Error("wrong hash of unit "+unit);
 		conn.query("SELECT main_chain_index, "+conn.getUnixTimestamp("creation_date")+" AS timestamp FROM units WHERE unit=?", [unit], function(rows){
 			if (rows.length === 0)
@@ -550,6 +564,7 @@ function isCorrectHash(objUnit, unit){
 		return (objectHash.getUnitHash(objUnit) === unit);
 	}
 	catch(e){
+		//throw Error(e.message);
 		console.log('storage.isCorrectHash: '+ e.message);
 		return false;
 	}
@@ -1149,7 +1164,7 @@ function archiveJointAndDescendants(from_unit){
 	db.executeInTransaction(function doWork(conn, cb){
 		
 		function addChildren(arrParentUnits){
-			conn.query("SELECT DISTINCT child_unit FROM parenthoods WHERE parent_unit IN(?)", [arrParentUnits], function(rows){
+			conn.query("SELECT DISTINCT child_unit FROM parenthoods WHERE parent_unit IN(" + arrParentUnits.map(db.escape).join(', ') + ")", function(rows){
 				if (rows.length === 0)
 					return archive();
 				var arrChildUnits = rows.map(function(row){ return row.child_unit; });
@@ -1786,6 +1801,7 @@ exports.determineIfWitnessAddressDefinitionsHaveReferences = determineIfWitnessA
 exports.readUnitProps = readUnitProps;
 exports.readPropsOfUnits = readPropsOfUnits;
 
+exports.readUnit = readUnit;
 exports.readJoint = readJoint;
 exports.readJointWithBall = readJointWithBall;
 exports.readFreeJoints = readFreeJoints;

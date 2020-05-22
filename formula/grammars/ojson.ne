@@ -10,7 +10,7 @@ const lexer = moo.states({
 		formulaDoubleStart: { match: '"{', push: 'formulaDouble' },
 		formulaSingleStart: { match: "'{", push: 'formulaSingle' },
 		formulaBackStart: { match: '`{', push: 'formulaBack' },
-		decimal: /(?:[+-])?(?:[0-9]*[.])?[0-9]+/,
+		decimal: /(?:[+-])?(?:[0-9]|[1-9][0-9]+)(?:\.[0-9]+)?(?:[eE][-+]?[0-9]+)?\b/,
 		word: {
 			match: /[a-zA-Z0-9_]+/,
 			type: moo.keywords({

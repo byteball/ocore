@@ -76,7 +76,12 @@ function parseAndValidatePrivateProfile(objPrivateProfile, onDone){
 			eventBus.once('saved_unit-'+objPrivateProfile.unit, handleJoint);
 			var network = require('./network.js');
 			if (conf.bLight)
-				network.requestHistoryFor([objPrivateProfile.unit], []);
+				network.requestHistoryFor([objPrivateProfile.unit], [], function(err) {
+					if (err) {
+						eventBus.removeListener('saved_unit-'+objPrivateProfile.unit, handleJoint);
+						return onDone(err);
+					}
+				});
 		},
 		ifFound: handleJoint
 	});

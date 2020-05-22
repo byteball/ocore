@@ -1575,6 +1575,8 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 			return callback("unknown fields in payment output");
 		if (!isPositiveInteger(output.amount))
 			return callback("amount must be positive integer, found "+output.amount);
+		if (output.amount > constants.MAX_CAP)
+			return callback("output too large: " + output.amount);
 		if (objAsset && objAsset.fixed_denominations && output.amount % denomination !== 0)
 			return callback("output amount must be divisible by denomination");
 		if (objAsset && objAsset.is_private){
@@ -1610,6 +1612,8 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 		if (output.address && arrOutputAddresses.indexOf(output.address) === -1)
 			arrOutputAddresses.push(output.address);
 		total_output += output.amount;
+		if (total_output > constants.MAX_CAP)
+			return callback("total output too large: " + total_output);
 	}
 	if (objAsset && objAsset.is_private && count_open_outputs !== 1)
 		return callback("found "+count_open_outputs+" open outputs, expected 1");
@@ -1726,6 +1730,8 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 						return cb("unknown fields in issue input");
 					if (!isPositiveInteger(input.amount))
 						return cb("amount must be positive");
+					if (input.amount > constants.MAX_CAP)
+						return cb("issue ampunt too large: " + input.amount)
 					if (!isPositiveInteger(input.serial_number))
 						return cb("serial_number must be positive");
 					if (!objAsset || objAsset.cap){
@@ -2009,6 +2015,8 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 			console.log("inputs done "+payload.asset, arrInputAddresses, arrOutputAddresses);
 			if (err)
 				return callback(err);
+			if (total_input > constants.MAX_CAP)
+				return callback("total input too large: " + total_input);
 			if (objAsset){
 				if (total_input !== total_output)
 					return callback("inputs and outputs do not balance: "+total_input+" !== "+total_output);
