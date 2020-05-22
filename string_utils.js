@@ -69,7 +69,7 @@ function getMciFromDataFeedKey(key){
 // df:address:feed_name:type:value:strReversedMci
 function getValueFromDataFeedKey(key){
 	var m = key.split('\n');
-	if (m.length !== 5)
+	if (m.length !== 6)
 		throw Error("wrong number of elements in data feed "+key);
 	var type = m[3];
 	var value = m[4];

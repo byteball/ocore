@@ -1631,7 +1631,7 @@ eventBus.on('aa_definition_saved', function (payload, unit) {
 			return;
 		storage.readJoint(db, unit, {
 			ifNotFound: function () {
-				throw Error('recently saved unit ' + unit + ' not found');
+				console.log('recently saved unit ' + unit + ' not found');
 			},
 			ifFound: function (objJoint) {
 				arrWses.forEach(function (ws) {
@@ -2449,8 +2449,11 @@ function handleJustsaying(ws, subject, body){
 			if (ws.bAdvertisedOwnUrl) // allow it only once per connection
 				break;
 			ws.bAdvertisedOwnUrl = true;
-			if (url.indexOf('ws://') !== 0 && url.indexOf('wss://') !== 0) // invalid url
+			var regexp = (conf.WS_PROTOCOL === 'wss://') ? /^wss:\/\// : /^wss?:\/\//;
+			if (!url.match(regexp)) {
+				console.log("ignoring peer's my_url " + url + " because of incompatible ws protocol");
 				break;
+			}
 			ws.claimed_url = url;
 			db.query("SELECT creation_date AS latest_url_change_date, url FROM peer_host_urls WHERE peer_host=? ORDER BY creation_date DESC LIMIT 1", [ws.host], function(rows){
 				var latest_change = rows[0];
@@ -2543,7 +2546,8 @@ function handleJustsaying(ws, subject, body){
 						finishLogin();
 					});
 				else {
-					sendStoredDeviceMessages(ws, ws.device_address);
+					if (!ws.blockChat)
+						sendStoredDeviceMessages(ws, ws.device_address);
 					finishLogin();
 				}
 			});
@@ -2614,6 +2618,7 @@ function handleJustsaying(ws, subject, body){
 		case 'light/aa_request':
 		case 'light/aa_definition':
 		case 'light/aa_response':
+		case 'light/aa_definition_saved':
 			if (!conf.bLight)
 				return sendError(ws, "I'm not light");
 			if (!ws.bLightVendor)
@@ -2888,7 +2893,7 @@ function handleRequest(ws, tag, command, params){
 					function(){
 						// if the addressee is connected, deliver immediately
 						wss.clients.concat(arrOutboundPeers).forEach(function(client){
-							if (client.device_address === objDeviceMessage.to && (!client.max_message_length || message_string.length <= client.max_message_length) && !ws.blockChat) {
+							if (client.device_address === objDeviceMessage.to && (!client.max_message_length || message_string.length <= client.max_message_length) && !client.blockChat) {
 								sendJustsaying(client, 'hub/message', {
 									message_hash: message_hash,
 									message: objDeviceMessage

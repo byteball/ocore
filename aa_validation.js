@@ -631,7 +631,7 @@ function validateAADefinition(arrDefinition, callback) {
 			return callback("too small base bounce fee: "+template.bounce_fees.base);
 	}
 	if ('doc_url' in template && !isNonemptyString(template.doc_url))
-		return callback("invalid doc_url: " + templace.doc_url);
+		return callback("invalid doc_url: " + template.doc_url);
 	if ('init' in template) {
 		if (!ValidationUtils.isNonemptyString(template.init))
 			return callback("init is not a string");

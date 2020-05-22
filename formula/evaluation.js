@@ -22,6 +22,7 @@ var objBaseAssetInfo = require('./common.js').objBaseAssetInfo;
 
 var isFiniteDecimal = require('./common.js').isFiniteDecimal;
 var toDoubleRange = require('./common.js').toDoubleRange;
+var createDecimal = require('./common.js').createDecimal;
 
 if (!Number.MAX_SAFE_INTEGER)
 	Number.MAX_SAFE_INTEGER = Math.pow(2, 53) - 1; // 9007199254740991
@@ -30,6 +31,8 @@ var testnetStringToNumberInArithmeticUpgradeMci = 1151000;
 
 var decimalE = new Decimal(Math.E);
 var decimalPi = new Decimal(Math.PI);
+var dec0 = new Decimal(0);
+var dec1 = new Decimal(1);
 
 function isValidValue(val){
 	return (typeof val === 'string' || typeof val === 'boolean' || isFiniteDecimal(val));
@@ -146,11 +149,11 @@ exports.evaluate = function (opts, callback) {
 						if (res instanceof wrappedObject)
 							res = true;
 						if (typeof res === 'boolean')
-							res = new Decimal(res ? 1 : 0);
+							res = res ? dec1 : dec0;
 						else if (typeof res === 'string' && (!constants.bTestnet || objValidationState.last_ball_mci > testnetStringToNumberInArithmeticUpgradeMci)) {
 							var float = string_utils.getNumericFeedValue(res);
 							if (float !== null)
-								res = new Decimal(res).times(1);
+								res = createDecimal(res);
 						}
 						if (isFiniteDecimal(res)) {
 							res = toDoubleRange(res);
@@ -205,14 +208,13 @@ exports.evaluate = function (opts, callback) {
 					if (res instanceof wrappedObject)
 						res = true;
 					if (typeof res === 'boolean')
-						res = new Decimal(res ? 1 : 0);
+						res = res ? dec1 : dec0;
 					else if (typeof res === 'string') {
 						var float = string_utils.getNumericFeedValue(res);
 						if (float !== null)
-							res = new Decimal(res).times(1);
+							res = createDecimal(res);
 					}
 					if (isFiniteDecimal(res)) {
-						res = toDoubleRange(res);
 						if (op === 'abs')
 							return cb(toDoubleRange(res.abs()));
 						if (res.isNegative())
@@ -229,18 +231,18 @@ exports.evaluate = function (opts, callback) {
 			case 'round':
 				var dp = arr[2];
 				if (!dp)
-					dp = new Decimal(0);
+					dp = dec0;
 				evaluate(dp, function(dp_res){
 					if (fatal_error)
 						return cb(false);
 					if (dp_res instanceof wrappedObject)
 						dp_res = true;
 					if (typeof dp_res === 'boolean')
-						dp_res = new Decimal(dp_res ? 1 : 0);
+						dp_res = dp_res ? dec1 : dec0;
 					else if (typeof dp_res === 'string') {
 						var float = string_utils.getNumericFeedValue(dp_res);
 						if (float !== null)
-							dp_res = toDoubleRange(new Decimal(dp_res).times(1));
+							dp_res = createDecimal(dp_res);
 					}
 					if (Decimal.isDecimal(dp_res) && dp_res.isInteger() && !dp_res.isNegative() && dp_res.lte(15))
 						dp = dp_res;
@@ -265,14 +267,13 @@ exports.evaluate = function (opts, callback) {
 						if (res instanceof wrappedObject)
 							res = true;
 						if (typeof res === 'boolean')
-							res = new Decimal(res ? 1 : 0);
+							res = res ? dec1 : dec0;
 						else if (typeof res === 'string') {
 							var float = string_utils.getNumericFeedValue(res);
 							if (float !== null)
-								res = new Decimal(res).times(1);
+								res = createDecimal(res);
 						}
 						if (isFiniteDecimal(res)) {
-							res = toDoubleRange(res);
 							evaluate(res.toDecimalPlaces(dp.toNumber(), roundingMode), cb);
 						} else {
 							return setFatalError('not a decimal in '+op, cb, false);
@@ -292,14 +293,13 @@ exports.evaluate = function (opts, callback) {
 						if (res instanceof wrappedObject)
 							res = true;
 						if (typeof res === 'boolean')
-							res = new Decimal(res ? 1 : 0);
+							res = res ? dec1 : dec0;
 						else if (typeof res === 'string') {
 							var float = string_utils.getNumericFeedValue(res);
 							if (float !== null)
-								res = new Decimal(res).times(1);
+								res = createDecimal(res);
 						}
 						if (isFiniteDecimal(res)) {
-							res = toDoubleRange(res);
 							vals.push(res);
 							cb2();
 						} else {
@@ -521,128 +521,69 @@ exports.evaluate = function (opts, callback) {
 
 			case 'data_feed':
 
-			function getDataFeed(params, cb) {
-				if (typeof params.oracles.value !== 'string')
-					return cb("oracles not a string "+params.oracles.value);
-				var arrAddresses = params.oracles.value.split(':');
-				if (!arrAddresses.every(ValidationUtils.isValidAddress))
-					return cb("bad oracles "+arrAddresses);
-				var feed_name = params.feed_name.value;
-				if (!feed_name || typeof feed_name !== 'string')
-					return cb("empty feed_name or not a string");
-				var value = null;
-				var relation = '';
-				var min_mci = 0;
-				if (params.feed_value) {
-					value = params.feed_value.value;
-					relation = params.feed_value.operator;
-					if (!isValidValue(value))
-						return cb("bad feed_value: "+value);
-				}
-				if (params.min_mci) {
-					min_mci = params.min_mci.value.toString();
-					if (!(/^\d+$/.test(min_mci) && ValidationUtils.isNonnegativeInteger(parseInt(min_mci))))
-						return cb("bad min_mci: "+min_mci);
-					min_mci = parseInt(min_mci);
-				}
-				var ifseveral = 'last';
-				if (params.ifseveral){
-					ifseveral = params.ifseveral.value;
-					if (ifseveral !== 'abort' && ifseveral !== 'last')
-						return cb("bad ifseveral: "+ifseveral);
-				}
-				var what = 'value';
-				if (params.what){
-					what = params.what.value;
-					if (what !== 'unit' && what !== 'value')
-						return cb("bad what: "+what);
-				}
-				var type = 'auto';
-				if (params.type){
-					type = params.type.value;
-					if (type !== 'string' && type !== 'auto')
-						return cb("bad df type: "+type);
-				}
-				if (params.ifnone && !isValidValue(params.ifnone.value))
-					return cb("bad ifnone: "+params.ifnone.value);
-				dataFeeds.readDataFeedValue(arrAddresses, feed_name, value, min_mci, objValidationState.last_ball_mci, bAA, ifseveral, function(objResult){
-				//	console.log(arrAddresses, feed_name, value, min_mci, ifseveral);
-				//	console.log('---- objResult', objResult);
-					if (objResult.bAbortedBecauseOfSeveral)
-						return cb("several values found");
-					if (objResult.value !== undefined){
-						if (what === 'unit')
-							return cb(null, objResult.unit);
-						if (type === 'string')
-							return cb(null, objResult.value.toString());
-						return cb(null, (typeof objResult.value === 'string') ? objResult.value : new Decimal(objResult.value).times(1));
+				function getDataFeed(params, cb) {
+					if (typeof params.oracles.value !== 'string')
+						return cb("oracles not a string "+params.oracles.value);
+					var arrAddresses = params.oracles.value.split(':');
+					if (!arrAddresses.every(ValidationUtils.isValidAddress))
+						return cb("bad oracles "+arrAddresses);
+					var feed_name = params.feed_name.value;
+					if (!feed_name || typeof feed_name !== 'string')
+						return cb("empty feed_name or not a string");
+					var value = null;
+					var relation = '';
+					var min_mci = 0;
+					if (params.feed_value) {
+						value = params.feed_value.value;
+						relation = params.feed_value.operator;
+						if (!isValidValue(value))
+							return cb("bad feed_value: "+value);
 					}
-					if (params.ifnone && params.ifnone.value !== 'abort'){
-					//	console.log('===== ifnone=', params.ifnone.value, typeof params.ifnone.value);
-						return cb(null, params.ifnone.value); // the type of ifnone (string, decimal, boolean) is preserved
+					if (params.min_mci) {
+						min_mci = params.min_mci.value.toString();
+						if (!(/^\d+$/.test(min_mci) && ValidationUtils.isNonnegativeInteger(parseInt(min_mci))))
+							return cb("bad min_mci: "+min_mci);
+						min_mci = parseInt(min_mci);
 					}
-					cb("data feed " + feed_name + " not found");
-				});
-				/*
-				var ifseveral = 'ORDER BY main_chain_index DESC';
-				var abortIfSeveral = false;
-				if (params.ifseveral) {
-					if (params.ifseveral.value === 'first') {
-						ifseveral = 'ORDER BY main_chain_index ASC';
-					} else if (params.ifseveral.value === 'abort') {
-						ifseveral = '';
-						abortIfSeveral = true;
+					var ifseveral = 'last';
+					if (params.ifseveral){
+						ifseveral = params.ifseveral.value;
+						if (ifseveral !== 'abort' && ifseveral !== 'last')
+							return cb("bad ifseveral: "+ifseveral);
 					}
-				}
-				var ifnone = false;
-				if (params.ifnone && params.ifnone.value !== 'abort') {
-					ifnone = params.ifnone.value;
-				}
-
-				var value_condition = '';
-				var queryParams = [arrAddresses, feed_name];
-				if (value) {
-					if (Decimal.isDecimal(value)) {
-						var bForceNumericComparison = (['>', '>=', '<', '<='].indexOf(relation) >= 0);
-						var plus_0 = bForceNumericComparison ? '+0' : '';
-						value_condition = '(value' + plus_0 + relation + value.toString() +
-							' OR int_value' + relation + value.toString() + ')';
+					var what = 'value';
+					if (params.what){
+						what = params.what.value;
+						if (what !== 'unit' && what !== 'value')
+							return cb("bad what: "+what);
 					}
-					else {
-						value_condition = 'value' + relation + '?';
-						queryParams.push(value);
+					var type = 'auto';
+					if (params.type){
+						type = params.type.value;
+						if (type !== 'string' && type !== 'auto')
+							return cb("bad df type: "+type);
 					}
-				}
-				if (params.mci) {
-					queryParams.push(objValidationState.last_ball_mci, min_mci);
-				}
-				conn.query(
-					"SELECT value, int_value FROM data_feeds CROSS JOIN units USING(unit) CROSS JOIN unit_authors USING(unit) \n\
-							WHERE address IN(?) AND feed_name=? " + (value_condition ? ' AND ' + value_condition : '') + " \n\
-							AND " + (params.mci ? "main_chain_index<=? AND main_chain_index" + mci_relation + "? " : '') + " \n\
-							AND sequence='good' AND is_stable=1 " + ifseveral + " LIMIT " + (abortIfSeveral ? "2" : "1"),
-					queryParams,
-					function (rows) {
-						if (rows.length) {
-							if (abortIfSeveral && rows.length > 1) {
-								cb('abort');
-							} else {
-								if (rows[0].value === null) {
-									cb(null, new Decimal(rows[0].int_value));
-								} else {
-									cb(null, rows[0].value);
-								}
-							}
-						} else {
-							if (ifnone === false) {
-								cb('not found');
-							} else {
-								cb(null, ifnone);
-							}
+					if (params.ifnone && !isValidValue(params.ifnone.value))
+						return cb("bad ifnone: "+params.ifnone.value);
+					dataFeeds.readDataFeedValue(arrAddresses, feed_name, value, min_mci, objValidationState.last_ball_mci, bAA, ifseveral, function(objResult){
+					//	console.log(arrAddresses, feed_name, value, min_mci, ifseveral);
+					//	console.log('---- objResult', objResult);
+						if (objResult.bAbortedBecauseOfSeveral)
+							return cb("several values found");
+						if (objResult.value !== undefined){
+							if (what === 'unit')
+								return cb(null, objResult.unit);
+							if (type === 'string')
+								return cb(null, objResult.value.toString());
+							return cb(null, (typeof objResult.value === 'string') ? objResult.value : createDecimal(objResult.value));
 						}
-					}
-				);*/
-			}
+						if (params.ifnone && params.ifnone.value !== 'abort'){
+						//	console.log('===== ifnone=', params.ifnone.value, typeof params.ifnone.value);
+							return cb(null, params.ifnone.value); // the type of ifnone (string, decimal, boolean) is preserved
+						}
+						cb("data feed " + feed_name + " not found");
+					});
+				}
 
 				var params = arr[1];
 				var evaluated_params = {};
@@ -731,66 +672,66 @@ exports.evaluate = function (opts, callback) {
 			case 'output':
 				var type = op + 's';
 
-			function findOutputOrInputAndReturnName(objParams) {
-				var asset = objParams.asset ? objParams.asset.value : null;
-				var operator = objParams.asset ? objParams.asset.operator : null;
-				var puts = [];
-				messages.forEach(function (message) {
-					if (message.payload && message.app === 'payment') {
-						var payload_asset = message.payload.asset || 'base';
-						if (!asset) { // no filter by asset
-							puts = puts.concat(message.payload[type]);
-						} else if (operator === '=' && asset === payload_asset) {
-							puts = puts.concat(message.payload[type]);
-						} else if (operator === '!=' && asset !== payload_asset) {
-							puts = puts.concat(message.payload[type]);
-						}
-					}
-				});
-				if (puts.length === 0){
-					console.log('no matching puts after filtering by asset');
-					return '';
-				}
-				if (objParams.address) {
-					puts = puts.filter(function (put) {
-						if (objParams.address.operator === '=') {
-							return put.address === objParams.address.value;
-						} else {
-							return put.address !== objParams.address.value;
+				function findOutputOrInputAndReturnName(objParams) {
+					var asset = objParams.asset ? objParams.asset.value : null;
+					var operator = objParams.asset ? objParams.asset.operator : null;
+					var puts = [];
+					messages.forEach(function (message) {
+						if (message.payload && message.app === 'payment') {
+							var payload_asset = message.payload.asset || 'base';
+							if (!asset) { // no filter by asset
+								puts = puts.concat(message.payload[type]);
+							} else if (operator === '=' && asset === payload_asset) {
+								puts = puts.concat(message.payload[type]);
+							} else if (operator === '!=' && asset !== payload_asset) {
+								puts = puts.concat(message.payload[type]);
+							}
 						}
 					});
-				}
-				if (objParams.amount) {
-					puts = puts.filter(function (put) {
-						put.amount = new Decimal(put.amount);
-						if (objParams.amount.operator === '=') {
-							return put.amount.eq(objParams.amount.value);
-						} else if (objParams.amount.operator === '>') {
-							return put.amount.gt(objParams.amount.value);
-						} else if (objParams.amount.operator === '<') {
-							return put.amount.lt(objParams.amount.value);
-						} else if (objParams.amount.operator === '<=') {
-							return put.amount.lte(objParams.amount.value);
-						} else if (objParams.amount.operator === '>=') {
-							return put.amount.gte(objParams.amount.value);
-						} else if (objParams.amount.operator === '!=') {
-							return !(put.amount.eq(objParams.amount.value));
-						}
-						else
-							throw Error("unknown operator: " + objParams.amount.operator);
-					});
-				}
-				if (puts.length) {
-					if (puts.length > 1){
-						console.log(puts.length+' matching puts');
+					if (puts.length === 0){
+						console.log('no matching puts after filtering by asset');
 						return '';
 					}
-					return puts[0];
-				} else {
-					console.log('no matching puts');
-					return '';
+					if (objParams.address) {
+						puts = puts.filter(function (put) {
+							if (objParams.address.operator === '=') {
+								return put.address === objParams.address.value;
+							} else {
+								return put.address !== objParams.address.value;
+							}
+						});
+					}
+					if (objParams.amount) {
+						puts = puts.filter(function (put) {
+							put.amount = new Decimal(put.amount);
+							if (objParams.amount.operator === '=') {
+								return put.amount.eq(objParams.amount.value);
+							} else if (objParams.amount.operator === '>') {
+								return put.amount.gt(objParams.amount.value);
+							} else if (objParams.amount.operator === '<') {
+								return put.amount.lt(objParams.amount.value);
+							} else if (objParams.amount.operator === '<=') {
+								return put.amount.lte(objParams.amount.value);
+							} else if (objParams.amount.operator === '>=') {
+								return put.amount.gte(objParams.amount.value);
+							} else if (objParams.amount.operator === '!=') {
+								return !(put.amount.eq(objParams.amount.value));
+							}
+							else
+								throw Error("unknown operator: " + objParams.amount.operator);
+						});
+					}
+					if (puts.length) {
+						if (puts.length > 1){
+							console.log(puts.length+' matching puts');
+							return '';
+						}
+						return puts[0];
+					} else {
+						console.log('no matching puts');
+						return '';
+					}
 				}
-			}
 
 
 				var params = arr[1];
@@ -934,7 +875,7 @@ exports.evaluate = function (opts, callback) {
 								if (type === 'auto') {
 									var f = string_utils.getNumericFeedValue(value);
 									if (f !== null)
-										value = toDoubleRange(new Decimal(value).times(1));
+										value = createDecimal(value);
 								}
 								return cb(value);
 							}
@@ -1102,7 +1043,7 @@ exports.evaluate = function (opts, callback) {
 					if (value === undefined || !locals.hasOwnProperty(var_name))
 						return cb(false);
 					if (typeof value === 'number')
-						value = new Decimal(value);
+						value = createDecimal(value);
 					if (!arrKeys)
 						return cb(value);
 					// from now on, selectors exist
@@ -1167,7 +1108,7 @@ exports.evaluate = function (opts, callback) {
 						if (var_name.length > constants.MAX_STATE_VAR_NAME_LENGTH)
 							return setFatalError("state var name too long: " + var_name, cb, false);
 					//	if (typeof res === 'boolean')
-					//		res = new Decimal(res ? 1 : 0);
+					//		res = res ? dec1 : dec0;
 						if (!stateVars[address])
 							stateVars[address] = {};
 					//	console.log('---- assignment_op', assignment_op)
@@ -1186,15 +1127,15 @@ exports.evaluate = function (opts, callback) {
 							}
 							else {
 								if (typeof value === 'boolean')
-									value = new Decimal(value ? 1 : 0);
+									value = value ? dec1 : dec0;
 								if (typeof res === 'boolean')
-									res = new Decimal(res ? 1 : 0);
+									res = res ? dec1 : dec0;
 								if (!Decimal.isDecimal(value))
 									return setFatalError("current value is not decimal: " + value, cb, false);
 								if (!Decimal.isDecimal(res))
 									return setFatalError("rhs is not decimal: " + res, cb, false);
 								if ((assignment_op === '+=' || assignment_op === '-=') && stateVars[address][var_name].old_value === undefined)
-									stateVars[address][var_name].old_value = new Decimal(0);
+									stateVars[address][var_name].old_value = dec0;
 								if (assignment_op === '+=')
 									value = value.plus(res);
 								else if (assignment_op === '-=')
@@ -1604,7 +1545,7 @@ exports.evaluate = function (opts, callback) {
 						var num = nominator.div(denominator); // float from 0 to 1
 						if (evaluated_params.length === 1)
 							return cb(num);
-						var min = new Decimal(0);
+						var min = dec0;
 						var max;
 						if (evaluated_params.length === 2)
 							max = evaluated_params[1];
@@ -1647,7 +1588,7 @@ exports.evaluate = function (opts, callback) {
 					if (typeof json === 'object')
 						return cb(new wrappedObject(json));
 					if (typeof json === 'number')
-						return evaluate(new Decimal(json).times(1), cb);
+						return evaluate(createDecimal(json), cb);
 					if (typeof json === 'string' || typeof json === 'boolean')
 						return cb(json);
 					throw Error("unknown type of json parse: " + (typeof json));
@@ -1984,7 +1925,7 @@ exports.evaluate = function (opts, callback) {
 			}
 			var f = string_utils.getNumericFeedValue(value);
 			if (f !== null)
-				value = toDoubleRange(new Decimal(value).times(1));
+				value = createDecimal(value);
 			stateVars[param_address][var_name] = {value: value, old_value: value, original_old_value: value};
 			cb2(value);
 		});
@@ -2011,8 +1952,11 @@ exports.evaluate = function (opts, callback) {
 				evaluate(key, function (evaluated_key) {
 					if (fatal_error)
 						return cb2(fatal_error);
-					if (Decimal.isDecimal(evaluated_key))
+					if (Decimal.isDecimal(evaluated_key)) {
 						evaluated_key = evaluated_key.toNumber();
+						if (!ValidationUtils.isNonnegativeInteger(evaluated_key))
+							return setFatalError("bad selector key: " + evaluated_key, cb2);
+					}
 					else if (typeof evaluated_key !== 'string')
 						return setFatalError("result of " + key + " is not a string or number: " + evaluated_key, cb2);
 					if (typeof evaluated_key === 'string')
@@ -2029,13 +1973,13 @@ exports.evaluate = function (opts, callback) {
 				if (typeof value === 'boolean')
 					cb(value);
 				else if (typeof value === 'number')
-					cb(new Decimal(value).times(1));
+					cb(createDecimal(value));
 				else if (typeof value === 'string') {
 					if (value.length > constants.MAX_AA_STRING_LENGTH)
 						return setFatalError("string value too long: " + value, cb, false);
 					// convert to number if possible
 					var f = string_utils.getNumericFeedValue(value);
-					(f === null) ? cb(value) : cb(toDoubleRange(new Decimal(value).times(1)));
+					(f === null) ? cb(value) : cb(createDecimal(value));
 				}
 				else if (typeof value === 'object')
 					cb(new wrappedObject(value));
