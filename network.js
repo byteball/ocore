@@ -2389,7 +2389,8 @@ function handleJustsaying(ws, subject, body){
 				return;
 			var arrParts = body.exception.toString().split("Breadcrumbs", 2);
 			var text = body.message + ' ' + arrParts[0];
-			var hash = crypto.createHash("sha256").update(text, "utf8").digest("base64");
+			var matches = body.message.match(/message encrypted to unknown key, device (0\w{32})/);
+			var hash = matches ? matches[1] : crypto.createHash("sha256").update(text, "utf8").digest("base64");
 			if (hash === prev_bugreport_hash)
 				return console.log("ignoring known bug report");
 			prev_bugreport_hash = hash;
