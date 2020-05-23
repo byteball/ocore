@@ -738,3 +738,46 @@ test.cb.serial('reading definition in parameterized AA', t => {
 		t.end();
 	});
 });
+
+test.cb.serial('AA with functions', t => {
+	var trigger = { outputs: { base: 10000 }, data: { x: 5 } };
+	var aa = ['autonomous agent', {
+		init: `{
+			$f = ($x) => {
+				$y = $x * var['s'];
+				$y
+			};
+		}`,
+		messages: [
+			{
+				app: 'state',
+				state: `{
+					$f2 = ( $x ) => {
+						$x + $f ($x) + trigger.data.x
+					};
+					var['v1'] = $f(2);
+					var['s'] = 3;
+					var['v2'] = $f ( 2 );
+					var['v3'] = $f2 ( 2 );
+				}`
+			}
+		]
+	}];
+	var address = objectHash.getChash160(aa);
+	addAA(aa);
+	
+	aa_composer.dryRunPrimaryAATrigger(trigger, address, aa, (arrResponses) => {
+		t.deepEqual(arrResponses.length, 1);
+		t.deepEqual(arrResponses[0].bounced, false);
+		t.deepEqual(arrResponses[0].updatedStateVars[address].v1.value, 0);
+		t.deepEqual(arrResponses[0].updatedStateVars[address].v2.value, 6);
+		t.deepEqual(arrResponses[0].updatedStateVars[address].v3.value, 2 + 6 + 5);
+		fixCache();
+		t.deepEqual(storage.assocUnstableUnits, old_cache.assocUnstableUnits);
+		t.deepEqual(storage.assocStableUnits, old_cache.assocStableUnits);
+		t.deepEqual(storage.assocUnstableMessages, old_cache.assocUnstableMessages);
+		t.deepEqual(storage.assocBestChildren, old_cache.assocBestChildren);
+		t.deepEqual(storage.assocStableUnitsByMci, old_cache.assocStableUnitsByMci);
+		t.end();
+	});
+});

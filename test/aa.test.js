@@ -202,12 +202,12 @@ test.cb('complex AA', t => {
 					bbb: 234,
 					ccc: {
 						cases: [
-							{ if: "{$a}", ccc: { fff: "vvvv" } },
+							{ if: "{trigger.data.a}", ccc: { fff: "vvvv" } },
 							{
 								if: "{trigger.data.b}", ccc: { 
 									cases: [
-										{ if: "{$d}", ccc: "gggg" },
-										{ if: "{$e}", ccc: ["gggg", "vvvv"] },
+										{ if: "{trigger.data.d}", ccc: "gggg" },
+										{ if: "{trigger.data.e}", ccc: ["gggg", "vvvv"] },
 									]
 								}
 							},

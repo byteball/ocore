@@ -598,7 +598,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 				function (err) {
 					if (err)
 						return cb(err);
-					if (Object.keys(value) === 0) {
+					if (Object.keys(value).length === 0) {
 						if (typeof name === 'string')
 							delete obj[name];
 						else

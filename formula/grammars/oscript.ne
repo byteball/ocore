@@ -25,6 +25,7 @@
 		braceRight: '}',
 		sl:'[',
 		sr: ']',
+		arrow: '=>',
 		io: ['input', 'output'],
 		data_feed: ['data_feed', 'in_data_feed'],
 		attestation: 'attestation',
@@ -106,6 +107,7 @@ statement -> local_var_assignment {% id %}
 	| bounce_statement {% id %}
 	| return_statement {% id %}
 	| empty_return_statement {% id %}
+	| func_call ";" {% id %}
 
 ifelse -> "if" "(" expr ")" block ("else" block):?  {% function(d){
 	var else_block = d[5] ? d[5][1] : null;
@@ -137,7 +139,10 @@ and_expr -> and_expr %and comp_expr {% function(d) {return ['and', d[0], d[2]];}
 
 expr -> otherwise_expr {% id %}
 
-expr_list -> expr ("," expr):*  {% function(d) { return [d[0]].concat(d[1].map(function (item) {return item[1];}));   } %}
+expr_list -> expr:? ("," expr):*  {% function(d) {
+	var arr = d[0] ? [d[0]] : [];
+	return arr.concat(d[1].map(function (item) {return item[1];}));
+} %}
 
 
 comp_expr -> AS ("=="|"!="|">"|">="|"<"|"<=") AS {% function(d) { return ['comparison', d[1][0].value, d[0], d[2]];}%}
@@ -147,12 +152,13 @@ comparisonOperator -> %comparisonOperators {% function(d) { return d[0].value } 
 
 local_var_expr -> "${" expr "}" {% function(d) { return d[1]; }  %}
 
-local_var -> (%local_var_name|local_var_expr) (%dotSelector|"[" "[" search_param_list "]" "]"|"[" expr "]"):*  {% function(d) {
+# local_var -> (%local_var_name|local_var_expr) (%dotSelector|"[" "[" search_param_list "]" "]"|"[" expr "]"):*  {% function(d) {
+local_var -> (%local_var_name|local_var_expr)  {% function(d) {
 	var v = d[0][0];
 	if (v.type === 'local_var_name')
 		v = v.value.substr(1);
 	var selectors = null;
-	if (d[1] && d[1].length)
+	/*if (d[1] && d[1].length)
 		selectors = d[1].map(function(item){
 			if (item[0].type === 'dotSelector')
 				return item[0].value.substr(1);
@@ -160,11 +166,11 @@ local_var -> (%local_var_name|local_var_expr) (%dotSelector|"[" "[" search_param
 				return ['search_param_list', item[2]];
 			else
 				return item[1];
-		});
+		});*/
 	return ['local_var', v, selectors];
 }  %}
 
-local_var_assignment -> local_var "=" expr ";" {% function(d) { return ['local_var_assignment', d[0], d[2]]; } %}
+local_var_assignment -> local_var "=" (expr|func_declaration) ";" {% function(d) { return ['local_var_assignment', d[0], d[2][0]]; } %}
 
 state_var_assignment -> "var" "[" expr "]" ("="|"+="|"-="|"*="|"/="|"%="|"||=") expr ";" {% function(d) { return ['state_var_assignment', d[2], d[5], d[4][0].value]; } %}
 
@@ -181,6 +187,38 @@ search_fields -> (%dotSelector):+ {% function(d) {
 search_param ->  search_fields comparisonOperator (expr|"none")  {% function(d) { return [d[0], d[1], d[2][0]]; } %}
 
 search_param_list -> search_param ("," search_param):*  {% function(d) { return [d[0]].concat(d[1].map(function (item) {return item[1];}));   } %}
+
+
+arguments_list -> %local_var_name:? ("," %local_var_name):*  {% function(d) {
+	var arr = d[0] ? [d[0].value.substr(1)] : [];
+	return arr.concat(d[1].map(function (item) {return item[1].value.substr(1);}));
+} %}
+
+func_declaration -> "(" arguments_list ")" "=>" "{" main "}" {% function(d) { return ['func_declaration', d[1], d[5]]; } %}
+
+func_call -> %local_var_name "(" expr_list ")"    {% function(d) {return ['func_call', d[0].value.substr(1), d[2]]; } %}
+
+
+trigger_data -> "trigger.data"  {% function(d) {return ['trigger.data']; }  %}
+params -> "params"  {% function(d) {return ['params']; }  %}
+
+unit -> "unit" "[" expr "]"   {% function(d) { return ['unit', d[2]]; } %}
+definition -> "definition" "[" expr "]"   {% function(d) { return ['definition', d[2]]; } %}
+
+
+with_selectors -> (func_call|local_var|trigger_data|params|unit|definition) (%dotSelector|"[" "[" search_param_list "]" "]"|"[" expr "]"):+  {% function(d) {
+	var v = d[0][0];
+	var selectors = d[1].map(function(item){
+		if (item[0].type === 'dotSelector')
+			return item[0].value.substr(1);
+		else if (item.length === 5)
+			return ['search_param_list', item[2]];
+		else
+			return item[1];
+	});
+	return ['with_selectors', v, selectors];
+}  %}
+
 
 df_param ->  (%dfParamsName|%ifseveral|%ifnone|%type) comparisonOperator (expr | %addressValue)  {% function(d) {
 	var value = d[2][0];
@@ -232,6 +270,12 @@ AS -> AS "+" MD {% function(d) {return ['+', d[0], d[2]]; } %}
 N -> float          {% id %}
 	| boolean       {% id %}
 	| local_var     {% id %}
+	| func_call     {% id %}
+	| trigger_data     {% id %}
+	| params     {% id %}
+	| unit     {% id %}
+	| definition     {% id %}
+	| with_selectors     {% id %}
     | "pi"          {% function(d) {return ['pi']; } %}
     | "e"           {% function(d) {return ['e']; } %}
     | "sqrt" "(" expr ")"    {% function(d) {return ['sqrt', d[2]]; } %}
@@ -331,20 +375,6 @@ N -> float          {% id %}
 			field = field[1];
 		return ['asset', d[2], field];
 	} %}
-	| ("unit"|"definition") "[" expr "]" (%dotSelector|"[" "[" search_param_list "]" "]"|"[" expr "]"):*  {% function(d) {
-		var selectors = null;
-		if (d[4] && d[4].length){
-			selectors = d[4].map(function(item){
-				if (item[0].type === 'dotSelector')
-					return item[0].value.substr(1);
-				else if (item.length === 5)
-					return ['search_param_list', item[2]];
-				else
-					return item[1];
-			});
-		}
-		return [d[0][0].value, d[2], selectors]; }
-	%}
 	| "storage_size"  {% function(d) {return ['storage_size']; }  %}
 	| "mci"  {% function(d) {return ['mci']; }  %}
 	| "timestamp"  {% function(d) {return ['timestamp']; }  %}
@@ -355,17 +385,6 @@ N -> float          {% id %}
 	| "trigger.address"  {% function(d) {return ['trigger.address']; }  %}
 	| "trigger.initial_address"  {% function(d) {return ['trigger.initial_address']; }  %}
 	| "trigger.unit"  {% function(d) {return ['trigger.unit']; }  %}
-	| ("trigger.data"|"params") (%dotSelector|"[" "[" search_param_list "]" "]"|"[" expr "]"):*  {% function(d) {
-		var selectors = d[1].map(function(item){
-			if (item[0].type === 'dotSelector')
-				return item[0].value.substr(1);
-			else if (item.length === 5)
-				return ['search_param_list', item[2]];
-			else
-				return item[1];
-		});
-		return [d[0][0].value, selectors]; }
-	%}
 	| "trigger.output" ("[" "[") "asset" comparisonOperator (expr|%base) ("]" "]") %dotSelector:?  {% function(d) {
 		var value = d[4][0];
 		var field = d[6] ? d[6].value.substr(1) : 'amount';

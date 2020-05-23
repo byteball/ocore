@@ -15,7 +15,7 @@ require('./_init_datafeeds.js');
 constants.formulaUpgradeMci = 0;
 
 function validateFormula(formula, complexity, cb) {
-	formulaParser.validate({formula: formula, complexity: complexity, mci: Number.MAX_SAFE_INTEGER}, cb);
+	formulaParser.validate({formula: formula, complexity: complexity, mci: Number.MAX_SAFE_INTEGER, locals: {}}, cb);
 }
 
 var objUnit = {

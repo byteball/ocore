@@ -21,6 +21,7 @@ function evalFormulaWithVars(opts, callback) {
 		bStateVarAssignmentAllowed: opts.bStateVarAssignmentAllowed,
 		bStatementsOnly: opts.bStatementsOnly,
 		mci: opts.objValidationState.last_ball_mci,
+		locals: {},
 	};
 	formulaParser.validate(val_opts, function(validation_res){
 		if (validation_res.error) {

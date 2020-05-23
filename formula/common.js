@@ -48,6 +48,18 @@ function toOscriptPrecision(num) {
 	return (new Decimal(num).times(1)).toString();
 }
 
+function clearObject(obj) {
+	Object.keys(obj).forEach(key => {
+		delete obj[key];
+	});
+}
+
+// copies source to target while preserving the target object reference
+function assignObject(target, source) {
+	clearObject(target);
+	Object.assign(target, source);
+}
+
 exports.cache = cache;
 exports.formulasInCache = formulasInCache;
 exports.cacheLimit = cacheLimit;
@@ -59,3 +71,4 @@ exports.isFiniteDecimal = isFiniteDecimal;
 exports.toDoubleRange = toDoubleRange;
 exports.createDecimal = createDecimal;
 exports.toOscriptPrecision = toOscriptPrecision;
+exports.assignObject = assignObject;

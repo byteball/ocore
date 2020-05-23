@@ -23,6 +23,7 @@ var objBaseAssetInfo = require('./common.js').objBaseAssetInfo;
 var isFiniteDecimal = require('./common.js').isFiniteDecimal;
 var toDoubleRange = require('./common.js').toDoubleRange;
 var createDecimal = require('./common.js').createDecimal;
+var assignObject = require('./common.js').assignObject;
 
 var testnetStringToNumberInArithmeticUpgradeMci = 1151000;
 
@@ -37,6 +38,14 @@ function isValidValue(val){
 
 function wrappedObject(obj){
 	this.obj = obj;
+}
+
+function Func(args, body, scopeVarNames) {
+	if (!Array.isArray(args))
+		throw Error("args is not an array");
+	this.args = args;
+	this.body = body;
+	this.scopeVarNames = scopeVarNames;
 }
 
 exports.evaluate = function (opts, callback) {
@@ -86,7 +95,7 @@ exports.evaluate = function (opts, callback) {
 	var early_return;
 	var count = 0;
 
-	function evaluate(arr, cb) {
+	function evaluate(arr, cb, bTopLevel) {
 		count++;
 		if (count % 100 === 0) // avoid extra long call stacks to prevent Maximum call stack size exceeded
 			return setImmediate(evaluate, arr, cb);
@@ -101,6 +110,7 @@ exports.evaluate = function (opts, callback) {
 				return setFatalError("number overflow: " + arr, cb, false);
 			return cb(toDoubleRange(arr));
 		}
+		if (arr instanceof Func) return setFatalError("function returned", cb, false);
 		if (arr instanceof wrappedObject) return cb(arr);
 		if (typeof arr !== 'object') {
 			if (typeof arr === 'boolean') return cb(arr);
@@ -989,12 +999,10 @@ exports.evaluate = function (opts, callback) {
 
 			case 'trigger.data':
 			case 'params':
-				var arrKeys = arr[1]; // can be 0-length array
-			//	console.log('keys', arrKeys);
 				var value = (op === 'params') ? aa_params : trigger.data;
 				if (!value || Object.keys(value).length === 0)
 					return cb(false);
-				selectSubobject(value, arrKeys, cb);
+				cb(new wrappedObject(value));
 				break;
 
 			case 'trigger.output':
@@ -1041,6 +1049,8 @@ exports.evaluate = function (opts, callback) {
 					var value = locals[var_name];
 					if (value === undefined || !locals.hasOwnProperty(var_name))
 						return cb(false);
+					if (value instanceof Func)
+						return setFatalError("trying to access function " + var_name + " without calling it", cb, false);
 					if (typeof value === 'number')
 						value = createDecimal(value);
 					if (!arrKeys)
@@ -1077,6 +1087,17 @@ exports.evaluate = function (opts, callback) {
 						return setFatalError("assignment: var name "+var_name_or_expr+" evaluated to " + var_name, cb, false);
 					if (bLocal && locals.hasOwnProperty(var_name))
 						return setFatalError("reassignment to " + var_name + ", old value " + locals[var_name], cb, false);
+					if (bLocal && rhs[0] === 'func_declaration') {
+						var args = rhs[1];
+						var body = rhs[2];
+						var scopeVarNames = Object.keys(locals);
+						if (args.indexOf(var_name) >= 0)
+							throw Error("arg name cannot be the same as func name in evaluation");
+						if (_.intersection(args, scopeVarNames).length > 0)
+							return setFatalError("some args of " + var_name + " would shadow some local vars", cb, false);
+						locals[var_name] = new Func(args, body, scopeVarNames);
+						return cb(true);
+					}
 					evaluate(rhs, function (res) {
 						if (fatal_error)
 							return cb(false);
@@ -1167,8 +1188,8 @@ exports.evaluate = function (opts, callback) {
 						evaluate(statement, function (res) {
 							if (fatal_error)
 								return cb2(fatal_error);
-							if (res !== true)
-								return setFatalError("statement in {} " + statement + " failed", cb2);
+						//	if (res !== true)
+						//		return setFatalError("statement in {} " + statement + " failed", cb2);
 							cb2();
 						});
 					},
@@ -1292,7 +1313,6 @@ exports.evaluate = function (opts, callback) {
 
 			case 'unit':
 				var unit_expr = arr[1];
-				var arrKeys = arr[2];
 				evaluate(unit_expr, function (unit) {
 					console.log('---- unit', unit);
 					if (fatal_error)
@@ -1302,12 +1322,12 @@ exports.evaluate = function (opts, callback) {
 					if (bAA) {
 						// 1. check the current response unit
 						if (objResponseUnit && objResponseUnit.unit === unit)
-							return selectSubobject(objResponseUnit, arrKeys, cb);
+							return cb(new wrappedObject(objResponseUnit));
 						// 2. check previous response units from the same primary trigger, they are not in the db yet
 						for (var i = 0; i < objValidationState.arrPreviousResponseUnits.length; i++) {
 							var objPreviousResponseUnit = objValidationState.arrPreviousResponseUnits[i];
 							if (objPreviousResponseUnit && objPreviousResponseUnit.unit === unit)
-								return selectSubobject(objPreviousResponseUnit, arrKeys, cb);
+								return cb(new wrappedObject(objPreviousResponseUnit));
 						}
 					}
 					// 3. check the units from the db
@@ -1327,7 +1347,7 @@ exports.evaluate = function (opts, callback) {
 								if (!bAA)
 									return cb(false);
 							}
-							selectSubobject(objUnit, arrKeys, cb);
+							cb(new wrappedObject(objUnit));
 						}
 					});
 				});
@@ -1335,7 +1355,6 @@ exports.evaluate = function (opts, callback) {
 
 			case 'definition':
 				var address_expr = arr[1];
-				var arrKeys = arr[2];
 				evaluate(address_expr, function (addr) {
 					console.log('---- definition', addr);
 					if (fatal_error)
@@ -1345,12 +1364,12 @@ exports.evaluate = function (opts, callback) {
 					storage.readAADefinition(conn, addr, function (arrDefinition, definition_unit) {
 						if (arrDefinition) {
 							if (bAA)
-								return selectSubobject(arrDefinition, arrKeys, cb);
+								return cb(new wrappedObject(arrDefinition));
 							// could by defined later, e.g. by fresh AA
 							storage.readUnitProps(conn, definition_unit, function (props) {
 								if (props.main_chain_index === null || props.main_chain_index > objValidationState.main_chain_index)
 									return cb(false);
-								selectSubobject(arrDefinition, arrKeys, cb);
+								cb(new wrappedObject(arrDefinition));
 							});
 							return;
 						}
@@ -1359,7 +1378,7 @@ exports.evaluate = function (opts, callback) {
 								cb(false);
 							},
 							ifFound: function (arrDefinition) {
-								selectSubobject(arrDefinition, arrKeys, cb);
+								cb(new wrappedObject(arrDefinition));
 							}
 						});
 					});
@@ -1863,13 +1882,89 @@ exports.evaluate = function (opts, callback) {
 				break;
 
 			case 'response_unit':
-				if (!bAA || !bStatementsOnly || !bStateVarAssignmentAllowed)
+				if (!bAA || !bStateVarAssignmentAllowed)
 					return setFatalError("response_unit outside state update formula", cb, false);
 				if (!objResponseUnit)
 					return cb(false);
 				cb(objResponseUnit.unit);
 				break;
 
+			case 'func_call':
+				var func_name = arr[1];
+				var arrExpressions = arr[2];
+				var func = locals[func_name];
+				if (!func)
+					throw Error("no such function: " + func_name);
+				if (!(func instanceof Func))
+					throw Error("not a function: " + func_name);
+				var args = [];
+				async.eachSeries(
+					arrExpressions,
+					function (expr, cb2) {
+						evaluate(expr, function (res) {
+							if (fatal_error)
+								return cb2(fatal_error);
+							if (!isValidValue(res) && !(res instanceof wrappedObject))
+								return setFatalError("bad value of function argument: " + res, cb2);
+							args.push(res);
+							cb2();
+						});
+					},
+					function (err) {
+						if (fatal_error)
+							return cb(false);
+						if (err)
+							return setFatalError("arguments failed: " + err, cb, false);
+						var func_locals = {};
+						// set a subset of locals that were present in the declaration scope
+						func.scopeVarNames.forEach(name => {
+							func_locals[name] = locals[name];
+						});
+						// set the arguments as locals too
+						for (var i = 0; i < func.args.length; i++){
+							var arg_name = func.args[i];
+							var value = args[i];
+							if (value === undefined) // no argument passed
+								value = false;
+							if (func_locals[arg_name] !== undefined)
+								throw Error("argument " + arg_name + " would shadow a local var");
+							func_locals[arg_name] = value;
+						}
+						var saved_locals = _.clone(locals);
+						var saved_so = bStatementsOnly;
+						assignObject(locals, func_locals);
+						bStatementsOnly = false;
+						// bStateVarAssignmentAllowed is inherited
+						evaluate(func.body, res => {
+							if (early_return !== undefined)
+								res = early_return;
+							// restore
+							assignObject(locals, saved_locals);
+							bStatementsOnly = saved_so;
+							early_return = undefined;
+
+							if (fatal_error)
+								return cb(false);
+							if (!isValidValue(res) && !(res instanceof wrappedObject))
+								return setFatalError("bad value returned from func", cb, false);
+							cb(res);
+						});
+					}
+				);
+				break;
+
+			case 'with_selectors':
+				var expr = arr[1];
+				var arrKeys = arr[2];
+				evaluate(expr, function (res) {
+					if (fatal_error)
+						return cb(false);
+					if (!isValidValue(res) && !(res instanceof wrappedObject))
+						return setFatalError("bad value for with_selectors", cb, false);
+					selectSubobject(res, arrKeys, cb);
+				});
+				break;
+	
 			case 'bounce':
 				var error_description = arr[1];
 				evaluate(error_description, function (evaluated_error_description) {
@@ -1883,8 +1978,9 @@ exports.evaluate = function (opts, callback) {
 			case 'return':
 				var expr = arr[1];
 				if (expr === null) { // empty return
-					if (!bStatementsOnly)
-						return setFatalError("empty early return", cb, false);
+					// already checked during validation
+				//	if (!bStatementsOnly)
+				//		return setFatalError("empty early return", cb, false);
 					early_return = true;
 					return cb(true);
 				}
@@ -1894,7 +1990,7 @@ exports.evaluate = function (opts, callback) {
 					if (fatal_error)
 						return cb(false);
 					console.log('early return with: ', res);
-					if (res instanceof wrappedObject)
+					if (objValidationState.last_ball_mci < constants.aa2UpgradeMci && res instanceof wrappedObject)
 						res = true;
 					if (Decimal.isDecimal(res))
 						res = toDoubleRange(res);
@@ -1906,18 +2002,20 @@ exports.evaluate = function (opts, callback) {
 			case 'main':
 				var arrStatements = arr[1];
 				var expr = arr[2];
-				if (bStatementsOnly && expr)
-					return setFatalError("expected statements only", cb, false);
-				if (!bStatementsOnly && !expr)
-					return setFatalError("return value missing", cb, false);
+				if (bTopLevel) {
+					if (bStatementsOnly && expr)
+						return setFatalError("expected statements only", cb, false);
+					if (!bStatementsOnly && !expr)
+						return setFatalError("return value missing", cb, false);
+				}
 				async.eachSeries(
 					arrStatements,
 					function (statement, cb2) {
 						evaluate(statement, function (res) {
 							if (fatal_error)
 								return cb2(fatal_error);
-							if (res !== true)
-								return setFatalError("statement " + statement + " failed", cb2);
+						//	if (res !== true)
+						//		return setFatalError("statement " + statement + " failed", cb2);
 							cb2();
 						});
 					},
@@ -1967,6 +2065,8 @@ exports.evaluate = function (opts, callback) {
 	}
 
 	function selectSubobject(value, arrKeys, cb) {
+		if (value instanceof wrappedObject)
+			value = value.obj;
 		async.eachSeries(
 			arrKeys || [],
 			function (key, cb2) {
@@ -2009,6 +2109,11 @@ exports.evaluate = function (opts, callback) {
 					cb(value);
 				else if (typeof value === 'number')
 					cb(createDecimal(value));
+				else if (Decimal.isDecimal(value)) {
+					if (!isFiniteDecimal(value))
+						return setFatalError("bad decimal " + value, cb, false);
+					cb(toDoubleRange(value.times(1)));
+				}
 				else if (typeof value === 'string') {
 					if (value.length > constants.MAX_AA_STRING_LENGTH)
 						return setFatalError("string value too long: " + value, cb, false);
@@ -2137,7 +2242,7 @@ exports.evaluate = function (opts, callback) {
 					return callback('result string is too long', null);
 				callback(null, res);
 			}
-		});
+		}, true);
 	} else {
 		if (parser.results.length > 1) {
 			console.log('ambiguous grammar', parser.results);

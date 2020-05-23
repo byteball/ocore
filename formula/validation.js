@@ -1,6 +1,7 @@
 var nearley = require("nearley");
 var grammar = require("./grammars/oscript.js");
 var async = require('async');
+var _ = require('lodash');
 var ValidationUtils = require("../validation_utils.js");
 var constants = require('../constants');
 
@@ -13,6 +14,7 @@ var objBaseAssetInfo = require('./common.js').objBaseAssetInfo;
 
 var isFiniteDecimal = require('./common.js').isFiniteDecimal;
 var toDoubleRange = require('./common.js').toDoubleRange;
+var assignObject = require('./common.js').assignObject;
 
 function validateDataFeed(params) {
 	var complexity = 1;
@@ -204,6 +206,13 @@ function getInputOrOutputError(params) {
 	return null;
 }
 
+function finalizeLocals(locals) {
+	for (var name in locals)
+		if (name !== '-calculated' && locals[name] === 'maybe assigned')
+			locals[name] = 'assigned';
+}
+
+
 exports.validate = function (opts, callback) {
 	//	complexity++;
 	var formula = opts.formula;
@@ -213,6 +222,11 @@ exports.validate = function (opts, callback) {
 	var complexity = opts.complexity;
 	var count_ops = opts.count_ops;
 	var mci = opts.mci;
+	var locals = opts.locals;
+	if (!locals)
+		throw Error("no locals");
+	finalizeLocals(locals);
+	var bInFunction = false;
 
 	var parser = {};
 	try {
@@ -235,7 +249,7 @@ exports.validate = function (opts, callback) {
 
 	var count = 0;
 
-	function evaluate(arr, cb) {
+	function evaluate(arr, cb, bTopLevel) {
 		count++;
 		if (count % 100 === 0) // avoid extra long call stacks to prevent Maximum call stack size exceeded
 			return (typeof setImmediate === 'function') ? setImmediate(evaluate, arr, cb) : setTimeout(evaluate, 0, arr, cb);
@@ -292,6 +306,8 @@ exports.validate = function (opts, callback) {
 			case 'hypot':
 				if (op === 'hypot')
 					complexity++;
+				if (arr[1].length === 0)
+					return cb("no arguments of " + op);
 				async.eachSeries(arr[1], function (param, cb2) {
 					if (typeof param === 'string')
 						return cb2(op + ' of a string: ' + param);
@@ -402,14 +418,7 @@ exports.validate = function (opts, callback) {
 				// fall through
 			case 'trigger.data':
 				// for non-AAs too
-				var arrKeys = arr[1];
-				async.eachSeries(
-					arrKeys,
-					function (key, cb2) {
-						evaluate(key, cb2);
-					},
-					cb
-				);
+				cb();
 				break;
 
 			case 'trigger.output':
@@ -462,6 +471,12 @@ exports.validate = function (opts, callback) {
 				if (typeof var_name_or_expr === 'string') {
 					if (mci < constants.aa2UpgradeMci && var_name_or_expr[0] === '_')
 						return cb("leading underscores not allowed in var names yet");
+					if (mci >= constants.aa2UpgradeMci) {
+						if (!locals['-calculated'] && !locals.hasOwnProperty(var_name_or_expr))
+							return cb("uninitialized local var " + var_name_or_expr);
+						if (typeof locals[var_name_or_expr] === 'object')
+							return cb("trying to access function " + var_name_or_expr + " without calling it");
+					}
 				}
 				if (!arrKeys)
 					return evaluate(var_name_or_expr, cb);
@@ -510,7 +525,67 @@ exports.validate = function (opts, callback) {
 				evaluate(var_name_or_expr, function (err) {
 					if (err)
 						return cb(err);
-					evaluate(rhs, cb);
+					var bLocal = (op === 'local_var_assignment');
+					if (bLocal) {
+						var bLiteral = (typeof var_name_or_expr === 'string');
+						var var_name = bLiteral ? var_name_or_expr : '-calculated';
+						if (mci >= constants.aa2UpgradeMci) {
+							if (typeof locals[var_name] === 'object')
+								return cb("local var " + var_name + " already declared as a function");
+							if (locals[var_name] === 'assigned')
+								return cb("local var " + var_name + " already assigned");
+						}
+						var bFuncDeclaration = (rhs[0] === 'func_declaration');
+						if (bFuncDeclaration) {
+							if (mci < constants.aa2UpgradeMci)
+								return cb("functions not activated yet");
+							if (!bLiteral)
+								return cb("func name must be a string literal");
+							if (locals.hasOwnProperty(var_name))
+								return cb("func " + var_name + " already declared");
+							var args = rhs[1];
+							var body = rhs[2];
+							if (args.indexOf(var_name) >= 0)
+								return cb("arg name cannot be the same as func name");
+							var scopeVarNames = Object.keys(locals);
+							if (_.intersection(args, scopeVarNames).length > 0)
+								return cb("some args of " + var_name + " would shadow some local vars");
+							var count_args = args.length;
+							var saved_complexity = complexity;
+							var saved_count_ops = count_ops;
+							var saved_so = bStatementsOnly;
+							var saved_sva = bStateVarAssignmentAllowed;
+							var saved_locals = _.clone(locals);
+							complexity = 0;
+							count_ops = 0;
+							bStatementsOnly = false;
+							bStateVarAssignmentAllowed = true;
+							bInFunction = true;
+							// if a var was conditinally assigned, treat it as assigned within function body
+							finalizeLocals(locals);
+							// arguments become locals within function body
+							args.forEach(name => {
+								locals[name] = 'assigned';
+							});
+						}
+					}
+					evaluate(bFuncDeclaration ? body : rhs, function (err) {
+						if (bFuncDeclaration) {
+							var funcProps = { complexity, count_args, count_ops };
+							// restore the saved values
+							complexity = saved_complexity;
+							count_ops = saved_count_ops;
+							bStatementsOnly = saved_so;
+							bStateVarAssignmentAllowed = saved_sva;
+							bInFunction = false;
+							assignObject(locals, saved_locals);
+
+							locals[var_name] = funcProps;
+						}
+						else if (bLocal)
+							locals[var_name] = 'maybe assigned'; // 'maybe' because it could be within an 'if'
+						cb(err);
+					});
 				});
 				break;
 
@@ -611,18 +686,7 @@ exports.validate = function (opts, callback) {
 				// for non-AAs too
 				complexity++;
 				var expr = arr[1];
-				var arrKeys = arr[2];
-				evaluate(expr, function (err) {
-					if (err)
-						return cb(err);
-					async.eachSeries(
-						arrKeys || [],
-						function (key, cb2) {
-							evaluate(key, cb2);
-						},
-						cb
-					);
-				});
+				evaluate(expr, cb);
 				break;
 	
 			case 'is_valid_signed_package':
@@ -698,6 +762,8 @@ exports.validate = function (opts, callback) {
 
 			case 'number_from_seed':
 				complexity++;
+				if (arr[1].length === 0)
+					return cb("no arguments of number_from_seed");
 				if (arr[1].length > 3)
 					return cb("too many params in number_from_seed");
 				if (typeof arr[1][1] === 'string' || typeof arr[1][2] === 'string')
@@ -822,9 +888,53 @@ exports.validate = function (opts, callback) {
 				break;
 
 			case 'response_unit':
-				cb(bAA && bStatementsOnly && bStateVarAssignmentAllowed ? undefined : 'response_unit not allowed here');
+				cb(bAA && bStateVarAssignmentAllowed ? undefined : 'response_unit not allowed here');
 				break;
 
+			case 'func_call':
+				if (mci < constants.aa2UpgradeMci)
+					return cb("funcs not activated yet");
+				var func_name = arr[1];
+				var arrExpressions = arr[2];
+				if (!locals.hasOwnProperty(func_name))
+					return cb("no such function name: " + func_name);
+				var func = locals[func_name];
+				if (typeof func !== 'object')
+					return cb("not a function: " + func_name);
+				if (func.count_args < arrExpressions.length)
+					return cb("excessive arguments to func " + func_name);
+				console.log('func', func)
+				complexity += func.complexity;
+				count_ops += func.count_ops;
+				async.eachSeries(
+					arrExpressions,
+					function (expr, cb2) {
+						evaluate(expr, function (err) {
+							if (err)
+								return cb2("expr " + expr + " invalid: " + err);
+							cb2();
+						});
+					},
+					cb
+				);
+				break;
+				
+			case 'with_selectors':
+				var expr = arr[1];
+				var arrKeys = arr[2];
+				evaluate(expr, function (err) {
+					if (err)
+						return cb(err);
+					async.eachSeries(
+						arrKeys || [],
+						function (key, cb2) {
+							evaluate(key, cb2);
+						},
+						cb
+					);
+				});
+				break;
+		
 			case 'bounce':
 				// can be used in non-statements-only formulas and non-AAs too
 				var expr = arr[1];
@@ -835,8 +945,8 @@ exports.validate = function (opts, callback) {
 				// can be used in non-statements-only formulas and non-AAs too
 				var expr = arr[1];
 				if (expr === null)
-					return cb(bStatementsOnly ? undefined : 'return; not allowed here');
-				if (bStatementsOnly)
+					return cb((bStatementsOnly || bInFunction) ? undefined : 'return; not allowed here');
+				if (bStatementsOnly && !bInFunction)
 					return cb('return value; not allowed here');
 				evaluate(expr, cb);
 				break;
@@ -846,10 +956,12 @@ exports.validate = function (opts, callback) {
 				var expr = arr[2];
 				if (!Array.isArray(arrStatements))
 					throw Error("statements is not an array");
-				if (bStatementsOnly && expr)
-					return cb('should be statements only');
-				if (!bStatementsOnly && !expr)
-					return cb('result missing');
+				if (bTopLevel) {
+					if (bStatementsOnly && expr)
+						return cb('should be statements only');
+					if (!bStatementsOnly && !expr)
+						return cb('result missing');
+				}
 				async.eachSeries(
 					arrStatements,
 					function (statement, cb2) {
@@ -876,8 +988,9 @@ exports.validate = function (opts, callback) {
 	if (parser.results.length === 1 && parser.results[0]) {
 		//	console.log('--- parser result', JSON.stringify(parser.results[0], null, '\t'));
 		evaluate(parser.results[0], err => {
+			finalizeLocals(locals);
 			callback({ complexity, count_ops, error: err || false });
-		});
+		}, true);
 	} else {
 		if (parser.results.length > 1){
 			console.log('validation: ambiguous grammar', JSON.stringify(parser.results));
