@@ -111,14 +111,17 @@ test.before(async t => {
 });
 
 test.after.always.cb(t => {
-	console.log('===== after' + app_data_dir);
+	console.log('===== after ' + app_data_dir);
 	kvstore.close(() => {
-		rocksdb.destroy(path, function(err){
-			console.log('db destroy result: '+(err || 'ok'));
-			db.close(() => {
-				// shell('rm -r ' + app_data_dir); // was throwing errors on Windows, now old data gets deleted before each run
-				t.end();
+		console.log("kvstore closed");
+		setTimeout(() => {
+			rocksdb.destroy(path, function(err){
+				console.log('db destroy result: '+(err || 'ok'));
+				db.close(() => {
+					// shell('rm -r ' + app_data_dir); // was throwing errors on Windows, now old data gets deleted before each run
+					t.end();
+				});
 			});
-		});
+		}, 100);
 	});
 });
