@@ -1037,6 +1037,65 @@ exports.evaluate = function (opts, callback) {
 				});
 				break;
 
+			case 'array':
+				var arrItemExprs = arr[1];
+				var arrItems = [];
+				async.eachSeries(
+					arrItemExprs,
+					function (item_expr, cb2) {
+						evaluate(item_expr, function (res) {
+							if (fatal_error)
+								return cb2(fatal_error);
+							if (res instanceof wrappedObject)
+								arrItems.push(res.obj);
+							else {
+								if (!isValidValue(res))
+									return setFatalError("bad value " + res, cb2);
+								if (Decimal.isDecimal(res))
+									res = res.toNumber();
+								arrItems.push(res);
+							}
+							cb2();
+						})
+					},
+					function (err) {
+						if (fatal_error)
+							return cb(false);
+						cb(new wrappedObject(arrItems));
+					}
+				);
+				break;
+			
+			case 'dictionary':
+				var arrPairs = arr[1];
+				var obj = {};
+				async.eachSeries(
+					arrPairs,
+					function (pair, cb2) {
+						var key = pair[0];
+						evaluate(pair[1], function (res) {
+							if (fatal_error)
+								return cb2(fatal_error);
+							if (res instanceof wrappedObject)
+								obj[key] = res.obj;
+							else {
+								if (!isValidValue(res))
+									return setFatalError("bad value " + res, cb2);
+								if (Decimal.isDecimal(res))
+									res = res.toNumber();
+								obj[key] = res;
+							}
+							cb2();
+						});	
+					},
+					function (err) {
+						if (fatal_error)
+							return cb(false);
+						cb(new wrappedObject(obj));
+					}
+				);
+				break;
+	
 			case 'local_var':
 				var var_name_or_expr = arr[1];
 				var arrKeys = arr[2];
@@ -2141,7 +2200,7 @@ exports.evaluate = function (opts, callback) {
 				var fields = pair[0]; // array of keys key1.key2.key3
 				var comp = pair[1]; // comparison operator
 				var search_value_expr = pair[2];
-				if (search_value_expr.type === 'none') {
+				if (search_value_expr.value === 'none') {
 					arrSearchCriteria.push({ fields, comp, search_value: null });
 					return cb3();
 				}

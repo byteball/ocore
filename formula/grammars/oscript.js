@@ -30,45 +30,10 @@ function id(x) { return x[0]; }
 		sl:'[',
 		sr: ']',
 		arrow: '=>',
-		io: ['input', 'output'],
-		data_feed: ['data_feed', 'in_data_feed'],
-		attestation: 'attestation',
-		balance: 'balance',
-		address: 'address',
-		amount: 'amount',
-		asset: 'asset',
-		attestors: 'attestors',
-		ifseveral: 'ifseveral',
-		ifnone: 'ifnone',
-		none: 'none',
-		typeof: 'typeof',
-		type: 'type',
-		boolean: ['true', 'false'],
-		if: "if",
-		else: "else",
 		comparisonOperators: ["==", ">=", "<=", "!=", ">", "<", "="],
-		dfParamsName: ['oracles', 'feed_name', 'min_mci', 'feed_value', 'what'],
-		name: ['min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round', 'abs', 'hypot', 'is_valid_signed_package', 'is_valid_sig', 'vrf_verify', 'sha256', 'json_parse', 'json_stringify', 'number_from_seed', 'length', 'is_valid_address', 'starts_with', 'ends_with', 'contains', 'substring', 'timestamp_to_string', 'parse_date', 'is_aa', 'is_integer', 'is_valid_amount', 'is_array', 'is_assoc', 'array_length', 'index_of', 'to_upper', 'to_lower', 'exists', 'number_of_responses', 'is_valid_merkle_proof', 'replace'],
-		and: ['and', 'AND'],
-		or: ['or', 'OR'],
-		not: ['not', 'NOT', '!'],
-		otherwise: ['otherwise', 'OTHERWISE'],
+		not: '!',
 		quote: '"',
 		ternary: ['?', ':'],
-		base: 'base',
-		var: 'var',
-		storage_size: 'storage_size',
-		mci: 'mci',
-		timestamp: 'timestamp',
-		this_address: 'this_address',
-		mc_unit: 'mc_unit',
-		response_unit: 'response_unit',
-		unit: 'unit',
-		definition: 'definition',
-		response: 'response',
-		bounce: 'bounce',
-		return: 'return',
-		params: 'params',
 		addressValue: /\b[2-7A-Z]{32}\b/,
 		trigger_address: /\btrigger\.address\b/,
 		trigger_initial_address: /\btrigger\.initial_address\b/,
@@ -81,6 +46,33 @@ function id(x) { return x[0]; }
 		semi: ';',
 		comma: ',',
 		dot: '.',
+		IDEN: {
+			match: /\b[a-zA-Z_]\w*\b/,
+			type: moo.keywords({
+				keyword: [
+					'min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round', 'abs', 'hypot', 'is_valid_signed_package', 'is_valid_sig', 'vrf_verify', 'sha256', 'json_parse', 'json_stringify', 'number_from_seed', 'length', 'is_valid_address', 'starts_with', 'ends_with', 'contains', 'substring', 'timestamp_to_string', 'parse_date', 'is_aa', 'is_integer', 'is_valid_amount', 'is_array', 'is_assoc', 'array_length', 'index_of', 'to_upper', 'to_lower', 'exists', 'number_of_responses', 'is_valid_merkle_proof', 'replace', 'typeof',
+
+					'timestamp', 'storage_size', 'mci', 'this_address', 'response_unit', 'mc_unit', 'params',
+
+					'type', 'ifseveral', 'ifnone', 'attestors', 'address',
+					'oracles', 'feed_name', 'min_mci', 'feed_value', 'what',
+					'amount',
+
+					'none', 'base',
+
+					'true', 'false',
+					'and', 'AND',
+					'or', 'OR',
+					'not', 'NOT',
+					'otherwise', 'OTHERWISE',
+					'asset',
+					'var', 'response',
+					'if', 'else', 'return', 'bounce',
+					'unit', 'definition', 'balance',
+					'attestation', 'data_feed', 'in_data_feed', 'input', 'output',
+				],
+			})
+		},
 	});
 
 	var origNext = lexer.next;
@@ -129,13 +121,19 @@ var grammar = {
     {"name": "bounce_statement", "symbols": ["bounce_expr", {"literal":";"}], "postprocess": function(d) { return d[0]; }},
     {"name": "return_statement", "symbols": [{"literal":"return"}, "expr", {"literal":";"}], "postprocess": function(d) { return ['return', d[1]]; }},
     {"name": "empty_return_statement", "symbols": [{"literal":"return"}, {"literal":";"}], "postprocess": function(d) { return ['return', null]; }},
-    {"name": "otherwise_expr", "symbols": ["expr", (lexer.has("otherwise") ? {type: "otherwise"} : otherwise), "ternary_expr"], "postprocess": function(d) { return ['otherwise', d[0], d[2]]; }},
+    {"name": "otherwise_expr$subexpression$1", "symbols": [{"literal":"otherwise"}]},
+    {"name": "otherwise_expr$subexpression$1", "symbols": [{"literal":"OTHERWISE"}]},
+    {"name": "otherwise_expr", "symbols": ["expr", "otherwise_expr$subexpression$1", "ternary_expr"], "postprocess": function(d) { return ['otherwise', d[0], d[2]]; }},
     {"name": "otherwise_expr", "symbols": ["ternary_expr"], "postprocess": id},
     {"name": "ternary_expr", "symbols": ["or_expr", {"literal":"?"}, "expr", {"literal":":"}, "ternary_expr"], "postprocess": function(d) {return ['ternary', d[0], d[2], d[4]];}},
     {"name": "ternary_expr", "symbols": ["or_expr"], "postprocess": id},
-    {"name": "or_expr", "symbols": ["or_expr", (lexer.has("or") ? {type: "or"} : or), "and_expr"], "postprocess": function(d) {return ['or', d[0], d[2]];}},
+    {"name": "or_expr$subexpression$1", "symbols": [{"literal":"or"}]},
+    {"name": "or_expr$subexpression$1", "symbols": [{"literal":"OR"}]},
+    {"name": "or_expr", "symbols": ["or_expr", "or_expr$subexpression$1", "and_expr"], "postprocess": function(d) {return ['or', d[0], d[2]];}},
     {"name": "or_expr", "symbols": ["and_expr"], "postprocess": id},
-    {"name": "and_expr", "symbols": ["and_expr", (lexer.has("and") ? {type: "and"} : and), "comp_expr"], "postprocess": function(d) {return ['and', d[0], d[2]];}},
+    {"name": "and_expr$subexpression$1", "symbols": [{"literal":"and"}]},
+    {"name": "and_expr$subexpression$1", "symbols": [{"literal":"AND"}]},
+    {"name": "and_expr", "symbols": ["and_expr", "and_expr$subexpression$1", "comp_expr"], "postprocess": function(d) {return ['and', d[0], d[2]];}},
     {"name": "and_expr", "symbols": ["comp_expr"], "postprocess": id},
     {"name": "expr", "symbols": ["otherwise_expr"], "postprocess": id},
     {"name": "expr_list$ebnf$1", "symbols": ["expr"], "postprocess": id},
@@ -246,10 +244,14 @@ var grammar = {
         	});
         	return ['with_selectors', v, selectors];
         }  },
-    {"name": "df_param$subexpression$1", "symbols": [(lexer.has("dfParamsName") ? {type: "dfParamsName"} : dfParamsName)]},
-    {"name": "df_param$subexpression$1", "symbols": [(lexer.has("ifseveral") ? {type: "ifseveral"} : ifseveral)]},
-    {"name": "df_param$subexpression$1", "symbols": [(lexer.has("ifnone") ? {type: "ifnone"} : ifnone)]},
-    {"name": "df_param$subexpression$1", "symbols": [(lexer.has("type") ? {type: "type"} : type)]},
+    {"name": "df_param$subexpression$1", "symbols": [{"literal":"oracles"}]},
+    {"name": "df_param$subexpression$1", "symbols": [{"literal":"feed_name"}]},
+    {"name": "df_param$subexpression$1", "symbols": [{"literal":"min_mci"}]},
+    {"name": "df_param$subexpression$1", "symbols": [{"literal":"feed_value"}]},
+    {"name": "df_param$subexpression$1", "symbols": [{"literal":"what"}]},
+    {"name": "df_param$subexpression$1", "symbols": [{"literal":"ifseveral"}]},
+    {"name": "df_param$subexpression$1", "symbols": [{"literal":"ifnone"}]},
+    {"name": "df_param$subexpression$1", "symbols": [{"literal":"type"}]},
     {"name": "df_param$subexpression$2", "symbols": ["expr"]},
     {"name": "df_param$subexpression$2", "symbols": [(lexer.has("addressValue") ? {type: "addressValue"} : addressValue)]},
     {"name": "df_param", "symbols": ["df_param$subexpression$1", "comparisonOperator", "df_param$subexpression$2"], "postprocess":  function(d) {
@@ -262,15 +264,15 @@ var grammar = {
     {"name": "df_param_list$ebnf$1$subexpression$1", "symbols": [{"literal":","}, "df_param"]},
     {"name": "df_param_list$ebnf$1", "symbols": ["df_param_list$ebnf$1", "df_param_list$ebnf$1$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
     {"name": "df_param_list", "symbols": ["df_param", "df_param_list$ebnf$1"], "postprocess": function(d) { return [d[0]].concat(d[1].map(function (item) {return item[1];}));   }},
-    {"name": "io_param$subexpression$1", "symbols": [(lexer.has("address") ? {type: "address"} : address)]},
-    {"name": "io_param$subexpression$1", "symbols": [(lexer.has("amount") ? {type: "amount"} : amount)]},
-    {"name": "io_param$subexpression$1", "symbols": [(lexer.has("asset") ? {type: "asset"} : asset)]},
+    {"name": "io_param$subexpression$1", "symbols": [{"literal":"address"}]},
+    {"name": "io_param$subexpression$1", "symbols": [{"literal":"amount"}]},
+    {"name": "io_param$subexpression$1", "symbols": [{"literal":"asset"}]},
     {"name": "io_param$subexpression$2", "symbols": ["expr"]},
-    {"name": "io_param$subexpression$2", "symbols": [(lexer.has("base") ? {type: "base"} : base)]},
+    {"name": "io_param$subexpression$2", "symbols": [{"literal":"base"}]},
     {"name": "io_param$subexpression$2", "symbols": [(lexer.has("addressValue") ? {type: "addressValue"} : addressValue)]},
     {"name": "io_param", "symbols": ["io_param$subexpression$1", "comparisonOperator", "io_param$subexpression$2"], "postprocess":  function(d) {
         	var value = d[2][0];
-        	if (value.type === 'base' || value.type === 'addressValue')
+        	if (value.value === 'base' || value.type === 'addressValue')
         		value = value.value;
         	return [d[0][0].value, d[1], value];
         } },
@@ -278,11 +280,11 @@ var grammar = {
     {"name": "io_param_list$ebnf$1$subexpression$1", "symbols": [{"literal":","}, "io_param"]},
     {"name": "io_param_list$ebnf$1", "symbols": ["io_param_list$ebnf$1", "io_param_list$ebnf$1$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
     {"name": "io_param_list", "symbols": ["io_param", "io_param_list$ebnf$1"], "postprocess": function(d) { return [d[0]].concat(d[1].map(function (item) {return item[1];}));   }},
-    {"name": "attestation_param$subexpression$1", "symbols": [(lexer.has("attestors") ? {type: "attestors"} : attestors)]},
-    {"name": "attestation_param$subexpression$1", "symbols": [(lexer.has("address") ? {type: "address"} : address)]},
-    {"name": "attestation_param$subexpression$1", "symbols": [(lexer.has("ifseveral") ? {type: "ifseveral"} : ifseveral)]},
-    {"name": "attestation_param$subexpression$1", "symbols": [(lexer.has("ifnone") ? {type: "ifnone"} : ifnone)]},
-    {"name": "attestation_param$subexpression$1", "symbols": [(lexer.has("type") ? {type: "type"} : type)]},
+    {"name": "attestation_param$subexpression$1", "symbols": [{"literal":"attestors"}]},
+    {"name": "attestation_param$subexpression$1", "symbols": [{"literal":"address"}]},
+    {"name": "attestation_param$subexpression$1", "symbols": [{"literal":"ifseveral"}]},
+    {"name": "attestation_param$subexpression$1", "symbols": [{"literal":"ifnone"}]},
+    {"name": "attestation_param$subexpression$1", "symbols": [{"literal":"type"}]},
     {"name": "attestation_param$subexpression$2", "symbols": ["expr"]},
     {"name": "attestation_param$subexpression$2", "symbols": [(lexer.has("addressValue") ? {type: "addressValue"} : addressValue)]},
     {"name": "attestation_param", "symbols": ["attestation_param$subexpression$1", "comparisonOperator", "attestation_param$subexpression$2"], "postprocess":  function(d) {
@@ -295,13 +297,41 @@ var grammar = {
     {"name": "attestation_param_list$ebnf$1$subexpression$1", "symbols": [{"literal":","}, "attestation_param"]},
     {"name": "attestation_param_list$ebnf$1", "symbols": ["attestation_param_list$ebnf$1", "attestation_param_list$ebnf$1$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
     {"name": "attestation_param_list", "symbols": ["attestation_param", "attestation_param_list$ebnf$1"], "postprocess": function(d) { return [d[0]].concat(d[1].map(function (item) {return item[1];}));   }},
+    {"name": "array$ebnf$1", "symbols": [{"literal":","}], "postprocess": id},
+    {"name": "array$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
+    {"name": "array", "symbols": [{"literal":"["}, "expr_list", "array$ebnf$1", {"literal":"]"}], "postprocess": function(d) { return ['array', d[1]] }},
+    {"name": "dictionary$ebnf$1", "symbols": [{"literal":","}], "postprocess": id},
+    {"name": "dictionary$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
+    {"name": "dictionary", "symbols": [{"literal":"{"}, "pair_list", "dictionary$ebnf$1", {"literal":"}"}], "postprocess": function(d) { return ['dictionary', d[1]] }},
+    {"name": "pair_list$ebnf$1", "symbols": ["pair"], "postprocess": id},
+    {"name": "pair_list$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
+    {"name": "pair_list$ebnf$2", "symbols": []},
+    {"name": "pair_list$ebnf$2$subexpression$1", "symbols": [{"literal":","}, "pair"]},
+    {"name": "pair_list$ebnf$2", "symbols": ["pair_list$ebnf$2", "pair_list$ebnf$2$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
+    {"name": "pair_list", "symbols": ["pair_list$ebnf$1", "pair_list$ebnf$2"], "postprocess":  function(d) {
+        	var arr = d[0] ? [d[0]] : [];
+        	return arr.concat(d[1].map(function (item) {return item[1];}));
+        } },
+    {"name": "pair$subexpression$1", "symbols": ["string"]},
+    {"name": "pair$subexpression$1", "symbols": [(lexer.has("IDEN") ? {type: "IDEN"} : IDEN)]},
+    {"name": "pair$subexpression$1", "symbols": [(lexer.has("keyword") ? {type: "keyword"} : keyword)]},
+    {"name": "pair$subexpression$1", "symbols": [(lexer.has("addressValue") ? {type: "addressValue"} : addressValue)]},
+    {"name": "pair", "symbols": ["pair$subexpression$1", {"literal":":"}, "expr"], "postprocess":  function(d) {
+        	var key = d[0][0];
+        	if (typeof key !== 'string')
+        		key = key.value;
+        	return [key, d[2]]; 
+        } },
     {"name": "P", "symbols": [{"literal":"("}, "expr", {"literal":")"}], "postprocess": function(d) {return d[1]; }},
     {"name": "P", "symbols": ["N"], "postprocess": id},
     {"name": "P", "symbols": ["string"], "postprocess": id},
     {"name": "Exp", "symbols": ["P", {"literal":"^"}, "Exp"], "postprocess": function(d) {return ['^', d[0], d[2]]; }},
     {"name": "Exp", "symbols": ["P"], "postprocess": id},
     {"name": "unary_expr", "symbols": ["Exp"], "postprocess": id},
-    {"name": "unary_expr", "symbols": [(lexer.has("not") ? {type: "not"} : not), "unary_expr"], "postprocess": function(d) {return ['not', d[1]];}},
+    {"name": "unary_expr$subexpression$1", "symbols": [{"literal":"!"}]},
+    {"name": "unary_expr$subexpression$1", "symbols": [{"literal":"not"}]},
+    {"name": "unary_expr$subexpression$1", "symbols": [{"literal":"NOT"}]},
+    {"name": "unary_expr", "symbols": ["unary_expr$subexpression$1", "unary_expr"], "postprocess": function(d) {return ['not', d[1]];}},
     {"name": "MD", "symbols": ["MD", {"literal":"*"}, "unary_expr"], "postprocess": function(d) {return ['*', d[0], d[2]]; }},
     {"name": "MD", "symbols": ["MD", {"literal":"/"}, "unary_expr"], "postprocess": function(d) {return ['/', d[0], d[2]]; }},
     {"name": "MD", "symbols": ["MD", {"literal":"%"}, "unary_expr"], "postprocess": function(d) {return ['%', d[0], d[2]]; }},
@@ -314,6 +344,8 @@ var grammar = {
     {"name": "AS", "symbols": ["MD"], "postprocess": id},
     {"name": "N", "symbols": ["float"], "postprocess": id},
     {"name": "N", "symbols": ["boolean"], "postprocess": id},
+    {"name": "N", "symbols": ["array"], "postprocess": id},
+    {"name": "N", "symbols": ["dictionary"], "postprocess": id},
     {"name": "N", "symbols": ["local_var"], "postprocess": id},
     {"name": "N", "symbols": ["func_call"], "postprocess": id},
     {"name": "N", "symbols": ["trigger_data"], "postprocess": id},
@@ -379,9 +411,11 @@ var grammar = {
     {"name": "N", "symbols": [{"literal":"timestamp_to_string"}, {"literal":"("}, "expr", "N$ebnf$6", {"literal":")"}], "postprocess": function(d) {return ['timestamp_to_string', d[2], d[3] ? d[3][1] : null]; }},
     {"name": "N", "symbols": [{"literal":"parse_date"}, {"literal":"("}, "expr", {"literal":")"}], "postprocess": function(d) {return ['parse_date', d[2]]; }},
     {"name": "N", "symbols": ["bounce_expr"], "postprocess": id},
-    {"name": "N$subexpression$1", "symbols": [{"literal":"["}, {"literal":"["}]},
-    {"name": "N$subexpression$2", "symbols": [{"literal":"]"}, {"literal":"]"}]},
-    {"name": "N", "symbols": [(lexer.has("data_feed") ? {type: "data_feed"} : data_feed), "N$subexpression$1", "df_param_list", "N$subexpression$2"], "postprocess":  function (d, location, reject){
+    {"name": "N$subexpression$1", "symbols": [{"literal":"data_feed"}]},
+    {"name": "N$subexpression$1", "symbols": [{"literal":"in_data_feed"}]},
+    {"name": "N$subexpression$2", "symbols": [{"literal":"["}, {"literal":"["}]},
+    {"name": "N$subexpression$3", "symbols": [{"literal":"]"}, {"literal":"]"}]},
+    {"name": "N", "symbols": ["N$subexpression$1", "N$subexpression$2", "df_param_list", "N$subexpression$3"], "postprocess":  function (d, location, reject){
         	var params = {};
         	var arrParams = d[2];
         	for(var i = 0; i < arrParams.length; i++){
@@ -391,29 +425,31 @@ var grammar = {
         		if(params[name]) return reject;
         		params[name] = {operator: operator, value: value};
         	}
-        	return [d[0].value, params]
+        	return [d[0][0].value, params]
         }},
-    {"name": "N$subexpression$3", "symbols": [{"literal":"["}, {"literal":"["}]},
-    {"name": "N$subexpression$4", "symbols": [{"literal":"]"}, {"literal":"]"}]},
-    {"name": "N", "symbols": [(lexer.has("io") ? {type: "io"} : io), "N$subexpression$3", "io_param_list", "N$subexpression$4", (lexer.has("dotSelector") ? {type: "dotSelector"} : dotSelector)], "postprocess":  function (d, location, reject){
-        	var params = {};
-        	var arrParams = d[2];
-        	for(var i = 0; i < arrParams.length; i++){
-        		var name = arrParams[i][0];
-        		var operator = arrParams[i][1];
-        		var value = arrParams[i][2];
-        		if(params[name]) return reject;
-        		params[name] = {operator: operator, value: value};
-        	}
-        	return [d[0].value, params, d[4].value.substr(1)]
-        }},
+    {"name": "N$subexpression$4", "symbols": [{"literal":"input"}]},
+    {"name": "N$subexpression$4", "symbols": [{"literal":"output"}]},
     {"name": "N$subexpression$5", "symbols": [{"literal":"["}, {"literal":"["}]},
     {"name": "N$subexpression$6", "symbols": [{"literal":"]"}, {"literal":"]"}]},
+    {"name": "N", "symbols": ["N$subexpression$4", "N$subexpression$5", "io_param_list", "N$subexpression$6", (lexer.has("dotSelector") ? {type: "dotSelector"} : dotSelector)], "postprocess":  function (d, location, reject){
+        	var params = {};
+        	var arrParams = d[2];
+        	for(var i = 0; i < arrParams.length; i++){
+        		var name = arrParams[i][0];
+        		var operator = arrParams[i][1];
+        		var value = arrParams[i][2];
+        		if(params[name]) return reject;
+        		params[name] = {operator: operator, value: value};
+        	}
+        	return [d[0][0].value, params, d[4].value.substr(1)]
+        }},
+    {"name": "N$subexpression$7", "symbols": [{"literal":"["}, {"literal":"["}]},
+    {"name": "N$subexpression$8", "symbols": [{"literal":"]"}, {"literal":"]"}]},
     {"name": "N$ebnf$7$subexpression$1", "symbols": [(lexer.has("dotSelector") ? {type: "dotSelector"} : dotSelector)]},
     {"name": "N$ebnf$7$subexpression$1", "symbols": [{"literal":"["}, "expr", {"literal":"]"}]},
     {"name": "N$ebnf$7", "symbols": ["N$ebnf$7$subexpression$1"], "postprocess": id},
     {"name": "N$ebnf$7", "symbols": [], "postprocess": function(d) {return null;}},
-    {"name": "N", "symbols": [{"literal":"attestation"}, "N$subexpression$5", "attestation_param_list", "N$subexpression$6", "N$ebnf$7"], "postprocess":  function (d, location, reject){
+    {"name": "N", "symbols": [{"literal":"attestation"}, "N$subexpression$7", "attestation_param_list", "N$subexpression$8", "N$ebnf$7"], "postprocess":  function (d, location, reject){
         	var params = {};
         	var arrParams = d[2];
         	for(var i = 0; i < arrParams.length; i++){
@@ -428,31 +464,31 @@ var grammar = {
         		field = (d[4][0].type === 'dotSelector') ? d[4][0].value.substr(1) : d[4][1];
         	return ["attestation", params, field];
         }},
-    {"name": "N$subexpression$7", "symbols": [{"literal":"var"}]},
-    {"name": "N$subexpression$7", "symbols": [{"literal":"balance"}]},
-    {"name": "N$subexpression$8", "symbols": ["expr"]},
-    {"name": "N$subexpression$8", "symbols": [(lexer.has("addressValue") ? {type: "addressValue"} : addressValue)]},
-    {"name": "N$subexpression$8", "symbols": [(lexer.has("base") ? {type: "base"} : base)]},
+    {"name": "N$subexpression$9", "symbols": [{"literal":"var"}]},
+    {"name": "N$subexpression$9", "symbols": [{"literal":"balance"}]},
+    {"name": "N$subexpression$10", "symbols": ["expr"]},
+    {"name": "N$subexpression$10", "symbols": [(lexer.has("addressValue") ? {type: "addressValue"} : addressValue)]},
+    {"name": "N$subexpression$10", "symbols": [{"literal":"base"}]},
     {"name": "N$ebnf$8$subexpression$1$subexpression$1", "symbols": ["expr"]},
-    {"name": "N$ebnf$8$subexpression$1$subexpression$1", "symbols": [(lexer.has("base") ? {type: "base"} : base)]},
+    {"name": "N$ebnf$8$subexpression$1$subexpression$1", "symbols": [{"literal":"base"}]},
     {"name": "N$ebnf$8$subexpression$1", "symbols": [{"literal":"["}, "N$ebnf$8$subexpression$1$subexpression$1", {"literal":"]"}]},
     {"name": "N$ebnf$8", "symbols": ["N$ebnf$8$subexpression$1"], "postprocess": id},
     {"name": "N$ebnf$8", "symbols": [], "postprocess": function(d) {return null;}},
-    {"name": "N", "symbols": ["N$subexpression$7", {"literal":"["}, "N$subexpression$8", {"literal":"]"}, "N$ebnf$8"], "postprocess":  function(d) {
+    {"name": "N", "symbols": ["N$subexpression$9", {"literal":"["}, "N$subexpression$10", {"literal":"]"}, "N$ebnf$8"], "postprocess":  function(d) {
         	var first_value = d[2][0];
-        	if (first_value.type === 'addressValue' || first_value.type === 'base')
+        	if (first_value.type === 'addressValue' || first_value.value === 'base')
         		first_value = first_value.value;
         	var second_param = null;
         	if (d[4]){
         		second_param = d[4][1][0];
-        		if (second_param.type === 'base')
+        		if (second_param.value === 'base')
         			second_param = second_param.value;
         	}
         	return [d[0][0].value, first_value, second_param];
         } },
-    {"name": "N$subexpression$9", "symbols": [(lexer.has("dotSelector") ? {type: "dotSelector"} : dotSelector)]},
-    {"name": "N$subexpression$9", "symbols": [{"literal":"["}, "expr", {"literal":"]"}]},
-    {"name": "N", "symbols": [{"literal":"asset"}, {"literal":"["}, "expr", {"literal":"]"}, "N$subexpression$9"], "postprocess":  function(d) {
+    {"name": "N$subexpression$11", "symbols": [(lexer.has("dotSelector") ? {type: "dotSelector"} : dotSelector)]},
+    {"name": "N$subexpression$11", "symbols": [{"literal":"["}, "expr", {"literal":"]"}]},
+    {"name": "N", "symbols": [{"literal":"asset"}, {"literal":"["}, "expr", {"literal":"]"}, "N$subexpression$11"], "postprocess":  function(d) {
         	var field = d[4];
         	if (field[0].type === 'dotSelector')
         		field = field[0].value.substr(1);
@@ -470,22 +506,24 @@ var grammar = {
     {"name": "N", "symbols": [{"literal":"trigger.address"}], "postprocess": function(d) {return ['trigger.address']; }},
     {"name": "N", "symbols": [{"literal":"trigger.initial_address"}], "postprocess": function(d) {return ['trigger.initial_address']; }},
     {"name": "N", "symbols": [{"literal":"trigger.unit"}], "postprocess": function(d) {return ['trigger.unit']; }},
-    {"name": "N$subexpression$10", "symbols": [{"literal":"["}, {"literal":"["}]},
-    {"name": "N$subexpression$11", "symbols": ["expr"]},
-    {"name": "N$subexpression$11", "symbols": [(lexer.has("base") ? {type: "base"} : base)]},
-    {"name": "N$subexpression$12", "symbols": [{"literal":"]"}, {"literal":"]"}]},
+    {"name": "N$subexpression$12", "symbols": [{"literal":"["}, {"literal":"["}]},
+    {"name": "N$subexpression$13", "symbols": ["expr"]},
+    {"name": "N$subexpression$13", "symbols": [{"literal":"base"}]},
+    {"name": "N$subexpression$14", "symbols": [{"literal":"]"}, {"literal":"]"}]},
     {"name": "N$ebnf$9", "symbols": [(lexer.has("dotSelector") ? {type: "dotSelector"} : dotSelector)], "postprocess": id},
     {"name": "N$ebnf$9", "symbols": [], "postprocess": function(d) {return null;}},
-    {"name": "N", "symbols": [{"literal":"trigger.output"}, "N$subexpression$10", {"literal":"asset"}, "comparisonOperator", "N$subexpression$11", "N$subexpression$12", "N$ebnf$9"], "postprocess":  function(d) {
+    {"name": "N", "symbols": [{"literal":"trigger.output"}, "N$subexpression$12", {"literal":"asset"}, "comparisonOperator", "N$subexpression$13", "N$subexpression$14", "N$ebnf$9"], "postprocess":  function(d) {
         	var value = d[4][0];
         	var field = d[6] ? d[6].value.substr(1) : 'amount';
-        	if (value.type === 'base')
+        	if (value.value === 'base')
         		value = value.value;
         	return ['trigger.output', d[3], value, field];
         } },
     {"name": "float", "symbols": [(lexer.has("number") ? {type: "number"} : number)], "postprocess": function(d) { return new Decimal(d[0].value).times(1); }},
     {"name": "string", "symbols": [(lexer.has("string") ? {type: "string"} : string)], "postprocess": function(d) {return d[0].value; }},
-    {"name": "boolean", "symbols": [(lexer.has("boolean") ? {type: "boolean"} : boolean)], "postprocess": function(d) {return (d[0].value === 'true'); }}
+    {"name": "boolean$subexpression$1", "symbols": [{"literal":"true"}]},
+    {"name": "boolean$subexpression$1", "symbols": [{"literal":"false"}]},
+    {"name": "boolean", "symbols": ["boolean$subexpression$1"], "postprocess": function(d) {return (d[0][0].value === 'true'); }}
 ]
   , ParserStart: "main"
 }

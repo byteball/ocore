@@ -3565,3 +3565,111 @@ test.cb('excessive complexity using functions', t => {
 	})
 });
 
+
+test('array', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$a = 2;
+		$x = [22, 80+8, trigger.data.q, var['s'], [10*$a, $a]];
+		$x.1 + $x[0] + $x[3] + $x.2.a + $x.4.1
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 88 + 22 + 10 + 6 + 2);
+		t.deepEqual(complexity, 2);
+	})
+});
+
+test('dictionary', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$a = 2;
+		$x = {
+			"key1": ["value1", 7],
+			key2: "value2 " || trigger.data.q.a || ' ' || var['s'],
+			key3: {
+				d: trigger.data.q.a+$a,
+				w: var['s'],
+			}
+		};
+		$x.key1.0 || " " || $x['key2'] || " - " || $x.key3.d || " " || $x.key3.w
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'value1 value2 6 10 - 8 10');
+		t.deepEqual(complexity, 3);
+	})
+});
+
+test('dictionary with numeric keys not allowed', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {
+			2: "value2"
+		};
+		$x.2
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('dictionary with duplicate keys not allowed', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {
+			key1: "value1",
+			key1: "value2"
+		};
+		$x.key1
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('dictionary with numeric values', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$a = 2;
+		$x = {
+			"key1": 7,
+		};
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, {key1: 7});
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('dictionary with keys containing reserved words', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {
+			timestamp_to_string: 7,
+			timestamp_to_stringa: 7,
+			and: 7,
+			anda: 7,
+			asset: 7,
+			asseta: 7,
+			address: 7,
+			addressasset: 7,
+		};
+		$x.timestamp_to_stringa
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 7);
+		t.deepEqual(complexity, 1);
+	})
+});

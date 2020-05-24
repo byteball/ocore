@@ -452,12 +452,37 @@ exports.validate = function (opts, callback) {
 							return cb2("wrong comparison operator: " + comp);
 						if (!ValidationUtils.isNonemptyArray(fields) || !fields.every(key => typeof key === 'string'))
 							return cb2("bad search field: " + fields);
-						if (value.type === 'none') {
+						if (value.value === 'none') {
 							if (comp !== '=' && comp !== '!=')
 								return cb2("bad comparison for none: " + comp);
 							return cb2();
 						}
 						evaluate(value, cb2);
+					},
+					cb
+				);
+				break;
+
+			case 'array':
+				var arrItems = arr[1];
+				async.eachSeries(arrItems, evaluate, cb);
+				break;
+
+			case 'dictionary':
+				var arrPairs = arr[1];
+				var obj = {};
+				async.eachSeries(
+					arrPairs,
+					function (pair, cb2) {
+						if (!ValidationUtils.isArrayOfLength(pair, 2))
+							return cb2("not an array of 2");
+						var key = pair[0];
+						if (typeof key !== 'string')
+							return cb2("dictionary keys must be strings");
+						if (obj.hasOwnProperty(key))
+							return cb2("key " + key + " already set");
+						obj[key] = true;
+						evaluate(pair[1], cb2);	
 					},
 					cb
 				);

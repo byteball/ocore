@@ -15,6 +15,7 @@ shell('rm -rf ' + dst_dir);
 shell('cp -r ' + src_dir + '/ ' + dst_dir);
 
 var db = require('../db.js');
+var aa_validation = require('../aa_validation.js');
 var aa_composer = require('../aa_composer.js');
 var storage = require('../storage.js');
 var eventBus = require('../event_bus.js');
@@ -76,21 +77,26 @@ test.cb.serial('AA with response vars', t => {
 			}
 		]
 	}];
-	var address = objectHash.getChash160(aa);
-	addAA(aa);
-	
-	aa_composer.dryRunPrimaryAATrigger(trigger, address, aa, (arrResponses) => {
-		t.deepEqual(arrResponses.length, 1);
-		t.deepEqual(arrResponses[0].bounced, false);
-		t.deepEqual(arrResponses[0].response.responseVars.received_amount, 40000);
-		t.deepEqual(arrResponses[0].objResponseUnit.messages.find(function (message) { return (message.app === 'payment'); }).payload.outputs.find(function (output) { return (output.address === trigger.address); }).amount, 38000);
-		fixCache();
-		t.deepEqual(storage.assocUnstableUnits, old_cache.assocUnstableUnits);
-		t.deepEqual(storage.assocStableUnits, old_cache.assocStableUnits);
-		t.deepEqual(storage.assocUnstableMessages, old_cache.assocUnstableMessages);
-		t.deepEqual(storage.assocBestChildren, old_cache.assocBestChildren);
-		t.deepEqual(storage.assocStableUnitsByMci, old_cache.assocStableUnitsByMci);
-		t.end();
+
+	aa_validation.validateAADefinition(aa, err => {
+		t.deepEqual(err, null);
+
+		var address = objectHash.getChash160(aa);
+		addAA(aa);
+		
+		aa_composer.dryRunPrimaryAATrigger(trigger, address, aa, (arrResponses) => {
+			t.deepEqual(arrResponses.length, 1);
+			t.deepEqual(arrResponses[0].bounced, false);
+			t.deepEqual(arrResponses[0].response.responseVars.received_amount, 40000);
+			t.deepEqual(arrResponses[0].objResponseUnit.messages.find(function (message) { return (message.app === 'payment'); }).payload.outputs.find(function (output) { return (output.address === trigger.address); }).amount, 38000);
+			fixCache();
+			t.deepEqual(storage.assocUnstableUnits, old_cache.assocUnstableUnits);
+			t.deepEqual(storage.assocStableUnits, old_cache.assocStableUnits);
+			t.deepEqual(storage.assocUnstableMessages, old_cache.assocUnstableMessages);
+			t.deepEqual(storage.assocBestChildren, old_cache.assocBestChildren);
+			t.deepEqual(storage.assocStableUnitsByMci, old_cache.assocStableUnitsByMci);
+			t.end();
+		});
 	});
 });
 
@@ -779,5 +785,99 @@ test.cb.serial('AA with functions', t => {
 		t.deepEqual(storage.assocBestChildren, old_cache.assocBestChildren);
 		t.deepEqual(storage.assocStableUnitsByMci, old_cache.assocStableUnitsByMci);
 		t.end();
+	});
+});
+
+test.cb.serial('AA with messages composed of objects', t => {
+	var trigger_address = "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT";
+	var trigger = { outputs: { base: 10000 }, data: { x: 5 }, address: trigger_address };
+	var aa = ['autonomous agent', {
+		init: `{
+			$getPayload = ($fee) => {
+				$output = {
+					address: trigger.address,
+					amount: trigger.output[[asset=base]] - $fee
+				};
+				{
+					asset: 'base',
+					outputs: [$output]
+				}
+			};
+		}`,
+		messages: [
+			{
+				app: 'payment',
+				payload: `{$getPayload(1000)}`
+			},
+		]
+	}];
+
+	aa_validation.validateAADefinition(aa, err => {
+		t.deepEqual(err, null);
+
+		var address = objectHash.getChash160(aa);
+		addAA(aa);
+		
+		aa_composer.dryRunPrimaryAATrigger(trigger, address, aa, (arrResponses) => {
+			t.deepEqual(arrResponses.length, 1);
+			t.deepEqual(arrResponses[0].bounced, false);
+			t.deepEqual(arrResponses[0].objResponseUnit.messages.find(function (message) { return (message.app === 'payment'); }).payload.outputs.find(function (output) { return (output.address === trigger_address); }).amount, 9000);
+			fixCache();
+			t.deepEqual(storage.assocUnstableUnits, old_cache.assocUnstableUnits);
+			t.deepEqual(storage.assocStableUnits, old_cache.assocStableUnits);
+			t.deepEqual(storage.assocUnstableMessages, old_cache.assocUnstableMessages);
+			t.deepEqual(storage.assocBestChildren, old_cache.assocBestChildren);
+			t.deepEqual(storage.assocStableUnitsByMci, old_cache.assocStableUnitsByMci);
+			t.end();
+		});
+	});
+});
+
+test.cb.serial('AA with generated messages', t => {
+	var trigger_address = "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT";
+	var trigger = { outputs: { base: 10000 }, data: { x: 5 }, address: trigger_address };
+	var aa = ['autonomous agent', {
+		init: `{
+			$getMessage = ($fee) => {
+				$output = {
+					address: trigger.address,
+					amount: trigger.output[[asset=base]] - $fee
+				};
+				return {
+					app: 'payment',
+					payload: {
+						asset: 'base',
+						outputs: [$output]
+					}
+				};					
+			};
+		}`,
+		messages: [
+			`{$getMessage(1000)}`,
+			{
+				app: 'state',
+				state: `{}`
+			}
+		]
+	}];
+
+	aa_validation.validateAADefinition(aa, err => {
+		t.deepEqual(err, null);
+
+		var address = objectHash.getChash160(aa);
+		addAA(aa);
+		
+		aa_composer.dryRunPrimaryAATrigger(trigger, address, aa, (arrResponses) => {
+			t.deepEqual(arrResponses.length, 1);
+			t.deepEqual(arrResponses[0].bounced, false);
+			t.deepEqual(arrResponses[0].objResponseUnit.messages.find(function (message) { return (message.app === 'payment'); }).payload.outputs.find(function (output) { return (output.address === trigger_address); }).amount, 9000);
+			fixCache();
+			t.deepEqual(storage.assocUnstableUnits, old_cache.assocUnstableUnits);
+			t.deepEqual(storage.assocStableUnits, old_cache.assocStableUnits);
+			t.deepEqual(storage.assocUnstableMessages, old_cache.assocUnstableMessages);
+			t.deepEqual(storage.assocBestChildren, old_cache.assocBestChildren);
+			t.deepEqual(storage.assocStableUnitsByMci, old_cache.assocStableUnitsByMci);
+			t.end();
+		});
 	});
 });

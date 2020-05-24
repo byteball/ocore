@@ -359,8 +359,10 @@ test('bad formula with different validation case', t => {
 		t.deepEqual(err, `validation of formula trigger .address failed: parse error
 parser error: invalid syntax at line 1 col 1:
 
-  trigger .address
-  ^`);
+  trigger
+  ^
+Unexpected IDEN token: "trigger"
+`);
 	});
 });
 

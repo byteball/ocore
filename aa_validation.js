@@ -409,6 +409,8 @@ function validateAADefinition(arrDefinition, mci, callback) {
 			}
 		}
 
+		if (mci >= constants.aa2UpgradeMci && typeof message === 'string')
+			return cb();
 		if (message.app === 'state') {
 			var f = getFormula(message.state);
 			if (f === null)
@@ -423,6 +425,12 @@ function validateAADefinition(arrDefinition, mci, callback) {
 			return cb("bad messages in AA");
 		for (var i = 0; i < messages.length; i++){
 			var message = messages[i];
+			if (mci >= constants.aa2UpgradeMci && typeof message === 'string') {
+				var f = getFormula(message);
+				if (f === null)
+					return cb("bad message formula: " + message);
+				continue;
+			}
 			if (['payment', 'data', 'data_feed', 'definition', "asset", "asset_attestors", "attestation", "poll", "vote", 'text', 'profile', 'definition_template', 'state'].indexOf(message.app) === -1)
 				return cb("bad app: " + message.app);
 			if (message.app === 'state') {
@@ -491,7 +499,7 @@ function validateAADefinition(arrDefinition, mci, callback) {
 	}
 
 	function validateFormula(aa_opts, cb) {
-		if (!aa_opts.formula || !aa_opts.locals)
+		if (typeof aa_opts.formula !== 'string' || !aa_opts.locals)
 			throw Error("bad opts in validateFormula: " + JSON.stringify(aa_opts));
 		var opts = {
 			formula: aa_opts.formula,
@@ -631,7 +639,8 @@ function validateAADefinition(arrDefinition, mci, callback) {
 		return callback("AA definition must be 2-element array");
 	if (arrDefinition[0] !== 'autonomous agent')
 		return callback("not an AA");
-	var template = _.cloneDeep(arrDefinition[1]);
+	arrDefinition = _.cloneDeep(arrDefinition);
+	var template = arrDefinition[1];
 	if (template.base_aa) { // parameterized AA
 		if (hasFieldsExcept(template, ['base_aa', 'params']))
 			return callback("foreign fields in parameterized AA definition");

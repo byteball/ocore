@@ -26,45 +26,10 @@
 		sl:'[',
 		sr: ']',
 		arrow: '=>',
-		io: ['input', 'output'],
-		data_feed: ['data_feed', 'in_data_feed'],
-		attestation: 'attestation',
-		balance: 'balance',
-		address: 'address',
-		amount: 'amount',
-		asset: 'asset',
-		attestors: 'attestors',
-		ifseveral: 'ifseveral',
-		ifnone: 'ifnone',
-		none: 'none',
-		typeof: 'typeof',
-		type: 'type',
-		boolean: ['true', 'false'],
-		if: "if",
-		else: "else",
 		comparisonOperators: ["==", ">=", "<=", "!=", ">", "<", "="],
-		dfParamsName: ['oracles', 'feed_name', 'min_mci', 'feed_value', 'what'],
-		name: ['min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round', 'abs', 'hypot', 'is_valid_signed_package', 'is_valid_sig', 'vrf_verify', 'sha256', 'json_parse', 'json_stringify', 'number_from_seed', 'length', 'is_valid_address', 'starts_with', 'ends_with', 'contains', 'substring', 'timestamp_to_string', 'parse_date', 'is_aa', 'is_integer', 'is_valid_amount', 'is_array', 'is_assoc', 'array_length', 'index_of', 'to_upper', 'to_lower', 'exists', 'number_of_responses', 'is_valid_merkle_proof', 'replace'],
-		and: ['and', 'AND'],
-		or: ['or', 'OR'],
-		not: ['not', 'NOT', '!'],
-		otherwise: ['otherwise', 'OTHERWISE'],
+		not: '!',
 		quote: '"',
 		ternary: ['?', ':'],
-		base: 'base',
-		var: 'var',
-		storage_size: 'storage_size',
-		mci: 'mci',
-		timestamp: 'timestamp',
-		this_address: 'this_address',
-		mc_unit: 'mc_unit',
-		response_unit: 'response_unit',
-		unit: 'unit',
-		definition: 'definition',
-		response: 'response',
-		bounce: 'bounce',
-		return: 'return',
-		params: 'params',
 		addressValue: /\b[2-7A-Z]{32}\b/,
 		trigger_address: /\btrigger\.address\b/,
 		trigger_initial_address: /\btrigger\.initial_address\b/,
@@ -77,6 +42,33 @@
 		semi: ';',
 		comma: ',',
 		dot: '.',
+		IDEN: {
+			match: /\b[a-zA-Z_]\w*\b/,
+			type: moo.keywords({
+				keyword: [
+					'min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round', 'abs', 'hypot', 'is_valid_signed_package', 'is_valid_sig', 'vrf_verify', 'sha256', 'json_parse', 'json_stringify', 'number_from_seed', 'length', 'is_valid_address', 'starts_with', 'ends_with', 'contains', 'substring', 'timestamp_to_string', 'parse_date', 'is_aa', 'is_integer', 'is_valid_amount', 'is_array', 'is_assoc', 'array_length', 'index_of', 'to_upper', 'to_lower', 'exists', 'number_of_responses', 'is_valid_merkle_proof', 'replace', 'typeof',
+
+					'timestamp', 'storage_size', 'mci', 'this_address', 'response_unit', 'mc_unit', 'params',
+
+					'type', 'ifseveral', 'ifnone', 'attestors', 'address',
+					'oracles', 'feed_name', 'min_mci', 'feed_value', 'what',
+					'amount',
+
+					'none', 'base',
+
+					'true', 'false',
+					'and', 'AND',
+					'or', 'OR',
+					'not', 'NOT',
+					'otherwise', 'OTHERWISE',
+					'asset',
+					'var', 'response',
+					'if', 'else', 'return', 'bounce',
+					'unit', 'definition', 'balance',
+					'attestation', 'data_feed', 'in_data_feed', 'input', 'output',
+				],
+			})
+		},
 	});
 
 	var origNext = lexer.next;
@@ -125,16 +117,16 @@ return_statement -> "return" expr ";"  {% function(d) { return ['return', d[1]];
 
 empty_return_statement -> "return" ";"  {% function(d) { return ['return', null]; } %}
 
-otherwise_expr -> expr %otherwise ternary_expr  {% function(d) { return ['otherwise', d[0], d[2]]; } %}
+otherwise_expr -> expr ("otherwise"|"OTHERWISE") ternary_expr  {% function(d) { return ['otherwise', d[0], d[2]]; } %}
 	| ternary_expr {% id %}
 
 ternary_expr -> or_expr "?" expr ":" ternary_expr {% function(d) {return ['ternary', d[0], d[2], d[4]];}%}
 	| or_expr {% id %}
 
-or_expr -> or_expr %or and_expr {% function(d) {return ['or', d[0], d[2]];}%}
+or_expr -> or_expr ("or"|"OR") and_expr {% function(d) {return ['or', d[0], d[2]];}%}
 	| and_expr {% id %}
 
-and_expr -> and_expr %and comp_expr {% function(d) {return ['and', d[0], d[2]];}%}
+and_expr -> and_expr ("and"|"AND") comp_expr {% function(d) {return ['and', d[0], d[2]];}%}
 	| comp_expr {% id %}
 
 expr -> otherwise_expr {% id %}
@@ -220,7 +212,7 @@ with_selectors -> (func_call|local_var|trigger_data|params|unit|definition) (%do
 }  %}
 
 
-df_param ->  (%dfParamsName|%ifseveral|%ifnone|%type) comparisonOperator (expr | %addressValue)  {% function(d) {
+df_param ->  ("oracles"|"feed_name"|"min_mci"|"feed_value"|"what"|"ifseveral"|"ifnone"|"type") comparisonOperator (expr | %addressValue)  {% function(d) {
 	var value = d[2][0];
 	if (value.type === 'addressValue')
 		value = value.value;
@@ -228,21 +220,36 @@ df_param ->  (%dfParamsName|%ifseveral|%ifnone|%type) comparisonOperator (expr |
 } %}
 df_param_list -> df_param ("," df_param):*  {% function(d) { return [d[0]].concat(d[1].map(function (item) {return item[1];}));   } %}
 
-io_param ->  (%address|%amount|%asset) comparisonOperator (expr|%base|%addressValue)  {% function(d) {
+io_param ->  ("address"|"amount"|"asset") comparisonOperator (expr|"base"|%addressValue)  {% function(d) {
 		var value = d[2][0];
-		if (value.type === 'base' || value.type === 'addressValue')
+		if (value.value === 'base' || value.type === 'addressValue')
 			value = value.value;
 		return [d[0][0].value, d[1], value];
 	} %}
 io_param_list -> io_param ("," io_param):*  {% function(d) { return [d[0]].concat(d[1].map(function (item) {return item[1];}));   } %}
 
-attestation_param ->  (%attestors|%address|%ifseveral|%ifnone|%type) comparisonOperator (expr|%addressValue)  {% function(d) {
+attestation_param ->  ("attestors"|"address"|"ifseveral"|"ifnone"|"type") comparisonOperator (expr|%addressValue)  {% function(d) {
 		var value = d[2][0];
 		if (value.type === 'addressValue')
 			value = value.value;
 		return [d[0][0].value, d[1], value];
 	} %}
 attestation_param_list -> attestation_param ("," attestation_param):*  {% function(d) { return [d[0]].concat(d[1].map(function (item) {return item[1];}));   } %}
+
+
+array -> "[" expr_list ",":? "]" {% function(d) { return ['array', d[1]] } %}
+dictionary -> "{" pair_list ",":? "}" {% function(d) { return ['dictionary', d[1]] } %}
+
+pair_list -> pair:? ("," pair):*  {% function(d) {
+	var arr = d[0] ? [d[0]] : [];
+	return arr.concat(d[1].map(function (item) {return item[1];}));
+} %}
+pair -> (string|%IDEN|%keyword|%addressValue) ":" expr {% function(d) {
+	var key = d[0][0];
+	if (typeof key !== 'string')
+		key = key.value;
+	return [key, d[2]]; 
+} %}
 
 
 P -> "(" expr ")" {% function(d) {return d[1]; } %}
@@ -253,7 +260,7 @@ Exp -> P "^" Exp    {% function(d) {return ['^', d[0], d[2]]; } %}
     | P             {% id %}
 
 unary_expr -> Exp {% id %}
-	| %not unary_expr {% function(d) {return ['not', d[1]];}%}
+	| ("!"|"not"|"NOT") unary_expr {% function(d) {return ['not', d[1]];}%}
 
 MD -> MD "*" unary_expr  {% function(d) {return ['*', d[0], d[2]]; } %}
     | MD "/" unary_expr  {% function(d) {return ['/', d[0], d[2]]; } %}
@@ -269,6 +276,8 @@ AS -> AS "+" MD {% function(d) {return ['+', d[0], d[2]]; } %}
 
 N -> float          {% id %}
 	| boolean       {% id %}
+	| array     {% id %}
+	| dictionary     {% id %}
 	| local_var     {% id %}
 	| func_call     {% id %}
 	| trigger_data     {% id %}
@@ -316,7 +325,7 @@ N -> float          {% id %}
     | "timestamp_to_string" "(" expr ("," expr):? ")"    {% function(d) {return ['timestamp_to_string', d[2], d[3] ? d[3][1] : null]; } %}
     | "parse_date" "(" expr ")"    {% function(d) {return ['parse_date', d[2]]; } %}
     | bounce_expr    {% id %}
-    | %data_feed ("[" "[") df_param_list ("]" "]") {% function (d, location, reject){
+    | ("data_feed"|"in_data_feed") ("[" "[") df_param_list ("]" "]") {% function (d, location, reject){
 		var params = {};
 		var arrParams = d[2];
 		for(var i = 0; i < arrParams.length; i++){
@@ -326,9 +335,9 @@ N -> float          {% id %}
 			if(params[name]) return reject;
 			params[name] = {operator: operator, value: value};
 		}
-		return [d[0].value, params]
+		return [d[0][0].value, params]
 	}%}
-    | %io ("[" "[") io_param_list ("]" "]")  %dotSelector {% function (d, location, reject){
+    | ("input"|"output") ("[" "[") io_param_list ("]" "]")  %dotSelector {% function (d, location, reject){
 		var params = {};
 		var arrParams = d[2];
 		for(var i = 0; i < arrParams.length; i++){
@@ -338,7 +347,7 @@ N -> float          {% id %}
 			if(params[name]) return reject;
 			params[name] = {operator: operator, value: value};
 		}
-		return [d[0].value, params, d[4].value.substr(1)]
+		return [d[0][0].value, params, d[4].value.substr(1)]
 	}%}
     | "attestation" ("[" "[") attestation_param_list ("]" "]") (%dotSelector|"[" expr "]"):? {% function (d, location, reject){
 		var params = {};
@@ -355,14 +364,14 @@ N -> float          {% id %}
 			field = (d[4][0].type === 'dotSelector') ? d[4][0].value.substr(1) : d[4][1];
 		return ["attestation", params, field];
 	}%}
-	| ("var"|"balance") "[" (expr|%addressValue|%base) "]" ("[" (expr|%base) "]"):?  {% function(d) {
+	| ("var"|"balance") "[" (expr|%addressValue|"base") "]" ("[" (expr|"base") "]"):?  {% function(d) {
 		var first_value = d[2][0];
-		if (first_value.type === 'addressValue' || first_value.type === 'base')
+		if (first_value.type === 'addressValue' || first_value.value === 'base')
 			first_value = first_value.value;
 		var second_param = null;
 		if (d[4]){
 			second_param = d[4][1][0];
-			if (second_param.type === 'base')
+			if (second_param.value === 'base')
 				second_param = second_param.value;
 		}
 		return [d[0][0].value, first_value, second_param];
@@ -385,10 +394,10 @@ N -> float          {% id %}
 	| "trigger.address"  {% function(d) {return ['trigger.address']; }  %}
 	| "trigger.initial_address"  {% function(d) {return ['trigger.initial_address']; }  %}
 	| "trigger.unit"  {% function(d) {return ['trigger.unit']; }  %}
-	| "trigger.output" ("[" "[") "asset" comparisonOperator (expr|%base) ("]" "]") %dotSelector:?  {% function(d) {
+	| "trigger.output" ("[" "[") "asset" comparisonOperator (expr|"base") ("]" "]") %dotSelector:?  {% function(d) {
 		var value = d[4][0];
 		var field = d[6] ? d[6].value.substr(1) : 'amount';
-		if (value.type === 'base')
+		if (value.value === 'base')
 			value = value.value;
 		return ['trigger.output', d[3], value, field];
 	} %}
@@ -397,4 +406,4 @@ float -> %number           {% function(d) { return new Decimal(d[0].value).times
 
 string -> %string        {% function(d) {return d[0].value; } %}
 
-boolean -> %boolean        {% function(d) {return (d[0].value === 'true'); } %}
+boolean -> ("true"|"false")        {% function(d) {return (d[0][0].value === 'true'); } %}
