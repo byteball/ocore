@@ -1570,8 +1570,12 @@ exports.evaluate = function (opts, callback) {
 				evaluate(expr, function (res) {
 					if (fatal_error)
 						return cb(false);
-					if (res instanceof wrappedObject)
-						res = true;
+					if (res instanceof wrappedObject) {
+						if (objValidationState.last_ball_mci < constants.aa2UpgradeMci)
+							res = true;
+						else
+							res = string_utils.getJsonSourceString(res.obj); // it's ok if the string is longer than MAX_AA_STRING_LENGTH
+					}
 					if (!isValidValue(res))
 						return setFatalError("invalid value in sha256: " + res, cb, false);
 					if (Decimal.isDecimal(res))

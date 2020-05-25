@@ -1588,10 +1588,11 @@ test('sha256', t => {
 	})
 });
 
-test('sha256 with true', t => {
-	var str = 'true';
-	var hash = crypto.createHash("sha256").update(str, "utf8").digest("base64");
-	evalFormulaWithVars({ formula: "sha256 (trigger.data)", trigger: { data: {a: 5}}, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+test('sha256 of object', t => {
+//	var str = 'true';
+	var trigger = { data: { a: 5 } };
+	var hash = objectHash.getBase64Hash(trigger.data, true);
+	evalFormulaWithVars({ formula: "sha256 (trigger.data)", trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, hash);
 		t.deepEqual(complexity, 2);
 	})
