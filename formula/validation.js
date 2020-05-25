@@ -464,11 +464,15 @@ exports.validate = function (opts, callback) {
 				break;
 
 			case 'array':
+				if (mci < constants.aa2UpgradeMci)
+					return cb("arrays not activated yet");
 				var arrItems = arr[1];
 				async.eachSeries(arrItems, evaluate, cb);
 				break;
 
 			case 'dictionary':
+				if (mci < constants.aa2UpgradeMci)
+					return cb("dictionaries not activated yet");
 				var arrPairs = arr[1];
 				var obj = {};
 				async.eachSeries(
@@ -805,6 +809,9 @@ exports.validate = function (opts, callback) {
 			case 'json_parse':
 			case 'is_valid_address':
 			case 'is_aa':
+			case 'chash160':
+				if (op === 'chash160' && mci < constants.aa2UpgradeMci)
+					return cb("chash160 not activated yet");
 				complexity++;
 				var expr = arr[1];
 			/*	if (typeof expr === 'boolean' || Decimal.isDecimal(expr))

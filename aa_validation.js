@@ -190,12 +190,16 @@ function validateAADefinition(arrDefinition, mci, callback) {
 					break;
 
 				case 'definition':
+					if (mci >= constants.aa2UpgradeMci && getFormula(payload.definition) !== null)
+						return cb2();
 					if (!isArrayOfLength(payload.definition, 2))
 						return cb2("definition must be array of 2");
 					if (hasFieldsExcept(payload, ['definition']))
 						return cb2("unknown fields in AA definition in AA");
 					if (payload.definition[0] !== 'autonomous agent')
 						return cb2('not an AA in nested AA definition');
+					if (mci >= constants.aa2UpgradeMci && getFormula(payload.definition[1]) !== null)
+						return cb2();
 					if (!isNonemptyObject(payload.definition[1]))
 						return cb2('empty nested definition');
 					cb2();

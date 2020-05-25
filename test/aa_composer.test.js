@@ -881,3 +881,93 @@ test.cb.serial('AA with generated messages', t => {
 		});
 	});
 });
+
+test.cb.serial('AA with generated definition of new AA and immediately sending to this new AA', t => {
+	var trigger_address = "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT";
+	var trigger = { outputs: { base: 10000 }, data: { x: 5 }, address: trigger_address };
+
+	var child_aa = ['autonomous agent', {
+		bounce_fees: { base: 10000 },
+		doc_url: 'https://myapp.com/description.json',
+		messages: [
+			{
+				app: 'payment',
+				payload: {
+					asset: 'base',
+					init: "{response['received_amount'] = trigger.output[[asset=base]];}",
+					outputs: [
+						{address: "{trigger.initial_address}", amount: "{min(trigger.output[[asset=base]] - 2000, 5000)}"}
+					]
+				}
+			}
+		]
+	}];
+	var child_aa_address = objectHash.getChash160(child_aa);
+	
+	var factory_aa = ['autonomous agent', {
+		init: `{
+			$child_aa = ['autonomous agent', {
+				bounce_fees: { base: 10000 },
+				doc_url: 'https://myapp.com/description.json',
+				messages: [
+					{
+						app: 'payment',
+						payload: {
+							asset: 'base',
+							init: "{response['received_amount'] = trigger.output[[asset=base]];}",
+							outputs: [
+								{address: "{trigger.initial_address}", amount: "{min(trigger.output[[asset=base]] - 2000, 5000)}"}
+							]
+						}
+					}
+				]
+			}];
+			$child_aa_address = chash160($child_aa);
+		}`,
+		messages: [
+			{
+				app: 'definition',
+				payload: {
+					definition: `{$child_aa}`
+				}
+			},
+			{
+				app: 'payment',
+				payload: {
+					asset: 'base',
+					outputs: [{address: `{$child_aa_address}`, amount: 8000}]
+				}
+			},
+			{
+				app: 'state',
+				state: `{
+					var['child_aa1'] = $child_aa_address;
+					var['child_aa2'] = unit[response_unit].messages[[.app='definition']].payload.address;
+				}`
+			}
+		]
+	}];
+
+	aa_validation.validateAADefinition(factory_aa, err => {
+		t.deepEqual(err, null);
+
+		var factory_address = objectHash.getChash160(factory_aa);
+		addAA(factory_aa);
+		
+		aa_composer.dryRunPrimaryAATrigger(trigger, factory_address, factory_aa, (arrResponses) => {
+			t.deepEqual(arrResponses.length, 2);
+			t.deepEqual(arrResponses[0].bounced, false);
+			t.deepEqual(arrResponses[0].updatedStateVars[factory_address].child_aa1.value, child_aa_address);
+			t.deepEqual(arrResponses[0].updatedStateVars[factory_address].child_aa2.value, child_aa_address);
+			t.deepEqual(arrResponses[0].objResponseUnit.messages.find(function (message) { return (message.app === 'definition'); }).payload.definition, child_aa);
+			t.deepEqual(arrResponses[1].objResponseUnit.messages.find(function (message) { return (message.app === 'payment'); }).payload.outputs.find(function (output) { return (output.address === trigger_address); }).amount, 5000);
+			fixCache();
+			t.deepEqual(storage.assocUnstableUnits, old_cache.assocUnstableUnits);
+			t.deepEqual(storage.assocStableUnits, old_cache.assocStableUnits);
+			t.deepEqual(storage.assocUnstableMessages, old_cache.assocUnstableMessages);
+			t.deepEqual(storage.assocBestChildren, old_cache.assocBestChildren);
+			t.deepEqual(storage.assocStableUnitsByMci, old_cache.assocStableUnitsByMci);
+			t.end();
+		});
+	});
+});

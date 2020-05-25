@@ -6,6 +6,8 @@ var _ = require('lodash');
 var base32 = require('thirty-two');
 var ValidationUtils = require("../validation_utils.js");
 var string_utils = require("../string_utils.js");
+var chash = require("../chash.js");
+var objectHash = require("../object_hash.js");
 var merkle = require('../merkle.js');
 var constants = require('../constants');
 var dataFeeds = require('../data_feeds.js');
@@ -1594,6 +1596,21 @@ exports.evaluate = function (opts, callback) {
 						else
 							cb(h.digest(format));
 					});
+				});
+				break;
+
+			case 'chash160':
+				var expr = arr[1];
+				evaluate(expr, function (res) {
+					if (fatal_error)
+						return cb(false);
+					if (res instanceof wrappedObject)
+						return cb(objectHash.getChash160(res.obj));
+					if (!isValidValue(res))
+						return setFatalError("invalid value in chash160: " + res, cb, false);
+					if (Decimal.isDecimal(res))
+						res = toDoubleRange(res);
+					cb(chash.getChash160(res.toString()));
 				});
 				break;
 

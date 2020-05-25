@@ -7,6 +7,7 @@ var constants = require("../constants.js");
 constants.aa2UpgradeMci = 0;
 
 var objectHash = require("../object_hash.js");
+var chash = require("../chash.js");
 var merkle = require('../merkle.js');
 var ecdsaSig = require('../signature.js');
 var desktop_app = require('../desktop_app.js');
@@ -1652,6 +1653,24 @@ test('sha256 bad format', t => {
 	})
 });
 
+test('chash of object', t => {
+	var trigger = { data: { a: 5 } };
+	var hash = objectHash.getChash160(trigger.data);
+	evalFormulaWithVars({ formula: "chash160 (trigger.data)", trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, hash);
+		t.deepEqual(complexity, 2);
+	})
+});
+
+test('chash of number', t => {
+	var trigger = { data: { a: 5 } };
+	var hash = chash.getChash160(trigger.data.a+'');
+	evalFormulaWithVars({ formula: "chash160 (trigger.data.a)", trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, hash);
+		t.deepEqual(complexity, 2);
+	})
+});
+	
 test.cb('signature verification', t => {
 	var db = require("../db");
 	var mnemonic = new Mnemonic();
