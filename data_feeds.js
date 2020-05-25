@@ -262,6 +262,7 @@ function readDataFeedValue(arrAddresses, feed_name, value, min_mci, max_mci, bAA
 }
 
 function readDataFeedByAddress(address, feed_name, value, min_mci, max_mci, ifseveral, objResult, handleResult){
+	var bLimitedPrecision = (max_mci < constants.aa2UpgradeMci);
 	var bAbortIfSeveral = (ifseveral === 'abort');
 	var key_prefix;
 	if (value === null){
@@ -270,7 +271,6 @@ function readDataFeedByAddress(address, feed_name, value, min_mci, max_mci, ifse
 	else{
 		var prefixed_value;
 		if (typeof value === 'string'){
-			var bLimitedPrecision = (max_mci < constants.aa2UpgradeMci);
 			var float = string_utils.toNumber(value, bLimitedPrecision);
 			if (float !== null)
 				prefixed_value = 'n\n'+string_utils.encodeDoubleInLexicograpicOrder(float);
@@ -299,7 +299,7 @@ function readDataFeedByAddress(address, feed_name, value, min_mci, max_mci, ifse
 			}
 			else{
 				var arrParts = data.value.split('\n');
-				objResult.value = string_utils.getFeedValue(arrParts[0]); // may convert to number
+				objResult.value = string_utils.getFeedValue(arrParts[0], bLimitedPrecision); // may convert to number
 				objResult.unit = arrParts[1];
 			}
 			objResult.mci = mci;

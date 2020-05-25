@@ -2110,7 +2110,7 @@ exports.evaluate = function (opts, callback) {
 			}
 			if (bLimitedPrecision) {
 				value = value.toString();
-				var f = string_utils.getNumericFeedValue(value);
+				var f = string_utils.toNumber(value, bLimitedPrecision);
 				if (f !== null)
 					value = createDecimal(value);
 			}

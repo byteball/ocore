@@ -124,8 +124,8 @@ function getNumericFeedValue(value, bBySignificantDigits){
 }
 
 // transformss the value to number is possible
-function getFeedValue(value){
-	var numValue = getNumericFeedValue(value);
+function getFeedValue(value, bLimitedPrecision){
+	var numValue = toNumber(value, bLimitedPrecision);
 	return (numValue === null) ? value : numValue;
 }
 
