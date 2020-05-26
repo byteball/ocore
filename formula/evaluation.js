@@ -1947,6 +1947,19 @@ exports.evaluate = function (opts, callback) {
 				});
 				break;
 
+			case 'keys':
+				var expr = arr[1];
+				evaluate(expr, function (res) {
+					if (fatal_error)
+						return cb(false);
+					if (!(res instanceof wrappedObject))
+						return setFatalError("not an object: " + res, cb, false);
+					if (Array.isArray(res.obj))
+						return setFatalError("not an object but an array: " + res, cb, false);
+					cb(new wrappedObject(Object.keys(res.obj)));
+				});
+				break;
+
 			case 'delete':
 				var obj_expr = arr[1];
 				var key_expr = arr[2];

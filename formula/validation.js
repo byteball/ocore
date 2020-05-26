@@ -856,6 +856,9 @@ exports.validate = function (opts, callback) {
 				evaluate(expr, cb);
 				break;
 
+			case 'keys':
+				if (mci < constants.aa2UpgradeMci)
+					return cb("keys function not activated yet");
 			case 'exists':
 			case 'is_array':
 			case 'is_assoc':
@@ -865,6 +868,8 @@ exports.validate = function (opts, callback) {
 				break;
 
 			case 'delete':
+				if (mci < constants.aa2UpgradeMci)
+					return cb("delete statement not activated yet");
 				var obj = arr[1];
 				var key = arr[2];
 				evaluate(obj, function (err) {

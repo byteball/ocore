@@ -50,7 +50,7 @@ function id(x) { return x[0]; }
 			match: /\b[a-zA-Z_]\w*\b/,
 			type: moo.keywords({
 				keyword: [
-					'min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round', 'abs', 'hypot', 'is_valid_signed_package', 'is_valid_sig', 'vrf_verify', 'sha256', 'chash160', 'json_parse', 'json_stringify', 'number_from_seed', 'length', 'is_valid_address', 'starts_with', 'ends_with', 'contains', 'substring', 'timestamp_to_string', 'parse_date', 'is_aa', 'is_integer', 'is_valid_amount', 'is_array', 'is_assoc', 'array_length', 'index_of', 'to_upper', 'to_lower', 'exists', 'number_of_responses', 'is_valid_merkle_proof', 'replace', 'typeof', 'delete',
+					'min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round', 'abs', 'hypot', 'is_valid_signed_package', 'is_valid_sig', 'vrf_verify', 'sha256', 'chash160', 'json_parse', 'json_stringify', 'number_from_seed', 'length', 'is_valid_address', 'starts_with', 'ends_with', 'contains', 'substring', 'timestamp_to_string', 'parse_date', 'is_aa', 'is_integer', 'is_valid_amount', 'is_array', 'is_assoc', 'array_length', 'index_of', 'to_upper', 'to_lower', 'exists', 'number_of_responses', 'is_valid_merkle_proof', 'replace', 'typeof', 'delete', 'keys',
 
 					'timestamp', 'storage_size', 'mci', 'this_address', 'response_unit', 'mc_unit', 'params',
 
@@ -404,6 +404,7 @@ var grammar = {
     {"name": "N", "symbols": [{"literal":"is_array"}, {"literal":"("}, "expr", {"literal":")"}], "postprocess": function(d) {return ['is_array', d[2]]; }},
     {"name": "N", "symbols": [{"literal":"is_assoc"}, {"literal":"("}, "expr", {"literal":")"}], "postprocess": function(d) {return ['is_assoc', d[2]]; }},
     {"name": "N", "symbols": [{"literal":"array_length"}, {"literal":"("}, "expr", {"literal":")"}], "postprocess": function(d) {return ['array_length', d[2]]; }},
+    {"name": "N", "symbols": [{"literal":"keys"}, {"literal":"("}, "expr", {"literal":")"}], "postprocess": function(d) {return ['keys', d[2]]; }},
     {"name": "N", "symbols": [{"literal":"starts_with"}, {"literal":"("}, "expr", {"literal":","}, "expr", {"literal":")"}], "postprocess": function(d) {return ['starts_with', d[2], d[4]]; }},
     {"name": "N", "symbols": [{"literal":"ends_with"}, {"literal":"("}, "expr", {"literal":","}, "expr", {"literal":")"}], "postprocess": function(d) {return ['ends_with', d[2], d[4]]; }},
     {"name": "N", "symbols": [{"literal":"contains"}, {"literal":"("}, "expr", {"literal":","}, "expr", {"literal":")"}], "postprocess": function(d) {return ['contains', d[2], d[4]]; }},
