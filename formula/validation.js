@@ -599,6 +599,10 @@ exports.validate = function (opts, callback) {
 						}
 					}
 					evaluate(bFuncDeclaration ? body : rhs, function (err) {
+						if (err)
+							return cb(err);
+						if (!bLocal)
+							return cb();
 						if (bFuncDeclaration) {
 							var funcProps = { complexity, count_args, count_ops };
 							// restore the saved values
@@ -611,9 +615,9 @@ exports.validate = function (opts, callback) {
 
 							locals[var_name] = funcProps;
 						}
-						else if (bLocal)
+						else
 							locals[var_name] = 'maybe assigned'; // 'maybe' because it could be within an 'if'
-						cb(err);
+						cb();
 					});
 				});
 				break;
