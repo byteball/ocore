@@ -1125,30 +1125,22 @@ exports.evaluate = function (opts, callback) {
 				break;
 
 			case 'local_var_assignment':
-			case 'state_var_assignment':
-			case 'response_var_assignment':
-				var bLocal = (op === 'local_var_assignment');
-				if (op === 'state_var_assignment' && !bStateVarAssignmentAllowed)
-					return setFatalError("state var assignment not allowed here", cb, false);
-				var var_name_or_expr = arr[1];
-				if (bLocal) {
-					// arr[1] is ['local_var', var_name, selectors]
-					if (arr[1][2]) // selector in assignment
-						return setFatalError("selector in assignment", cb, false);
-					var_name_or_expr = arr[1][1];
-				}
+				// arr[1] is ['local_var', var_name, selectors]
+				if (arr[1][2]) // selector in assignment
+					return setFatalError("selector in assignment", cb, false);
+				var var_name_or_expr = arr[1][1];
 				var rhs = arr[2];
-				var assignment_op = arr[3];
-				if (assignment_op && op !== 'state_var_assignment')
-					return setFatalError("assignment op set for non-state-var assignment", cb, false);
+				var selectors = arr[3];
+				if (selectors)
+					return setFatalError("selector in assignment", cb, false);
 				evaluate(var_name_or_expr, function (var_name) {
 					if (fatal_error)
 						return cb(false);
 					if (typeof var_name !== 'string')
 						return setFatalError("assignment: var name "+var_name_or_expr+" evaluated to " + var_name, cb, false);
-					if (bLocal && locals.hasOwnProperty(var_name))
+					if (locals.hasOwnProperty(var_name))
 						return setFatalError("reassignment to " + var_name + ", old value " + locals[var_name], cb, false);
-					if (bLocal && rhs[0] === 'func_declaration') {
+					if (rhs[0] === 'func_declaration') {
 						var args = rhs[1];
 						var body = rhs[2];
 						var scopeVarNames = Object.keys(locals);
@@ -1166,26 +1158,35 @@ exports.evaluate = function (opts, callback) {
 							return setFatalError("evaluation of rhs " + rhs + " failed: " + res, cb, false);
 						if (Decimal.isDecimal(res))
 							res = toDoubleRange(res);
-						if (bLocal) {
-							if (locals.hasOwnProperty(var_name))
-								return setFatalError("reassignment to " + var_name + " after evaluation", cb, false);
-							locals[var_name] = res; // can be wrappedObject too
-							return cb(true);
-						}
+						if (locals.hasOwnProperty(var_name))
+							return setFatalError("reassignment to " + var_name + " after evaluation", cb, false);
+						locals[var_name] = res; // can be wrappedObject too
+						cb(true);
+					});
+				});
+				break;
+
+			case 'state_var_assignment':
+				if (!bStateVarAssignmentAllowed)
+					return setFatalError("state var assignment not allowed here", cb, false);
+				var var_name_or_expr = arr[1];
+				var rhs = arr[2];
+				var assignment_op = arr[3];
+				evaluate(var_name_or_expr, function (var_name) {
+					if (fatal_error)
+						return cb(false);
+					if (typeof var_name !== 'string')
+						return setFatalError("assignment: var name "+var_name_or_expr+" evaluated to " + var_name, cb, false);
+					evaluate(rhs, function (res) {
+						if (fatal_error)
+							return cb(false);
+						if (!isValidValue(res) && !(res instanceof wrappedObject))
+							return setFatalError("evaluation of rhs " + rhs + " failed: " + res, cb, false);
+						if (Decimal.isDecimal(res))
+							res = toDoubleRange(res);
 						// state vars can store only strings, decimals, and booleans but booleans are treated specially when persisting to the db: true is converted to 1, false deletes the var
-						// response vars - strings, numbers, and booleans
 						if (res instanceof wrappedObject)
 							res = true;
-						if (op === 'response_var_assignment') {
-							if (Decimal.isDecimal(res)) {
-								res = res.toNumber();
-								if (!isFinite(res))
-									return setFatalError("not finite js number in response_var_assignment", cb, false);
-							}
-							responseVars[var_name] = res;
-							return cb(true);
-						}
-						// state_var_assignment
 						if (var_name.length > constants.MAX_STATE_VAR_NAME_LENGTH)
 							return setFatalError("state var name too long: " + var_name, cb, false);
 					//	if (typeof res === 'boolean')
@@ -1237,6 +1238,33 @@ exports.evaluate = function (opts, callback) {
 							stateVars[address][var_name].updated = true;
 							cb(true);
 						});
+					});
+				});
+				break;
+
+			case 'response_var_assignment':
+				var var_name_or_expr = arr[1];
+				var rhs = arr[2];
+				evaluate(var_name_or_expr, function (var_name) {
+					if (fatal_error)
+						return cb(false);
+					if (typeof var_name !== 'string')
+						return setFatalError("assignment: var name "+var_name_or_expr+" evaluated to " + var_name, cb, false);
+					evaluate(rhs, function (res) {
+						if (fatal_error)
+							return cb(false);
+						// response vars - strings, numbers, and booleans
+						if (res instanceof wrappedObject)
+							res = true;
+						if (!isValidValue(res))
+							return setFatalError("evaluation of rhs " + rhs + " failed: " + res, cb, false);
+						if (Decimal.isDecimal(res)) {
+							res = res.toNumber();
+							if (!isFinite(res))
+								return setFatalError("not finite js number in response_var_assignment", cb, false);
+						}
+						responseVars[var_name] = res;
+						cb(true);
 					});
 				});
 				break;

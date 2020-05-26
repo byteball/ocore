@@ -523,86 +523,63 @@ exports.validate = function (opts, callback) {
 				break;
 
 			case 'local_var_assignment':
-			case 'state_var_assignment':
-			case 'response_var_assignment':
-				if (op === 'state_var_assignment' && (!bAA || !bStateVarAssignmentAllowed))
-					return cb('state var assignment not allowed here');
-				if (op === 'state_var_assignment')
-					complexity++;
-				var var_name_or_expr = arr[1];
-				if (op === 'local_var_assignment') {
-					// arr[1] is ['local_var', var_name, selectors]
-					if (arr[1][2]) { // selector in assignment.  It is allowed only when accessing a local var
-						console.log('selector in local var assignment: ', arr[1][2]);
-						return cb('selector in local var assignment: ' + arr[1][2]);
-					}
-					var_name_or_expr = arr[1][1];
+				// arr[1] is ['local_var', var_name, selectors]
+				if (arr[1][2]) { // selector in assignment.  It is allowed only when accessing a local var
+					console.log('selector in local var assignment: ', arr[1][2]);
+					return cb('selector in local var assignment: ' + arr[1][2]);
 				}
+				var var_name_or_expr = arr[1][1];
 				var rhs = arr[2];
-				var assignment_op = arr[3];
 				if (typeof var_name_or_expr === 'number' || typeof var_name_or_expr === 'boolean' || Decimal.isDecimal(var_name_or_expr))
 					return cb('bad var name: ' + var_name_or_expr);
-				if (assignment_op) {
-					if (op !== 'state_var_assignment')
-						return cb(assignment_op + ' in ' + op);
-					if (['=', '+=', '-=', '*=', '/=', '%=', '||='].indexOf(assignment_op) === -1)
-						return cb('bad assignment op: ' + assignment_op);
-				}
-				else if (op === 'state_var_assignment')
-					return cb('no assignment op in state var assignment');
 				// we can't check local var reassignment without analyzing the code, e.g. if(..) $x=1; else $x=2; is valid
 				evaluate(var_name_or_expr, function (err) {
 					if (err)
 						return cb(err);
-					var bLocal = (op === 'local_var_assignment');
-					if (bLocal) {
-						var bLiteral = (typeof var_name_or_expr === 'string');
-						var var_name = bLiteral ? var_name_or_expr : '-calculated';
-						if (mci >= constants.aa2UpgradeMci) {
-							if (typeof locals[var_name] === 'object')
-								return cb("local var " + var_name + " already declared as a function");
-							if (locals[var_name] === 'assigned')
-								return cb("local var " + var_name + " already assigned");
-						}
-						var bFuncDeclaration = (rhs[0] === 'func_declaration');
-						if (bFuncDeclaration) {
-							if (mci < constants.aa2UpgradeMci)
-								return cb("functions not activated yet");
-							if (!bLiteral)
-								return cb("func name must be a string literal");
-							if (locals.hasOwnProperty(var_name))
-								return cb("func " + var_name + " already declared");
-							var args = rhs[1];
-							var body = rhs[2];
-							if (args.indexOf(var_name) >= 0)
-								return cb("arg name cannot be the same as func name");
-							var scopeVarNames = Object.keys(locals);
-							if (_.intersection(args, scopeVarNames).length > 0)
-								return cb("some args of " + var_name + " would shadow some local vars");
-							var count_args = args.length;
-							var saved_complexity = complexity;
-							var saved_count_ops = count_ops;
-							var saved_so = bStatementsOnly;
-							var saved_sva = bStateVarAssignmentAllowed;
-							var saved_locals = _.clone(locals);
-							complexity = 0;
-							count_ops = 0;
-							bStatementsOnly = false;
-							bStateVarAssignmentAllowed = true;
-							bInFunction = true;
-							// if a var was conditinally assigned, treat it as assigned within function body
-							finalizeLocals(locals);
-							// arguments become locals within function body
-							args.forEach(name => {
-								locals[name] = 'assigned';
-							});
-						}
+					var bLiteral = (typeof var_name_or_expr === 'string');
+					var var_name = bLiteral ? var_name_or_expr : '-calculated';
+					if (mci >= constants.aa2UpgradeMci) {
+						if (typeof locals[var_name] === 'object')
+							return cb("local var " + var_name + " already declared as a function");
+						if (locals[var_name] === 'assigned')
+							return cb("local var " + var_name + " already assigned");
+					}
+					var bFuncDeclaration = (rhs[0] === 'func_declaration');
+					if (bFuncDeclaration) {
+						if (mci < constants.aa2UpgradeMci)
+							return cb("functions not activated yet");
+						if (!bLiteral)
+							return cb("func name must be a string literal");
+						if (locals.hasOwnProperty(var_name))
+							return cb("func " + var_name + " already declared");
+						var args = rhs[1];
+						var body = rhs[2];
+						if (args.indexOf(var_name) >= 0)
+							return cb("arg name cannot be the same as func name");
+						var scopeVarNames = Object.keys(locals);
+						if (_.intersection(args, scopeVarNames).length > 0)
+							return cb("some args of " + var_name + " would shadow some local vars");
+						var count_args = args.length;
+						var saved_complexity = complexity;
+						var saved_count_ops = count_ops;
+						var saved_so = bStatementsOnly;
+						var saved_sva = bStateVarAssignmentAllowed;
+						var saved_locals = _.clone(locals);
+						complexity = 0;
+						count_ops = 0;
+						bStatementsOnly = false;
+						bStateVarAssignmentAllowed = true;
+						bInFunction = true;
+						// if a var was conditinally assigned, treat it as assigned when parsing the function body
+						finalizeLocals(locals);
+						// arguments become locals within function body
+						args.forEach(name => {
+							locals[name] = 'assigned';
+						});
 					}
 					evaluate(bFuncDeclaration ? body : rhs, function (err) {
 						if (err)
 							return cb(err);
-						if (!bLocal)
-							return cb();
 						if (bFuncDeclaration) {
 							var funcProps = { complexity, count_args, count_ops };
 							// restore the saved values
@@ -619,6 +596,38 @@ exports.validate = function (opts, callback) {
 							locals[var_name] = 'maybe assigned'; // 'maybe' because it could be within an 'if'
 						cb();
 					});
+				});
+				break;
+
+			case 'state_var_assignment':
+				if (!bAA || !bStateVarAssignmentAllowed)
+					return cb('state var assignment not allowed here');
+				complexity++;
+				var var_name_or_expr = arr[1];
+				var rhs = arr[2];
+				var assignment_op = arr[3];
+				if (typeof var_name_or_expr === 'number' || typeof var_name_or_expr === 'boolean' || Decimal.isDecimal(var_name_or_expr))
+					return cb('bad var name: ' + var_name_or_expr);
+				if (!assignment_op)
+					return cb('no assignment op in state var assignment');
+				if (['=', '+=', '-=', '*=', '/=', '%=', '||='].indexOf(assignment_op) === -1)
+					return cb('bad assignment op: ' + assignment_op);
+				evaluate(var_name_or_expr, function (err) {
+					if (err)
+						return cb(err);
+					evaluate(rhs, cb);
+				});
+				break;
+
+			case 'response_var_assignment':
+				var var_name_or_expr = arr[1];
+				var rhs = arr[2];
+				if (typeof var_name_or_expr === 'number' || typeof var_name_or_expr === 'boolean' || Decimal.isDecimal(var_name_or_expr))
+					return cb('bad var name: ' + var_name_or_expr);
+				evaluate(var_name_or_expr, function (err) {
+					if (err)
+						return cb(err);
+					evaluate(rhs, cb);
 				});
 				break;
 
