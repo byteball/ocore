@@ -1163,7 +1163,7 @@ exports.evaluate = function (opts, callback) {
 							if (Decimal.isDecimal(res))
 								res = res.toNumber();
 							if (res instanceof wrappedObject)
-								res = res.obj;
+								res = _.cloneDeep(res.obj);
 							evaluateSelectorKeys(selectors, function (arrKeys) {
 								if (fatal_error)
 									return cb(false);
