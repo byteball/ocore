@@ -1737,6 +1737,13 @@ test('triple otherwise with ternary and trigger', t => {
 	})
 });
 
+test('otherwise false with invalid alternative', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { key1: "val1", key2: { key3: "val3", key4: 444 } } };
+	evalAAFormula(0, "trigger.data.key111 otherwise 1/0", trigger, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
+		t.deepEqual(res, null);
+	})
+});
+
 test('response', t => {
 	var responseVars = {};
 	evalFormulaWithVars({ formula: "response['zzz'] = 99;", trigger: {}, locals: { a4: 100 }, responseVars: responseVars, objValidationState: objValidationState, bStatementsOnly: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, res => {
