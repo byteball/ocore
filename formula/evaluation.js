@@ -1100,7 +1100,6 @@ exports.evaluate = function (opts, callback) {
 	
 			case 'local_var':
 				var var_name_or_expr = arr[1];
-				var arrKeys = arr[2];
 				evaluate(var_name_or_expr, function (var_name) {
 				//	console.log('--- evaluated var name', var_name);
 					if (fatal_error)
@@ -1114,33 +1113,31 @@ exports.evaluate = function (opts, callback) {
 						return setFatalError("trying to access function " + var_name + " without calling it", cb, false);
 					if (typeof value === 'number')
 						value = createDecimal(value);
-					if (!arrKeys)
-						return cb(value);
-					// from now on, selectors exist
-					if (!(value instanceof wrappedObject)) // scalars have no keys
-						return cb(false);
-					value = value.obj; // unwrap
-					selectSubobject(value, arrKeys, cb);
+					cb(value);
 				});
 				break;
 
 			case 'local_var_assignment':
-				// arr[1] is ['local_var', var_name, selectors]
-				if (arr[1][2]) // selector in assignment
-					return setFatalError("selector in assignment", cb, false);
+				// arr[1] is ['local_var', var_name]
 				var var_name_or_expr = arr[1][1];
 				var rhs = arr[2];
 				var selectors = arr[3];
-				if (selectors)
-					return setFatalError("selector in assignment", cb, false);
 				evaluate(var_name_or_expr, function (var_name) {
 					if (fatal_error)
 						return cb(false);
 					if (typeof var_name !== 'string')
 						return setFatalError("assignment: var name "+var_name_or_expr+" evaluated to " + var_name, cb, false);
-					if (locals.hasOwnProperty(var_name))
-						return setFatalError("reassignment to " + var_name + ", old value " + locals[var_name], cb, false);
+					if (locals.hasOwnProperty(var_name)) {
+						if (!selectors)
+							return setFatalError("reassignment to " + var_name + ", old value " + locals[var_name], cb, false);
+						if (!(locals[var_name] instanceof wrappedObject))
+							return setFatalError("variable " + var_name + " is not an object", cb, false);
+					}
+					else if (selectors)
+						return setFatalError("mutating a non-existent var " + var_name, cb, null);
 					if (rhs[0] === 'func_declaration') {
+						if (selectors)
+							return setFatalError("only top level functions are supported", cb, null);
 						var args = rhs[1];
 						var body = rhs[2];
 						var scopeVarNames = Object.keys(locals);
@@ -1158,10 +1155,34 @@ exports.evaluate = function (opts, callback) {
 							return setFatalError("evaluation of rhs " + rhs + " failed: " + res, cb, false);
 						if (Decimal.isDecimal(res))
 							res = toDoubleRange(res);
-						if (locals.hasOwnProperty(var_name))
-							return setFatalError("reassignment to " + var_name + " after evaluation", cb, false);
-						locals[var_name] = res; // can be wrappedObject too
-						cb(true);
+						if (locals.hasOwnProperty(var_name)) { // mutating an object
+							if (!selectors)
+								return setFatalError("reassignment to " + var_name + " after evaluation", cb, false);
+							if (!(locals[var_name] instanceof wrappedObject))
+								throw Error("variable " + var_name + " is not an object");
+							if (Decimal.isDecimal(res))
+								res = res.toNumber();
+							if (res instanceof wrappedObject)
+								res = res.obj;
+							evaluateSelectorKeys(selectors, function (arrKeys) {
+								if (fatal_error)
+									return cb(false);
+								try {
+									assignByPath(locals[var_name].obj, arrKeys, res);
+									cb(true);
+								}
+								catch (e) {
+									setFatalError(e.toString(), cb, false);
+								}
+							});
+						}
+						else { // regular assignment
+							if (res instanceof wrappedObject) // copy because we might need to mutate it
+								locals[var_name] = new wrappedObject(_.cloneDeep(res.obj));
+							else
+								locals[var_name] = res;
+							cb(true);
+						}
 					});
 				});
 				break;
@@ -2170,6 +2191,71 @@ exports.evaluate = function (opts, callback) {
 			stateVars[param_address][var_name] = {value: value, old_value: value, original_old_value: value};
 			cb2(value);
 		});
+	}
+
+	function evaluateSelectorKeys(arrKeys, cb) {
+		var arrEvaluatedKeys = []; // strings or numbers
+		async.eachSeries(
+			arrKeys || [],
+			function (key, cb2) {
+				if (key === null) {
+					arrEvaluatedKeys.push(null);
+					return cb2();
+				}
+				evaluate(key, function (evaluated_key) {
+					if (fatal_error)
+						return cb2(fatal_error);
+					if (Decimal.isDecimal(evaluated_key)) {
+						evaluated_key = evaluated_key.toNumber();
+						if (!ValidationUtils.isNonnegativeInteger(evaluated_key))
+							return setFatalError("bad selector key: " + evaluated_key, cb2);
+					}
+					else if (typeof evaluated_key !== 'string')
+						return setFatalError("result of " + key + " is not a string or number: " + evaluated_key, cb2);
+					arrEvaluatedKeys.push(evaluated_key);
+					cb2();
+				});
+			},
+			function (err) {
+				if (fatal_error)
+					return cb(false);
+				cb(arrEvaluatedKeys);
+			}
+		);
+	}
+
+	function assignByPath(obj, arrKeys, value) {
+		if (typeof obj !== 'object')
+			throw Error("not an object: " + obj);
+		var pointer = obj;
+		for (var i = 0; i < arrKeys.length - 1; i++){
+			var key = arrKeys[i];
+			if (key === null) { // special value to indicate the next element of an array
+				if (!Array.isArray(pointer))
+					throw Error("not an array: " + pointer);
+				key = pointer.length;
+			}
+			if (pointer[key] === undefined || pointer[key] === null) {
+				if (typeof key === 'number' && key > 0 && (pointer[key - 1] === undefined || pointer[key - 1] === null))
+					throw Error("previous key value " + (key - 1) + " not set");
+				var next_key = arrKeys[i + 1];
+				pointer[key] = (typeof next_key === 'number' || next_key === null) ? [] : {};
+			}
+			else if (typeof pointer[key] !== 'object')
+				throw Error("scalar " + pointer[key] + " treated as object");
+			pointer = pointer[key];
+		}
+
+		var last_key = arrKeys[arrKeys.length - 1];
+		if (last_key === null) { // special value to indicate the next element of an array
+			if (!Array.isArray(pointer))
+				throw Error("not an array: " + pointer);
+			last_key = pointer.length;
+		}
+		if (typeof last_key === 'number' && last_key > 0 && (pointer[last_key - 1] === undefined || pointer[last_key - 1] === null))
+			throw Error("previous key value " + (last_key - 1) + " not set");
+		
+		pointer[last_key] = value;
 	}
 
 	function selectSubobject(value, arrKeys, cb) {

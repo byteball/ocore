@@ -144,25 +144,24 @@ comparisonOperator -> %comparisonOperators {% function(d) { return d[0].value } 
 
 local_var_expr -> "${" expr "}" {% function(d) { return d[1]; }  %}
 
-# local_var -> (%local_var_name|local_var_expr) (%dotSelector|"[" "[" search_param_list "]" "]"|"[" expr "]"):*  {% function(d) {
 local_var -> (%local_var_name|local_var_expr)  {% function(d) {
 	var v = d[0][0];
 	if (v.type === 'local_var_name')
 		v = v.value.substr(1);
+	return ['local_var', v];
+}  %}
+
+local_var_assignment -> local_var (%dotSelector|"[" expr:? "]"):* "=" (expr|func_declaration) ";" {% function(d) {
 	var selectors = null;
-	/*if (d[1] && d[1].length)
+	if (d[1] && d[1].length)
 		selectors = d[1].map(function(item){
 			if (item[0].type === 'dotSelector')
 				return item[0].value.substr(1);
-			else if (item.length === 5)
-				return ['search_param_list', item[2]];
 			else
 				return item[1];
-		});*/
-	return ['local_var', v, selectors];
-}  %}
-
-local_var_assignment -> local_var "=" (expr|func_declaration) ";" {% function(d) { return ['local_var_assignment', d[0], d[2][0]]; } %}
+		});
+	return ['local_var_assignment', d[0], d[3][0], selectors]; 
+} %}
 
 state_var_assignment -> "var" "[" expr "]" ("="|"+="|"-="|"*="|"/="|"%="|"||=") expr ";" {% function(d) { return ['state_var_assignment', d[2], d[5], d[4][0].value]; } %}
 

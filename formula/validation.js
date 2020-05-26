@@ -523,13 +523,12 @@ exports.validate = function (opts, callback) {
 				break;
 
 			case 'local_var_assignment':
-				// arr[1] is ['local_var', var_name, selectors]
-				if (arr[1][2]) { // selector in assignment.  It is allowed only when accessing a local var
-					console.log('selector in local var assignment: ', arr[1][2]);
-					return cb('selector in local var assignment: ' + arr[1][2]);
-				}
+				// arr[1] is ['local_var', var_name]
 				var var_name_or_expr = arr[1][1];
 				var rhs = arr[2];
+				var selectors = arr[3];
+				if (selectors && mci < constants.aa2UpgradeMci)
+					return cb("selectors in assignment not enabled yet");
 				if (typeof var_name_or_expr === 'number' || typeof var_name_or_expr === 'boolean' || Decimal.isDecimal(var_name_or_expr))
 					return cb('bad var name: ' + var_name_or_expr);
 				// we can't check local var reassignment without analyzing the code, e.g. if(..) $x=1; else $x=2; is valid
@@ -541,8 +540,10 @@ exports.validate = function (opts, callback) {
 					if (mci >= constants.aa2UpgradeMci) {
 						if (typeof locals[var_name] === 'object')
 							return cb("local var " + var_name + " already declared as a function");
-						if (locals[var_name] === 'assigned')
+						if (locals[var_name] === 'assigned' && !selectors)
 							return cb("local var " + var_name + " already assigned");
+						if (bLiteral && !locals.hasOwnProperty(var_name) && selectors)
+							return cb("mutating a non-existent var " + var_name);
 					}
 					var bFuncDeclaration = (rhs[0] === 'func_declaration');
 					if (bFuncDeclaration) {
@@ -552,6 +553,8 @@ exports.validate = function (opts, callback) {
 							return cb("func name must be a string literal");
 						if (locals.hasOwnProperty(var_name))
 							return cb("func " + var_name + " already declared");
+						if (selectors)
+							return cb("only top level functions are supported");
 						var args = rhs[1];
 						var body = rhs[2];
 						if (args.indexOf(var_name) >= 0)
@@ -594,7 +597,11 @@ exports.validate = function (opts, callback) {
 						}
 						else
 							locals[var_name] = 'maybe assigned'; // 'maybe' because it could be within an 'if'
-						cb();
+						if (!selectors) // scalar variable
+							return cb();
+						if (!Array.isArray(selectors))
+							return cb("selectors is not an array");
+						async.eachSeries(selectors.filter(key => key !== null), evaluate, cb);
 					});
 				});
 				break;

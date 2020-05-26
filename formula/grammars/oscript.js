@@ -161,21 +161,27 @@ var grammar = {
         	var v = d[0][0];
         	if (v.type === 'local_var_name')
         		v = v.value.substr(1);
+        	return ['local_var', v];
+        }  },
+    {"name": "local_var_assignment$ebnf$1", "symbols": []},
+    {"name": "local_var_assignment$ebnf$1$subexpression$1", "symbols": [(lexer.has("dotSelector") ? {type: "dotSelector"} : dotSelector)]},
+    {"name": "local_var_assignment$ebnf$1$subexpression$1$ebnf$1", "symbols": ["expr"], "postprocess": id},
+    {"name": "local_var_assignment$ebnf$1$subexpression$1$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
+    {"name": "local_var_assignment$ebnf$1$subexpression$1", "symbols": [{"literal":"["}, "local_var_assignment$ebnf$1$subexpression$1$ebnf$1", {"literal":"]"}]},
+    {"name": "local_var_assignment$ebnf$1", "symbols": ["local_var_assignment$ebnf$1", "local_var_assignment$ebnf$1$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
+    {"name": "local_var_assignment$subexpression$1", "symbols": ["expr"]},
+    {"name": "local_var_assignment$subexpression$1", "symbols": ["func_declaration"]},
+    {"name": "local_var_assignment", "symbols": ["local_var", "local_var_assignment$ebnf$1", {"literal":"="}, "local_var_assignment$subexpression$1", {"literal":";"}], "postprocess":  function(d) {
         	var selectors = null;
-        	/*if (d[1] && d[1].length)
+        	if (d[1] && d[1].length)
         		selectors = d[1].map(function(item){
         			if (item[0].type === 'dotSelector')
         				return item[0].value.substr(1);
-        			else if (item.length === 5)
-        				return ['search_param_list', item[2]];
         			else
         				return item[1];
-        		});*/
-        	return ['local_var', v, selectors];
-        }  },
-    {"name": "local_var_assignment$subexpression$1", "symbols": ["expr"]},
-    {"name": "local_var_assignment$subexpression$1", "symbols": ["func_declaration"]},
-    {"name": "local_var_assignment", "symbols": ["local_var", {"literal":"="}, "local_var_assignment$subexpression$1", {"literal":";"}], "postprocess": function(d) { return ['local_var_assignment', d[0], d[2][0]]; }},
+        		});
+        	return ['local_var_assignment', d[0], d[3][0], selectors]; 
+        } },
     {"name": "state_var_assignment$subexpression$1", "symbols": [{"literal":"="}]},
     {"name": "state_var_assignment$subexpression$1", "symbols": [{"literal":"+="}]},
     {"name": "state_var_assignment$subexpression$1", "symbols": [{"literal":"-="}]},
