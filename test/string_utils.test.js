@@ -5,6 +5,7 @@ const StringUtils = require('../string_utils');
 const STRING_JOIN_CHAR = StringUtils.STRING_JOIN_CHAR;
 const getSourceString = StringUtils.getSourceString;
 const getNumericFeedValue = value => StringUtils.getNumericFeedValue(value, true);
+const toNumber = value => StringUtils.toNumber(value);
 const encodeDoubleInLexicograpicOrder = StringUtils.encodeDoubleInLexicograpicOrder;
 const decodeLexicographicToDouble = StringUtils.decodeLexicographicToDouble;
 const encodeMci = StringUtils.encodeMci;
@@ -133,6 +134,65 @@ test('getNumericFeedValue out of range small decimal', t => {
 });
 
 
+// toNumber
+
+test('toNumber small int', t => {
+    t.true(toNumber('1234') === 1234);
+});
+
+test('toNumber large int 15 digits long', t => {
+    t.true(toNumber('123456789012345') === 123456789012345);
+});
+
+test('toNumber large int 16 digits long', t => {
+    t.true(toNumber('1234567890123456') === 1234567890123456);
+});
+
+test('toNumber large int 16 digits long with 0s', t => {
+    t.true(toNumber('001234567890123400') === 1234567890123400);
+});
+
+test('toNumber oversized int is rounded', t => {
+    t.true(toNumber('12345678901234567') === 12345678901234568);
+});
+
+test('toNumber oversized int with 0s rounded', t => {
+    t.true(toNumber('12345678901234560') === 12345678901234560);
+});
+
+test('toNumber long decimal', t => {
+    t.true(toNumber('1234.567890123456') === 1234.567890123456);
+});
+
+test('toNumber long decimal with 0s', t => {
+    t.true(toNumber('0001234.567890123456000') === 1234.567890123456);
+});
+
+test('toNumber oversized decimal rounded', t => {
+    t.true(toNumber('1234.5678901234567') === 1234.5678901234567);
+});
+
+test('toNumber exponential decimal', t => {
+    t.true(toNumber('1234.567e70') === 1234.567e70);
+});
+
+test('toNumber exponential decimal +exp', t => {
+    t.true(toNumber('1234.567e+70') === 1234.567e70);
+});
+
+test('toNumber exponential decimal negative', t => {
+    t.true(toNumber('-1234.567e-70') === -1234.567e-70);
+});
+
+test('toNumber out of range large decimal', t => {
+    t.true(toNumber('1234.567e700') === null);
+});
+
+test('toNumber out of range small decimal', t => {
+    t.true(toNumber('1234.567e-700') === null);
+});
+
+
 // encodeDoubleInLexicograpicOrder
 
 test('encodeDoubleInLexicograpicOrder ints', t => {
@@ -165,6 +225,10 @@ test('encodeDoubleInLexicograpicOrder -0', t => {
 
 test('encodeDoubleInLexicograpicOrder + getNumericFeedValue', t => {
     t.true(encodeDoubleInLexicograpicOrder(9.123) === encodeDoubleInLexicograpicOrder(getNumericFeedValue('912.3e-2')));
+});
+
+test('encodeDoubleInLexicograpicOrder + toNumber', t => {
+    t.true(encodeDoubleInLexicograpicOrder(9.123) === encodeDoubleInLexicograpicOrder(toNumber('912.3e-2')));
 });
 
 
