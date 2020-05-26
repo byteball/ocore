@@ -1770,10 +1770,17 @@ exports.evaluate = function (opts, callback) {
 				evaluate(expr, function (res) {
 					if (fatal_error)
 						return cb(false);
+					if (op === 'length'){
+						if (res instanceof wrappedObject) {
+							if (objValidationState.last_ball_mci < constants.aa2UpgradeMci)
+								res = true;
+							else
+								return cb(new Decimal(Array.isArray(res.obj) ? res.obj.length : Object.keys(res.obj).length));
+						}
+						return cb(new Decimal(res.toString().length));
+					}
 					if (res instanceof wrappedObject)
 						res = true;
-					if (op === 'length')
-						return cb(new Decimal(res.toString().length));
 					if (op === 'to_upper')
 						return cb(res.toString().toUpperCase());
 					if (op === 'to_lower')
