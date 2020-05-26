@@ -50,7 +50,7 @@ function id(x) { return x[0]; }
 			match: /\b[a-zA-Z_]\w*\b/,
 			type: moo.keywords({
 				keyword: [
-					'min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round', 'abs', 'hypot', 'is_valid_signed_package', 'is_valid_sig', 'vrf_verify', 'sha256', 'chash160', 'json_parse', 'json_stringify', 'number_from_seed', 'length', 'is_valid_address', 'starts_with', 'ends_with', 'contains', 'substring', 'timestamp_to_string', 'parse_date', 'is_aa', 'is_integer', 'is_valid_amount', 'is_array', 'is_assoc', 'array_length', 'index_of', 'to_upper', 'to_lower', 'exists', 'number_of_responses', 'is_valid_merkle_proof', 'replace', 'typeof',
+					'min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round', 'abs', 'hypot', 'is_valid_signed_package', 'is_valid_sig', 'vrf_verify', 'sha256', 'chash160', 'json_parse', 'json_stringify', 'number_from_seed', 'length', 'is_valid_address', 'starts_with', 'ends_with', 'contains', 'substring', 'timestamp_to_string', 'parse_date', 'is_aa', 'is_integer', 'is_valid_amount', 'is_array', 'is_assoc', 'array_length', 'index_of', 'to_upper', 'to_lower', 'exists', 'number_of_responses', 'is_valid_merkle_proof', 'replace', 'typeof', 'delete',
 
 					'timestamp', 'storage_size', 'mci', 'this_address', 'response_unit', 'mc_unit', 'params',
 
@@ -106,6 +106,7 @@ var grammar = {
     {"name": "statement", "symbols": ["return_statement"], "postprocess": id},
     {"name": "statement", "symbols": ["empty_return_statement"], "postprocess": id},
     {"name": "statement", "symbols": ["func_call", {"literal":";"}], "postprocess": id},
+    {"name": "statement", "symbols": [{"literal":"delete"}, {"literal":"("}, "expr", {"literal":","}, "expr", {"literal":")"}, {"literal":";"}], "postprocess": function(d) {return ['delete', d[2], d[4]]; }},
     {"name": "ifelse$ebnf$1$subexpression$1", "symbols": [{"literal":"else"}, "block"]},
     {"name": "ifelse$ebnf$1", "symbols": ["ifelse$ebnf$1$subexpression$1"], "postprocess": id},
     {"name": "ifelse$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},

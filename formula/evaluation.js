@@ -1947,6 +1947,39 @@ exports.evaluate = function (opts, callback) {
 				});
 				break;
 
+			case 'delete':
+				var obj_expr = arr[1];
+				var key_expr = arr[2];
+				evaluate(obj_expr, function (res) {
+					if (fatal_error)
+						return cb(false);
+					if (!(res instanceof wrappedObject))
+						return setFatalError("trying to delete a from a non-object");
+					evaluate(key_expr, function (key) {
+						if (fatal_error)
+							return cb(false);
+						if (!isValidValue(key) || typeof key === 'boolean')
+							return setFatalError("bad key to delete: " + key, cb, false);
+						if (Array.isArray(res.obj)) {
+							if (Decimal.isDecimal(key))
+								key = key.toNumber();
+							else { // string
+								var f = string_utils.toNumber(key);
+								if (f === null)
+									return setFatalError("key to be deleted is not a number: " + key, cb, false);
+								key = f;
+							}
+							if (!ValidationUtils.isNonnegativeInteger(key))
+								return setFatalError("key to be deleted must be nonnegative integer: " + key, cb, false);
+							res.obj.splice(key, 1); // does nothing if the key is out of range
+						}
+						else
+							delete res.obj[key.toString()]; // does nothing if the key doesn't exist
+						cb(true);
+					});
+				});
+				break;
+
 			case 'timestamp_to_string':
 				var ts_expr = arr[1];
 				var format_expr = arr[2] || 'datetime';

@@ -864,6 +864,16 @@ exports.validate = function (opts, callback) {
 				evaluate(expr, cb);
 				break;
 
+			case 'delete':
+				var obj = arr[1];
+				var key = arr[2];
+				evaluate(obj, function (err) {
+					if (err)
+						return cb(err);
+					evaluate(key, cb);
+				});
+				break;
+
 			case 'json_stringify':
 			case 'typeof':
 			case 'length':

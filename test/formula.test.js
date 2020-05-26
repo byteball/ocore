@@ -3922,3 +3922,201 @@ test('original object not mutated', t => {
 		t.deepEqual(complexity, 1);
 	})
 });
+
+test('deleting from object', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {a:5};
+		delete($x, 'a');
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, { });
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('deleting non-existing key from object', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {a:5};
+		$x.b = 'bb';
+		delete($x, $x.b||'rrr');
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, {a:5, b: 'bb' });
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('the original object not affected by deletion', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {a:5, b: 'bb'};
+		$y = {x: $x};
+		delete($y.x, 'b');
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, {a:5, b: 'bb' });
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('the original object not affected by deletion when copied by assignment', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {a:5, b: 'bb'};
+		$y = {};
+		$y.x = $x;
+		delete($y.x, 'b');
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, {a:5, b: 'bb' });
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('new object not affected by deletion from the original', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {a:5, b: 'bb'};
+		$y = {};
+		$y.x = $x;
+		delete($x, 'b');
+		$y
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, { x: { a: 5, b: 'bb' } });
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('deletion from array', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = ['a', 'b', 'c'];
+		delete($x, 1);
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, ['a', 'c']);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('deletion from array by a 0 index', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = ['a', 'b', 'c'];
+		delete($x, 0);
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, ['b', 'c']);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('deletion from array by an out of range index', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = ['a', 'b', 'c'];
+		delete($x, 3);
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, ['a', 'b', 'c']);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('deletion from array by a negative index', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = ['a', 'b', 'c'];
+		delete($x, -1);
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('deletion from array by a fractional index', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = ['a', 'b', 'c'];
+		delete($x, 1.5);
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('deletion from array by a string index that converts to number', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = ['a', 'b', 'c'];
+		delete($x, '1');
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, ['a', 'c']);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('deletion from object by an integer index', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {'2': 'aa', k: 'v'};
+		delete($x, 2);
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, { k: 'v' });
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('deletion from object by an object index', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {'2': 'aa', k: 'v'};
+		delete($x, {d: 1});
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
