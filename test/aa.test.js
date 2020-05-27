@@ -558,6 +558,28 @@ test('bad address', t => {
 	});
 });
 
+test('trying to modify a var frozen in an earlier formula', t => {
+	var aa = ['autonomous agent', {
+		init: `{
+			$x={a:9};
+			freeze($x);
+		}`,
+		messages: [
+			{
+				app: 'state',
+				state: `{
+					$x.b = 8;
+				}`
+			}
+		]
+	}];
+	aa_validation.validateAADefinition(aa, err => {
+		t.deepEqual(err, `validation of formula 
+					$x.b = 8;
+				 failed: statement local_var_assignment,x,8,b invalid: local var x is frozen`);
+	});
+});
+
 
 /////////////////////////////
 // composing

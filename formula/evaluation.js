@@ -40,6 +40,7 @@ function isValidValue(val){
 
 function wrappedObject(obj){
 	this.obj = obj;
+	this.frozen = false;
 }
 
 function Func(args, body, scopeVarNames) {
@@ -1119,7 +1120,7 @@ exports.evaluate = function (opts, callback) {
 
 			case 'local_var_assignment':
 				// arr[1] is ['local_var', var_name]
-				var var_name_or_expr = arr[1][1];
+				var var_name_or_expr = arr[1];
 				var rhs = arr[2];
 				var selectors = arr[3];
 				evaluate(var_name_or_expr, function (var_name) {
@@ -1132,6 +1133,8 @@ exports.evaluate = function (opts, callback) {
 							return setFatalError("reassignment to " + var_name + ", old value " + locals[var_name], cb, false);
 						if (!(locals[var_name] instanceof wrappedObject))
 							return setFatalError("variable " + var_name + " is not an object", cb, false);
+						if (locals[var_name].frozen)
+							return setFatalError("variable " + var_name + " is frozen", cb, false);
 					}
 					else if (selectors)
 						return setFatalError("mutating a non-existent var " + var_name, cb, null);
@@ -1967,35 +1970,61 @@ exports.evaluate = function (opts, callback) {
 				});
 				break;
 
-			case 'delete':
-				var obj_expr = arr[1];
-				var key_expr = arr[2];
-				evaluate(obj_expr, function (res) {
+			case 'freeze':
+				var var_name_expr = arr[1];
+				evaluate(var_name_expr, function (var_name) {
 					if (fatal_error)
 						return cb(false);
-					if (!(res instanceof wrappedObject))
-						return setFatalError("trying to delete a from a non-object");
-					evaluate(key_expr, function (key) {
-						if (fatal_error)
-							return cb(false);
-						if (!isValidValue(key) || typeof key === 'boolean')
-							return setFatalError("bad key to delete: " + key, cb, false);
-						if (Array.isArray(res.obj)) {
-							if (Decimal.isDecimal(key))
-								key = key.toNumber();
-							else { // string
-								var f = string_utils.toNumber(key);
-								if (f === null)
-									return setFatalError("key to be deleted is not a number: " + key, cb, false);
-								key = f;
+					if (!locals.hasOwnProperty(var_name))
+						return setFatalError("no such variable: " + var_name, cb, false);
+					if (locals[var_name] instanceof Func)
+						return setFatalError("functions cannot be frozen: " + var_name, cb, false);
+					if (locals[var_name] instanceof wrappedObject)
+						locals[var_name].frozen = true;
+					else
+						console.log("skipping freeze of a scalar: " + var_name);
+					cb(true);
+				});
+				break;
+
+			case 'delete':
+				var var_name_expr = arr[1];
+				var selectors = arr[2];
+				var key_expr = arr[3];
+				evaluate(var_name_expr, function (var_name) {
+					if (fatal_error)
+						return cb(false);
+					if (!locals.hasOwnProperty(var_name))
+						return setFatalError("no such variable: " + var_name, cb, false);
+					if (!(locals[var_name] instanceof wrappedObject))
+						return setFatalError("trying to delete a key from a non-object", cb, false);
+					if (locals[var_name].frozen)
+						return setFatalError("variable " + var_name + " is frozen", cb, false);
+					selectSubobject(locals[var_name], selectors, function (res) {
+						if (!(res instanceof wrappedObject))
+							return setFatalError("trying to delete a key from a subobject which is not an object", cb, false);
+						evaluate(key_expr, function (key) {
+							if (fatal_error)
+								return cb(false);
+							if (!isValidValue(key) || typeof key === 'boolean')
+								return setFatalError("bad key to delete: " + key, cb, false);
+							if (Array.isArray(res.obj)) {
+								if (Decimal.isDecimal(key))
+									key = key.toNumber();
+								else { // string
+									var f = string_utils.toNumber(key);
+									if (f === null)
+										return setFatalError("key to be deleted is not a number: " + key, cb, false);
+									key = f;
+								}
+								if (!ValidationUtils.isNonnegativeInteger(key))
+									return setFatalError("key to be deleted must be nonnegative integer: " + key, cb, false);
+								res.obj.splice(key, 1); // does nothing if the key is out of range
 							}
-							if (!ValidationUtils.isNonnegativeInteger(key))
-								return setFatalError("key to be deleted must be nonnegative integer: " + key, cb, false);
-							res.obj.splice(key, 1); // does nothing if the key is out of range
-						}
-						else
-							delete res.obj[key.toString()]; // does nothing if the key doesn't exist
-						cb(true);
+							else
+								delete res.obj[key.toString()]; // does nothing if the key doesn't exist
+							cb(true);
+						});
 					});
 				});
 				break;

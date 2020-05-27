@@ -46,7 +46,7 @@
 			match: /\b[a-zA-Z_]\w*\b/,
 			type: moo.keywords({
 				keyword: [
-					'min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round', 'abs', 'hypot', 'is_valid_signed_package', 'is_valid_sig', 'vrf_verify', 'sha256', 'chash160', 'json_parse', 'json_stringify', 'number_from_seed', 'length', 'is_valid_address', 'starts_with', 'ends_with', 'contains', 'substring', 'timestamp_to_string', 'parse_date', 'is_aa', 'is_integer', 'is_valid_amount', 'is_array', 'is_assoc', 'array_length', 'index_of', 'to_upper', 'to_lower', 'exists', 'number_of_responses', 'is_valid_merkle_proof', 'replace', 'typeof', 'delete', 'keys',
+					'min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round', 'abs', 'hypot', 'is_valid_signed_package', 'is_valid_sig', 'vrf_verify', 'sha256', 'chash160', 'json_parse', 'json_stringify', 'number_from_seed', 'length', 'is_valid_address', 'starts_with', 'ends_with', 'contains', 'substring', 'timestamp_to_string', 'parse_date', 'is_aa', 'is_integer', 'is_valid_amount', 'is_array', 'is_assoc', 'array_length', 'index_of', 'to_upper', 'to_lower', 'exists', 'number_of_responses', 'is_valid_merkle_proof', 'replace', 'typeof', 'delete', 'freeze', 'keys',
 
 					'timestamp', 'storage_size', 'mci', 'this_address', 'response_unit', 'mc_unit', 'params',
 
@@ -100,7 +100,16 @@ statement -> local_var_assignment {% id %}
 	| return_statement {% id %}
 	| empty_return_statement {% id %}
 	| func_call ";" {% id %}
-    | "delete" "(" expr "," expr ")" ";"   {% function(d) {return ['delete', d[2], d[4]]; } %}
+    | "delete" "(" local_var (%dotSelector|"[" expr "]"):* "," expr ")" ";"   {% function(d) {
+			var selectors = d[3].map(function(item){
+				if (item[0].type === 'dotSelector')
+					return item[0].value.substr(1);
+				else
+					return item[1];
+			});
+			return ['delete', d[2][1], selectors, d[5]]; 
+		} %}
+    | "freeze" "(" local_var ")" ";"   {% function(d) {return ['freeze', d[2][1]]; } %}
 
 ifelse -> "if" "(" expr ")" block ("else" block):?  {% function(d){
 	var else_block = d[5] ? d[5][1] : null;
@@ -161,7 +170,7 @@ local_var_assignment -> local_var (%dotSelector|"[" expr:? "]"):* "=" (expr|func
 			else
 				return item[1];
 		});
-	return ['local_var_assignment', d[0], d[3][0], selectors]; 
+	return ['local_var_assignment', d[0][1], d[3][0], selectors]; 
 } %}
 
 state_var_assignment -> "var" "[" expr "]" ("="|"+="|"-="|"*="|"/="|"%="|"||=") expr ";" {% function(d) { return ['state_var_assignment', d[2], d[5], d[4][0].value]; } %}

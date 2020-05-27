@@ -971,3 +971,42 @@ test.cb.serial('AA with generated definition of new AA and immediately sending t
 		});
 	});
 });
+
+test.cb.serial('trying to modify a var conditionally frozen in an earlier formula', t => {
+	var trigger = { outputs: { base: 10000 }, data: { x: 333 } };
+	var aa = ['autonomous agent', {
+		init: `{
+			$x={a:9};
+			if (true)
+				freeze($x);
+		}`,
+		messages: [
+			{
+				app: 'state',
+				state: `{
+					$x.b = 8;
+				}`
+			}
+		]
+	}];
+	var address = objectHash.getChash160(aa);
+	addAA(aa);
+	
+	aa_composer.dryRunPrimaryAATrigger(trigger, address, aa, (arrResponses) => {
+		t.deepEqual(arrResponses.length, 1);
+		t.deepEqual(arrResponses[0].aa_address, address);
+		t.deepEqual(arrResponses[0].bounced, true);
+		t.deepEqual(arrResponses[0].response_unit, null);
+		t.deepEqual(arrResponses[0].objResponseUnit, null);
+		t.deepEqual(arrResponses[0].response.error, `formula 
+					$x.b = 8;
+				 failed: variable x is frozen`);
+		fixCache();
+		t.deepEqual(storage.assocUnstableUnits, old_cache.assocUnstableUnits);
+		t.deepEqual(storage.assocStableUnits, old_cache.assocStableUnits);
+		t.deepEqual(storage.assocUnstableMessages, old_cache.assocUnstableMessages);
+		t.deepEqual(storage.assocBestChildren, old_cache.assocBestChildren);
+		t.deepEqual(storage.assocStableUnitsByMci, old_cache.assocStableUnitsByMci);
+		t.end();
+	});
+});

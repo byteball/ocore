@@ -227,6 +227,7 @@ exports.validate = function (opts, callback) {
 		throw Error("no locals");
 	finalizeLocals(locals);
 	var bInFunction = false;
+	var bInIf = false;
 
 	var parser = {};
 	try {
@@ -524,7 +525,7 @@ exports.validate = function (opts, callback) {
 
 			case 'local_var_assignment':
 				// arr[1] is ['local_var', var_name]
-				var var_name_or_expr = arr[1][1];
+				var var_name_or_expr = arr[1];
 				var rhs = arr[2];
 				var selectors = arr[3];
 				if (selectors && mci < constants.aa2UpgradeMci)
@@ -540,9 +541,11 @@ exports.validate = function (opts, callback) {
 					if (mci >= constants.aa2UpgradeMci) {
 						if (typeof locals[var_name] === 'object')
 							return cb("local var " + var_name + " already declared as a function");
+						if (locals[var_name] === 'frozen')
+							return cb("local var " + var_name + " is frozen");
 						if (locals[var_name] === 'assigned' && !selectors)
 							return cb("local var " + var_name + " already assigned");
-						if (bLiteral && !locals.hasOwnProperty(var_name) && selectors)
+						if (bLiteral && !locals.hasOwnProperty(var_name) && !locals['-calculated'] && selectors)
 							return cb("mutating a non-existent var " + var_name);
 					}
 					var bFuncDeclaration = (rhs[0] === 'func_declaration');
@@ -596,7 +599,7 @@ exports.validate = function (opts, callback) {
 							locals[var_name] = funcProps;
 						}
 						else
-							locals[var_name] = 'maybe assigned'; // 'maybe' because it could be within an 'if'
+							locals[var_name] = bInIf ? 'maybe assigned' : 'assigned';
 						if (!selectors) // scalar variable
 							return cb();
 						if (!Array.isArray(selectors))
@@ -662,12 +665,19 @@ exports.validate = function (opts, callback) {
 				evaluate(test, function (err) {
 					if (err)
 						return cb(err);
+					var prev_in_if = bInIf;
+					bInIf = true;
 					evaluate(if_block, function (err) {
 						if (err)
 							return cb(err);
-						if (!else_block)
+						if (!else_block) {
+							bInIf = prev_in_if;
 							return cb();
-						evaluate(else_block, cb);
+						}
+						evaluate(else_block, function (err) {
+							bInIf = prev_in_if;
+							cb(err);
+						});
 					});
 				});
 				break;
@@ -867,15 +877,47 @@ exports.validate = function (opts, callback) {
 				evaluate(expr, cb);
 				break;
 
+			case 'freeze':
+				if (mci < constants.aa2UpgradeMci)
+					return cb("freeze statement not activated yet");
+				var var_name_expr = arr[1];
+				evaluate(var_name_expr, function (err) {
+					if (err)
+						return cb(err);
+					if (typeof var_name_expr === 'string') {
+						if (!locals.hasOwnProperty(var_name_expr) && !locals['-calculated'])
+							return cb("no such variable: " + var_name_expr);
+						if (typeof locals[var_name_expr] === 'object')
+							return cb("functions cannot be frozen");
+						if (!bInIf)
+							locals[var_name_expr] = 'frozen';
+					}
+					cb();
+				});
+				break;
+
 			case 'delete':
 				if (mci < constants.aa2UpgradeMci)
 					return cb("delete statement not activated yet");
-				var obj = arr[1];
-				var key = arr[2];
-				evaluate(obj, function (err) {
+				var var_name_expr = arr[1];
+				var selectors = arr[2];
+				var key = arr[3];
+				evaluate(var_name_expr, function (err) {
 					if (err)
 						return cb(err);
-					evaluate(key, cb);
+					if (typeof var_name_expr === 'string') {
+						if (locals[var_name_expr] === 'frozen')
+							return cb("var " + var_name_expr + " is frozen");
+						if (typeof locals[var_name_expr] === 'object')
+							return cb("functions cannot be deleted");
+					}
+					if (!Array.isArray(selectors))
+						return cb("selectors is not an array");
+					evaluate(key, function (err) {
+						if (err)
+							return cb(err);
+						async.eachSeries(selectors, evaluate, cb);
+					});
 				});
 				break;
 
