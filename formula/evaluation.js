@@ -1480,7 +1480,7 @@ exports.evaluate = function (opts, callback) {
 								return cb(new wrappedObject(arrDefinition));
 							// could by defined later, e.g. by fresh AA
 							storage.readUnitProps(conn, definition_unit, function (props) {
-								if (props.main_chain_index === null || props.main_chain_index > objValidationState.main_chain_index)
+								if (props.main_chain_index === null || props.main_chain_index > objValidationState.last_ball_mci)
 									return cb(false);
 								cb(new wrappedObject(arrDefinition));
 							});
@@ -1966,7 +1966,7 @@ exports.evaluate = function (opts, callback) {
 						return setFatalError("not an object: " + res, cb, false);
 					if (Array.isArray(res.obj))
 						return setFatalError("not an object but an array: " + res, cb, false);
-					cb(new wrappedObject(Object.keys(res.obj)));
+					cb(new wrappedObject(Object.keys(res.obj).sort()));
 				});
 				break;
 

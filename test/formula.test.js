@@ -4181,11 +4181,11 @@ test('keys of an object', t => {
 	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
 	var locals = { };
 	var formula = `
-		$x = {'2': 'aa', k: 'v'};
+		$x = {'2': 'aa', k: 'v', b: 'z'};
 		keys($x)
 	`;
 	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
-		t.deepEqual(res, ['2', 'k']);
+		t.deepEqual(res, ['2', 'b', 'k']); // sorted
 		t.deepEqual(complexity, 1);
 	})
 });
