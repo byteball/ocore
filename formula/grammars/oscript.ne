@@ -18,8 +18,8 @@
 		assignment_with_op: ["+=", "-=", "/=", "%=", "*=", '||='],
 		op: ["+", "-", "/", "*", "%", '^'],
 		concat: '||',
-		l: '(',
-		r: ')',
+		leftParen: '(',
+		rightParen: ')',
 		dollarBraceLeft: '${',
 		braceLeft: '{',
 		braceRight: '}',
@@ -196,7 +196,14 @@ arguments_list -> %local_var_name:? ("," %local_var_name):*  {% function(d) {
 	return arr.concat(d[1].map(function (item) {return item[1].value.substr(1);}));
 } %}
 
-func_declaration -> "(" arguments_list ")" "=>" "{" main "}" {% function(d) { return ['func_declaration', d[1], d[5]]; } %}
+func_declaration -> ("(" arguments_list ")" | arguments_list) "=>" (expr | "{" main "}") {% function(d, location, reject) {
+		var arglist = d[0][0].type === 'leftParen' ? d[0][1] : d[0][0];
+		var bBlock = d[2][0].type === 'braceLeft';
+		var body = bBlock ? d[2][1] : d[2][0];
+		if (!bBlock && body[0] === 'dictionary' && body[1].length === 0) // empty dictionary looks the same as empty function
+			return reject;
+		return ['func_declaration', arglist, body]; 
+	} %}
 
 func_call -> %local_var_name "(" expr_list ")"    {% function(d) {return ['func_call', d[0].value.substr(1), d[2]]; } %}
 remote_func_call -> (%addressValue|local_var) "." %local_var_name "(" expr_list ")"  {% function(d) {

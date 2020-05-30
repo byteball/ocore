@@ -22,8 +22,8 @@ function id(x) { return x[0]; }
 		assignment_with_op: ["+=", "-=", "/=", "%=", "*=", '||='],
 		op: ["+", "-", "/", "*", "%", '^'],
 		concat: '||',
-		l: '(',
-		r: ')',
+		leftParen: '(',
+		rightParen: ')',
 		dollarBraceLeft: '${',
 		braceLeft: '{',
 		braceRight: '}',
@@ -233,7 +233,18 @@ var grammar = {
         	var arr = d[0] ? [d[0].value.substr(1)] : [];
         	return arr.concat(d[1].map(function (item) {return item[1].value.substr(1);}));
         } },
-    {"name": "func_declaration", "symbols": [{"literal":"("}, "arguments_list", {"literal":")"}, {"literal":"=>"}, {"literal":"{"}, "main", {"literal":"}"}], "postprocess": function(d) { return ['func_declaration', d[1], d[5]]; }},
+    {"name": "func_declaration$subexpression$1", "symbols": [{"literal":"("}, "arguments_list", {"literal":")"}]},
+    {"name": "func_declaration$subexpression$1", "symbols": ["arguments_list"]},
+    {"name": "func_declaration$subexpression$2", "symbols": ["expr"]},
+    {"name": "func_declaration$subexpression$2", "symbols": [{"literal":"{"}, "main", {"literal":"}"}]},
+    {"name": "func_declaration", "symbols": ["func_declaration$subexpression$1", {"literal":"=>"}, "func_declaration$subexpression$2"], "postprocess":  function(d, location, reject) {
+        	var arglist = d[0][0].type === 'leftParen' ? d[0][1] : d[0][0];
+        	var bBlock = d[2][0].type === 'braceLeft';
+        	var body = bBlock ? d[2][1] : d[2][0];
+        	if (!bBlock && body[0] === 'dictionary' && body[1].length === 0) // empty dictionary looks the same as empty function
+        		return reject;
+        	return ['func_declaration', arglist, body]; 
+        } },
     {"name": "func_call", "symbols": [(lexer.has("local_var_name") ? {type: "local_var_name"} : local_var_name), {"literal":"("}, "expr_list", {"literal":")"}], "postprocess": function(d) {return ['func_call', d[0].value.substr(1), d[2]]; }},
     {"name": "remote_func_call$subexpression$1", "symbols": [(lexer.has("addressValue") ? {type: "addressValue"} : addressValue)]},
     {"name": "remote_func_call$subexpression$1", "symbols": ["local_var"]},
