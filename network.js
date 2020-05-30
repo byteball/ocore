@@ -26,6 +26,7 @@ var inputs = require('./inputs.js');
 var breadcrumbs = require('./breadcrumbs.js');
 var mail = require('./mail.js');
 var aa_composer = require('./aa_composer.js');
+var formulaEvaluation = require('./formula/evaluation.js');
 var dataFeeds = require('./data_feeds.js');
 var libraryPackageJson = require('./package.json');
 
@@ -3341,6 +3342,26 @@ function handleRequest(ws, tag, command, params){
 				storage.readAAStateVars(params.address, params.var_prefix_from || '', params.var_prefix_to || '', params.limit || MAX_STATE_VARS, function (objStateVars) {
 					sendResponse(ws, tag, objStateVars);
 				});
+			});
+			break;
+			
+		case 'light/execute_getter':
+			if (conf.bLight)
+				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
+			if (ws.bOutbound)
+				return sendErrorResponse(ws, tag, "light clients have to be inbound");
+			if (!params)
+				return sendErrorResponse(ws, tag, "no params in light/execute_getter");
+			if (!ValidationUtils.isValidAddress(params.address))
+				return sendErrorResponse(ws, tag, "address not valid");
+			if (!ValidationUtils.isNonemptyString(params.getter))
+				return sendErrorResponse(ws, tag, "no getter");
+			if ('args' in params && !Array.isArray(params.args))
+				return sendErrorResponse(ws, tag, "args must be array");
+			formulaEvaluation.executeGetter(db, params.address, params.getter, params.args || [], function (err, res) {
+				if (err)
+					return sendErrorResponse(ws, tag, err);
+				sendResponse(ws, tag, { result: res });
 			});
 			break;
 			

@@ -15,6 +15,7 @@ var objBaseAssetInfo = require('./common.js').objBaseAssetInfo;
 var isFiniteDecimal = require('./common.js').isFiniteDecimal;
 var toDoubleRange = require('./common.js').toDoubleRange;
 var assignObject = require('./common.js').assignObject;
+var isValidValue = require('./common.js').isValidValue;
 
 function validateDataFeed(params) {
 	var complexity = 1;
@@ -208,8 +209,8 @@ function getInputOrOutputError(params) {
 
 function finalizeLocals(locals) {
 	for (var name in locals)
-		if (name !== '-calculated' && locals[name] === 'maybe assigned')
-			locals[name] = 'assigned';
+		if (name !== '' && locals[name].state === 'maybe assigned')
+			locals[name].state = 'assigned';
 }
 
 
@@ -218,6 +219,7 @@ exports.validate = function (opts, callback) {
 	var formula = opts.formula;
 	var bStateVarAssignmentAllowed = opts.bStateVarAssignmentAllowed;
 	var bStatementsOnly = opts.bStatementsOnly;
+	var bGetters = opts.bGetters;
 	var bAA = opts.bAA;
 	var complexity = opts.complexity;
 	var count_ops = opts.count_ops;
@@ -226,6 +228,13 @@ exports.validate = function (opts, callback) {
 	if (!locals)
 		throw Error("no locals");
 	finalizeLocals(locals);
+	var readGetterProps = opts.readGetterProps;
+
+	if (!readGetterProps && bAA)
+		throw Error("no readGetterProps callback");
+	if (bGetters && !bStatementsOnly)
+		throw Error("getters must be statements-only");
+	
 	var bInFunction = false;
 	var bInIf = false;
 
@@ -362,6 +371,10 @@ exports.validate = function (opts, callback) {
 
 			case 'input':
 			case 'output':
+				if (bAA)
+					return cb(op + ' in AA');
+				if (bGetters)
+					return cb(op + ' in getters');
 			case 'attestation':
 				if (op === 'attestation')
 					complexity++;
@@ -371,8 +384,6 @@ exports.validate = function (opts, callback) {
 				if (err)
 					return cb(op + ' not valid: ' + err);
 				if (op === 'input' || op === 'output') {
-					if (bAA)
-						return cb("io in AA");
 					if (['amount', 'address', 'asset'].indexOf(field) === -1)
 						return cb('unknown field: ' + field);
 				}
@@ -408,23 +419,31 @@ exports.validate = function (opts, callback) {
 			case 'trigger.initial_address':
 			case 'trigger.unit':
 			case 'mc_unit':
-			case 'storage_size':
 			case 'number_of_responses':
+				if (bGetters)
+					return cb(op + ' in getters');
+			case 'storage_size':
 				cb(bAA ? undefined : op + ' in non-AA');
 				break;
 
 			case 'params':
 				if (!bAA)
 					return cb("params in non-AA");
-				// fall through
+				cb();
+				break;
+			
 			case 'trigger.data':
 				// for non-AAs too
+				if (bGetters)
+					return cb(op + ' in getters');
 				cb();
 				break;
 
 			case 'trigger.output':
 				if (!bAA)
 					return cb(op + ' in non-AA');
+				if (bGetters)
+					return cb(op + ' in getters');
 				var comparison_operator = arr[1];
 				var asset = arr[2];
 				var field = arr[3];
@@ -502,9 +521,10 @@ exports.validate = function (opts, callback) {
 					if (mci < constants.aa2UpgradeMci && var_name_or_expr[0] === '_')
 						return cb("leading underscores not allowed in var names yet");
 					if (mci >= constants.aa2UpgradeMci) {
-						if (!locals['-calculated'] && !locals.hasOwnProperty(var_name_or_expr))
+						var bExists = locals.hasOwnProperty(var_name_or_expr);
+						if (!locals[''] && !bExists)
 							return cb("uninitialized local var " + var_name_or_expr);
-						if (typeof locals[var_name_or_expr] === 'object')
+						if (bExists && locals[var_name_or_expr].type === 'func')
 							return cb("trying to access function " + var_name_or_expr + " without calling it");
 					}
 				}
@@ -524,7 +544,6 @@ exports.validate = function (opts, callback) {
 				break;
 
 			case 'local_var_assignment':
-				// arr[1] is ['local_var', var_name]
 				var var_name_or_expr = arr[1];
 				var rhs = arr[2];
 				var selectors = arr[3];
@@ -537,24 +556,34 @@ exports.validate = function (opts, callback) {
 					if (err)
 						return cb(err);
 					var bLiteral = (typeof var_name_or_expr === 'string');
-					var var_name = bLiteral ? var_name_or_expr : '-calculated';
-					if (mci >= constants.aa2UpgradeMci) {
-						if (typeof locals[var_name] === 'object')
-							return cb("local var " + var_name + " already declared as a function");
-						if (locals[var_name] === 'frozen')
-							return cb("local var " + var_name + " is frozen");
-						if (locals[var_name] === 'assigned' && !selectors)
-							return cb("local var " + var_name + " already assigned");
-						if (bLiteral && !locals.hasOwnProperty(var_name) && !locals['-calculated'] && selectors)
+					var var_name = bLiteral ? var_name_or_expr : ''; // special name for calculated var names
+					var bExists = locals.hasOwnProperty(var_name);
+					if (mci >= constants.aa2UpgradeMci && bLiteral) {
+						if (var_name_or_expr === '')
+							return cb("empty literal local var names not allowed");
+						if (bExists) {
+							if (locals[var_name].type === 'func')
+								return cb("local var " + var_name + " already declared as a function");
+							if (locals[var_name].state === 'frozen')
+								return cb("local var " + var_name + " is frozen");
+							if (locals[var_name].state === 'assigned' && !selectors)
+								return cb("local var " + var_name + " already assigned");
+							if (locals[var_name].state === 'maybe assigned' && !bInIf && !selectors)
+								return cb("local var " + var_name + " already conditionally assigned");
+						}
+						if (!bExists && !locals[''] && selectors)
 							return cb("mutating a non-existent var " + var_name);
 					}
 					var bFuncDeclaration = (rhs[0] === 'func_declaration');
+					var bConstant = isValidValue(rhs);
+					if (bGetters && !(bInFunction || bFuncDeclaration || bConstant))
+						return cb("non-constant top level vars not allowed in getters");
 					if (bFuncDeclaration) {
 						if (mci < constants.aa2UpgradeMci)
 							return cb("functions not activated yet");
 						if (!bLiteral)
 							return cb("func name must be a string literal");
-						if (locals.hasOwnProperty(var_name))
+						if (bExists)
 							return cb("func " + var_name + " already declared");
 						if (selectors)
 							return cb("only top level functions are supported");
@@ -570,7 +599,7 @@ exports.validate = function (opts, callback) {
 						var saved_count_ops = count_ops;
 						var saved_so = bStatementsOnly;
 						var saved_sva = bStateVarAssignmentAllowed;
-						var saved_locals = _.clone(locals);
+						var saved_locals = _.cloneDeep(locals);
 						complexity = 0;
 						count_ops = 0;
 						bStatementsOnly = false;
@@ -580,7 +609,7 @@ exports.validate = function (opts, callback) {
 						finalizeLocals(locals);
 						// arguments become locals within function body
 						args.forEach(name => {
-							locals[name] = 'assigned';
+							locals[name] = { state: 'assigned', type: 'data' };
 						});
 					}
 					evaluate(bFuncDeclaration ? body : rhs, function (err) {
@@ -596,10 +625,17 @@ exports.validate = function (opts, callback) {
 							bInFunction = false;
 							assignObject(locals, saved_locals);
 
-							locals[var_name] = funcProps;
+							locals[var_name] = { props: funcProps, type: 'func' };
 						}
-						else
-							locals[var_name] = bInIf ? 'maybe assigned' : 'assigned';
+						else {
+							var localVarProps = {
+								state: bInIf ? 'maybe assigned' : 'assigned',
+								type: 'data'
+							};
+							if (bConstant && !bInIf)
+								localVarProps.value = rhs;
+							locals[var_name] = localVarProps;
+						}
 						if (!selectors) // scalar variable
 							return cb();
 						if (!Array.isArray(selectors))
@@ -610,7 +646,7 @@ exports.validate = function (opts, callback) {
 				break;
 
 			case 'state_var_assignment':
-				if (!bAA || !bStateVarAssignmentAllowed)
+				if (!bAA || !bStateVarAssignmentAllowed || bGetters)
 					return cb('state var assignment not allowed here');
 				complexity++;
 				var var_name_or_expr = arr[1];
@@ -630,6 +666,8 @@ exports.validate = function (opts, callback) {
 				break;
 
 			case 'response_var_assignment':
+				if (bGetters)
+					return cb("response var assignment not allowed in getters");
 				var var_name_or_expr = arr[1];
 				var rhs = arr[2];
 				if (typeof var_name_or_expr === 'number' || typeof var_name_or_expr === 'boolean' || Decimal.isDecimal(var_name_or_expr))
@@ -659,6 +697,8 @@ exports.validate = function (opts, callback) {
 				break;
 
 			case 'ifelse':
+				if (bGetters && !bInFunction)
+					return cb("if-else not allowed at top level in getters");
 				var test = arr[1];
 				var if_block = arr[2];
 				var else_block = arr[3];
@@ -885,12 +925,13 @@ exports.validate = function (opts, callback) {
 					if (err)
 						return cb(err);
 					if (typeof var_name_expr === 'string') {
-						if (!locals.hasOwnProperty(var_name_expr) && !locals['-calculated'])
+						var bExists = locals.hasOwnProperty(var_name_expr);
+						if (!bExists && !locals[''])
 							return cb("no such variable: " + var_name_expr);
-						if (typeof locals[var_name_expr] === 'object')
+						if (bExists && locals[var_name_expr].type === 'func')
 							return cb("functions cannot be frozen");
 						if (!bInIf)
-							locals[var_name_expr] = 'frozen';
+							locals[var_name_expr].state = 'frozen';
 					}
 					cb();
 				});
@@ -906,9 +947,12 @@ exports.validate = function (opts, callback) {
 					if (err)
 						return cb(err);
 					if (typeof var_name_expr === 'string') {
-						if (locals[var_name_expr] === 'frozen')
+						var bExists = locals.hasOwnProperty(var_name_expr);
+						if (!bExists && !locals[''])
+							return cb("no such variable: " + var_name_expr);
+						if (bExists && locals[var_name_expr].state === 'frozen')
 							return cb("var " + var_name_expr + " is frozen");
-						if (typeof locals[var_name_expr] === 'object')
+						if (bExists && locals[var_name_expr].type === 'func')
 							return cb("functions cannot be deleted");
 					}
 					if (!Array.isArray(selectors))
@@ -997,7 +1041,7 @@ exports.validate = function (opts, callback) {
 				break;
 
 			case 'response_unit':
-				cb(bAA && bStateVarAssignmentAllowed ? undefined : 'response_unit not allowed here');
+				cb(bAA && bStateVarAssignmentAllowed && !bGetters ? undefined : 'response_unit not allowed here');
 				break;
 
 			case 'func_call':
@@ -1007,9 +1051,9 @@ exports.validate = function (opts, callback) {
 				var arrExpressions = arr[2];
 				if (!locals.hasOwnProperty(func_name))
 					return cb("no such function name: " + func_name);
-				var func = locals[func_name];
-				if (typeof func !== 'object')
+				if (locals[func_name].type !== 'func')
 					return cb("not a function: " + func_name);
+				var func = locals[func_name].props;
 				if (func.count_args < arrExpressions.length)
 					return cb("excessive arguments to func " + func_name);
 				console.log('func', func)
@@ -1026,6 +1070,49 @@ exports.validate = function (opts, callback) {
 					},
 					cb
 				);
+				break;
+				
+			case 'remote_func_call':
+				if (!bAA)
+					return cb("remote func call allowed in AAs only");
+				if (mci < constants.aa2UpgradeMci)
+					return cb("getter funcs not activated yet");
+				var remote_aa = arr[1];
+				var func_name = arr[2];
+				var arrExpressions = arr[3];
+				if (typeof remote_aa === 'object' && remote_aa[0] === 'local_var') {
+					var var_name = remote_aa[1];
+					if (typeof var_name !== 'string')
+						return cb("remote AA var name must be literal");
+					if (!locals.hasOwnProperty(var_name))
+						return cb("remote AA var " + var_name + " does not exist");
+					remote_aa = locals[var_name].value;
+					if (remote_aa === undefined)
+						return cb("remote AA var " + var_name + " must be a constant");
+				}
+				if (!ValidationUtils.isValidAddress(remote_aa))
+					return cb("not valid AA address: " + remote_aa);
+				readGetterProps(remote_aa, func_name, getter => {
+					if (!getter)
+						return cb("no such getter: " + remote_aa + ".$" + func_name + "()");
+					if (typeof getter.complexity !== 'number' || typeof getter.count_ops !== 'number' || (typeof getter.count_args !== 'number' && getter.count_args !== null))
+						throw Error("invalid getter in " + remote_aa + ".$" + func_name + ": " + JSON.stringify(getter));
+					if (getter.count_args !== null && arrExpressions.length > getter.count_args)
+						return cb("getter " + func_name + " expects " + getter.count_args + " args, got " + arrExpressions.length);
+					complexity += getter.complexity + 1;
+					count_ops += getter.count_ops;
+					async.eachSeries(
+						arrExpressions,
+						function (expr, cb2) {
+							evaluate(expr, function (err) {
+								if (err)
+									return cb2("expr " + expr + " invalid: " + err);
+								cb2();
+							});
+						},
+						cb
+					);
+				});
 				break;
 				
 			case 'with_selectors':
@@ -1046,12 +1133,16 @@ exports.validate = function (opts, callback) {
 		
 			case 'bounce':
 				// can be used in non-statements-only formulas and non-AAs too
+				if (bGetters && !bInFunction)
+					return cb("bounce not allowed at top level in getters");
 				var expr = arr[1];
 				evaluate(expr, cb);
 				break;
 
 			case 'return':
 				// can be used in non-statements-only formulas and non-AAs too
+				if (bGetters && !bInFunction)
+					return cb("return not allowed at top level in getters");
 				var expr = arr[1];
 				if (expr === null)
 					return cb((bStatementsOnly || bInFunction) ? undefined : 'return; not allowed here');

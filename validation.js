@@ -1329,7 +1329,10 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 			}
 			if (constants.bTestnet && ['BD7RTYgniYtyCX0t/a/mmAAZEiK/ZhTvInCMCPG5B1k=', 'EHEkkpiLVTkBHkn8NhzZG/o4IphnrmhRGxp4uQdEkco=', 'bx8VlbNQm2WA2ruIhx04zMrlpQq3EChK6o3k5OXJ130=', '08t8w/xuHcsKlMpPWajzzadmMGv+S4AoeV/QL1F3kBM='].indexOf(objUnit.unit) >= 0)
 				return callback();
-			aa_validation.validateAADefinition(payload.definition, objValidationState.last_ball_mci, function (err) {
+			var readGetterProps = function (aa_address, func_name, cb) {
+				storage.readAAGetterProps(conn, aa_address, func_name, cb);
+			};
+			aa_validation.validateAADefinition(payload.definition, readGetterProps, objValidationState.last_ball_mci, function (err) {
 				if (err)
 					return callback(err);
 				var template = payload.definition[1];

@@ -26,6 +26,8 @@ var isFiniteDecimal = require('./common.js').isFiniteDecimal;
 var toDoubleRange = require('./common.js').toDoubleRange;
 var createDecimal = require('./common.js').createDecimal;
 var assignObject = require('./common.js').assignObject;
+var isValidValue = require('./common.js').isValidValue;
+var getFormula = require('./common.js').getFormula;
 
 var testnetStringToNumberInArithmeticUpgradeMci = 1151000;
 
@@ -34,9 +36,6 @@ var decimalPi = new Decimal(Math.PI);
 var dec0 = new Decimal(0);
 var dec1 = new Decimal(1);
 
-function isValidValue(val){
-	return (typeof val === 'string' || typeof val === 'boolean' || isFiniteDecimal(val));
-}
 
 function wrappedObject(obj){
 	this.obj = obj;
@@ -2164,6 +2163,41 @@ exports.evaluate = function (opts, callback) {
 				);
 				break;
 
+			case 'remote_func_call':
+				var remote_aa_expr = arr[1];
+				var func_name = arr[2];
+				var arrExpressions = arr[3];
+				var args = [];
+				async.eachSeries(
+					arrExpressions,
+					function (expr, cb2) {
+						evaluate(expr, function (res) {
+							if (fatal_error)
+								return cb2(fatal_error);
+							if (!isValidValue(res) && !(res instanceof wrappedObject))
+								return setFatalError("bad value of function argument: " + res, cb2);
+							args.push(res);
+							cb2();
+						});
+					},
+					function (err) {
+						if (fatal_error)
+							return cb(false);
+						evaluate(remote_aa_expr, function (remote_aa) {
+							if (fatal_error)
+								return setFatalError(fatal_error, cb, false);
+							if (!ValidationUtils.isValidAddress(remote_aa))
+								return setFatalError("not valid remote AA: " + remote_aa, cb, false);
+							evaluateGetter(conn, remote_aa, func_name, args, stateVars, objValidationState, (err, res) => {
+								if (err)
+									return setFatalError(err, cb, false);
+								cb(res);
+							});
+						});
+					}
+				);
+				break;
+
 			case 'with_selectors':
 				var expr = arr[1];
 				var arrKeys = arr[2];
@@ -2526,6 +2560,125 @@ exports.evaluate = function (opts, callback) {
 		}
 	}
 };
+
+
+function toOscriptType(x) {
+	if (typeof x === 'string' || typeof x === 'boolean')
+		return x;
+	if (typeof x === 'number')
+		return createDecimal(x);
+	if (Decimal.isDecimal(x))
+		return toDoubleRange(x);
+	if (typeof x === 'object')
+		return new wrappedObject(x);
+	throw Error("unknown type in toOscriptType:" + x);
+}
+
+function toJsType(x) {
+	if (typeof x === 'string' || typeof x === 'boolean' || typeof x === 'number')
+		return x;
+	if (Decimal.isDecimal(x))
+		return x.toNumber();
+	if (x instanceof wrappedObject)
+		return x.obj;
+	throw Error("unknown type in toJsType:" + x);
+}
+
+function evaluateGetter(conn, aa_address, getter, args, stateVars, objValidationState, cb) {
+	var i = 0;
+	var locals = {};
+	function getNextArgName() {
+		i++;
+		while (locals['arg' + i])
+			i++;
+		return 'arg' + i;
+	}
+	// no need to cloneDeep, we need to rewrite only storage size, assocBalances cache can be updated by reference
+	objValidationState = _.clone(objValidationState);
+	storage.readBaseAADefinitionAndParams(conn, aa_address, function (arrBaseDefinition, params, storage_size) {
+		if (!arrBaseDefinition)
+			return cb("remote AA not found: " + aa_address);
+		// rewrite storage size with the storage size of the AA being called
+		objValidationState.storage_size = storage_size;
+		var f = getFormula(arrBaseDefinition[1].getters);
+		var opts = {
+			conn: conn,
+			formula: f,
+			trigger: null,
+			params: params,
+			locals: locals,
+			stateVars: stateVars,
+			responseVars: null,
+			bStatementsOnly: true,
+			objValidationState: objValidationState,
+			address: aa_address
+		};
+		exports.evaluate(opts, function (err, res) {
+			if (res === null)
+				return cb(err.bounce_message || "formula " + f + " failed: " + err);
+			if (!locals[getter])
+				return cb("no such getter: " + getter);
+			if (!(locals[getter] instanceof Func))
+				return cb(getter + " is not a function");
+			var argNames = [];
+			args.forEach(arg => {
+				var arg_name = getNextArgName();
+				argNames.push('$' + arg_name);
+				locals[arg_name] = arg;
+			});
+			var call_formula = '$' + getter + '(' + argNames.join(', ') + ')';
+			var call_opts = {
+				conn: conn,
+				formula: call_formula,
+				trigger: null,
+				params: params,
+				locals: locals,
+				stateVars: stateVars,
+				responseVars: null,
+				bObjectResultAllowed: true,
+				objValidationState: objValidationState,
+				address: aa_address
+			};
+			exports.evaluate(call_opts, function (err, res) {
+				if (res === null)
+					return cb(err.bounce_message || "formula " + call_formula + " failed: " + err);
+				// fractional and large numbers are returned as strings, attempt to convert back
+				if (typeof res === 'string') {
+					var f = string_utils.toNumber(res);
+					if (f !== null)
+						res = f;
+				}
+				cb(null, toOscriptType(res));
+			});	
+		});
+	});
+}
+
+function executeGetter(conn, aa_address, getter, args, cb) {
+	if (!cb)
+		return new Promise((resolve, reject) => {
+			executeGetter(conn, aa_address, getter, args, (err, res) => {
+				err ? reject(new Error(err)) : resolve(res);
+			});
+		});
+	storage.readLastStableMcUnitProps(conn, props => {
+		objValidationState = {
+			last_ball_mci: props.main_chain_index,
+			last_ball_timestamp: props.timestamp,
+			mc_unit: props.unit, // must not be used
+			assocBalances: {},
+			number_of_responses: 0, // must not be used
+			arrPreviousResponseUnits: [],
+		};
+		args = args.map(toOscriptType);
+		evaluateGetter(conn, aa_address, getter, args, {}, objValidationState, (err, res) => {
+			if (err)
+				return cb(err);
+			cb(null, toJsType(res));
+		});
+	});
+}
+exports.executeGetter = executeGetter;
 
 exports.extractInitParams = function (formula) {
 	var parser = {};

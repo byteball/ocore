@@ -100,6 +100,7 @@ statement -> local_var_assignment {% id %}
 	| return_statement {% id %}
 	| empty_return_statement {% id %}
 	| func_call ";" {% id %}
+	| remote_func_call ";" {% id %}
     | "delete" "(" local_var (%dotSelector|"[" expr "]"):* "," expr ")" ";"   {% function(d) {
 			var selectors = d[3].map(function(item){
 				if (item[0].type === 'dotSelector')
@@ -198,6 +199,12 @@ arguments_list -> %local_var_name:? ("," %local_var_name):*  {% function(d) {
 func_declaration -> "(" arguments_list ")" "=>" "{" main "}" {% function(d) { return ['func_declaration', d[1], d[5]]; } %}
 
 func_call -> %local_var_name "(" expr_list ")"    {% function(d) {return ['func_call', d[0].value.substr(1), d[2]]; } %}
+remote_func_call -> (%addressValue|local_var) "." %local_var_name "(" expr_list ")"  {% function(d) {
+	var remote_aa = d[0][0];
+	if (remote_aa.type === 'addressValue')
+		remote_aa = remote_aa.value;
+	return ['remote_func_call', remote_aa, d[2].value.substr(1), d[4]]; 
+} %}
 
 
 trigger_data -> "trigger.data"  {% function(d) {return ['trigger.data']; }  %}
@@ -207,7 +214,7 @@ unit -> "unit" "[" expr "]"   {% function(d) { return ['unit', d[2]]; } %}
 definition -> "definition" "[" expr "]"   {% function(d) { return ['definition', d[2]]; } %}
 
 
-with_selectors -> (func_call|local_var|trigger_data|params|unit|definition) (%dotSelector|"[" "[" search_param_list "]" "]"|"[" expr "]"):+  {% function(d) {
+with_selectors -> (func_call|remote_func_call|local_var|trigger_data|params|unit|definition) (%dotSelector|"[" "[" search_param_list "]" "]"|"[" expr "]"):+  {% function(d) {
 	var v = d[0][0];
 	var selectors = d[1].map(function(item){
 		if (item[0].type === 'dotSelector')
@@ -289,6 +296,7 @@ N -> float          {% id %}
 	| dictionary     {% id %}
 	| local_var     {% id %}
 	| func_call     {% id %}
+	| remote_func_call     {% id %}
 	| trigger_data     {% id %}
 	| params     {% id %}
 	| unit     {% id %}

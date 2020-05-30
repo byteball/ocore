@@ -1,5 +1,6 @@
 var Decimal = require('decimal.js');
 var constants = require('../constants');
+var ValidationUtils = require("../validation_utils.js");
 
 var cacheLimit = 100;
 var formulasInCache = [];
@@ -60,6 +61,27 @@ function assignObject(target, source) {
 	Object.assign(target, source);
 }
 
+function isValidValue(val){
+	return (typeof val === 'string' || typeof val === 'boolean' || isFiniteDecimal(val));
+}
+
+function getFormula(str, bOptionalBraces) {
+	if (bOptionalBraces)
+		throw Error("braces cannot be optional");
+	if (typeof str !== 'string')
+		return null;
+	if (str[0] === '{' && str[str.length - 1] === '}')
+		return str.slice(1, -1);
+	else if (bOptionalBraces)
+		return str;
+	else
+		return null;
+}
+
+function hasCases(value) {
+	return (typeof value === 'object' && Object.keys(value).length === 1 && ValidationUtils.isNonemptyArray(value.cases));
+}
+
 exports.cache = cache;
 exports.formulasInCache = formulasInCache;
 exports.cacheLimit = cacheLimit;
@@ -71,4 +93,8 @@ exports.isFiniteDecimal = isFiniteDecimal;
 exports.toDoubleRange = toDoubleRange;
 exports.createDecimal = createDecimal;
 exports.toOscriptPrecision = toOscriptPrecision;
+exports.isValidValue = isValidValue;
 exports.assignObject = assignObject;
+
+exports.getFormula = getFormula;
+exports.hasCases = hasCases;

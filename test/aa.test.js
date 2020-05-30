@@ -25,6 +25,16 @@ var validation = require('../validation.js');
 var mutex = require('../mutex.js');
 var test = require('ava');
 require('./_init_datafeeds.js');
+var db = require("../db");
+var storage = require("../storage");
+
+var readGetterProps = function (aa_address, func_name, cb) {
+	storage.readAAGetterProps(db, aa_address, func_name, cb);
+};
+
+function validateAA(aa, cb) {
+	aa_validation.validateAADefinition(aa, readGetterProps, Number.MAX_SAFE_INTEGER, cb);
+}
 
 writer.saveJoint = function (objJoint, objValidationState, preCommitCallback, onDone) {
 	console.log("mock saving unit", JSON.stringify(objJoint, null, '\t'));
@@ -58,7 +68,7 @@ test('simple AA', t => {
 			}
 		]
 	}];
-	aa_validation.validateAADefinition(aa, err => {
+	validateAA(aa, err => {
 		t.deepEqual(err, null);
 	});
 });
@@ -101,7 +111,7 @@ test('AA with cases', t => {
 			]
 		}
 	}];
-	aa_validation.validateAADefinition(aa, err => {
+	validateAA(aa, err => {
 		t.deepEqual(err, null);
 	});
 });
@@ -143,7 +153,7 @@ test('AA with bad cases', t => {
 			]
 		}
 	}];
-	aa_validation.validateAADefinition(aa, err => {
+	validateAA(aa, err => {
 		t.deepEqual(err, 'if required in all but the last cases');
 	});
 });
@@ -292,7 +302,7 @@ test.cb('complex AA', t => {
 			},
 		]
 	}];
-	aa_validation.validateAADefinition(aa, err => {
+	validateAA(aa, err => {
 		t.deepEqual(err, null);
 		t.end();
 	});
@@ -308,7 +318,7 @@ test('state only and no bounce fees', t => {
 			},
 		]
 	}];
-	aa_validation.validateAADefinition(aa, err => {
+	validateAA(aa, err => {
 		t.deepEqual(err, null);
 	});
 });
@@ -329,7 +339,7 @@ test('bad formula', t => {
 			}
 		]
 	}];
-	aa_validation.validateAADefinition(aa, err => {
+	validateAA(aa, err => {
 		console.log('err :', err);
 		t.deepEqual(err, `validation of formula trigger.address[] failed: parse error
 parser error: invalid syntax at line 1 col 16:
@@ -355,7 +365,7 @@ test('bad formula with different validation case', t => {
 			}
 		]
 	}];
-	aa_validation.validateAADefinition(aa, err => {
+	validateAA(aa, err => {
 		t.deepEqual(err, `validation of formula trigger .address failed: parse error
 parser error: invalid syntax at line 1 col 1:
 
@@ -392,7 +402,7 @@ test('bad formula with asset', t => {
 			]
 		}
 	}];
-	aa_validation.validateAADefinition(aa, err => {
+	validateAA(aa, err => {
 		console.log('err :', err);
 		t.deepEqual(err, `validation of formula trigger.data.auto_destroy[] failed: parse error
 parser error: invalid syntax at line 1 col 27:
@@ -423,7 +433,7 @@ test('state not on last position', t => {
 			}
 		]
 	}];
-	aa_validation.validateAADefinition(aa, err => {
+	validateAA(aa, err => {
 		t.deepEqual(err, 'state message must be last');
 	});
 });
@@ -443,7 +453,7 @@ test('low bounce fees', t => {
 			}
 		]
 	}];
-	aa_validation.validateAADefinition(aa, err => {
+	validateAA(aa, err => {
 		t.deepEqual(err, 'too small base bounce fee: 100');
 	});
 });
@@ -464,7 +474,7 @@ test('extraneous fields', t => {
 			}
 		]
 	}];
-	aa_validation.validateAADefinition(aa, err => {
+	validateAA(aa, err => {
 		t.deepEqual(err, 'foreign fields in AA definition');
 	});
 });
@@ -473,7 +483,7 @@ test('no messages', t => {
 	var aa = ['autonomous agent', {
 		bounce_fees: { base: 10000 },
 	}];
-	aa_validation.validateAADefinition(aa, err => {
+	validateAA(aa, err => {
 		t.deepEqual(err, 'bad messages in AA');
 	});
 });
@@ -493,7 +503,7 @@ test('no address', t => {
 			}
 		]
 	}];
-	aa_validation.validateAADefinition(aa, err => {
+	validateAA(aa, err => {
 		t.deepEqual(err, 'address not a string: undefined');
 	});
 });
@@ -513,7 +523,7 @@ test('no amount for send-all', t => {
 			}
 		]
 	}];
-	aa_validation.validateAADefinition(aa, err => {
+	validateAA(aa, err => {
 		t.deepEqual(err, null);
 	});
 });
@@ -533,7 +543,7 @@ test('negative amount', t => {
 			}
 		]
 	}];
-	aa_validation.validateAADefinition(aa, err => {
+	validateAA(aa, err => {
 		t.deepEqual(err, 'bad amount number: -1');
 	});
 });
@@ -553,7 +563,7 @@ test('bad address', t => {
 			}
 		]
 	}];
-	aa_validation.validateAADefinition(aa, err => {
+	validateAA(aa, err => {
 		t.deepEqual(err, 'bad address: xxx');
 	});
 });
@@ -573,7 +583,7 @@ test('trying to modify a var frozen in an earlier formula', t => {
 			}
 		]
 	}];
-	aa_validation.validateAADefinition(aa, err => {
+	validateAA(aa, err => {
 		t.deepEqual(err, `validation of formula 
 					$x.b = 8;
 				 failed: statement local_var_assignment,x,8,b invalid: local var x is frozen`);

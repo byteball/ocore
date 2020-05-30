@@ -106,6 +106,7 @@ var grammar = {
     {"name": "statement", "symbols": ["return_statement"], "postprocess": id},
     {"name": "statement", "symbols": ["empty_return_statement"], "postprocess": id},
     {"name": "statement", "symbols": ["func_call", {"literal":";"}], "postprocess": id},
+    {"name": "statement", "symbols": ["remote_func_call", {"literal":";"}], "postprocess": id},
     {"name": "statement$ebnf$1", "symbols": []},
     {"name": "statement$ebnf$1$subexpression$1", "symbols": [(lexer.has("dotSelector") ? {type: "dotSelector"} : dotSelector)]},
     {"name": "statement$ebnf$1$subexpression$1", "symbols": [{"literal":"["}, "expr", {"literal":"]"}]},
@@ -234,11 +235,20 @@ var grammar = {
         } },
     {"name": "func_declaration", "symbols": [{"literal":"("}, "arguments_list", {"literal":")"}, {"literal":"=>"}, {"literal":"{"}, "main", {"literal":"}"}], "postprocess": function(d) { return ['func_declaration', d[1], d[5]]; }},
     {"name": "func_call", "symbols": [(lexer.has("local_var_name") ? {type: "local_var_name"} : local_var_name), {"literal":"("}, "expr_list", {"literal":")"}], "postprocess": function(d) {return ['func_call', d[0].value.substr(1), d[2]]; }},
+    {"name": "remote_func_call$subexpression$1", "symbols": [(lexer.has("addressValue") ? {type: "addressValue"} : addressValue)]},
+    {"name": "remote_func_call$subexpression$1", "symbols": ["local_var"]},
+    {"name": "remote_func_call", "symbols": ["remote_func_call$subexpression$1", {"literal":"."}, (lexer.has("local_var_name") ? {type: "local_var_name"} : local_var_name), {"literal":"("}, "expr_list", {"literal":")"}], "postprocess":  function(d) {
+        	var remote_aa = d[0][0];
+        	if (remote_aa.type === 'addressValue')
+        		remote_aa = remote_aa.value;
+        	return ['remote_func_call', remote_aa, d[2].value.substr(1), d[4]]; 
+        } },
     {"name": "trigger_data", "symbols": [{"literal":"trigger.data"}], "postprocess": function(d) {return ['trigger.data']; }},
     {"name": "params", "symbols": [{"literal":"params"}], "postprocess": function(d) {return ['params']; }},
     {"name": "unit", "symbols": [{"literal":"unit"}, {"literal":"["}, "expr", {"literal":"]"}], "postprocess": function(d) { return ['unit', d[2]]; }},
     {"name": "definition", "symbols": [{"literal":"definition"}, {"literal":"["}, "expr", {"literal":"]"}], "postprocess": function(d) { return ['definition', d[2]]; }},
     {"name": "with_selectors$subexpression$1", "symbols": ["func_call"]},
+    {"name": "with_selectors$subexpression$1", "symbols": ["remote_func_call"]},
     {"name": "with_selectors$subexpression$1", "symbols": ["local_var"]},
     {"name": "with_selectors$subexpression$1", "symbols": ["trigger_data"]},
     {"name": "with_selectors$subexpression$1", "symbols": ["params"]},
@@ -368,6 +378,7 @@ var grammar = {
     {"name": "N", "symbols": ["dictionary"], "postprocess": id},
     {"name": "N", "symbols": ["local_var"], "postprocess": id},
     {"name": "N", "symbols": ["func_call"], "postprocess": id},
+    {"name": "N", "symbols": ["remote_func_call"], "postprocess": id},
     {"name": "N", "symbols": ["trigger_data"], "postprocess": id},
     {"name": "N", "symbols": ["params"], "postprocess": id},
     {"name": "N", "symbols": ["unit"], "postprocess": id},

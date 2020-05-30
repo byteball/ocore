@@ -6,6 +6,8 @@ var async = require('async');
 var constants = require('./constants.js');
 var ValidationUtils = require("./validation_utils.js");
 var formulaValidator = require('./formula/validation.js');
+var getFormula = require('./formula/common.js').getFormula;
+var hasCases = require('./formula/common.js').hasCases;
 
 var hasFieldsExcept = ValidationUtils.hasFieldsExcept;
 var isStringOfLength = ValidationUtils.isStringOfLength;
@@ -21,7 +23,7 @@ var isValidBase64 = ValidationUtils.isValidBase64;
 
 var MAX_DEPTH = 100;
 
-function validateAADefinition(arrDefinition, mci, callback) {
+function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 
 
 	function validateMessage(message, cb) {
@@ -513,10 +515,13 @@ function validateAADefinition(arrDefinition, mci, callback) {
 			bStatementsOnly: aa_opts.bStatementsOnly || false,
 			bStateVarAssignmentAllowed: aa_opts.bStateVarAssignmentAllowed || false,
 			locals: aa_opts.locals,
+			readGetterProps: readGetterProps,
 			mci: mci,
 		};
 	//	console.log('--- validateFormula', formula);
 		formulaValidator.validate(opts, function (result) {
+			if (typeof result.complexity !== 'number' || !isFinite(result.complexity))
+				throw Error("bad complexity after " + opts.formula + ": " + result.complexity);
 			complexity = result.complexity;
 			count_ops = result.count_ops;
 			if (result.error) {
@@ -532,20 +537,41 @@ function validateAADefinition(arrDefinition, mci, callback) {
 		});
 	}
 
+	function validateDefinition(arrDefinition, cb) {
+		var locals = {};
+		var f = getFormula(arrDefinition[1].getters);
+		if (f === null) // no getters
+			return validate(arrDefinition, 1, '', locals, 0, cb);
+		// validate getters before everything else as they can define a few functions
+		delete arrDefinition[1].getters;
+		var opts = {
+			formula: f,
+			locals: locals,
+			bStatementsOnly: true,
+			bGetters: true,
+		};
+		validateFormula(opts, function (err) {
+			if (err)
+				return cb(err);
+			getters = getGettersFromLocals(locals);
+			validate(arrDefinition, 1, '', locals, 0, cb);
+		});
+	}
+
 	function validate(obj, name, path, locals, depth, cb, bValueOnly) {
 		if (depth > MAX_DEPTH)
 			return cb("max depth reached");
 		count++;
 		if (count % 100 === 0) // interrupt the call stack
 			return setImmediate(validate, obj, name, path, locals, depth, cb, bValueOnly);
-		locals = _.clone(locals);
+		locals = _.cloneDeep(locals);
 		var value = obj[name];
 		if (typeof name === 'string' && !bValueOnly) {
 			var f = getFormula(name);
 			if (f !== null) {
 				var opts = {
 					formula: f,
-					locals: _.clone(locals),
+					locals: _.cloneDeep(locals),
 				};
 				return validateFormula(opts, function (err) {
 					if (err)
@@ -613,7 +639,7 @@ function validateAADefinition(arrDefinition, mci, callback) {
 			async.eachOfSeries(
 				value,
 				function (elem, i, cb2) {
-					validate(value, i, path, _.clone(locals), depth + 1, cb2);
+					validate(value, i, path, _.cloneDeep(locals), depth + 1, cb2);
 				},
 				cb
 			);
@@ -622,7 +648,7 @@ function validateAADefinition(arrDefinition, mci, callback) {
 			async.eachSeries(
 				Object.keys(value),
 				function (key, cb2) {
-					validate(value, key, path + '/' + key, _.clone(locals), depth + 1, cb2);
+					validate(value, key, path + '/' + key, _.cloneDeep(locals), depth + 1, cb2);
 				},
 				cb
 			);
@@ -633,11 +659,16 @@ function validateAADefinition(arrDefinition, mci, callback) {
 
 
 	if (callback === undefined) { // 2 arguments
-		callback = mci;
+		callback = readGetterProps;
 		mci = Number.MAX_SAFE_INTEGER;
+		readGetterProps = function (aa_address, func_name, cb2) {
+			// all getters exist and have complexity=0
+			cb2({ complexity: 0, count_ops: 1, count_args: null });
+		};
 	}
 	var complexity = 0;
 	var count_ops = 0;
+	var getters = null;
 	var count = 0;
 	if (!isArrayOfLength(arrDefinition, 2))
 		return callback("AA definition must be 2-element array");
@@ -654,10 +685,10 @@ function validateAADefinition(arrDefinition, mci, callback) {
 			return callback("some strings in params are too long");
 		if (!isValidAddress(template.base_aa))
 			return callback("base_aa is not a valid address");
-		return callback();
+		return callback(null);
 	}
 	// else regular AA
-	if (hasFieldsExcept(template, ['bounce_fees', 'messages', 'init', 'doc_url']))
+	if (hasFieldsExcept(template, ['bounce_fees', 'messages', 'init', 'doc_url', 'getters']))
 		return callback("foreign fields in AA definition");
 	if ('bounce_fees' in template){
 		if (!ValidationUtils.isNonemptyObject(template.bounce_fees))
@@ -674,34 +705,64 @@ function validateAADefinition(arrDefinition, mci, callback) {
 	}
 	if ('doc_url' in template && !isNonemptyString(template.doc_url))
 		return callback("invalid doc_url: " + template.doc_url);
+	if ('getters' in template) {
+		if (mci < constants.aa2UpgradeMci)
+			return callback("getters not activated yet");
+		if (getFormula(template.getters) === null)
+			return callback("invalid getters: " + template.getters);
+	}
 	validateFieldWrappedInCases(template, 'messages', validateMessages, function (err) {
 		if (err)
 			return callback(err);
-		validate(arrDefinition, 1, '', {}, 0, function (err) {
+		validateDefinition(arrDefinition, function (err) {
 			if (err)
 				return callback(err);
 			console.log('AA validated, complexity = ' + complexity + ', ops = ' + count_ops);
-			callback(null, { complexity, count_ops });
+			callback(null, { complexity, count_ops, getters });
 		});
 	});
 }
 
 
-function getFormula(str, bOptionalBraces) {
-	if (bOptionalBraces)
-		throw Error("braces cannot be optional");
-	if (typeof str !== 'string')
-		return null;
-	if (str[0] === '{' && str[str.length - 1] === '}')
-		return str.slice(1, -1);
-	else if (bOptionalBraces)
-		return str;
-	else
-		return null;
+// assumes the definition is valid
+function determineGetterProps(arrDefinition, readGetterProps, cb) {
+	if (!arrDefinition[1].getters)
+		return cb(null);
+	var locals = {};
+	var f = getFormula(arrDefinition[1].getters);
+	var opts = {
+		formula: f,
+		complexity: 0,
+		count_ops: 0,
+		bAA: true,
+		locals: locals,
+		bStatementsOnly: true,
+		bGetters: true,
+		readGetterProps: readGetterProps,
+		mci: Number.MAX_SAFE_INTEGER,
+	};
+	formulaValidator.validate(opts, function (result) {
+		if (result.error)
+			throw Error(result.error);
+		if (result.complexity > 0)
+			throw Error("getters has non-0 complexity");
+		cb(getGettersFromLocals(locals));
+	});
 }
 
-function hasCases(value) {
-	return (typeof value === 'object' && Object.keys(value).length === 1 && isNonemptyArray(value.cases));
+function getGettersFromLocals(locals) {
+	// all locals are either getter functions or constants
+	var getters = null;
+	for (var name in locals) {
+		if (locals[name].type === 'func') {
+			if (!getters)
+				getters = {};
+			getters[name] = locals[name].props;
+		}
+		else if (locals[name].value === undefined)
+			throw Error("some locals are not functions or constants");
+	}
+	return getters;
 }
 
 
@@ -733,5 +794,4 @@ function variableHasStringsOfAllowedLength(x) {
 }
 
 exports.validateAADefinition = validateAADefinition;
-exports.getFormula = getFormula;
-exports.hasCases = hasCases;
+exports.determineGetterProps = determineGetterProps;
