@@ -473,6 +473,10 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 		var cases = value.cases;
 		for (var i = 0; i < cases.length; i++){
 			var acase = cases[i];
+			if (hasFieldsExcept(acase, [field, 'if', 'init']))
+				return cb('foreign fields in case ' + i + ' of ' + field);
+			if (!acase.hasOwnProperty(field))
+				return cb('case ' + i + ' has no field ' + field);
 			if ('if' in acase && !isNonemptyString(acase.if))
 				return cb('bad if in case: ' + acase.if);
 			if (!('if' in acase) && i < cases.length - 1)
@@ -596,7 +600,22 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 			};
 			validateFormula(opts, cb);
 		}
-		// cases are parsed as regular objects with if/init
+		// cases are parsed as regular objects with if/init but we need to skip them in path
+		else if (hasCases(value)) {
+			if (typeof name === 'string')
+				path = path.substring(0, path.length - name.length - 1); // strip off the /name
+			async.eachOfSeries(
+				value.cases,
+				function (acase, i, cb2) {
+					if (hasFieldsExcept(acase, [name, 'if', 'init']))
+						return cb2('validate: foreign fields in case ' + i + ' of ' + name);
+					if (!acase.hasOwnProperty(name))
+						return cb2('validate: case ' + i + ' has no field ' + name);
+					validate(value.cases, i, path, _.cloneDeep(locals), depth + 1, cb2);
+				},
+				cb
+			);
+		}
 		else if (typeof value === 'object' && (typeof value.if === 'string' || typeof value.init === 'string')) {
 			function evaluateIf(cb2) {
 				if (typeof value.if !== 'string')
