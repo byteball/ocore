@@ -3704,7 +3704,7 @@ test('one-line function returning an array', t => {
 	})
 });
 
-test('one-line function returning an empty object', t => {
+test('function returning an empty object', t => {
 	var trigger = { data: { q: { a: 6 } } };
 	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
 	var locals = { };
