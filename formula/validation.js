@@ -237,6 +237,7 @@ exports.validate = function (opts, callback) {
 	
 	var bInFunction = false;
 	var bInIf = false;
+	var bHadReturn = false;
 
 	var parser = {};
 	try {
@@ -568,7 +569,7 @@ exports.validate = function (opts, callback) {
 								return cb("local var " + var_name + " is frozen");
 							if (locals[var_name].state === 'assigned' && !selectors)
 								return cb("local var " + var_name + " already assigned");
-							if (locals[var_name].state === 'maybe assigned' && !bInIf && !selectors)
+							if (locals[var_name].state === 'maybe assigned' && !bInIf && !bHadReturn && !selectors)
 								return cb("local var " + var_name + " already conditionally assigned");
 						}
 						if (!bExists && !locals[''] && selectors)
@@ -1144,6 +1145,7 @@ exports.validate = function (opts, callback) {
 				if (bGetters && !bInFunction)
 					return cb("return not allowed at top level in getters");
 				var expr = arr[1];
+				bHadReturn = true;
 				if (expr === null)
 					return cb((bStatementsOnly || bInFunction) ? undefined : 'return; not allowed here');
 				if (bStatementsOnly && !bInFunction)
