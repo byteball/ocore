@@ -1,0 +1,118 @@
+{
+	/*
+	This is an ICO agent with milestone-based release of the raised funds.
+
+	The funds are released only after a trusted third party (an auditor) verifies the team's performance and approves the release of the next milestone payment.  The auditor can be a multisig address.
+
+	If the ICO doesn't reach its target, the investors can get a refund by exchanging their tokens back to bytes.
+	*/
+	init: `{
+		$control_address = 'VF5UVKDSOXPMITMDGYXEIGUJSQBRAMMN'; // controled by the fundraiser, used to finish the ICO
+		$fundraiser_address = 'VF5UVKDSOXPMITMDGYXEIGUJSQBRAMMN'; // this address receives the milestone payments
+		$auditor_address = 'JE3HACDALPUAQ6SJOFM74W43EGVFWEIF';
+		$price = 13.3; // bytes per token
+		$target = 100e9; // if raised less, will refund
+		$expiry_ts = 1577836000; // Jan 1, 2020
+		$milestone1 = 10; // in %
+		$milestone2 = 30;
+		$milestone3 = 40;
+		$milestone4 = 20;
+		$asset = var['asset'];
+		$finished = var['finished'];
+		$is_active = ($asset AND $price AND !$finished);
+	}`,
+	messages: {
+		cases: [
+			{ // create a token
+				if: `{trigger.data.define AND !$asset}`,
+				messages: [
+					{
+						app: 'asset',
+						payload: {
+							is_private: false,
+							is_transferrable: true,
+							auto_destroy: false,
+							fixed_denominations: false,
+							issued_by_definer_only: true,
+							cosigned_by_definer: false,
+							spender_attested: false
+						}
+					},
+					{
+						app: 'state',
+						state: `{
+							var['asset'] = response_unit;
+							response['asset'] = response_unit;
+						}`
+					}
+				]
+			},
+			{ // contribute
+				if: `{ trigger.output[[asset=base]] >= 1e5 AND $is_active }`,
+				init: `{
+					$amount = round(trigger.output[[asset=base]] / $price);
+				}`,
+				messages: [
+					{
+						app: 'payment',
+						payload: {
+							asset: "{$asset}",
+							outputs: [{address: "{trigger.address}", amount: "{$amount}"}]
+						}
+					}
+				]
+			},
+			{ // finish the ICO
+				if: `{ trigger.data.finish AND (trigger.address == $control_address OR timestamp > $expiry_ts) }`,
+				messages: [
+					{
+						app: 'state',
+						state: `{
+							var['finished'] = 1;
+							var['total'] = balance[base];
+							response['total'] = balance[base];
+						}`
+					}
+				]
+			},
+			{ // release a milestone
+				if: `{trigger.data.milestone AND trigger.address == $auditor_address AND $finished AND var['total'] >= $target}`,
+				init: `{
+					$share = ${'milestone' || trigger.data.milestone} / 100;
+					if (!$share)
+						bounce('no such milestone');
+					if (var['milestone' || trigger.data.milestone || '_released'])
+						bounce('milestone ' || trigger.data.milestone || ' already released');
+				}`,
+				messages: [
+					{
+						app: 'payment',
+						payload: {
+							asset: "base",
+							outputs: [{address: "{$fundraiser_address}", amount: "{round(var['total'] * $share)}"}]
+						}
+					},
+					{
+						app: 'state',
+						state: `{
+							var['milestone' || trigger.data.milestone || '_released'] = 1;
+							response['released'] = 1;
+						}`
+					}
+				]
+			},
+			{ // refund
+				if: `{$asset AND trigger.output[[asset=$asset]] > 0 AND $finished AND var['total'] < $target}`,
+				messages: [
+					{
+						app: 'payment',
+						payload: {
+							asset: "base",
+							outputs: [{address: "{trigger.address}", amount: "{ round(trigger.output[[asset=$asset]] * $price) }"}]
+						}
+					}
+				]
+			},
+		]
+	}
+}

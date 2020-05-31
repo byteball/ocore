@@ -1,0 +1,14 @@
+{
+	messages: [
+		{
+			if: `{trigger.output[[asset=base]] > 2000}`,
+			app: 'payment',
+			payload: {
+				asset: "base",
+				outputs: [
+					{ address: "PCEJIRXNA56T6VQOOSPV6GOJVLVN6AO6", amount: "{ trigger.output[[asset=base]] - 2000 }" }
+				]
+			}
+		},
+	]
+}

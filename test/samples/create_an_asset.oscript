@@ -1,0 +1,46 @@
+{
+	bounce_fees: { base: 11000 },
+	messages: {
+		cases: [
+			{
+				if: "{trigger.data.define}",
+				messages: [
+					{
+						app: 'asset',
+						payload: {
+							cap: "{trigger.data.cap otherwise ''}",
+							is_private: false,
+							is_transferrable: true,
+							auto_destroy: "{!!trigger.data.auto_destroy}",
+							fixed_denominations: false,
+							issued_by_definer_only: "{!!trigger.data.issued_by_definer_only}",
+							cosigned_by_definer: false,
+							spender_attested: "{!!trigger.data.attestor1}",
+							attestors: [
+								"{trigger.data.attestor1 otherwise ''}",
+								"{trigger.data.attestor2 otherwise ''}",
+								"{trigger.data.attestor3 otherwise ''}",
+							]
+						}
+					},
+					{
+						app: 'state',
+						state: "{ var[response_unit] = trigger.address; }"
+					}
+				]
+			},
+			{
+				if: "{trigger.data.issue AND trigger.data.asset AND var[trigger.data.asset] == trigger.address}",
+				messages: [{
+					app: 'payment',
+					payload: {
+						asset: "{trigger.data.asset}",
+						outputs: [
+							{address: "{trigger.address}", amount: "{trigger.data.amount}"}
+						]
+					}
+				}]
+			},
+		]
+	}
+}

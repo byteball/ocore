@@ -1,5 +1,7 @@
 var shell = require('child_process').execSync;
 var path = require('path');
+var fs = require('fs');
+var async = require('async');
 var crypto = require('crypto');
 var Mnemonic = require('bitcore-mnemonic');
 
@@ -27,6 +29,7 @@ var test = require('ava');
 require('./_init_datafeeds.js');
 var db = require("../db");
 var storage = require("../storage");
+var parseOjson = require('../formula/parse_ojson').parse
 
 var readGetterProps = function (aa_address, func_name, cb) {
 	storage.readAAGetterProps(db, aa_address, func_name, cb);
@@ -588,6 +591,31 @@ test('trying to modify a var frozen in an earlier formula', t => {
 					$x.b = 8;
 				 failed: statement local_var_assignment,x,8,b invalid: local var x is frozen`);
 	});
+});
+
+test.cb('validate samples', t => {
+	var samples_dir = path.join(__dirname, 'samples');
+	var files = fs.readdirSync(samples_dir);
+	async.eachSeries(
+		files,
+		function (file, cb) {
+			var oscript = fs.readFileSync(path.join(samples_dir, file), 'utf8');
+			parseOjson(oscript, (err, aa) => {
+				t.deepEqual(err, null);
+				if (err)
+					return cb(err);
+				console.log(file, JSON.stringify(aa, null, 2))
+				validateAA(aa, err => {
+					console.log(file, err);
+					t.deepEqual(err, null);
+					cb(err);
+				});
+			});
+		},
+		function () {
+			t.end();
+		}
+	);
 });
 
 
