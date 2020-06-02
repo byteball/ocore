@@ -736,6 +736,7 @@ test.cb.serial('compose complex AA', t => {
 							state: `{
 								$c=3 * $a; var['z'] = $c / 200;
 								var['long_num2'] = var['I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT']['price'] + 1; // should fail before aa2UpgradeMci
+								var['ob'] = {h: 'ff', g: 8, d: [2, 'dd']};
 							}` // c=900, var[z] = 4.5
 						}
 					]
@@ -768,7 +769,15 @@ test.cb.serial('compose complex AA', t => {
 			t.deepEqual(objUnit.messages.find(function (message) { return (message.app === 'payment'); }).payload.outputs.find(function (output) { return (output.address === trigger.address); }).amount, 18150);
 			t.deepEqual(objUnit.messages.find(function (message) { return (message.app === 'data'); }).payload.zzz, undefined);
 			t.deepEqual(objUnit.messages.find(function (message) { return (message.app === 'data'); }).payload.val_300, 80000);
-			t.end();
+			batch.write(err => {
+				if (err)
+					throw Error("batch write failed: " + err);
+				// check that object state vars are saved correctly
+				storage.readAAStateVars(address, vars => {
+					t.deepEqual(vars['ob'], { h: 'ff', g: 8, d: [2, 'dd'] });
+					t.end();
+				});
+			});
 		});
 	});
 });

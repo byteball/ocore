@@ -2158,6 +2158,15 @@ test('json_stringify large number', t => {
 	})
 });
 
+test('json_stringify empty object', t => {
+	var trigger = { data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}} };
+	var stateVars = {  };
+	evalFormulaWithVars({ conn: null, formula: "json_stringify({a:[{}, {b:[]}, {c: 6}]})", trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity) => {
+		t.deepEqual(res, '{"a":[{},{"b":[]},{"c":6}]}');
+		t.deepEqual(complexity, 1);
+	})
+});
+
 test('json_parse', t => {
 	var trigger = { data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}} };
 	var stateVars = {  };
@@ -5193,3 +5202,51 @@ test('reduce over object', t => {
 	})
 });
 
+test.cb('objects in state vars', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$o = {c: 2, a: 5, b: 9};
+		var['ob'] = $o;
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStateVarAssignmentAllowed: true, bStatementsOnly: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, true);
+		t.deepEqual(stateVars.MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU.ob.value.obj, {c: 2, a: 5, b: 9});
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});
+
+test.cb('read object state var', t => {
+	var formula = `
+		$s = var[I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT]['structured'];
+		$s.1.qq = 'pp';
+		$s
+	`;
+	evalFormulaWithVars({ formula, trigger: {}, locals: {volume: 100}, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, [5, {s: 8, w: 'cc', qq: 'pp'}]);
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});
+
+test.cb('object state var += to object', t => {
+	var formula = `
+		var['structured'] += 1;
+	`;
+	evalFormulaWithVars({ formula, trigger: {}, locals: {volume: 100}, objValidationState, bStatementsOnly: true, bStateVarAssignmentAllowed: true, address: 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT' }, (res, complexity) => {
+		t.deepEqual(res, null);
+		t.end();
+	})
+});
+
+test.cb('object state var += object', t => {
+	var formula = `
+		var['price'] += {a: 9};
+	`;
+	evalFormulaWithVars({ formula, trigger: {}, locals: {volume: 100}, objValidationState, bStatementsOnly: true, bStateVarAssignmentAllowed: true, address: 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT' }, (res, complexity) => {
+		t.deepEqual(res, null);
+		t.end();
+	})
+});

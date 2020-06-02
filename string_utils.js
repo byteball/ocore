@@ -182,7 +182,7 @@ function toWellFormedJsonStringify(obj) {
 	return bWellFormedJsonStringify ? str : str.replace(/[\ud800-\udfff]/g, chr => "\\u" + chr.codePointAt(0).toString(16));
 }
 
-function getJsonSourceString(obj) {
+function getJsonSourceString(obj, bAllowEmpty) {
 	function stringify(variable){
 		if (variable === null)
 			throw Error("null value in "+JSON.stringify(obj));
@@ -194,13 +194,13 @@ function getJsonSourceString(obj) {
 				return variable.toString();
 			case "object":
 				if (Array.isArray(variable)){
-					if (variable.length === 0)
+					if (variable.length === 0 && !bAllowEmpty)
 						throw Error("empty array in "+JSON.stringify(obj));
 					return '[' + variable.map(stringify).join(',') + ']';
 				}
 				else{
 					var keys = Object.keys(variable).sort();
-					if (keys.length === 0)
+					if (keys.length === 0 && !bAllowEmpty)
 						throw Error("empty object in "+JSON.stringify(obj));
 					return '{' + keys.map(function(key){ return toWellFormedJsonStringify(key)+':'+stringify(variable[key]) }).join(',') + '}';
 				}

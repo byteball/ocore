@@ -1207,9 +1207,24 @@ exports.evaluate = function (opts, callback) {
 							return setFatalError("evaluation of rhs " + rhs + " failed: " + res, cb, false);
 						if (Decimal.isDecimal(res))
 							res = toDoubleRange(res);
-						// state vars can store only strings, decimals, and booleans but booleans are treated specially when persisting to the db: true is converted to 1, false deletes the var
-						if (res instanceof wrappedObject)
-							res = true;
+						// state vars can store strings, decimals, objects, and booleans but booleans are treated specially when persisting to the db: true is converted to 1, false deletes the var
+						if (res instanceof wrappedObject) {
+							if (objValidationState.last_ball_mci < constants.aa2UpgradeMci)
+								res = true;
+							else {
+								if (assignment_op !== '=')
+									return setFatalError(assignment_op + " not supported for object vars", cb, false);
+								try {
+									var json = string_utils.getJsonSourceString(res.obj, true);
+								}
+								catch (e) {
+									return setFatalError("stringify failed: " + e, cb, false);
+								}
+								if (json.length > constants.MAX_STATE_VAR_VALUE_LENGTH)
+									return setFatalError("state var value too long when in json: " + json, cb, false);
+								res = new wrappedObject(_.cloneDeep(res.obj)); // make a copy
+							}
+						}
 						if (var_name.length > constants.MAX_STATE_VAR_NAME_LENGTH)
 							return setFatalError("state var name too long: " + var_name, cb, false);
 					//	if (typeof res === 'boolean')
@@ -1225,6 +1240,8 @@ exports.evaluate = function (opts, callback) {
 								stateVars[address][var_name].updated = true;
 								return cb(true);
 							}
+							if (value instanceof wrappedObject)
+								return setFatalError("can't " + assignment_op + " to object", cb, false);
 							if (assignment_op === '||=') {
 								value = value.toString() + res.toString();
 								if (value.length > constants.MAX_STATE_VAR_VALUE_LENGTH)
@@ -1627,7 +1644,7 @@ exports.evaluate = function (opts, callback) {
 						if (objValidationState.last_ball_mci < constants.aa2UpgradeMci)
 							res = true;
 						else
-							res = string_utils.getJsonSourceString(res.obj); // it's ok if the string is longer than MAX_AA_STRING_LENGTH
+							res = string_utils.getJsonSourceString(res.obj, true); // it's ok if the string is longer than MAX_AA_STRING_LENGTH
 					}
 					if (!isValidValue(res))
 						return setFatalError("invalid value in sha256: " + res, cb, false);
@@ -1655,8 +1672,15 @@ exports.evaluate = function (opts, callback) {
 				evaluate(expr, function (res) {
 					if (fatal_error)
 						return cb(false);
-					if (res instanceof wrappedObject)
-						return cb(objectHash.getChash160(res.obj));
+					if (res instanceof wrappedObject) {
+						try {
+							var chash160 = objectHash.getChash160(res.obj);
+						}
+						catch (e) {
+							return setFatalError("chash160 failed: " + e, cb, false);
+						}
+						return cb(chash160);
+					}
 					if (!isValidValue(res))
 						return setFatalError("invalid value in chash160: " + res, cb, false);
 					if (Decimal.isDecimal(res))
@@ -1758,7 +1782,8 @@ exports.evaluate = function (opts, callback) {
 						if (!isFinite(res))
 							return setFatalError("not finite js number: " + res, cb, false);
 					}
-					var json = string_utils.getJsonSourceString(res); // sorts keys unlike JSON.stringify()
+					var bAllowEmpty = (objValidationState.last_ball_mci >= constants.aa2UpgradeMci);
+					var json = string_utils.getJsonSourceString(res, bAllowEmpty); // sorts keys unlike JSON.stringify()
 					if (json.length > constants.MAX_AA_STRING_LENGTH)
 						return setFatalError("json_stringified is too long", cb, false);
 					cb(json);
@@ -2372,7 +2397,7 @@ exports.evaluate = function (opts, callback) {
 			return cb2(stateVars[param_address][var_name].value);
 		}
 		storage.readAAStateVar(param_address, var_name, function (value) {
-			console.log(var_name+'='+value);
+			console.log(var_name+'='+(typeof value === 'object' ? JSON.stringify(value) : value));
 			if (value === undefined) {
 				stateVars[param_address][var_name] = {value: false};
 				return cb2(false);
@@ -2386,6 +2411,8 @@ exports.evaluate = function (opts, callback) {
 			else {
 				if (typeof value === 'number')
 					value = createDecimal(value);
+				else if (typeof value === 'object')
+					value = new wrappedObject(value);
 			}
 			stateVars[param_address][var_name] = {value: value, old_value: value, original_old_value: value};
 			cb2(value);
@@ -2831,9 +2858,8 @@ function executeGetter(conn, aa_address, getter, args, cb) {
 		});
 	});
 }
-exports.executeGetter = executeGetter;
 
-exports.extractInitParams = function (formula) {
+function extractInitParams(formula) {
 	var parser = {};
 	if(cache[formula])
 		parser.results = cache[formula];
@@ -2876,3 +2902,8 @@ exports.extractInitParams = function (formula) {
 	});
 	return { params, arrRemainingStatements };
 }
+
+exports.wrappedObject = wrappedObject;
+exports.toJsType = toJsType;
+exports.executeGetter = executeGetter;
+exports.extractInitParams = extractInitParams;

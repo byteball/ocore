@@ -32,12 +32,19 @@ async function insertDataFeed(address, feed_name, value, mci, unit){
 
 async function insertStateVar(address, var_name, value){
 	return new Promise(function(resolve) {
-		kvstore.put('st\n'+address+'\n'+var_name, getType(value) + "\n" + value, resolve);
+		kvstore.put('st\n'+address+'\n'+var_name, getTypeAndValue(value), resolve);
 	});
 }
 
-function getType(value) {
-	return (typeof value === 'string') ? 's' : 'n';
+function getTypeAndValue(value) {
+	if (typeof value === 'string')
+		return 's\n' + value;
+	else if (typeof value === 'number')
+		return 'n\n' + value.toString();
+	else if (typeof value === 'object')
+		return 'j\n' + string_utils.getJsonSourceString(value, true);
+	else
+		throw Error("state var of unknown type: " + value);	
 }
 
 async function insertJoint(unit, value){
@@ -58,6 +65,7 @@ test.before(async t => {
 	await insertStateVar('MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', 'player_name', 'John');
 	await insertStateVar('I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT', 'temperature', '18.5');
 	await insertStateVar('I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT', 'price', 0.000678901234567);
+	await insertStateVar('I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT', 'structured', [5, {s: 8, w: 'cc'}]);
 
 	await db.query("INSERT "+db.getIgnore()+" INTO addresses (address) VALUES ('MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'), ('I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT')");
 	

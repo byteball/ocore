@@ -4,13 +4,14 @@ var Decimal = require('decimal.js');
 var _ = require('lodash');
 var async = require('async');
 var constants = require('./constants.js');
+var string_utils = require("./string_utils.js");
 var storage = require('./storage.js');
 var db = require('./db.js');
 var ValidationUtils = require("./validation_utils.js");
 var objectLength = require("./object_length.js");
 var objectHash = require("./object_hash.js");
 var validation = require("./validation.js");
-var formulaParser = require('./formula/index');
+var formulaParser = require('./formula/evaluation.js');
 var kvstore = require('./kvstore.js');
 var eventBus = require('./event_bus.js');
 var mutex = require('./mutex.js');
@@ -19,6 +20,8 @@ var conf = require('./conf.js');
 
 var getFormula = require('./formula/common.js').getFormula;
 var hasCases = require('./formula/common.js').hasCases;
+var wrappedObject = formulaParser.wrappedObject;
+var toJsType = formulaParser.toJsType;
 
 var isNonnegativeInteger = ValidationUtils.isNonnegativeInteger;
 var isNonemptyArray = ValidationUtils.isNonemptyArray;
@@ -1046,18 +1049,31 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 				if (state.value === false) // false value signals that the var should be deleted
 					batch.del(key);
 				else
-					batch.put(key, getType(state.value) + "\n" + state.value.toString()); // Decimal converted to string
+					batch.put(key, getTypeAndValue(state.value)); // Decimal converted to string, object to json
 			}
 		}
 	}
 
-	function getType(value) {
+	function getTypeAndValue(value) {
 		if (typeof value === 'string')
-			return 's';
+			return 's\n' + value;
 		else if (typeof value === 'number' || Decimal.isDecimal(value))
-			return 'n';
+			return 'n\n' + value.toString();
+		else if (value instanceof wrappedObject)
+			return 'j\n' + string_utils.getJsonSourceString(value.obj, true);
 		else
 			throw Error("state var of unknown type: " + value);	
+	}
+
+	function getValueSize(value) {
+		if (typeof value === 'string')
+			return value.length;
+		else if (typeof value === 'number' || Decimal.isDecimal(value))
+			return value.toString().length;
+		else if (value instanceof wrappedObject)
+			return string_utils.getJsonSourceString(value.obj, true).length;
+		else
+			throw Error("state var of unknown type: " + value);		
 	}
 
 	function updateStorageSize(cb) {
@@ -1071,13 +1087,13 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 				continue;
 			if (state.value === false) { // false value signals that the var should be deleted
 				if (state.original_old_value !== undefined)
-					delta_storage_size -= var_name.length + state.original_old_value.toString().length;
+					delta_storage_size -= var_name.length + getValueSize(state.original_old_value);
 			}
 			else {
 				if (state.original_old_value !== undefined)
-					delta_storage_size += state.value.toString().length - state.original_old_value.toString().length;
+					delta_storage_size += getValueSize(state.value) - getValueSize(state.original_old_value);
 				else
-					delta_storage_size += var_name.length + state.value.toString().length;
+					delta_storage_size += var_name.length + getValueSize(state.value);
 			}
 		}
 		console.log('storage size = ' + storage_size + ' + ' + delta_storage_size + ', byte_balance = ' + byte_balance);
@@ -1163,10 +1179,10 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 				if (!updatedStateVars[var_address])
 					updatedStateVars[var_address] = {};
 				var varInfo = {
-					value: Decimal.isDecimal(state.value) ? state.value.toNumber() : state.value,
+					value: toJsType(state.value),
 				};
 				if (state.old_value !== undefined)
-					varInfo.old_value = Decimal.isDecimal(state.old_value) ? state.old_value.toNumber() : state.old_value;
+					varInfo.old_value = toJsType(state.old_value);
 				if (typeof varInfo.value === 'number') {
 					if (typeof varInfo.old_value === 'number')
 						varInfo.delta = varInfo.value - varInfo.old_value;

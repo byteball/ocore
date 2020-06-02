@@ -895,6 +895,8 @@ function parseStateVar(type_and_value) {
 		return value;
 	else if (type === 'n')
 		return parseFloat(value);
+	else if (type === 'j')
+		return JSON.parse(value);
 	else
 		throw Error("unknown type in " + type_and_value);
 }
