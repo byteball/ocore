@@ -2028,6 +2028,122 @@ exports.evaluate = function (opts, callback) {
 				});
 				break;
 
+			case 'foreach':
+			case 'map':
+			case 'filter':
+			case 'reduce':
+				var expr = arr[1];
+				var count_expr = arr[2];
+				var func_expr = arr[3];
+				var initial_value_expr = arr[4];
+				var bReduce = (op === 'reduce');
+				evaluate(expr, function (res) {
+					if (fatal_error)
+						return cb(false);
+					if (!(res instanceof wrappedObject))
+						return setFatalError("scalar in foreach: " + res, cb, false);
+					evaluate(count_expr, function (count) {
+						if (fatal_error)
+							return cb(false);
+						if (!Decimal.isDecimal(count))
+							return setFatalError("count is not a number: " + count, cb, false);
+						count = count.toNumber();
+						if (!ValidationUtils.isNonnegativeInteger(count))
+							return setFatalError("count is not nonnegative integer: " + count, cb, false);
+						evaluateFunctionExpression(func_expr, funcInfo => {
+							if (fatal_error)
+								return cb(false);
+							var bArray = Array.isArray(res.obj);
+							var arrElements = bArray ? res.obj : Object.keys(res.obj).sort();
+							if (arrElements.length > count)
+								return setFatalError("found " + arrElements.length + " elements in object, only up to " + count + " allowed", cb, false);
+							evaluate(bReduce ? initial_value_expr : "", initial_value => {
+								if (fatal_error)
+									return cb(false);
+								var retValue = bArray ? [] : {};
+								var accumulator = initial_value;
+								async.eachOfSeries(
+									arrElements,
+									function (element, index, cb2) {
+										function getArgs(count_args) {
+											var args = [];
+											if (bReduce) {
+												args.push(accumulator);
+												count_args--; // remaining args
+											}
+											if (bArray) {
+												var key = new Decimal(index);
+												var value = toOscriptType(element);
+											}
+											else {
+												var key = element;
+												var value = toOscriptType(res.obj[element]);
+											}
+											if (count_args === 1)
+												args.push(value);
+											else
+												args.push(key, value);
+											return args;
+										}
+										var caller;
+										if (funcInfo.local) {
+											var func = funcInfo.local;
+											var args = getArgs(func.args.length);
+											caller = function (res_cb) {
+												callFunction(func, args, res_cb);
+											};
+										}
+										else if (funcInfo.remote) {
+											var fargs = (func) => getArgs(func.args.length);
+											caller = function (res_cb) {
+												callGetter(conn, funcInfo.remote.remote_aa, funcInfo.remote.func_name, fargs, stateVars, objValidationState, (err, r) => {
+													if (err)
+														return setFatalError(err, res_cb, false);
+													res_cb(r);
+												});
+											};
+										}
+										else
+											throw Error("neither local nor remote: " + funcInfo);
+										caller(r => {
+											if (op === 'map') {
+												r = toJsType(r);
+												if (bArray)
+													retValue.push(r);
+												else
+													retValue[element] = r;
+											}
+											else if (op === 'filter') {
+												r = toJsType(r);
+												if (r) { // truthy
+													if (bArray)
+														retValue.push(_.cloneDeep(element));
+													else
+														retValue[element] = _.cloneDeep(res.obj[element]);
+												}
+											}
+											else if (bReduce)
+												accumulator = r;
+											cb2(fatal_error);
+										});
+									},
+									function (err) {
+										if (fatal_error)
+											return cb(false);
+										if (bReduce)
+											cb(accumulator);
+										else if (op === 'map' || op === 'filter')
+											cb(new wrappedObject(retValue));
+										else
+											cb(true);
+									}
+								);
+							});
+						});
+					});
+				});
+				break;
+					
 			case 'timestamp_to_string':
 				var ts_expr = arr[1];
 				var format_expr = arr[2] || 'datetime';
@@ -2125,40 +2241,7 @@ exports.evaluate = function (opts, callback) {
 							return cb(false);
 						if (err)
 							return setFatalError("arguments failed: " + err, cb, false);
-						var func_locals = {};
-						// set a subset of locals that were present in the declaration scope
-						func.scopeVarNames.forEach(name => {
-							func_locals[name] = locals[name];
-						});
-						// set the arguments as locals too
-						for (var i = 0; i < func.args.length; i++){
-							var arg_name = func.args[i];
-							var value = args[i];
-							if (value === undefined) // no argument passed
-								value = false;
-							if (func_locals[arg_name] !== undefined)
-								throw Error("argument " + arg_name + " would shadow a local var");
-							func_locals[arg_name] = value;
-						}
-						var saved_locals = _.clone(locals);
-						var saved_so = bStatementsOnly;
-						assignObject(locals, func_locals);
-						bStatementsOnly = false;
-						// bStateVarAssignmentAllowed is inherited
-						evaluate(func.body, res => {
-							if (early_return !== undefined)
-								res = early_return;
-							// restore
-							assignObject(locals, saved_locals);
-							bStatementsOnly = saved_so;
-							early_return = undefined;
-
-							if (fatal_error)
-								return cb(false);
-							if (!isValidValue(res) && !(res instanceof wrappedObject))
-								return setFatalError("bad value returned from func", cb, false);
-							cb(res);
-						});
+						callFunction(func, args, cb);
 					}
 				);
 				break;
@@ -2188,7 +2271,7 @@ exports.evaluate = function (opts, callback) {
 								return setFatalError(fatal_error, cb, false);
 							if (!ValidationUtils.isValidAddress(remote_aa))
 								return setFatalError("not valid remote AA: " + remote_aa, cb, false);
-							evaluateGetter(conn, remote_aa, func_name, args, stateVars, objValidationState, (err, res) => {
+							callGetter(conn, remote_aa, func_name, args, stateVars, objValidationState, (err, res) => {
 								if (err)
 									return setFatalError(err, cb, false);
 								cb(res);
@@ -2205,7 +2288,7 @@ exports.evaluate = function (opts, callback) {
 					if (fatal_error)
 						return cb(false);
 					if (!isValidValue(res) && !(res instanceof wrappedObject))
-						return setFatalError("bad value for with_selectors", cb, false);
+						return setFatalError("bad value for with_selectors: " + JSON.stringify(res), cb, false);
 					selectSubobject(res, arrKeys, cb);
 				});
 				break;
@@ -2229,8 +2312,8 @@ exports.evaluate = function (opts, callback) {
 					early_return = true;
 					return cb(true);
 				}
-				if (bStatementsOnly)
-					return setFatalError("non-empty early return", cb, false);
+			//	if (bStatementsOnly)
+			//		return setFatalError("non-empty early return", cb, false);
 				evaluate(expr, function (res) {
 					if (fatal_error)
 						return cb(false);
@@ -2505,6 +2588,72 @@ exports.evaluate = function (opts, callback) {
 		);
 	}
 
+	function callFunction(func, args, cb) {
+		if (early_return !== undefined)
+			throw Error("function called after a return");
+		var func_locals = {};
+		// set a subset of locals that were present in the declaration scope
+		func.scopeVarNames.forEach(name => {
+			func_locals[name] = locals[name];
+		});
+		// set the arguments as locals too
+		for (var i = 0; i < func.args.length; i++){
+			var arg_name = func.args[i];
+			var value = args[i];
+			if (value === undefined) // no argument passed
+				value = false;
+			if (func_locals[arg_name] !== undefined)
+				throw Error("argument " + arg_name + " would shadow a local var");
+			func_locals[arg_name] = toOscriptType(value);
+		}
+		var saved_locals = _.clone(locals);
+		assignObject(locals, func_locals);
+		// bStateVarAssignmentAllowed is inherited, bStatementsOnly is ignored in functions
+		evaluate(func.body, res => {
+			if (early_return !== undefined)
+				res = early_return;
+			// restore
+			assignObject(locals, saved_locals);
+			early_return = undefined;
+
+			if (fatal_error)
+				return cb(false);
+			if (!isValidValue(res) && !(res instanceof wrappedObject))
+				return setFatalError("bad value returned from func", cb, false);
+			cb(res);
+		});
+	}
+
+	function evaluateFunctionExpression(func_expr, cb) {
+		if (func_expr[0] === 'func_declaration') { // anonymous function
+			var args = func_expr[1];
+			var body = func_expr[2];
+			var scopeVarNames = Object.keys(locals);
+			if (_.intersection(args, scopeVarNames).length > 0)
+				return setFatalError("some args of anonymous function would shadow some local vars", cb, false);
+			cb({ local: new Func(args, body, scopeVarNames) });
+		}
+		else if (func_expr[0] === 'local_var') {
+			var var_name = func_expr[1];
+			var func = locals[var_name];
+			if (!(func instanceof Func))
+				return setFatalError("not a func: " + var_name, cb, false);
+			cb({ local: func });
+		}
+		else if (func_expr[0] === 'remote_func') {
+			var remote_aa_expr = func_expr[1];
+			var func_name = func_expr[2];
+			evaluate(remote_aa_expr, remote_aa => {
+				if (fatal_error)
+					return cb(false);
+				cb({ remote: { remote_aa, func_name } });
+			});
+		}
+		else
+			throw Error("unrecognized function argument: " + func_expr);
+
+	}
+
 	function readAssetInfoPossiblyDefinedByAA(asset, handleAssetInfo) {
 		storage.readAssetInfo(conn, asset, function (objAsset) {
 			if (!objAsset)
@@ -2563,7 +2712,7 @@ exports.evaluate = function (opts, callback) {
 
 
 function toOscriptType(x) {
-	if (typeof x === 'string' || typeof x === 'boolean')
+	if (typeof x === 'string' || typeof x === 'boolean' || x instanceof wrappedObject)
 		return x;
 	if (typeof x === 'number')
 		return createDecimal(x);
@@ -2575,16 +2724,16 @@ function toOscriptType(x) {
 }
 
 function toJsType(x) {
-	if (typeof x === 'string' || typeof x === 'boolean' || typeof x === 'number')
-		return x;
-	if (Decimal.isDecimal(x))
-		return x.toNumber();
 	if (x instanceof wrappedObject)
 		return x.obj;
+	if (Decimal.isDecimal(x))
+		return x.toNumber();
+	if (typeof x === 'string' || typeof x === 'boolean' || typeof x === 'number' || typeof x === 'object')
+		return x;
 	throw Error("unknown type in toJsType:" + x);
 }
 
-function evaluateGetter(conn, aa_address, getter, args, stateVars, objValidationState, cb) {
+function callGetter(conn, aa_address, getter, args, stateVars, objValidationState, cb) {
 	var i = 0;
 	var locals = {};
 	function getNextArgName() {
@@ -2620,11 +2769,15 @@ function evaluateGetter(conn, aa_address, getter, args, stateVars, objValidation
 				return cb("no such getter: " + getter);
 			if (!(locals[getter] instanceof Func))
 				return cb(getter + " is not a function");
+			if (typeof args === 'function') // callback function passed instead of args
+				args = args(locals[getter]);
+			if (!Array.isArray(args))
+				throw Error("args is not an array");
 			var argNames = [];
 			args.forEach(arg => {
 				var arg_name = getNextArgName();
 				argNames.push('$' + arg_name);
-				locals[arg_name] = arg;
+				locals[arg_name] = toOscriptType(arg);
 			});
 			var call_formula = '$' + getter + '(' + argNames.join(', ') + ')';
 			var call_opts = {
@@ -2671,7 +2824,7 @@ function executeGetter(conn, aa_address, getter, args, cb) {
 			arrPreviousResponseUnits: [],
 		};
 		args = args.map(toOscriptType);
-		evaluateGetter(conn, aa_address, getter, args, {}, objValidationState, (err, res) => {
+		callGetter(conn, aa_address, getter, args, {}, objValidationState, (err, res) => {
 			if (err)
 				return cb(err);
 			cb(null, toJsType(res));

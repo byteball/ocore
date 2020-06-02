@@ -50,7 +50,7 @@ function id(x) { return x[0]; }
 			match: /\b[a-zA-Z_]\w*\b/,
 			type: moo.keywords({
 				keyword: [
-					'min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round', 'abs', 'hypot', 'is_valid_signed_package', 'is_valid_sig', 'vrf_verify', 'sha256', 'chash160', 'json_parse', 'json_stringify', 'number_from_seed', 'length', 'is_valid_address', 'starts_with', 'ends_with', 'contains', 'substring', 'timestamp_to_string', 'parse_date', 'is_aa', 'is_integer', 'is_valid_amount', 'is_array', 'is_assoc', 'array_length', 'index_of', 'to_upper', 'to_lower', 'exists', 'number_of_responses', 'is_valid_merkle_proof', 'replace', 'typeof', 'delete', 'freeze', 'keys',
+					'min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round', 'abs', 'hypot', 'is_valid_signed_package', 'is_valid_sig', 'vrf_verify', 'sha256', 'chash160', 'json_parse', 'json_stringify', 'number_from_seed', 'length', 'is_valid_address', 'starts_with', 'ends_with', 'contains', 'substring', 'timestamp_to_string', 'parse_date', 'is_aa', 'is_integer', 'is_valid_amount', 'is_array', 'is_assoc', 'array_length', 'index_of', 'to_upper', 'to_lower', 'exists', 'number_of_responses', 'is_valid_merkle_proof', 'replace', 'typeof', 'delete', 'freeze', 'keys', 'foreach', 'map', 'filter', 'reduce',
 
 					'timestamp', 'storage_size', 'mci', 'this_address', 'response_unit', 'mc_unit', 'params',
 
@@ -121,6 +121,12 @@ var grammar = {
         	return ['delete', d[2][1], selectors, d[5]]; 
         } },
     {"name": "statement", "symbols": [{"literal":"freeze"}, {"literal":"("}, "local_var", {"literal":")"}, {"literal":";"}], "postprocess": function(d) {return ['freeze', d[2][1]]; }},
+    {"name": "statement$subexpression$1", "symbols": ["float"]},
+    {"name": "statement$subexpression$1", "symbols": ["local_var"]},
+    {"name": "statement$subexpression$2", "symbols": ["func_declaration"]},
+    {"name": "statement$subexpression$2", "symbols": ["local_var"]},
+    {"name": "statement$subexpression$2", "symbols": ["remote_func"]},
+    {"name": "statement", "symbols": [{"literal":"foreach"}, {"literal":"("}, "expr", {"literal":","}, "statement$subexpression$1", {"literal":","}, "statement$subexpression$2", {"literal":")"}, {"literal":";"}], "postprocess": function(d) {return ['foreach', d[2], d[4][0], d[6][0]]; }},
     {"name": "ifelse$ebnf$1$subexpression$1", "symbols": [{"literal":"else"}, "block"]},
     {"name": "ifelse$ebnf$1", "symbols": ["ifelse$ebnf$1$subexpression$1"], "postprocess": id},
     {"name": "ifelse$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
@@ -246,13 +252,16 @@ var grammar = {
         	return ['func_declaration', arglist, body]; 
         } },
     {"name": "func_call", "symbols": [(lexer.has("local_var_name") ? {type: "local_var_name"} : local_var_name), {"literal":"("}, "expr_list", {"literal":")"}], "postprocess": function(d) {return ['func_call', d[0].value.substr(1), d[2]]; }},
-    {"name": "remote_func_call$subexpression$1", "symbols": [(lexer.has("addressValue") ? {type: "addressValue"} : addressValue)]},
-    {"name": "remote_func_call$subexpression$1", "symbols": ["local_var"]},
-    {"name": "remote_func_call", "symbols": ["remote_func_call$subexpression$1", {"literal":"."}, (lexer.has("local_var_name") ? {type: "local_var_name"} : local_var_name), {"literal":"("}, "expr_list", {"literal":")"}], "postprocess":  function(d) {
+    {"name": "remote_func_call", "symbols": ["remote_func", {"literal":"("}, "expr_list", {"literal":")"}], "postprocess":  function(d) {
+        	return ['remote_func_call', d[0][1], d[0][2], d[2]]; 
+        } },
+    {"name": "remote_func$subexpression$1", "symbols": [(lexer.has("addressValue") ? {type: "addressValue"} : addressValue)]},
+    {"name": "remote_func$subexpression$1", "symbols": ["local_var"]},
+    {"name": "remote_func", "symbols": ["remote_func$subexpression$1", {"literal":"."}, (lexer.has("local_var_name") ? {type: "local_var_name"} : local_var_name)], "postprocess":  function(d) {
         	var remote_aa = d[0][0];
         	if (remote_aa.type === 'addressValue')
         		remote_aa = remote_aa.value;
-        	return ['remote_func_call', remote_aa, d[2].value.substr(1), d[4]]; 
+        	return ['remote_func', remote_aa, d[2].value.substr(1)]; 
         } },
     {"name": "trigger_data", "symbols": [{"literal":"trigger.data"}], "postprocess": function(d) {return ['trigger.data']; }},
     {"name": "params", "symbols": [{"literal":"params"}], "postprocess": function(d) {return ['params']; }},
@@ -563,6 +572,20 @@ var grammar = {
         		value = value.value;
         	return ['trigger.output', d[3], value, field];
         } },
+    {"name": "N$subexpression$15", "symbols": [{"literal":"map"}]},
+    {"name": "N$subexpression$15", "symbols": [{"literal":"filter"}]},
+    {"name": "N$subexpression$16", "symbols": ["float"]},
+    {"name": "N$subexpression$16", "symbols": ["local_var"]},
+    {"name": "N$subexpression$17", "symbols": ["func_declaration"]},
+    {"name": "N$subexpression$17", "symbols": ["local_var"]},
+    {"name": "N$subexpression$17", "symbols": ["remote_func"]},
+    {"name": "N", "symbols": ["N$subexpression$15", {"literal":"("}, "expr", {"literal":","}, "N$subexpression$16", {"literal":","}, "N$subexpression$17", {"literal":")"}], "postprocess": function(d) {return [d[0][0].value, d[2], d[4][0], d[6][0]]; }},
+    {"name": "N$subexpression$18", "symbols": ["float"]},
+    {"name": "N$subexpression$18", "symbols": ["local_var"]},
+    {"name": "N$subexpression$19", "symbols": ["func_declaration"]},
+    {"name": "N$subexpression$19", "symbols": ["local_var"]},
+    {"name": "N$subexpression$19", "symbols": ["remote_func"]},
+    {"name": "N", "symbols": [{"literal":"reduce"}, {"literal":"("}, "expr", {"literal":","}, "N$subexpression$18", {"literal":","}, "N$subexpression$19", {"literal":","}, "expr", {"literal":")"}], "postprocess": function(d) {return ['reduce', d[2], d[4][0], d[6][0], d[8]]; }},
     {"name": "float", "symbols": [(lexer.has("number") ? {type: "number"} : number)], "postprocess": function(d) { return new Decimal(d[0].value).times(1); }},
     {"name": "string", "symbols": [(lexer.has("string") ? {type: "string"} : string)], "postprocess": function(d) {return d[0].value; }},
     {"name": "boolean$subexpression$1", "symbols": [{"literal":"true"}]},

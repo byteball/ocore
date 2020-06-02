@@ -46,7 +46,7 @@
 			match: /\b[a-zA-Z_]\w*\b/,
 			type: moo.keywords({
 				keyword: [
-					'min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round', 'abs', 'hypot', 'is_valid_signed_package', 'is_valid_sig', 'vrf_verify', 'sha256', 'chash160', 'json_parse', 'json_stringify', 'number_from_seed', 'length', 'is_valid_address', 'starts_with', 'ends_with', 'contains', 'substring', 'timestamp_to_string', 'parse_date', 'is_aa', 'is_integer', 'is_valid_amount', 'is_array', 'is_assoc', 'array_length', 'index_of', 'to_upper', 'to_lower', 'exists', 'number_of_responses', 'is_valid_merkle_proof', 'replace', 'typeof', 'delete', 'freeze', 'keys',
+					'min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round', 'abs', 'hypot', 'is_valid_signed_package', 'is_valid_sig', 'vrf_verify', 'sha256', 'chash160', 'json_parse', 'json_stringify', 'number_from_seed', 'length', 'is_valid_address', 'starts_with', 'ends_with', 'contains', 'substring', 'timestamp_to_string', 'parse_date', 'is_aa', 'is_integer', 'is_valid_amount', 'is_array', 'is_assoc', 'array_length', 'index_of', 'to_upper', 'to_lower', 'exists', 'number_of_responses', 'is_valid_merkle_proof', 'replace', 'typeof', 'delete', 'freeze', 'keys', 'foreach', 'map', 'filter', 'reduce',
 
 					'timestamp', 'storage_size', 'mci', 'this_address', 'response_unit', 'mc_unit', 'params',
 
@@ -111,6 +111,7 @@ statement -> local_var_assignment {% id %}
 			return ['delete', d[2][1], selectors, d[5]]; 
 		} %}
     | "freeze" "(" local_var ")" ";"   {% function(d) {return ['freeze', d[2][1]]; } %}
+    | "foreach" "(" expr "," (float|local_var) "," (func_declaration|local_var|remote_func) ")" ";"   {% function(d) {return ['foreach', d[2], d[4][0], d[6][0]]; } %}
 
 ifelse -> "if" "(" expr ")" block ("else" block):?  {% function(d){
 	var else_block = d[5] ? d[5][1] : null;
@@ -206,11 +207,14 @@ func_declaration -> ("(" arguments_list ")" | arguments_list) "=>" (expr | "{" m
 	} %}
 
 func_call -> %local_var_name "(" expr_list ")"    {% function(d) {return ['func_call', d[0].value.substr(1), d[2]]; } %}
-remote_func_call -> (%addressValue|local_var) "." %local_var_name "(" expr_list ")"  {% function(d) {
+remote_func_call -> remote_func "(" expr_list ")"  {% function(d) {
+	return ['remote_func_call', d[0][1], d[0][2], d[2]]; 
+} %}
+remote_func -> (%addressValue|local_var) "." %local_var_name  {% function(d) {
 	var remote_aa = d[0][0];
 	if (remote_aa.type === 'addressValue')
 		remote_aa = remote_aa.value;
-	return ['remote_func_call', remote_aa, d[2].value.substr(1), d[4]]; 
+	return ['remote_func', remote_aa, d[2].value.substr(1)]; 
 } %}
 
 
@@ -427,6 +431,9 @@ N -> float          {% id %}
 			value = value.value;
 		return ['trigger.output', d[3], value, field];
 	} %}
+	| ("map"|"filter") "(" expr "," (float|local_var) "," (func_declaration|local_var|remote_func) ")"  {% function(d) {return [d[0][0].value, d[2], d[4][0], d[6][0]]; } %}
+	| "reduce" "(" expr "," (float|local_var) "," (func_declaration|local_var|remote_func) "," expr ")"  {% function(d) {return ['reduce', d[2], d[4][0], d[6][0], d[8]]; } %}
+
 
 float -> %number           {% function(d) { return new Decimal(d[0].value).times(1); }%}
 

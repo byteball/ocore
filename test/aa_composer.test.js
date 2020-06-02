@@ -1361,3 +1361,104 @@ test.cb.serial('calling a chain of remote functions', t => {
 		});
 	});
 });
+
+test.cb.serial('map/reduce with a remote function', t => {
+	var trigger_address = "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT";
+	var trigger = { outputs: { base: 10000 }, data: { x: 5 }, address: trigger_address };
+
+	var remote_aa = ['autonomous agent', {
+		getters: `{
+			$f = $x => $x^2;
+			$g = $x, $y => $x + 2*$y;
+			$h = $x, $y => $x||$y;
+			$r = $acc, $x => $x + $acc;
+		}`,
+		init: `{
+			bounce("library only");
+		}`,
+		messages: [
+			{
+				app: 'payment',
+				payload: {
+					asset: 'base',
+					outputs: [
+						{address: "{trigger.address}", amount: 10}
+					]
+				}
+			}
+		]
+	}];
+	var remote_aa_address = objectHash.getChash160(remote_aa);
+	
+	var aa = ['autonomous agent', {
+		init: `{
+			$remote_aa = '${remote_aa_address}';
+			$ar = [3, 5, 7];
+			$o = {c: 2, a: 5, b: 9};
+			$ar2 = map($ar, 3, $remote_aa.$f);
+			$ar3 = map($ar, 3, $remote_aa.$g);
+			$o2 = map($o, 3, $remote_aa.$f);
+			$o3 = map($o, 3, $remote_aa.$h);
+			$acc = reduce($o, 3, $remote_aa.$r, 0);
+		}`,
+		messages: [
+			{
+				app: 'state',
+				state: `{
+					var['0'] = $ar2[0];
+					var['1'] = $ar2[1];
+					var['2'] = $ar2[2];
+					var['pair0'] = $ar3[0];
+					var['pair1'] = $ar3[1];
+					var['pair2'] = $ar3[2];
+					var['o_a'] = $o2.a;
+					var['o_b'] = $o2.b;
+					var['o_c'] = $o2.c;
+					var['o_pair_a'] = $o3.a;
+					var['o_pair_b'] = $o3.b;
+					var['o_pair_c'] = $o3.c;
+					var['acc'] = $acc;
+				}`
+			}
+		]
+	}];
+
+	validateAA(remote_aa, async err => {
+		t.deepEqual(err, null);
+		console.log('--- val remote', err);
+		await asyncAddAA(remote_aa);
+
+		validateAA(aa, async err => {
+			t.deepEqual(err, null);
+			console.log('--- val', err);
+
+			var aa_address = objectHash.getChash160(aa);
+			await asyncAddAA(aa);
+			
+			aa_composer.dryRunPrimaryAATrigger(trigger, aa_address, aa, (arrResponses) => {
+				t.deepEqual(arrResponses.length, 1);
+				t.deepEqual(arrResponses[0].bounced, false);
+				t.deepEqual(arrResponses[0].updatedStateVars[aa_address][0].value, 9);
+				t.deepEqual(arrResponses[0].updatedStateVars[aa_address][1].value, 25);
+				t.deepEqual(arrResponses[0].updatedStateVars[aa_address][2].value, 49);
+				t.deepEqual(arrResponses[0].updatedStateVars[aa_address].pair0.value, 6);
+				t.deepEqual(arrResponses[0].updatedStateVars[aa_address].pair1.value, 11);
+				t.deepEqual(arrResponses[0].updatedStateVars[aa_address].pair2.value, 16);
+				t.deepEqual(arrResponses[0].updatedStateVars[aa_address].o_a.value, 25);
+				t.deepEqual(arrResponses[0].updatedStateVars[aa_address].o_b.value, 81);
+				t.deepEqual(arrResponses[0].updatedStateVars[aa_address].o_c.value, 4);
+				t.deepEqual(arrResponses[0].updatedStateVars[aa_address].o_pair_a.value, 'a5');
+				t.deepEqual(arrResponses[0].updatedStateVars[aa_address].o_pair_b.value, 'b9');
+				t.deepEqual(arrResponses[0].updatedStateVars[aa_address].o_pair_c.value, 'c2');
+				t.deepEqual(arrResponses[0].updatedStateVars[aa_address].acc.value, 16);
+				fixCache();
+				t.deepEqual(storage.assocUnstableUnits, old_cache.assocUnstableUnits);
+				t.deepEqual(storage.assocStableUnits, old_cache.assocStableUnits);
+				t.deepEqual(storage.assocUnstableMessages, old_cache.assocUnstableMessages);
+				t.deepEqual(storage.assocBestChildren, old_cache.assocBestChildren);
+				t.deepEqual(storage.assocStableUnitsByMci, old_cache.assocStableUnitsByMci);
+				t.end();
+			});
+		});
+	});
+});

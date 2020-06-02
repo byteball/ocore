@@ -592,51 +592,23 @@ exports.validate = function (opts, callback) {
 						var body = rhs[2];
 						if (args.indexOf(var_name) >= 0)
 							return cb("arg name cannot be the same as func name");
-						var scopeVarNames = Object.keys(locals);
-						if (_.intersection(args, scopeVarNames).length > 0)
-							return cb("some args of " + var_name + " would shadow some local vars");
-						var count_args = args.length;
-						var saved_complexity = complexity;
-						var saved_count_ops = count_ops;
-						var saved_so = bStatementsOnly;
-						var saved_sva = bStateVarAssignmentAllowed;
-						var saved_locals = _.cloneDeep(locals);
-						complexity = 0;
-						count_ops = 0;
-						bStatementsOnly = false;
-						bStateVarAssignmentAllowed = true;
-						bInFunction = true;
-						// if a var was conditinally assigned, treat it as assigned when parsing the function body
-						finalizeLocals(locals);
-						// arguments become locals within function body
-						args.forEach(name => {
-							locals[name] = { state: 'assigned', type: 'data' };
+						return parseFunctionDeclaration(args, body, (err, funcProps) => {
+							if (err)
+								return cb("function " + var_name + ": " + err);
+							locals[var_name] = { props: funcProps, type: 'func' };
+							cb();
 						});
 					}
-					evaluate(bFuncDeclaration ? body : rhs, function (err) {
+					evaluate(rhs, function (err) {
 						if (err)
 							return cb(err);
-						if (bFuncDeclaration) {
-							var funcProps = { complexity, count_args, count_ops };
-							// restore the saved values
-							complexity = saved_complexity;
-							count_ops = saved_count_ops;
-							bStatementsOnly = saved_so;
-							bStateVarAssignmentAllowed = saved_sva;
-							bInFunction = false;
-							assignObject(locals, saved_locals);
-
-							locals[var_name] = { props: funcProps, type: 'func' };
-						}
-						else {
-							var localVarProps = {
-								state: bInIf ? 'maybe assigned' : 'assigned',
-								type: 'data'
-							};
-							if (bConstant && !bInIf)
-								localVarProps.value = rhs;
-							locals[var_name] = localVarProps;
-						}
+						var localVarProps = {
+							state: bInIf ? 'maybe assigned' : 'assigned',
+							type: 'data'
+						};
+						if (bConstant && !bInIf)
+							localVarProps.value = rhs;
+						locals[var_name] = localVarProps;
 						if (!selectors) // scalar variable
 							return cb();
 						if (!Array.isArray(selectors))
@@ -966,6 +938,40 @@ exports.validate = function (opts, callback) {
 				});
 				break;
 
+			case 'foreach':
+			case 'map':
+			case 'filter':
+			case 'reduce':
+				if (mci < constants.aa2UpgradeMci)
+					return cb(op + " not activated yet");
+				var expr = arr[1];
+				var count_expr = arr[2];
+				var func_expr = arr[3];
+				var initial_value_expr = arr[4];
+				
+				readCount(count_expr, (err, count) => {
+					if (err)
+						return cb(err);
+					readFuncProps(func_expr, (err, funcProps) => {
+						if (err)
+							return cb(err);
+						if (op !== 'reduce' && funcProps.count_args !== 1 && funcProps.count_args !== 2)
+							return cb("callback function must have 1 or 2 arguments");
+						if (op === 'reduce' && funcProps.count_args !== 2 && funcProps.count_args !== 3)
+							return cb("callback function must have 2 or 3 arguments");
+						complexity += (funcProps.complexity === 0) ? 1 : count * funcProps.complexity;
+						count_ops += count * funcProps.count_ops;
+						if (op !== 'reduce')
+							return evaluate(expr, cb);
+						evaluate(expr, err => {
+							if (err)
+								return cb(err);
+							evaluate(initial_value_expr, cb);
+						})
+					});
+				});
+				break;
+
 			case 'json_stringify':
 			case 'typeof':
 			case 'length':
@@ -1081,18 +1087,10 @@ exports.validate = function (opts, callback) {
 				var remote_aa = arr[1];
 				var func_name = arr[2];
 				var arrExpressions = arr[3];
-				if (typeof remote_aa === 'object' && remote_aa[0] === 'local_var') {
-					var var_name = remote_aa[1];
-					if (typeof var_name !== 'string')
-						return cb("remote AA var name must be literal");
-					if (!locals.hasOwnProperty(var_name))
-						return cb("remote AA var " + var_name + " does not exist");
-					remote_aa = locals[var_name].value;
-					if (remote_aa === undefined)
-						return cb("remote AA var " + var_name + " must be a constant");
-				}
-				if (!ValidationUtils.isValidAddress(remote_aa))
-					return cb("not valid AA address: " + remote_aa);
+				var res = parseRemoteAA(remote_aa);
+				if (res.error)
+					return cb(res.error);
+				remote_aa = res.remote_aa;
 				readGetterProps(remote_aa, func_name, getter => {
 					if (!getter)
 						return cb("no such getter: " + remote_aa + ".$" + func_name + "()");
@@ -1185,6 +1183,122 @@ exports.validate = function (opts, callback) {
 				cb('unknown op: ' + op);
 				break;
 		}
+	}
+
+	function parseFunctionDeclaration(args, body, cb) {
+		var scopeVarNames = Object.keys(locals);
+		if (_.intersection(args, scopeVarNames).length > 0)
+			return cb("some args would shadow some local vars");
+		var count_args = args.length;
+		var saved_complexity = complexity;
+		var saved_count_ops = count_ops;
+		var saved_sva = bStateVarAssignmentAllowed;
+		var saved_locals = _.cloneDeep(locals);
+		complexity = 0;
+		count_ops = 0;
+		//	bStatementsOnly is ignored in functions
+		bStateVarAssignmentAllowed = true;
+		bInFunction = true;
+		// if a var was conditinally assigned, treat it as assigned when parsing the function body
+		finalizeLocals(locals);
+		// arguments become locals within function body
+		args.forEach(name => {
+			locals[name] = { state: 'assigned', type: 'data' };
+		});
+		evaluate(body, function (err) {
+			if (err)
+				return cb(err);
+			var funcProps = { complexity, count_args, count_ops };
+			// restore the saved values
+			complexity = saved_complexity;
+			count_ops = saved_count_ops;
+			bStateVarAssignmentAllowed = saved_sva;
+			bInFunction = false;
+			assignObject(locals, saved_locals);
+
+			cb(null, funcProps);
+		});
+	}
+
+	function readFuncProps(func_expr, cb) {
+		if (func_expr[0] === 'local_var') {
+			var var_name = func_expr[1];
+			if (typeof var_name !== 'string')
+				return cb("only literal var names allowed in func expression");
+			if (!locals.hasOwnProperty(var_name))
+				return cb("no such func: " + var_name);
+			if (locals[var_name].type !== 'func')
+				return cb("not a function: " + var_name);
+			var props = locals[var_name].props;
+			cb(null, props);
+		}
+		else if (func_expr[0] === 'func_declaration') {
+			var arglist = func_expr[1];
+			var body = func_expr[2];
+			parseFunctionDeclaration(arglist, body, cb);
+		}
+		else if (func_expr[0] === 'remote_func') {
+			var remote_aa = func_expr[1];
+			var func_name = func_expr[2];
+			var res = parseRemoteAA(remote_aa);
+			if (res.error)
+				return cb(res.error);
+			remote_aa = res.remote_aa;
+			readGetterProps(remote_aa, func_name, getter => {
+				if (!getter)
+					return cb("no such getter: " + remote_aa + ".$" + func_name + "()");
+				if (typeof getter.complexity !== 'number' || typeof getter.count_ops !== 'number' || (typeof getter.count_args !== 'number' && getter.count_args !== null))
+					throw Error("invalid getter in " + remote_aa + ".$" + func_name + ": " + JSON.stringify(getter));
+				getter.complexity++; // for remote call
+				cb(null, getter);
+			});
+		}
+		else
+			throw Error("unrecognized func expression");
+	}
+
+	function readCount(count_expr, cb) {
+		var count;
+		if (Decimal.isDecimal(count_expr))
+			count = count_expr.toNumber();
+		else if (typeof count_expr === 'object') {
+			if (count_expr[0] !== 'local_var')
+				return cb("only local vars allowed as count expression: " + count_expr);
+			var var_name = count_expr[1];
+			if (typeof var_name !== 'string')
+				return cb("only literal var names allowed in count expression");
+			if (!locals.hasOwnProperty(var_name))
+				return cb("no such local var: " + var_name);
+			count = locals[var_name].value;
+			if (count === undefined)
+				return cb("count must be a constant");
+			if (!Decimal.isDecimal(count))
+				return cb("not decimal: " + count);
+			count = count.toNumber();
+		}
+		else
+			throw Error("unrecognized type of count_expr: " + count_expr);
+		if (!ValidationUtils.isNonnegativeInteger(count))
+			return cb("count in foreach must be a non-negative integer, found " + count);
+		if (count > 100)
+			return cb("count is too large: " + count);
+		cb(null, count);
+	}
+
+	function parseRemoteAA(remote_aa) {
+		if (typeof remote_aa === 'object' && remote_aa[0] === 'local_var') {
+			var var_name = remote_aa[1];
+			if (typeof var_name !== 'string')
+				return { error: "remote AA var name must be literal" };
+			if (!locals.hasOwnProperty(var_name))
+				return { error: "remote AA var " + var_name + " does not exist" };
+			remote_aa = locals[var_name].value;
+			if (remote_aa === undefined)
+				return { error: "remote AA var " + var_name + " must be a constant" };
+		}
+		if (!ValidationUtils.isValidAddress(remote_aa))
+			return { error: "not valid AA address: " + remote_aa };
+		return { remote_aa };
 	}
 
 	if (parser.results.length === 1 && parser.results[0]) {
