@@ -50,7 +50,7 @@ function id(x) { return x[0]; }
 			match: /\b[a-zA-Z_]\w*\b/,
 			type: moo.keywords({
 				keyword: [
-					'min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round', 'abs', 'hypot', 'is_valid_signed_package', 'is_valid_sig', 'vrf_verify', 'sha256', 'chash160', 'json_parse', 'json_stringify', 'number_from_seed', 'length', 'is_valid_address', 'starts_with', 'ends_with', 'contains', 'substring', 'timestamp_to_string', 'parse_date', 'is_aa', 'is_integer', 'is_valid_amount', 'is_array', 'is_assoc', 'array_length', 'index_of', 'to_upper', 'to_lower', 'exists', 'number_of_responses', 'is_valid_merkle_proof', 'replace', 'typeof', 'delete', 'freeze', 'keys', 'foreach', 'map', 'filter', 'reduce', 'reverse',
+					'min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round', 'abs', 'hypot', 'is_valid_signed_package', 'is_valid_sig', 'vrf_verify', 'sha256', 'chash160', 'json_parse', 'json_stringify', 'number_from_seed', 'length', 'is_valid_address', 'starts_with', 'ends_with', 'contains', 'substring', 'timestamp_to_string', 'parse_date', 'is_aa', 'is_integer', 'is_valid_amount', 'is_array', 'is_assoc', 'array_length', 'index_of', 'to_upper', 'to_lower', 'exists', 'number_of_responses', 'is_valid_merkle_proof', 'replace', 'typeof', 'delete', 'freeze', 'keys', 'foreach', 'map', 'filter', 'reduce', 'reverse', 'split', 'join',
 
 					'timestamp', 'storage_size', 'mci', 'this_address', 'response_unit', 'mc_unit', 'params',
 
@@ -587,6 +587,8 @@ var grammar = {
     {"name": "N$subexpression$19", "symbols": ["remote_func"]},
     {"name": "N", "symbols": [{"literal":"reduce"}, {"literal":"("}, "expr", {"literal":","}, "N$subexpression$18", {"literal":","}, "N$subexpression$19", {"literal":","}, "expr", {"literal":")"}], "postprocess": function(d) {return ['reduce', d[2], d[4][0], d[6][0], d[8]]; }},
     {"name": "N", "symbols": [{"literal":"reverse"}, {"literal":"("}, "expr", {"literal":")"}], "postprocess": function(d) { return ['reverse', d[2]]; }},
+    {"name": "N", "symbols": [{"literal":"split"}, {"literal":"("}, "expr", {"literal":","}, "expr", {"literal":")"}], "postprocess": function(d) { return ['split', d[2], d[4]]; }},
+    {"name": "N", "symbols": [{"literal":"join"}, {"literal":"("}, "expr", {"literal":","}, "expr", {"literal":")"}], "postprocess": function(d) { return ['join', d[2], d[4]]; }},
     {"name": "float", "symbols": [(lexer.has("number") ? {type: "number"} : number)], "postprocess": function(d) { return new Decimal(d[0].value).times(1); }},
     {"name": "string", "symbols": [(lexer.has("string") ? {type: "string"} : string)], "postprocess": function(d) {return d[0].value; }},
     {"name": "boolean$subexpression$1", "symbols": [{"literal":"true"}]},

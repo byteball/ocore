@@ -1030,6 +1030,19 @@ exports.validate = function (opts, callback) {
 				});
 				break;
 
+			case 'split':
+			case 'join':
+				if (mci < constants.aa2UpgradeMci)
+					return cb(op + " not activated yet");
+				var p1 = arr[1];
+				var separator = arr[2];
+				evaluate(p1, function (err) {
+					if (err)
+						return cb(err);
+					evaluate(separator, cb);
+				});
+				break;
+			
 			case 'timestamp_to_string':
 				var ts = arr[1];
 				var format = arr[2];

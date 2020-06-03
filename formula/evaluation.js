@@ -1919,12 +1919,51 @@ exports.evaluate = function (opts, callback) {
 								replacement = true;
 							replacement = replacement.toString();
 							var parts = str.split(search_str);
-							cb(parts.join(replacement));
+							var new_str = parts.join(replacement);
+							if (new_str.length > constants.MAX_AA_STRING_LENGTH)
+								return setFatalError("the string after replace would be too long: " + new_str, cb, false);
+							cb(new_str);
 						});
 					});
 				});
 				break;
 
+			case 'split':
+			case 'join':
+				if (mci < constants.aa2UpgradeMci)
+					return cb(op + " not activated yet");
+				var expr = arr[1];
+				var separator_expr = arr[2];
+				evaluate(separator_expr, function (separator) {
+					if (fatal_error)
+						return cb(false);
+					if (separator instanceof wrappedObject)
+						separator = true;
+					separator = separator.toString();
+					evaluate(expr, function (res) {
+						if (fatal_error)
+							return cb(false);
+						if (op === 'split') {
+							if (res instanceof wrappedObject)
+								res = true;
+							res = res.toString();
+							cb(new wrappedObject(res.split(separator)));
+						}
+						else { // join
+							if (!(res instanceof wrappedObject))
+								return setFatalError("not an object in join: " + res, cb, false);
+							var values = Array.isArray(res.obj) ? res.obj : Object.keys(res.obj).sort().map(key => res.obj[key]);
+							if (!values.every(val => typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean'))
+								return setFatalError("some elements to be joined are not scalars: " + values, cb, false);
+							var str = values.join(separator);
+							if (str.length > constants.MAX_AA_STRING_LENGTH)
+								return setFatalError("the string after join would be too long: " + str, cb, false);
+							cb(str);
+						}
+					});
+				});
+				break;
+			
 			case 'is_valid_address':
 			case 'is_aa':
 				var expr = arr[1];
