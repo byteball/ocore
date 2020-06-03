@@ -5250,3 +5250,134 @@ test.cb('object state var += object', t => {
 		t.end();
 	})
 });
+
+test('concat two arrays', t => {
+	var formula = `
+		[4, 6] || [3, 1, {a:9}]
+	`;
+	evalFormulaWithVars({ formula, trigger: {}, locals: {volume: 100}, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, [4, 6, 3, 1, { a: 9 }]);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('concat two objects', t => {
+	var formula = `
+		{x: 1, y: 7} || {s:[], y: 8, a:9}
+	`;
+	evalFormulaWithVars({ formula, trigger: {}, locals: {volume: 100}, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, {x: 1, s:[], y: 8, a:9});
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('concat object and array', t => {
+	var formula = `
+		{x: 1, y: 7} || [3, 1, {a:9}]
+	`;
+	evalFormulaWithVars({ formula, trigger: {}, locals: {volume: 100}, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, null);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('concat object and number', t => {
+	var formula = `
+		{x: 1, y: 7} || 3
+	`;
+	evalFormulaWithVars({ formula, trigger: {}, locals: {volume: 100}, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, "true3");
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test.cb('concat array in state vars', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		var['structured'] ||= [3, 5];
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStateVarAssignmentAllowed: true, bStatementsOnly: true, address: 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, true);
+		t.deepEqual(stateVars.I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT.structured.value.obj, [5, {s: 8, w: 'cc'}, 3, 5]);
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});
+
+test.cb('double concat array in state vars', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		var['structured'] ||= [3, 5];
+		var['structured'] ||= ["bb"];
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStateVarAssignmentAllowed: true, bStatementsOnly: true, address: 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, true);
+		t.deepEqual(stateVars.I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT.structured.value.obj, [5, {s: 8, w: 'cc'}, 3, 5, 'bb']);
+		t.deepEqual(complexity, 3);
+		t.end();
+	})
+});
+
+test.cb('concat object in state vars', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		var['ob'] = {x:3, y: "s"};
+		var['ob'] ||= {x: "b", z: 8};
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStateVarAssignmentAllowed: true, bStatementsOnly: true, address: 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, true);
+		t.deepEqual(stateVars.I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT.ob.value.obj, {x: "b", y: "s", z: 8});
+		t.deepEqual(complexity, 3);
+		t.end();
+	})
+});
+
+test.cb('concat object to array in state vars', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		var['structured'] ||= {d: "bb"};
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStateVarAssignmentAllowed: true, bStatementsOnly: true, address: 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});
+
+test.cb('concat object to number in state vars', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		var['price'] ||= {d: "bb"};
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStateVarAssignmentAllowed: true, bStatementsOnly: true, address: 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, true);
+		t.deepEqual(stateVars.I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT.price.value, "0.000678901234567true");
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});
+
+test.cb('concat number to array in state vars', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		var['structured'] ||= 6;
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStateVarAssignmentAllowed: true, bStatementsOnly: true, address: 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, true);
+		t.deepEqual(stateVars.I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT.structured.value, "true6");
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});

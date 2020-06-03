@@ -65,6 +65,7 @@ exports.evaluate = function (opts, callback) {
 	var objValidationState = opts.objValidationState;
 	var address = opts.address;
 	var objResponseUnit = opts.objResponseUnit;
+	var mci = objValidationState.last_ball_mci;
 
 	if (!ValidationUtils.isPositiveInteger(objValidationState.last_ball_timestamp))
 		throw Error('last_ball_timestamp is not a number: ' + objValidationState.last_ball_timestamp);
@@ -73,7 +74,7 @@ exports.evaluate = function (opts, callback) {
 	if (!bAA && (bStatementsOnly || bStateVarAssignmentAllowed || bObjectResultAllowed))
 		throw Error("bad opts for non-AA");
 
-	var bLimitedPrecision = (objValidationState.last_ball_mci < constants.aa2UpgradeMci);
+	var bLimitedPrecision = (mci < constants.aa2UpgradeMci);
 
 	var parser = {};
 	if(cache[formula]){
@@ -161,7 +162,7 @@ exports.evaluate = function (opts, callback) {
 							res = true;
 						if (typeof res === 'boolean')
 							res = res ? dec1 : dec0;
-						else if (typeof res === 'string' && (!constants.bTestnet || objValidationState.last_ball_mci > testnetStringToNumberInArithmeticUpgradeMci)) {
+						else if (typeof res === 'string' && (!constants.bTestnet || mci > testnetStringToNumberInArithmeticUpgradeMci)) {
 							var float = string_utils.toNumber(res, bLimitedPrecision);
 							if (float !== null)
 								res = createDecimal(res);
@@ -576,7 +577,7 @@ exports.evaluate = function (opts, callback) {
 					}
 					if (params.ifnone && !isValidValue(params.ifnone.value))
 						return cb("bad ifnone: "+params.ifnone.value);
-					dataFeeds.readDataFeedValue(arrAddresses, feed_name, value, min_mci, objValidationState.last_ball_mci, bAA, ifseveral, function(objResult){
+					dataFeeds.readDataFeedValue(arrAddresses, feed_name, value, min_mci, mci, bAA, ifseveral, function(objResult){
 					//	console.log(arrAddresses, feed_name, value, min_mci, ifseveral);
 					//	console.log('---- objResult', objResult);
 						if (objResult.bAbortedBecauseOfSeveral)
@@ -674,7 +675,7 @@ exports.evaluate = function (opts, callback) {
 								return setFatalError('bad min_mci', cb, false);
 							min_mci = parseInt(min_mci);
 						}
-						dataFeeds.dataFeedExists(arrAddresses, feed_name, relation, value, min_mci, objValidationState.last_ball_mci, bAA, cb);
+						dataFeeds.dataFeedExists(arrAddresses, feed_name, relation, value, min_mci, mci, bAA, cb);
 					}
 				);
 				break;
@@ -902,7 +903,7 @@ exports.evaluate = function (opts, callback) {
 									AND "+ table + ".address = ? " + and_field +" \n\
 									AND (main_chain_index > ? OR main_chain_index IS NULL) \n\
 								ORDER BY latest_included_mc_index DESC, level DESC, units.unit LIMIT ?",
-								[params.address.value, objValidationState.last_ball_mci, (ifseveral === 'abort') ? 2 : 1],
+								[params.address.value, mci, (ifseveral === 'abort') ? 2 : 1],
 								function (rows) {
 									if (!bAA)
 										rows = []; // discard any results
@@ -917,7 +918,7 @@ exports.evaluate = function (opts, callback) {
 										WHERE attestor_address IN(" + arrAttestorAddresses.map(conn.escape).join(', ') + ") \n\
 											AND address = ? "+and_field+" AND main_chain_index <= ? \n\
 										ORDER BY main_chain_index DESC, latest_included_mc_index DESC, level DESC, unit LIMIT ?",
-										[params.address.value, objValidationState.last_ball_mci, (ifseveral === 'abort') ? 2 : 1],
+										[params.address.value, mci, (ifseveral === 'abort') ? 2 : 1],
 										function (rows) {
 											count_rows += rows.length;
 											if (count_rows > 1 && ifseveral === 'abort')
@@ -937,29 +938,32 @@ exports.evaluate = function (opts, callback) {
 				break;
 
 			case 'concat':
-				var result = '';
+				var operands = [];
 				async.eachSeries(arr.slice(1), function (param, cb2) {
 					evaluate(param, function (res) {
 						if (fatal_error)
 							return cb2(fatal_error);
+						var operand;
 						if (res instanceof wrappedObject)
-							res = true;
-						if (isFiniteDecimal(res))
-							result += toDoubleRange(res).toString();
+							operand = res;
+						else if (isFiniteDecimal(res))
+							operand = toDoubleRange(res).toString();
 						else if (typeof res === 'string')
-							result += res;
+							operand = res;
 						else if (typeof res === 'boolean')
-							result += res.toString();
+							operand = res.toString();
 						else
 							return setFatalError('unrecognized type in ' + op + ': ' + res, cb2);
+						operands.push(operand);
 						cb2();
 					});
 				}, function (err) {
 					if (err)
 						return cb(false);
-					if (result.length > constants.MAX_AA_STRING_LENGTH)
-						return setFatalError("string too long after concat: " + result, cb, false);
-					cb(result);
+					var ret = concat(operands[0], operands[1]);
+					if (ret.error)
+						return setFatalError(ret.error, cb, false);
+					cb(ret.result);
 				});
 				break;
 
@@ -968,7 +972,7 @@ exports.evaluate = function (opts, callback) {
 				break;
 
 			case 'mci':
-				cb(new Decimal(objValidationState.last_ball_mci));
+				cb(new Decimal(mci));
 				break;
 
 			case 'timestamp':
@@ -1209,10 +1213,10 @@ exports.evaluate = function (opts, callback) {
 							res = toDoubleRange(res);
 						// state vars can store strings, decimals, objects, and booleans but booleans are treated specially when persisting to the db: true is converted to 1, false deletes the var
 						if (res instanceof wrappedObject) {
-							if (objValidationState.last_ball_mci < constants.aa2UpgradeMci)
+							if (mci < constants.aa2UpgradeMci)
 								res = true;
 							else {
-								if (assignment_op !== '=')
+								if (assignment_op !== '=' && assignment_op !== '||=')
 									return setFatalError(assignment_op + " not supported for object vars", cb, false);
 								try {
 									var json = string_utils.getJsonSourceString(res.obj, true);
@@ -1240,12 +1244,13 @@ exports.evaluate = function (opts, callback) {
 								stateVars[address][var_name].updated = true;
 								return cb(true);
 							}
-							if (value instanceof wrappedObject)
+							if (value instanceof wrappedObject && assignment_op !== '||=')
 								return setFatalError("can't " + assignment_op + " to object", cb, false);
 							if (assignment_op === '||=') {
-								value = value.toString() + res.toString();
-								if (value.length > constants.MAX_STATE_VAR_VALUE_LENGTH)
-									return setFatalError("state var value after "+assignment_op+" too long: " + value, cb, false);
+								var ret = concat(value, res);
+								if (ret.error)
+									return setFatalError("state var assignment: " + ret.error, cb, false);
+								value = ret.result;
 							}
 							else {
 								if (typeof value === 'boolean')
@@ -1468,9 +1473,9 @@ exports.evaluate = function (opts, callback) {
 						ifFound: function (objJoint) {
 							console.log('---- found', unit);
 							var objUnit = objJoint.unit;
-							var mci = objUnit.main_chain_index;
+							var unit_mci = objUnit.main_chain_index;
 							// ignore non-AA units that are not stable or created at a later mci
-							if (mci === null || mci > objValidationState.last_ball_mci) {
+							if (unit_mci === null || unit_mci > mci) {
 								if (bAA && objUnit.authors[0].authentifiers) // non-AA unit
 									return cb(false);
 								if (!bAA)
@@ -1496,13 +1501,13 @@ exports.evaluate = function (opts, callback) {
 								return cb(new wrappedObject(arrDefinition));
 							// could by defined later, e.g. by fresh AA
 							storage.readUnitProps(conn, definition_unit, function (props) {
-								if (props.main_chain_index === null || props.main_chain_index > objValidationState.last_ball_mci)
+								if (props.main_chain_index === null || props.main_chain_index > mci)
 									return cb(false);
 								cb(new wrappedObject(arrDefinition));
 							});
 							return;
 						}
-						storage.readDefinitionByAddress(conn, addr, objValidationState.last_ball_mci, {
+						storage.readDefinitionByAddress(conn, addr, mci, {
 							ifDefinitionNotFound: function () {
 								cb(false);
 							},
@@ -1535,7 +1540,7 @@ exports.evaluate = function (opts, callback) {
 						signed_message.validateSignedMessage(conn, signedPackage, evaluated_address, function (err, last_ball_mci) {
 							if (err)
 								return cb(false);
-							if (last_ball_mci === null || last_ball_mci > objValidationState.last_ball_mci)
+							if (last_ball_mci === null || last_ball_mci > mci)
 								return cb(false);
 							cb(true);
 						});
@@ -1641,7 +1646,7 @@ exports.evaluate = function (opts, callback) {
 					if (fatal_error)
 						return cb(false);
 					if (res instanceof wrappedObject) {
-						if (objValidationState.last_ball_mci < constants.aa2UpgradeMci)
+						if (mci < constants.aa2UpgradeMci)
 							res = true;
 						else
 							res = string_utils.getJsonSourceString(res.obj, true); // it's ok if the string is longer than MAX_AA_STRING_LENGTH
@@ -1782,7 +1787,7 @@ exports.evaluate = function (opts, callback) {
 						if (!isFinite(res))
 							return setFatalError("not finite js number: " + res, cb, false);
 					}
-					var bAllowEmpty = (objValidationState.last_ball_mci >= constants.aa2UpgradeMci);
+					var bAllowEmpty = (mci >= constants.aa2UpgradeMci);
 					var json = string_utils.getJsonSourceString(res, bAllowEmpty); // sorts keys unlike JSON.stringify()
 					if (json.length > constants.MAX_AA_STRING_LENGTH)
 						return setFatalError("json_stringified is too long", cb, false);
@@ -1799,7 +1804,7 @@ exports.evaluate = function (opts, callback) {
 						return cb(false);
 					if (op === 'length'){
 						if (res instanceof wrappedObject) {
-							if (objValidationState.last_ball_mci < constants.aa2UpgradeMci)
+							if (mci < constants.aa2UpgradeMci)
 								res = true;
 							else
 								return cb(new Decimal(Array.isArray(res.obj) ? res.obj.length : Object.keys(res.obj).length));
@@ -1929,7 +1934,7 @@ exports.evaluate = function (opts, callback) {
 					var bValid = ValidationUtils.isValidAddress(res);
 					if (!bValid || op === 'is_valid_address')
 						return cb(bValid);
-					conn.query("SELECT 1 FROM aa_addresses WHERE address=? AND mci<=?", [res, objValidationState.last_ball_mci], function (rows) {
+					conn.query("SELECT 1 FROM aa_addresses WHERE address=? AND mci<=?", [res, mci], function (rows) {
 						cb(rows.length > 0);
 					});
 				});
@@ -2343,7 +2348,7 @@ exports.evaluate = function (opts, callback) {
 					if (fatal_error)
 						return cb(false);
 					console.log('early return with: ', res);
-					if (objValidationState.last_ball_mci < constants.aa2UpgradeMci && res instanceof wrappedObject)
+					if (mci < constants.aa2UpgradeMci && res instanceof wrappedObject)
 						res = true;
 					if (Decimal.isDecimal(res))
 						res = toDoubleRange(res);
@@ -2387,6 +2392,38 @@ exports.evaluate = function (opts, callback) {
 				throw Error('unrecognized op '+op);
 		}
 
+	}
+
+	function concat(operand0, operand1) {
+		if (mci < constants.aa2UpgradeMci) {
+			if (operand0 instanceof wrappedObject)
+				operand0 = true;
+			if (operand1 instanceof wrappedObject)
+				operand1 = true;
+		}
+		var result;
+		if (operand0 instanceof wrappedObject && operand1 instanceof wrappedObject) {
+			var obj0 = operand0.obj;
+			var obj1 = operand1.obj;
+			var bArray0 = Array.isArray(obj0);
+			var bArray1 = Array.isArray(obj1);
+			if (bArray0 && bArray1)
+				result = new wrappedObject(obj0.concat(obj1));
+			else if (!bArray0 && !bArray1)
+				result = new wrappedObject(Object.assign({}, obj0, obj1));
+			else
+				return { error: "trying to concat an object and array: " + obj0 + " and " + obj1 };
+		}
+		else { // one of operands is a string, then treat both as strings
+			if (operand0 instanceof wrappedObject)
+				operand0 = true;
+			if (operand1 instanceof wrappedObject)
+				operand1 = true;
+			result = operand0.toString() + operand1.toString();
+			if (result.length > constants.MAX_AA_STRING_LENGTH)
+				return { error: "string too long after concat: " + result };
+		}
+		return { result };
 	}
 
 	function readVar(param_address, var_name, cb2) {
@@ -2685,7 +2722,7 @@ exports.evaluate = function (opts, callback) {
 		storage.readAssetInfo(conn, asset, function (objAsset) {
 			if (!objAsset)
 				return handleAssetInfo(null);
-			if (objAsset.main_chain_index !== null && objAsset.main_chain_index <= objValidationState.last_ball_mci)
+			if (objAsset.main_chain_index !== null && objAsset.main_chain_index <= mci)
 				return handleAssetInfo(objAsset);
 			if (!bAA) // we are not an AA and can't see assets defined by fresh AAs
 				return handleAssetInfo(null);
