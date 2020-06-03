@@ -1230,6 +1230,8 @@ exports.validate = function (opts, callback) {
 			bInFunction = false;
 			assignObject(locals, saved_locals);
 
+			if (funcProps.complexity > constants.MAX_COMPLEXITY)
+				return cb("function exceeds complexity: " + funcProps.complexity);
 			cb(null, funcProps);
 		});
 	}
