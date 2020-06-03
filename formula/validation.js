@@ -1036,10 +1036,17 @@ exports.validate = function (opts, callback) {
 					return cb(op + " not activated yet");
 				var p1 = arr[1];
 				var separator = arr[2];
+				var limit = arr[3];
 				evaluate(p1, function (err) {
 					if (err)
 						return cb(err);
-					evaluate(separator, cb);
+					if (!limit)
+						return evaluate(separator, cb);
+					evaluate(separator, function (err) {
+						if (err)
+							return cb(err);
+						evaluate(limit, cb);
+					});
 				});
 				break;
 			

@@ -5461,6 +5461,19 @@ test('split', t => {
 	})
 });
 
+test('split with limit', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		split("qw,une,7,z", ",", 2)
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState,  bObjectResultAllowed: true, address: 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, ['qw', 'une']);
+		t.deepEqual(complexity, 1);
+	})
+});
+
 test('split a number', t => {
 	var trigger = { data: { q: { a: 6 } } };
 	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };

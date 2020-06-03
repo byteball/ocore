@@ -434,7 +434,7 @@ N -> float          {% id %}
 	| ("map"|"filter") "(" expr "," (float|local_var) "," (func_declaration|local_var|remote_func) ")"  {% function(d) {return [d[0][0].value, d[2], d[4][0], d[6][0]]; } %}
 	| "reduce" "(" expr "," (float|local_var) "," (func_declaration|local_var|remote_func) "," expr ")"  {% function(d) {return ['reduce', d[2], d[4][0], d[6][0], d[8]]; } %}
 	| "reverse" "(" expr ")" {% function(d) { return ['reverse', d[2]]; } %}
-	| "split" "(" expr "," expr ")" {% function(d) { return ['split', d[2], d[4]]; } %}
+	| "split" "(" expr "," expr ("," expr):? ")" {% function(d) { return ['split', d[2], d[4], d[5] ? d[5][1] : null]; } %}
 	| "join" "(" expr "," expr ")" {% function(d) { return ['join', d[2], d[4]]; } %}
 
 

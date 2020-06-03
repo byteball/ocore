@@ -1934,6 +1934,7 @@ exports.evaluate = function (opts, callback) {
 					return cb(op + " not activated yet");
 				var expr = arr[1];
 				var separator_expr = arr[2];
+				var limit_expr = arr[3];
 				evaluate(separator_expr, function (separator) {
 					if (fatal_error)
 						return cb(false);
@@ -1947,7 +1948,25 @@ exports.evaluate = function (opts, callback) {
 							if (res instanceof wrappedObject)
 								res = true;
 							res = res.toString();
-							cb(new wrappedObject(res.split(separator)));
+							if (!limit_expr)
+								return cb(new wrappedObject(res.split(separator)));
+							evaluate(limit_expr, function (limit) {
+								if (fatal_error)
+									return cb(false);
+								if (Decimal.isDecimal(limit))
+									limit = limit.toNumber();
+								else if (typeof limit === 'string') {
+									var f = string_utils.toNumber(limit);
+									if (f === null)
+										return setFatalError("not a number: " + limit, cb, false);
+									limit = f;
+								}
+								else
+									return setFatalError("bad type of limit: " + limit, cb, false);
+								if (!ValidationUtils.isNonnegativeInteger(limit))
+									return setFatalError("bad limit: " + limit, cb, false);
+								cb(new wrappedObject(res.split(separator, limit)));
+							});
 						}
 						else { // join
 							if (!(res instanceof wrappedObject))
