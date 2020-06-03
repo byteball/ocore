@@ -5381,3 +5381,59 @@ test.cb('concat number to array in state vars', t => {
 		t.end();
 	})
 });
+
+test('reverse an array', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		reverse([4, 8, {a:9}, 3])
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState,  bObjectResultAllowed: true, address: 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, [3, { a: 9 }, 8, 4]);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('reverse an array: copy returned', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$a = [4, 8, {a:9}, 3];
+		$b = reverse($a);
+		$a[2].a = 10;
+		$b
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState,  bObjectResultAllowed: true, address: 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, [3, { a: 9 }, 8, 4]);
+		t.deepEqual(locals.a.obj, [4, 8, { a: 10 }, 3]);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('reverse an object', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		reverse({s:7, g:2})
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState,  bObjectResultAllowed: true, address: 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('reverse a scalar', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		reverse("hh")
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState,  bObjectResultAllowed: true, address: 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+		t.deepEqual(complexity, 1);
+	})
+});

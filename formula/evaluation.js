@@ -1987,15 +1987,24 @@ exports.evaluate = function (opts, callback) {
 				break;
 
 			case 'keys':
+			case 'reverse':
 				var expr = arr[1];
 				evaluate(expr, function (res) {
 					if (fatal_error)
 						return cb(false);
 					if (!(res instanceof wrappedObject))
 						return setFatalError("not an object: " + res, cb, false);
-					if (Array.isArray(res.obj))
-						return setFatalError("not an object but an array: " + res, cb, false);
-					cb(new wrappedObject(Object.keys(res.obj).sort()));
+					var bArray = Array.isArray(res.obj);
+					if (op === 'keys') {
+						if (bArray)
+							return setFatalError("not an object but an array: " + res.obj, cb, false);
+						cb(new wrappedObject(Object.keys(res.obj).sort()));
+					}
+					else {
+						if (!bArray)
+							return setFatalError("not an array: " + res.obj, cb, false);
+						cb(new wrappedObject(_.cloneDeep(res.obj).reverse()));
+					}
 				});
 				break;
 

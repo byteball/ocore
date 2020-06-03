@@ -880,8 +880,9 @@ exports.validate = function (opts, callback) {
 				break;
 
 			case 'keys':
+			case 'reverse':
 				if (mci < constants.aa2UpgradeMci)
-					return cb("keys function not activated yet");
+					return cb(op + " function not activated yet");
 			case 'exists':
 			case 'is_array':
 			case 'is_assoc':
