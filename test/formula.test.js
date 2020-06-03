@@ -5271,6 +5271,16 @@ test('concat two objects', t => {
 	})
 });
 
+test('concat 3 objects', t => {
+	var formula = `
+		{x: 1, y: 7} || {y: 8, a:9} || {d: 3, y: 9}
+	`;
+	evalFormulaWithVars({ formula, trigger: {}, locals: {volume: 100}, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, { x: 1, y: 9, a: 9, d: 3 });
+		t.deepEqual(complexity, 1);
+	})
+});
+
 test('concat object and array', t => {
 	var formula = `
 		{x: 1, y: 7} || [3, 1, {a:9}]
