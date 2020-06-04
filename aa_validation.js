@@ -517,6 +517,7 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 			count_ops: count_ops,
 			bAA: true,
 			bStatementsOnly: aa_opts.bStatementsOnly || false,
+			bGetters: aa_opts.bGetters || false,
 			bStateVarAssignmentAllowed: aa_opts.bStateVarAssignmentAllowed || false,
 			locals: aa_opts.locals,
 			readGetterProps: readGetterProps,

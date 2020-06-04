@@ -593,6 +593,27 @@ test('trying to modify a var frozen in an earlier formula', t => {
 	});
 });
 
+test('getter with non-constant top-level local var', t => {
+	var aa = ['autonomous agent', {
+		getters: `{
+			$x=1+2;
+		}`,
+		messages: [
+			{
+				app: 'state',
+				state: `{
+					$y = 8;
+				}`
+			}
+		]
+	}];
+	validateAA(aa, err => {
+		t.deepEqual(err, `validation of formula 
+			$x=1+2;
+		 failed: statement local_var_assignment,x,+,1,2, invalid: non-constant top level vars not allowed in getters`);
+	});
+});
+
 test.cb('validate samples', t => {
 	var samples_dir = path.join(__dirname, 'samples');
 	var files = fs.readdirSync(samples_dir);

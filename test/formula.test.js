@@ -4818,6 +4818,60 @@ test('getter with non-constant top-level local var', t => {
 	})
 });
 
+test('getter with non-constant top-level local var this_address', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$a = this_address;
+		$f = ($x) => {
+			$y = $x;
+		};
+		$g = ($x) => {
+			$z = $x;
+		};
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStatementsOnly: true, bGetters: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('getter with non-constant top-level local var evaluated from state var', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$a = var['a'];
+		$f = ($x) => {
+			$y = $x;
+		};
+		$g = ($x) => {
+			$z = $x;
+		};
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStatementsOnly: true, bGetters: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('getter with non-constant top-level local var object', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$a = {a: 9};
+		$f = ($x) => {
+			$y = $x;
+		};
+		$g = ($x) => {
+			$z = $x;
+		};
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStatementsOnly: true, bGetters: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+	})
+});
+
 test('getter with constant top-level local vars', t => {
 	var trigger = { data: { q: { a: 6 } } };
 	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
