@@ -1109,6 +1109,8 @@ function updateMinRetrievableMciAfterStabilizingMci(conn, batch, last_stable_mci
 									objStrippedUnit.witness_list_unit = objUnit.witness_list_unit;
 								else
 									objStrippedUnit.witnesses = objUnit.witnesses;
+								if (objUnit.version !== constants.versionWithoutTimestamp)
+									objStrippedUnit.timestamp = objUnit.timestamp;
 								var objStrippedJoint = {unit: objStrippedUnit, ball: objJoint.ball};
 								batch.put('j\n'+unit, JSON.stringify(objStrippedJoint));
 								archiving.generateQueriesToArchiveJoint(conn, objJoint, 'voided', arrQueries, cb);
