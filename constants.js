@@ -87,6 +87,7 @@ exports.witnessedLevelMustNotRetreatFromAllParentsUpgradeMci = exports.bTestnet 
 exports.timestampUpgradeMci = exports.bTestnet ? 909000 : 5210000;
 exports.aaStorageSizeUpgradeMci = exports.bTestnet ? 1034000 : 5210000;
 exports.aa2UpgradeMci = exports.bTestnet ? Infinity : Infinity;
+exports.unstableInitialDefinitionUpgradeMci = exports.bTestnet ? Infinity : Infinity;
 
 
 if (process.env.devnet) {
@@ -115,4 +116,5 @@ if (process.env.devnet) {
 	exports.timestampUpgradeMci = 0;
 	exports.aaStorageSizeUpgradeMci = 0;
 	exports.aa2UpgradeMci = 0;
+	exports.unstableInitialDefinitionUpgradeMci = 0;
 }

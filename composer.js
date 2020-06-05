@@ -297,10 +297,11 @@ function composeJoint(params){
 			}
 			
 			function checkForUnstablePredecessors(){
+				var and_not_initial = (last_ball_mci >= constants.unstableInitialDefinitionUpgradeMci) ? "AND definition_chash!=address" : "";
 				conn.query(
 					// is_stable=0 condition is redundant given that last_ball_mci is stable
 					"SELECT 1 FROM units CROSS JOIN unit_authors USING(unit) \n\
-					WHERE  (main_chain_index>? OR main_chain_index IS NULL) AND address IN(?) AND definition_chash IS NOT NULL \n\
+					WHERE  (main_chain_index>? OR main_chain_index IS NULL) AND address IN(?) AND definition_chash IS NOT NULL " + and_not_initial + " \n\
 					UNION \n\
 					SELECT 1 FROM units JOIN address_definition_changes USING(unit) \n\
 					WHERE (main_chain_index>? OR main_chain_index IS NULL) AND address IN(?) \n\
@@ -553,7 +554,7 @@ function readSortedFundedAddresses(asset, arrAvailableAddresses, estimated_amoun
 		) AS t \n\
 		WHERE NOT EXISTS ( \n\
 			SELECT * FROM units CROSS JOIN unit_authors USING(unit) \n\
-			WHERE is_stable=0 AND unit_authors.address=t.address AND definition_chash IS NOT NULL \n\
+			WHERE is_stable=0 AND unit_authors.address=t.address AND definition_chash IS NOT NULL AND definition_chash != unit_authors.address \n\
 		)",
 		asset ? [arrAvailableAddresses, asset] : [arrAvailableAddresses],
 		function(rows){
@@ -744,11 +745,12 @@ function composeAuthorsForAddresses(conn, arrFromAddresses, last_ball_mci, last_
 			for (var j=0; j<arrSigningPaths.length; j++)
 				objAuthor.authentifiers[arrSigningPaths[j]] = repeatString("-", assocLengthsBySigningPaths[arrSigningPaths[j]]);
 			authors.push(objAuthor);
+			var and_stable = (last_ball_mci < constants.unstableInitialDefinitionUpgradeMci) ? "AND is_stable=1 AND main_chain_index<=" + parseInt(last_ball_mci) : "";
 			conn.query(
 				"SELECT 1 FROM unit_authors CROSS JOIN units USING(unit) \n\
-				WHERE address=? AND is_stable=1 AND sequence='good' AND main_chain_index<=? \n\
+				WHERE address=? AND sequence='good' " + and_stable + " \n\
 				LIMIT 1", 
-				[from_address, last_ball_mci], 
+				[from_address], 
 				function(rows){
 					if (rows.length === 0) // first message from this address
 						return setDefinition();

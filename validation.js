@@ -799,6 +799,7 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 	}
 	
 	var bNonserial = false;
+	var bInitialDefinition = false;
 
 	if (objValidationState.bAA) {
 		storage.readAADefinition(conn, objAuthor.address, function (arrDefinition) {
@@ -826,10 +827,15 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 		// we check signatures using the latest address definition before last ball
 		storage.readDefinitionByAddress(conn, objAuthor.address, objValidationState.last_ball_mci, {
 			ifDefinitionNotFound: function(definition_chash){
-				storage.readAADefinition(conn, objAuthor.address, function (arrDefinition) {
-					if (arrDefinition)
+				storage.readAADefinition(conn, objAuthor.address, function (arrAADefinition) {
+					if (arrAADefinition)
 						return callback(createTransientError("will not validate unit signed by AA"));
-					callback("definition "+definition_chash+" bound to address "+objAuthor.address+" is not defined");
+					findUnstableInitialDefinition(definition_chash, function (arrDefinition) {
+						if (!arrDefinition)
+							return callback("definition " + definition_chash + " bound to address " + objAuthor.address + " is not defined");
+						bInitialDefinition = true;
+						validateAuthentifiers(arrDefinition);
+					});
 				});
 			},
 			ifFound: function(arrAddressDefinition){
@@ -840,6 +846,35 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 	else
 		return callback("bad type of definition");
 	
+	function findUnstableInitialDefinition(definition_chash, handleUnstableInitialDefinition) {
+		if (objValidationState.last_ball_mci < constants.unstableInitialDefinitionUpgradeMci || definition_chash !== objAuthor.address)
+			return handleUnstableInitialDefinition(null);
+		conn.query("SELECT definition, main_chain_index, unit \n\
+			FROM definitions \n\
+			CROSS JOIN unit_authors USING(definition_chash) \n\
+			CROSS JOIN units USING(unit) \n\
+			WHERE definition_chash=?",
+			[definition_chash],
+			function (rows) {
+				if (rows.length === 0)
+					return handleUnstableInitialDefinition(null);
+				if (rows.some(function (row) { return row.main_chain_index !== null && row.main_chain_index <= objValidationState.last_ball_mci })) // some are stable, maybe we returned to the initial definition
+					return handleUnstableInitialDefinition(null);
+				async.eachSeries(
+					rows,
+					function (row, cb) {
+						graph.determineIfIncludedOrEqual(conn, row.unit, objUnit.parent_units, function (bIncluded) {
+							console.log("unstable definition of " + definition_chash + " found in " + row.unit + ", included? " + bIncluded);
+							bIncluded ? cb(JSON.parse(row.definition)) : cb();
+						});
+					},
+					function (arrDefinition) {
+						handleUnstableInitialDefinition(arrDefinition);
+					}
+				)
+			}
+		);
+	}
 	
 	function validateAuthentifiers(arrAddressDefinition){
 		Definition.validateAuthentifiers(
@@ -977,6 +1012,8 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 	function checkNoPendingDefinition(){
 		//var next = checkNoPendingOrRetrievableNonserialIncluded;
 		var next = validateDefinition;
+		if (bInitialDefinition)
+			return next();
 		//var filter = bNonserial ? "AND sequence='good'" : "";
 	//	var cross = (objValidationState.max_known_mci - objValidationState.last_ball_mci < 1000) ? 'CROSS' : '';
 		conn.query( // _left_ join forces use of indexes in units

@@ -1053,7 +1053,7 @@ function readAddressesFundedInAsset(asset, amount, spend_unconfirmed, arrAvailab
 		WHERE is_spent=0 AND address IN(?) "+inputs.getConfirmationConditionSql(spend_unconfirmed)+" AND sequence='good' AND asset=? \n\
 			AND NOT EXISTS ( \n\
 				SELECT * FROM unit_authors JOIN units USING(unit) \n\
-				WHERE is_stable=0 AND unit_authors.address=outputs.address AND definition_chash IS NOT NULL \n\
+				WHERE is_stable=0 AND unit_authors.address=outputs.address AND definition_chash IS NOT NULL AND definition_chash != unit_authors.address \n\
 			) \n\
 		ORDER BY denomination DESC, amount DESC",
 		[arrAvailablePayingAddresses, asset],
