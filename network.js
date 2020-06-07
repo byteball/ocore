@@ -2390,7 +2390,8 @@ function handleJustsaying(ws, subject, body){
 				return;
 			var arrParts = body.exception.toString().split("Breadcrumbs", 2);
 			var text = body.message + ' ' + arrParts[0];
-			var hash = crypto.createHash("sha256").update(text, "utf8").digest("base64");
+			var matches = body.message.match(/message encrypted to unknown key, device (0\w{32})/);
+			var hash = matches ? matches[1] : crypto.createHash("sha256").update(text, "utf8").digest("base64");
 			if (hash === prev_bugreport_hash)
 				return console.log("ignoring known bug report");
 			prev_bugreport_hash = hash;
@@ -2782,6 +2783,9 @@ function handleRequest(ws, tag, command, params){
 			var unit = params;
 			storage.readJoint(db, unit, {
 				ifFound: function(objJoint){
+					// make the peer go a bit deeper into stable units and request catchup only when and if it reaches min retrievable and we can deliver a catchup
+					if (objJoint.ball && objJoint.unit.main_chain_index > storage.getMinRetrievableMci())
+						delete objJoint.ball;
 					sendJoint(ws, objJoint, tag);
 				},
 				ifNotFound: function(){

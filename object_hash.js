@@ -52,8 +52,13 @@ function getUnitContentHash(objUnit){
 
 function getUnitHash(objUnit) {
 	var bVersion2 = (objUnit.version !== constants.versionWithoutTimestamp);
-	if (objUnit.content_hash) // already stripped
+	if (objUnit.content_hash) // already stripped and objUnit doesn't have messages
 		return getBase64Hash(getNakedUnit(objUnit), bVersion2);
+	return getBase64Hash(getStrippedUnit(objUnit), bVersion2);
+}
+
+function getStrippedUnit(objUnit) {
+	var bVersion2 = (objUnit.version !== constants.versionWithoutTimestamp);
 	var objStrippedUnit = {
 		content_hash: getUnitContentHash(objUnit),
 		version: objUnit.version,
@@ -71,7 +76,7 @@ function getUnitHash(objUnit) {
 	}
 	if (bVersion2)
 		objStrippedUnit.timestamp = objUnit.timestamp;
-	return getBase64Hash(objStrippedUnit, bVersion2);
+	return objStrippedUnit;
 }
 
 function getUnitHashToSign(objUnit) {

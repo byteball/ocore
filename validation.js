@@ -335,8 +335,8 @@ function checkDuplicate(conn, objUnit, cb){
 		if (rows.length === 0) 
 			return cb();
 		var row = rows[0];
-		if (row.sequence === 'final-bad' && row.main_chain_index !== null && row.main_chain_index < storage.getMinRetrievableMci() && objUnit.messages && !objUnit.content_hash) // already stripped locally but received a full version
-			return cb();
+	//	if (row.sequence === 'final-bad' && row.main_chain_index !== null && row.main_chain_index < storage.getMinRetrievableMci() && objUnit.messages && !objUnit.content_hash) // already stripped locally but received a full version
+	//		return cb();
 		cb(createTransientError("unit "+unit+" already exists"));
 	});
 }
@@ -1917,7 +1917,8 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 							}
 							if (!src_output.address) {
 								if (src_output.sequence === 'final-bad' && src_output.main_chain_index < storage.getMinRetrievableMci()) // already stripped, request full content
-									return cb({error_code: "unresolved_dependency", arrMissingUnits: [input.unit], dontsave: true});
+								//	return cb({error_code: "unresolved_dependency", arrMissingUnits: [input.unit], dontsave: true});
+									return cb("output being spent " + input.unit + " is final-bad");
 								return cb("output being spent " + input.unit + " not found");
 							}
 							if (typeof src_output.amount !== 'number')
