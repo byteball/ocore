@@ -2778,6 +2778,24 @@ test('convert to number with +', t => {
 	})
 });
 
+test('substring with string index that looks like a number', t => {
+	var trigger = { };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `substring('abcdef', '2', '3')`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'cde');
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('substring with fractional index', t => {
+	var trigger = { };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `substring('abcdef', 2.5)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+		t.deepEqual(complexity, 1);
+	})
+});
+
 test('boolean to number with +', t => {
 	var trigger = { };
 	var stateVars = {};

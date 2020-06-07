@@ -1865,8 +1865,13 @@ exports.evaluate = function (opts, callback) {
 					evaluate(start_expr, function (start) {
 						if (fatal_error)
 							return cb(false);
-						if (typeof start === 'string')
-							return setFatalError("start index in substring cannot be a string", cb, false);
+						if (typeof start === 'string') {
+							var f = string_utils.toNumber(start);
+							if (f !== null && mci >= constants.aa2UpgradeMci)
+								start = createDecimal(f);
+							else
+								return setFatalError("start index in substring cannot be a string", cb, false);
+						}
 						if (start instanceof wrappedObject)
 							start = true;
 						if (typeof start === 'boolean')
@@ -1875,13 +1880,20 @@ exports.evaluate = function (opts, callback) {
 							start = start.toNumber();
 						else
 							throw Error("unknown type of start in substring: " + start);
+						if (!ValidationUtils.isInteger(start))
+							return setFatalError("start index must be integer: " + start, cb, false);
 						if (!length_expr)
 							return cb(str.substr(start));
 						evaluate(length_expr, function (length) {
 							if (fatal_error)
 								return cb(false);
-							if (typeof length === 'string')
-								return setFatalError("length in substring cannot be a string", cb, false);
+							if (typeof length === 'string') {
+								var f = string_utils.toNumber(length);
+								if (f !== null && mci >= constants.aa2UpgradeMci)
+									length = createDecimal(f);
+								else
+									return setFatalError("length in substring cannot be a string", cb, false);
+							}
 							if (length instanceof wrappedObject)
 								length = true;
 							if (typeof length === 'boolean')
@@ -1890,6 +1902,8 @@ exports.evaluate = function (opts, callback) {
 								length = length.toNumber();
 							else
 								throw Error("unknown type of length in substring: " + length);
+							if (!ValidationUtils.isInteger(length))
+								return setFatalError("length must be integer: " + length, cb, false);
 							cb(str.substr(start, length));
 						});
 					});

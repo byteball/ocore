@@ -1000,7 +1000,7 @@ exports.validate = function (opts, callback) {
 				var str = arr[1];
 				var start = arr[2];
 				var length = arr[3];
-				if (typeof start === 'string' || typeof length === 'string')
+				if ((typeof start === 'string' || typeof length === 'string') && mci < constants.aa2UpgradeMci)
 					return cb("start and length in substring cannot be strings");
 				evaluate(str, function (err) {
 					if (err)
