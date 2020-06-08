@@ -1280,12 +1280,14 @@ test.cb.serial('calling a chain of remote functions', t => {
 	var remote_intermediary_aa_address = objectHash.getChash160(remote_intermediary_aa);
 	
 	var aa = ['autonomous agent', {
+		getters: `{
+			$g = ($x) => {$x^2};
+			$remote_aa = '${remote_intermediary_aa_address}';
+		}`,
 		init: `{
 			$a = 30;
 			$f = 6;
 			$h = 7;
-			$g = ($x) => {$x^2};
-			$remote_aa = '${remote_intermediary_aa_address}';
 			$ret = $remote_aa.$g(trigger.data.x);
 		}`,
 		messages: [
@@ -1307,6 +1309,7 @@ test.cb.serial('calling a chain of remote functions', t => {
 					var['mci'] = $ret.mci;
 					var['h'] = $ret.h;
 					var['mul'] = $remote_aa.$h(2.5); // string or number?
+					var['g'] = $g(3);
 				}`
 			}
 		]
@@ -1349,6 +1352,7 @@ test.cb.serial('calling a chain of remote functions', t => {
 					t.deepEqual(arrResponses[0].updatedStateVars[aa_address].mci.value, mci);
 					t.deepEqual(arrResponses[0].updatedStateVars[aa_address].h.value, 15);
 					t.deepEqual(arrResponses[0].updatedStateVars[aa_address].mul.value, 7.5);
+					t.deepEqual(arrResponses[0].updatedStateVars[aa_address].g.value, 9);
 					fixCache();
 					t.deepEqual(storage.assocUnstableUnits, old_cache.assocUnstableUnits);
 					t.deepEqual(storage.assocStableUnits, old_cache.assocStableUnits);
