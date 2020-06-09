@@ -524,7 +524,7 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 			readGetterProps: readGetterProps,
 			mci: mci,
 		};
-		if (constants.bTestnet && opts.bStatementsOnly && mci === 1027249 && objectHash.getChash160(arrDefinition) === 'IUSWVQLBVRCXJ3W23JUQG5NNVJ3K4BJY')
+		if (constants.bTestnet && opts.bStatementsOnly && (mci === 1027249 && objectHash.getChash160(arrDefinition) === 'IUSWVQLBVRCXJ3W23JUQG5NNVJ3K4BJY' || mci === 1034656 && objectHash.getChash160(arrDefinition) === 'VACU4WDHOXCKXVEQ4K2XPBCZC2IA56LC'))
 			opts.formula = opts.formula.replace('elsevar', 'else var').replace('elseresponse', 'else response');
 	//	console.log('--- validateFormula', formula);
 		formulaValidator.validate(opts, function (result) {
