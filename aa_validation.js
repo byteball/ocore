@@ -525,7 +525,7 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 			mci: mci,
 		};
 		if (constants.bTestnet && opts.bStatementsOnly && mci === 1027249 && objectHash.getChash160(arrDefinition) === 'IUSWVQLBVRCXJ3W23JUQG5NNVJ3K4BJY')
-			opts.formula = opts.formula.replace('elsevar', 'else var');
+			opts.formula = opts.formula.replace('elsevar', 'else var').replace('elseresponse', 'else response');
 	//	console.log('--- validateFormula', formula);
 		formulaValidator.validate(opts, function (result) {
 			if (typeof result.complexity !== 'number' || !isFinite(result.complexity))
