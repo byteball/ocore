@@ -2724,6 +2724,12 @@ function handleRequest(ws, tag, command, params){
 	if (ws.assocInPreparingResponse[tag]) // ignore repeated request while still preparing response to a previous identical request
 		return console.log("ignoring identical "+command+" request");
 	ws.assocInPreparingResponse[tag] = true;
+	if (command.startsWith('light/')) {
+		if (conf.bLight)
+			return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
+		if (ws.bOutbound)
+			return sendErrorResponse(ws, tag, "light clients have to be inbound");
+	}
 	switch (command){
 		case 'heartbeat':
 			ws.bSleeping = false; // the peer is sending heartbeats, therefore he is awake
@@ -2969,10 +2975,6 @@ function handleRequest(ws, tag, command, params){
 			break;
 			
 		case 'light/get_history':
-			if (conf.bLight)
-				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
-			if (ws.bOutbound)
-				return sendErrorResponse(ws, tag, "light clients have to be inbound");
 			mutex.lock(['get_history_request'], function(unlock){
 				if (!ws || ws.readyState !== ws.OPEN) // may be already gone when we receive the lock
 					return process.nextTick(unlock);
@@ -3011,10 +3013,6 @@ function handleRequest(ws, tag, command, params){
 			break;
 			
 		case 'light/get_link_proofs':
-			if (conf.bLight)
-				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
-			if (ws.bOutbound)
-				return sendErrorResponse(ws, tag, "light clients have to be inbound");
 			mutex.lock(['get_link_proofs_request'], function(unlock){
 				if (!ws || ws.readyState !== ws.OPEN) // may be already gone when we receive the lock
 					return process.nextTick(unlock);
@@ -3032,10 +3030,6 @@ function handleRequest(ws, tag, command, params){
 			break;
 			
 		case 'light/get_parents_and_last_ball_and_witness_list_unit':
-			if (conf.bLight)
-				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
-			if (ws.bOutbound)
-				return sendErrorResponse(ws, tag, "light clients have to be inbound");
 			if (!params)
 				return sendErrorResponse(ws, tag, "no params in get_parents_and_last_ball_and_witness_list_unit");
 			var callbacks = {
@@ -3056,10 +3050,6 @@ function handleRequest(ws, tag, command, params){
 
 	   case 'light/get_attestation':
 			// find an attestation posted by the given attestor and attesting field=value
-			if (conf.bLight)
-				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
-			if (ws.bOutbound)
-				return sendErrorResponse(ws, tag, "light clients have to be inbound");
 			if (!params)
 				return sendErrorResponse(ws, tag, "no params in light/get_attestation");
 			if (!params.attestor_address || !params.field || !params.value)
@@ -3078,10 +3068,6 @@ function handleRequest(ws, tag, command, params){
 
 	   case 'light/get_attestations':
 			// get list of all attestations of an address
-			if (conf.bLight)
-				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
-			if (ws.bOutbound)
-				return sendErrorResponse(ws, tag, "light clients have to be inbound");
 			if (!params)
 				return sendErrorResponse(ws, tag, "no params in light/get_attestations");
 			if (!ValidationUtils.isValidAddress(params.address))
@@ -3106,10 +3092,6 @@ function handleRequest(ws, tag, command, params){
 			break;
 
 		case 'light/pick_divisible_coins_for_amount':
-			if (conf.bLight)
-				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
-			if (ws.bOutbound)
-				return sendErrorResponse(ws, tag, "light clients have to be inbound");
 			if (!params)
 				return sendErrorResponse(ws, tag, "no params in light/pick_divisible_coins_for_amount");
 			if (!params.addresses || !params.last_ball_mci || !params.amount)
@@ -3147,10 +3129,6 @@ function handleRequest(ws, tag, command, params){
 			break;
 
 		case 'light/get_definition_chash':
-			if (conf.bLight)
-				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
-			if (ws.bOutbound)
-				return sendErrorResponse(ws, tag, "light clients have to be inbound");
 			if (!params)
 				return sendErrorResponse(ws, tag, "no params in light/get_definition_chash");
 			if (!ValidationUtils.isValidAddress(params.address))
@@ -3163,10 +3141,6 @@ function handleRequest(ws, tag, command, params){
 			break;
 		
 		case 'light/get_definition':
-			if (conf.bLight)
-				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
-			if (ws.bOutbound)
-				return sendErrorResponse(ws, tag, "light clients have to be inbound");
 			if (!params)
 				return sendErrorResponse(ws, tag, "no params in light/get_definition");
 			if (!ValidationUtils.isValidAddress(params))
@@ -3180,10 +3154,6 @@ function handleRequest(ws, tag, command, params){
 			break;
 
 		case 'light/get_definition_for_address':
-			if (conf.bLight)
-				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
-			if (ws.bOutbound)
-				return sendErrorResponse(ws, tag, "light clients have to be inbound");
 			if (!params)
 				return sendErrorResponse(ws, tag, "no params in light/get_definition_for_address");
 			if (!ValidationUtils.isValidAddress(params.address))
@@ -3218,10 +3188,6 @@ function handleRequest(ws, tag, command, params){
 
 		case 'light/get_balances':
 			var addresses = params;
-			if (conf.bLight)
-				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
-			if (ws.bOutbound)
-				return sendErrorResponse(ws, tag, "light clients have to be inbound");
 			if (!addresses)
 				return sendErrorResponse(ws, tag, "no params in light/get_balances");
 			if (!ValidationUtils.isNonemptyArray(addresses))
@@ -3251,10 +3217,6 @@ function handleRequest(ws, tag, command, params){
 
 		case 'light/get_profile_units':
 			var addresses = params;
-			if (conf.bLight)
-				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
-			if (ws.bOutbound)
-				return sendErrorResponse(ws, tag, "light clients have to be inbound");
 			if (!addresses)
 				return sendErrorResponse(ws, tag, "no params in light/get_profiles_units");
 			if (!ValidationUtils.isNonemptyArray(addresses))
@@ -3274,10 +3236,6 @@ function handleRequest(ws, tag, command, params){
 			break;
 
 		case 'light/get_data_feed':
-			if (conf.bLight)
-				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
-			if (ws.bOutbound)
-				return sendErrorResponse(ws, tag, "light clients have to be inbound");
 			if (!params)
 				return sendErrorResponse(ws, tag, "no params in light/get_data_feed");
 			dataFeeds.readDataFeedValueByParams(params, 1e15, true, function (err, value) {
@@ -3288,10 +3246,6 @@ function handleRequest(ws, tag, command, params){
 			break;
 
 		case 'light/dry_run_aa':
-			if (conf.bLight)
-				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
-			if (ws.bOutbound)
-				return sendErrorResponse(ws, tag, "light clients have to be inbound");
 			if (!params)
 				return sendErrorResponse(ws, tag, "no params in light/dry_run_aa");
 			if (!ValidationUtils.isValidAddress(params.address))
@@ -3316,10 +3270,6 @@ function handleRequest(ws, tag, command, params){
 			break;
 
 		case 'light/get_aa_state_vars':
-			if (conf.bLight)
-				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
-			if (ws.bOutbound)
-				return sendErrorResponse(ws, tag, "light clients have to be inbound");
 			if (!params)
 				return sendErrorResponse(ws, tag, "no params in light/get_aa_state_vars");
 			if (!ValidationUtils.isValidAddress(params.address))
@@ -3350,10 +3300,6 @@ function handleRequest(ws, tag, command, params){
 			break;
 			
 		case 'light/execute_getter':
-			if (conf.bLight)
-				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
-			if (ws.bOutbound)
-				return sendErrorResponse(ws, tag, "light clients have to be inbound");
 			if (!params)
 				return sendErrorResponse(ws, tag, "no params in light/execute_getter");
 			if (!ValidationUtils.isValidAddress(params.address))
@@ -3370,10 +3316,6 @@ function handleRequest(ws, tag, command, params){
 			break;
 			
 		case 'light/get_aas_by_base_aas':
-			if (conf.bLight)
-				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
-			if (ws.bOutbound)
-				return sendErrorResponse(ws, tag, "light clients have to be inbound");
 			if (!params)
 				return sendErrorResponse(ws, tag, "no params in light/get_aas_by_base_aas");
 			var base_aas = params.base_aas || [params.base_aa];
@@ -3413,10 +3355,6 @@ function handleRequest(ws, tag, command, params){
 			break;
 			
 		case 'light/get_aa_responses':
-			if (conf.bLight)
-				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
-			if (ws.bOutbound)
-				return sendErrorResponse(ws, tag, "light clients have to be inbound");
 			if (!params)
 				return sendErrorResponse(ws, tag, "no params in light/get_aa_responses");
 			var aas = params.aas || [params.aa];
