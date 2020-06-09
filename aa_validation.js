@@ -4,6 +4,7 @@
 var _ = require('lodash');
 var async = require('async');
 var constants = require('./constants.js');
+var objectHash = require("./object_hash.js");
 var ValidationUtils = require("./validation_utils.js");
 var formulaValidator = require('./formula/validation.js');
 var getFormula = require('./formula/common.js').getFormula;
@@ -523,6 +524,8 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 			readGetterProps: readGetterProps,
 			mci: mci,
 		};
+		if (constants.bTestnet && opts.bStatementsOnly && mci === 1027249 && objectHash.getChash160(arrDefinition) === 'IUSWVQLBVRCXJ3W23JUQG5NNVJ3K4BJY')
+			opts.formula = opts.formula.replace('elsevar', 'else var');
 	//	console.log('--- validateFormula', formula);
 		formulaValidator.validate(opts, function (result) {
 			if (typeof result.complexity !== 'number' || !isFinite(result.complexity))
@@ -694,8 +697,8 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 		return callback("AA definition must be 2-element array");
 	if (arrDefinition[0] !== 'autonomous agent')
 		return callback("not an AA");
-	arrDefinition = _.cloneDeep(arrDefinition);
-	var template = arrDefinition[1];
+	var arrDefinitionCopy = _.cloneDeep(arrDefinition);
+	var template = arrDefinitionCopy[1];
 	if (template.base_aa) { // parameterized AA
 		if (hasFieldsExcept(template, ['base_aa', 'params']))
 			return callback("foreign fields in parameterized AA definition");
@@ -734,7 +737,7 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 	validateFieldWrappedInCases(template, 'messages', validateMessages, function (err) {
 		if (err)
 			return callback(err);
-		validateDefinition(arrDefinition, function (err) {
+		validateDefinition(arrDefinitionCopy, function (err) {
 			if (err)
 				return callback(err);
 			console.log('AA validated, complexity = ' + complexity + ', ops = ' + count_ops);
