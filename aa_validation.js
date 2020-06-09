@@ -530,8 +530,12 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 			|| mci === 1034817 && objectHash.getChash160(arrDefinition) === 'ZQ6WCTPB5LD7EDXSMNJSNUGSR7RN2AC4'
 			|| mci === 1035745 && objectHash.getChash160(arrDefinition) === '3OTPW4ISZW5DSBBL5EQJTNBBFM2OZGX4'
 			|| mci === 1056170 && objectHash.getChash160(arrDefinition) === '33RCDV6X3ABU6DCGLXIY3UZMGOWPX7SL'
+			|| mci === 1067319 && objectHash.getChash160(arrDefinition) === 'BSWZQ2YNCVGJEL7YZSL4RCFLIYUVNUTP'
+			|| mci === 1068103 && objectHash.getChash160(arrDefinition) === 'SLNCJI6SDRUGAHZ3POPCWBZQ6IE67DNI'
+			|| mci === 1068109 && objectHash.getChash160(arrDefinition) === 'XENBF353CYD6NEGKXNWRZSE34VKPIFFS'
+			|| mci === 1068178 && objectHash.getChash160(arrDefinition) === 'MCSSUWCHGTQUWGZKZZAHMUVBNPSTDX5C'
 		))
-			opts.formula = opts.formula.replace('elsevar', 'else var').replace('elseresponse', 'else response');
+			opts.formula = opts.formula.replace('elsevar', 'else var').replace('elseresponse', 'else response').replace('elsebounce', 'else bounce');
 	//	console.log('--- validateFormula', formula);
 		formulaValidator.validate(opts, function (result) {
 			if (typeof result.complexity !== 'number' || !isFinite(result.complexity))
