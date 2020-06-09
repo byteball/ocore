@@ -608,8 +608,8 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 			async.eachOfSeries(
 				value.cases,
 				function (acase, i, cb2) {
-					if (hasFieldsExcept(acase, [name, 'if', 'init']))
-						return cb2('validate: foreign fields in case ' + i + ' of ' + name);
+				//	if (hasFieldsExcept(acase, [name, 'if', 'init']))
+				//		return cb2('validate: foreign fields in case ' + i + ' of ' + name);
 					if (!acase.hasOwnProperty(name))
 						return cb2('validate: case ' + i + ' has no field ' + name);
 					validate(value.cases, i, path, _.cloneDeep(locals), depth + 1, cb2);
