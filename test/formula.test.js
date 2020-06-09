@@ -2397,6 +2397,33 @@ test('starts_with ends_with contains', t => {
 	})
 });
 
+test('has_only', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}}  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `has_only("abcd", "\\w") || ' ' || has_only("a\\ec9]d", "\\w]\\\\\\\\-") || ' ' || has_only("abssc#d", "\\w.")`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'true true false');
+		t.deepEqual(complexity, 4);
+	})
+});
+
+test('has_only invalid escaped ]', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}}  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `has_only("abcd", "\\w\\]")`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+		t.deepEqual(complexity, 2);
+	})
+});
+
+test('has_only invalid final \\', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}}  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `has_only("abcd", "a-z\\\\")`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+		t.deepEqual(complexity, 2);
+	})
+});
+
 test('index_of', t => {
 	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}}  };
 	var stateVars = {};

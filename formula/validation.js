@@ -983,6 +983,10 @@ exports.validate = function (opts, callback) {
 				evaluate(expr, cb);
 				break;
 
+			case 'has_only':
+				if (mci < constants.aa2UpgradeMci)
+					return cb(op + " not activated yet");
+				complexity++;
 			case 'starts_with':
 			case 'ends_with':
 			case 'contains':

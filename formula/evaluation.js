@@ -1824,6 +1824,7 @@ exports.evaluate = function (opts, callback) {
 			case 'starts_with':
 			case 'ends_with':
 			case 'contains':
+			case 'has_only':
 			case 'index_of':
 				var str_expr = arr[1];
 				var sub_expr = arr[2];
@@ -1847,6 +1848,20 @@ exports.evaluate = function (opts, callback) {
 							return cb(str.includes(sub));
 						if (op === 'index_of')
 							return cb(new Decimal(str.indexOf(sub)));
+						if (op === 'has_only') {
+							try {
+								console.log('has only ' + str + ' ' + sub);
+								if (sub.match(/\\]/) || sub[sub.length - 1] === '\\')
+									return setFatalError("invalid character group: " + sub, cb, false);
+								sub = sub.replace(/]/g, '\\]'); // don't allow to close the group early
+								var bMatches = new RegExp("^[" + sub + "]*$").test(str);
+							}
+							catch (e) {
+								console.log("regexp failed:", e);
+								var bMatches = false;
+							}
+							return cb(bMatches);
+						}
 						throw Error("unknown op: " + op);
 					});
 				});

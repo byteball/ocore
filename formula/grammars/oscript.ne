@@ -46,7 +46,7 @@
 			match: /\b[a-zA-Z_]\w*\b/,
 			type: moo.keywords({
 				keyword: [
-					'min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round', 'abs', 'hypot', 'is_valid_signed_package', 'is_valid_sig', 'vrf_verify', 'sha256', 'chash160', 'json_parse', 'json_stringify', 'number_from_seed', 'length', 'is_valid_address', 'starts_with', 'ends_with', 'contains', 'substring', 'timestamp_to_string', 'parse_date', 'is_aa', 'is_integer', 'is_valid_amount', 'is_array', 'is_assoc', 'array_length', 'index_of', 'to_upper', 'to_lower', 'exists', 'number_of_responses', 'is_valid_merkle_proof', 'replace', 'typeof', 'delete', 'freeze', 'keys', 'foreach', 'map', 'filter', 'reduce', 'reverse', 'split', 'join',
+					'min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round', 'abs', 'hypot', 'is_valid_signed_package', 'is_valid_sig', 'vrf_verify', 'sha256', 'chash160', 'json_parse', 'json_stringify', 'number_from_seed', 'length', 'is_valid_address', 'starts_with', 'ends_with', 'contains', 'substring', 'timestamp_to_string', 'parse_date', 'is_aa', 'is_integer', 'is_valid_amount', 'is_array', 'is_assoc', 'array_length', 'index_of', 'to_upper', 'to_lower', 'exists', 'number_of_responses', 'is_valid_merkle_proof', 'replace', 'typeof', 'delete', 'freeze', 'keys', 'foreach', 'map', 'filter', 'reduce', 'reverse', 'split', 'join', 'has_only',
 
 					'timestamp', 'storage_size', 'mci', 'this_address', 'response_unit', 'mc_unit', 'params',
 
@@ -349,6 +349,7 @@ N -> float          {% id %}
     | "starts_with" "(" expr "," expr ")"    {% function(d) {return ['starts_with', d[2], d[4]]; } %}
     | "ends_with" "(" expr "," expr ")"    {% function(d) {return ['ends_with', d[2], d[4]]; } %}
     | "contains" "(" expr "," expr ")"    {% function(d) {return ['contains', d[2], d[4]]; } %}
+    | "has_only" "(" expr "," expr ")"    {% function(d) {return ['has_only', d[2], d[4]]; } %}
     | "index_of" "(" expr "," expr ")"    {% function(d) {return ['index_of', d[2], d[4]]; } %}
     | "substring" "(" expr "," expr ("," expr):? ")"    {% function(d) {return ['substring', d[2], d[4], d[5] ? d[5][1] : null]; } %}
     | "replace" "(" expr "," expr "," expr ")"    {% function(d) {return ['replace', d[2], d[4], d[6]]; } %}
