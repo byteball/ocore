@@ -747,13 +747,13 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 		|| earlier_unit === 'VLdMzBDVpwqu+3OcZrBrmkT0aUb/mZ0O1IveDmGqIP0=' && arrLaterUnits.join(',') === 'pAfErVAA5CSPeh1KoLidDTgdt5Blu7k2rINtxVTMq4k='
 		|| earlier_unit === 'P2gqiei+7dur/gS1KOFHg0tiEq2+7l321AJxM3o0f5Q=' && arrLaterUnits.join(',') === '9G8kctAVAiiLf4/cyU2f4gdtD+XvKd1qRp0+k3qzR8o='
 		|| constants.bTestnet && earlier_unit === 'zAytsscSjo+N9dQ/VLio4ZDgZS91wfUk0IOnzzrXcYU=' && arrLaterUnits.join(',') === 'ZSQgpR326LEU4jW+1hQ5ZwnHAVnGLV16Kyf/foVeFOc='
-		|| constants.bTestnet && ['XbS1+l33sIlcBQ//2/ZyPsRV7uhnwOPvvuQ5IzB+vC0=', 'TMTkvkXOL8CxnuDzw36xDWI6bO5PrhicGLBR3mwrAxE=', '7s8y/32r+3ew1jmunq1ZVyH+MQX9HUADZDHu3otia9U='].includes(earlier_unit) && arrLaterUnits.includes('39SDVpHJuzdDChPRerH0bFQOE5sudJCndQTaD4H8bms=')
-		|| constants.bTestnet && earlier_unit === 'N6Va5P0GgJorezFzwHiZ5HuF6p6HhZ29rx+eebAu0J0=' && arrLaterUnits.includes('mKwL1PTcWY783sHiCuDRcb6nojQAkwbeSL/z2a7uE6g=')
+		|| constants.bTestnet && ['XbS1+l33sIlcBQ//2/ZyPsRV7uhnwOPvvuQ5IzB+vC0=', 'TMTkvkXOL8CxnuDzw36xDWI6bO5PrhicGLBR3mwrAxE=', '7s8y/32r+3ew1jmunq1ZVyH+MQX9HUADZDHu3otia9U='].indexOf(earlier_unit) >= 0 && arrLaterUnits.indexOf('39SDVpHJuzdDChPRerH0bFQOE5sudJCndQTaD4H8bms=') >= 0
+		|| constants.bTestnet && earlier_unit === 'N6Va5P0GgJorezFzwHiZ5HuF6p6HhZ29rx+eebAu0J0=' && arrLaterUnits.indexOf('mKwL1PTcWY783sHiCuDRcb6nojQAkwbeSL/z2a7uE6g=') >= 0
 	)
 		return handleResult(true);
 	var start_time = Date.now();
 	storage.readPropsOfUnits(conn, earlier_unit, arrLaterUnits, function(objEarlierUnitProps, arrLaterUnitProps){
-		if (constants.bTestnet && objEarlierUnitProps.main_chain_index <= 1220148 && objEarlierUnitProps.is_on_main_chain && arrLaterUnits.includes('qwKGj0w8P/jscAyQxSOSx2sUZCRFq22hsE6bSiqgUyk='))
+		if (constants.bTestnet && objEarlierUnitProps.main_chain_index <= 1220148 && objEarlierUnitProps.is_on_main_chain && arrLaterUnits.indexOf('qwKGj0w8P/jscAyQxSOSx2sUZCRFq22hsE6bSiqgUyk=') >= 0)
 			return handleResult(true);
 		if (objEarlierUnitProps.is_free === 1 || objEarlierUnitProps.main_chain_index === null)
 			return handleResult(false);
