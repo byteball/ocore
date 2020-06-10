@@ -9,6 +9,7 @@ var ValidationUtils = require("./validation_utils.js");
 var formulaValidator = require('./formula/validation.js');
 var getFormula = require('./formula/common.js').getFormula;
 var hasCases = require('./formula/common.js').hasCases;
+var fixFormula = require('./formula/common.js').fixFormula;
 
 var hasFieldsExcept = ValidationUtils.hasFieldsExcept;
 var isStringOfLength = ValidationUtils.isStringOfLength;
@@ -513,7 +514,7 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 		if (typeof aa_opts.formula !== 'string' || !aa_opts.locals)
 			throw Error("bad opts in validateFormula: " + JSON.stringify(aa_opts));
 		var opts = {
-			formula: aa_opts.formula,
+			formula: fixFormula(aa_opts.formula, address),
 			complexity: complexity,
 			count_ops: count_ops,
 			bAA: true,
@@ -524,18 +525,6 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 			readGetterProps: readGetterProps,
 			mci: mci,
 		};
-		if (constants.bTestnet && opts.bStatementsOnly && (
-			mci === 1027249 && objectHash.getChash160(arrDefinition) === 'IUSWVQLBVRCXJ3W23JUQG5NNVJ3K4BJY'
-			|| mci === 1034656 && objectHash.getChash160(arrDefinition) === 'VACU4WDHOXCKXVEQ4K2XPBCZC2IA56LC'
-			|| mci === 1034817 && objectHash.getChash160(arrDefinition) === 'ZQ6WCTPB5LD7EDXSMNJSNUGSR7RN2AC4'
-			|| mci === 1035745 && objectHash.getChash160(arrDefinition) === '3OTPW4ISZW5DSBBL5EQJTNBBFM2OZGX4'
-			|| mci === 1056170 && objectHash.getChash160(arrDefinition) === '33RCDV6X3ABU6DCGLXIY3UZMGOWPX7SL'
-			|| mci === 1067319 && objectHash.getChash160(arrDefinition) === 'BSWZQ2YNCVGJEL7YZSL4RCFLIYUVNUTP'
-			|| mci === 1068103 && objectHash.getChash160(arrDefinition) === 'SLNCJI6SDRUGAHZ3POPCWBZQ6IE67DNI'
-			|| mci === 1068109 && objectHash.getChash160(arrDefinition) === 'XENBF353CYD6NEGKXNWRZSE34VKPIFFS'
-			|| mci === 1068178 && objectHash.getChash160(arrDefinition) === 'MCSSUWCHGTQUWGZKZZAHMUVBNPSTDX5C'
-		))
-			opts.formula = opts.formula.replace('elsevar', 'else var').replace('elseresponse', 'else response').replace('elsebounce', 'else bounce');
 	//	console.log('--- validateFormula', formula);
 		formulaValidator.validate(opts, function (result) {
 			if (typeof result.complexity !== 'number' || !isFinite(result.complexity))
@@ -707,6 +696,7 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 		return callback("AA definition must be 2-element array");
 	if (arrDefinition[0] !== 'autonomous agent')
 		return callback("not an AA");
+	var address = constants.bTestnet ? objectHash.getChash160(arrDefinition) : null;
 	var arrDefinitionCopy = _.cloneDeep(arrDefinition);
 	var template = arrDefinitionCopy[1];
 	if (template.base_aa) { // parameterized AA

@@ -28,6 +28,7 @@ var createDecimal = require('./common.js').createDecimal;
 var assignObject = require('./common.js').assignObject;
 var isValidValue = require('./common.js').isValidValue;
 var getFormula = require('./common.js').getFormula;
+var fixFormula = require('./common.js').fixFormula;
 
 var testnetStringToNumberInArithmeticUpgradeMci = 1151000;
 
@@ -52,7 +53,7 @@ function Func(args, body, scopeVarNames) {
 
 exports.evaluate = function (opts, callback) {
 	var conn = opts.conn;
-	var formula = opts.formula;
+	var formula = fixFormula(opts.formula, opts.address);
 	var messages = opts.messages || [];
 	var trigger = opts.trigger || {};
 	var aa_params = opts.params || {};

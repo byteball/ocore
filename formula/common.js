@@ -82,6 +82,13 @@ function hasCases(value) {
 	return (typeof value === 'object' && Object.keys(value).length === 1 && ValidationUtils.isNonemptyArray(value.cases));
 }
 
+function fixFormula(formula, address) {
+	if (constants.bTestnet && ['IUSWVQLBVRCXJ3W23JUQG5NNVJ3K4BJY', 'VACU4WDHOXCKXVEQ4K2XPBCZC2IA56LC', 'ZQ6WCTPB5LD7EDXSMNJSNUGSR7RN2AC4', '3OTPW4ISZW5DSBBL5EQJTNBBFM2OZGX4', '33RCDV6X3ABU6DCGLXIY3UZMGOWPX7SL', 'BSWZQ2YNCVGJEL7YZSL4RCFLIYUVNUTP', 'SLNCJI6SDRUGAHZ3POPCWBZQ6IE67DNI', 'XENBF353CYD6NEGKXNWRZSE34VKPIFFS', 'MCSSUWCHGTQUWGZKZZAHMUVBNPSTDX5C'].indexOf(address) >= 0)
+		return formula.replace('elsevar', 'else var').replace('elseresponse', 'else response').replace('elsebounce', 'else bounce');
+	else
+		return formula;
+}
+
 exports.cache = cache;
 exports.formulasInCache = formulasInCache;
 exports.cacheLimit = cacheLimit;
@@ -98,3 +105,5 @@ exports.assignObject = assignObject;
 
 exports.getFormula = getFormula;
 exports.hasCases = hasCases;
+
+exports.fixFormula = fixFormula;
