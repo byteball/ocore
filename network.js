@@ -2790,8 +2790,10 @@ function handleRequest(ws, tag, command, params){
 			storage.readJoint(db, unit, {
 				ifFound: function(objJoint){
 					// make the peer go a bit deeper into stable units and request catchup only when and if it reaches min retrievable and we can deliver a catchup
-					if (objJoint.ball && objJoint.unit.main_chain_index > storage.getMinRetrievableMci())
+					if (objJoint.ball && objJoint.unit.main_chain_index > storage.getMinRetrievableMci()) {
 						delete objJoint.ball;
+						delete objJoint.skiplist_units;
+					}
 					sendJoint(ws, objJoint, tag);
 				},
 				ifNotFound: function(){
