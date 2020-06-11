@@ -975,7 +975,7 @@ function forwardJoint(ws, objJoint){
 	});
 }
 
-function handleJoint(ws, objJoint, bSaved, callbacks){
+function handleJoint(ws, objJoint, bSaved, bPosted, callbacks){
 	if ('aa' in objJoint)
 		return callbacks.ifJointError("AA unit cannot be broadcast");
 	var unit = objJoint.unit.unit;
@@ -1038,6 +1038,15 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 				ifOk: function(objValidationState, validation_unlock){
 					if (objJoint.unsigned)
 						throw Error("ifOk() unsigned");
+					if (bPosted && objValidationState.sequence !== 'good') {
+						validation_unlock();
+						callbacks.ifUnitError("The transaction would be non-serial (a double spend)");
+						delete assocUnitsInWork[unit];
+						unlock();
+						if (ws)
+							writeEvent('nonserial', ws.host);
+						return;
+					}
 					writer.saveJoint(objJoint, objValidationState, null, function(){
 						validation_unlock();
 						callbacks.ifOk();
@@ -1089,7 +1098,7 @@ function handlePostedJoint(ws, objJoint, onDone){
 	var unit = objJoint.unit.unit;
 	delete objJoint.unit.main_chain_index;
 	
-	handleJoint(ws, objJoint, false, {
+	handleJoint(ws, objJoint, false, true, {
 		ifUnitInWork: function(){
 			onDone("already handling this unit");
 		},
@@ -1141,7 +1150,7 @@ function handleOnlineJoint(ws, objJoint, onDone){
 	var unit = objJoint.unit.unit;
 	delete objJoint.unit.main_chain_index;
 	
-	handleJoint(ws, objJoint, false, {
+	handleJoint(ws, objJoint, false, false, {
 		ifUnitInWork: onDone,
 		ifUnitError: function(error){
 			sendErrorResult(ws, unit, error);
@@ -1216,7 +1225,7 @@ function handleSavedJoint(objJoint, creation_ts, peer){
 	if (ws && ws.readyState !== ws.OPEN)
 		ws = null;
 
-	handleJoint(ws, objJoint, true, {
+	handleJoint(ws, objJoint, true, false, {
 		ifUnitInWork: function(){
 			setTimeout(function(){
 				handleSavedJoint(objJoint, creation_ts, peer);
