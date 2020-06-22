@@ -46,7 +46,7 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 			UNION \n\
 			SELECT 1 FROM unit_authors CROSS JOIN shared_addresses ON address=shared_address WHERE unit_authors.unit=outputs.unit \n\
 			UNION \n\
-			SELECT 1 FROM unit_authors WHERE unit_authors.unit=outputs.unit AND unit_authors.address IN(' + arrAddresses.map(db.escape).join(', ') + ')\n\
+			SELECT 1 FROM unit_authors WHERE unit_authors.unit=outputs.unit AND unit_authors.address IN(' + arrAddresses.map(conn.escape).join(', ') + ')\n\
 		) )';
 	else
 		throw Error("invalid spend_unconfirmed="+spend_unconfirmed);
