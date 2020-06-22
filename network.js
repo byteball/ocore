@@ -3119,6 +3119,8 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "amount is not valid");
 			if (params.amount > constants.MAX_CAP)
 				return sendErrorResponse(ws, tag, "amount is too large");
+			if (params.spend_unconfirmed && (params.spend_unconfirmed !== "own" && params.spend_unconfirmed !== "none" && params.spend_unconfirmed !== "all"))
+				return sendErrorResponse(ws, tag, "spend_unconfirmed is not valid");
 			var getAssetInfoOrNull = function(asset, cb){
 				if (!asset)
 					return cb(null, null);
@@ -3132,7 +3134,7 @@ function handleRequest(ws, tag, command, params){
 				if (err)
 					return sendErrorResponse(ws, tag, err);
 				var bMultiAuthored = (params.addresses.length > 1);
-				inputs.pickDivisibleCoinsForAmount(db, objAsset, params.addresses, params.last_ball_mci, params.amount, bMultiAuthored, 'own', function(arrInputsWithProofs, total_amount) {
+				inputs.pickDivisibleCoinsForAmount(db, objAsset, params.addresses, params.last_ball_mci, params.amount, bMultiAuthored, params.spend_unconfirmed || 'own', function(arrInputsWithProofs, total_amount) {
 					var objResponse = {inputs_with_proofs: arrInputsWithProofs || [], total_amount: total_amount || 0};
 					sendResponse(ws, tag, objResponse);
 				});
