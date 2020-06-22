@@ -7,6 +7,9 @@ if (typeof process === 'object' && typeof process.versions === 'object' && typeo
 	require('dotenv').config({path: appRootDir + '/.env'});
 }
 
+if (!Number.MAX_SAFE_INTEGER)
+	Number.MAX_SAFE_INTEGER = Math.pow(2, 53) - 1; // 9007199254740991
+
 exports.COUNT_WITNESSES = 12;
 exports.MAX_WITNESS_LIST_MUTATIONS = 1;
 exports.TOTAL_WHITEBYTES = 1e15;
@@ -67,7 +70,7 @@ exports.TEXTCOIN_PRIVATE_ASSET_CLAIM_MESSAGE_FEE = 99;
 exports.MIN_BYTES_BOUNCE_FEE = 10000;
 
 exports.minCoreVersion = exports.bTestnet ? '0.3.0' : '0.3.8';
-exports.minCoreVersionForFullNodes = exports.bTestnet ? '0.3.8' : '0.3.8';
+exports.minCoreVersionForFullNodes = exports.bTestnet ? '0.3.10' : '0.3.11';
 exports.minCoreVersionToSharePeers = exports.bTestnet ? '0.3.9' : '0.3.9';
 
 exports.lastBallStableInParentsUpgradeMci =  exports.bTestnet ? 0 : 1300000;
@@ -83,6 +86,8 @@ exports.formulaUpgradeMci = exports.bTestnet ? 961000 : 5210000;
 exports.witnessedLevelMustNotRetreatFromAllParentsUpgradeMci = exports.bTestnet ? 909000 : 5210000;
 exports.timestampUpgradeMci = exports.bTestnet ? 909000 : 5210000;
 exports.aaStorageSizeUpgradeMci = exports.bTestnet ? 1034000 : 5210000;
+exports.aa2UpgradeMci = exports.bTestnet ? 1358300 : 5494000;
+exports.unstableInitialDefinitionUpgradeMci = exports.bTestnet ? 1358300 : 5494000;
 
 
 if (process.env.devnet) {
@@ -110,4 +115,6 @@ if (process.env.devnet) {
 	exports.witnessedLevelMustNotRetreatFromAllParentsUpgradeMci = 0;
 	exports.timestampUpgradeMci = 0;
 	exports.aaStorageSizeUpgradeMci = 0;
+	exports.aa2UpgradeMci = 0;
+	exports.unstableInitialDefinitionUpgradeMci = 0;
 }

@@ -1,0 +1,151 @@
+{
+	/*
+	This is a 51% attack game.
+
+	Several teams are competing to collect at least 51% of all contributions. The contributors of the winning team will divide all collected funds amongst themselves, thus making up to 2x profit.
+	
+	Contributors receive shares of their team in exchange for Bytes. Shares can be freely traded.
+	
+	As soon as any team reaches 51%, it stops accepting new contributions and a 1-day challenging period starts.  During the challenging period, other teams continue collecting contributions and if any of them reaches 51%, the challenging period restarts with the new candidate winner.
+
+	If the challenging period expires without change of candidate winner, the candidate winner team becomes the winner.  Contributors of the winner team can exchange their shares back to Bytes (with a profit).  The winnings are distributed in proportion to the contributions, minus the founder tax.
+
+	Anyone can create a new team.  The team founder can set a tax: a % that all his followers will pay to him if his team wins.
+
+	While trying to challenge the candidate winner, the contender teams can use fundraising proxy AA which makes sure that the raised funds will be sent to the game only if 51% is actually attained, otherwise the funds can be safely refunded.
+	*/
+	
+	init: `{
+		$team_creation_fee = 5000;
+		$challenging_period = 24*3600;
+		$bFinished = var['finished'];
+	}`,
+	messages: {
+		cases: [
+			{ // create a new team; any excess amount is sent back
+				if: `{trigger.data.create_team AND !$bFinished}`,
+				init: `{
+					if (var['team_' || trigger.address || '_amount'])
+						bounce('you already have a team');
+					if (trigger.output[[asset=base]] < $team_creation_fee)
+						bounce('not enough to pay for team creation');
+				}`,
+				messages: [
+					{
+						app: 'asset',
+						payload: {
+							is_private: false,
+							is_transferrable: true,
+							auto_destroy: false,
+							fixed_denominations: false,
+							issued_by_definer_only: true,
+							cosigned_by_definer: false,
+							spender_attested: false
+						}
+					},
+					{
+						app: 'payment',
+						if: `{trigger.output[[asset=base]] > $team_creation_fee}`,
+						payload: {
+							asset: 'base',
+							outputs: [
+								{address: "{trigger.address}", amount: "{trigger.output[[asset=base]] - $team_creation_fee}"}
+							]
+						}
+					},
+					{
+						app: 'state',
+						state: `{
+							var['team_' || trigger.address || '_founder_tax'] = trigger.data.founder_tax otherwise 0;
+							var['team_' || trigger.address || '_asset'] = response_unit;
+							response['team_asset'] = response_unit;
+						}`
+					}
+				]
+			},
+			{ // contribute to a team
+				if: `{trigger.data.team AND !$bFinished}`,
+				init: `{
+					if (!var['team_' || trigger.data.team || '_asset'])
+						bounce('no such team');
+					if (var['winner'] AND var['winner'] == trigger.data.team)
+						bounce('contributions to candidate winner team are not allowed');
+				}`,
+				messages: [
+					{
+						app: 'payment',
+						payload: {
+							asset: `{var['team_' || trigger.data.team || '_asset']}`,
+							outputs: [
+								{address: "{trigger.address}", amount: "{trigger.output[[asset=base]]}"}
+							]
+						}
+					},
+					{
+						app: 'state',
+						state: `{
+							var['team_' || trigger.data.team || '_amount'] += trigger.output[[asset=base]];
+							if (var['team_' || trigger.data.team || '_amount'] > balance[base]*0.51){
+								var['winner'] = trigger.data.team;
+								var['challenging_period_start_ts'] = timestamp;
+							}
+						}`
+					}
+				]
+			},
+			{ // finish the challenging period and set the winner
+				if: `{trigger.data.finish AND !$bFinished}`,
+				init: `{
+					if (!var['winner'])
+						bounce('no candidate winner yet');
+					if (timestamp < var['challenging_period_start_ts'] + $challenging_period)
+						bounce('challenging period not expired yet');
+				}`,
+				messages: [
+					{
+						app: 'state',
+						state: `{
+							var['finished'] = 1;
+							var['total'] = balance[base];
+							var['challenging_period_start_ts'] = false;
+							response['winner'] = var['winner'];
+						}`
+					}
+				]
+			},
+			{ // pay out the winnings
+				if: `{
+					if (!$bFinished)
+						return false;
+					$winner = var['winner'];
+					$winner_asset = var['team_' || $winner || '_asset'];
+					$asset_amount = trigger.output[[asset=$winner_asset]];
+					$asset_amount > 0
+				}`,
+				init: `{
+					$share = $asset_amount / var['team_' || $winner || '_amount'];
+					$founder_tax = var['team_' || $winner || '_founder_tax'];
+					$amount = round(( $share * (1-$founder_tax) + (trigger.address == $winner AND !var['founder_tax_paid'] ? $founder_tax : 0) ) * var['total']);
+				}`,
+				messages: [
+					{
+						app: 'payment',
+						payload: {
+							asset: "base",
+							outputs: [
+								{address: "{trigger.address}", amount: "{$amount}"}
+							]
+						}
+					},
+					{
+						app: 'state',
+						state: `{
+							if (trigger.address == $winner)
+								var['founder_tax_paid'] = 1;
+						}`
+					}
+				]
+			}
+		]
+	}
+}

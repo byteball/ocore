@@ -14,7 +14,7 @@ const lexer = moo.states({
 		formulaDoubleStart: { match: '"{', push: 'formulaDouble' },
 		formulaSingleStart: { match: "'{", push: 'formulaSingle' },
 		formulaBackStart: { match: '`{', push: 'formulaBack' },
-		decimal: /(?:[+-])?(?:[0-9]*[.])?[0-9]+/,
+		decimal: /(?:[+-])?(?:[0-9]|[1-9][0-9]+)(?:\.[0-9]+)?(?:[eE][-+]?[0-9]+)?\b/,
 		word: {
 			match: /[a-zA-Z0-9_]+/,
 			type: moo.keywords({
@@ -143,7 +143,7 @@ const falseP = (d) => ({
 
 const commaOptionalSingle = (d) => d[0]
 const commaOptionalMany = (d) => {
-	let array = d[1].map(e => e[1][0])
+	var array = d[1].map(e => e[1][0])
 	array.unshift(d[0][0])
 	return array
 }

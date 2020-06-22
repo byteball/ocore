@@ -335,8 +335,8 @@ function checkDuplicate(conn, objUnit, cb){
 		if (rows.length === 0) 
 			return cb();
 		var row = rows[0];
-		if (row.sequence === 'final-bad' && row.main_chain_index !== null && row.main_chain_index < storage.getMinRetrievableMci() && objUnit.messages && !objUnit.content_hash) // already stripped locally but received a full version
-			return cb();
+	//	if (row.sequence === 'final-bad' && row.main_chain_index !== null && row.main_chain_index < storage.getMinRetrievableMci() && objUnit.messages && !objUnit.content_hash) // already stripped locally but received a full version
+	//		return cb();
 		cb(createTransientError("unit "+unit+" already exists"));
 	});
 }
@@ -799,6 +799,7 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 	}
 	
 	var bNonserial = false;
+	var bInitialDefinition = false;
 
 	if (objValidationState.bAA) {
 		storage.readAADefinition(conn, objAuthor.address, function (arrDefinition) {
@@ -826,10 +827,15 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 		// we check signatures using the latest address definition before last ball
 		storage.readDefinitionByAddress(conn, objAuthor.address, objValidationState.last_ball_mci, {
 			ifDefinitionNotFound: function(definition_chash){
-				storage.readAADefinition(conn, objAuthor.address, function (arrDefinition) {
-					if (arrDefinition)
+				storage.readAADefinition(conn, objAuthor.address, function (arrAADefinition) {
+					if (arrAADefinition)
 						return callback(createTransientError("will not validate unit signed by AA"));
-					callback("definition "+definition_chash+" bound to address "+objAuthor.address+" is not defined");
+					findUnstableInitialDefinition(definition_chash, function (arrDefinition) {
+						if (!arrDefinition)
+							return callback("definition " + definition_chash + " bound to address " + objAuthor.address + " is not defined");
+						bInitialDefinition = true;
+						validateAuthentifiers(arrDefinition);
+					});
 				});
 			},
 			ifFound: function(arrAddressDefinition){
@@ -840,6 +846,35 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 	else
 		return callback("bad type of definition");
 	
+	function findUnstableInitialDefinition(definition_chash, handleUnstableInitialDefinition) {
+		if (objValidationState.last_ball_mci < constants.unstableInitialDefinitionUpgradeMci || definition_chash !== objAuthor.address)
+			return handleUnstableInitialDefinition(null);
+		conn.query("SELECT definition, main_chain_index, unit \n\
+			FROM definitions \n\
+			CROSS JOIN unit_authors USING(definition_chash) \n\
+			CROSS JOIN units USING(unit) \n\
+			WHERE definition_chash=?",
+			[definition_chash],
+			function (rows) {
+				if (rows.length === 0)
+					return handleUnstableInitialDefinition(null);
+				if (rows.some(function (row) { return row.main_chain_index !== null && row.main_chain_index <= objValidationState.last_ball_mci })) // some are stable, maybe we returned to the initial definition
+					return handleUnstableInitialDefinition(null);
+				async.eachSeries(
+					rows,
+					function (row, cb) {
+						graph.determineIfIncludedOrEqual(conn, row.unit, objUnit.parent_units, function (bIncluded) {
+							console.log("unstable definition of " + definition_chash + " found in " + row.unit + ", included? " + bIncluded);
+							bIncluded ? cb(JSON.parse(row.definition)) : cb();
+						});
+					},
+					function (arrDefinition) {
+						handleUnstableInitialDefinition(arrDefinition);
+					}
+				)
+			}
+		);
+	}
 	
 	function validateAuthentifiers(arrAddressDefinition){
 		Definition.validateAuthentifiers(
@@ -977,6 +1012,8 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 	function checkNoPendingDefinition(){
 		//var next = checkNoPendingOrRetrievableNonserialIncluded;
 		var next = validateDefinition;
+		if (bInitialDefinition)
+			return next();
 		//var filter = bNonserial ? "AND sequence='good'" : "";
 	//	var cross = (objValidationState.max_known_mci - objValidationState.last_ball_mci < 1000) ? 'CROSS' : '';
 		conn.query( // _left_ join forces use of indexes in units
@@ -1329,7 +1366,10 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 			}
 			if (constants.bTestnet && ['BD7RTYgniYtyCX0t/a/mmAAZEiK/ZhTvInCMCPG5B1k=', 'EHEkkpiLVTkBHkn8NhzZG/o4IphnrmhRGxp4uQdEkco=', 'bx8VlbNQm2WA2ruIhx04zMrlpQq3EChK6o3k5OXJ130=', '08t8w/xuHcsKlMpPWajzzadmMGv+S4AoeV/QL1F3kBM='].indexOf(objUnit.unit) >= 0)
 				return callback();
-			aa_validation.validateAADefinition(payload.definition, function (err) {
+			var readGetterProps = function (aa_address, func_name, cb) {
+				storage.readAAGetterProps(conn, aa_address, func_name, cb);
+			};
+			aa_validation.validateAADefinition(payload.definition, readGetterProps, objValidationState.last_ball_mci, function (err) {
 				if (err)
 					return callback(err);
 				var template = payload.definition[1];
@@ -1575,6 +1615,8 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 			return callback("unknown fields in payment output");
 		if (!isPositiveInteger(output.amount))
 			return callback("amount must be positive integer, found "+output.amount);
+		if (output.amount > constants.MAX_CAP)
+			return callback("output too large: " + output.amount);
 		if (objAsset && objAsset.fixed_denominations && output.amount % denomination !== 0)
 			return callback("output amount must be divisible by denomination");
 		if (objAsset && objAsset.is_private){
@@ -1610,6 +1652,8 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 		if (output.address && arrOutputAddresses.indexOf(output.address) === -1)
 			arrOutputAddresses.push(output.address);
 		total_output += output.amount;
+		if (total_output > constants.MAX_CAP)
+			return callback("total output too large: " + total_output);
 	}
 	if (objAsset && objAsset.is_private && count_open_outputs !== 1)
 		return callback("found "+count_open_outputs+" open outputs, expected 1");
@@ -1726,6 +1770,8 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 						return cb("unknown fields in issue input");
 					if (!isPositiveInteger(input.amount))
 						return cb("amount must be positive");
+					if (input.amount > constants.MAX_CAP)
+						return cb("issue ampunt too large: " + input.amount)
 					if (!isPositiveInteger(input.serial_number))
 						return cb("serial_number must be positive");
 					if (!objAsset || objAsset.cap){
@@ -1871,7 +1917,8 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 							}
 							if (!src_output.address) {
 								if (src_output.sequence === 'final-bad' && src_output.main_chain_index < storage.getMinRetrievableMci()) // already stripped, request full content
-									return cb({error_code: "unresolved_dependency", arrMissingUnits: [input.unit], dontsave: true});
+								//	return cb({error_code: "unresolved_dependency", arrMissingUnits: [input.unit], dontsave: true});
+									return cb("output being spent " + input.unit + " is final-bad");
 								return cb("output being spent " + input.unit + " not found");
 							}
 							if (typeof src_output.amount !== 'number')
@@ -2009,6 +2056,8 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 			console.log("inputs done "+payload.asset, arrInputAddresses, arrOutputAddresses);
 			if (err)
 				return callback(err);
+			if (total_input > constants.MAX_CAP)
+				return callback("total input too large: " + total_input);
 			if (objAsset){
 				if (total_input !== total_output)
 					return callback("inputs and outputs do not balance: "+total_input+" !== "+total_output);

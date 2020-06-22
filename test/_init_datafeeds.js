@@ -1,5 +1,6 @@
 var shell = require('child_process').execSync;
 var test = require('ava');
+var constants = require("../constants.js");
 var kvstore = require("../kvstore");
 var string_utils = require("../string_utils");
 var db = require("../db");
@@ -13,8 +14,9 @@ async function insertDataFeed(address, feed_name, value, mci, unit){
 		var strValue = null;
 		var numValue = null;
 		if (typeof value === 'string'){
+			var bLimitedPrecision = (mci < constants.aa2UpgradeMci);
 			strValue = value;
-			var float = string_utils.getNumericFeedValue(value);
+			var float = string_utils.toNumber(value, bLimitedPrecision);
 			if (float !== null)
 				numValue = string_utils.encodeDoubleInLexicograpicOrder(float);
 		}
@@ -30,8 +32,19 @@ async function insertDataFeed(address, feed_name, value, mci, unit){
 
 async function insertStateVar(address, var_name, value){
 	return new Promise(function(resolve) {
-		kvstore.put('st\n'+address+'\n'+var_name, value, resolve);
+		kvstore.put('st\n'+address+'\n'+var_name, getTypeAndValue(value), resolve);
 	});
+}
+
+function getTypeAndValue(value) {
+	if (typeof value === 'string')
+		return 's\n' + value;
+	else if (typeof value === 'number')
+		return 'n\n' + value.toString();
+	else if (typeof value === 'object')
+		return 'j\n' + string_utils.getJsonSourceString(value, true);
+	else
+		throw Error("state var of unknown type: " + value);	
 }
 
 async function insertJoint(unit, value){
@@ -51,6 +64,8 @@ test.before(async t => {
 	await insertStateVar('MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', 'points', 1.2345);
 	await insertStateVar('MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', 'player_name', 'John');
 	await insertStateVar('I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT', 'temperature', '18.5');
+	await insertStateVar('I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT', 'price', 0.000678901234567);
+	await insertStateVar('I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT', 'structured', [5, {s: 8, w: 'cc'}]);
 
 	await db.query("INSERT "+db.getIgnore()+" INTO addresses (address) VALUES ('MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'), ('I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT')");
 	
@@ -104,14 +119,17 @@ test.before(async t => {
 });
 
 test.after.always.cb(t => {
-	console.log('===== after' + app_data_dir);
+	console.log('===== after ' + app_data_dir);
 	kvstore.close(() => {
-		rocksdb.destroy(path, function(err){
-			console.log('db destroy result: '+(err || 'ok'));
-			db.close(() => {
-				// shell('rm -r ' + app_data_dir); // was throwing errors on Windows, now old data gets deleted before each run
-				t.end();
+		console.log("kvstore closed");
+		setTimeout(() => {
+			rocksdb.destroy(path, function(err){
+				console.log('db destroy result: '+(err || 'ok'));
+				db.close(() => {
+					// shell('rm -r ' + app_data_dir); // was throwing errors on Windows, now old data gets deleted before each run
+					t.end();
+				});
 			});
-		});
+		}, 100);
 	});
 });

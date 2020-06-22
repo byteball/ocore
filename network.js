@@ -26,6 +26,7 @@ var inputs = require('./inputs.js');
 var breadcrumbs = require('./breadcrumbs.js');
 var mail = require('./mail.js');
 var aa_composer = require('./aa_composer.js');
+var formulaEvaluation = require('./formula/evaluation.js');
 var dataFeeds = require('./data_feeds.js');
 var libraryPackageJson = require('./package.json');
 
@@ -974,7 +975,7 @@ function forwardJoint(ws, objJoint){
 	});
 }
 
-function handleJoint(ws, objJoint, bSaved, callbacks){
+function handleJoint(ws, objJoint, bSaved, bPosted, callbacks){
 	if ('aa' in objJoint)
 		return callbacks.ifJointError("AA unit cannot be broadcast");
 	var unit = objJoint.unit.unit;
@@ -1037,6 +1038,15 @@ function handleJoint(ws, objJoint, bSaved, callbacks){
 				ifOk: function(objValidationState, validation_unlock){
 					if (objJoint.unsigned)
 						throw Error("ifOk() unsigned");
+					if (bPosted && objValidationState.sequence !== 'good') {
+						validation_unlock();
+						callbacks.ifUnitError("The transaction would be non-serial (a double spend)");
+						delete assocUnitsInWork[unit];
+						unlock();
+						if (ws)
+							writeEvent('nonserial', ws.host);
+						return;
+					}
 					writer.saveJoint(objJoint, objValidationState, null, function(){
 						validation_unlock();
 						callbacks.ifOk();
@@ -1088,7 +1098,7 @@ function handlePostedJoint(ws, objJoint, onDone){
 	var unit = objJoint.unit.unit;
 	delete objJoint.unit.main_chain_index;
 	
-	handleJoint(ws, objJoint, false, {
+	handleJoint(ws, objJoint, false, true, {
 		ifUnitInWork: function(){
 			onDone("already handling this unit");
 		},
@@ -1140,7 +1150,7 @@ function handleOnlineJoint(ws, objJoint, onDone){
 	var unit = objJoint.unit.unit;
 	delete objJoint.unit.main_chain_index;
 	
-	handleJoint(ws, objJoint, false, {
+	handleJoint(ws, objJoint, false, false, {
 		ifUnitInWork: onDone,
 		ifUnitError: function(error){
 			sendErrorResult(ws, unit, error);
@@ -1215,7 +1225,7 @@ function handleSavedJoint(objJoint, creation_ts, peer){
 	if (ws && ws.readyState !== ws.OPEN)
 		ws = null;
 
-	handleJoint(ws, objJoint, true, {
+	handleJoint(ws, objJoint, true, false, {
 		ifUnitInWork: function(){
 			setTimeout(function(){
 				handleSavedJoint(objJoint, creation_ts, peer);
@@ -1631,7 +1641,7 @@ eventBus.on('aa_definition_saved', function (payload, unit) {
 			return;
 		storage.readJoint(db, unit, {
 			ifNotFound: function () {
-				throw Error('recently saved unit ' + unit + ' not found');
+				console.log('recently saved unit ' + unit + ' not found');
 			},
 			ifFound: function (objJoint) {
 				arrWses.forEach(function (ws) {
@@ -2389,7 +2399,8 @@ function handleJustsaying(ws, subject, body){
 				return;
 			var arrParts = body.exception.toString().split("Breadcrumbs", 2);
 			var text = body.message + ' ' + arrParts[0];
-			var hash = crypto.createHash("sha256").update(text, "utf8").digest("base64");
+			var matches = body.message.match(/message encrypted to unknown key, device (0\w{32})/);
+			var hash = matches ? matches[1] : crypto.createHash("sha256").update(text, "utf8").digest("base64");
 			if (hash === prev_bugreport_hash)
 				return console.log("ignoring known bug report");
 			prev_bugreport_hash = hash;
@@ -2449,8 +2460,11 @@ function handleJustsaying(ws, subject, body){
 			if (ws.bAdvertisedOwnUrl) // allow it only once per connection
 				break;
 			ws.bAdvertisedOwnUrl = true;
-			if (url.indexOf('ws://') !== 0 && url.indexOf('wss://') !== 0) // invalid url
+			var regexp = (conf.WS_PROTOCOL === 'wss://') ? /^wss:\/\// : /^wss?:\/\//;
+			if (!url.match(regexp)) {
+				console.log("ignoring peer's my_url " + url + " because of incompatible ws protocol");
 				break;
+			}
 			ws.claimed_url = url;
 			db.query("SELECT creation_date AS latest_url_change_date, url FROM peer_host_urls WHERE peer_host=? ORDER BY creation_date DESC LIMIT 1", [ws.host], function(rows){
 				var latest_change = rows[0];
@@ -2543,7 +2557,8 @@ function handleJustsaying(ws, subject, body){
 						finishLogin();
 					});
 				else {
-					sendStoredDeviceMessages(ws, ws.device_address);
+					if (!ws.blockChat)
+						sendStoredDeviceMessages(ws, ws.device_address);
 					finishLogin();
 				}
 			});
@@ -2614,6 +2629,7 @@ function handleJustsaying(ws, subject, body){
 		case 'light/aa_request':
 		case 'light/aa_definition':
 		case 'light/aa_response':
+		case 'light/aa_definition_saved':
 			if (!conf.bLight)
 				return sendError(ws, "I'm not light");
 			if (!ws.bLightVendor)
@@ -2717,6 +2733,12 @@ function handleRequest(ws, tag, command, params){
 	if (ws.assocInPreparingResponse[tag]) // ignore repeated request while still preparing response to a previous identical request
 		return console.log("ignoring identical "+command+" request");
 	ws.assocInPreparingResponse[tag] = true;
+	if (command.startsWith('light/')) {
+		if (conf.bLight)
+			return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
+		if (ws.bOutbound)
+			return sendErrorResponse(ws, tag, "light clients have to be inbound");
+	}
 	switch (command){
 		case 'heartbeat':
 			ws.bSleeping = false; // the peer is sending heartbeats, therefore he is awake
@@ -2776,6 +2798,11 @@ function handleRequest(ws, tag, command, params){
 			var unit = params;
 			storage.readJoint(db, unit, {
 				ifFound: function(objJoint){
+					// make the peer go a bit deeper into stable units and request catchup only when and if it reaches min retrievable and we can deliver a catchup
+					if (objJoint.ball && objJoint.unit.main_chain_index > storage.getMinRetrievableMci()) {
+						delete objJoint.ball;
+						delete objJoint.skiplist_units;
+					}
 					sendJoint(ws, objJoint, tag);
 				},
 				ifNotFound: function(){
@@ -2888,7 +2915,7 @@ function handleRequest(ws, tag, command, params){
 					function(){
 						// if the addressee is connected, deliver immediately
 						wss.clients.concat(arrOutboundPeers).forEach(function(client){
-							if (client.device_address === objDeviceMessage.to && (!client.max_message_length || message_string.length <= client.max_message_length) && !ws.blockChat) {
+							if (client.device_address === objDeviceMessage.to && (!client.max_message_length || message_string.length <= client.max_message_length) && !client.blockChat) {
 								sendJustsaying(client, 'hub/message', {
 									message_hash: message_hash,
 									message: objDeviceMessage
@@ -2959,10 +2986,6 @@ function handleRequest(ws, tag, command, params){
 			break;
 			
 		case 'light/get_history':
-			if (conf.bLight)
-				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
-			if (ws.bOutbound)
-				return sendErrorResponse(ws, tag, "light clients have to be inbound");
 			mutex.lock(['get_history_request'], function(unlock){
 				if (!ws || ws.readyState !== ws.OPEN) // may be already gone when we receive the lock
 					return process.nextTick(unlock);
@@ -3001,10 +3024,6 @@ function handleRequest(ws, tag, command, params){
 			break;
 			
 		case 'light/get_link_proofs':
-			if (conf.bLight)
-				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
-			if (ws.bOutbound)
-				return sendErrorResponse(ws, tag, "light clients have to be inbound");
 			mutex.lock(['get_link_proofs_request'], function(unlock){
 				if (!ws || ws.readyState !== ws.OPEN) // may be already gone when we receive the lock
 					return process.nextTick(unlock);
@@ -3022,10 +3041,6 @@ function handleRequest(ws, tag, command, params){
 			break;
 			
 		case 'light/get_parents_and_last_ball_and_witness_list_unit':
-			if (conf.bLight)
-				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
-			if (ws.bOutbound)
-				return sendErrorResponse(ws, tag, "light clients have to be inbound");
 			if (!params)
 				return sendErrorResponse(ws, tag, "no params in get_parents_and_last_ball_and_witness_list_unit");
 			var callbacks = {
@@ -3046,10 +3061,6 @@ function handleRequest(ws, tag, command, params){
 
 	   case 'light/get_attestation':
 			// find an attestation posted by the given attestor and attesting field=value
-			if (conf.bLight)
-				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
-			if (ws.bOutbound)
-				return sendErrorResponse(ws, tag, "light clients have to be inbound");
 			if (!params)
 				return sendErrorResponse(ws, tag, "no params in light/get_attestation");
 			if (!params.attestor_address || !params.field || !params.value)
@@ -3068,10 +3079,6 @@ function handleRequest(ws, tag, command, params){
 
 	   case 'light/get_attestations':
 			// get list of all attestations of an address
-			if (conf.bLight)
-				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
-			if (ws.bOutbound)
-				return sendErrorResponse(ws, tag, "light clients have to be inbound");
 			if (!params)
 				return sendErrorResponse(ws, tag, "no params in light/get_attestations");
 			if (!ValidationUtils.isValidAddress(params.address))
@@ -3096,10 +3103,6 @@ function handleRequest(ws, tag, command, params){
 			break;
 
 		case 'light/pick_divisible_coins_for_amount':
-			if (conf.bLight)
-				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
-			if (ws.bOutbound)
-				return sendErrorResponse(ws, tag, "light clients have to be inbound");
 			if (!params)
 				return sendErrorResponse(ws, tag, "no params in light/pick_divisible_coins_for_amount");
 			if (!params.addresses || !params.last_ball_mci || !params.amount)
@@ -3137,10 +3140,6 @@ function handleRequest(ws, tag, command, params){
 			break;
 
 		case 'light/get_definition_chash':
-			if (conf.bLight)
-				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
-			if (ws.bOutbound)
-				return sendErrorResponse(ws, tag, "light clients have to be inbound");
 			if (!params)
 				return sendErrorResponse(ws, tag, "no params in light/get_definition_chash");
 			if (!ValidationUtils.isValidAddress(params.address))
@@ -3153,10 +3152,6 @@ function handleRequest(ws, tag, command, params){
 			break;
 		
 		case 'light/get_definition':
-			if (conf.bLight)
-				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
-			if (ws.bOutbound)
-				return sendErrorResponse(ws, tag, "light clients have to be inbound");
 			if (!params)
 				return sendErrorResponse(ws, tag, "no params in light/get_definition");
 			if (!ValidationUtils.isValidAddress(params))
@@ -3170,10 +3165,6 @@ function handleRequest(ws, tag, command, params){
 			break;
 
 		case 'light/get_definition_for_address':
-			if (conf.bLight)
-				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
-			if (ws.bOutbound)
-				return sendErrorResponse(ws, tag, "light clients have to be inbound");
 			if (!params)
 				return sendErrorResponse(ws, tag, "no params in light/get_definition_for_address");
 			if (!ValidationUtils.isValidAddress(params.address))
@@ -3208,10 +3199,6 @@ function handleRequest(ws, tag, command, params){
 
 		case 'light/get_balances':
 			var addresses = params;
-			if (conf.bLight)
-				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
-			if (ws.bOutbound)
-				return sendErrorResponse(ws, tag, "light clients have to be inbound");
 			if (!addresses)
 				return sendErrorResponse(ws, tag, "no params in light/get_balances");
 			if (!ValidationUtils.isNonemptyArray(addresses))
@@ -3241,10 +3228,6 @@ function handleRequest(ws, tag, command, params){
 
 		case 'light/get_profile_units':
 			var addresses = params;
-			if (conf.bLight)
-				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
-			if (ws.bOutbound)
-				return sendErrorResponse(ws, tag, "light clients have to be inbound");
 			if (!addresses)
 				return sendErrorResponse(ws, tag, "no params in light/get_profiles_units");
 			if (!ValidationUtils.isNonemptyArray(addresses))
@@ -3264,10 +3247,6 @@ function handleRequest(ws, tag, command, params){
 			break;
 
 		case 'light/get_data_feed':
-			if (conf.bLight)
-				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
-			if (ws.bOutbound)
-				return sendErrorResponse(ws, tag, "light clients have to be inbound");
 			if (!params)
 				return sendErrorResponse(ws, tag, "no params in light/get_data_feed");
 			dataFeeds.readDataFeedValueByParams(params, 1e15, true, function (err, value) {
@@ -3278,10 +3257,6 @@ function handleRequest(ws, tag, command, params){
 			break;
 
 		case 'light/dry_run_aa':
-			if (conf.bLight)
-				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
-			if (ws.bOutbound)
-				return sendErrorResponse(ws, tag, "light clients have to be inbound");
 			if (!params)
 				return sendErrorResponse(ws, tag, "no params in light/dry_run_aa");
 			if (!ValidationUtils.isValidAddress(params.address))
@@ -3306,10 +3281,6 @@ function handleRequest(ws, tag, command, params){
 			break;
 
 		case 'light/get_aa_state_vars':
-			if (conf.bLight)
-				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
-			if (ws.bOutbound)
-				return sendErrorResponse(ws, tag, "light clients have to be inbound");
 			if (!params)
 				return sendErrorResponse(ws, tag, "no params in light/get_aa_state_vars");
 			if (!ValidationUtils.isValidAddress(params.address))
@@ -3339,11 +3310,23 @@ function handleRequest(ws, tag, command, params){
 			});
 			break;
 			
+		case 'light/execute_getter':
+			if (!params)
+				return sendErrorResponse(ws, tag, "no params in light/execute_getter");
+			if (!ValidationUtils.isValidAddress(params.address))
+				return sendErrorResponse(ws, tag, "address not valid");
+			if (!ValidationUtils.isNonemptyString(params.getter))
+				return sendErrorResponse(ws, tag, "no getter");
+			if ('args' in params && !Array.isArray(params.args))
+				return sendErrorResponse(ws, tag, "args must be array");
+			formulaEvaluation.executeGetter(db, params.address, params.getter, params.args || [], function (err, res) {
+				if (err)
+					return sendErrorResponse(ws, tag, err);
+				sendResponse(ws, tag, { result: res });
+			});
+			break;
+			
 		case 'light/get_aas_by_base_aas':
-			if (conf.bLight)
-				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
-			if (ws.bOutbound)
-				return sendErrorResponse(ws, tag, "light clients have to be inbound");
 			if (!params)
 				return sendErrorResponse(ws, tag, "no params in light/get_aas_by_base_aas");
 			var base_aas = params.base_aas || [params.base_aa];
@@ -3383,10 +3366,6 @@ function handleRequest(ws, tag, command, params){
 			break;
 			
 		case 'light/get_aa_responses':
-			if (conf.bLight)
-				return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
-			if (ws.bOutbound)
-				return sendErrorResponse(ws, tag, "light clients have to be inbound");
 			if (!params)
 				return sendErrorResponse(ws, tag, "no params in light/get_aa_responses");
 			var aas = params.aas || [params.aa];

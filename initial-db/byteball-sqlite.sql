@@ -821,6 +821,7 @@ CREATE TABLE aa_addresses (
 	base_aa CHAR(32) NULL,
 	storage_size INT NOT NULL DEFAULT 0,
 	definition TEXT NOT NULL,
+	getters TEXT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT aaAddressesByBaseAA FOREIGN KEY (base_aa) REFERENCES aa_addresses(address)
 );
@@ -879,4 +880,4 @@ CREATE TABLE watched_light_aas (
 CREATE INDEX wlaabyAA ON watched_light_aas(aa);
 
 
-PRAGMA user_version=38;
+PRAGMA user_version=40;

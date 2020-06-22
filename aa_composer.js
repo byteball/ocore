@@ -4,19 +4,24 @@ var Decimal = require('decimal.js');
 var _ = require('lodash');
 var async = require('async');
 var constants = require('./constants.js');
+var string_utils = require("./string_utils.js");
 var storage = require('./storage.js');
 var db = require('./db.js');
 var ValidationUtils = require("./validation_utils.js");
 var objectLength = require("./object_length.js");
 var objectHash = require("./object_hash.js");
-var aa_validation = require("./aa_validation.js");
 var validation = require("./validation.js");
-var formulaParser = require('./formula/index');
+var formulaParser = require('./formula/evaluation.js');
 var kvstore = require('./kvstore.js');
 var eventBus = require('./event_bus.js');
 var mutex = require('./mutex.js');
 var writer = require('./writer.js');
 var conf = require('./conf.js');
+
+var getFormula = require('./formula/common.js').getFormula;
+var hasCases = require('./formula/common.js').hasCases;
+var wrappedObject = formulaParser.wrappedObject;
+var toJsType = formulaParser.toJsType;
 
 var isNonnegativeInteger = ValidationUtils.isNonnegativeInteger;
 var isNonemptyArray = ValidationUtils.isNonemptyArray;
@@ -361,6 +366,33 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 		async.series(arrQueries, cb);
 	}
 	
+	function evaluateAA(arrDefinition, cb) {
+		var locals = {};
+		var f = getFormula(arrDefinition[1].getters);
+		if (f === null) // no getters
+			return replace(arrDefinition, 1, '', locals, cb);
+		// evaluate getters before everything else as they can define a few functions
+		delete arrDefinition[1].getters;
+		var opts = {
+			conn: conn,
+			formula: f,
+			trigger: trigger,
+			params: params,
+			locals: locals,
+			stateVars: stateVars,
+			responseVars: responseVars,
+			bStatementsOnly: true,
+			bGetters: true,
+			objValidationState: objValidationState,
+			address: address
+		};
+		formulaParser.evaluate(opts, function (err, res) {
+			if (res === null)
+				return cb(err.bounce_message || "formula " + f + " failed: " + err);
+			replace(arrDefinition, 1, '', locals, cb);
+		});
+	}
+
 	// note that app=definition is also replaced using the current trigger and vars, its code has to generate "{}"-formulas in order to be dynamic
 	function replace(obj, name, path, locals, cb) {
 		count++;
@@ -369,7 +401,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 		locals = _.clone(locals);
 		var value = obj[name];
 		if (typeof name === 'string') {
-			var f = aa_validation.getFormula(name);
+			var f = getFormula(name);
 			if (f !== null) {
 				var opts = {
 					conn: conn,
@@ -392,7 +424,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 						return cb("result of formula " + name + " is not a string: " + res);
 					if (obj.hasOwnProperty(res))
 						return cb("duplicate key " + res + " calculated from " + name);
-					if (aa_validation.getFormula(res) !== null)
+					if (getFormula(res) !== null)
 						return cb("calculated value of " + name + " looks like a formula again: " + res);
 					obj[res] = value;
 					replace(obj, res, path, locals, cb);
@@ -402,7 +434,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 		if (typeof value === 'number' || typeof value === 'boolean')
 			return cb();
 		if (typeof value === 'string') {
-			var f = aa_validation.getFormula(value);
+			var f = getFormula(value);
 			if (f === null)
 				return cb();
 		//	console.log('path', path, 'name', name, 'f', f);
@@ -440,7 +472,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 				cb();
 			});
 		}
-		else if (aa_validation.hasCases(value)) {
+		else if (hasCases(value)) {
 			var thecase;
 			async.eachSeries(
 				value.cases,
@@ -449,7 +481,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 						thecase = acase;
 						return cb2('done');
 					}
-					var f = aa_validation.getFormula(acase.if);
+					var f = getFormula(acase.if);
 					if (f === null)
 						return cb2("case if is not a formula: " + acase.if);
 					var locals_tmp = _.clone(locals); // separate copy for each iteration of eachSeries
@@ -486,7 +518,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 					obj[name] = replacement_value;
 					if (!thecase.init)
 						return replace(obj, name, path, locals, cb);
-					var f = aa_validation.getFormula(thecase.init);
+					var f = getFormula(thecase.init);
 					if (f === null)
 						return cb("case init is not a formula: " + thecase.init);
 					var opts = {
@@ -513,7 +545,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 			function evaluateIf(cb2) {
 				if (typeof value.if !== 'string')
 					return cb2();
-				var f = aa_validation.getFormula(value.if);
+				var f = getFormula(value.if);
 				if (f === null)
 					return cb("if is not a formula: " + value.if);
 				var opts = {
@@ -544,7 +576,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 			evaluateIf(function () {
 				if (typeof value.init !== 'string')
 					return replace(obj, name, path, locals, cb);
-				var f = aa_validation.getFormula(value.init);
+				var f = getFormula(value.init);
 				if (f === null)
 					return cb("init is not a formula: " + value.init);
 				var opts = {
@@ -598,7 +630,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 				function (err) {
 					if (err)
 						return cb(err);
-					if (Object.keys(value) === 0) {
+					if (Object.keys(value).length === 0) {
 						if (typeof name === 'string')
 							delete obj[name];
 						else
@@ -1017,9 +1049,31 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 				if (state.value === false) // false value signals that the var should be deleted
 					batch.del(key);
 				else
-					batch.put(key, state.value.toString()); // Decimal converted to string
+					batch.put(key, getTypeAndValue(state.value)); // Decimal converted to string, object to json
 			}
 		}
+	}
+
+	function getTypeAndValue(value) {
+		if (typeof value === 'string')
+			return 's\n' + value;
+		else if (typeof value === 'number' || Decimal.isDecimal(value))
+			return 'n\n' + value.toString();
+		else if (value instanceof wrappedObject)
+			return 'j\n' + string_utils.getJsonSourceString(value.obj, true);
+		else
+			throw Error("state var of unknown type: " + value);	
+	}
+
+	function getValueSize(value) {
+		if (typeof value === 'string')
+			return value.length;
+		else if (typeof value === 'number' || Decimal.isDecimal(value))
+			return value.toString().length;
+		else if (value instanceof wrappedObject)
+			return string_utils.getJsonSourceString(value.obj, true).length;
+		else
+			throw Error("state var of unknown type: " + value);		
 	}
 
 	function updateStorageSize(cb) {
@@ -1033,13 +1087,13 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 				continue;
 			if (state.value === false) { // false value signals that the var should be deleted
 				if (state.original_old_value !== undefined)
-					delta_storage_size -= var_name.length + state.original_old_value.toString().length;
+					delta_storage_size -= var_name.length + getValueSize(state.original_old_value);
 			}
 			else {
 				if (state.original_old_value !== undefined)
-					delta_storage_size += state.value.toString().length - state.original_old_value.toString().length;
+					delta_storage_size += getValueSize(state.value) - getValueSize(state.original_old_value);
 				else
-					delta_storage_size += var_name.length + state.value.toString().length;
+					delta_storage_size += var_name.length + getValueSize(state.value);
 			}
 		}
 		console.log('storage size = ' + storage_size + ' + ' + delta_storage_size + ', byte_balance = ' + byte_balance);
@@ -1125,10 +1179,10 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 				if (!updatedStateVars[var_address])
 					updatedStateVars[var_address] = {};
 				var varInfo = {
-					value: Decimal.isDecimal(state.value) ? state.value.toNumber() : state.value,
+					value: toJsType(state.value),
 				};
 				if (state.old_value !== undefined)
-					varInfo.old_value = Decimal.isDecimal(state.old_value) ? state.old_value.toNumber() : state.old_value;
+					varInfo.old_value = toJsType(state.old_value);
 				if (typeof varInfo.value === 'number') {
 					if (typeof varInfo.old_value === 'number')
 						varInfo.delta = varInfo.value - varInfo.old_value;
@@ -1286,7 +1340,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 			}
 		}
 
-		replace(arrDefinition, 1, '', {}, function (err) {
+		evaluateAA(arrDefinition, function (err) {
 			if (err)
 				return bounce(err);
 			var messages = template.messages;
@@ -1352,7 +1406,7 @@ function checkStorageSizes() {
 				var var_name = data.key.substr(36);
 				if (!assocSizes[address])
 					assocSizes[address] = 0;
-				assocSizes[address] += var_name.length + data.value.length;
+				assocSizes[address] += var_name.length + data.value.length - 2; // -2 for type and \n
 			}
 			var stream = kvstore.createReadStream(options);
 			stream.on('data', handleData)

@@ -2,7 +2,12 @@ var shell = require('child_process').execSync;
 var path = require('path');
 var crypto = require('crypto');
 var Mnemonic = require('bitcore-mnemonic');
+
+var constants = require("../constants.js");
+constants.aa2UpgradeMci = 0;
+
 var objectHash = require("../object_hash.js");
+var chash = require("../chash.js");
 var merkle = require('../merkle.js');
 var ecdsaSig = require('../signature.js');
 var desktop_app = require('../desktop_app.js');
@@ -17,13 +22,19 @@ var formulaParser = require('../formula/index');
 var formulaCommon = require('../formula/common.js');
 var test = require('ava');
 require('./_init_datafeeds.js');
+var db = require("../db");
+var storage = require("../storage");
+
+var readGetterProps = function (aa_address, func_name, cb) {
+	storage.readAAGetterProps(db, aa_address, func_name, cb);
+};
 
 function validateFormula(formula, complexity, cb) {
-	formulaParser.validate({formula: formula, complexity: complexity}, cb);
+	formulaParser.validate({ formula: formula, complexity: complexity, mci: Number.MAX_SAFE_INTEGER, readGetterProps, locals: {}}, cb);
 }
 
 function evalFormula(conn, formula, messages, objValidationState, address, callback){
-	formulaParser.validate({ formula: formula, complexity: 1, count_ops: 0 }, function (res) {
+	formulaParser.validate({ formula: formula, complexity: 1, count_ops: 0, mci: objValidationState.last_ball_mci, readGetterProps, locals: {} }, function (res) {
 		console.log('validation: ', res);
 		if (res.error)
 			return callback(null);
@@ -45,14 +56,14 @@ function evalFormula(conn, formula, messages, objValidationState, address, callb
 }
 
 function evalAAFormula(conn, formula, trigger, objValidationState, address, callback){
-	formulaParser.validate({ formula: formula, complexity: 1, count_ops: 0, bAA: true }, function(validation_res){
+	formulaParser.validate({ formula: formula, complexity: 1, count_ops: 0, bAA: true, mci: objValidationState.last_ball_mci, readGetterProps, locals: {} }, function(validation_res){
 		if (validation_res.error) {
 			console.log("validation failed", validation_res);
 			return callback(null);
 		}
 		if (validation_res.complexity > 100) {
-			console.log('complexity exceeded');
-			return callback(null);
+			console.log('test: complexity exceeded: ' + validation_res.complexity);
+			return callback(null, validation_res.complexity);
 		}
 		var opts = {
 			conn: conn,
@@ -70,13 +81,20 @@ function evalAAFormula(conn, formula, trigger, objValidationState, address, call
 }
 
 function evalFormulaWithVars(opts, callback) {
+	var val_locals = {};
+	for (var name in opts.locals)
+		val_locals[name] = 'assigned';
 	var val_opts = {
 		formula: opts.formula,
 		complexity: 1,
 		count_ops: 0,
 		bAA: true,
 		bStateVarAssignmentAllowed: opts.bStateVarAssignmentAllowed,
-		bStatementsOnly: opts.bStatementsOnly
+		bStatementsOnly: opts.bStatementsOnly,
+		bGetters: opts.bGetters,
+		mci: opts.objValidationState.last_ball_mci,
+		readGetterProps: readGetterProps,
+		locals: val_locals,
 	};
 	formulaParser.validate(val_opts, function(validation_res){
 		if (validation_res.error) {
@@ -84,13 +102,13 @@ function evalFormulaWithVars(opts, callback) {
 			return callback(null);
 		}
 		if (validation_res.complexity > 100) {
-			console.log('complexity exceeded');
-			return callback(null);
+			console.log('test: complexity exceeded: ' + validation_res.complexity);
+			return callback(null, validation_res.complexity);
 		}
 		formulaParser.evaluate(opts, function (err, eval_res) {
 			if (err)
 				console.log("evaluation error: " + err);
-			callback(eval_res, validation_res.complexity, validation_res.count_ops);
+			callback(eval_res, validation_res.complexity, validation_res.count_ops, val_locals);
 		});
 	});
 }
@@ -1178,6 +1196,13 @@ test('$local_var with numeric index', t => {
 	})
 });
 
+test('$_local_var', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { key1: "val1", arr: ['gg', 9] }, outputs: { base: 555, "s7GXNHSjRVIS6ohoDclYF/LbCnrRdBP429qLbBGWGMo=": 777 } };
+	evalAAFormula(0, "$_data = trigger.data; $_data.arr.1", trigger, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
+		t.deepEqual(res, 9);
+	})
+});
+
 test('$local_var with object under numeric index', t => {
 	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { key1: "val1", arr: ['gg', {h: 88}, 4] }, outputs: { base: 555, "s7GXNHSjRVIS6ohoDclYF/LbCnrRdBP429qLbBGWGMo=": 777 } };
 	evalAAFormula(0, "$d = trigger.data; $d.arr.1.h + trigger.data.arr.2", trigger, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
@@ -1384,21 +1409,28 @@ test.cb('balance with asset not found', t => {
 });
 
 test('read locals +', t => {
-	evalFormulaWithVars({ formula: "$volume + $price", trigger: {}, locals: { volume: 100 }, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops) => {
+	evalFormulaWithVars({ formula: "$volume + $price", trigger: {}, locals: { volume: 100, price: false }, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops) => {
 		t.deepEqual(res, 100);
 		t.deepEqual(count_ops, 4);
 	})
 });
 
+test('uninitialized locals', t => {
+	evalFormulaWithVars({ formula: "$volume + $price", trigger: {}, locals: { volume: 100 }, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	//	t.deepEqual(count_ops, 4);
+	})
+});
+
 test('read locals ||', t => {
-	evalFormulaWithVars({ formula: "$volume || $price", trigger: {}, locals: { volume: 100 }, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops) => {
+	evalFormulaWithVars({ formula: "$volume || $price", trigger: {}, locals: { volume: 100, price: false }, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops) => {
 		t.deepEqual(res, '100false');
 		t.deepEqual(count_ops, 4);
 	})
 });
 
 test('read locals with expr', t => {
-	evalFormulaWithVars({ formula: "${'vo'||'lume'} || ${'nonexistent'}", trigger: {}, locals: { volume: 100 }, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, res => {
+	evalFormulaWithVars({ formula: "${'vo'||'lume'} || ${'non'||'existent'}", trigger: {}, locals: { volume: 100 }, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, res => {
 		t.deepEqual(res, '100false');
 	})
 });
@@ -1424,6 +1456,12 @@ test('assign locals', t => {
 
 test('reassignment', t => {
 	evalFormulaWithVars({ formula: "$volume = 55+1; $volume=6; $a4 + $volume", trigger: {}, locals: { a4: 100 }, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, res => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('reassignment after conditional', t => {
+	evalFormulaWithVars({ formula: "if (false) $volume = 55; $volume=6; $volume", trigger: {}, locals: { a4: 100 }, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, res => {
 		t.deepEqual(res, null);
 	})
 });
@@ -1472,7 +1510,7 @@ test('if else if else if else', t => {
 });
 
 test('if else if else if else with triggers and math', t => {
-	evalFormulaWithVars({ formula: "if ($volume < 100) $price = 1; else if ($volume > 100) $price=-1; else if ($z+trigger.data.a < 0) {$price=2;} else {$price=2; $y=3;} $x=10; $price * $x + $y + trigger.data.b", trigger: {}, locals: {volume: 100}, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, res => {
+	evalFormulaWithVars({ formula: "if ($volume < 100) $price = 1; else if ($volume > 100) $price=-1; else if ($z+trigger.data.a < 0) {$price=2;} else {$price=2; $y=3;} $x=10; $price * $x + $y + trigger.data.b", trigger: {}, locals: {volume: 100, z: false}, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, res => {
 		t.deepEqual(res, 23);
 	})
 });
@@ -1514,6 +1552,20 @@ test.cb('local var assignment without bStatementsOnly', t => {
 	evalFormulaWithVars({ formula: "$x = 'kk'; $y = 9;", trigger: {}, locals: locals, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU',  }, (res, complexity) => {
 		t.deepEqual(res, null);
 		t.end();
+	})
+});
+
+test('calculated local var name', t => {
+	var locals = {};
+	evalFormulaWithVars({ formula: "${'x'||''} = 'kk'; $x", trigger: {}, locals: locals, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU',  }, (res, complexity) => {
+		t.deepEqual(res, 'kk');
+	})
+});
+
+test('empty local var name', t => {
+	var locals = {};
+	evalFormulaWithVars({ formula: "${''} = 'kk'; 5", trigger: {}, locals: locals, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU',  }, (res, complexity) => {
+		t.deepEqual(res, null);
 	})
 });
 
@@ -1565,10 +1617,11 @@ test('sha256', t => {
 	})
 });
 
-test('sha256 with true', t => {
-	var str = 'true';
-	var hash = crypto.createHash("sha256").update(str, "utf8").digest("base64");
-	evalFormulaWithVars({ formula: "sha256 (trigger.data)", trigger: { data: {a: 5}}, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+test('sha256 of object', t => {
+//	var str = 'true';
+	var trigger = { data: { a: 5 } };
+	var hash = objectHash.getBase64Hash(trigger.data, true);
+	evalFormulaWithVars({ formula: "sha256 (trigger.data)", trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
 		t.deepEqual(res, hash);
 		t.deepEqual(complexity, 2);
 	})
@@ -1628,6 +1681,24 @@ test('sha256 bad format', t => {
 	})
 });
 
+test('chash of object', t => {
+	var trigger = { data: { a: 5 } };
+	var hash = objectHash.getChash160(trigger.data);
+	evalFormulaWithVars({ formula: "chash160 (trigger.data)", trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, hash);
+		t.deepEqual(complexity, 2);
+	})
+});
+
+test('chash of number', t => {
+	var trigger = { data: { a: 5 } };
+	var hash = chash.getChash160(trigger.data.a+'');
+	evalFormulaWithVars({ formula: "chash160 (trigger.data.a)", trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, hash);
+		t.deepEqual(complexity, 2);
+	})
+});
+	
 test.cb('signature verification', t => {
 	var db = require("../db");
 	var mnemonic = new Mnemonic();
@@ -1691,6 +1762,13 @@ test('triple otherwise with ternary and trigger', t => {
 	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { key1: "val1", key2: { key3: "val3", key4: 444 } } };
 	evalAAFormula(0, "trigger.data.key2 ? 0 : 'ss' otherwise trigger.data.xxxx otherwise trigger.data.key1 otherwise 66", trigger, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
 		t.deepEqual(res, "val1");
+	})
+});
+
+test('otherwise false with invalid alternative', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { key1: "val1", key2: { key3: "val3", key4: 444 } } };
+	evalAAFormula(0, "trigger.data.key111 otherwise 1/0", trigger, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
+		t.deepEqual(res, null);
 	})
 });
 
@@ -1857,7 +1935,7 @@ test('local vars with selectors', t => {
 	})
 });
 
-test('assignment to local var with selector', t => {
+test('assignment to uninitialized local var with selector', t => {
 	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { key1: "val1", key2: { key3: "val3", key4: 444 } }, outputs: { base: 555 } };
 	evalFormulaWithVars({ formula: "$a.x=1; true", trigger: trigger, locals: { a4: 100 }, stateVars: {}, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, res => {
 		t.deepEqual(res, null);
@@ -2080,6 +2158,15 @@ test('json_stringify large number', t => {
 	})
 });
 
+test('json_stringify empty object', t => {
+	var trigger = { data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}} };
+	var stateVars = {  };
+	evalFormulaWithVars({ conn: null, formula: "json_stringify({a:[{}, {b:[]}, {c: 6}]})", trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity) => {
+		t.deepEqual(res, '{"a":[{},{"b":[]},{"c":6}]}');
+		t.deepEqual(complexity, 1);
+	})
+});
+
 test('json_parse', t => {
 	var trigger = { data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}} };
 	var stateVars = {  };
@@ -2272,7 +2359,7 @@ test('length', t => {
 	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}}  };
 	var stateVars = {};
 	evalFormulaWithVars({ conn: null, formula: `length("vvv") || length(trigger.data) || length(20*20) || length(2==3)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
-		t.deepEqual(res, '3435');
+		t.deepEqual(res, '3235');
 	})
 });
 
@@ -2310,6 +2397,33 @@ test('starts_with ends_with contains', t => {
 	})
 });
 
+test('has_only', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}}  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `has_only("abcd", "\\w") || ' ' || has_only("a\\ec9]d", "\\w]\\\\\\\\-") || ' ' || has_only("abssc#d", "\\w.")`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'true true false');
+		t.deepEqual(complexity, 4);
+	})
+});
+
+test('has_only invalid escaped ]', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}}  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `has_only("abcd", "\\w\\]")`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+		t.deepEqual(complexity, 2);
+	})
+});
+
+test('has_only invalid final \\', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}}  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `has_only("abcd", "a-z\\\\")`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+		t.deepEqual(complexity, 2);
+	})
+});
+
 test('index_of', t => {
 	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}}  };
 	var stateVars = {};
@@ -2333,6 +2447,42 @@ test('substring with string index', t => {
 	var stateVars = {};
 	evalFormulaWithVars({ conn: null, formula: `substring("abcd", 'd'||'')`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
 		t.deepEqual(res, null);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('replace', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: 'xx', ww: '.'}  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `replace("abxxcdxx", trigger.data.z, trigger.data.ww)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, "ab.cd.");
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('replace number', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: 8, ww: 5}  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `replace("8ab8cd8", trigger.data.z, trigger.data.ww)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, "5ab5cd5");
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('replace to object', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: 'xx', ww: {dd: 'h', aa: 8}}  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `replace("abxxcdxx", trigger.data.z, trigger.data.ww)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, "abtruecdtrue");
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('replace none', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { z: 'xx', ww: 'w'}  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `replace("abxcdx", trigger.data.z, trigger.data.ww)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, "abxcdx");
 		t.deepEqual(complexity, 1);
 	})
 });
@@ -2655,6 +2805,24 @@ test('convert to number with +', t => {
 	})
 });
 
+test('substring with string index that looks like a number', t => {
+	var trigger = { };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `substring('abcdef', '2', '3')`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'cde');
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('substring with fractional index', t => {
+	var trigger = { };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `substring('abcdef', 2.5)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+		t.deepEqual(complexity, 1);
+	})
+});
+
 test('boolean to number with +', t => {
 	var trigger = { };
 	var stateVars = {};
@@ -2685,7 +2853,7 @@ test('to_lower', t => {
 test.cb('exists', t => {
 	var trigger = { data: {x: 0} };
 	var stateVars = {};
-	evalFormulaWithVars({ conn: null, formula: `$x=false; exists('aSdF') || ' ' || exists(trigger.data.x) || ' ' || exists(trigger.data.y) || ' ' || exists(var['x']) || ' ' || exists($x) || ' ' || exists(!$x) || ' ' || exists($y)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+	evalFormulaWithVars({ conn: null, formula: `$x=false; exists('aSdF') || ' ' || exists(trigger.data.x) || ' ' || exists(trigger.data.y) || ' ' || exists(var['x']) || ' ' || exists($x) || ' ' || exists(!$x) || ' ' || exists($y)`, trigger: trigger, locals: { y: false }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
 		t.deepEqual(res, 'true true false false false true false');
 		t.deepEqual(complexity, 2);
 		t.end();
@@ -2804,3 +2972,2682 @@ test('is_valid_merkle_proof string invalid', t => {
 		t.deepEqual(complexity, 2);
 	})
 });
+
+test('function', t => {
+	var trigger = { data: {  } };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `$x=2; $f = ($a) => {$a+$x}; $f(3)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 5);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('function uninitialized var', t => {
+	var trigger = { data: {  } };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `$x=2; $f = ($a) => {$a+$y}; $f(3)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('function with attempted recursion', t => {
+	var trigger = { data: {  } };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `$x=2; $f = ($a) => {$a+$f(1)}; $f(3)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('function with statements', t => {
+	var trigger = { data: {  } };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `$x=2; $f = ($a) => {$y=$a+$x; 2*$y}; $f(3)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 10);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('function with complexity 1', t => {
+	var trigger = { data: {  } };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `$x=2; $f = ($a) => {$y=$a^$x; 2*$y}; $f(1)+$f(2)+$f(3)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 2*(1+4+9));
+		t.deepEqual(complexity, 4);
+	})
+});
+
+test('function with complexity 2', t => {
+	var trigger = { data: {  } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	evalFormulaWithVars({ conn: null, formula: `$x=2; $f = ($a) => {$y=$a^$x; var['s']*$y}; $f(1)+$f(2)+$f(3)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 10*(1+4+9));
+		t.deepEqual(complexity, 7);
+	})
+});
+
+test('function never called', t => {
+	var trigger = { data: {  } };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `$x=2; $f = ($a) => {$y=$a^$x; 2*$y}; $x`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 2);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('function with earlier locals', t => {
+	var trigger = { data: {  } };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `$f = ($a) => {$y=$a^$x; 2*$y}; $f(1)+$f(2)+$f(3)`, trigger: trigger, locals: { x: 2 }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 2*(1+4+9));
+		t.deepEqual(complexity, 4);
+	})
+});
+
+test('calling a variable as function', t => {
+	var trigger = { data: {  } };
+	var stateVars = {};
+	var locals = { };
+	var formula = `$g=8; $f = ($a) => {$x=$a; 2*$x}; $g(3)`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('function with reassignment', t => {
+	var trigger = { data: {  } };
+	var stateVars = {};
+	var locals = { x: 2 };
+	var formula = `$f = ($a) => {$x=$a; 2*$x}; $f(3)`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('function with reassignment to arg', t => {
+	var trigger = { data: {  } };
+	var stateVars = {};
+	var locals = { x: 2 };
+	var formula = `$f = ($a) => {$a=$x; 2*$x}; $f(3)`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('function with reassignment to a conditionally assigned var', t => {
+	var trigger = { data: {  } };
+	var stateVars = {};
+	var locals = { };
+	var formula = `if(false) $x=2; $f = ($a) => {$x=$a; 2*$x}; $f(3)`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('function whose args shadow local variables', t => {
+	var trigger = { data: {  } };
+	var stateVars = {};
+	var locals = { };
+	var formula = `$a=2; $f = ($a) => {$x=$a; 2*$x}; $f(3)`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('function local var not visible outside its scope', t => {
+	var trigger = { data: {  } };
+	var stateVars = {};
+	var locals = { };
+	var formula = `$f = ($a) => {$x=$a; 2*$x}; $y=$f(3); $z=$x; $y`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('local var can still be assigned to after a function declaration and call', t => {
+	var trigger = { data: {  } };
+	var stateVars = {};
+	var locals = { };
+	var formula = `if(false) $x=2; $f = ($a) => {$y=$a; 2*$y}; $z=$f(3); if (true) $x=3; $z`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 6);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('two functions with same named local vars', t => {
+	var trigger = { data: {  } };
+	var stateVars = {};
+	var locals = { };
+	var formula = `$f1 = ($a) => {$y=$a; 2*$y}; $f2 = ($a) => {$y=$a; 3*$y}; $z=$f1(2)+$f2(2); $y=10; $w=$f1(3); $z||" "||$w`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, "10 6");
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('two functions calling each other', t => {
+	var trigger = { data: {  } };
+	var stateVars = {};
+	var locals = { };
+	var formula = `
+		$f1 = ($a) => {$y=$a; 2*$y};
+		$f2 = ($a) => {3*$f1(2*$a)};
+		$f2(2)
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 24);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('two functions calling each other with complexity', t => {
+	var trigger = { data: {  } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f1 = ($a) => {
+			$y = $a^2;
+			var['s'] * $y
+		};
+		$f2 = ($a) => {
+			$f1(2*$a) + $f1($a)
+		};
+		$f2(2)
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 160 + 40);
+		t.deepEqual(complexity, 5);
+	})
+});
+
+test('function in function', t => {
+	var trigger = { data: {  } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f2 = ($a) => {
+			$f1 = ($b) => {
+				$y = $b^2 + $a;
+				var['s'] * $y
+			};
+			$f1(2*$a) + $f1($a)
+		};
+		$f2(2)
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 180 + 60);
+		t.deepEqual(complexity, 5);
+	})
+});
+
+test('function with no arguments', t => {
+	var trigger = { data: {  } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = 2;
+		$f = () => {
+			var['s']^3 * $x
+		};
+		$f()
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 2000);
+		t.deepEqual(complexity, 3);
+	})
+});
+
+test('function with two arguments', t => {
+	var trigger = { data: {  } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x, $y) => {
+			var['s']^3 * $x * $y
+		};
+		$f(3, 2)
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 6000);
+		t.deepEqual(complexity, 3);
+	})
+});
+
+test('function with some args not passed', t => {
+	var trigger = { data: {  } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x, $y, $z) => {
+			var['s']^3 * $x * ($y + $z)
+		};
+		$f(3, 2)
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 6000);
+		t.deepEqual(complexity, 3);
+	})
+});
+
+test('function with 2 args but passed 3', t => {
+	var trigger = { data: {  } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x, $y) => {
+			var['s']^3 * $x * $y
+		};
+		$f(3, 2, 1)
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('calculated function name when declaring', t => {
+	var trigger = { data: {  } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		\${'f'||''} = ($x) => {
+			var['s']^3 * $x
+		};
+		$f(3)
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('calculated function name when calling', t => {
+	var trigger = { data: {  } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x) => {
+			var['s']^3 * $x
+		};
+		\${'f'||''}(3)
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('return in function', t => {
+	var trigger = { data: {  } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x) => {
+			if ($x<2)
+				return $x;
+			var['s']^3 * $x
+		};
+		$f(2) || " " || $f(1)
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, "2000 1");
+		t.deepEqual(complexity, 5);
+	})
+});
+
+test('function without a return value', t => {
+	var trigger = { data: {  } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x) => {
+			$a = var['s']^3 * $x;
+		};
+		$f(2)
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, true);
+		t.deepEqual(complexity, 3);
+	})
+});
+
+test('empty function', t => {
+	var trigger = { data: {  } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x) => {
+		};
+		$f(2)
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, true);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('function with empty return', t => {
+	var trigger = { data: {  } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x) => {
+			if ($x<2)
+				return;
+			$a = $x;
+		};
+		$f(1)
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, true);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('function with state var assignments', t => {
+	var trigger = { data: {  } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x) => {
+			var['s'] = $x;
+			if ($x<2)
+				return;
+			$a = $x;
+		};
+		$f(1)
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStateVarAssignmentAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, true);
+		t.deepEqual(complexity, 2);
+	})
+});
+
+test('function with state var assignments and a returned value', t => {
+	var trigger = { data: {  } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x) => {
+			var['s'] = $x;
+			if ($x<2)
+				return $x;
+			3 * $x
+		};
+		$f(1)
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStateVarAssignmentAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 1);
+		t.deepEqual(complexity, 2);
+	})
+});
+
+test('standalone function call', t => {
+	var trigger = { data: {  } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x) => {
+			var['s'] = $x;
+			if ($x<2)
+				return;
+			$a = $x;
+		};
+		$f(1);
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStateVarAssignmentAllowed: true, bStatementsOnly: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, true);
+		t.deepEqual(complexity, 2);
+	})
+});
+
+test('standalone function call with return value', t => {
+	var trigger = { data: {  } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x) => {
+			var['s'] = $x;
+			if ($x<2)
+				return 7;
+			$a = $x;
+			$a
+		};
+		$f(1);
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStateVarAssignmentAllowed: true, bStatementsOnly: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, true);
+		t.deepEqual(complexity, 2);
+	})
+});
+
+test('referencing a function without calling it', t => {
+	var trigger = { data: {  } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x) => {
+			var['s'] = $x;
+			if ($x<2)
+				return 7;
+			$a = $x;
+			$a
+		};
+		$r = $f;
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStateVarAssignmentAllowed: true, bStatementsOnly: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('referencing a function by calculated name without calling it', t => {
+	var trigger = { data: {  } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x) => {
+			var['s'] = $x;
+			if ($x<2)
+				return 7;
+			$a = $x;
+			$a
+		};
+		$r = \${'f'||''};
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStateVarAssignmentAllowed: true, bStatementsOnly: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('function that returns value using return statement, bStatementsOnly=true', t => {
+	var trigger = { data: {  } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x) => {
+			var['s'] = $x;
+			$a = $x;
+			return $a;
+		};
+		$f(1);
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStateVarAssignmentAllowed: true, bStatementsOnly: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, true);
+		t.deepEqual(complexity, 2);
+	})
+});
+
+test('function that returns value using return statement, bStatementsOnly=false', t => {
+	var trigger = { data: {  } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x) => {
+			$a = 2*$x;
+			return $a;
+		};
+		$f(1)
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 2);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('function does not break subsequent return checks', t => {
+	var trigger = { data: {  } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x) => {
+			$a = 2*$x;
+			return $a;
+		};
+		$y = $f(1);
+		if ($y)
+			return;
+		$y
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('function with statements after return', t => {
+	var trigger = { data: {  } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x) => {
+			$a = 2*$x;
+			return $a;
+			$b = 2*$a;
+		};
+		$f(1)
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 2);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('function with invalid body', t => {
+	var trigger = { data: {  } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x) => {
+			$a = 2*$x;
+			4*$a
+			$c = 6*$a;
+			return $a;
+		};
+		$f(1)
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('function composition', t => {
+	var trigger = { data: {  } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x) => {
+			$a = var['s']^2*$x;
+			return $a;
+		};
+		$f($f(2))
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 20000);
+		t.deepEqual(complexity, 5);
+	})
+});
+
+test('function with objects in arguments', t => {
+	var trigger = { data: { a: 6 } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x) => {
+			$a = $x.a;
+			return $a;
+		};
+		$f(trigger.data)
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 6);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('function with objects in return value', t => {
+	var trigger = { data: { q: {a: 6} } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x) => {
+			$q = $x.q;
+			$q
+		};
+		$y = $f(trigger.data);
+		$y.a
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 6);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('function with objects in return value using return statement', t => {
+	var trigger = { data: { q: {a: 6} } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x) => {
+			$q = $x.q;
+			return $q;
+		};
+		$y = $f(trigger.data);
+		$y.a
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 6);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('function with objects in return value and accessing the object fields inline', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = $x => {
+			$q = $x.q;
+			return $q;
+		};
+		$f(trigger.data).a
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 6);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test.cb('excessive complexity using functions', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x) => {
+			$y = $x * var['s'];
+			$y
+		}; // complexity = 1
+
+		$f2 = ( $x ) => {
+			$x + $f ($x) * $f($x) + var['v1']
+		}; // complexity = 3
+		
+		$f3 = ( $x ) => {
+			$x + $f2 ($x) * $f2($x) - $f($x+1) - $f2(2*$x)
+		}; // complexity = 10
+		
+		var['v1'] = $f(2);  // 2
+		var['s'] = 3; // 3
+		var['v2'] = $f3 ( 2 ); // 14
+		var['v3'] = $f3 ( 2 ); // 25
+		var['v3'] = $f3 ( 2 ); // 36
+		var['v3'] = $f3 ( 2 ); // 47
+		var['v3'] = $f3 ( 2 ); // 58
+		var['v3'] = $f3 ( 2 ); // 69
+		var['v3'] = $f3 ( 2 ); // 80
+		var['v3'] = $f3 ( 2 ); // 91
+		var['v3'] = $f ( 2 ); // 93
+		var['v3'] = $f ( 2 ); // 95
+		var['v3'] = $f ( 2 ); // 97
+		var['v3'] = $f ( 2 ); // 99
+		var['v3'] = $f ( 2 ); // 101
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStateVarAssignmentAllowed: true, bStatementsOnly: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+		t.deepEqual(complexity, 102);
+		t.end();
+	})
+});
+
+test('one-line function', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x) => $x^2;
+		$f(5)
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 25);
+		t.deepEqual(complexity, 2);
+	})
+});
+
+test('one-line function with parentheses around the body', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x) => ($x^2);
+		$f(5)
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 25);
+		t.deepEqual(complexity, 2);
+	})
+});
+
+test('one-line function without parentheses around a single argument', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = $x => $x^2;
+		$f(5)
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 25);
+		t.deepEqual(complexity, 2);
+	})
+});
+
+test('one-line function without parentheses around two arguments', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = $x, $y => $x+$y;
+		$f(5, 2)
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 7);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('one-line function returning an object', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x) => {and: $x^2};
+		$f(5)
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, { and: 25 });
+		t.deepEqual(complexity, 2);
+	})
+});
+
+test('one-line function returning an array', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x) => [6, $x^2];
+		$f(5)
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, [6, 25]);
+		t.deepEqual(complexity, 2);
+	})
+});
+
+test('function returning an empty object', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x) => {{}};
+		$f(5)
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, { });
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('function without parentheses around two arguments', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = $x, $y => {$z=$x+$y; $z};
+		$f(5, 2)
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 7);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('array', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$a = 2;
+		$x = [22, 80+8, trigger.data.q, var['s'], [10*$a, $a]];
+		$x.1 + $x[0] + $x[3] + $x.2.a + $x.4.1
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 88 + 22 + 10 + 6 + 2);
+		t.deepEqual(complexity, 2);
+	})
+});
+
+test('dictionary', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$a = 2;
+		$x = {
+			"key1": ["value1", 7],
+			key2: "value2 " || trigger.data.q.a || ' ' || var['s'],
+			key3: {
+				d: trigger.data.q.a+$a,
+				w: var['s'],
+			}
+		};
+		$x.key1.0 || " " || $x['key2'] || " - " || $x.key3.d || " " || $x.key3.w
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 'value1 value2 6 10 - 8 10');
+		t.deepEqual(complexity, 3);
+	})
+});
+
+test('dictionary with numeric keys not allowed', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {
+			2: "value2"
+		};
+		$x.2
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('dictionary with duplicate keys not allowed', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {
+			key1: "value1",
+			key1: "value2"
+		};
+		$x.key1
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('dictionary with numeric values', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$a = 2;
+		$x = {
+			"key1": 7,
+		};
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, {key1: 7});
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('dictionary with keys containing reserved words', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {
+			timestamp_to_string: 7,
+			timestamp_to_stringa: 7,
+			and: 7,
+			anda: 7,
+			asset: 7,
+			asseta: 7,
+			address: 7,
+			addressasset: 7,
+		};
+		$x.timestamp_to_stringa
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 7);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('mutating objects', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {
+			and: 7,
+		};
+		$x.and = 8;
+		$x.ff = 'gg';
+		$x.o = {a: $x.ff};
+		$x.ar = ['cc', $x.ff];
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, { and: 8, ff: 'gg', o: { a: 'gg' }, ar: ['cc', 'gg'] });
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('appending to arrays', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = [];
+		$x[] = trigger.data.q;
+		$x[] = 'f';
+		$x[] = var['s'];
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, [{ a: 6 }, 'f', 10]);
+		t.deepEqual(complexity, 2);
+	})
+});
+
+test('mutating non-existent var', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x.a = 7;
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('mutating a conditionally assigned var, should fail during evaluation, not validation', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		if (false)
+			$x = {};
+		$x.a = 7;
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('appending non-existent var', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x[] = trigger.data.q;
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('mutating a scalar', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = 5;
+		$x.a = 6;
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('mutating a scalar field', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {a: 5};
+		$x.a.b = 6;
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('skipping array elements', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = [];
+		$x[1] = 6;
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('trying to get next element of an object', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {};
+		$x[] = 6;
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('trying to get next element of an object deep', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {a:{}};
+		$x.a[] = 6;
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('skipping array elements deeper in the object', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = [[]];
+		$x[0][1] = 6;
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('assigning a function to an abject field', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {};
+		$x.f = ($a) => {2*$a};
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('assigning to a field of a function', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($a) => {2*$a};
+		$f.s = 2;
+		$f(2)
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('setting deep object elements', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = [];
+		$x[].a.b.c[].d = 6;
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, [{ a: { b: { c: [{ d: 6 }] } } }]);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('original object not mutated', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {a:5};
+		$y = $x;
+		$y.a = 6;
+		$y.b = 16;
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, { a: 5 });
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('deleting from object', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {a:5};
+		delete($x, 'a');
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, { });
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('deleting non-existing key from object', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {a:5};
+		$x.b = 'bb';
+		delete($x, $x.b||'rrr');
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, {a:5, b: 'bb' });
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('the original object not affected by deletion', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {a:5, b: 'bb'};
+		$y = {x: $x};
+		delete($y.x, 'b');
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, {a:5, b: 'bb' });
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('the original object not affected by deletion when copied by assignment', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {a:5, b: 'bb'};
+		$y = {};
+		$y.x = $x;
+		delete($y.x, 'b');
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, {a:5, b: 'bb' });
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('new object not affected by deletion from the original', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {a:5, b: 'bb'};
+		$y = {};
+		$y.x = $x;
+		delete($x, 'b');
+		$y
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, { x: { a: 5, b: 'bb' } });
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('deletion from array', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = ['a', 'b', 'c'];
+		delete($x, 1);
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, ['a', 'c']);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('deletion from array by a 0 index', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = ['a', 'b', 'c'];
+		delete($x, 0);
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, ['b', 'c']);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('deletion from array by an out of range index', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = ['a', 'b', 'c'];
+		delete($x, 3);
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, ['a', 'b', 'c']);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('deletion from array by a negative index', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = ['a', 'b', 'c'];
+		delete($x, -1);
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('deletion from array by a fractional index', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = ['a', 'b', 'c'];
+		delete($x, 1.5);
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('deletion from array by a string index that converts to number', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = ['a', 'b', 'c'];
+		delete($x, '1');
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, ['a', 'c']);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('deletion from object by an integer index', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {'2': 'aa', k: 'v'};
+		delete($x, 2);
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, { k: 'v' });
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('deletion from object by an object index', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {'2': 'aa', k: 'v'};
+		delete($x, {d: 1});
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('deletion from non-var with object', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {'2': 'aa', k: 'v'};
+		delete($x.2 || 'a', 'k');
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('deletion from non-var without object', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {'2': 'aa', k: 'v'};
+		delete('a', 'k');
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('deletion from scalar', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = 6;
+		delete($x, 'k');
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('deletion from non-existent var', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		delete($x, 'k');
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('keys of an object', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {'2': 'aa', k: 'v', b: 'z'};
+		keys($x)
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, ['2', 'b', 'k']); // sorted
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('keys of an array', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = [5, 8];
+		keys($x)
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('keys of a non-object', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = 'd';
+		keys($x)
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('length of an object', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {a: 8, b: 'j', c: {r: 6, q: 9}};
+		length($x)
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 3);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('length of an array', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = [5, 'a'];
+		length($x)
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 2);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('freezing an object', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {'2': 'aa', k: 'v'};
+		$x.3 = 8;
+		freeze($x);
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, { 2: 'aa', 3: 8, k: 'v' });
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('freezing a scalar', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = 8;
+		freeze($x);
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 8);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('freezing a non-existent var', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		freeze($x);
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('freezing an expression', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = 9;
+		freeze($x*6);
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('freezing an object field', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {a:8};
+		freeze($x.a);
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('mutating a frozen object', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {a:8};
+		freeze($x);
+		$x.b = 9;
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('mutating a conditionally frozen object', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {a:8};
+		if (1)
+			freeze($x);
+		$x.b = 9;
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('freezing in a function', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {a:8};
+		$f = ()=>{ freeze($x); };
+		$f();
+		$x.b = 9;
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('freezing in a function after assignment', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {a:8};
+		$f = ()=>{ freeze($x); };
+		$x.b = 9;
+		$f();
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, {a:8, b:9});
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('freezing then trying to modify in a function', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {a:8};
+		$f = ()=>{ $x.b=9; };
+		freeze($x);
+		$f();
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('freezing then trying to delete a field', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {a:[8,7], b:9};
+		freeze($x);
+		delete($x.a, 0);
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('getter formula', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x)=>{
+			$x.b=9;
+			$x
+		};
+		$g = ($x)=>{
+			$x^2 * var['s']
+		};
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStatementsOnly: true, bGetters: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, true);
+		t.deepEqual(val_locals, {
+			f: { type: 'func', props: { complexity: 0, count_ops: 3, count_args: 1 } },
+			g: { type: 'func', props: { complexity: 2, count_ops: 5, count_args: 1 } },
+		});
+	})
+});
+
+test.cb('getter with allowed stuff', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x)=>{
+			$x.b = timestamp + mci + storage_size - params.u + balance[base];
+			$x
+		};
+		$g = ($x)=>{
+			$y = $f($x)^2 * var['s'];
+			return $y>0 ? $y : -$y;
+		};
+		$h = ($x, $y) => {
+			$e = $x ? this_address || $g($y) || $x : $y || mci;
+			if (asset['base'].exists)
+				$s = $e;
+			else{
+				$d = $y || this_address;
+				if ($d > 'ttt')
+					return $d;
+				if ($d > 'cc')
+					bounce("in-function bounce");
+				$s = $d || $e;
+			}
+			$s
+		};
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStatementsOnly: true, bGetters: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, true);
+		t.deepEqual(complexity, 1);
+		t.end();
+	})
+});
+
+test('getter with trigger data', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x)=>{
+			$x.b = trigger.data.q;
+			$x
+		};
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStatementsOnly: true, bGetters: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('getter with trigger address', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x)=>{
+			$x.b = trigger.address;
+			$x
+		};
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStatementsOnly: true, bGetters: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('getter with trigger unit', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x)=>{
+			$x.b = trigger.unit;
+			$x
+		};
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStatementsOnly: true, bGetters: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('getter with trigger output', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x)=>{
+			$x.b = trigger.output[[asset=base]];
+			$x
+		};
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStatementsOnly: true, bGetters: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('getter with mc_unit', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x) => {
+			$x.b = mc_unit;
+			$x
+		};
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStatementsOnly: true, bGetters: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('getter with number_of_responses', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x) => {
+			$x.b = number_of_responses;
+			$x
+		};
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStatementsOnly: true, bGetters: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('getter with response_unit', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x) => {
+			$x.b = response_unit;
+			$x
+		};
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStatementsOnly: true, bGetters: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('getter with state var assignment', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x) => {
+			var['d'] = $x;
+		};
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStatementsOnly: true, bGetters: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('getter with response var assignment', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x) => {
+			response['d'] = $x;
+		};
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStatementsOnly: true, bGetters: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('getter with top-level if', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		if (true)
+			$f = ($x) => {
+				$y = $x;
+			};
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStatementsOnly: true, bGetters: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('getter with top-level return', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x) => {
+			$y = $x;
+		};
+		return;
+		$g = ($x) => {
+			$z = $x;
+		};
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStatementsOnly: true, bGetters: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('getter with top-level bounce', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($x) => {
+			$y = $x;
+		};
+		bounce("done");
+		$g = ($x) => {
+			$z = $x;
+		};
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStatementsOnly: true, bGetters: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('getter with non-constant top-level local var', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$a = 2*2;
+		$f = ($x) => {
+			$y = $x;
+		};
+		$g = ($x) => {
+			$z = $x;
+		};
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStatementsOnly: true, bGetters: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('getter with non-constant top-level local var this_address', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$a = this_address;
+		$f = ($x) => {
+			$y = $x;
+		};
+		$g = ($x) => {
+			$z = $x;
+		};
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStatementsOnly: true, bGetters: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('getter with non-constant top-level local var evaluated from state var', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$a = var['a'];
+		$f = ($x) => {
+			$y = $x;
+		};
+		$g = ($x) => {
+			$z = $x;
+		};
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStatementsOnly: true, bGetters: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('getter with non-constant top-level local var object', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$a = {a: 9};
+		$f = ($x) => {
+			$y = $x;
+		};
+		$g = ($x) => {
+			$z = $x;
+		};
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStatementsOnly: true, bGetters: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('getter with constant top-level local vars', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$a = 2;
+		$b = 'str';
+		$c = true;
+
+		$f = ($x) => {
+			$y = $x;
+		};
+		$g = ($x) => {
+			$z = $x;
+		};
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStatementsOnly: true, bGetters: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, true);
+	})
+});
+
+test('remote call with invalid address', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$remote_aa = 2;
+		$b = $remote_aa.$f(3);
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStatementsOnly: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('remote call with non-constant address', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$remote_aa = 'MXMEKGN37H5QO2AWHT7XRG6LHJVV'||'TAWU';
+		$b = $remote_aa.$f(3);
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStatementsOnly: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('remote call with conditionally assigned address', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		if (true)
+			$remote_aa = 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU';
+		$b = $remote_aa.$f(3);
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStatementsOnly: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('remote call with non-existent var', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$b = $remote_aa.$f(3);
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStatementsOnly: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('remote call with calculated var', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$remote_aa = 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU';
+		$b = \${'rem'||'ote_aa'}.$f(3);
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStatementsOnly: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('foreach', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$ar = [2, 5, 9];
+		$ar2 = [];
+		foreach($ar, 3, ($x) => {$ar2[] = $x^2;});
+		$ar2
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, [4, 25, 81]);
+		t.deepEqual(complexity, 4);
+	})
+});
+
+test('foreach with index', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$c = 5;
+		$ar = [2, 5, 9];
+		$ar2 = [];
+		foreach($ar, $c, $i, $x => { $ar2[] = $x^$i + var['s']; } );
+		$ar2
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, [11, 15, 91]);
+		t.deepEqual(complexity, 11);
+	})
+});
+
+test('foreach with named function', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$c = 5;
+		$ar = [2, 5, 9];
+		$ar2 = [];
+		$f = $i, $x => { $ar2[] = $x^$i + var['s']; };
+		foreach($ar, $c, $f);
+		$ar2
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, [11, 15, 91]);
+		t.deepEqual(complexity, 11);
+	})
+});
+
+test('foreach object', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$c = 5;
+		$o = {a: 'hello', c: '!', b: 'world'};
+		$o2 = {};
+		foreach($o, $c, $key, $val => { $o2[$key] = to_upper($val); } );
+		$o2
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, {a: 'HELLO', b: 'WORLD', c: '!'});
+		t.deepEqual(complexity, 2);
+	})
+});
+
+test('foreach object named function', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$c = 5;
+		$o = {a: 'hello', c: '!', b: 'world'};
+		$o2 = {};
+		$f = $key, $val => { $o2[$key] = to_upper($val); };
+		foreach($o, $c, $f);
+		$o2
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, {a: 'HELLO', b: 'WORLD', c: '!'});
+		t.deepEqual(complexity, 2);
+	})
+});
+
+test('foreach with oversized object', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$c = 2;
+		$o = {a: 'hello', c: '!', b: 'world'};
+		$o2 = {};
+		$f = $key, $val => { $o2[$key] = to_upper($val); };
+		foreach($o, $c, $f);
+		$o2
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+	})
+});
+
+
+test('foreach with oversized array', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$ar = [2, 5, 9];
+		$ar2 = [];
+		foreach($ar, 2, ($x) => {$ar2[] = $x^2;});
+		$ar2
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('foreach with too large length', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$ar = [2, 5, 9];
+		$ar2 = [];
+		$c = 101;
+		foreach($ar, $c, ($x) => {$ar2[] = $x;});
+		$ar2
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('foreach with non-constant length', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$ar = [2, 5, 9];
+		$ar2 = [];
+		foreach($ar, length($ar), ($x) => {$ar2[] = $x;});
+		$ar2
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('foreach invalid remote function', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$ar = [2, 5, 9];
+		$ar2 = [];
+		$remote_aa = "BAD_ADDRESS";
+		foreach($ar, 3, $remote_aa.$f);
+		$ar2
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('foreach deep object named function', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$c = 5;
+		$o = { q: {a: 'hello', c: '!', b: 'world'} };
+		$o2 = {};
+		$f = $key, $val => { $o2.z[$key] = to_upper($val); };
+		foreach($o.q, $c, $f);
+		$o2
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, { z: { a: 'HELLO', b: 'WORLD', c: '!' } });
+		t.deepEqual(complexity, 2);
+	})
+});
+
+test('map over array', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$c = 3;
+		$ar = [2, 5, 9];
+		$ar2 = map($ar, $c, $x => $x^2);
+		$ar2
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, [4, 25, 81]);
+		t.deepEqual(complexity, 4);
+	})
+});
+
+test('map over object', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$c = 3;
+		$o = {c: 2, a: 5, b: 9};
+		$o2 = map($o, $c, $x => $x^2);
+		$o2
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, { c: 4, a: 25, b: 81 });
+		t.deepEqual(complexity, 4);
+	})
+});
+
+test('filter over array', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$c = 3;
+		$ar = [2, 5, 9];
+		$ar2 = filter($ar, $c, $x => $x > 2);
+		$ar2
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, [5, 9]);
+		t.deepEqual(complexity, 2);
+	})
+});
+
+test('filter over object', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$c = 3;
+		$o = {c: 2, a: 5, b: 9};
+		$o2 = filter($o, $c, $x => $x>2);
+		$o2
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, { a: 5, b: 9 });
+		t.deepEqual(complexity, 2);
+	})
+});
+
+test('filter over object check that a copy is returned', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$c = 3;
+		$o = {c: {n:2}, a: {n:5}, b: {n:9, m:20}};
+		$o2 = filter($o, $c, $x => $x.n > 2);
+		$o.b.m = 30;
+		$o2
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, { a: { n: 5 }, b: { n: 9, m: 20 } });
+		t.deepEqual(locals.o.obj, { c: { n: 2 }, a: { n: 5 }, b: { n: 9, m: 30 } });
+		t.deepEqual(complexity, 2);
+	})
+});
+
+test('reduce over array', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$c = 3;
+		$ar = [2, 5, 9];
+		$acc = reduce($ar, $c, ($acc, $x) => $acc + $x, 0);
+		$acc
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, 16);
+		t.deepEqual(complexity, 2);
+	})
+});
+
+test('reduce over object', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$c = 3;
+		$o = {c: {n:2}, a: {n:5}, b: {n:9, m:20}};
+		$acc = reduce($o, $c, $acc, $x => $acc + $x.n, 10);
+		$acc
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, 26);
+		t.deepEqual(complexity, 2);
+	})
+});
+
+test.cb('objects in state vars', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$o = {c: 2, a: 5, b: 9};
+		var['ob'] = $o;
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStateVarAssignmentAllowed: true, bStatementsOnly: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, true);
+		t.deepEqual(stateVars.MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU.ob.value.obj, {c: 2, a: 5, b: 9});
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});
+
+test.cb('read object state var', t => {
+	var formula = `
+		$s = var[I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT]['structured'];
+		$s.1.qq = 'pp';
+		$s
+	`;
+	evalFormulaWithVars({ formula, trigger: {}, locals: {volume: 100}, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, [5, {s: 8, w: 'cc', qq: 'pp'}]);
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});
+
+test.cb('object state var += to object', t => {
+	var formula = `
+		var['structured'] += 1;
+	`;
+	evalFormulaWithVars({ formula, trigger: {}, locals: {volume: 100}, objValidationState, bStatementsOnly: true, bStateVarAssignmentAllowed: true, address: 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT' }, (res, complexity) => {
+		t.deepEqual(res, null);
+		t.end();
+	})
+});
+
+test.cb('object state var += object', t => {
+	var formula = `
+		var['price'] += {a: 9};
+	`;
+	evalFormulaWithVars({ formula, trigger: {}, locals: {volume: 100}, objValidationState, bStatementsOnly: true, bStateVarAssignmentAllowed: true, address: 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT' }, (res, complexity) => {
+		t.deepEqual(res, null);
+		t.end();
+	})
+});
+
+test('concat two arrays', t => {
+	var formula = `
+		[4, 6] || [3, 1, {a:9}]
+	`;
+	evalFormulaWithVars({ formula, trigger: {}, locals: {volume: 100}, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, [4, 6, 3, 1, { a: 9 }]);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('concat two objects', t => {
+	var formula = `
+		{x: 1, y: 7} || {s:[], y: 8, a:9}
+	`;
+	evalFormulaWithVars({ formula, trigger: {}, locals: {volume: 100}, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, {x: 1, s:[], y: 8, a:9});
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('concat 3 objects', t => {
+	var formula = `
+		{x: 1, y: 7} || {y: 8, a:9} || {d: 3, y: 9}
+	`;
+	evalFormulaWithVars({ formula, trigger: {}, locals: {volume: 100}, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, { x: 1, y: 9, a: 9, d: 3 });
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('concat object and array', t => {
+	var formula = `
+		{x: 1, y: 7} || [3, 1, {a:9}]
+	`;
+	evalFormulaWithVars({ formula, trigger: {}, locals: {volume: 100}, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, null);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('concat object and number', t => {
+	var formula = `
+		{x: 1, y: 7} || 3
+	`;
+	evalFormulaWithVars({ formula, trigger: {}, locals: {volume: 100}, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, "true3");
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test.cb('concat array in state vars', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		var['structured'] ||= [3, 5];
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStateVarAssignmentAllowed: true, bStatementsOnly: true, address: 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, true);
+		t.deepEqual(stateVars.I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT.structured.value.obj, [5, {s: 8, w: 'cc'}, 3, 5]);
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});
+
+test.cb('double concat array in state vars', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		var['structured'] ||= [3, 5];
+		var['structured'] ||= ["bb"];
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStateVarAssignmentAllowed: true, bStatementsOnly: true, address: 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, true);
+		t.deepEqual(stateVars.I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT.structured.value.obj, [5, {s: 8, w: 'cc'}, 3, 5, 'bb']);
+		t.deepEqual(complexity, 3);
+		t.end();
+	})
+});
+
+test.cb('concat object in state vars', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		var['ob'] = {x:3, y: "s"};
+		var['ob'] ||= {x: "b", z: 8};
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStateVarAssignmentAllowed: true, bStatementsOnly: true, address: 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, true);
+		t.deepEqual(stateVars.I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT.ob.value.obj, {x: "b", y: "s", z: 8});
+		t.deepEqual(complexity, 3);
+		t.end();
+	})
+});
+
+test.cb('concat object to array in state vars', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		var['structured'] ||= {d: "bb"};
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStateVarAssignmentAllowed: true, bStatementsOnly: true, address: 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});
+
+test.cb('concat object to number in state vars', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		var['price'] ||= {d: "bb"};
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStateVarAssignmentAllowed: true, bStatementsOnly: true, address: 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, true);
+		t.deepEqual(stateVars.I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT.price.value, "0.000678901234567true");
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});
+
+test.cb('concat number to array in state vars', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		var['structured'] ||= 6;
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStateVarAssignmentAllowed: true, bStatementsOnly: true, address: 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, true);
+		t.deepEqual(stateVars.I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT.structured.value, "true6");
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});
+
+test('reverse an array', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		reverse([4, 8, {a:9}, 3])
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState,  bObjectResultAllowed: true, address: 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, [3, { a: 9 }, 8, 4]);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('reverse an array: copy returned', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$a = [4, 8, {a:9}, 3];
+		$b = reverse($a);
+		$a[2].a = 10;
+		$b
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState,  bObjectResultAllowed: true, address: 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, [3, { a: 9 }, 8, 4]);
+		t.deepEqual(locals.a.obj, [4, 8, { a: 10 }, 3]);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('reverse an object', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		reverse({s:7, g:2})
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState,  bObjectResultAllowed: true, address: 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('reverse a scalar', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		reverse("hh")
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState,  bObjectResultAllowed: true, address: 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('split', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		split("qw,une,7,z", ",")
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState,  bObjectResultAllowed: true, address: 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, ['qw', 'une', '7', 'z']);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('split with limit', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		split("qw,une,7,z", ",", 2)
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState,  bObjectResultAllowed: true, address: 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, ['qw', 'une']);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('split a number', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		split(6655, "")
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState,  bObjectResultAllowed: true, address: 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, ['6', '6', '5', '5']);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('split an object', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		split({}, "")
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState,  bObjectResultAllowed: true, address: 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, ['t', 'r', 'u', 'e']);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('join an array', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		join([2, "aa", 1], "--")
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState,  bObjectResultAllowed: true, address: 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, "2--aa--1");
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('join an object', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		join({z: 3, a: 'dd', s: false}, "--")
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState,  bObjectResultAllowed: true, address: 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, "dd--false--3");
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('join with non-scalars', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		join({z: 3, a: [5], s: 'q'}, "--")
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState,  bObjectResultAllowed: true, address: 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('join non-object', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		join("ccc", "--")
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState,  bObjectResultAllowed: true, address: 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+		t.deepEqual(complexity, 1);
+	})
+});
+

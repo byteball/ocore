@@ -1366,7 +1366,7 @@ function readFundedAddresses(asset, wallet, estimated_amount, spend_unconfirmed,
 		) AS t \n\
 		WHERE NOT EXISTS ( \n\
 			SELECT * FROM units CROSS JOIN unit_authors USING(unit) \n\
-			WHERE is_stable=0 AND unit_authors.address=t.address AND definition_chash IS NOT NULL \n\
+			WHERE is_stable=0 AND unit_authors.address=t.address AND definition_chash IS NOT NULL AND definition_chash != unit_authors.address \n\
 		)",
 		asset ? [wallet, asset] : [wallet],
 		function(rows){

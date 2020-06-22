@@ -11,6 +11,12 @@ shell('rm -rf ' + dst_dir);
 var formulaParser = require('../formula/index');
 var test = require('ava');
 require('./_init_datafeeds.js');
+var db = require("../db");
+var storage = require("../storage");
+
+var readGetterProps = function (aa_address, func_name, cb) {
+	storage.readAAGetterProps(db, aa_address, func_name, cb);
+};
 
 function evalFormulaWithVars(opts, callback) {
 	var val_opts = {
@@ -19,7 +25,10 @@ function evalFormulaWithVars(opts, callback) {
 		count_ops: 0,
 		bAA: true,
 		bStateVarAssignmentAllowed: opts.bStateVarAssignmentAllowed,
-		bStatementsOnly: opts.bStatementsOnly
+		bStatementsOnly: opts.bStatementsOnly,
+		mci: opts.objValidationState.last_ball_mci,
+		readGetterProps: readGetterProps,
+		locals: {},
 	};
 	formulaParser.validate(val_opts, function(validation_res){
 		if (validation_res.error) {

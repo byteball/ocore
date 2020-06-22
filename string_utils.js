@@ -69,14 +69,33 @@ function getMciFromDataFeedKey(key){
 // df:address:feed_name:type:value:strReversedMci
 function getValueFromDataFeedKey(key){
 	var m = key.split('\n');
-	if (m.length !== 5)
+	if (m.length !== 6)
 		throw Error("wrong number of elements in data feed "+key);
 	var type = m[3];
 	var value = m[4];
 	return (type === 's') ? value : decodeLexicographicToDouble(value);
 }
 
-function getNumericFeedValue(value){
+// returns a number if the value looks like a valid float
+function toNumber(value, bLimitedPrecision) {
+	if (bLimitedPrecision)
+		return getNumericFeedValue(value);
+	if (typeof value !== 'string')
+		throw Error("toNumber of not a string: "+value);
+	var m = value.match(/^[+-]?(\d+(\.\d+)?)([eE][+-]?(\d+))?$/);
+	if (!m)
+		return null;
+	var f = parseFloat(value);
+	if (!isFinite(f))
+		return null;
+	var mantissa = m[1];
+	var abs_exp = m[4];
+	if (f === 0 && mantissa > 0 && abs_exp > 0) // too small number out of range such as 1.23e-700
+		return null;
+	return f;
+}
+
+function getNumericFeedValue(value, bBySignificantDigits){
 	if (typeof value !== 'string')
 		throw Error("getNumericFeedValue of not a string: "+value);
 	var m = value.match(/^[+-]?(\d+(\.\d+)?)([eE][+-]?(\d+))?$/);
@@ -89,15 +108,24 @@ function getNumericFeedValue(value){
 	var abs_exp = m[4];
 	if (f === 0 && mantissa > 0 && abs_exp > 0) // too small number out of range such as 1.23e-700
 		return null;
-	// mantissa can also be 123.456, 00.123, 1.2300000000, 123000000000, anyway too long number indicates we want to keep it as a string
-	if (mantissa.length > 15) // including the point (if any), including 0. in 0.123
-		return null;
+	if (bBySignificantDigits) {
+		var significant_digits = mantissa.replace(/^0+/, '');
+		if (significant_digits.indexOf('.') >= 0)
+			significant_digits = significant_digits.replace(/0+$/, '').replace('.', '');
+		if (significant_digits.length > 16)
+			return null;
+	}
+	else {
+		// mantissa can also be 123.456, 00.123, 1.2300000000, 123000000000, anyway too long number indicates we want to keep it as a string
+		if (mantissa.length > 15) // including the point (if any), including 0. in 0.123
+			return null;
+	}
 	return f;
 }
 
 // transformss the value to number is possible
-function getFeedValue(value){
-	var numValue = getNumericFeedValue(value);
+function getFeedValue(value, bLimitedPrecision){
+	var numValue = toNumber(value, bLimitedPrecision);
 	return (numValue === null) ? value : numValue;
 }
 
@@ -154,7 +182,7 @@ function toWellFormedJsonStringify(obj) {
 	return bWellFormedJsonStringify ? str : str.replace(/[\ud800-\udfff]/g, chr => "\\u" + chr.codePointAt(0).toString(16));
 }
 
-function getJsonSourceString(obj) {
+function getJsonSourceString(obj, bAllowEmpty) {
 	function stringify(variable){
 		if (variable === null)
 			throw Error("null value in "+JSON.stringify(obj));
@@ -166,13 +194,13 @@ function getJsonSourceString(obj) {
 				return variable.toString();
 			case "object":
 				if (Array.isArray(variable)){
-					if (variable.length === 0)
+					if (variable.length === 0 && !bAllowEmpty)
 						throw Error("empty array in "+JSON.stringify(obj));
 					return '[' + variable.map(stringify).join(',') + ']';
 				}
 				else{
 					var keys = Object.keys(variable).sort();
-					if (keys.length === 0)
+					if (keys.length === 0 && !bAllowEmpty)
 						throw Error("empty object in "+JSON.stringify(obj));
 					return '{' + keys.map(function(key){ return toWellFormedJsonStringify(key)+':'+stringify(variable[key]) }).join(',') + '}';
 				}
@@ -190,6 +218,7 @@ exports.getSourceString = getSourceString;
 exports.encodeMci = encodeMci;
 exports.getMciFromDataFeedKey = getMciFromDataFeedKey;
 exports.getValueFromDataFeedKey = getValueFromDataFeedKey;
+exports.toNumber = toNumber;
 exports.getNumericFeedValue = getNumericFeedValue;
 exports.getFeedValue = getFeedValue;
 exports.encodeDoubleInLexicograpicOrder = encodeDoubleInLexicograpicOrder;
