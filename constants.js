@@ -22,8 +22,9 @@ console.log('===== testnet = ' + exports.bTestnet);
 exports.version = exports.bTestnet ? '2.0t' : '2.0';
 exports.alt = exports.bTestnet ? '2' : '1';
 
-exports.supported_versions = exports.bTestnet ? ['1.0t', '2.0t'] : ['1.0', '2.0'];
+exports.supported_versions = exports.bTestnet ? ['1.0t', '2.0t', '3.0t'] : ['1.0', '2.0', '3.0'];
 exports.versionWithoutTimestamp = exports.bTestnet ? '1.0t' : '1.0';
+exports.versionWithoutKeySizes = exports.bTestnet ? '2.0t' : '2.0';
 
 //exports.bTestnet = (exports.alt === '2' && exports.version === '1.0t');
 
@@ -61,12 +62,6 @@ exports.MAX_STATE_VAR_VALUE_LENGTH = 1024;
 exports.MAX_OPS = 2000;
 exports.MAX_RESPONSES_PER_PRIMARY_TRIGGER = 10;
 
-exports.TEXTCOIN_CLAIM_FEE = 556;
-exports.TEXTCOIN_ASSET_CLAIM_FEE = 758;
-exports.TEXTCOIN_ASSET_CLAIM_HEADER_FEE = 399;
-exports.TEXTCOIN_ASSET_CLAIM_MESSAGE_FEE = 209;
-exports.TEXTCOIN_ASSET_CLAIM_BASE_MSG_FEE = 158;
-exports.TEXTCOIN_PRIVATE_ASSET_CLAIM_MESSAGE_FEE = 99;
 exports.MIN_BYTES_BOUNCE_FEE = 10000;
 
 exports.minCoreVersion = exports.bTestnet ? '0.3.0' : '0.3.8';
@@ -88,15 +83,17 @@ exports.timestampUpgradeMci = exports.bTestnet ? 909000 : 5210000;
 exports.aaStorageSizeUpgradeMci = exports.bTestnet ? 1034000 : 5210000;
 exports.aa2UpgradeMci = exports.bTestnet ? 1358300 : 5494000;
 exports.unstableInitialDefinitionUpgradeMci = exports.bTestnet ? 1358300 : 5494000;
+exports.includeKeySizesUpgradeMci = exports.bTestnet ? Infinity : Infinity;
 
 
 if (process.env.devnet) {
 	console.log('===== devnet');
 	exports.bDevnet = true;
-	exports.version = '2.0dev';
+	exports.version = '3.0dev';
 	exports.alt = '3';
-	exports.supported_versions = ['1.0dev', '2.0dev'];
+	exports.supported_versions = ['1.0dev', '2.0dev', '3.0dev'];
 	exports.versionWithoutTimestamp = '1.0dev';
+	exports.versionWithoutKeySizes = '2.0dev';
 	exports.GENESIS_UNIT = 'pLzHaCisvxkfgwyBDzgvZzhPp37ZKnuMOxiI3QwXxqM=';
 	exports.BLACKBYTES_ASSET = 'GRzA4D/ElsiwivoUrkCg36s+CoOr6rLsSH2F0EOes64=';
 
@@ -117,4 +114,13 @@ if (process.env.devnet) {
 	exports.aaStorageSizeUpgradeMci = 0;
 	exports.aa2UpgradeMci = 0;
 	exports.unstableInitialDefinitionUpgradeMci = 0;
+	exports.includeKeySizesUpgradeMci = 0;
 }
+
+
+exports.TEXTCOIN_CLAIM_FEE = 772 + (exports.version.length - 3);
+exports.TEXTCOIN_ASSET_CLAIM_HEADER_FEE = 399 + 123 + (exports.version.length - 3);
+exports.TEXTCOIN_ASSET_CLAIM_MESSAGE_FEE = 201 + 98;
+exports.TEXTCOIN_ASSET_CLAIM_BASE_MSG_FEE = 197 + 106 + 1;
+exports.TEXTCOIN_ASSET_CLAIM_FEE = exports.TEXTCOIN_ASSET_CLAIM_HEADER_FEE + exports.TEXTCOIN_ASSET_CLAIM_MESSAGE_FEE + exports.TEXTCOIN_ASSET_CLAIM_BASE_MSG_FEE;
+exports.TEXTCOIN_PRIVATE_ASSET_CLAIM_MESSAGE_FEE = 141;

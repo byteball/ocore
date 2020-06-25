@@ -33,8 +33,10 @@ var TRANSFER_INPUT_SIZE = 0 // type: "transfer" omitted
 	+ 44 // unit
 	+ 8 // message_index
 	+ 8; // output_index
+var TRANSFER_INPUT_KEYS_SIZE = "unit".length + "message_index".length + "output_index".length;
 
 var OUTPUT_SIZE = 32 + 8; // address + amount
+var OUTPUT_KEYS_SIZE = "address".length + "amount".length;
 
 eventBus.on('new_aa_triggers', function () {
 	mutex.lock(["write"], function (unlock) {
@@ -707,6 +709,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 
 	function sendUnit(messages) {
 		console.log('send unit with messages', JSON.stringify(messages, null, '\t'));
+		var bWithKeys = (mci >= constants.includeKeySizesUpgradeMci);
 		var arrUsedOutputIds = [];
 		var arrConsumedOutputs = [];
 
@@ -718,6 +721,8 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 		function completePaymentPayload(payload, additional_amount, cb) {
 			var asset = payload.asset || null;
 			var is_base = (asset === null) ? 1 : 0;
+			if (!payload.inputs && bWithKeys && is_base)
+				additional_amount += "inputs".length;
 			payload.inputs = [];
 			var total_amount = 0;
 
@@ -728,10 +733,10 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 			// send-all output looks like {address: "BASE32"}, its size is 32 since it has no amount.
 			// remove the send-all output from size calculation, it might be added later
 			if (send_all_output && is_base){
-				additional_amount -= 32;
+				additional_amount -= 32 + (bWithKeys ? "address".length : 0);
 				// we add a change output to AA to keep balance above storage_size
 				if (storage_size > 60 && mci >= constants.aaStorageSizeUpgradeMci){
-					additional_amount += OUTPUT_SIZE;
+					additional_amount += OUTPUT_SIZE + (bWithKeys ? OUTPUT_KEYS_SIZE : 0);
 					payload.outputs.push({ address: address, amount: storage_size });
 				}
 			}
@@ -747,7 +752,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 					payload.inputs.push(input);
 					total_amount += row.amount;
 					if (is_base)
-						target_amount += TRANSFER_INPUT_SIZE;
+						target_amount += TRANSFER_INPUT_SIZE + (bWithKeys ? TRANSFER_INPUT_KEYS_SIZE : 0);
 					if (total_amount < target_amount)
 						continue;
 					if (total_amount === target_amount && payload.outputs.length > 0) {
@@ -757,7 +762,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 						else
 							break;
 					}
-					var additional_output_size = is_base ? OUTPUT_SIZE : 0; // the same for send-all
+					var additional_output_size = is_base ? OUTPUT_SIZE + (bWithKeys ? OUTPUT_KEYS_SIZE : 0) : 0; // the same for send-all
 					var change_amount = total_amount - (target_amount + additional_output_size);
 					if (change_amount > 0) {
 						bFound = true;
@@ -948,7 +953,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 				objBasePaymentMessage.payload_location = 'inline';
 				objBasePaymentMessage.payload_hash = '-'.repeat(44);
 				var objUnit = {
-					version: constants.version, 
+					version: bWithKeys ? constants.version : constants.versionWithoutKeySizes, 
 					alt: constants.alt,
 					timestamp: objMcUnit.timestamp,
 					messages: messages,
@@ -970,6 +975,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 						completeMessage(objBasePaymentMessage); // fixes payload_hash
 						objUnit.payload_commission = objectLength.getTotalPayloadSize(objUnit);
 						objUnit.unit = objectHash.getUnitHash(objUnit);
+						console.log('unit', JSON.stringify(objUnit, null, '\t'))
 						executeStateUpdateFormula(objUnit, function (err) {
 							if (err)
 								return bounce(err);

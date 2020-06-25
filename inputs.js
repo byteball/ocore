@@ -11,16 +11,20 @@ var TRANSFER_INPUT_SIZE = 0 // type: "transfer" omitted
 	+ 44 // unit
 	+ 8 // message_index
 	+ 8; // output_index
+var TRANSFER_INPUT_KEYS_SIZE = "unit".length + "message_index".length + "output_index".length;
 
 var HEADERS_COMMISSION_INPUT_SIZE = 18 // type: "headers_commission"
 	+ 8 // from_main_chain_index
 	+ 8; // to_main_chain_index
+var HEADERS_COMMISSION_INPUT_KEYS_SIZE = "type".length + "from_main_chain_index".length + "to_main_chain_index".length;
 
 var WITNESSING_INPUT_SIZE = 10 // type: "witnessing"
 	+ 8 // from_main_chain_index
 	+ 8; // to_main_chain_index
+var WITNESSING_INPUT_KEYS_SIZE = "type".length + "from_main_chain_index".length + "to_main_chain_index".length;
 
 var ADDRESS_SIZE = 32;
+var ADDRESS_KEY_SIZE = "address".length;
 
 // bMultiAuthored includes all addresses, not just those that pay
 // arrAddresses is paying addresses
@@ -29,6 +33,8 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 	var asset = objAsset ? objAsset.asset : null;
 	console.log("pick coins in "+asset+" for amount "+amount+" with spend_unconfirmed "+spend_unconfirmed);
 	var is_base = objAsset ? 0 : 1;
+	var bWithKeys = (last_ball_mci >= constants.versionWithoutKeySizes);
+	var transfer_input_size = is_base * (TRANSFER_INPUT_SIZE + (bWithKeys ? TRANSFER_INPUT_KEYS_SIZE : 0));
 	var arrInputsWithProofs = [];
 	var total_amount = 0;
 	var required_amount = amount;
@@ -89,7 +95,7 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 			WHERE address IN(?) AND asset"+(asset ? "="+conn.escape(asset) : " IS NULL")+" AND is_spent=0 AND amount "+more+" ? \n\
 				AND sequence='good' "+confirmation_condition+" \n\
 			ORDER BY is_stable DESC, amount LIMIT 1",
-			[arrSpendableAddresses, amount+is_base*TRANSFER_INPUT_SIZE],
+			[arrSpendableAddresses, amount+transfer_input_size],
 			function(rows){
 				if (rows.length === 1){
 					var input = rows[0];
@@ -119,7 +125,7 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 					function(row, cb){
 						var input = row;
 						objectHash.cleanNulls(input);
-						required_amount += is_base*TRANSFER_INPUT_SIZE;
+						required_amount += transfer_input_size;
 						addInput(input);
 						// if we allow equality, we might get 0 amount for change which is invalid
 						var bFound = is_base ? (total_amount > required_amount) : (total_amount >= required_amount);
@@ -139,19 +145,20 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 	}
 
 	function addHeadersCommissionInputs(){
-		addMcInputs("headers_commission", HEADERS_COMMISSION_INPUT_SIZE,
+		addMcInputs("headers_commission", HEADERS_COMMISSION_INPUT_SIZE + (bWithKeys ? HEADERS_COMMISSION_INPUT_KEYS_SIZE : 0),
 			headers_commission.getMaxSpendableMciForLastBallMci(last_ball_mci), addWitnessingInputs);
 	}
 
 	function addWitnessingInputs(){
-		addMcInputs("witnessing", WITNESSING_INPUT_SIZE, paid_witnessing.getMaxSpendableMciForLastBallMci(last_ball_mci), issueAsset);
+		addMcInputs("witnessing", WITNESSING_INPUT_SIZE + (bWithKeys ? WITNESSING_INPUT_KEYS_SIZE : 0), paid_witnessing.getMaxSpendableMciForLastBallMci(last_ball_mci), issueAsset);
 	}
 
 	function addMcInputs(type, input_size, max_mci, onStillNotEnough){
+		var address_size = ADDRESS_SIZE + (bWithKeys ? ADDRESS_KEY_SIZE : 0);
 		async.eachSeries(
 			arrAddresses,
 			function(address, cb){
-				var target_amount = required_amount + input_size + (bMultiAuthored ? ADDRESS_SIZE : 0) - total_amount;
+				var target_amount = required_amount + input_size + (bMultiAuthored ? address_size : 0) - total_amount;
 				mc_outputs.findMcIndexIntervalToTargetAmount(conn, type, address, max_mci, target_amount, {
 					ifNothing: cb,
 					ifFound: function(from_mc_index, to_mc_index, earnings, bSufficient){
@@ -165,7 +172,7 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 						};
 						var full_input_size = input_size;
 						if (bMultiAuthored){
-							full_input_size += ADDRESS_SIZE; // address length
+							full_input_size += address_size; // address length
 							input.address = address;
 						}
 						required_amount += full_input_size;

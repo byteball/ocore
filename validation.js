@@ -562,11 +562,18 @@ function validateParents(conn, objJoint, objValidationState, callback){
 					objValidationState.max_known_mci = objLastBallUnitProps.max_known_mci;
 					if (objValidationState.max_parent_limci < objValidationState.last_ball_mci)
 						return callback("last ball unit "+last_ball_unit+" is not included in parents, unit "+objUnit.unit);
+					
 					var bRequiresTimestamp = (objValidationState.last_ball_mci >= constants.timestampUpgradeMci);
 					if (bRequiresTimestamp && objUnit.version === constants.versionWithoutTimestamp)
 						return callback("should be higher version at this mci");
 					if (!bRequiresTimestamp && objUnit.version !== constants.versionWithoutTimestamp)
 						return callback("should be version " + constants.versionWithoutTimestamp + " at this mci");
+					
+					var bWithKeys = (objValidationState.last_ball_mci >= constants.includeKeySizesUpgradeMci);
+					var bWithKeysVersion = (objUnit.version !== constants.versionWithoutTimestamp && objUnit.version !== constants.versionWithoutKeySizes);
+					if (bWithKeys !== bWithKeysVersion)
+						return callback("wrong version, with keys mci = " + bWithKeys + ", with keys version = " + bWithKeysVersion);
+					
 					readMaxParentLastBallMci(function(max_parent_last_ball_mci){
 						if (objLastBallUnitProps.is_stable === 1){
 							// if it were not stable, we wouldn't have had the ball at all
