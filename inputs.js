@@ -165,6 +165,8 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 					ifFound: function(from_mc_index, to_mc_index, earnings, bSufficient){
 						if (earnings === 0)
 							throw Error("earnings === 0");
+						if (earnings <= full_input_size) // skip net negative MC inputs
+							return cb();
 						var input = {
 							type: type,
 							from_main_chain_index: from_mc_index,
@@ -172,9 +174,9 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 						};
 						if (bMultiAuthored)
 							input.address = address;
+						arrInputsWithProofs.push({input: input});
 						total_amount += earnings;
 						required_amount += full_input_size;
-						arrInputsWithProofs.push({input: input});
 						(total_amount > required_amount)
 							? cb("found") // break eachSeries
 							: cb(); // try next address
