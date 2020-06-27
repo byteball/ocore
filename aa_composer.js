@@ -278,6 +278,8 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 		number_of_responses: arrResponses.length,
 		arrPreviousResponseUnits: arrResponses.map(objAAResponse => objAAResponse.objResponseUnit)
 	};
+	var bWithKeys = (mci >= constants.includeKeySizesUpgradeMci);
+	var FULL_TRANSFER_INPUT_SIZE = TRANSFER_INPUT_SIZE + (bWithKeys ? TRANSFER_INPUT_KEYS_SIZE : 0);
 	var byte_balance;
 	var storage_size;
 	var objStateUpdate;
@@ -709,7 +711,6 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 
 	function sendUnit(messages) {
 		console.log('send unit with messages', JSON.stringify(messages, null, '\t'));
-		var bWithKeys = (mci >= constants.includeKeySizesUpgradeMci);
 		var arrUsedOutputIds = [];
 		var arrConsumedOutputs = [];
 
@@ -735,7 +736,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 			if (send_all_output && is_base){
 				additional_amount -= 32 + (bWithKeys ? "address".length : 0);
 				// we add a change output to AA to keep balance above storage_size
-				if (storage_size > 60 && mci >= constants.aaStorageSizeUpgradeMci){
+				if (storage_size > FULL_TRANSFER_INPUT_SIZE && mci >= constants.aaStorageSizeUpgradeMci){
 					additional_amount += OUTPUT_SIZE + (bWithKeys ? OUTPUT_KEYS_SIZE : 0);
 					payload.outputs.push({ address: address, amount: storage_size });
 				}
@@ -752,7 +753,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 					payload.inputs.push(input);
 					total_amount += row.amount;
 					if (is_base)
-						target_amount += TRANSFER_INPUT_SIZE + (bWithKeys ? TRANSFER_INPUT_KEYS_SIZE : 0);
+						target_amount += FULL_TRANSFER_INPUT_SIZE;
 					if (total_amount < target_amount)
 						continue;
 					if (total_amount === target_amount && payload.outputs.length > 0) {
@@ -785,7 +786,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 					"SELECT unit, message_index, output_index, amount, output_id \n\
 					FROM outputs \n\
 					CROSS JOIN units USING(unit) \n\
-					WHERE address=? AND asset"+(asset ? "="+conn.escape(asset) : " IS NULL AND amount>=60")+" AND is_spent=0 \n\
+					WHERE address=? AND asset"+(asset ? "="+conn.escape(asset) : " IS NULL AND amount>=" + FULL_TRANSFER_INPUT_SIZE)+" AND is_spent=0 \n\
 						AND sequence='good' AND main_chain_index<=? \n\
 						AND output_id NOT IN("+(arrUsedOutputIds.length === 0 ? "-1" : arrUsedOutputIds.join(', '))+") \n\
 					ORDER BY main_chain_index, unit, output_index", // sort order must be deterministic
@@ -801,7 +802,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 					CROSS JOIN units USING(unit) \n\
 					CROSS JOIN unit_authors USING(unit) \n\
 					CROSS JOIN aa_addresses ON unit_authors.address=aa_addresses.address \n\
-					WHERE outputs.address=? AND asset"+(asset ? "="+conn.escape(asset) : " IS NULL AND amount>=60")+" AND is_spent=0 \n\
+					WHERE outputs.address=? AND asset"+(asset ? "="+conn.escape(asset) : " IS NULL AND amount>="+FULL_TRANSFER_INPUT_SIZE)+" AND is_spent=0 \n\
 						AND sequence='good' AND (main_chain_index>? OR main_chain_index IS NULL) \n\
 						AND output_id NOT IN("+(arrUsedOutputIds.length === 0 ? "-1" : arrUsedOutputIds.join(', '))+") \n\
 					ORDER BY latest_included_mc_index, level, outputs.unit, output_index", // sort order must be deterministic
@@ -1106,7 +1107,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 		var new_storage_size = storage_size + delta_storage_size;
 		if (new_storage_size < 0)
 			throw Error("storage size would become negative: " + new_storage_size);
-		if (byte_balance < new_storage_size && new_storage_size > 60 && mci >= constants.aaStorageSizeUpgradeMci)
+		if (byte_balance < new_storage_size && new_storage_size > FULL_TRANSFER_INPUT_SIZE && mci >= constants.aaStorageSizeUpgradeMci)
 			return cb("byte balance " + byte_balance + " would drop below new storage size " + new_storage_size);
 		if (delta_storage_size === 0)
 			return cb();
