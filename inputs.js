@@ -33,7 +33,7 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 	var asset = objAsset ? objAsset.asset : null;
 	console.log("pick coins in "+asset+" for amount "+amount+" with spend_unconfirmed "+spend_unconfirmed);
 	var is_base = objAsset ? 0 : 1;
-	var bWithKeys = (last_ball_mci >= constants.versionWithoutKeySizes);
+	var bWithKeys = (last_ball_mci >= constants.includeKeySizesUpgradeMci);
 	var transfer_input_size = is_base * (TRANSFER_INPUT_SIZE + (bWithKeys ? TRANSFER_INPUT_KEYS_SIZE : 0));
 	var arrInputsWithProofs = [];
 	var total_amount = 0;
