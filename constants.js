@@ -19,7 +19,7 @@ exports.COUNT_MC_BALLS_FOR_PAID_WITNESSING = 100;
 exports.bTestnet = !!process.env.testnet;
 console.log('===== testnet = ' + exports.bTestnet);
 
-exports.version = exports.bTestnet ? '2.0t' : '2.0';
+exports.version = exports.bTestnet ? '3.0t' : '3.0';
 exports.alt = exports.bTestnet ? '2' : '1';
 
 exports.supported_versions = exports.bTestnet ? ['1.0t', '2.0t', '3.0t'] : ['1.0', '2.0', '3.0'];
