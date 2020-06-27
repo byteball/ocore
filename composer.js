@@ -213,6 +213,7 @@ function composeJoint(params){
 		payload_location: "inline",
 		payload_hash: hash_placeholder,
 		payload: {
+			inputs: [],
 			// first output is the change, it has 0 amount (placeholder) that we'll modify later. 
 			// Then we'll sort outputs, so the change is not necessarity the first in the final transaction
 			outputs: arrChangeOutputs
