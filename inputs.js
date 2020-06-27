@@ -34,7 +34,7 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 	console.log("pick coins in "+asset+" for amount "+amount+" with spend_unconfirmed "+spend_unconfirmed);
 	var is_base = objAsset ? 0 : 1;
 	var bWithKeys = (last_ball_mci >= constants.includeKeySizesUpgradeMci);
-	var transfer_input_size = is_base * (TRANSFER_INPUT_SIZE + (bWithKeys ? TRANSFER_INPUT_KEYS_SIZE : 0));
+	var transfer_input_size = is_base ? (TRANSFER_INPUT_SIZE + (bWithKeys ? TRANSFER_INPUT_KEYS_SIZE : 0)) : 0;
 	var arrInputsWithProofs = [];
 	var total_amount = 0;
 	var required_amount = amount;
@@ -155,26 +155,24 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 
 	function addMcInputs(type, input_size, max_mci, onStillNotEnough){
 		var address_size = ADDRESS_SIZE + (bWithKeys ? ADDRESS_KEY_SIZE : 0);
+		var full_input_size = input_size + (bMultiAuthored ? address_size : 0);
 		async.eachSeries(
 			arrAddresses,
 			function(address, cb){
-				var target_amount = required_amount + input_size + (bMultiAuthored ? address_size : 0) - total_amount;
+				var target_amount = required_amount + full_input_size - total_amount;
 				mc_outputs.findMcIndexIntervalToTargetAmount(conn, type, address, max_mci, target_amount, {
 					ifNothing: cb,
 					ifFound: function(from_mc_index, to_mc_index, earnings, bSufficient){
 						if (earnings === 0)
 							throw Error("earnings === 0");
-						total_amount += earnings;
 						var input = {
 							type: type,
 							from_main_chain_index: from_mc_index,
 							to_main_chain_index: to_mc_index
 						};
-						var full_input_size = input_size;
-						if (bMultiAuthored){
-							full_input_size += address_size; // address length
+						if (bMultiAuthored)
 							input.address = address;
-						}
+						total_amount += earnings;
 						required_amount += full_input_size;
 						arrInputsWithProofs.push({input: input});
 						(total_amount > required_amount)
