@@ -1336,6 +1336,8 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 			return callback();
 
 		case "address_definition_change":
+			if (!ValidationUtils.isNonemptyObject(payload))
+				return callback("payload must be a non empty object");
 			if (hasFieldsExcept(payload, ["definition_chash", "address"]))
 				return callback("unknown fields in address_definition_change");
 			var arrAuthorAddresses = objUnit.authors.map(function(author) { return author.address; } );
@@ -1448,7 +1450,7 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 			if (objValidationState.bHasDataFeed)
 				return callback("can be only one data feed");
 			objValidationState.bHasDataFeed = true;
-			if (typeof payload !== "object" || Array.isArray(payload) || Object.keys(payload).length === 0)
+			if (!ValidationUtils.isNonemptyObject(payload))
 				return callback("data feed payload must be non-empty object");
 			for (var feed_name in payload){
 				if (feed_name.length > constants.MAX_DATA_FEED_NAME_LENGTH)
@@ -1532,6 +1534,11 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 // used for both public and private payments
 function validatePayment(conn, payload, message_index, objUnit, objValidationState, callback){
 
+	if (!isNonemptyArray(payload.inputs))
+		return callback("no inputs");
+	if (!isNonemptyArray(payload.outputs))
+		return callback("no outputs");
+
 	if (!("asset" in payload)){ // base currency
 		if (hasFieldsExcept(payload, ["inputs", "outputs"]))
 			return callback("unknown fields in payment message");
@@ -1552,10 +1559,6 @@ function validatePayment(conn, payload, message_index, objUnit, objValidationSta
 			return callback(err);
 		if (hasFieldsExcept(payload, ["inputs", "outputs", "asset", "denomination"]))
 			return callback("unknown fields in payment message");
-		if (!isNonemptyArray(payload.inputs))
-			return callback("no inputs");
-		if (!isNonemptyArray(payload.outputs))
-			return callback("no outputs");
 		if (objAsset.fixed_denominations){
 			if (!isPositiveInteger(payload.denomination))
 				return callback("no denomination");
