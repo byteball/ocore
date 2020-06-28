@@ -64,8 +64,8 @@ exports.MAX_RESPONSES_PER_PRIMARY_TRIGGER = 10;
 
 exports.MIN_BYTES_BOUNCE_FEE = 10000;
 
-exports.minCoreVersion = exports.bTestnet ? '0.3.12' : '0.3.8';
-exports.minCoreVersionForFullNodes = exports.bTestnet ? '0.3.12' : '0.3.11';
+exports.minCoreVersion = exports.bTestnet ? '0.3.12' : '0.3.12';
+exports.minCoreVersionForFullNodes = exports.bTestnet ? '0.3.12' : '0.3.12';
 exports.minCoreVersionToSharePeers = exports.bTestnet ? '0.3.9' : '0.3.9';
 
 exports.lastBallStableInParentsUpgradeMci =  exports.bTestnet ? 0 : 1300000;
