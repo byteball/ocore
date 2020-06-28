@@ -1450,7 +1450,7 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 			if (objValidationState.bHasDataFeed)
 				return callback("can be only one data feed");
 			objValidationState.bHasDataFeed = true;
-			if (typeof payload !== "object" || Array.isArray(payload) || Object.keys(payload).length === 0)
+			if (!ValidationUtils.isNonemptyObject(payload))
 				return callback("data feed payload must be non-empty object");
 			for (var feed_name in payload){
 				if (feed_name.length > constants.MAX_DATA_FEED_NAME_LENGTH)
