@@ -1466,3 +1466,68 @@ test.cb.serial('map/reduce with a remote function', t => {
 		});
 	});
 });
+
+test.cb.serial('calling a remote function that fails', t => {
+	var trigger_address = "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT";
+	var trigger = { outputs: { base: 10000 }, data: { x: 5 }, address: trigger_address };
+
+	var remote_aa = ['autonomous agent', {
+		getters: `{
+			$f = ($x) => {
+				if ($x==5)
+					bounce("==5");
+			};
+		}`,
+		messages: [
+			{
+				app: 'payment',
+				payload: {
+					asset: 'base',
+					outputs: [
+						{address: "{trigger.initial_address}", amount: 1000}
+					]
+				}
+			}
+		]
+	}];
+	var remote_aa_address = objectHash.getChash160(remote_aa);
+	
+	var aa = ['autonomous agent', {
+		init: `{
+			$ret = ${remote_aa_address}.$f(trigger.data.x);
+		}`,
+		messages: [
+			{
+				app: 'state',
+				state: `{
+					var['ret'] = $ret;
+				}`
+			}
+		]
+	}];
+
+	validateAA(remote_aa, async err => {
+		t.deepEqual(err, null);
+		await asyncAddAA(remote_aa);
+
+		validateAA(aa, async err => {
+			t.deepEqual(err, null);
+
+			var aa_address = objectHash.getChash160(aa);
+			await asyncAddAA(aa);
+			
+			aa_composer.dryRunPrimaryAATrigger(trigger, aa_address, aa, (arrResponses) => {
+				t.deepEqual(arrResponses.length, 1);
+				t.deepEqual(arrResponses[0].bounced, true);
+				t.deepEqual(arrResponses[0].response.error, "formula {\n\t\t\t$ret = TEHAPNFMCMPUKQKJJJZVHDZEDXVLQXRX.$f(trigger.data.x);\n\t\t} failed: ==5");
+				fixCache();
+				t.deepEqual(storage.assocUnstableUnits, old_cache.assocUnstableUnits);
+				t.deepEqual(storage.assocStableUnits, old_cache.assocStableUnits);
+				t.deepEqual(storage.assocUnstableMessages, old_cache.assocUnstableMessages);
+				t.deepEqual(storage.assocBestChildren, old_cache.assocBestChildren);
+				t.deepEqual(storage.assocStableUnitsByMci, old_cache.assocStableUnitsByMci);
+				t.end();
+			});
+		});
+	});
+});

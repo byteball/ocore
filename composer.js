@@ -213,6 +213,7 @@ function composeJoint(params){
 		payload_location: "inline",
 		payload_hash: hash_placeholder,
 		payload: {
+			inputs: [],
 			// first output is the change, it has 0 amount (placeholder) that we'll modify later. 
 			// Then we'll sort outputs, so the change is not necessarity the first in the final transaction
 			outputs: arrChangeOutputs
@@ -291,6 +292,7 @@ function composeJoint(params){
 		},
 		function(cb){ // parent units
 			if (bGenesis) {
+				last_ball_mci = 0;
 				if (constants.timestampUpgradeMci === 0)
 					objUnit.timestamp = 1561049490; // Jun 20 2019 16:51:30 UTC
 				return cb();	
@@ -345,6 +347,8 @@ function composeJoint(params){
 			var bVersion2 = (last_ball_mci >= constants.timestampUpgradeMci || constants.timestampUpgradeMci === 0);
 			if (!bVersion2)
 				objUnit.version = constants.versionWithoutTimestamp;
+			else if (last_ball_mci < constants.includeKeySizesUpgradeMci)
+				objUnit.version = constants.versionWithoutKeySizes;
 			// calc or fix payload_hash of non-payment messages
 			objUnit.messages.forEach(function (message) {
 				if (message.app === 'payment')
