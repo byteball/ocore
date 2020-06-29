@@ -94,6 +94,10 @@ function isValidEmail(str) {
 	return (typeof str === "string" && /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/.test(str));
 }
 
+function hasOwnProperty(obj, prop) {
+	return Object.prototype.hasOwnProperty.call(obj, prop);
+}
+
 exports.hasFieldsExcept = hasFieldsExcept;
 
 exports.isNonemptyString = isNonemptyString;
@@ -114,3 +118,5 @@ exports.isValidDeviceAddress = isValidDeviceAddress;
 exports.isValidBase64 = isValidBase64;
 exports.isValidHexadecimal = isValidHexadecimal;
 exports.isValidEmail = isValidEmail;
+
+exports.hasOwnProperty = hasOwnProperty;

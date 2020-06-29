@@ -30,6 +30,8 @@ var isValidValue = require('./common.js').isValidValue;
 var getFormula = require('./common.js').getFormula;
 var fixFormula = require('./common.js').fixFormula;
 
+var hasOwnProperty = ValidationUtils.hasOwnProperty;
+
 var testnetStringToNumberInArithmeticUpgradeMci = 1151000;
 
 var decimalE = new Decimal(Math.E);
@@ -1112,7 +1114,7 @@ exports.evaluate = function (opts, callback) {
 					if (typeof var_name !== 'string')
 						return setFatalError("var name evaluated to " + var_name, cb, false);
 					var value = locals[var_name];
-					if (value === undefined || !locals.hasOwnProperty(var_name))
+					if (value === undefined || !hasOwnProperty(locals, var_name))
 						return cb(false);
 					if (value instanceof Func)
 						return setFatalError("trying to access function " + var_name + " without calling it", cb, false);
@@ -1132,7 +1134,7 @@ exports.evaluate = function (opts, callback) {
 						return cb(false);
 					if (typeof var_name !== 'string')
 						return setFatalError("assignment: var name "+var_name_or_expr+" evaluated to " + var_name, cb, false);
-					if (locals.hasOwnProperty(var_name)) {
+					if (hasOwnProperty(locals, var_name)) {
 						if (!selectors)
 							return setFatalError("reassignment to " + var_name + ", old value " + locals[var_name], cb, false);
 						if (!(locals[var_name] instanceof wrappedObject))
@@ -1162,7 +1164,7 @@ exports.evaluate = function (opts, callback) {
 							return setFatalError("evaluation of rhs " + rhs + " failed: " + res, cb, false);
 						if (Decimal.isDecimal(res))
 							res = toDoubleRange(res);
-						if (locals.hasOwnProperty(var_name)) { // mutating an object
+						if (hasOwnProperty(locals, var_name)) { // mutating an object
 							if (!selectors)
 								return setFatalError("reassignment to " + var_name + " after evaluation", cb, false);
 							if (!(locals[var_name] instanceof wrappedObject))
@@ -2101,7 +2103,7 @@ exports.evaluate = function (opts, callback) {
 				evaluate(var_name_expr, function (var_name) {
 					if (fatal_error)
 						return cb(false);
-					if (!locals.hasOwnProperty(var_name))
+					if (!hasOwnProperty(locals, var_name))
 						return setFatalError("no such variable: " + var_name, cb, false);
 					if (locals[var_name] instanceof Func)
 						return setFatalError("functions cannot be frozen: " + var_name, cb, false);
@@ -2120,7 +2122,7 @@ exports.evaluate = function (opts, callback) {
 				evaluate(var_name_expr, function (var_name) {
 					if (fatal_error)
 						return cb(false);
-					if (!locals.hasOwnProperty(var_name))
+					if (!hasOwnProperty(locals, var_name))
 						return setFatalError("no such variable: " + var_name, cb, false);
 					if (!(locals[var_name] instanceof wrappedObject))
 						return setFatalError("trying to delete a key from a non-object", cb, false);
@@ -2526,7 +2528,7 @@ exports.evaluate = function (opts, callback) {
 	function readVar(param_address, var_name, cb2) {
 		if (!stateVars[param_address])
 			stateVars[param_address] = {};
-		if (stateVars[param_address].hasOwnProperty(var_name)) {
+		if (hasOwnProperty(stateVars[param_address], var_name)) {
 			console.log('using cache for var '+var_name);
 			return cb2(stateVars[param_address][var_name].value);
 		}
@@ -2650,7 +2652,7 @@ exports.evaluate = function (opts, callback) {
 						return setFatalError("result of " + key + " is not a string or number: " + evaluated_key, cb2);
 					if (typeof evaluated_key === 'string')
 						value = unwrapOneElementArrays(value);
-					if (!value.hasOwnProperty(evaluated_key))
+					if (!hasOwnProperty(value, evaluated_key))
 						return cb2("no such key in data");
 					value = value[evaluated_key];
 					cb2();
@@ -2720,7 +2722,7 @@ exports.evaluate = function (opts, callback) {
 						for (var i = 0; i < fields.length; i++) {
 							if (typeof val !== 'object')
 								return (search_value === null ? comp === '=' : comp === '!=');
-							val = val.hasOwnProperty(fields[i]) ? val[fields[i]] : undefined;
+							val = hasOwnProperty(val, fields[i]) ? val[fields[i]] : undefined;
 						}
 						if (search_value === null)
 							return (comp === '=' ? val === undefined : val !== undefined);

@@ -22,6 +22,7 @@ var isNonemptyObject = ValidationUtils.isNonemptyObject;
 var isArrayOfLength = ValidationUtils.isArrayOfLength;
 var isValidAddress = ValidationUtils.isValidAddress;
 var isValidBase64 = ValidationUtils.isValidBase64;
+var hasOwnProperty = ValidationUtils.hasOwnProperty;
 
 var MAX_DEPTH = 100;
 
@@ -468,7 +469,7 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 			depth = 0;
 		if (depth > MAX_DEPTH)
 			return cb("cases for " + field + " go too deep");
-		var value = obj.hasOwnProperty(field) ? obj[field] : undefined;
+		var value = hasOwnProperty(obj, field) ? obj[field] : undefined;
 		var bCases = hasCases(value);
 		if (!bCases)
 			return validateField(value, cb);
@@ -477,7 +478,7 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 			var acase = cases[i];
 			if (hasFieldsExcept(acase, [field, 'if', 'init']))
 				return cb('foreign fields in case ' + i + ' of ' + field);
-			if (!acase.hasOwnProperty(field))
+			if (!hasOwnProperty(acase, field))
 				return cb('case ' + i + ' has no field ' + field);
 			if ('if' in acase && !isNonemptyString(acase.if))
 				return cb('bad if in case: ' + acase.if);
@@ -492,7 +493,7 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 				async.eachSeries(
 					['if', 'init'],
 					function (key, cb3) {
-						if (!acase.hasOwnProperty(key))
+						if (!hasOwnProperty(acase, key))
 							return cb3();
 						var f = getFormula(acase[key]);
 						if (f === null)
@@ -612,7 +613,7 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 				function (acase, i, cb2) {
 				//	if (hasFieldsExcept(acase, [name, 'if', 'init']))
 				//		return cb2('validate: foreign fields in case ' + i + ' of ' + name);
-					if (!acase.hasOwnProperty(name))
+					if (!hasOwnProperty(acase, name))
 						return cb2('validate: case ' + i + ' has no field ' + name);
 					validate(value.cases, i, path, _.cloneDeep(locals), depth + 1, cb2);
 				},

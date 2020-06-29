@@ -2,6 +2,7 @@ var _ = require('lodash');
 var nearley = require('nearley');
 var ojsonGrammar = require('./grammars/ojson.js');
 var oscriptGrammar = require('./grammars/oscript.js');
+var ValidationUtils = require("../validation_utils.js");
 
 var TYPES = {
 	STR: 'STR',
@@ -109,7 +110,7 @@ exports.parse = function (text, callback) {
 			var res = processTree(st);
 			var key = Object.keys(res)[0];
 			var value = _.values(res)[0];
-			if (obj.hasOwnProperty(key)) {
+			if (ValidationUtils.hasOwnProperty(obj, key)) {
 				throw new Error(`Duplicate key '${key}' at line ${st.context.line} col ${st.context.col}`);
 			}
 			obj[key] = value;

@@ -17,6 +17,8 @@ var toDoubleRange = require('./common.js').toDoubleRange;
 var assignObject = require('./common.js').assignObject;
 var isValidValue = require('./common.js').isValidValue;
 
+var hasOwnProperty = ValidationUtils.hasOwnProperty;
+
 function validateDataFeed(params) {
 	var complexity = 1;
 	if (params.oracles && params.feed_name) {
@@ -504,7 +506,7 @@ exports.validate = function (opts, callback) {
 						var key = pair[0];
 						if (typeof key !== 'string')
 							return cb2("dictionary keys must be strings");
-						if (obj.hasOwnProperty(key))
+						if (hasOwnProperty(obj, key))
 							return cb2("key " + key + " already set");
 						obj[key] = true;
 						evaluate(pair[1], cb2);	
@@ -522,7 +524,7 @@ exports.validate = function (opts, callback) {
 					if (mci < constants.aa2UpgradeMci && var_name_or_expr[0] === '_')
 						return cb("leading underscores not allowed in var names yet");
 					if (mci >= constants.aa2UpgradeMci) {
-						var bExists = locals.hasOwnProperty(var_name_or_expr);
+						var bExists = hasOwnProperty(locals, var_name_or_expr);
 						if (!locals[''] && !bExists)
 							return cb("uninitialized local var " + var_name_or_expr);
 						if (bExists && locals[var_name_or_expr].type === 'func')
@@ -558,7 +560,7 @@ exports.validate = function (opts, callback) {
 						return cb(err);
 					var bLiteral = (typeof var_name_or_expr === 'string');
 					var var_name = bLiteral ? var_name_or_expr : ''; // special name for calculated var names
-					var bExists = locals.hasOwnProperty(var_name);
+					var bExists = hasOwnProperty(locals, var_name);
 					if (mci >= constants.aa2UpgradeMci && bLiteral) {
 						if (var_name_or_expr === '')
 							return cb("empty literal local var names not allowed");
@@ -899,7 +901,7 @@ exports.validate = function (opts, callback) {
 					if (err)
 						return cb(err);
 					if (typeof var_name_expr === 'string') {
-						var bExists = locals.hasOwnProperty(var_name_expr);
+						var bExists = hasOwnProperty(locals, var_name_expr);
 						if (!bExists && !locals[''])
 							return cb("no such variable: " + var_name_expr);
 						if (bExists && locals[var_name_expr].type === 'func')
@@ -921,7 +923,7 @@ exports.validate = function (opts, callback) {
 					if (err)
 						return cb(err);
 					if (typeof var_name_expr === 'string') {
-						var bExists = locals.hasOwnProperty(var_name_expr);
+						var bExists = hasOwnProperty(locals, var_name_expr);
 						if (!bExists && !locals[''])
 							return cb("no such variable: " + var_name_expr);
 						if (bExists && locals[var_name_expr].state === 'frozen')
@@ -1081,7 +1083,7 @@ exports.validate = function (opts, callback) {
 					return cb("funcs not activated yet");
 				var func_name = arr[1];
 				var arrExpressions = arr[2];
-				if (!locals.hasOwnProperty(func_name))
+				if (!hasOwnProperty(locals, func_name))
 					return cb("no such function name: " + func_name);
 				if (locals[func_name].type !== 'func')
 					return cb("not a function: " + func_name);
@@ -1252,7 +1254,7 @@ exports.validate = function (opts, callback) {
 			var var_name = func_expr[1];
 			if (typeof var_name !== 'string')
 				return cb("only literal var names allowed in func expression");
-			if (!locals.hasOwnProperty(var_name))
+			if (!hasOwnProperty(locals, var_name))
 				return cb("no such func: " + var_name);
 			if (locals[var_name].type !== 'func')
 				return cb("not a function: " + var_name);
@@ -1294,7 +1296,7 @@ exports.validate = function (opts, callback) {
 			var var_name = count_expr[1];
 			if (typeof var_name !== 'string')
 				return cb("only literal var names allowed in count expression");
-			if (!locals.hasOwnProperty(var_name))
+			if (!hasOwnProperty(locals, var_name))
 				return cb("no such local var: " + var_name);
 			count = locals[var_name].value;
 			if (count === undefined)
@@ -1317,7 +1319,7 @@ exports.validate = function (opts, callback) {
 			var var_name = remote_aa[1];
 			if (typeof var_name !== 'string')
 				return { error: "remote AA var name must be literal" };
-			if (!locals.hasOwnProperty(var_name))
+			if (!hasOwnProperty(locals, var_name))
 				return { error: "remote AA var " + var_name + " does not exist" };
 			remote_aa = locals[var_name].value;
 			if (remote_aa === undefined)

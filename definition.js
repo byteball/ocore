@@ -1334,7 +1334,7 @@ function replaceInTemplate(arrTemplate, params){
 				if (x.charAt(0) !== '$')
 					return x;
 				var name = x.substring(1);
-				if (!params.hasOwnProperty(name))
+				if (!ValidationUtils.hasOwnProperty(params, name))
 					throw new NoVarException("variable "+name+" not specified, template "+JSON.stringify(arrTemplate)+", params "+JSON.stringify(params));
 				return params[name]; // may change type if params[name] is not a string
 			case 'object':

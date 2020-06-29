@@ -10,6 +10,7 @@ var mutex = require('./mutex.js');
 var archiving = require('./archiving.js');
 var eventBus = require('./event_bus.js');
 var profiler = require('./profiler.js');
+var ValidationUtils = require("./validation_utils.js");
 
 var testnetAssetsDefinedByAAsAreVisibleImmediatelyUpgradeMci = 1167000;
 
@@ -782,7 +783,7 @@ function readAAGetterProps(conn, address, func_name, handleGetterProps) {
 	readAAGetters(conn, address, function (getters) {
 		if (!getters)
 			return handleGetterProps(null);
-		if (!getters.hasOwnProperty(func_name))
+		if (!ValidationUtils.hasOwnProperty(getters, func_name))
 			return handleGetterProps(null);
 		handleGetterProps(getters[func_name]);
 	});

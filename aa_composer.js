@@ -426,7 +426,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 						return cb(); // the key is just removed from the object
 					if (typeof res !== 'string')
 						return cb("result of formula " + name + " is not a string: " + res);
-					if (obj.hasOwnProperty(res))
+					if (ValidationUtils.hasOwnProperty(obj, res))
 						return cb("duplicate key " + res + " calculated from " + name);
 					if (getFormula(res) !== null)
 						return cb("calculated value of " + name + " looks like a formula again: " + res);
