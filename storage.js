@@ -10,6 +10,7 @@ var mutex = require('./mutex.js');
 var archiving = require('./archiving.js');
 var eventBus = require('./event_bus.js');
 var profiler = require('./profiler.js');
+var ValidationUtils = require("./validation_utils.js");
 
 var testnetAssetsDefinedByAAsAreVisibleImmediatelyUpgradeMci = 1167000;
 
@@ -737,13 +738,54 @@ function readDefinition(conn, definition_chash, callbacks){
 }
 
 function readAADefinition(conn, address, handleDefinition) {
-	conn.query("SELECT definition, unit FROM aa_addresses WHERE address=?", [address], function (rows) {
+	conn.query("SELECT definition, unit, storage_size FROM aa_addresses WHERE address=?", [address], function (rows) {
 		if (rows.length !== 1)
 			return handleDefinition(null);
 		var arrDefinition = JSON.parse(rows[0].definition);
 		if (arrDefinition[0] !== 'autonomous agent')
 			throw Error("non-AA definition in AA unit");
-		handleDefinition(arrDefinition, rows[0].unit);
+		handleDefinition(arrDefinition, rows[0].unit, rows[0].storage_size);
+	});
+}
+
+function readBaseAADefinitionAndParams(conn, address, handleDefinitionAndParams) {
+	readAADefinition(conn, address, function (arrDefinition, unit, storage_size) {
+		if (!arrDefinition)
+			return handleDefinitionAndParams(null);
+		var base_aa = arrDefinition[1].base_aa;
+		if (!base_aa)
+			return handleDefinitionAndParams(arrDefinition, null, storage_size);
+		readAADefinition(conn, base_aa, function (arrBaseDefinition) {
+			if (!arrBaseDefinition)
+				throw Error("base AA not found: " + base_aa);
+			handleDefinitionAndParams(arrBaseDefinition, arrDefinition[1].params, storage_size);
+		});
+	});
+}
+
+function readAAGetters(conn, address, handleGetters) {
+	conn.query("SELECT getters, base_aa FROM aa_addresses WHERE address=?", [address], function (rows) {
+		if (rows.length !== 1)
+			return handleGetters(null);
+		var row = rows[0];
+		if (row.getters && row.base_aa)
+			throw Error("both getters and base AA");
+		if (row.base_aa)
+			return readAAGetters(conn, row.base_aa, handleGetters);
+		if (!row.getters)
+			return handleGetters({});
+		var assocGetters = JSON.parse(row.getters);
+		handleGetters(assocGetters);
+	});
+}
+
+function readAAGetterProps(conn, address, func_name, handleGetterProps) {
+	readAAGetters(conn, address, function (getters) {
+		if (!getters)
+			return handleGetterProps(null);
+		if (!ValidationUtils.hasOwnProperty(getters, func_name))
+			return handleGetterProps(null);
+		handleGetterProps(getters[func_name]);
 	});
 }
 
@@ -786,6 +828,9 @@ function getUnconfirmedAADefinitionsPostedByAAs(arrAddresses) {
 }
 
 function insertAADefinitions(conn, arrPayloads, unit, mci, bForAAsOnly, onDone) {
+	if (!onDone)
+		return new Promise(resolve => insertAADefinitions(conn, arrPayloads, unit, mci, bForAAsOnly, resolve));
+	var aa_validation = require("./aa_validation.js");
 	async.eachSeries(
 		arrPayloads,
 		function (payload, cb) {
@@ -793,52 +838,77 @@ function insertAADefinitions(conn, arrPayloads, unit, mci, bForAAsOnly, onDone) 
 			var json = JSON.stringify(payload.definition);
 			var base_aa = payload.definition[1].base_aa;
 			var bAlreadyPostedByUnconfirmedAA = false;
-			conn.query("INSERT " + db.getIgnore() + " INTO aa_addresses (address, definition, unit, mci, base_aa) VALUES (?,?, ?,?, ?)", [address, json, unit, mci, base_aa], function (res) {
-				if (res.affectedRows === 0) { // already exists
-					if (bForAAsOnly){
-						console.log("ignoring repeated definition of AA " + address + " in AA unit " + unit);
-						return cb();
+			var readGetterProps = function (aa_address, func_name, cb) {
+				readAAGetterProps(conn, aa_address, func_name, cb);
+			};
+			aa_validation.determineGetterProps(payload.definition, readGetterProps, function (getters) {
+				conn.query("INSERT " + db.getIgnore() + " INTO aa_addresses (address, definition, unit, mci, base_aa, getters) VALUES (?,?, ?,?, ?,?)", [address, json, unit, mci, base_aa, getters ? JSON.stringify(getters) : null], function (res) {
+					if (res.affectedRows === 0) { // already exists
+						if (bForAAsOnly){
+							console.log("ignoring repeated definition of AA " + address + " in AA unit " + unit);
+							return cb();
+						}
+						var old_payloads = getUnconfirmedAADefinitionsPostedByAAs([address]);
+						if (old_payloads.length === 0) {
+							console.log("ignoring repeated definition of AA " + address + " in unit " + unit);
+							return cb();
+						}
+						// we need to recalc the balances to reflect the payments received from non-AAs between definition and stabilization
+						bAlreadyPostedByUnconfirmedAA = true;
+						console.log("will recalc balances after repeated definition of AA " + address + " in unit " + unit);
 					}
-					var old_payloads = getUnconfirmedAADefinitionsPostedByAAs([address]);
-					if (old_payloads.length === 0) {
-						console.log("ignoring repeated definition of AA " + address + " in unit " + unit);
-						return cb();
-					}
-					// we need to recalc the balances to reflect the payments received from non-AAs between definition and stabilization
-					bAlreadyPostedByUnconfirmedAA = true;
-					console.log("will recalc balances after repeated definition of AA " + address + " in unit " + unit);
-				}
-				var verb = bAlreadyPostedByUnconfirmedAA ? "REPLACE" : "INSERT";
-				var or_sent_by_aa = bAlreadyPostedByUnconfirmedAA ? "OR EXISTS (SELECT 1 FROM unit_authors CROSS JOIN aa_addresses USING(address) WHERE unit_authors.unit=outputs.unit)" : "";
-				conn.query(
-					verb + " INTO aa_balances (address, asset, balance) \n\
-					SELECT address, IFNULL(asset, 'base'), SUM(amount) AS balance \n\
-					FROM outputs CROSS JOIN units USING(unit) \n\
-					WHERE address=? AND is_spent=0 AND (main_chain_index<? " + or_sent_by_aa + ") \n\
-					GROUP BY address, asset", // not including the outputs on the current mci, which will trigger the AA and be accounted for separately
-					[address, mci],
-					function () {
-						conn.query(
-							"INSERT " + db.getIgnore() + " INTO addresses (address) VALUES (?)", [address],
-							function () {
-								// can emit again if bAlreadyPostedByUnconfirmedAA, that's ok, the watchers will learn that the AA became now available to non-AAs
-								process.nextTick(function () { // don't call it synchronously with event emitter
-									eventBus.emit("aa_definition_saved", payload, unit);
-								});
-								cb();
-							}
-						);
-					}
-				);
+					var verb = bAlreadyPostedByUnconfirmedAA ? "REPLACE" : "INSERT";
+					var or_sent_by_aa = bAlreadyPostedByUnconfirmedAA ? "OR EXISTS (SELECT 1 FROM unit_authors CROSS JOIN aa_addresses USING(address) WHERE unit_authors.unit=outputs.unit)" : "";
+					conn.query(
+						verb + " INTO aa_balances (address, asset, balance) \n\
+						SELECT address, IFNULL(asset, 'base'), SUM(amount) AS balance \n\
+						FROM outputs CROSS JOIN units USING(unit) \n\
+						WHERE address=? AND is_spent=0 AND (main_chain_index<? " + or_sent_by_aa + ") \n\
+						GROUP BY address, asset", // not including the outputs on the current mci, which will trigger the AA and be accounted for separately
+						[address, mci],
+						function () {
+							conn.query(
+								"INSERT " + db.getIgnore() + " INTO addresses (address) VALUES (?)", [address],
+								function () {
+									// can emit again if bAlreadyPostedByUnconfirmedAA, that's ok, the watchers will learn that the AA became now available to non-AAs
+									process.nextTick(function () { // don't call it synchronously with event emitter
+										eventBus.emit("aa_definition_saved", payload, unit);
+									});
+									cb();
+								}
+							);
+						}
+					);
+				});
 			});
 		},
 		onDone
 	);
 }
 
+function parseStateVar(type_and_value) {
+	var arrParts = type_and_value.split("\n", 2);
+	if (arrParts.length !== 2)
+		throw Error("bad value: " + type_and_value);
+	var type = arrParts[0];
+	var value = arrParts[1];
+	if (type === 's')
+		return value;
+	else if (type === 'n')
+		return parseFloat(value);
+	else if (type === 'j')
+		return JSON.parse(value);
+	else
+		throw Error("unknown type in " + type_and_value);
+}
+
 function readAAStateVar(address, var_name, handleResult) {
 	var kvstore = require('./kvstore.js');
-	kvstore.get("st\n" + address + "\n" + var_name, handleResult);
+	kvstore.get("st\n" + address + "\n" + var_name, function (type_and_value) {
+		if (type_and_value === undefined)
+			return handleResult();
+		handleResult(parseStateVar(type_and_value));
+	});
 }
 
 function readAAStateVars(address, var_prefix_from, var_prefix_to, limit, handle) {
@@ -854,9 +924,10 @@ function readAAStateVars(address, var_prefix_from, var_prefix_to, limit, handle)
 	if (limit)
 		options.limit = limit;
 
+	var assignField = require('./formula/common.js').assignField;
 	var objStateVars = {}
 	var handleData = function (data){
-		objStateVars[data.key.slice(36)] = data.value;
+		assignField(objStateVars, data.key.slice(36), parseStateVar(data.value));
 	}
 	var kvstore = require('./kvstore.js');
 	var stream = kvstore.createReadStream(options);
@@ -1002,6 +1073,8 @@ function throwError(msg){
 
 
 function readLastStableMcUnitProps(conn, handleLastStableMcUnitProps){
+	if (!handleLastStableMcUnitProps)
+		return new Promise(resolve => readLastStableMcUnitProps(conn, resolve));
 	conn.query(
 		"SELECT units.*, ball FROM units LEFT JOIN balls USING(unit) WHERE is_on_main_chain=1 AND is_stable=1 ORDER BY main_chain_index DESC LIMIT 1", 
 		function(rows){
@@ -1109,6 +1182,8 @@ function updateMinRetrievableMciAfterStabilizingMci(conn, batch, last_stable_mci
 									objStrippedUnit.witness_list_unit = objUnit.witness_list_unit;
 								else
 									objStrippedUnit.witnesses = objUnit.witnesses;
+								if (objUnit.version !== constants.versionWithoutTimestamp)
+									objStrippedUnit.timestamp = objUnit.timestamp;
 								var objStrippedJoint = {unit: objStrippedUnit, ball: objJoint.ball};
 								batch.put('j\n'+unit, JSON.stringify(objStrippedJoint));
 								archiving.generateQueriesToArchiveJoint(conn, objJoint, 'voided', arrQueries, cb);
@@ -1812,6 +1887,9 @@ exports.readDefinition = readDefinition;
 exports.readAADefinition = readAADefinition;
 exports.getUnconfirmedAADefinition = getUnconfirmedAADefinition;
 exports.getUnconfirmedAADefinitionsPostedByAAs = getUnconfirmedAADefinitionsPostedByAAs;
+exports.readBaseAADefinitionAndParams = readBaseAADefinitionAndParams;
+exports.readAAGetters = readAAGetters;
+exports.readAAGetterProps = readAAGetterProps;
 exports.insertAADefinitions = insertAADefinitions;
 exports.readAAStateVar = readAAStateVar;
 exports.readAAStateVars = readAAStateVars;

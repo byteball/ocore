@@ -213,6 +213,7 @@ function composeJoint(params){
 		payload_location: "inline",
 		payload_hash: hash_placeholder,
 		payload: {
+			inputs: [],
 			// first output is the change, it has 0 amount (placeholder) that we'll modify later. 
 			// Then we'll sort outputs, so the change is not necessarity the first in the final transaction
 			outputs: arrChangeOutputs
@@ -291,16 +292,18 @@ function composeJoint(params){
 		},
 		function(cb){ // parent units
 			if (bGenesis) {
+				last_ball_mci = 0;
 				if (constants.timestampUpgradeMci === 0)
 					objUnit.timestamp = 1561049490; // Jun 20 2019 16:51:30 UTC
 				return cb();	
 			}
 			
 			function checkForUnstablePredecessors(){
+				var and_not_initial = (last_ball_mci >= constants.unstableInitialDefinitionUpgradeMci) ? "AND definition_chash!=address" : "";
 				conn.query(
 					// is_stable=0 condition is redundant given that last_ball_mci is stable
 					"SELECT 1 FROM units CROSS JOIN unit_authors USING(unit) \n\
-					WHERE  (main_chain_index>? OR main_chain_index IS NULL) AND address IN(?) AND definition_chash IS NOT NULL \n\
+					WHERE  (main_chain_index>? OR main_chain_index IS NULL) AND address IN(?) AND definition_chash IS NOT NULL " + and_not_initial + " \n\
 					UNION \n\
 					SELECT 1 FROM units JOIN address_definition_changes USING(unit) \n\
 					WHERE (main_chain_index>? OR main_chain_index IS NULL) AND address IN(?) \n\
@@ -344,6 +347,8 @@ function composeJoint(params){
 			var bVersion2 = (last_ball_mci >= constants.timestampUpgradeMci || constants.timestampUpgradeMci === 0);
 			if (!bVersion2)
 				objUnit.version = constants.versionWithoutTimestamp;
+			else if (last_ball_mci < constants.includeKeySizesUpgradeMci)
+				objUnit.version = constants.versionWithoutKeySizes;
 			// calc or fix payload_hash of non-payment messages
 			objUnit.messages.forEach(function (message) {
 				if (message.app === 'payment')
@@ -553,7 +558,7 @@ function readSortedFundedAddresses(asset, arrAvailableAddresses, estimated_amoun
 		) AS t \n\
 		WHERE NOT EXISTS ( \n\
 			SELECT * FROM units CROSS JOIN unit_authors USING(unit) \n\
-			WHERE is_stable=0 AND unit_authors.address=t.address AND definition_chash IS NOT NULL \n\
+			WHERE is_stable=0 AND unit_authors.address=t.address AND definition_chash IS NOT NULL AND definition_chash != unit_authors.address \n\
 		)",
 		asset ? [arrAvailableAddresses, asset] : [arrAvailableAddresses],
 		function(rows){
@@ -744,11 +749,12 @@ function composeAuthorsForAddresses(conn, arrFromAddresses, last_ball_mci, last_
 			for (var j=0; j<arrSigningPaths.length; j++)
 				objAuthor.authentifiers[arrSigningPaths[j]] = repeatString("-", assocLengthsBySigningPaths[arrSigningPaths[j]]);
 			authors.push(objAuthor);
+			var and_stable = (last_ball_mci < constants.unstableInitialDefinitionUpgradeMci) ? "AND is_stable=1 AND main_chain_index<=" + parseInt(last_ball_mci) : "";
 			conn.query(
 				"SELECT 1 FROM unit_authors CROSS JOIN units USING(unit) \n\
-				WHERE address=? AND is_stable=1 AND sequence='good' AND main_chain_index<=? \n\
+				WHERE address=? AND sequence='good' " + and_stable + " \n\
 				LIMIT 1", 
-				[from_address, last_ball_mci], 
+				[from_address], 
 				function(rows){
 					if (rows.length === 0) // first message from this address
 						return setDefinition();

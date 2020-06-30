@@ -1,7 +1,13 @@
 var shell = require('child_process').execSync;
 var path = require('path');
+var fs = require('fs');
+var async = require('async');
 var crypto = require('crypto');
 var Mnemonic = require('bitcore-mnemonic');
+
+var constants = require("../constants.js");
+constants.aa2UpgradeMci = 0;
+
 var objectHash = require("../object_hash.js");
 var ecdsaSig = require('../signature.js');
 var desktop_app = require('../desktop_app.js');
@@ -21,6 +27,17 @@ var validation = require('../validation.js');
 var mutex = require('../mutex.js');
 var test = require('ava');
 require('./_init_datafeeds.js');
+var db = require("../db");
+var storage = require("../storage");
+var parseOjson = require('../formula/parse_ojson').parse
+
+var readGetterProps = function (aa_address, func_name, cb) {
+	storage.readAAGetterProps(db, aa_address, func_name, cb);
+};
+
+function validateAA(aa, cb) {
+	aa_validation.validateAADefinition(aa, readGetterProps, Number.MAX_SAFE_INTEGER, cb);
+}
 
 writer.saveJoint = function (objJoint, objValidationState, preCommitCallback, onDone) {
 	console.log("mock saving unit", JSON.stringify(objJoint, null, '\t'));
@@ -54,7 +71,7 @@ test('simple AA', t => {
 			}
 		]
 	}];
-	aa_validation.validateAADefinition(aa, err => {
+	validateAA(aa, err => {
 		t.deepEqual(err, null);
 	});
 });
@@ -97,7 +114,7 @@ test('AA with cases', t => {
 			]
 		}
 	}];
-	aa_validation.validateAADefinition(aa, err => {
+	validateAA(aa, err => {
 		t.deepEqual(err, null);
 	});
 });
@@ -139,7 +156,7 @@ test('AA with bad cases', t => {
 			]
 		}
 	}];
-	aa_validation.validateAADefinition(aa, err => {
+	validateAA(aa, err => {
 		t.deepEqual(err, 'if required in all but the last cases');
 	});
 });
@@ -198,12 +215,12 @@ test.cb('complex AA', t => {
 					bbb: 234,
 					ccc: {
 						cases: [
-							{ if: "{$a}", ccc: { fff: "vvvv" } },
+							{ if: "{trigger.data.a}", ccc: { fff: "vvvv" } },
 							{
 								if: "{trigger.data.b}", ccc: { 
 									cases: [
-										{ if: "{$d}", ccc: "gggg" },
-										{ if: "{$e}", ccc: ["gggg", "vvvv"] },
+										{ if: "{trigger.data.d}", ccc: "gggg" },
+										{ if: "{trigger.data.e}", ccc: ["gggg", "vvvv"] },
 									]
 								}
 							},
@@ -288,7 +305,7 @@ test.cb('complex AA', t => {
 			},
 		]
 	}];
-	aa_validation.validateAADefinition(aa, err => {
+	validateAA(aa, err => {
 		t.deepEqual(err, null);
 		t.end();
 	});
@@ -304,7 +321,7 @@ test('state only and no bounce fees', t => {
 			},
 		]
 	}];
-	aa_validation.validateAADefinition(aa, err => {
+	validateAA(aa, err => {
 		t.deepEqual(err, null);
 	});
 });
@@ -325,7 +342,7 @@ test('bad formula', t => {
 			}
 		]
 	}];
-	aa_validation.validateAADefinition(aa, err => {
+	validateAA(aa, err => {
 		console.log('err :', err);
 		t.deepEqual(err, `validation of formula trigger.address[] failed: parse error
 parser error: invalid syntax at line 1 col 16:
@@ -351,12 +368,14 @@ test('bad formula with different validation case', t => {
 			}
 		]
 	}];
-	aa_validation.validateAADefinition(aa, err => {
+	validateAA(aa, err => {
 		t.deepEqual(err, `validation of formula trigger .address failed: parse error
 parser error: invalid syntax at line 1 col 1:
 
-  trigger .address
-  ^`);
+  trigger
+  ^
+Unexpected IDEN token: "trigger"
+`);
 	});
 });
 
@@ -386,7 +405,7 @@ test('bad formula with asset', t => {
 			]
 		}
 	}];
-	aa_validation.validateAADefinition(aa, err => {
+	validateAA(aa, err => {
 		console.log('err :', err);
 		t.deepEqual(err, `validation of formula trigger.data.auto_destroy[] failed: parse error
 parser error: invalid syntax at line 1 col 27:
@@ -417,7 +436,7 @@ test('state not on last position', t => {
 			}
 		]
 	}];
-	aa_validation.validateAADefinition(aa, err => {
+	validateAA(aa, err => {
 		t.deepEqual(err, 'state message must be last');
 	});
 });
@@ -437,7 +456,7 @@ test('low bounce fees', t => {
 			}
 		]
 	}];
-	aa_validation.validateAADefinition(aa, err => {
+	validateAA(aa, err => {
 		t.deepEqual(err, 'too small base bounce fee: 100');
 	});
 });
@@ -458,7 +477,7 @@ test('extraneous fields', t => {
 			}
 		]
 	}];
-	aa_validation.validateAADefinition(aa, err => {
+	validateAA(aa, err => {
 		t.deepEqual(err, 'foreign fields in AA definition');
 	});
 });
@@ -467,7 +486,7 @@ test('no messages', t => {
 	var aa = ['autonomous agent', {
 		bounce_fees: { base: 10000 },
 	}];
-	aa_validation.validateAADefinition(aa, err => {
+	validateAA(aa, err => {
 		t.deepEqual(err, 'bad messages in AA');
 	});
 });
@@ -487,7 +506,7 @@ test('no address', t => {
 			}
 		]
 	}];
-	aa_validation.validateAADefinition(aa, err => {
+	validateAA(aa, err => {
 		t.deepEqual(err, 'address not a string: undefined');
 	});
 });
@@ -507,7 +526,7 @@ test('no amount for send-all', t => {
 			}
 		]
 	}];
-	aa_validation.validateAADefinition(aa, err => {
+	validateAA(aa, err => {
 		t.deepEqual(err, null);
 	});
 });
@@ -527,7 +546,7 @@ test('negative amount', t => {
 			}
 		]
 	}];
-	aa_validation.validateAADefinition(aa, err => {
+	validateAA(aa, err => {
 		t.deepEqual(err, 'bad amount number: -1');
 	});
 });
@@ -547,9 +566,77 @@ test('bad address', t => {
 			}
 		]
 	}];
-	aa_validation.validateAADefinition(aa, err => {
+	validateAA(aa, err => {
 		t.deepEqual(err, 'bad address: xxx');
 	});
+});
+
+test('trying to modify a var frozen in an earlier formula', t => {
+	var aa = ['autonomous agent', {
+		init: `{
+			$x={a:9};
+			freeze($x);
+		}`,
+		messages: [
+			{
+				app: 'state',
+				state: `{
+					$x.b = 8;
+				}`
+			}
+		]
+	}];
+	validateAA(aa, err => {
+		t.deepEqual(err, `validation of formula 
+					$x.b = 8;
+				 failed: statement local_var_assignment,x,8,b invalid: local var x is frozen`);
+	});
+});
+
+test('getter with non-constant top-level local var', t => {
+	var aa = ['autonomous agent', {
+		getters: `{
+			$x=1+2;
+		}`,
+		messages: [
+			{
+				app: 'state',
+				state: `{
+					$y = 8;
+				}`
+			}
+		]
+	}];
+	validateAA(aa, err => {
+		t.deepEqual(err, `validation of formula 
+			$x=1+2;
+		 failed: statement local_var_assignment,x,+,1,2, invalid: non-constant top level vars not allowed in getters`);
+	});
+});
+
+test.cb('validate samples', t => {
+	var samples_dir = path.join(__dirname, 'samples');
+	var files = fs.readdirSync(samples_dir);
+	async.eachSeries(
+		files,
+		function (file, cb) {
+			var oscript = fs.readFileSync(path.join(samples_dir, file), 'utf8');
+			parseOjson(oscript, (err, aa) => {
+				t.deepEqual(err, null);
+				if (err)
+					return cb(err);
+			//	console.log(file, JSON.stringify(aa, null, 2))
+				validateAA(aa, err => {
+					console.log(file, err);
+					t.deepEqual(err, null);
+					cb(err);
+				});
+			});
+		},
+		function () {
+			t.end();
+		}
+	);
 });
 
 
@@ -584,9 +671,6 @@ test.cb.serial('compose simple AA', t => {
 		]
 	}];
 	var address = objectHash.getChash160(aa);
-	db.query("INSERT "+db.getIgnore()+" INTO aa_addresses (address, definition, unit, mci) VALUES(?, ?, ?, ?)", [address, JSON.stringify(aa), objMcUnit.last_ball_unit, 500]);
-	db.query("INSERT " + db.getIgnore() + " INTO outputs (unit, message_index, output_index, address, amount) VALUES(?, 0, 0, ?, ?)", [objMcUnit.unit, address, trigger.outputs.base]);
-	db.query("DELETE FROM aa_responses WHERE trigger_unit=? AND aa_address=?", [trigger.unit, address]);
 
 	var objUnit;
 	writer.saveJoint = function (objJoint, objValidationState, preCommitCallback, onDone) {
@@ -597,9 +681,13 @@ test.cb.serial('compose simple AA', t => {
 	
 	db.takeConnectionFromPool(conn => {
 		conn.query('BEGIN');
+		conn.query("INSERT INTO aa_addresses (address, definition, unit, mci) VALUES(?, ?, ?, ?)", [address, JSON.stringify(aa), objMcUnit.last_ball_unit, 500]);
+		conn.query("INSERT INTO outputs (unit, message_index, output_index, address, amount) VALUES(?, 0, 0, ?, ?)", [objMcUnit.unit, address, trigger.outputs.base]);
+		conn.query("DELETE FROM aa_responses WHERE trigger_unit=? AND aa_address=?", [trigger.unit, address]);
 		aa_composer.handleTrigger(conn, batch, null, trigger, {}, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (bPosted, bBounced) => {
-			conn.query('ROLLBACK');
-			conn.release();
+			conn.query('ROLLBACK', () => {
+				conn.release();
+			});
 			t.deepEqual(!!bPosted, true);
 			t.deepEqual(bBounced, false);
 			t.deepEqual(objUnit.messages.find(function (message) { return (message.app === 'payment'); }).payload.outputs.find(function (output) { return (output.address === trigger.address); }).amount, 38000);
@@ -666,7 +754,11 @@ test.cb.serial('compose complex AA', t => {
 						},
 						{
 							app: 'state',
-							state: "{ $c=3*$a; var['z'] = $c/200; }" // c=900, var[z] = 4.5
+							state: `{
+								$c=3 * $a; var['z'] = $c / 200;
+								var['long_num2'] = var['I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT']['price'] + 1; // should fail before aa2UpgradeMci
+								var['ob'] = {h: 'ff', g: 8, d: [2, 'dd']};
+							}` // c=900, var[z] = 4.5
 						}
 					]
 				},
@@ -674,9 +766,6 @@ test.cb.serial('compose complex AA', t => {
 		}
 	}];
 	var address = objectHash.getChash160(aa);
-	db.query("INSERT "+db.getIgnore()+" INTO aa_addresses (address, definition, unit, mci) VALUES(?, ?, ?, ?)", [address, JSON.stringify(aa), objMcUnit.last_ball_unit, 500]);
-	db.query("INSERT " + db.getIgnore() + " INTO outputs (unit, message_index, output_index, address, amount) VALUES(?, 0, 1, ?, ?)", [objMcUnit.unit, address, trigger.outputs.base]);
-	db.query("DELETE FROM aa_responses WHERE trigger_unit=? AND aa_address=?", [trigger.unit, address]);
 
 	var objUnit;
 	writer.saveJoint = function (objJoint, objValidationState, preCommitCallback, onDone) {
@@ -687,16 +776,29 @@ test.cb.serial('compose complex AA', t => {
 	
 	db.takeConnectionFromPool(conn => {
 		conn.query('BEGIN');
+		conn.query("INSERT INTO aa_addresses (address, definition, unit, mci) VALUES(?, ?, ?, ?)", [address, JSON.stringify(aa), objMcUnit.last_ball_unit, 500]);
+		conn.query("INSERT INTO outputs (unit, message_index, output_index, address, amount) VALUES(?, 0, 1, ?, ?)", [objMcUnit.unit, address, trigger.outputs.base]);
+		conn.query("DELETE FROM aa_responses WHERE trigger_unit=? AND aa_address=?", [trigger.unit, address]);
 		aa_composer.handleTrigger(conn, batch, null, trigger, {}, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (bPosted, bBounced) => {
-			conn.query('ROLLBACK');
-			conn.release();
+			conn.query('ROLLBACK', () => {
+				conn.release();
+			});
 			t.deepEqual(!!bPosted, true);
 			t.deepEqual(bBounced, false);
 			t.deepEqual(stateVars[address]['z'].value.toNumber(), 4.5);
+			t.deepEqual(stateVars[address]['long_num2'].value.toNumber(), 1.00067890123457);
 			t.deepEqual(objUnit.messages.find(function (message) { return (message.app === 'payment'); }).payload.outputs.find(function (output) { return (output.address === trigger.address); }).amount, 18150);
 			t.deepEqual(objUnit.messages.find(function (message) { return (message.app === 'data'); }).payload.zzz, undefined);
 			t.deepEqual(objUnit.messages.find(function (message) { return (message.app === 'data'); }).payload.val_300, 80000);
-			t.end();
+			batch.write(err => {
+				if (err)
+					throw Error("batch write failed: " + err);
+				// check that object state vars are saved correctly
+				storage.readAAStateVars(address, vars => {
+					t.deepEqual(vars['ob'], { h: 'ff', g: 8, d: [2, 'dd'] });
+					t.end();
+				});
+			});
 		});
 	});
 });
@@ -731,9 +833,6 @@ test.cb.serial('variable reassignment', t => {
 		]
 	}];
 	var address = objectHash.getChash160(aa);
-	db.query("INSERT "+db.getIgnore()+" INTO aa_addresses (address, definition, unit, mci) VALUES(?, ?, ?, ?)", [address, JSON.stringify(aa), objMcUnit.last_ball_unit, 500]);
-	db.query("INSERT " + db.getIgnore() + " INTO outputs (unit, message_index, output_index, address, amount) VALUES(?, 0, 2, ?, ?)", [objMcUnit.unit, address, trigger.outputs.base]);
-	db.query("DELETE FROM aa_responses WHERE trigger_unit=? AND aa_address=?", [trigger.unit, address]);
 
 	var objUnit;
 	writer.saveJoint = function (objJoint, objValidationState, preCommitCallback, onDone) {
@@ -742,11 +841,20 @@ test.cb.serial('variable reassignment', t => {
 		onDone();
 	}
 	
-	aa_composer.handleTrigger(db, batch, null, trigger, {}, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (bPosted, bounce_message) => {
-		t.deepEqual(!!bPosted, true);
-		t.deepEqual(bounce_message, 'formula $a=10; trigger.output[[asset=base]] - 2000 failed: reassignment to a, old value 9');
-		t.deepEqual(objUnit.messages.find(function (message) { return (message.app === 'payment'); }).payload.outputs.find(function (output) { return (output.address === trigger.address); }).amount, 30000);
-		t.end();
+	db.takeConnectionFromPool(conn => {
+		conn.query('BEGIN');
+		conn.query("INSERT INTO aa_addresses (address, definition, unit, mci) VALUES(?, ?, ?, ?)", [address, JSON.stringify(aa), objMcUnit.last_ball_unit, 500]);
+		conn.query("INSERT INTO outputs (unit, message_index, output_index, address, amount) VALUES(?, 0, 2, ?, ?)", [objMcUnit.unit, address, trigger.outputs.base]);
+		conn.query("DELETE FROM aa_responses WHERE trigger_unit=? AND aa_address=?", [trigger.unit, address]);
+		aa_composer.handleTrigger(conn, batch, null, trigger, {}, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (bPosted, bounce_message) => {
+			conn.query('ROLLBACK', () => {
+				conn.release();
+			});
+			t.deepEqual(!!bPosted, true);
+			t.deepEqual(bounce_message, 'formula $a=10; trigger.output[[asset=base]] - 2000 failed: reassignment to a, old value 9');
+			t.deepEqual(objUnit.messages.find(function (message) { return (message.app === 'payment'); }).payload.outputs.find(function (output) { return (output.address === trigger.address); }).amount, 30000);
+			t.end();
+		});
 	});
 });
 
@@ -780,22 +888,29 @@ test.cb.serial('no messages', t => {
 		]
 	}];
 	var address = objectHash.getChash160(aa);
-	db.query("INSERT "+db.getIgnore()+" INTO aa_addresses (address, definition, unit, mci) VALUES(?, ?, ?, ?)", [address, JSON.stringify(aa), objMcUnit.last_ball_unit, 500]);
-	db.query("INSERT " + db.getIgnore() + " INTO outputs (unit, message_index, output_index, address, amount) VALUES(?, 0, 3, ?, ?)", [objMcUnit.unit, address, trigger.outputs.base]);
-	db.query("DELETE FROM aa_responses WHERE trigger_unit=? AND aa_address=?", [trigger.unit, address]);
+	db.takeConnectionFromPool(conn => {
+		conn.query('BEGIN');
+		conn.query("INSERT INTO aa_addresses (address, definition, unit, mci) VALUES(?, ?, ?, ?)", [address, JSON.stringify(aa), objMcUnit.last_ball_unit, 500]);
+		conn.query("INSERT INTO outputs (unit, message_index, output_index, address, amount) VALUES(?, 0, 3, ?, ?)", [objMcUnit.unit, address, trigger.outputs.base]);
+		conn.query("DELETE FROM aa_responses WHERE trigger_unit=? AND aa_address=?", [trigger.unit, address]);
 
-	var objUnit;
-	writer.saveJoint = function (objJoint, objValidationState, preCommitCallback, onDone) {
-		console.log("mock saving unit", JSON.stringify(objJoint, null, '\t'));
-		objUnit = objJoint.unit;
-		onDone();
-	}
-	
-	aa_composer.handleTrigger(db, batch, null, trigger, {}, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (objResponseUnit, bounce_message) => {
-		t.deepEqual(objResponseUnit.unit, 'XKxmIIccP1UR3Pem2jex0Lrzllc6w+WQ9ASqDehjUm4=');
-		t.deepEqual(bounce_message, 'no messages');
-		t.deepEqual(objUnit.unit, 'XKxmIIccP1UR3Pem2jex0Lrzllc6w+WQ9ASqDehjUm4=');
-		t.end();
+		var objUnit;
+		writer.saveJoint = function (objJoint, objValidationState, preCommitCallback, onDone) {
+			console.log("mock saving unit", JSON.stringify(objJoint, null, '\t'));
+			objUnit = objJoint.unit;
+			onDone();
+		}
+		
+		aa_composer.handleTrigger(conn, batch, null, trigger, {}, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (objResponseUnit, bounce_message) => {
+			conn.query('ROLLBACK', () => {
+				conn.release();
+			});
+			t.deepEqual(objResponseUnit.unit, 'XKxmIIccP1UR3Pem2jex0Lrzllc6w+WQ9ASqDehjUm4=');
+			t.deepEqual(bounce_message, 'no messages');
+			t.deepEqual(objUnit.unit, 'XKxmIIccP1UR3Pem2jex0Lrzllc6w+WQ9ASqDehjUm4=');
+			t.deepEqual(objUnit.messages.find(function (message) { return (message.app === 'payment'); }).payload.outputs.find(function (output) { return (output.address === trigger.address); }).amount, 30000);
+			t.end();
+		});
 	});
 });
 
@@ -828,22 +943,27 @@ test.cb.serial('no outputs', t => {
 		]
 	}];
 	var address = objectHash.getChash160(aa);
-	db.query("INSERT "+db.getIgnore()+" INTO aa_addresses (address, definition, unit, mci) VALUES(?, ?, ?, ?)", [address, JSON.stringify(aa), objMcUnit.last_ball_unit, 500]);
-	db.query("INSERT " + db.getIgnore() + " INTO outputs (unit, message_index, output_index, address, amount) VALUES(?, 0, 3, ?, ?)", [objMcUnit.unit, address, trigger.outputs.base]);
-	db.query("DELETE FROM aa_responses WHERE trigger_unit=? AND aa_address=?", [trigger.unit, address]);
+	db.takeConnectionFromPool(conn => {
+		conn.query('BEGIN');
+		conn.query("INSERT INTO aa_addresses (address, definition, unit, mci) VALUES(?, ?, ?, ?)", [address, JSON.stringify(aa), objMcUnit.last_ball_unit, 500]);
+		conn.query("INSERT INTO outputs (unit, message_index, output_index, address, amount) VALUES(?, 0, 4, ?, ?)", [objMcUnit.unit, address, trigger.outputs.base]);
+		conn.query("DELETE FROM aa_responses WHERE trigger_unit=? AND aa_address=?", [trigger.unit, address]);
 
-	var objUnit;
-	writer.saveJoint = function (objJoint, objValidationState, preCommitCallback, onDone) {
-		console.log("mock saving unit", JSON.stringify(objJoint, null, '\t'));
-		objUnit = objJoint.unit;
-		onDone();
-	}
-	
-	aa_composer.handleTrigger(db, batch, null, trigger, {}, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (objResponseUnit, bounce_message) => {
-		t.deepEqual(objResponseUnit, null);
-		t.deepEqual(bounce_message, 'no messages after filtering, then no state changes, then not enough funds for 30361 bytes');
-		t.deepEqual(objUnit, undefined);
-		t.end();
+		var objUnit;
+		writer.saveJoint = function (objJoint, objValidationState, preCommitCallback, onDone) {
+			console.log("mock saving unit", JSON.stringify(objJoint, null, '\t'));
+			objUnit = objJoint.unit;
+			onDone();
+		}
+		
+		aa_composer.handleTrigger(conn, batch, null, trigger, {}, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (objResponseUnit, bounce_message) => {
+			conn.query('ROLLBACK', () => {
+				conn.release();
+			});
+			t.deepEqual(bounce_message, 'no messages after filtering, then no state changes');
+			t.deepEqual(objUnit.messages.find(function (message) { return (message.app === 'payment'); }).payload.outputs.find(function (output) { return (output.address === trigger.address); }).amount, 30000);
+			t.end();
+		});
 	});
 });
 
@@ -876,22 +996,27 @@ test.cb.serial('only 0 output', t => {
 		]
 	}];
 	var address = objectHash.getChash160(aa);
-	db.query("INSERT "+db.getIgnore()+" INTO aa_addresses (address, definition, unit, mci) VALUES(?, ?, ?, ?)", [address, JSON.stringify(aa), objMcUnit.last_ball_unit, 500]);
-	db.query("INSERT " + db.getIgnore() + " INTO outputs (unit, message_index, output_index, address, amount) VALUES(?, 0, 3, ?, ?)", [objMcUnit.unit, address, trigger.outputs.base]);
-	db.query("DELETE FROM aa_responses WHERE trigger_unit=? AND aa_address=?", [trigger.unit, address]);
+	db.takeConnectionFromPool(conn => {
+		conn.query('BEGIN');
+		conn.query("INSERT INTO aa_addresses (address, definition, unit, mci) VALUES(?, ?, ?, ?)", [address, JSON.stringify(aa), objMcUnit.last_ball_unit, 500]);
+		conn.query("INSERT INTO outputs (unit, message_index, output_index, address, amount) VALUES(?, 0, 5, ?, ?)", [objMcUnit.unit, address, trigger.outputs.base]);
+		conn.query("DELETE FROM aa_responses WHERE trigger_unit=? AND aa_address=?", [trigger.unit, address]);
 
-	var objUnit;
-	writer.saveJoint = function (objJoint, objValidationState, preCommitCallback, onDone) {
-		console.log("mock saving unit", JSON.stringify(objJoint, null, '\t'));
-		objUnit = objJoint.unit;
-		onDone();
-	}
-	
-	aa_composer.handleTrigger(db, batch, null, trigger, {}, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (objResponseUnit, bounce_message) => {
-		t.deepEqual(objResponseUnit, null);
-		t.deepEqual(bounce_message, 'no messages after removing 0-outputs, then no state changes, then not enough funds for 30361 bytes');
-		t.deepEqual(objUnit, undefined);
-		t.end();
+		var objUnit;
+		writer.saveJoint = function (objJoint, objValidationState, preCommitCallback, onDone) {
+			console.log("mock saving unit", JSON.stringify(objJoint, null, '\t'));
+			objUnit = objJoint.unit;
+			onDone();
+		}
+		
+		aa_composer.handleTrigger(conn, batch, null, trigger, {}, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (objResponseUnit, bounce_message) => {
+			conn.query('ROLLBACK', () => {
+				conn.release();
+			});
+			t.deepEqual(bounce_message, 'no messages after removing 0-outputs, then no state changes');
+			t.deepEqual(objUnit.messages.find(function (message) { return (message.app === 'payment'); }).payload.outputs.find(function (output) { return (output.address === trigger.address); }).amount, 30000);
+			t.end();
+		});
 	});
 });
 
@@ -925,21 +1050,27 @@ test.cb.serial('AA with response vars', t => {
 		]
 	}];
 	var address = objectHash.getChash160(aa);
-	db.query("INSERT "+db.getIgnore()+" INTO aa_addresses (address, definition, unit, mci) VALUES(?, ?, ?, ?)", [address, JSON.stringify(aa), objMcUnit.last_ball_unit, 500]);
-	db.query("INSERT " + db.getIgnore() + " INTO outputs (unit, message_index, output_index, address, amount) VALUES(?, 0, 4, ?, ?)", [objMcUnit.unit, address, trigger.outputs.base]);
-	db.query("DELETE FROM aa_responses WHERE trigger_unit=? AND aa_address=?", [trigger.unit, address]);
+	db.takeConnectionFromPool(conn => {
+		conn.query('BEGIN');
+		conn.query("INSERT INTO aa_addresses (address, definition, unit, mci) VALUES(?, ?, ?, ?)", [address, JSON.stringify(aa), objMcUnit.last_ball_unit, 500]);
+		conn.query("INSERT INTO outputs (unit, message_index, output_index, address, amount) VALUES(?, 0, 6, ?, ?)", [objMcUnit.unit, address, trigger.outputs.base]);
+		conn.query("DELETE FROM aa_responses WHERE trigger_unit=? AND aa_address=?", [trigger.unit, address]);
 
-	var objUnit;
-	writer.saveJoint = function (objJoint, objValidationState, preCommitCallback, onDone) {
-		console.log("mock saving unit", JSON.stringify(objJoint, null, '\t'));
-		objUnit = objJoint.unit;
-		onDone();
-	}
-	
-	aa_composer.handleTrigger(db, batch, null, trigger, {}, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (bPosted, bBounced) => {
-		t.deepEqual(!!bPosted, true);
-		t.deepEqual(bBounced, false);
-		t.deepEqual(objUnit.messages.find(function (message) { return (message.app === 'payment'); }).payload.outputs.find(function (output) { return (output.address === trigger.address); }).amount, 38000);
-		t.end();
+		var objUnit;
+		writer.saveJoint = function (objJoint, objValidationState, preCommitCallback, onDone) {
+			console.log("mock saving unit", JSON.stringify(objJoint, null, '\t'));
+			objUnit = objJoint.unit;
+			onDone();
+		}
+		
+		aa_composer.handleTrigger(conn, batch, null, trigger, {}, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (bPosted, bBounced) => {
+			conn.query('ROLLBACK', () => {
+				conn.release();
+			});
+			t.deepEqual(!!bPosted, true);
+			t.deepEqual(bBounced, false);
+			t.deepEqual(objUnit.messages.find(function (message) { return (message.app === 'payment'); }).payload.outputs.find(function (output) { return (output.address === trigger.address); }).amount, 38000);
+			t.end();
+		});
 	});
 });

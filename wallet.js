@@ -571,8 +571,8 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					catch(e){
 						return callbacks.ifError("wrong signed message");
 					}
-					if (objSignedMessage.version !== constants.version)
-						return callbacks.ifError("wrong version in signed message: " + objSignedMessage.version);
+				//	if (objSignedMessage.version !== constants.version)
+				//		return callbacks.ifError("wrong version in signed message: " + objSignedMessage.version);
 					signed_message.validateSignedMessage(db, objSignedMessage, objContract.peer_address, function(err) {
 						if (err || objSignedMessage.authors[0].address !== objContract.peer_address || objSignedMessage.signed_message != objContract.title)
 							return callbacks.ifError("wrong contract signature");
@@ -1366,7 +1366,7 @@ function readFundedAddresses(asset, wallet, estimated_amount, spend_unconfirmed,
 		) AS t \n\
 		WHERE NOT EXISTS ( \n\
 			SELECT * FROM units CROSS JOIN unit_authors USING(unit) \n\
-			WHERE is_stable=0 AND unit_authors.address=t.address AND definition_chash IS NOT NULL \n\
+			WHERE is_stable=0 AND unit_authors.address=t.address AND definition_chash IS NOT NULL AND definition_chash != unit_authors.address \n\
 		)",
 		asset ? [wallet, asset] : [wallet],
 		function(rows){

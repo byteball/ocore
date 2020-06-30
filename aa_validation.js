@@ -1,10 +1,16 @@
 /*jslint node: true */
 "use strict";
 
+var _ = require('lodash');
 var async = require('async');
 var constants = require('./constants.js');
+var objectHash = require("./object_hash.js");
 var ValidationUtils = require("./validation_utils.js");
 var formulaValidator = require('./formula/validation.js');
+var getFormula = require('./formula/common.js').getFormula;
+var hasCases = require('./formula/common.js').hasCases;
+var fixFormula = require('./formula/common.js').fixFormula;
+var assignField = require('./formula/common.js').assignField;
 
 var hasFieldsExcept = ValidationUtils.hasFieldsExcept;
 var isStringOfLength = ValidationUtils.isStringOfLength;
@@ -17,22 +23,22 @@ var isNonemptyObject = ValidationUtils.isNonemptyObject;
 var isArrayOfLength = ValidationUtils.isArrayOfLength;
 var isValidAddress = ValidationUtils.isValidAddress;
 var isValidBase64 = ValidationUtils.isValidBase64;
+var hasOwnProperty = ValidationUtils.hasOwnProperty;
 
+var MAX_DEPTH = 100;
 
-function validateAADefinition(arrDefinition, callback) {
+function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 
 
 	function validateMessage(message, cb) {
 
 		function validatePayload(payload, cb2) {
-			var arrFormulas = [];
 
 			function validateAttestors(attestors, cb3) {
 				if (isNonemptyString(attestors)) {
 					var f = getFormula(attestors);
 					if (f === null)
 						return cb3("attestors is a string but not formula: " + attestors);
-					arrFormulas.push(f);
 					return cb3();
 				}
 				if (!isNonemptyArray(attestors))
@@ -45,7 +51,6 @@ function validateAADefinition(arrDefinition, callback) {
 						var f = getFormula(attestor);
 						if (f === null)
 							return cb3("bad formula in attestor");
-						arrFormulas.push(f);
 					}
 				}
 				cb3();
@@ -55,7 +60,7 @@ function validateAADefinition(arrDefinition, callback) {
 				var payload_formula = getFormula(payload);
 				if (payload_formula === null)
 					return cb2("payload is a string but doesn't look like a formula: " + payload);
-				return validateFormula(payload_formula, cb2);
+				return cb2();
 			}
 
 			if (['payment', 'asset', 'asset_attestors', 'attestation', 'poll', 'vote'].indexOf(message.app) >= 0) {
@@ -65,7 +70,6 @@ function validateAADefinition(arrDefinition, callback) {
 					var f = getFormula(payload.init);
 					if (f === null)
 						return cb2("init is not a formula: " + payload.init);
-					arrFormulas.push({formula: f, bStatementsOnly: true});
 				}
 			}
 
@@ -74,11 +78,7 @@ function validateAADefinition(arrDefinition, callback) {
 				case 'data':
 					if (!isNonemptyObject(payload))
 						return cb2('payload of app=' + message.app + ' must be non-empty object or formula: ' + payload);
-					var arrDataFormulas = collectFormulasInVar(payload);
-					if (arrDataFormulas === null)
-						return cb2("object too deep");
-					arrFormulas = arrFormulas.concat(arrDataFormulas);
-					async.eachSeries(arrFormulas, validateFormula, cb2);
+					cb2();
 					break;
 
 				case 'data_feed':
@@ -92,8 +92,6 @@ function validateAADefinition(arrDefinition, callback) {
 							if (feed_name.indexOf('\n') >= 0)
 								return cb2("feed name " + feed_name + " contains \\n");
 						}
-						else
-							arrFormulas.push(feed_name_formula);
 						var value = payload[feed_name];
 						if (typeof value === 'string') {
 							var value_formula = getFormula(value);
@@ -103,8 +101,6 @@ function validateAADefinition(arrDefinition, callback) {
 								if (value.indexOf('\n') >= 0)
 									return cb2("value " + value + " of feed name " + feed_name + " contains \\n");
 							}
-							else
-								arrFormulas.push((feed_name === 'init') ? {formula: value_formula, bStatementsOnly: true} : value_formula);
 						}
 						else if (typeof value === 'number') {
 							if (!isInteger(value))
@@ -113,7 +109,7 @@ function validateAADefinition(arrDefinition, callback) {
 						else
 							return cb2("data feed " + feed_name + " must be string or number");
 					}
-					async.eachSeries(arrFormulas, validateFormula, cb2);
+					cb2();
 					break;
 
 				case 'payment':
@@ -127,7 +123,6 @@ function validateAADefinition(arrDefinition, callback) {
 							var asset_formula = getFormula(payload.asset);
 							if (asset_formula === null)
 								return cb2("bad asset in payment: " + payload.asset);
-							arrFormulas.push(asset_formula);
 						}
 					}
 
@@ -141,7 +136,6 @@ function validateAADefinition(arrDefinition, callback) {
 								var output_formula = getFormula(output);
 								if (output_formula === null)
 									return cb3("bad output formula: " + output);
-								arrFormulas.push(output_formula);
 								continue;
 							}
 							if (hasFieldsExcept(output, ['address', 'amount', 'init', 'if']))
@@ -152,7 +146,6 @@ function validateAADefinition(arrDefinition, callback) {
 								var f = getFormula(output.if);
 								if (f === null)
 									return cb3("if in output is not a formula: " + output.if);
-								arrFormulas.push(f);
 							}
 							if ('init' in output) {
 								if (!isNonemptyString(output.init))
@@ -160,13 +153,12 @@ function validateAADefinition(arrDefinition, callback) {
 								var f = getFormula(output.init);
 								if (f === null)
 									return cb3("init in output is not a formula: " + output.init);
-								arrFormulas.push({formula: f, bStatementsOnly: true});
 							}
 							if (!isNonemptyString(output.address))
 								return cb3('address not a string: ' + output.address);
 							var f = getFormula(output.address);
-							if (f !== null)
-								arrFormulas.push(f);
+							if (f !== null) {
+							}
 							else if (!isValidAddress(output.address))
 								return cb3("bad address: "+output.address);
 							if (typeof output.amount === 'number') {
@@ -177,7 +169,6 @@ function validateAADefinition(arrDefinition, callback) {
 								var f = getFormula(output.amount);
 								if (f === null)
 									return cb3("bad formula in amount: " + output.amount);
-								arrFormulas.push(f);
 							}
 							else if (typeof output.amount === 'undefined') {
 								if (bHaveSendAll)
@@ -194,33 +185,30 @@ function validateAADefinition(arrDefinition, callback) {
 					//	console.log('---- after outputs', err);
 						if (err)
 							return cb2(err);
-						async.eachSeries(arrFormulas, validateFormula, cb2);
+						cb2();
 					});
 					break;
 
 				case 'text':
 					if (!isNonemptyString(payload))
 						return cb2("bad text: " + payload);
-					var text_formula = getFormula(payload);
-					if (text_formula === null)
-						return cb2();
-					validateFormula(text_formula, cb2);
+					cb2();
 					break;
 
 				case 'definition':
+					if (mci >= constants.aa2UpgradeMci && getFormula(payload.definition) !== null)
+						return cb2();
 					if (!isArrayOfLength(payload.definition, 2))
 						return cb2("definition must be array of 2");
 					if (hasFieldsExcept(payload, ['definition']))
 						return cb2("unknown fields in AA definition in AA");
 					if (payload.definition[0] !== 'autonomous agent')
 						return cb2('not an AA in nested AA definition');
+					if (mci >= constants.aa2UpgradeMci && getFormula(payload.definition[1]) !== null)
+						return cb2();
 					if (!isNonemptyObject(payload.definition[1]))
 						return cb2('empty nested definition');
-					var arrDefinitionFormulas = collectFormulasInVar(payload.definition[1]);
-					if (arrDefinitionFormulas === null)
-						return cb2("nested definition object too deep");
-					arrFormulas = arrFormulas.concat(arrDefinitionFormulas);
-					async.eachSeries(arrFormulas, validateFormula, cb2);
+					cb2();
 				//	(typeof setImmediate === 'function') ? setImmediate(validateAADefinition, payload.definition, cb2) : setTimeout(validateAADefinition, 0, payload.definition, cb2); // interrupt the call stack to protect against deep nesting
 					break;
 
@@ -238,7 +226,6 @@ function validateAADefinition(arrDefinition, callback) {
 							var f = getFormula(payload.cap);
 							if (f === null)
 								return cb2("bad formula in cap: " + payload.cap);
-							arrFormulas.push(f);
 						}
 						else
 							return cb2("wrong cap: " + payload.cap);
@@ -249,7 +236,6 @@ function validateAADefinition(arrDefinition, callback) {
 							var f = getFormula(denominations);
 							if (f === null)
 								return cb3("denominations is a string but not formula: " + attestors);
-							arrFormulas.push(f);
 							return cb3();
 						}
 						if (!isNonemptyArray(denominations))
@@ -266,7 +252,6 @@ function validateAADefinition(arrDefinition, callback) {
 								var f = getFormula(denomInfo.denomination);
 								if (f === null)
 									return cb3("bad formula in denomination: "+ denomInfo.denomination);
-								arrFormulas.push(f);
 							}
 							else
 								return cb3("bad denomination " + denomInfo.denomination);
@@ -279,7 +264,6 @@ function validateAADefinition(arrDefinition, callback) {
 									var f = getFormula(denomInfo.count_coins);
 									if (f === null)
 										return cb3("bad formula in count_coins: "+ denomInfo.count_coins);
-									arrFormulas.push(f);
 								}
 								else
 									return cb3("bad count_coins " + denomInfo.count_coins);
@@ -291,18 +275,10 @@ function validateAADefinition(arrDefinition, callback) {
 					if ("issue_condition" in payload) {
 						if (!isArrayOfLength(payload.issue_condition, 2))
 							return cb2("wrong issue condition: " + payload.issue_condition);
-						var arrIssueFormulas = collectFormulasInVar(payload.issue_condition);
-						if (arrIssueFormulas === null)
-							return cb2("issue_condition too deep");
-						arrFormulas = arrFormulas.concat(arrIssueFormulas);
 					}
 					if ("transfer_condition" in payload) {
 						if (!isArrayOfLength(payload.transfer_condition, 2))
 							return cb2("wrong transfer condition: " + payload.transfer_condition);
-						var arrTransferFormulas = collectFormulasInVar(payload.transfer_condition);
-						if (arrTransferFormulas === null)
-							return cb2("transfer_condition too deep");
-						arrFormulas = arrFormulas.concat(arrTransferFormulas);
 					}
 					if (payload.cosigned_by_definer !== false)
 						return cb2("cosigned_by_definer must be false because AA can't cosign");
@@ -317,7 +293,6 @@ function validateAADefinition(arrDefinition, callback) {
 								var f = getFormula(payload[field]);
 								if (f === null)
 									return cb3("bad formula for " + field + " in asset");
-								arrFormulas.push(f);
 								return cb3();
 							}
 							cb3(field + " is missing or of wrong type");
@@ -340,8 +315,7 @@ function validateAADefinition(arrDefinition, callback) {
 							function (err) {
 								if (err)
 									return cb2(err);
-							//	console.log(arrFormulas);
-								async.eachSeries(arrFormulas, validateFormula, cb2);
+								cb2();
 							});
 						}
 					);
@@ -353,14 +327,14 @@ function validateAADefinition(arrDefinition, callback) {
 					if (!isNonemptyString(payload.asset))
 						return cb2("asset is not a string");
 					var asset_formula = getFormula(payload.asset);
-					if (asset_formula !== null)
-						arrFormulas.push(asset_formula);
+					if (asset_formula !== null) {
+					}
 					else if (!isValidBase64(payload.asset, constants.HASH_LENGTH))
 						return cb2("bad asset in asset_attestors: " + payload.asset);
 					validateFieldWrappedInCases(payload, 'attestors', validateAttestors, function (err) {
 						if (err)
 							return cb2(err);
-						async.eachSeries(arrFormulas, validateFormula, cb2);
+						cb2();
 					});
 					break;
 
@@ -369,18 +343,14 @@ function validateAADefinition(arrDefinition, callback) {
 						return cb2("unknown fields in AA attestation");
 					if (!isNonemptyObject(payload.profile))
 						return cb2('bad attested profile' + payload.profile);
-					var arrAttProfileFormulas = collectFormulasInVar(payload.profile);
-					if (arrAttProfileFormulas === null)
-						return cb2("attested profile too deep");
-					arrFormulas = arrFormulas.concat(arrAttProfileFormulas);
 					if (!isNonemptyString(payload.address))
 						return cb2("bad attested address: " + payload.address);
 					var address_formula = getFormula(payload.address);
-					if (address_formula !== null)
-						arrFormulas.push(address_formula);
+					if (address_formula !== null) {
+					}
 					else if (!isValidAddress(payload.address))
 						return cb2("bad address in attestation: " + payload.address);
-					async.eachSeries(arrFormulas, validateFormula, cb2);
+					cb2();
 					break;
 
 				case 'poll':
@@ -390,16 +360,12 @@ function validateAADefinition(arrDefinition, callback) {
 						return cb2("unknown fields in AA poll");
 					if (!isNonemptyString(payload.question))
 						return cb2("bad question in AA poll: " + payload.question);
-					var question_formula = getFormula(payload.question);
-					if (question_formula !== null)
-						arrFormulas.push(question_formula);
 
 					function validateChoices(choices, cb3) {
 						if (isNonemptyString(choices)) {
 							var f = getFormula(choices);
 							if (f === null)
 								return cb3("choices is a string but not formula: " + attestors);
-							arrFormulas.push(f);
 							return cb3();
 						}
 						if (!isNonemptyArray(choices))
@@ -412,8 +378,8 @@ function validateAADefinition(arrDefinition, callback) {
 							if (choices[i].trim().length === 0)
 								return cb3("all choices must be longer than 0 chars");
 							var choice_formula = getFormula(choices[i]);
-							if (choice_formula !== null)
-								arrFormulas.push(choice_formula);
+							if (choice_formula !== null) {
+							}
 							else if (choices[i].length > constants.MAX_CHOICE_LENGTH)
 								return cb3("all choices must be " + constants.MAX_CHOICE_LENGTH + " chars or less");
 						}
@@ -423,7 +389,7 @@ function validateAADefinition(arrDefinition, callback) {
 					validateFieldWrappedInCases(payload, 'choices', validateChoices, function (err) {
 						if (err)
 							return cb2(err);
-						async.eachSeries(arrFormulas, validateFormula, cb2);
+						cb2();
 					});
 					break;
 
@@ -435,24 +401,17 @@ function validateAADefinition(arrDefinition, callback) {
 					if (!isNonemptyString(payload.choice))
 						return cb2("AA vote choice must be string");
 					var unit_formula = getFormula(payload.unit);
-					if (unit_formula !== null)
-						arrFormulas.push(unit_formula);
+					if (unit_formula !== null) {
+					}
 					else if (!isValidBase64(payload.unit, constants.HASH_LENGTH))
 						return cb2("AA vote bad unit: "+payload.unit);
-					var choice_formula = getFormula(payload.choice);
-					if (choice_formula !== null)
-						arrFormulas.push(choice_formula);
-					async.eachSeries(arrFormulas, validateFormula, cb2);
+					cb2();
 					break;
 
 				case 'definition_template':
 					if (!ValidationUtils.isArrayOfLength(payload, 2))
 						return cb2("AA definition_template must be array of two elements");
-					var arrTemplFormulas = collectFormulasInVar(payload);
-					if (arrTemplFormulas === null)
-						return cb2("AA definition_template too deep");
-					arrFormulas = arrFormulas.concat(arrTemplFormulas);
-					async.eachSeries(arrFormulas, validateFormula, cb2);
+					cb2();
 					break;
 
 				default:
@@ -460,33 +419,15 @@ function validateAADefinition(arrDefinition, callback) {
 			}
 		}
 
-		async.series([
-			function (cb2) {
-				if (!message.if)
-					return cb2();
-				var f = getFormula(message.if);
-				if (f === null)
-					return cb2("bad if in message");
-				validateFormula(f, cb2);
-			},
-			function (cb2) {
-				if (!message.init)
-					return cb2();
-				var f = getFormula(message.init);
-				if (f === null)
-					return cb2("bad init in message");
-				validateFormula(f, true, false, cb2);
-			},
-			function (cb2) {
-				if (message.app === 'state') {
-					var f = getFormula(message.state);
-					if (f === null)
-						return cb2('bad state formula: '+message.state);
-					return validateFormula(f, true, true, cb2);
-				}
-				validateFieldWrappedInCases(message, 'payload', validatePayload, cb2);
-			}
-		], cb);
+		if (mci >= constants.aa2UpgradeMci && typeof message === 'string')
+			return cb();
+		if (message.app === 'state') {
+			var f = getFormula(message.state);
+			if (f === null)
+				return cb('bad state formula: ' + message.state);
+			return cb();
+		}
+		validateFieldWrappedInCases(message, 'payload', validatePayload, cb);
 	}
 
 	function validateMessages(messages, cb) {
@@ -494,6 +435,12 @@ function validateAADefinition(arrDefinition, callback) {
 			return cb("bad messages in AA");
 		for (var i = 0; i < messages.length; i++){
 			var message = messages[i];
+			if (mci >= constants.aa2UpgradeMci && typeof message === 'string') {
+				var f = getFormula(message);
+				if (f === null)
+					return cb("bad message formula: " + message);
+				continue;
+			}
 			if (['payment', 'data', 'data_feed', 'definition', "asset", "asset_attestors", "attestation", "poll", "vote", 'text', 'profile', 'definition_template', 'state'].indexOf(message.app) === -1)
 				return cb("bad app: " + message.app);
 			if (message.app === 'state') {
@@ -521,15 +468,19 @@ function validateAADefinition(arrDefinition, callback) {
 	function validateFieldWrappedInCases(obj, field, validateField, cb, depth) {
 		if (!depth)
 			depth = 0;
-		if (depth > 100)
+		if (depth > MAX_DEPTH)
 			return cb("cases for " + field + " go too deep");
-		var value = obj.hasOwnProperty(field) ? obj[field] : undefined;
+		var value = hasOwnProperty(obj, field) ? obj[field] : undefined;
 		var bCases = hasCases(value);
 		if (!bCases)
 			return validateField(value, cb);
 		var cases = value.cases;
 		for (var i = 0; i < cases.length; i++){
 			var acase = cases[i];
+			if (hasFieldsExcept(acase, [field, 'if', 'init']))
+				return cb('foreign fields in case ' + i + ' of ' + field);
+			if (!hasOwnProperty(acase, field))
+				return cb('case ' + i + ' has no field ' + field);
 			if ('if' in acase && !isNonemptyString(acase.if))
 				return cb('bad if in case: ' + acase.if);
 			if (!('if' in acase) && i < cases.length - 1)
@@ -543,12 +494,12 @@ function validateAADefinition(arrDefinition, callback) {
 				async.eachSeries(
 					['if', 'init'],
 					function (key, cb3) {
-						if (!acase.hasOwnProperty(key))
+						if (!hasOwnProperty(acase, key))
 							return cb3();
 						var f = getFormula(acase[key]);
 						if (f === null)
 							return cb3("not a formula in " + key);
-						validateFormula(f, key === 'init', false, cb3);
+						cb3();
 					},
 					function (err) {
 						if (err)
@@ -561,48 +512,195 @@ function validateAADefinition(arrDefinition, callback) {
 		);
 	}
 
-	function validateFormula(formula, bStatementsOnly, bStateVarAssignmentAllowed, cb) {
-		if (typeof bStatementsOnly === 'function') {
-			cb = bStatementsOnly;
-			bStatementsOnly = false;
-			bStateVarAssignmentAllowed = false;
-		}
-		if (typeof formula === 'object') { // { formula: "....", bStatementsOnly: true }
-			bStatementsOnly = formula.bStatementsOnly;
-			formula = formula.formula;
-		}
+	function validateFormula(aa_opts, cb) {
+		if (typeof aa_opts.formula !== 'string' || !aa_opts.locals)
+			throw Error("bad opts in validateFormula: " + JSON.stringify(aa_opts));
 		var opts = {
-			formula: formula,
+			formula: fixFormula(aa_opts.formula, address),
 			complexity: complexity,
 			count_ops: count_ops,
 			bAA: true,
-			bStatementsOnly: bStatementsOnly,
-			bStateVarAssignmentAllowed: bStateVarAssignmentAllowed
+			bStatementsOnly: aa_opts.bStatementsOnly || false,
+			bGetters: aa_opts.bGetters || false,
+			bStateVarAssignmentAllowed: aa_opts.bStateVarAssignmentAllowed || false,
+			locals: aa_opts.locals,
+			readGetterProps: readGetterProps,
+			mci: mci,
 		};
 	//	console.log('--- validateFormula', formula);
 		formulaValidator.validate(opts, function (result) {
+			if (typeof result.complexity !== 'number' || !isFinite(result.complexity))
+				throw Error("bad complexity after " + opts.formula + ": " + result.complexity);
 			complexity = result.complexity;
 			count_ops = result.count_ops;
 			if (result.error) {
-				var errorMessage = "validation of formula " + formula + " failed: " + result.error
+				var errorMessage = "validation of formula " + opts.formula + " failed: " + result.error
 				errorMessage += result.errorMessage ? `\nparser error: ${result.errorMessage}` : ''
 				return cb(errorMessage);
 			}
 			if (complexity > constants.MAX_COMPLEXITY)
-				return cb('complexity exceeded');
+				return cb('complexity exceeded: ' + complexity);
 			if (count_ops > constants.MAX_OPS)
-				return cb('number of ops exceeded');
+				return cb('number of ops exceeded: ' + count_ops);
 			cb();
 		});
 	}
 
+	function validateDefinition(arrDefinition, cb) {
+		var locals = {};
+		var f = getFormula(arrDefinition[1].getters);
+		if (f === null) // no getters
+			return validate(arrDefinition, 1, '', locals, 0, cb);
+		// validate getters before everything else as they can define a few functions
+		delete arrDefinition[1].getters;
+		var opts = {
+			formula: f,
+			locals: locals,
+			bStatementsOnly: true,
+			bGetters: true,
+		};
+		validateFormula(opts, function (err) {
+			if (err)
+				return cb(err);
+			getters = getGettersFromLocals(locals);
+			validate(arrDefinition, 1, '', locals, 0, cb);
+		});
+	}
+
+	function validate(obj, name, path, locals, depth, cb, bValueOnly) {
+		if (depth > MAX_DEPTH)
+			return cb("max depth reached");
+		count++;
+		if (count % 100 === 0) // interrupt the call stack
+			return setImmediate(validate, obj, name, path, locals, depth, cb, bValueOnly);
+		locals = _.cloneDeep(locals);
+		var value = obj[name];
+		if (typeof name === 'string' && !bValueOnly) {
+			var f = getFormula(name);
+			if (f !== null) {
+				var opts = {
+					formula: f,
+					locals: _.cloneDeep(locals),
+				};
+				return validateFormula(opts, function (err) {
+					if (err)
+						return cb(err);
+					validate(obj, name, path, locals, depth, cb, true);
+				});
+			}
+		}
+		if (typeof value === 'number' || typeof value === 'boolean')
+			return cb();
+		if (typeof value === 'string') {
+			var f = getFormula(value);
+			if (f === null)
+				return cb();
+		//	console.log('path', path, 'name', name, 'f', f);
+			var bStateUpdates = (path === '/messages/state');
+			var opts = {
+				formula: f,
+				locals: locals,
+				bStatementsOnly: bStateUpdates,
+				bStateVarAssignmentAllowed: bStateUpdates,
+			};
+			validateFormula(opts, cb);
+		}
+		// cases are parsed as regular objects with if/init but we need to skip them in path
+		else if (hasCases(value)) {
+			if (typeof name === 'string')
+				path = path.substring(0, path.length - name.length - 1); // strip off the /name
+			async.eachOfSeries(
+				value.cases,
+				function (acase, i, cb2) {
+				//	if (hasFieldsExcept(acase, [name, 'if', 'init']))
+				//		return cb2('validate: foreign fields in case ' + i + ' of ' + name);
+					if (!hasOwnProperty(acase, name))
+						return cb2('validate: case ' + i + ' has no field ' + name);
+					validate(value.cases, i, path, _.cloneDeep(locals), depth + 1, cb2);
+				},
+				cb
+			);
+		}
+		else if (typeof value === 'object' && (typeof value.if === 'string' || typeof value.init === 'string')) {
+			function evaluateIf(cb2) {
+				if (typeof value.if !== 'string')
+					return cb2();
+				var f = getFormula(value.if);
+				if (f === null)
+					return cb2("if is not a formula: " + value.if);
+				var opts = {
+					formula: f,
+					locals: locals,
+				};
+				validateFormula(opts, cb2);
+			}
+			function evaluateInit(cb2) {
+				if (typeof value.init !== 'string')
+					return cb2();
+				var f = getFormula(value.init);
+				if (f === null)
+					return cb2("init is not a formula: " + value.init);
+				var opts = {
+					formula: f,
+					locals: locals,
+					bStatementsOnly: true,
+				};
+				validateFormula(opts, cb2);
+			}
+			evaluateIf(function (err) {
+				if (err)
+					return cb(err);
+				evaluateInit(function (err) {
+					if (err)
+						return cb(err);
+					delete value.if;
+					delete value.init;
+					validate(obj, name, path, locals, depth, cb);
+				})
+			});
+		}
+		else if (Array.isArray(value)) {
+			async.eachOfSeries(
+				value,
+				function (elem, i, cb2) {
+					validate(value, i, path, _.cloneDeep(locals), depth + 1, cb2);
+				},
+				cb
+			);
+		}
+		else if (isNonemptyObject(value)) {
+			async.eachSeries(
+				Object.keys(value),
+				function (key, cb2) {
+					validate(value, key, path + '/' + key, _.cloneDeep(locals), depth + 1, cb2);
+				},
+				cb
+			);
+		}
+		else
+			throw Error('unknown type of value in ' + name);
+	}
+
+
+	if (callback === undefined) { // 2 arguments
+		callback = readGetterProps;
+		mci = Number.MAX_SAFE_INTEGER;
+		readGetterProps = function (aa_address, func_name, cb2) {
+			// all getters exist and have complexity=0
+			cb2({ complexity: 0, count_ops: 1, count_args: null });
+		};
+	}
 	var complexity = 0;
 	var count_ops = 0;
+	var getters = null;
+	var count = 0;
 	if (!isArrayOfLength(arrDefinition, 2))
 		return callback("AA definition must be 2-element array");
 	if (arrDefinition[0] !== 'autonomous agent')
 		return callback("not an AA");
-	var template = arrDefinition[1];
+	var address = constants.bTestnet ? objectHash.getChash160(arrDefinition) : null;
+	var arrDefinitionCopy = _.cloneDeep(arrDefinition);
+	var template = arrDefinitionCopy[1];
 	if (template.base_aa) { // parameterized AA
 		if (hasFieldsExcept(template, ['base_aa', 'params']))
 			return callback("foreign fields in parameterized AA definition");
@@ -612,10 +710,10 @@ function validateAADefinition(arrDefinition, callback) {
 			return callback("some strings in params are too long");
 		if (!isValidAddress(template.base_aa))
 			return callback("base_aa is not a valid address");
-		return callback();
+		return callback(null);
 	}
 	// else regular AA
-	if (hasFieldsExcept(template, ['bounce_fees', 'messages', 'init', 'doc_url']))
+	if (hasFieldsExcept(template, ['bounce_fees', 'messages', 'init', 'doc_url', 'getters']))
 		return callback("foreign fields in AA definition");
 	if ('bounce_fees' in template){
 		if (!ValidationUtils.isNonemptyObject(template.bounce_fees))
@@ -632,82 +730,64 @@ function validateAADefinition(arrDefinition, callback) {
 	}
 	if ('doc_url' in template && !isNonemptyString(template.doc_url))
 		return callback("invalid doc_url: " + template.doc_url);
-	if ('init' in template) {
-		if (!ValidationUtils.isNonemptyString(template.init))
-			return callback("init is not a string");
-		var f = getFormula(template.init);
-		if (f === null)
-			return callback("bad formula in init: " + template.init);
-		return validateFormula(f, true, false, function (err) {
-			if (err)
-				return callback(err);
-			validateFieldWrappedInCases(template, 'messages', validateMessages, function (err) {
-				if (err)
-					return callback(err);
-				console.log('AA validated, complexity = ' + complexity + ', ops = ' + count_ops);
-				callback(null, {complexity, count_ops});
-			});
-		});
+	if ('getters' in template) {
+		if (mci < constants.aa2UpgradeMci)
+			return callback("getters not activated yet");
+		if (getFormula(template.getters) === null)
+			return callback("invalid getters: " + template.getters);
 	}
 	validateFieldWrappedInCases(template, 'messages', validateMessages, function (err) {
 		if (err)
 			return callback(err);
-		console.log('AA validated, complexity = ' + complexity + ', ops = ' + count_ops);
-		callback(null, {complexity, count_ops});
+		validateDefinition(arrDefinitionCopy, function (err) {
+			if (err)
+				return callback(err);
+			console.log('AA validated, complexity = ' + complexity + ', ops = ' + count_ops);
+			callback(null, { complexity, count_ops, getters });
+		});
 	});
 }
 
-function collectFormulasInVar(variable) {
-	var MAX_DEPTH = 100;
-	var bMaxDepthReached = false;
-	var arrFormulas = [];
 
-	function search(v, k, depth) {
-		if (depth > MAX_DEPTH) {
-			bMaxDepthReached = true;
-			return;
+// assumes the definition is valid
+function determineGetterProps(arrDefinition, readGetterProps, cb) {
+	if (!arrDefinition[1].getters)
+		return cb(null);
+	var locals = {};
+	var f = getFormula(arrDefinition[1].getters);
+	var opts = {
+		formula: f,
+		complexity: 0,
+		count_ops: 0,
+		bAA: true,
+		locals: locals,
+		bStatementsOnly: true,
+		bGetters: true,
+		readGetterProps: readGetterProps,
+		mci: Number.MAX_SAFE_INTEGER,
+	};
+	formulaValidator.validate(opts, function (result) {
+		if (result.error)
+			throw Error(result.error);
+		if (result.complexity > 0)
+			throw Error("getters has non-0 complexity");
+		cb(getGettersFromLocals(locals));
+	});
+}
+
+function getGettersFromLocals(locals) {
+	// all locals are either getter functions or constants
+	var getters = null;
+	for (var name in locals) {
+		if (locals[name].type === 'func') {
+			if (!getters)
+				getters = {};
+			assignField(getters, name, locals[name].props);
 		}
-		switch (typeof v) {
-			case 'string':
-				var formula = getFormula(v);
-				if (formula !== null)
-					arrFormulas.push((k === 'init') ? {formula: formula, bStatementsOnly: true} : formula);
-				break;
-			case 'object':
-				if (Array.isArray(v))
-					v.forEach(function (el) {
-						search(el, '', depth + 1);
-					});
-				else {
-					for (var key in v) {
-						var key_formula = getFormula(key);
-						if (key_formula !== null)
-							arrFormulas.push(key_formula);
-						search(v[key], key, depth + 1);
-					}
-				}
-		}
+		else if (locals[name].value === undefined)
+			throw Error("some locals are not functions or constants");
 	}
-
-	search(variable, '', 0);
-	return bMaxDepthReached ? null : arrFormulas;
-}
-
-function getFormula(str, bOptionalBraces) {
-	if (bOptionalBraces)
-		throw Error("braces cannot be optional");
-	if (typeof str !== 'string')
-		return null;
-	if (str[0] === '{' && str[str.length - 1] === '}')
-		return str.slice(1, -1);
-	else if (bOptionalBraces)
-		return str;
-	else
-		return null;
-}
-
-function hasCases(value) {
-	return (typeof value === 'object' && Object.keys(value).length === 1 && isNonemptyArray(value.cases));
+	return getters;
 }
 
 
@@ -739,5 +819,4 @@ function variableHasStringsOfAllowedLength(x) {
 }
 
 exports.validateAADefinition = validateAADefinition;
-exports.getFormula = getFormula;
-exports.hasCases = hasCases;
+exports.determineGetterProps = determineGetterProps;
