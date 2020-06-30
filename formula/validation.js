@@ -15,6 +15,7 @@ var objBaseAssetInfo = require('./common.js').objBaseAssetInfo;
 var isFiniteDecimal = require('./common.js').isFiniteDecimal;
 var toDoubleRange = require('./common.js').toDoubleRange;
 var assignObject = require('./common.js').assignObject;
+var assignField = require('./common.js').assignField;
 var isValidValue = require('./common.js').isValidValue;
 
 var hasOwnProperty = ValidationUtils.hasOwnProperty;
@@ -508,7 +509,7 @@ exports.validate = function (opts, callback) {
 							return cb2("dictionary keys must be strings");
 						if (hasOwnProperty(obj, key))
 							return cb2("key " + key + " already set");
-						obj[key] = true;
+						assignField(obj, key, true);
 						evaluate(pair[1], cb2);	
 					},
 					cb
@@ -597,7 +598,7 @@ exports.validate = function (opts, callback) {
 						return parseFunctionDeclaration(args, body, (err, funcProps) => {
 							if (err)
 								return cb("function " + var_name + ": " + err);
-							locals[var_name] = { props: funcProps, type: 'func' };
+							assignField(locals, var_name, { props: funcProps, type: 'func' });
 							cb();
 						});
 					}
@@ -610,7 +611,7 @@ exports.validate = function (opts, callback) {
 						};
 						if (bConstant && !bInIf)
 							localVarProps.value = rhs;
-						locals[var_name] = localVarProps;
+						assignField(locals, var_name, localVarProps);
 						if (!selectors) // scalar variable
 							return cb();
 						if (!Array.isArray(selectors))
@@ -1230,7 +1231,7 @@ exports.validate = function (opts, callback) {
 		finalizeLocals(locals);
 		// arguments become locals within function body
 		args.forEach(name => {
-			locals[name] = { state: 'assigned', type: 'data' };
+			assignField(locals, name, { state: 'assigned', type: 'data' });
 		});
 		evaluate(body, function (err) {
 			if (err)

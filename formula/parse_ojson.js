@@ -3,6 +3,7 @@ var nearley = require('nearley');
 var ojsonGrammar = require('./grammars/ojson.js');
 var oscriptGrammar = require('./grammars/oscript.js');
 var ValidationUtils = require("../validation_utils.js");
+var assignField = require('./common.js').assignField;
 
 var TYPES = {
 	STR: 'STR',
@@ -113,7 +114,7 @@ exports.parse = function (text, callback) {
 			if (ValidationUtils.hasOwnProperty(obj, key)) {
 				throw new Error(`Duplicate key '${key}' at line ${st.context.line} col ${st.context.col}`);
 			}
-			obj[key] = value;
+			assignField(obj, key, value);
 		}
 		return obj;
 	}

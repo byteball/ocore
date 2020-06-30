@@ -924,9 +924,10 @@ function readAAStateVars(address, var_prefix_from, var_prefix_to, limit, handle)
 	if (limit)
 		options.limit = limit;
 
+	var assignField = require('./formula/common.js').assignField;
 	var objStateVars = {}
 	var handleData = function (data){
-		objStateVars[data.key.slice(36)] = parseStateVar(data.value);
+		assignField(objStateVars, data.key.slice(36), parseStateVar(data.value));
 	}
 	var kvstore = require('./kvstore.js');
 	var stream = kvstore.createReadStream(options);

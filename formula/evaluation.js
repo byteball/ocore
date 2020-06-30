@@ -26,6 +26,7 @@ var isFiniteDecimal = require('./common.js').isFiniteDecimal;
 var toDoubleRange = require('./common.js').toDoubleRange;
 var createDecimal = require('./common.js').createDecimal;
 var assignObject = require('./common.js').assignObject;
+var assignField = require('./common.js').assignField;
 var isValidValue = require('./common.js').isValidValue;
 var getFormula = require('./common.js').getFormula;
 var fixFormula = require('./common.js').fixFormula;
@@ -1086,13 +1087,13 @@ exports.evaluate = function (opts, callback) {
 							if (fatal_error)
 								return cb2(fatal_error);
 							if (res instanceof wrappedObject)
-								obj[key] = res.obj;
+								assignField(obj, key, res.obj);
 							else {
 								if (!isValidValue(res))
 									return setFatalError("bad value " + res, cb2);
 								if (Decimal.isDecimal(res))
 									res = res.toNumber();
-								obj[key] = res;
+								assignField(obj, key, res);
 							}
 							cb2();
 						});	
@@ -1154,7 +1155,7 @@ exports.evaluate = function (opts, callback) {
 							throw Error("arg name cannot be the same as func name in evaluation");
 						if (_.intersection(args, scopeVarNames).length > 0)
 							return setFatalError("some args of " + var_name + " would shadow some local vars", cb, false);
-						locals[var_name] = new Func(args, body, scopeVarNames);
+						assignField(locals, var_name, new Func(args, body, scopeVarNames));
 						return cb(true);
 					}
 					evaluate(rhs, function (res) {
@@ -1187,9 +1188,9 @@ exports.evaluate = function (opts, callback) {
 						}
 						else { // regular assignment
 							if (res instanceof wrappedObject) // copy because we might need to mutate it
-								locals[var_name] = new wrappedObject(_.cloneDeep(res.obj));
+								assignField(locals, var_name, new wrappedObject(_.cloneDeep(res.obj)) );
 							else
-								locals[var_name] = res;
+								assignField(locals, var_name, res);
 							cb(true);
 						}
 					});
@@ -1311,7 +1312,7 @@ exports.evaluate = function (opts, callback) {
 							if (!isFinite(res))
 								return setFatalError("not finite js number in response_var_assignment", cb, false);
 						}
-						responseVars[var_name] = res;
+						assignField(responseVars, var_name, res);
 						cb(true);
 					});
 				});
@@ -2240,7 +2241,7 @@ exports.evaluate = function (opts, callback) {
 												if (bArray)
 													retValue.push(r);
 												else
-													retValue[element] = r;
+													assignField(retValue, element, r);
 											}
 											else if (op === 'filter') {
 												r = toJsType(r);
@@ -2248,7 +2249,7 @@ exports.evaluate = function (opts, callback) {
 													if (bArray)
 														retValue.push(_.cloneDeep(element));
 													else
-														retValue[element] = _.cloneDeep(res.obj[element]);
+														assignField(retValue, element, _.cloneDeep(res.obj[element]));
 												}
 											}
 											else if (bReduce)
@@ -2535,7 +2536,7 @@ exports.evaluate = function (opts, callback) {
 		storage.readAAStateVar(param_address, var_name, function (value) {
 			console.log(var_name+'='+(typeof value === 'object' ? JSON.stringify(value) : value));
 			if (value === undefined) {
-				stateVars[param_address][var_name] = {value: false};
+				assignField(stateVars[param_address], var_name, { value: false });
 				return cb2(false);
 			}
 			if (bLimitedPrecision) {
@@ -2550,7 +2551,7 @@ exports.evaluate = function (opts, callback) {
 				else if (typeof value === 'object')
 					value = new wrappedObject(value);
 			}
-			stateVars[param_address][var_name] = {value: value, old_value: value, original_old_value: value};
+			assignField(stateVars[param_address], var_name, { value: value, old_value: value, original_old_value: value });
 			cb2(value);
 		});
 	}
@@ -2601,7 +2602,7 @@ exports.evaluate = function (opts, callback) {
 				if (typeof key === 'number' && key > 0 && (pointer[key - 1] === undefined || pointer[key - 1] === null))
 					throw Error("previous key value " + (key - 1) + " not set");
 				var next_key = arrKeys[i + 1];
-				pointer[key] = (typeof next_key === 'number' || next_key === null) ? [] : {};
+				assignField(pointer, key, (typeof next_key === 'number' || next_key === null) ? [] : {});
 			}
 			else if (typeof pointer[key] !== 'object')
 				throw Error("scalar " + pointer[key] + " treated as object");
@@ -2617,7 +2618,7 @@ exports.evaluate = function (opts, callback) {
 		if (typeof last_key === 'number' && last_key > 0 && (pointer[last_key - 1] === undefined || pointer[last_key - 1] === null))
 			throw Error("previous key value " + (last_key - 1) + " not set");
 		
-		pointer[last_key] = value;
+		assignField(pointer, last_key, value);
 	}
 
 	function selectSubobject(value, arrKeys, cb) {
@@ -2757,7 +2758,7 @@ exports.evaluate = function (opts, callback) {
 		var func_locals = {};
 		// set a subset of locals that were present in the declaration scope
 		func.scopeVarNames.forEach(name => {
-			func_locals[name] = locals[name];
+			assignField(func_locals, name, locals[name]);
 		});
 		// set the arguments as locals too
 		for (var i = 0; i < func.args.length; i++){
@@ -2767,7 +2768,7 @@ exports.evaluate = function (opts, callback) {
 				value = false;
 			if (func_locals[arg_name] !== undefined)
 				throw Error("argument " + arg_name + " would shadow a local var");
-			func_locals[arg_name] = toOscriptType(value);
+			assignField(func_locals, arg_name, toOscriptType(value));
 		}
 		var saved_locals = _.clone(locals);
 		assignObject(locals, func_locals);
@@ -2940,7 +2941,7 @@ function callGetter(conn, aa_address, getter, args, stateVars, objValidationStat
 			args.forEach(arg => {
 				var arg_name = getNextArgName();
 				argNames.push('$' + arg_name);
-				locals[arg_name] = toOscriptType(arg);
+				assignField(locals, arg_name, toOscriptType(arg));
 			});
 			var call_formula = '$' + getter + '(' + argNames.join(', ') + ')';
 			var call_opts = {
@@ -3033,7 +3034,7 @@ function extractInitParams(formula) {
 			value = rhs.toNumber();
 		else
 			return true;
-		params[var_name] = value;
+		assignField(params, var_name, value);
 		return false;
 	});
 	return { params, arrRemainingStatements };

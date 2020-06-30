@@ -10,6 +10,7 @@ var formulaValidator = require('./formula/validation.js');
 var getFormula = require('./formula/common.js').getFormula;
 var hasCases = require('./formula/common.js').hasCases;
 var fixFormula = require('./formula/common.js').fixFormula;
+var assignField = require('./formula/common.js').assignField;
 
 var hasFieldsExcept = ValidationUtils.hasFieldsExcept;
 var isStringOfLength = ValidationUtils.isStringOfLength;
@@ -781,7 +782,7 @@ function getGettersFromLocals(locals) {
 		if (locals[name].type === 'func') {
 			if (!getters)
 				getters = {};
-			getters[name] = locals[name].props;
+			assignField(getters, name, locals[name].props);
 		}
 		else if (locals[name].value === undefined)
 			throw Error("some locals are not functions or constants");

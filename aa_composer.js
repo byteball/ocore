@@ -20,6 +20,7 @@ var conf = require('./conf.js');
 
 var getFormula = require('./formula/common.js').getFormula;
 var hasCases = require('./formula/common.js').hasCases;
+var assignField = require('./formula/common.js').assignField;
 var wrappedObject = formulaParser.wrappedObject;
 var toJsType = formulaParser.toJsType;
 
@@ -430,7 +431,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 						return cb("duplicate key " + res + " calculated from " + name);
 					if (getFormula(res) !== null)
 						return cb("calculated value of " + name + " looks like a formula again: " + res);
-					obj[res] = value;
+					assignField(obj, res, value);
 					replace(obj, res, path, locals, cb);
 				});
 			}
@@ -469,10 +470,10 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 					if (typeof name === 'string')
 						delete obj[name];
 					else
-						obj[name] = null;
+						assignField(obj, name, null);
 				}
 				else
-					obj[name] = res;
+					assignField(obj, name, res);
 				cb();
 			});
 		}
@@ -519,7 +520,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 					var replacement_value = thecase[name];
 					if (!replacement_value)
 						throw Error("a case was selected but no replacement value in " + name);
-					obj[name] = replacement_value;
+					assignField(obj, name, replacement_value);
 					if (!thecase.init)
 						return replace(obj, name, path, locals, cb);
 					var f = getFormula(thecase.init);
@@ -570,7 +571,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 						if (typeof name === 'string')
 							delete obj[name];
 						else
-							obj[name] = null; // will be removed
+							assignField(obj, name, null); // will be removed
 						return cb();
 					}
 					delete value.if;
@@ -617,10 +618,10 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 						if (typeof name === 'string')
 							delete obj[name];
 						else
-							obj[name] = null; // to be removed
+							assignField(obj, name, null); // to be removed
 						return cb();
 					}
-					obj[name] = replacement_value;
+					assignField(obj, name, replacement_value);
 					cb();
 				}
 			);
@@ -638,7 +639,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 						if (typeof name === 'string')
 							delete obj[name];
 						else
-							obj[name] = null; // to be removed
+							assignField(obj, name, null); // to be removed
 						return cb();
 					}
 					cb();
@@ -1196,7 +1197,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 				//	else if (varInfo.old_value === undefined || varInfo.old_value === false)
 				//		varInfo.delta = varInfo.value;
 				}
-				updatedStateVars[var_address][var_name] = varInfo;
+				assignField(updatedStateVars[var_address], var_name, varInfo);
 			}
 		}
 		arrResponses[0].updatedStateVars = updatedStateVars;
