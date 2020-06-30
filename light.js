@@ -32,6 +32,7 @@ function prepareHistory(historyRequest, callbacks){
 	var arrWitnesses = historyRequest.witnesses;
 	var arrAddresses = historyRequest.addresses;
 	var arrRequestedJoints = historyRequest.requested_joints;
+	var mci = historyRequest.mci|0;
 
 	if (!arrAddresses && !arrRequestedJoints)
 		return callbacks.ifError("neither addresses nor joints requested");
@@ -40,6 +41,8 @@ function prepareHistory(historyRequest, callbacks){
 			return callbacks.ifError("no addresses");
 		if (!arrAddresses.every(ValidationUtils.isValidAddress))
 			return callbacks.ifError("some addresses are not valid");
+		if (mci && !ValidationUtils.isPositiveInteger(mci))
+			return callbacks.ifError("mci should be positive integer");
 	}
 	if (arrRequestedJoints) {
 		if (!ValidationUtils.isNonemptyArray(arrRequestedJoints))
@@ -68,14 +71,15 @@ function prepareHistory(historyRequest, callbacks){
 	if (arrAddresses){
 		// we don't filter sequence='good' after the unit is stable, so the client will see final doublespends too
 		var strAddressList = arrAddresses.map(db.escape).join(', ');
+		var mciCond = mci ? " AND main_chain_index >= " + mci : "";
 		arrSelects = ["SELECT DISTINCT unit, main_chain_index, level FROM outputs JOIN units USING(unit) \n\
-			WHERE address IN("+strAddressList+") AND (+sequence='good' OR is_stable=1) \n\
+			WHERE address IN("+strAddressList+") AND (+sequence='good' OR is_stable=1)"+mciCond+"\n\
 			UNION \n\
 			SELECT DISTINCT unit, main_chain_index, level FROM unit_authors JOIN units USING(unit) \n\
-			WHERE address IN(" + strAddressList + ") AND (+sequence='good' OR is_stable=1) \n\
+			WHERE address IN(" + strAddressList + ") AND (+sequence='good' OR is_stable=1)"+mciCond+" \n\
 			UNION \n\
 			SELECT DISTINCT unit, main_chain_index, level FROM aa_responses JOIN units ON trigger_unit=unit \n\
-			WHERE aa_address IN(" + strAddressList + ")"];
+			WHERE aa_address IN(" + strAddressList + ")"+mciCond];
 	}
 	if (arrRequestedJoints){
 		var strUnitList = arrRequestedJoints.map(db.escape).join(', ');

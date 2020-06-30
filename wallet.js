@@ -640,7 +640,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 							}
 						);
 					}
-					if (objContract.status !== 'pending')
+					if (objContract.status !== 'pending' && (objContract.status !== 'accepted' && body.status !== 'accepted'))
 						return callbacks.ifError("contract is not active, current status: " + objContract.status);
 					var objDateCopy = new Date(objContract.creation_date_obj);
 					if (objDateCopy.setHours(objDateCopy.getHours() + objContract.ttl) < Date.now())
@@ -705,23 +705,32 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			arbiter_contract.getByHash(body.hash, function(objContract){
 				if (!objContract || objContract.peer_device_address !== from_address)
 					return callbacks.ifError("wrong contract hash or not an owner");
-				if (body.field == "status") {
-					if (body.value !== "revoked" || objContract.status !== "pending")
+				if (body.field === "status") {
+					if (objContract.status === "pending" && body.value !== "revoked" && body.value !== "accepted" || 
+						objContract.status === "paid" && body.value !== "in_dispute")
 							return callbacks.ifError("wrong status for contract supplied");
 				} else 
-				if (body.field == "unit") {
+				if (body.field === "unit") {
 					if (objContract.status !== "accepted")
 						return callbacks.ifError("contract was not accepted");
 					if (objContract.unit)
 							return callbacks.ifError("unit was already provided for this contract");
 				} else
-				if (body.field == "shared_address") {
+				if (body.field === "shared_address") {
 					if (objContract.status !== "accepted")
 						return callbacks.ifError("contract was not accepted");
 					if (objContract.shared_address)
 							return callbacks.ifError("shared_address was already provided for this contract");
-						if (!ValidationUtils.isValidAddress(body.value))
-							return callbacks.ifError("invalid address provided");
+					if (!ValidationUtils.isValidAddress(body.value))
+						return callbacks.ifError("invalid address provided");
+				} else
+				if (body.field === "dispute_mci") {
+					if (objContract.status !== "in_dispute" && objContract.status !== "paid") // paid cause both "in_dispute" status change and dispute_mci are sent simultaniously and can be reordered
+						return callbacks.ifError("contract is not in dispute");
+					if (objContract.dispute_mci)
+						return callbacks.ifError("contract already has dispute mci");
+					if (!ValidationUtils.isNonnegativeInteger(body.value))
+						return callbacks.ifError("mci should be non-negative integer");
 				} else {
 					return callbacks.ifError("wrong field");
 				}

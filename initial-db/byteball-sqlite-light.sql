@@ -885,15 +885,17 @@ CREATE TABLE IF NOT EXISTS arbiter_contracts (
 	is_incoming TINYINT NOT NULL,
 	creation_date TIMESTAMP NOT NULL,
 	ttl INT NOT NULL DEFAULT 168, -- 168 hours = 24 * 7 = 1 week \n\
-	status TEXT CHECK (status IN('pending', 'revoked', 'accepted', 'declined', 'paid', 'cancelled', 'completed')) NOT NULL DEFAULT 'active',
+	status TEXT CHECK (status IN('pending', 'revoked', 'accepted', 'declined', 'paid', 'in_dispute', 'resolved', 'cancelled', 'completed')) NOT NULL DEFAULT 'active',
 	title VARCHAR(1000) NOT NULL,
 	text TEXT NOT NULL,
 	my_contact_info TEXT NULL,
 	peer_contact_info TEXT NULL,
 	peer_pairing_code VARCHAR(200) NULL,
 	shared_address CHAR(32),
-	unit CHAR(44),
+	unit CHAR(44) NULL,
 	cosigners VARCHAR(1500),
+	dispute_mci INT NULL,
+	resolution_unit CHAR(44) NULL,
 	FOREIGN KEY (my_address) REFERENCES my_addresses(address)
 );
 

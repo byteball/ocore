@@ -2159,15 +2159,25 @@ function requestUnfinishedPastUnitsOfPrivateChains(arrChains, onDone){
 	});
 }
 
-function requestHistoryFor(arrUnits, arrAddresses, onDone){
+function requestHistoryFor(arrUnits, addresses, onDone){
 	if (!onDone)
 		onDone = function(){};
+	var arrAddresses = [];
+	var mci;
+	if (Array.isArray(addresses))
+		arrAddresses = addresses;
+	else if (typeof addresses == "object" && addresses.addresses) {
+		arrAddresses = addresses.addresses;
+		mci = addresses.mci;
+	}
 	myWitnesses.readMyWitnesses(function(arrWitnesses){
 		var objHistoryRequest = {witnesses: arrWitnesses};
 		if (arrUnits.length)
 			objHistoryRequest.requested_joints = arrUnits;
 		if (arrAddresses.length)
 			objHistoryRequest.addresses = arrAddresses;
+		if (mci)
+			objHistoryRequest.mci = mci;
 		requestFromLightVendor('light/get_history', objHistoryRequest, function(ws, request, response){
 			if (response.error){
 				console.log(response.error);
