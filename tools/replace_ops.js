@@ -1,6 +1,6 @@
 /*jslint node: true */
 'use strict';
-const db = require('ocore/db.js');
+const db = require('../db.js');
 
 let order_providers = [];
 if (!process.env.testnet) {
