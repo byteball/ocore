@@ -32,15 +32,17 @@ function getAppRootDir(){
 	//console.log("parent:", module.parent);
 	//console.log("process.mainModule:", process.mainModule);
 	//console.log("require.main:", require.main);
-	var mainModuleDir = path.dirname(process.mainModule.paths[0]);
-	return getPackageJsonDir(mainModuleDir);
-	/*
-	var arrParts = __dirname.split(path.sep + 'node_modules' + path.sep);
-	if (arrParts.length === 1) // we are not inside node_modules
-		return __dirname;
-	else
-		return arrParts[0]; // topmost parent of node_modules
-	*/
+	if (process.mainModule) {
+		var mainModuleDir = path.dirname(process.mainModule.paths[0]);
+		return getPackageJsonDir(mainModuleDir);
+	}
+	else {
+		var arrParts = __dirname.split(path.sep + 'node_modules' + path.sep);
+		if (arrParts.length === 1) // we are not inside node_modules
+			return __dirname;
+		else
+			return arrParts[0]; // topmost parent of node_modules
+	}
 }
 
 // read app name from the topmost package.json
