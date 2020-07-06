@@ -51,7 +51,7 @@ function notifyAdmin(message){
 }
 
 function write(str){
-	console.log(Date().toString()+': '+str);
+	console.log(new Date().toISOString()+': '+str);
 }
 
 exports.checkDaemon = checkDaemon;
