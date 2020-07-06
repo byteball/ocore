@@ -4,19 +4,25 @@ var Decimal = require('decimal.js');
 var _ = require('lodash');
 var async = require('async');
 var constants = require('./constants.js');
+var string_utils = require("./string_utils.js");
 var storage = require('./storage.js');
 var db = require('./db.js');
 var ValidationUtils = require("./validation_utils.js");
 var objectLength = require("./object_length.js");
 var objectHash = require("./object_hash.js");
-var aa_validation = require("./aa_validation.js");
 var validation = require("./validation.js");
-var formulaParser = require('./formula/index');
+var formulaParser = require('./formula/evaluation.js');
 var kvstore = require('./kvstore.js');
 var eventBus = require('./event_bus.js');
 var mutex = require('./mutex.js');
 var writer = require('./writer.js');
 var conf = require('./conf.js');
+
+var getFormula = require('./formula/common.js').getFormula;
+var hasCases = require('./formula/common.js').hasCases;
+var assignField = require('./formula/common.js').assignField;
+var wrappedObject = formulaParser.wrappedObject;
+var toJsType = formulaParser.toJsType;
 
 var isNonnegativeInteger = ValidationUtils.isNonnegativeInteger;
 var isNonemptyArray = ValidationUtils.isNonemptyArray;
@@ -28,8 +34,10 @@ var TRANSFER_INPUT_SIZE = 0 // type: "transfer" omitted
 	+ 44 // unit
 	+ 8 // message_index
 	+ 8; // output_index
+var TRANSFER_INPUT_KEYS_SIZE = "unit".length + "message_index".length + "output_index".length;
 
 var OUTPUT_SIZE = 32 + 8; // address + amount
+var OUTPUT_KEYS_SIZE = "address".length + "amount".length;
 
 eventBus.on('new_aa_triggers', function () {
 	mutex.lock(["write"], function (unlock) {
@@ -271,6 +279,8 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 		number_of_responses: arrResponses.length,
 		arrPreviousResponseUnits: arrResponses.map(objAAResponse => objAAResponse.objResponseUnit)
 	};
+	var bWithKeys = (mci >= constants.includeKeySizesUpgradeMci);
+	var FULL_TRANSFER_INPUT_SIZE = TRANSFER_INPUT_SIZE + (bWithKeys ? TRANSFER_INPUT_KEYS_SIZE : 0);
 	var byte_balance;
 	var storage_size;
 	var objStateUpdate;
@@ -361,6 +371,33 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 		async.series(arrQueries, cb);
 	}
 	
+	function evaluateAA(arrDefinition, cb) {
+		var locals = {};
+		var f = getFormula(arrDefinition[1].getters);
+		if (f === null) // no getters
+			return replace(arrDefinition, 1, '', locals, cb);
+		// evaluate getters before everything else as they can define a few functions
+		delete arrDefinition[1].getters;
+		var opts = {
+			conn: conn,
+			formula: f,
+			trigger: trigger,
+			params: params,
+			locals: locals,
+			stateVars: stateVars,
+			responseVars: responseVars,
+			bStatementsOnly: true,
+			bGetters: true,
+			objValidationState: objValidationState,
+			address: address
+		};
+		formulaParser.evaluate(opts, function (err, res) {
+			if (res === null)
+				return cb(err.bounce_message || "formula " + f + " failed: " + err);
+			replace(arrDefinition, 1, '', locals, cb);
+		});
+	}
+
 	// note that app=definition is also replaced using the current trigger and vars, its code has to generate "{}"-formulas in order to be dynamic
 	function replace(obj, name, path, locals, cb) {
 		count++;
@@ -369,7 +406,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 		locals = _.clone(locals);
 		var value = obj[name];
 		if (typeof name === 'string') {
-			var f = aa_validation.getFormula(name);
+			var f = getFormula(name);
 			if (f !== null) {
 				var opts = {
 					conn: conn,
@@ -390,11 +427,11 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 						return cb(); // the key is just removed from the object
 					if (typeof res !== 'string')
 						return cb("result of formula " + name + " is not a string: " + res);
-					if (obj.hasOwnProperty(res))
+					if (ValidationUtils.hasOwnProperty(obj, res))
 						return cb("duplicate key " + res + " calculated from " + name);
-					if (aa_validation.getFormula(res) !== null)
+					if (getFormula(res) !== null)
 						return cb("calculated value of " + name + " looks like a formula again: " + res);
-					obj[res] = value;
+					assignField(obj, res, value);
 					replace(obj, res, path, locals, cb);
 				});
 			}
@@ -402,7 +439,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 		if (typeof value === 'number' || typeof value === 'boolean')
 			return cb();
 		if (typeof value === 'string') {
-			var f = aa_validation.getFormula(value);
+			var f = getFormula(value);
 			if (f === null)
 				return cb();
 		//	console.log('path', path, 'name', name, 'f', f);
@@ -433,14 +470,14 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 					if (typeof name === 'string')
 						delete obj[name];
 					else
-						obj[name] = null;
+						assignField(obj, name, null);
 				}
 				else
-					obj[name] = res;
+					assignField(obj, name, res);
 				cb();
 			});
 		}
-		else if (aa_validation.hasCases(value)) {
+		else if (hasCases(value)) {
 			var thecase;
 			async.eachSeries(
 				value.cases,
@@ -449,7 +486,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 						thecase = acase;
 						return cb2('done');
 					}
-					var f = aa_validation.getFormula(acase.if);
+					var f = getFormula(acase.if);
 					if (f === null)
 						return cb2("case if is not a formula: " + acase.if);
 					var locals_tmp = _.clone(locals); // separate copy for each iteration of eachSeries
@@ -483,10 +520,10 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 					var replacement_value = thecase[name];
 					if (!replacement_value)
 						throw Error("a case was selected but no replacement value in " + name);
-					obj[name] = replacement_value;
+					assignField(obj, name, replacement_value);
 					if (!thecase.init)
 						return replace(obj, name, path, locals, cb);
-					var f = aa_validation.getFormula(thecase.init);
+					var f = getFormula(thecase.init);
 					if (f === null)
 						return cb("case init is not a formula: " + thecase.init);
 					var opts = {
@@ -513,7 +550,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 			function evaluateIf(cb2) {
 				if (typeof value.if !== 'string')
 					return cb2();
-				var f = aa_validation.getFormula(value.if);
+				var f = getFormula(value.if);
 				if (f === null)
 					return cb("if is not a formula: " + value.if);
 				var opts = {
@@ -534,7 +571,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 						if (typeof name === 'string')
 							delete obj[name];
 						else
-							obj[name] = null; // will be removed
+							assignField(obj, name, null); // will be removed
 						return cb();
 					}
 					delete value.if;
@@ -544,7 +581,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 			evaluateIf(function () {
 				if (typeof value.init !== 'string')
 					return replace(obj, name, path, locals, cb);
-				var f = aa_validation.getFormula(value.init);
+				var f = getFormula(value.init);
 				if (f === null)
 					return cb("init is not a formula: " + value.init);
 				var opts = {
@@ -581,10 +618,10 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 						if (typeof name === 'string')
 							delete obj[name];
 						else
-							obj[name] = null; // to be removed
+							assignField(obj, name, null); // to be removed
 						return cb();
 					}
-					obj[name] = replacement_value;
+					assignField(obj, name, replacement_value);
 					cb();
 				}
 			);
@@ -598,11 +635,11 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 				function (err) {
 					if (err)
 						return cb(err);
-					if (Object.keys(value) === 0) {
+					if (Object.keys(value).length === 0) {
 						if (typeof name === 'string')
 							delete obj[name];
 						else
-							obj[name] = null; // to be removed
+							assignField(obj, name, null); // to be removed
 						return cb();
 					}
 					cb();
@@ -686,6 +723,8 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 		function completePaymentPayload(payload, additional_amount, cb) {
 			var asset = payload.asset || null;
 			var is_base = (asset === null) ? 1 : 0;
+			if (!payload.inputs && bWithKeys && is_base)
+				additional_amount += "inputs".length;
 			payload.inputs = [];
 			var total_amount = 0;
 
@@ -696,10 +735,10 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 			// send-all output looks like {address: "BASE32"}, its size is 32 since it has no amount.
 			// remove the send-all output from size calculation, it might be added later
 			if (send_all_output && is_base){
-				additional_amount -= 32;
+				additional_amount -= 32 + (bWithKeys ? "address".length : 0);
 				// we add a change output to AA to keep balance above storage_size
-				if (storage_size > 60 && mci >= constants.aaStorageSizeUpgradeMci){
-					additional_amount += OUTPUT_SIZE;
+				if (storage_size > FULL_TRANSFER_INPUT_SIZE && mci >= constants.aaStorageSizeUpgradeMci){
+					additional_amount += OUTPUT_SIZE + (bWithKeys ? OUTPUT_KEYS_SIZE : 0);
 					payload.outputs.push({ address: address, amount: storage_size });
 				}
 			}
@@ -715,7 +754,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 					payload.inputs.push(input);
 					total_amount += row.amount;
 					if (is_base)
-						target_amount += TRANSFER_INPUT_SIZE;
+						target_amount += FULL_TRANSFER_INPUT_SIZE;
 					if (total_amount < target_amount)
 						continue;
 					if (total_amount === target_amount && payload.outputs.length > 0) {
@@ -725,7 +764,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 						else
 							break;
 					}
-					var additional_output_size = is_base ? OUTPUT_SIZE : 0; // the same for send-all
+					var additional_output_size = is_base ? OUTPUT_SIZE + (bWithKeys ? OUTPUT_KEYS_SIZE : 0) : 0; // the same for send-all
 					var change_amount = total_amount - (target_amount + additional_output_size);
 					if (change_amount > 0) {
 						bFound = true;
@@ -748,7 +787,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 					"SELECT unit, message_index, output_index, amount, output_id \n\
 					FROM outputs \n\
 					CROSS JOIN units USING(unit) \n\
-					WHERE address=? AND asset"+(asset ? "="+conn.escape(asset) : " IS NULL AND amount>=60")+" AND is_spent=0 \n\
+					WHERE address=? AND asset"+(asset ? "="+conn.escape(asset) : " IS NULL AND amount>=" + FULL_TRANSFER_INPUT_SIZE)+" AND is_spent=0 \n\
 						AND sequence='good' AND main_chain_index<=? \n\
 						AND output_id NOT IN("+(arrUsedOutputIds.length === 0 ? "-1" : arrUsedOutputIds.join(', '))+") \n\
 					ORDER BY main_chain_index, unit, output_index", // sort order must be deterministic
@@ -764,7 +803,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 					CROSS JOIN units USING(unit) \n\
 					CROSS JOIN unit_authors USING(unit) \n\
 					CROSS JOIN aa_addresses ON unit_authors.address=aa_addresses.address \n\
-					WHERE outputs.address=? AND asset"+(asset ? "="+conn.escape(asset) : " IS NULL AND amount>=60")+" AND is_spent=0 \n\
+					WHERE outputs.address=? AND asset"+(asset ? "="+conn.escape(asset) : " IS NULL AND amount>="+FULL_TRANSFER_INPUT_SIZE)+" AND is_spent=0 \n\
 						AND sequence='good' AND (main_chain_index>? OR main_chain_index IS NULL) \n\
 						AND output_id NOT IN("+(arrUsedOutputIds.length === 0 ? "-1" : arrUsedOutputIds.join(', '))+") \n\
 					ORDER BY latest_included_mc_index, level, outputs.unit, output_index", // sort order must be deterministic
@@ -916,7 +955,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 				objBasePaymentMessage.payload_location = 'inline';
 				objBasePaymentMessage.payload_hash = '-'.repeat(44);
 				var objUnit = {
-					version: constants.version, 
+					version: bWithKeys ? constants.version : constants.versionWithoutKeySizes, 
 					alt: constants.alt,
 					timestamp: objMcUnit.timestamp,
 					messages: messages,
@@ -938,6 +977,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 						completeMessage(objBasePaymentMessage); // fixes payload_hash
 						objUnit.payload_commission = objectLength.getTotalPayloadSize(objUnit);
 						objUnit.unit = objectHash.getUnitHash(objUnit);
+						console.log('unit', JSON.stringify(objUnit, null, '\t'))
 						executeStateUpdateFormula(objUnit, function (err) {
 							if (err)
 								return bounce(err);
@@ -1017,9 +1057,31 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 				if (state.value === false) // false value signals that the var should be deleted
 					batch.del(key);
 				else
-					batch.put(key, state.value.toString()); // Decimal converted to string
+					batch.put(key, getTypeAndValue(state.value)); // Decimal converted to string, object to json
 			}
 		}
+	}
+
+	function getTypeAndValue(value) {
+		if (typeof value === 'string')
+			return 's\n' + value;
+		else if (typeof value === 'number' || Decimal.isDecimal(value))
+			return 'n\n' + value.toString();
+		else if (value instanceof wrappedObject)
+			return 'j\n' + string_utils.getJsonSourceString(value.obj, true);
+		else
+			throw Error("state var of unknown type: " + value);	
+	}
+
+	function getValueSize(value) {
+		if (typeof value === 'string')
+			return value.length;
+		else if (typeof value === 'number' || Decimal.isDecimal(value))
+			return value.toString().length;
+		else if (value instanceof wrappedObject)
+			return string_utils.getJsonSourceString(value.obj, true).length;
+		else
+			throw Error("state var of unknown type: " + value);		
 	}
 
 	function updateStorageSize(cb) {
@@ -1033,20 +1095,20 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 				continue;
 			if (state.value === false) { // false value signals that the var should be deleted
 				if (state.original_old_value !== undefined)
-					delta_storage_size -= var_name.length + state.original_old_value.toString().length;
+					delta_storage_size -= var_name.length + getValueSize(state.original_old_value);
 			}
 			else {
 				if (state.original_old_value !== undefined)
-					delta_storage_size += state.value.toString().length - state.original_old_value.toString().length;
+					delta_storage_size += getValueSize(state.value) - getValueSize(state.original_old_value);
 				else
-					delta_storage_size += var_name.length + state.value.toString().length;
+					delta_storage_size += var_name.length + getValueSize(state.value);
 			}
 		}
 		console.log('storage size = ' + storage_size + ' + ' + delta_storage_size + ', byte_balance = ' + byte_balance);
 		var new_storage_size = storage_size + delta_storage_size;
 		if (new_storage_size < 0)
 			throw Error("storage size would become negative: " + new_storage_size);
-		if (byte_balance < new_storage_size && new_storage_size > 60 && mci >= constants.aaStorageSizeUpgradeMci)
+		if (byte_balance < new_storage_size && new_storage_size > FULL_TRANSFER_INPUT_SIZE && mci >= constants.aaStorageSizeUpgradeMci)
 			return cb("byte balance " + byte_balance + " would drop below new storage size " + new_storage_size);
 		if (delta_storage_size === 0)
 			return cb();
@@ -1125,17 +1187,17 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 				if (!updatedStateVars[var_address])
 					updatedStateVars[var_address] = {};
 				var varInfo = {
-					value: Decimal.isDecimal(state.value) ? state.value.toNumber() : state.value,
+					value: toJsType(state.value),
 				};
 				if (state.old_value !== undefined)
-					varInfo.old_value = Decimal.isDecimal(state.old_value) ? state.old_value.toNumber() : state.old_value;
+					varInfo.old_value = toJsType(state.old_value);
 				if (typeof varInfo.value === 'number') {
 					if (typeof varInfo.old_value === 'number')
 						varInfo.delta = varInfo.value - varInfo.old_value;
 				//	else if (varInfo.old_value === undefined || varInfo.old_value === false)
 				//		varInfo.delta = varInfo.value;
 				}
-				updatedStateVars[var_address][var_name] = varInfo;
+				assignField(updatedStateVars[var_address], var_name, varInfo);
 			}
 		}
 		arrResponses[0].updatedStateVars = updatedStateVars;
@@ -1286,7 +1348,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 			}
 		}
 
-		replace(arrDefinition, 1, '', {}, function (err) {
+		evaluateAA(arrDefinition, function (err) {
 			if (err)
 				return bounce(err);
 			var messages = template.messages;
@@ -1352,7 +1414,7 @@ function checkStorageSizes() {
 				var var_name = data.key.substr(36);
 				if (!assocSizes[address])
 					assocSizes[address] = 0;
-				assocSizes[address] += var_name.length + data.value.length;
+				assocSizes[address] += var_name.length + data.value.length - 2; // -2 for type and \n
 			}
 			var stream = kvstore.createReadStream(options);
 			stream.on('data', handleData)

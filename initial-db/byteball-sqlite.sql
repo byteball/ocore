@@ -820,6 +820,7 @@ CREATE TABLE aa_addresses (
 	base_aa CHAR(32) NULL,
 	storage_size INT NOT NULL DEFAULT 0,
 	definition TEXT NOT NULL,
+	getters TEXT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT aaAddressesByBaseAA FOREIGN KEY (base_aa) REFERENCES aa_addresses(address)
 );
@@ -916,4 +917,4 @@ CREATE TABLE IF NOT EXISTS arbiter_contracts (
 	FOREIGN KEY (my_address) REFERENCES my_addresses(address)
 );
 
-PRAGMA user_version=39;
+PRAGMA user_version=40;

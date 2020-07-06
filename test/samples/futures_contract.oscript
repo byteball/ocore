@@ -1,0 +1,108 @@
+{
+	messages: {
+		cases: [
+			{ // define USD and GB assets
+				if: `{
+					$define_usd = trigger.data.define_usd AND !var['usd_asset'];
+					$define_gb = trigger.data.define_gb AND !var['gb_asset'];
+					if ($define_usd AND $define_gb)
+						bounce("can't define both assets at the same time");
+					$define_usd OR $define_gb
+				}`,
+				messages: [
+					{
+						app: 'asset',
+						payload: {
+							// without cap
+							is_private: false,
+							is_transferrable: true,
+							auto_destroy: false,
+							fixed_denominations: false,
+							issued_by_definer_only: true,
+							cosigned_by_definer: false,
+							spender_attested: false,
+						}
+					},
+					{
+						app: 'state',
+						state: `{
+							$asset = $define_usd ? 'usd_asset' : 'gb_asset';
+							var[$asset] = response_unit;
+							response[$asset] = response_unit;
+						}`
+					}
+				]
+			},
+			{ // issue USD and GB assets in exchange for bytes, it's ok to issue them even after expiry or blackswan
+				if: "{trigger.output[[asset=base]] >= 1e5 AND var['usd_asset'] AND var['gb_asset']}",
+				messages: [
+					{
+						app: 'payment',
+						payload: {
+							asset: "{var['usd_asset']}",
+							outputs: [
+								{address: "{trigger.address}", amount: "{ trigger.output[[asset=base]] }"}
+							]
+						}
+					},
+					{
+						app: 'payment',
+						payload: {
+							asset: "{var['gb_asset']}",
+							outputs: [
+								{address: "{trigger.address}", amount: "{ trigger.output[[asset=base]] }"}
+							]
+						}
+					},
+				]
+			},
+			{ // record blackswan event
+				if: `{ trigger.data.blackswan AND !var['blackswan'] AND data_feed[[oracles='X55IWSNMHNDUIYKICDW3EOYAWHRUKANP', feed_name='GBYTE_USD_MA']] < 25 AND timestamp < 1556668800 }`,
+				messages: [{
+					app: 'state',
+					state: `{
+						var['blackswan'] = 1;
+						response['blackswan'] = 1;
+					}`
+				}]
+			},
+			// 1 GB is now 50 USD, 1 byte is 50e-9 = 5e-8 USD
+			// 1 usd asset is always 2.5e-8 USD, 1 gb asset is 1 byte minus 2.5e-8 USD
+			{ // pay bytes in exchange for the assets
+				if: `{
+					if (trigger.output[[asset!=base]].asset == 'none')
+						return false;
+					$gb_asset_amount = trigger.output[[asset=var['gb_asset']]];
+					$usd_asset_amount = trigger.output[[asset=var['usd_asset']]];
+					if ($gb_asset_amount < 1e4 AND $usd_asset_amount < 1e4)
+						return false;
+					if ($gb_asset_amount == $usd_asset_amount){ // helps in case the exchange rate is never posted
+						$bytes = $gb_asset_amount;
+						return true;
+					}
+					if (var['blackswan'])
+						$bytes = $usd_asset_amount;
+					else{
+						if (timestamp < 1556668800)
+							bounce('wait for maturity date');
+						// data_feed will abort if the exchange rate not posted yet
+						$exchange_rate = data_feed[[oracles='X55IWSNMHNDUIYKICDW3EOYAWHRUKANP', feed_name='GBYTE_USD_MA_2019_04_30']];
+						$bytes_per_usd_asset = min(50/$exchange_rate/2, 1);
+						$bytes_per_gb_asset = 1 - $bytes_per_usd_asset;
+						$bytes = round($bytes_per_usd_asset * $usd_asset_amount + $bytes_per_gb_asset * $gb_asset_amount);
+					}
+					true
+				}`,
+				messages: [{
+					app: 'payment',
+					payload: {
+						asset: "base",
+						outputs: [
+							{address: "{trigger.address}", amount: "{ $bytes }"}
+						]
+					}
+				}]
+			},
+		]
+	}
+}

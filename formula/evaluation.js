@@ -6,6 +6,8 @@ var _ = require('lodash');
 var base32 = require('thirty-two');
 var ValidationUtils = require("../validation_utils.js");
 var string_utils = require("../string_utils.js");
+var chash = require("../chash.js");
+var objectHash = require("../object_hash.js");
 var merkle = require('../merkle.js');
 var constants = require('../constants');
 var dataFeeds = require('../data_feeds.js');
@@ -23,9 +25,13 @@ var objBaseAssetInfo = require('./common.js').objBaseAssetInfo;
 var isFiniteDecimal = require('./common.js').isFiniteDecimal;
 var toDoubleRange = require('./common.js').toDoubleRange;
 var createDecimal = require('./common.js').createDecimal;
+var assignObject = require('./common.js').assignObject;
+var assignField = require('./common.js').assignField;
+var isValidValue = require('./common.js').isValidValue;
+var getFormula = require('./common.js').getFormula;
+var fixFormula = require('./common.js').fixFormula;
 
-if (!Number.MAX_SAFE_INTEGER)
-	Number.MAX_SAFE_INTEGER = Math.pow(2, 53) - 1; // 9007199254740991
+var hasOwnProperty = ValidationUtils.hasOwnProperty;
 
 var testnetStringToNumberInArithmeticUpgradeMci = 1151000;
 
@@ -34,17 +40,23 @@ var decimalPi = new Decimal(Math.PI);
 var dec0 = new Decimal(0);
 var dec1 = new Decimal(1);
 
-function isValidValue(val){
-	return (typeof val === 'string' || typeof val === 'boolean' || isFiniteDecimal(val));
-}
 
 function wrappedObject(obj){
 	this.obj = obj;
+	this.frozen = false;
+}
+
+function Func(args, body, scopeVarNames) {
+	if (!Array.isArray(args))
+		throw Error("args is not an array");
+	this.args = args;
+	this.body = body;
+	this.scopeVarNames = scopeVarNames;
 }
 
 exports.evaluate = function (opts, callback) {
 	var conn = opts.conn;
-	var formula = opts.formula;
+	var formula = fixFormula(opts.formula, opts.address);
 	var messages = opts.messages || [];
 	var trigger = opts.trigger || {};
 	var aa_params = opts.params || {};
@@ -57,6 +69,7 @@ exports.evaluate = function (opts, callback) {
 	var objValidationState = opts.objValidationState;
 	var address = opts.address;
 	var objResponseUnit = opts.objResponseUnit;
+	var mci = objValidationState.last_ball_mci;
 
 	if (!ValidationUtils.isPositiveInteger(objValidationState.last_ball_timestamp))
 		throw Error('last_ball_timestamp is not a number: ' + objValidationState.last_ball_timestamp);
@@ -64,6 +77,8 @@ exports.evaluate = function (opts, callback) {
 	var bAA = (messages.length === 0);
 	if (!bAA && (bStatementsOnly || bStateVarAssignmentAllowed || bObjectResultAllowed))
 		throw Error("bad opts for non-AA");
+
+	var bLimitedPrecision = (mci < constants.aa2UpgradeMci);
 
 	var parser = {};
 	if(cache[formula]){
@@ -87,7 +102,7 @@ exports.evaluate = function (opts, callback) {
 	var early_return;
 	var count = 0;
 
-	function evaluate(arr, cb) {
+	function evaluate(arr, cb, bTopLevel) {
 		count++;
 		if (count % 100 === 0) // avoid extra long call stacks to prevent Maximum call stack size exceeded
 			return setImmediate(evaluate, arr, cb);
@@ -102,6 +117,7 @@ exports.evaluate = function (opts, callback) {
 				return setFatalError("number overflow: " + arr, cb, false);
 			return cb(toDoubleRange(arr));
 		}
+		if (arr instanceof Func) return setFatalError("function returned", cb, false);
 		if (arr instanceof wrappedObject) return cb(arr);
 		if (typeof arr !== 'object') {
 			if (typeof arr === 'boolean') return cb(arr);
@@ -150,8 +166,8 @@ exports.evaluate = function (opts, callback) {
 							res = true;
 						if (typeof res === 'boolean')
 							res = res ? dec1 : dec0;
-						else if (typeof res === 'string' && (!constants.bTestnet || objValidationState.last_ball_mci > testnetStringToNumberInArithmeticUpgradeMci)) {
-							var float = string_utils.getNumericFeedValue(res);
+						else if (typeof res === 'string' && (!constants.bTestnet || mci > testnetStringToNumberInArithmeticUpgradeMci)) {
+							var float = string_utils.toNumber(res, bLimitedPrecision);
 							if (float !== null)
 								res = createDecimal(res);
 						}
@@ -210,7 +226,7 @@ exports.evaluate = function (opts, callback) {
 					if (typeof res === 'boolean')
 						res = res ? dec1 : dec0;
 					else if (typeof res === 'string') {
-						var float = string_utils.getNumericFeedValue(res);
+						var float = string_utils.toNumber(res, bLimitedPrecision);
 						if (float !== null)
 							res = createDecimal(res);
 					}
@@ -240,7 +256,7 @@ exports.evaluate = function (opts, callback) {
 					if (typeof dp_res === 'boolean')
 						dp_res = dp_res ? dec1 : dec0;
 					else if (typeof dp_res === 'string') {
-						var float = string_utils.getNumericFeedValue(dp_res);
+						var float = string_utils.toNumber(dp_res, bLimitedPrecision);
 						if (float !== null)
 							dp_res = createDecimal(dp_res);
 					}
@@ -269,7 +285,7 @@ exports.evaluate = function (opts, callback) {
 						if (typeof res === 'boolean')
 							res = res ? dec1 : dec0;
 						else if (typeof res === 'string') {
-							var float = string_utils.getNumericFeedValue(res);
+							var float = string_utils.toNumber(res, bLimitedPrecision);
 							if (float !== null)
 								res = createDecimal(res);
 						}
@@ -295,7 +311,7 @@ exports.evaluate = function (opts, callback) {
 						if (typeof res === 'boolean')
 							res = res ? dec1 : dec0;
 						else if (typeof res === 'string') {
-							var float = string_utils.getNumericFeedValue(res);
+							var float = string_utils.toNumber(res, bLimitedPrecision);
 							if (float !== null)
 								res = createDecimal(res);
 						}
@@ -565,7 +581,7 @@ exports.evaluate = function (opts, callback) {
 					}
 					if (params.ifnone && !isValidValue(params.ifnone.value))
 						return cb("bad ifnone: "+params.ifnone.value);
-					dataFeeds.readDataFeedValue(arrAddresses, feed_name, value, min_mci, objValidationState.last_ball_mci, bAA, ifseveral, function(objResult){
+					dataFeeds.readDataFeedValue(arrAddresses, feed_name, value, min_mci, mci, bAA, ifseveral, function(objResult){
 					//	console.log(arrAddresses, feed_name, value, min_mci, ifseveral);
 					//	console.log('---- objResult', objResult);
 						if (objResult.bAbortedBecauseOfSeveral)
@@ -663,7 +679,7 @@ exports.evaluate = function (opts, callback) {
 								return setFatalError('bad min_mci', cb, false);
 							min_mci = parseInt(min_mci);
 						}
-						dataFeeds.dataFeedExists(arrAddresses, feed_name, relation, value, min_mci, objValidationState.last_ball_mci, bAA, cb);
+						dataFeeds.dataFeedExists(arrAddresses, feed_name, relation, value, min_mci, mci, bAA, cb);
 					}
 				);
 				break;
@@ -873,7 +889,7 @@ exports.evaluate = function (opts, callback) {
 									return cb(true);
 								var value = rows[0].value;
 								if (type === 'auto') {
-									var f = string_utils.getNumericFeedValue(value);
+									var f = string_utils.toNumber(value, bLimitedPrecision);
 									if (f !== null)
 										value = createDecimal(value);
 								}
@@ -891,7 +907,7 @@ exports.evaluate = function (opts, callback) {
 									AND "+ table + ".address = ? " + and_field +" \n\
 									AND (main_chain_index > ? OR main_chain_index IS NULL) \n\
 								ORDER BY latest_included_mc_index DESC, level DESC, units.unit LIMIT ?",
-								[params.address.value, objValidationState.last_ball_mci, (ifseveral === 'abort') ? 2 : 1],
+								[params.address.value, mci, (ifseveral === 'abort') ? 2 : 1],
 								function (rows) {
 									if (!bAA)
 										rows = []; // discard any results
@@ -906,7 +922,7 @@ exports.evaluate = function (opts, callback) {
 										WHERE attestor_address IN(" + arrAttestorAddresses.map(conn.escape).join(', ') + ") \n\
 											AND address = ? "+and_field+" AND main_chain_index <= ? \n\
 										ORDER BY main_chain_index DESC, latest_included_mc_index DESC, level DESC, unit LIMIT ?",
-										[params.address.value, objValidationState.last_ball_mci, (ifseveral === 'abort') ? 2 : 1],
+										[params.address.value, mci, (ifseveral === 'abort') ? 2 : 1],
 										function (rows) {
 											count_rows += rows.length;
 											if (count_rows > 1 && ifseveral === 'abort')
@@ -926,29 +942,32 @@ exports.evaluate = function (opts, callback) {
 				break;
 
 			case 'concat':
-				var result = '';
+				var operands = [];
 				async.eachSeries(arr.slice(1), function (param, cb2) {
 					evaluate(param, function (res) {
 						if (fatal_error)
 							return cb2(fatal_error);
+						var operand;
 						if (res instanceof wrappedObject)
-							res = true;
-						if (isFiniteDecimal(res))
-							result += toDoubleRange(res).toString();
+							operand = res;
+						else if (isFiniteDecimal(res))
+							operand = toDoubleRange(res).toString();
 						else if (typeof res === 'string')
-							result += res;
+							operand = res;
 						else if (typeof res === 'boolean')
-							result += res.toString();
+							operand = res.toString();
 						else
 							return setFatalError('unrecognized type in ' + op + ': ' + res, cb2);
+						operands.push(operand);
 						cb2();
 					});
 				}, function (err) {
 					if (err)
 						return cb(false);
-					if (result.length > constants.MAX_AA_STRING_LENGTH)
-						return setFatalError("string too long after concat: " + result, cb, false);
-					cb(result);
+					var ret = concat(operands[0], operands[1]);
+					if (ret.error)
+						return setFatalError(ret.error, cb, false);
+					cb(ret.result);
 				});
 				break;
 
@@ -957,7 +976,7 @@ exports.evaluate = function (opts, callback) {
 				break;
 
 			case 'mci':
-				cb(new Decimal(objValidationState.last_ball_mci));
+				cb(new Decimal(mci));
 				break;
 
 			case 'timestamp':
@@ -990,12 +1009,10 @@ exports.evaluate = function (opts, callback) {
 
 			case 'trigger.data':
 			case 'params':
-				var arrKeys = arr[1]; // can be 0-length array
-			//	console.log('keys', arrKeys);
 				var value = (op === 'params') ? aa_params : trigger.data;
 				if (!value || Object.keys(value).length === 0)
 					return cb(false);
-				selectSubobject(value, arrKeys, cb);
+				cb(new wrappedObject(value));
 				break;
 
 			case 'trigger.output':
@@ -1030,9 +1047,67 @@ exports.evaluate = function (opts, callback) {
 				});
 				break;
 
+			case 'array':
+				var arrItemExprs = arr[1];
+				var arrItems = [];
+				async.eachSeries(
+					arrItemExprs,
+					function (item_expr, cb2) {
+						evaluate(item_expr, function (res) {
+							if (fatal_error)
+								return cb2(fatal_error);
+							if (res instanceof wrappedObject)
+								arrItems.push(res.obj);
+							else {
+								if (!isValidValue(res))
+									return setFatalError("bad value " + res, cb2);
+								if (Decimal.isDecimal(res))
+									res = res.toNumber();
+								arrItems.push(res);
+							}
+							cb2();
+						})
+					},
+					function (err) {
+						if (fatal_error)
+							return cb(false);
+						cb(new wrappedObject(arrItems));
+					}
+				);
+				break;
+			
+			case 'dictionary':
+				var arrPairs = arr[1];
+				var obj = {};
+				async.eachSeries(
+					arrPairs,
+					function (pair, cb2) {
+						var key = pair[0];
+						evaluate(pair[1], function (res) {
+							if (fatal_error)
+								return cb2(fatal_error);
+							if (res instanceof wrappedObject)
+								assignField(obj, key, res.obj);
+							else {
+								if (!isValidValue(res))
+									return setFatalError("bad value " + res, cb2);
+								if (Decimal.isDecimal(res))
+									res = res.toNumber();
+								assignField(obj, key, res);
+							}
+							cb2();
+						});	
+					},
+					function (err) {
+						if (fatal_error)
+							return cb(false);
+						cb(new wrappedObject(obj));
+					}
+				);
+				break;
+	
 			case 'local_var':
 				var var_name_or_expr = arr[1];
-				var arrKeys = arr[2];
 				evaluate(var_name_or_expr, function (var_name) {
 				//	console.log('--- evaluated var name', var_name);
 					if (fatal_error)
@@ -1040,44 +1115,49 @@ exports.evaluate = function (opts, callback) {
 					if (typeof var_name !== 'string')
 						return setFatalError("var name evaluated to " + var_name, cb, false);
 					var value = locals[var_name];
-					if (value === undefined || !locals.hasOwnProperty(var_name))
+					if (value === undefined || !hasOwnProperty(locals, var_name))
 						return cb(false);
+					if (value instanceof Func)
+						return setFatalError("trying to access function " + var_name + " without calling it", cb, false);
 					if (typeof value === 'number')
 						value = createDecimal(value);
-					if (!arrKeys)
-						return cb(value);
-					// from now on, selectors exist
-					if (!(value instanceof wrappedObject)) // scalars have no keys
-						return cb(false);
-					value = value.obj; // unwrap
-					selectSubobject(value, arrKeys, cb);
+					cb(value);
 				});
 				break;
 
 			case 'local_var_assignment':
-			case 'state_var_assignment':
-			case 'response_var_assignment':
-				var bLocal = (op === 'local_var_assignment');
-				if (op === 'state_var_assignment' && !bStateVarAssignmentAllowed)
-					return setFatalError("state var assignment not allowed here", cb, false);
+				// arr[1] is ['local_var', var_name]
 				var var_name_or_expr = arr[1];
-				if (bLocal) {
-					// arr[1] is ['local_var', var_name, selectors]
-					if (arr[1][2]) // selector in assignment
-						return setFatalError("selector in assignment", cb, false);
-					var_name_or_expr = arr[1][1];
-				}
 				var rhs = arr[2];
-				var assignment_op = arr[3];
-				if (assignment_op && op !== 'state_var_assignment')
-					return setFatalError("assignment op set for non-state-var assignment", cb, false);
+				var selectors = arr[3];
 				evaluate(var_name_or_expr, function (var_name) {
 					if (fatal_error)
 						return cb(false);
 					if (typeof var_name !== 'string')
 						return setFatalError("assignment: var name "+var_name_or_expr+" evaluated to " + var_name, cb, false);
-					if (bLocal && locals.hasOwnProperty(var_name))
-						return setFatalError("reassignment to " + var_name + ", old value " + locals[var_name], cb, false);
+					if (hasOwnProperty(locals, var_name)) {
+						if (!selectors)
+							return setFatalError("reassignment to " + var_name + ", old value " + locals[var_name], cb, false);
+						if (!(locals[var_name] instanceof wrappedObject))
+							return setFatalError("variable " + var_name + " is not an object", cb, false);
+						if (locals[var_name].frozen)
+							return setFatalError("variable " + var_name + " is frozen", cb, false);
+					}
+					else if (selectors)
+						return setFatalError("mutating a non-existent var " + var_name, cb, null);
+					if (rhs[0] === 'func_declaration') {
+						if (selectors)
+							return setFatalError("only top level functions are supported", cb, null);
+						var args = rhs[1];
+						var body = rhs[2];
+						var scopeVarNames = Object.keys(locals);
+						if (args.indexOf(var_name) >= 0)
+							throw Error("arg name cannot be the same as func name in evaluation");
+						if (_.intersection(args, scopeVarNames).length > 0)
+							return setFatalError("some args of " + var_name + " would shadow some local vars", cb, false);
+						assignField(locals, var_name, new Func(args, body, scopeVarNames));
+						return cb(true);
+					}
 					evaluate(rhs, function (res) {
 						if (fatal_error)
 							return cb(false);
@@ -1085,26 +1165,74 @@ exports.evaluate = function (opts, callback) {
 							return setFatalError("evaluation of rhs " + rhs + " failed: " + res, cb, false);
 						if (Decimal.isDecimal(res))
 							res = toDoubleRange(res);
-						if (bLocal) {
-							if (locals.hasOwnProperty(var_name))
+						if (hasOwnProperty(locals, var_name)) { // mutating an object
+							if (!selectors)
 								return setFatalError("reassignment to " + var_name + " after evaluation", cb, false);
-							locals[var_name] = res; // can be wrappedObject too
-							return cb(true);
-						}
-						// state vars can store only strings, decimals, and booleans but booleans are treated specially when persisting to the db: true is converted to 1, false deletes the var
-						// response vars - strings, numbers, and booleans
-						if (res instanceof wrappedObject)
-							res = true;
-						if (op === 'response_var_assignment') {
-							if (Decimal.isDecimal(res)) {
+							if (!(locals[var_name] instanceof wrappedObject))
+								throw Error("variable " + var_name + " is not an object");
+							if (Decimal.isDecimal(res))
 								res = res.toNumber();
-								if (!isFinite(res))
-									return setFatalError("not finite js number in response_var_assignment", cb, false);
-							}
-							responseVars[var_name] = res;
-							return cb(true);
+							if (res instanceof wrappedObject)
+								res = _.cloneDeep(res.obj);
+							evaluateSelectorKeys(selectors, function (arrKeys) {
+								if (fatal_error)
+									return cb(false);
+								try {
+									assignByPath(locals[var_name].obj, arrKeys, res);
+									cb(true);
+								}
+								catch (e) {
+									setFatalError(e.toString(), cb, false);
+								}
+							});
 						}
-						// state_var_assignment
+						else { // regular assignment
+							if (res instanceof wrappedObject) // copy because we might need to mutate it
+								assignField(locals, var_name, new wrappedObject(_.cloneDeep(res.obj)) );
+							else
+								assignField(locals, var_name, res);
+							cb(true);
+						}
+					});
+				});
+				break;
+
+			case 'state_var_assignment':
+				if (!bStateVarAssignmentAllowed)
+					return setFatalError("state var assignment not allowed here", cb, false);
+				var var_name_or_expr = arr[1];
+				var rhs = arr[2];
+				var assignment_op = arr[3];
+				evaluate(var_name_or_expr, function (var_name) {
+					if (fatal_error)
+						return cb(false);
+					if (typeof var_name !== 'string')
+						return setFatalError("assignment: var name "+var_name_or_expr+" evaluated to " + var_name, cb, false);
+					evaluate(rhs, function (res) {
+						if (fatal_error)
+							return cb(false);
+						if (!isValidValue(res) && !(res instanceof wrappedObject))
+							return setFatalError("evaluation of rhs " + rhs + " failed: " + res, cb, false);
+						if (Decimal.isDecimal(res))
+							res = toDoubleRange(res);
+						// state vars can store strings, decimals, objects, and booleans but booleans are treated specially when persisting to the db: true is converted to 1, false deletes the var
+						if (res instanceof wrappedObject) {
+							if (mci < constants.aa2UpgradeMci)
+								res = true;
+							else {
+								if (assignment_op !== '=' && assignment_op !== '||=')
+									return setFatalError(assignment_op + " not supported for object vars", cb, false);
+								try {
+									var json = string_utils.getJsonSourceString(res.obj, true);
+								}
+								catch (e) {
+									return setFatalError("stringify failed: " + e, cb, false);
+								}
+								if (json.length > constants.MAX_STATE_VAR_VALUE_LENGTH)
+									return setFatalError("state var value too long when in json: " + json, cb, false);
+								res = new wrappedObject(_.cloneDeep(res.obj)); // make a copy
+							}
+						}
 						if (var_name.length > constants.MAX_STATE_VAR_NAME_LENGTH)
 							return setFatalError("state var name too long: " + var_name, cb, false);
 					//	if (typeof res === 'boolean')
@@ -1120,10 +1248,13 @@ exports.evaluate = function (opts, callback) {
 								stateVars[address][var_name].updated = true;
 								return cb(true);
 							}
+							if (value instanceof wrappedObject && assignment_op !== '||=')
+								return setFatalError("can't " + assignment_op + " to object", cb, false);
 							if (assignment_op === '||=') {
-								value = value.toString() + res.toString();
-								if (value.length > constants.MAX_STATE_VAR_VALUE_LENGTH)
-									return setFatalError("state var value after "+assignment_op+" too long: " + value, cb, false);
+								var ret = concat(value, res);
+								if (ret.error)
+									return setFatalError("state var assignment: " + ret.error, cb, false);
+								value = ret.result;
 							}
 							else {
 								if (typeof value === 'boolean')
@@ -1160,6 +1291,33 @@ exports.evaluate = function (opts, callback) {
 				});
 				break;
 
+			case 'response_var_assignment':
+				var var_name_or_expr = arr[1];
+				var rhs = arr[2];
+				evaluate(var_name_or_expr, function (var_name) {
+					if (fatal_error)
+						return cb(false);
+					if (typeof var_name !== 'string')
+						return setFatalError("assignment: var name "+var_name_or_expr+" evaluated to " + var_name, cb, false);
+					evaluate(rhs, function (res) {
+						if (fatal_error)
+							return cb(false);
+						// response vars - strings, numbers, and booleans
+						if (res instanceof wrappedObject)
+							res = true;
+						if (!isValidValue(res))
+							return setFatalError("evaluation of rhs " + rhs + " failed: " + res, cb, false);
+						if (Decimal.isDecimal(res)) {
+							res = res.toNumber();
+							if (!isFinite(res))
+								return setFatalError("not finite js number in response_var_assignment", cb, false);
+						}
+						assignField(responseVars, var_name, res);
+						cb(true);
+					});
+				});
+				break;
+
 			case 'block':
 				var arrStatements = arr[1];
 				async.eachSeries(
@@ -1168,8 +1326,8 @@ exports.evaluate = function (opts, callback) {
 						evaluate(statement, function (res) {
 							if (fatal_error)
 								return cb2(fatal_error);
-							if (res !== true)
-								return setFatalError("statement in {} " + statement + " failed", cb2);
+						//	if (res !== true)
+						//		return setFatalError("statement in {} " + statement + " failed", cb2);
 							cb2();
 						});
 					},
@@ -1293,7 +1451,6 @@ exports.evaluate = function (opts, callback) {
 
 			case 'unit':
 				var unit_expr = arr[1];
-				var arrKeys = arr[2];
 				evaluate(unit_expr, function (unit) {
 					console.log('---- unit', unit);
 					if (fatal_error)
@@ -1303,12 +1460,12 @@ exports.evaluate = function (opts, callback) {
 					if (bAA) {
 						// 1. check the current response unit
 						if (objResponseUnit && objResponseUnit.unit === unit)
-							return selectSubobject(objResponseUnit, arrKeys, cb);
+							return cb(new wrappedObject(objResponseUnit));
 						// 2. check previous response units from the same primary trigger, they are not in the db yet
 						for (var i = 0; i < objValidationState.arrPreviousResponseUnits.length; i++) {
 							var objPreviousResponseUnit = objValidationState.arrPreviousResponseUnits[i];
 							if (objPreviousResponseUnit && objPreviousResponseUnit.unit === unit)
-								return selectSubobject(objPreviousResponseUnit, arrKeys, cb);
+								return cb(new wrappedObject(objPreviousResponseUnit));
 						}
 					}
 					// 3. check the units from the db
@@ -1320,15 +1477,15 @@ exports.evaluate = function (opts, callback) {
 						ifFound: function (objJoint) {
 							console.log('---- found', unit);
 							var objUnit = objJoint.unit;
-							var mci = objUnit.main_chain_index;
+							var unit_mci = objUnit.main_chain_index;
 							// ignore non-AA units that are not stable or created at a later mci
-							if (mci === null || mci > objValidationState.last_ball_mci) {
+							if (unit_mci === null || unit_mci > mci) {
 								if (bAA && objUnit.authors[0].authentifiers) // non-AA unit
 									return cb(false);
 								if (!bAA)
 									return cb(false);
 							}
-							selectSubobject(objUnit, arrKeys, cb);
+							cb(new wrappedObject(objUnit));
 						}
 					});
 				});
@@ -1336,7 +1493,6 @@ exports.evaluate = function (opts, callback) {
 
 			case 'definition':
 				var address_expr = arr[1];
-				var arrKeys = arr[2];
 				evaluate(address_expr, function (addr) {
 					console.log('---- definition', addr);
 					if (fatal_error)
@@ -1346,21 +1502,21 @@ exports.evaluate = function (opts, callback) {
 					storage.readAADefinition(conn, addr, function (arrDefinition, definition_unit) {
 						if (arrDefinition) {
 							if (bAA)
-								return selectSubobject(arrDefinition, arrKeys, cb);
+								return cb(new wrappedObject(arrDefinition));
 							// could by defined later, e.g. by fresh AA
 							storage.readUnitProps(conn, definition_unit, function (props) {
-								if (props.main_chain_index === null || props.main_chain_index > objValidationState.main_chain_index)
+								if (props.main_chain_index === null || props.main_chain_index > mci)
 									return cb(false);
-								selectSubobject(arrDefinition, arrKeys, cb);
+								cb(new wrappedObject(arrDefinition));
 							});
 							return;
 						}
-						storage.readDefinitionByAddress(conn, addr, objValidationState.last_ball_mci, {
+						storage.readDefinitionByAddress(conn, addr, mci, {
 							ifDefinitionNotFound: function () {
 								cb(false);
 							},
 							ifFound: function (arrDefinition) {
-								selectSubobject(arrDefinition, arrKeys, cb);
+								cb(new wrappedObject(arrDefinition));
 							}
 						});
 					});
@@ -1383,12 +1539,12 @@ exports.evaluate = function (opts, callback) {
 						signedPackage = signedPackage.obj;
 						if (ValidationUtils.hasFieldsExcept(signedPackage, ['signed_message', 'last_ball_unit', 'authors', 'version']))
 							return cb(false);
-						if (signedPackage.version !== constants.version)
+						if (signedPackage.version === constants.versionWithoutTimestamp)
 							return cb(false);
 						signed_message.validateSignedMessage(conn, signedPackage, evaluated_address, function (err, last_ball_mci) {
 							if (err)
 								return cb(false);
-							if (last_ball_mci === null || last_ball_mci > objValidationState.last_ball_mci)
+							if (last_ball_mci === null || last_ball_mci > mci)
 								return cb(false);
 							cb(true);
 						});
@@ -1493,8 +1649,12 @@ exports.evaluate = function (opts, callback) {
 				evaluate(expr, function (res) {
 					if (fatal_error)
 						return cb(false);
-					if (res instanceof wrappedObject)
-						res = true;
+					if (res instanceof wrappedObject) {
+						if (mci < constants.aa2UpgradeMci)
+							res = true;
+						else
+							res = string_utils.getJsonSourceString(res.obj, true); // it's ok if the string is longer than MAX_AA_STRING_LENGTH
+					}
 					if (!isValidValue(res))
 						return setFatalError("invalid value in sha256: " + res, cb, false);
 					if (Decimal.isDecimal(res))
@@ -1513,6 +1673,28 @@ exports.evaluate = function (opts, callback) {
 						else
 							cb(h.digest(format));
 					});
+				});
+				break;
+
+			case 'chash160':
+				var expr = arr[1];
+				evaluate(expr, function (res) {
+					if (fatal_error)
+						return cb(false);
+					if (res instanceof wrappedObject) {
+						try {
+							var chash160 = objectHash.getChash160(res.obj);
+						}
+						catch (e) {
+							return setFatalError("chash160 failed: " + e, cb, false);
+						}
+						return cb(chash160);
+					}
+					if (!isValidValue(res))
+						return setFatalError("invalid value in chash160: " + res, cb, false);
+					if (Decimal.isDecimal(res))
+						res = toDoubleRange(res);
+					cb(chash.getChash160(res.toString()));
 				});
 				break;
 
@@ -1609,7 +1791,8 @@ exports.evaluate = function (opts, callback) {
 						if (!isFinite(res))
 							return setFatalError("not finite js number: " + res, cb, false);
 					}
-					var json = string_utils.getJsonSourceString(res); // sorts keys unlike JSON.stringify()
+					var bAllowEmpty = (mci >= constants.aa2UpgradeMci);
+					var json = string_utils.getJsonSourceString(res, bAllowEmpty); // sorts keys unlike JSON.stringify()
 					if (json.length > constants.MAX_AA_STRING_LENGTH)
 						return setFatalError("json_stringified is too long", cb, false);
 					cb(json);
@@ -1623,10 +1806,17 @@ exports.evaluate = function (opts, callback) {
 				evaluate(expr, function (res) {
 					if (fatal_error)
 						return cb(false);
+					if (op === 'length'){
+						if (res instanceof wrappedObject) {
+							if (mci < constants.aa2UpgradeMci)
+								res = true;
+							else
+								return cb(new Decimal(Array.isArray(res.obj) ? res.obj.length : Object.keys(res.obj).length));
+						}
+						return cb(new Decimal(res.toString().length));
+					}
 					if (res instanceof wrappedObject)
 						res = true;
-					if (op === 'length')
-						return cb(new Decimal(res.toString().length));
 					if (op === 'to_upper')
 						return cb(res.toString().toUpperCase());
 					if (op === 'to_lower')
@@ -1638,6 +1828,7 @@ exports.evaluate = function (opts, callback) {
 			case 'starts_with':
 			case 'ends_with':
 			case 'contains':
+			case 'has_only':
 			case 'index_of':
 				var str_expr = arr[1];
 				var sub_expr = arr[2];
@@ -1661,6 +1852,20 @@ exports.evaluate = function (opts, callback) {
 							return cb(str.includes(sub));
 						if (op === 'index_of')
 							return cb(new Decimal(str.indexOf(sub)));
+						if (op === 'has_only') {
+							try {
+								console.log('has only ' + str + ' ' + sub);
+								if (sub.match(/\\]/) || sub[sub.length - 1] === '\\')
+									return setFatalError("invalid character group: " + sub, cb, false);
+								sub = sub.replace(/]/g, '\\]'); // don't allow to close the group early
+								var bMatches = new RegExp("^[" + sub + "]*$").test(str);
+							}
+							catch (e) {
+								console.log("regexp failed:", e);
+								var bMatches = false;
+							}
+							return cb(bMatches);
+						}
 						throw Error("unknown op: " + op);
 					});
 				});
@@ -1679,8 +1884,13 @@ exports.evaluate = function (opts, callback) {
 					evaluate(start_expr, function (start) {
 						if (fatal_error)
 							return cb(false);
-						if (typeof start === 'string')
-							return setFatalError("start index in substring cannot be a string", cb, false);
+						if (typeof start === 'string') {
+							var f = string_utils.toNumber(start);
+							if (f !== null && mci >= constants.aa2UpgradeMci)
+								start = createDecimal(f);
+							else
+								return setFatalError("start index in substring cannot be a string", cb, false);
+						}
 						if (start instanceof wrappedObject)
 							start = true;
 						if (typeof start === 'boolean')
@@ -1689,13 +1899,20 @@ exports.evaluate = function (opts, callback) {
 							start = start.toNumber();
 						else
 							throw Error("unknown type of start in substring: " + start);
+						if (!ValidationUtils.isInteger(start))
+							return setFatalError("start index must be integer: " + start, cb, false);
 						if (!length_expr)
 							return cb(str.substr(start));
 						evaluate(length_expr, function (length) {
 							if (fatal_error)
 								return cb(false);
-							if (typeof length === 'string')
-								return setFatalError("length in substring cannot be a string", cb, false);
+							if (typeof length === 'string') {
+								var f = string_utils.toNumber(length);
+								if (f !== null && mci >= constants.aa2UpgradeMci)
+									length = createDecimal(f);
+								else
+									return setFatalError("length in substring cannot be a string", cb, false);
+							}
 							if (length instanceof wrappedObject)
 								length = true;
 							if (typeof length === 'boolean')
@@ -1704,12 +1921,101 @@ exports.evaluate = function (opts, callback) {
 								length = length.toNumber();
 							else
 								throw Error("unknown type of length in substring: " + length);
+							if (!ValidationUtils.isInteger(length))
+								return setFatalError("length must be integer: " + length, cb, false);
 							cb(str.substr(start, length));
 						});
 					});
 				});
 				break;
 
+			case 'replace':
+				var str_expr = arr[1];
+				var search_expr = arr[2];
+				var replacement_expr = arr[3];
+				evaluate(str_expr, function (str) {
+					if (fatal_error)
+						return cb(false);
+					if (str instanceof wrappedObject)
+						str = true;
+					str = str.toString();
+					evaluate(search_expr, function (search_str) {
+						if (fatal_error)
+							return cb(false);
+						if (search_str instanceof wrappedObject)
+							search_str = true;
+						search_str = search_str.toString();
+						evaluate(replacement_expr, function (replacement) {
+							if (fatal_error)
+								return cb(false);
+							if (replacement instanceof wrappedObject)
+								replacement = true;
+							replacement = replacement.toString();
+							var parts = str.split(search_str);
+							var new_str = parts.join(replacement);
+							if (new_str.length > constants.MAX_AA_STRING_LENGTH)
+								return setFatalError("the string after replace would be too long: " + new_str, cb, false);
+							cb(new_str);
+						});
+					});
+				});
+				break;
+
+			case 'split':
+			case 'join':
+				if (mci < constants.aa2UpgradeMci)
+					return cb(op + " not activated yet");
+				var expr = arr[1];
+				var separator_expr = arr[2];
+				var limit_expr = arr[3];
+				evaluate(separator_expr, function (separator) {
+					if (fatal_error)
+						return cb(false);
+					if (separator instanceof wrappedObject)
+						separator = true;
+					separator = separator.toString();
+					evaluate(expr, function (res) {
+						if (fatal_error)
+							return cb(false);
+						if (op === 'split') {
+							if (res instanceof wrappedObject)
+								res = true;
+							res = res.toString();
+							if (!limit_expr)
+								return cb(new wrappedObject(res.split(separator)));
+							evaluate(limit_expr, function (limit) {
+								if (fatal_error)
+									return cb(false);
+								if (Decimal.isDecimal(limit))
+									limit = limit.toNumber();
+								else if (typeof limit === 'string') {
+									var f = string_utils.toNumber(limit);
+									if (f === null)
+										return setFatalError("not a number: " + limit, cb, false);
+									limit = f;
+								}
+								else
+									return setFatalError("bad type of limit: " + limit, cb, false);
+								if (!ValidationUtils.isNonnegativeInteger(limit))
+									return setFatalError("bad limit: " + limit, cb, false);
+								cb(new wrappedObject(res.split(separator, limit)));
+							});
+						}
+						else { // join
+							if (!(res instanceof wrappedObject))
+								return setFatalError("not an object in join: " + res, cb, false);
+							var values = Array.isArray(res.obj) ? res.obj : Object.keys(res.obj).sort().map(key => res.obj[key]);
+							if (!values.every(val => typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean'))
+								return setFatalError("some elements to be joined are not scalars: " + values, cb, false);
+							var str = values.join(separator);
+							if (str.length > constants.MAX_AA_STRING_LENGTH)
+								return setFatalError("the string after join would be too long: " + str, cb, false);
+							cb(str);
+						}
+					});
+				});
+				break;
+			
 			case 'is_valid_address':
 			case 'is_aa':
 				var expr = arr[1];
@@ -1719,7 +2025,7 @@ exports.evaluate = function (opts, callback) {
 					var bValid = ValidationUtils.isValidAddress(res);
 					if (!bValid || op === 'is_valid_address')
 						return cb(bValid);
-					conn.query("SELECT 1 FROM aa_addresses WHERE address=? AND mci<=?", [res, objValidationState.last_ball_mci], function (rows) {
+					conn.query("SELECT 1 FROM aa_addresses WHERE address=? AND mci<=?", [res, mci], function (rows) {
 						cb(rows.length > 0);
 					});
 				});
@@ -1771,6 +2077,203 @@ exports.evaluate = function (opts, callback) {
 				});
 				break;
 
+			case 'keys':
+			case 'reverse':
+				var expr = arr[1];
+				evaluate(expr, function (res) {
+					if (fatal_error)
+						return cb(false);
+					if (!(res instanceof wrappedObject))
+						return setFatalError("not an object: " + res, cb, false);
+					var bArray = Array.isArray(res.obj);
+					if (op === 'keys') {
+						if (bArray)
+							return setFatalError("not an object but an array: " + res.obj, cb, false);
+						cb(new wrappedObject(Object.keys(res.obj).sort()));
+					}
+					else {
+						if (!bArray)
+							return setFatalError("not an array: " + res.obj, cb, false);
+						cb(new wrappedObject(_.cloneDeep(res.obj).reverse()));
+					}
+				});
+				break;
+
+			case 'freeze':
+				var var_name_expr = arr[1];
+				evaluate(var_name_expr, function (var_name) {
+					if (fatal_error)
+						return cb(false);
+					if (!hasOwnProperty(locals, var_name))
+						return setFatalError("no such variable: " + var_name, cb, false);
+					if (locals[var_name] instanceof Func)
+						return setFatalError("functions cannot be frozen: " + var_name, cb, false);
+					if (locals[var_name] instanceof wrappedObject)
+						locals[var_name].frozen = true;
+					else
+						console.log("skipping freeze of a scalar: " + var_name);
+					cb(true);
+				});
+				break;
+
+			case 'delete':
+				var var_name_expr = arr[1];
+				var selectors = arr[2];
+				var key_expr = arr[3];
+				evaluate(var_name_expr, function (var_name) {
+					if (fatal_error)
+						return cb(false);
+					if (!hasOwnProperty(locals, var_name))
+						return setFatalError("no such variable: " + var_name, cb, false);
+					if (!(locals[var_name] instanceof wrappedObject))
+						return setFatalError("trying to delete a key from a non-object", cb, false);
+					if (locals[var_name].frozen)
+						return setFatalError("variable " + var_name + " is frozen", cb, false);
+					selectSubobject(locals[var_name], selectors, function (res) {
+						if (!(res instanceof wrappedObject))
+							return setFatalError("trying to delete a key from a subobject which is not an object", cb, false);
+						evaluate(key_expr, function (key) {
+							if (fatal_error)
+								return cb(false);
+							if (!isValidValue(key) || typeof key === 'boolean')
+								return setFatalError("bad key to delete: " + key, cb, false);
+							if (Array.isArray(res.obj)) {
+								if (Decimal.isDecimal(key))
+									key = key.toNumber();
+								else { // string
+									var f = string_utils.toNumber(key);
+									if (f === null)
+										return setFatalError("key to be deleted is not a number: " + key, cb, false);
+									key = f;
+								}
+								if (!ValidationUtils.isNonnegativeInteger(key))
+									return setFatalError("key to be deleted must be nonnegative integer: " + key, cb, false);
+								res.obj.splice(key, 1); // does nothing if the key is out of range
+							}
+							else
+								delete res.obj[key.toString()]; // does nothing if the key doesn't exist
+							cb(true);
+						});
+					});
+				});
+				break;
+
+			case 'foreach':
+			case 'map':
+			case 'filter':
+			case 'reduce':
+				var expr = arr[1];
+				var count_expr = arr[2];
+				var func_expr = arr[3];
+				var initial_value_expr = arr[4];
+				var bReduce = (op === 'reduce');
+				evaluate(expr, function (res) {
+					if (fatal_error)
+						return cb(false);
+					if (!(res instanceof wrappedObject))
+						return setFatalError("scalar in foreach: " + res, cb, false);
+					evaluate(count_expr, function (count) {
+						if (fatal_error)
+							return cb(false);
+						if (!Decimal.isDecimal(count))
+							return setFatalError("count is not a number: " + count, cb, false);
+						count = count.toNumber();
+						if (!ValidationUtils.isNonnegativeInteger(count))
+							return setFatalError("count is not nonnegative integer: " + count, cb, false);
+						evaluateFunctionExpression(func_expr, funcInfo => {
+							if (fatal_error)
+								return cb(false);
+							var bArray = Array.isArray(res.obj);
+							var arrElements = bArray ? res.obj : Object.keys(res.obj).sort();
+							if (arrElements.length > count)
+								return setFatalError("found " + arrElements.length + " elements in object, only up to " + count + " allowed", cb, false);
+							evaluate(bReduce ? initial_value_expr : "", initial_value => {
+								if (fatal_error)
+									return cb(false);
+								var retValue = bArray ? [] : {};
+								var accumulator = initial_value;
+								async.eachOfSeries(
+									arrElements,
+									function (element, index, cb2) {
+										function getArgs(count_args) {
+											var args = [];
+											if (bReduce) {
+												args.push(accumulator);
+												count_args--; // remaining args
+											}
+											if (bArray) {
+												var key = new Decimal(index);
+												var value = toOscriptType(element);
+											}
+											else {
+												var key = element;
+												var value = toOscriptType(res.obj[element]);
+											}
+											if (count_args === 1)
+												args.push(value);
+											else
+												args.push(key, value);
+											return args;
+										}
+										var caller;
+										if (funcInfo.local) {
+											var func = funcInfo.local;
+											var args = getArgs(func.args.length);
+											caller = function (res_cb) {
+												callFunction(func, args, res_cb);
+											};
+										}
+										else if (funcInfo.remote) {
+											var fargs = (func) => getArgs(func.args.length);
+											caller = function (res_cb) {
+												callGetter(conn, funcInfo.remote.remote_aa, funcInfo.remote.func_name, fargs, stateVars, objValidationState, (err, r) => {
+													if (err)
+														return setFatalError(err, res_cb, false);
+													res_cb(r);
+												});
+											};
+										}
+										else
+											throw Error("neither local nor remote: " + funcInfo);
+										caller(r => {
+											if (op === 'map') {
+												r = toJsType(r);
+												if (bArray)
+													retValue.push(r);
+												else
+													assignField(retValue, element, r);
+											}
+											else if (op === 'filter') {
+												r = toJsType(r);
+												if (r) { // truthy
+													if (bArray)
+														retValue.push(_.cloneDeep(element));
+													else
+														assignField(retValue, element, _.cloneDeep(res.obj[element]));
+												}
+											}
+											else if (bReduce)
+												accumulator = r;
+											cb2(fatal_error);
+										});
+									},
+									function (err) {
+										if (fatal_error)
+											return cb(false);
+										if (bReduce)
+											cb(accumulator);
+										else if (op === 'map' || op === 'filter')
+											cb(new wrappedObject(retValue));
+										else
+											cb(true);
+									}
+								);
+							});
+						});
+					});
+				});
+				break;
+					
 			case 'timestamp_to_string':
 				var ts_expr = arr[1];
 				var format_expr = arr[2] || 'datetime';
@@ -1835,13 +2338,91 @@ exports.evaluate = function (opts, callback) {
 				break;
 
 			case 'response_unit':
-				if (!bAA || !bStatementsOnly || !bStateVarAssignmentAllowed)
+				if (!bAA || !bStateVarAssignmentAllowed)
 					return setFatalError("response_unit outside state update formula", cb, false);
 				if (!objResponseUnit)
 					return cb(false);
 				cb(objResponseUnit.unit);
 				break;
 
+			case 'func_call':
+				var func_name = arr[1];
+				var arrExpressions = arr[2];
+				var func = locals[func_name];
+				if (!func)
+					throw Error("no such function: " + func_name);
+				if (!(func instanceof Func))
+					throw Error("not a function: " + func_name);
+				var args = [];
+				async.eachSeries(
+					arrExpressions,
+					function (expr, cb2) {
+						evaluate(expr, function (res) {
+							if (fatal_error)
+								return cb2(fatal_error);
+							if (!isValidValue(res) && !(res instanceof wrappedObject))
+								return setFatalError("bad value of function argument: " + res, cb2);
+							args.push(res);
+							cb2();
+						});
+					},
+					function (err) {
+						if (fatal_error)
+							return cb(false);
+						if (err)
+							return setFatalError("arguments failed: " + err, cb, false);
+						callFunction(func, args, cb);
+					}
+				);
+				break;
+
+			case 'remote_func_call':
+				var remote_aa_expr = arr[1];
+				var func_name = arr[2];
+				var arrExpressions = arr[3];
+				var args = [];
+				async.eachSeries(
+					arrExpressions,
+					function (expr, cb2) {
+						evaluate(expr, function (res) {
+							if (fatal_error)
+								return cb2(fatal_error);
+							if (!isValidValue(res) && !(res instanceof wrappedObject))
+								return setFatalError("bad value of function argument: " + res, cb2);
+							args.push(res);
+							cb2();
+						});
+					},
+					function (err) {
+						if (fatal_error)
+							return cb(false);
+						evaluate(remote_aa_expr, function (remote_aa) {
+							if (fatal_error)
+								return setFatalError(fatal_error, cb, false);
+							if (!ValidationUtils.isValidAddress(remote_aa))
+								return setFatalError("not valid remote AA: " + remote_aa, cb, false);
+							callGetter(conn, remote_aa, func_name, args, stateVars, objValidationState, (err, res) => {
+								if (err)
+									return setFatalError(err, cb, false);
+								cb(res);
+							});
+						});
+					}
+				);
+				break;
+
+			case 'with_selectors':
+				var expr = arr[1];
+				var arrKeys = arr[2];
+				evaluate(expr, function (res) {
+					if (fatal_error)
+						return cb(false);
+					if (!isValidValue(res) && !(res instanceof wrappedObject))
+						return setFatalError("bad value for with_selectors: " + JSON.stringify(res), cb, false);
+					selectSubobject(res, arrKeys, cb);
+				});
+				break;
+	
 			case 'bounce':
 				var error_description = arr[1];
 				evaluate(error_description, function (evaluated_error_description) {
@@ -1855,18 +2436,19 @@ exports.evaluate = function (opts, callback) {
 			case 'return':
 				var expr = arr[1];
 				if (expr === null) { // empty return
-					if (!bStatementsOnly)
-						return setFatalError("empty early return", cb, false);
+					// already checked during validation
+				//	if (!bStatementsOnly)
+				//		return setFatalError("empty early return", cb, false);
 					early_return = true;
 					return cb(true);
 				}
-				if (bStatementsOnly)
-					return setFatalError("non-empty early return", cb, false);
+			//	if (bStatementsOnly)
+			//		return setFatalError("non-empty early return", cb, false);
 				evaluate(expr, function (res) {
 					if (fatal_error)
 						return cb(false);
 					console.log('early return with: ', res);
-					if (res instanceof wrappedObject)
+					if (mci < constants.aa2UpgradeMci && res instanceof wrappedObject)
 						res = true;
 					if (Decimal.isDecimal(res))
 						res = toDoubleRange(res);
@@ -1878,18 +2460,20 @@ exports.evaluate = function (opts, callback) {
 			case 'main':
 				var arrStatements = arr[1];
 				var expr = arr[2];
-				if (bStatementsOnly && expr)
-					return setFatalError("expected statements only", cb, false);
-				if (!bStatementsOnly && !expr)
-					return setFatalError("return value missing", cb, false);
+				if (bTopLevel) {
+					if (bStatementsOnly && expr)
+						return setFatalError("expected statements only", cb, false);
+					if (!bStatementsOnly && !expr)
+						return setFatalError("return value missing", cb, false);
+				}
 				async.eachSeries(
 					arrStatements,
 					function (statement, cb2) {
 						evaluate(statement, function (res) {
 							if (fatal_error)
 								return cb2(fatal_error);
-							if (res !== true)
-								return setFatalError("statement " + statement + " failed", cb2);
+						//	if (res !== true)
+						//		return setFatalError("statement " + statement + " failed", cb2);
 							cb2();
 						});
 					},
@@ -1910,28 +2494,136 @@ exports.evaluate = function (opts, callback) {
 
 	}
 
+	function concat(operand0, operand1) {
+		if (mci < constants.aa2UpgradeMci) {
+			if (operand0 instanceof wrappedObject)
+				operand0 = true;
+			if (operand1 instanceof wrappedObject)
+				operand1 = true;
+		}
+		var result;
+		if (operand0 instanceof wrappedObject && operand1 instanceof wrappedObject) {
+			var obj0 = operand0.obj;
+			var obj1 = operand1.obj;
+			var bArray0 = Array.isArray(obj0);
+			var bArray1 = Array.isArray(obj1);
+			if (bArray0 && bArray1)
+				result = new wrappedObject(obj0.concat(obj1));
+			else if (!bArray0 && !bArray1)
+				result = new wrappedObject(Object.assign({}, obj0, obj1));
+			else
+				return { error: "trying to concat an object and array: " + obj0 + " and " + obj1 };
+		}
+		else { // one of operands is a string, then treat both as strings
+			if (operand0 instanceof wrappedObject)
+				operand0 = true;
+			if (operand1 instanceof wrappedObject)
+				operand1 = true;
+			result = operand0.toString() + operand1.toString();
+			if (result.length > constants.MAX_AA_STRING_LENGTH)
+				return { error: "string too long after concat: " + result };
+		}
+		return { result };
+	}
+
 	function readVar(param_address, var_name, cb2) {
 		if (!stateVars[param_address])
 			stateVars[param_address] = {};
-		if (stateVars[param_address].hasOwnProperty(var_name)) {
+		if (hasOwnProperty(stateVars[param_address], var_name)) {
 			console.log('using cache for var '+var_name);
 			return cb2(stateVars[param_address][var_name].value);
 		}
 		storage.readAAStateVar(param_address, var_name, function (value) {
-			console.log(var_name+'='+value);
+			console.log(var_name+'='+(typeof value === 'object' ? JSON.stringify(value) : value));
 			if (value === undefined) {
-				stateVars[param_address][var_name] = {value: false};
+				assignField(stateVars[param_address], var_name, { value: false });
 				return cb2(false);
 			}
-			var f = string_utils.getNumericFeedValue(value);
-			if (f !== null)
-				value = createDecimal(value);
-			stateVars[param_address][var_name] = {value: value, old_value: value, original_old_value: value};
+			if (bLimitedPrecision) {
+				value = value.toString();
+				var f = string_utils.toNumber(value, bLimitedPrecision);
+				if (f !== null)
+					value = createDecimal(value);
+			}
+			else {
+				if (typeof value === 'number')
+					value = createDecimal(value);
+				else if (typeof value === 'object')
+					value = new wrappedObject(value);
+			}
+			assignField(stateVars[param_address], var_name, { value: value, old_value: value, original_old_value: value });
 			cb2(value);
 		});
 	}
 
+	function evaluateSelectorKeys(arrKeys, cb) {
+		var arrEvaluatedKeys = []; // strings or numbers
+		async.eachSeries(
+			arrKeys || [],
+			function (key, cb2) {
+				if (key === null) {
+					arrEvaluatedKeys.push(null);
+					return cb2();
+				}
+				evaluate(key, function (evaluated_key) {
+					if (fatal_error)
+						return cb2(fatal_error);
+					if (Decimal.isDecimal(evaluated_key)) {
+						evaluated_key = evaluated_key.toNumber();
+						if (!ValidationUtils.isNonnegativeInteger(evaluated_key))
+							return setFatalError("bad selector key: " + evaluated_key, cb2);
+					}
+					else if (typeof evaluated_key !== 'string')
+						return setFatalError("result of " + key + " is not a string or number: " + evaluated_key, cb2);
+					arrEvaluatedKeys.push(evaluated_key);
+					cb2();
+				});
+			},
+			function (err) {
+				if (fatal_error)
+					return cb(false);
+				cb(arrEvaluatedKeys);
+			}
+		);
+	}
+
+	function assignByPath(obj, arrKeys, value) {
+		if (typeof obj !== 'object')
+			throw Error("not an object: " + obj);
+		var pointer = obj;
+		for (var i = 0; i < arrKeys.length - 1; i++){
+			var key = arrKeys[i];
+			if (key === null) { // special value to indicate the next element of an array
+				if (!Array.isArray(pointer))
+					throw Error("not an array: " + pointer);
+				key = pointer.length;
+			}
+			if (pointer[key] === undefined || pointer[key] === null) {
+				if (typeof key === 'number' && key > 0 && (pointer[key - 1] === undefined || pointer[key - 1] === null))
+					throw Error("previous key value " + (key - 1) + " not set");
+				var next_key = arrKeys[i + 1];
+				assignField(pointer, key, (typeof next_key === 'number' || next_key === null) ? [] : {});
+			}
+			else if (typeof pointer[key] !== 'object')
+				throw Error("scalar " + pointer[key] + " treated as object");
+			pointer = pointer[key];
+		}
+
+		var last_key = arrKeys[arrKeys.length - 1];
+		if (last_key === null) { // special value to indicate the next element of an array
+			if (!Array.isArray(pointer))
+				throw Error("not an array: " + pointer);
+			last_key = pointer.length;
+		}
+		if (typeof last_key === 'number' && last_key > 0 && (pointer[last_key - 1] === undefined || pointer[last_key - 1] === null))
+			throw Error("previous key value " + (last_key - 1) + " not set");
+		
+		assignField(pointer, last_key, value);
+	}
+
 	function selectSubobject(value, arrKeys, cb) {
+		if (value instanceof wrappedObject)
+			value = value.obj;
 		async.eachSeries(
 			arrKeys || [],
 			function (key, cb2) {
@@ -1961,7 +2653,7 @@ exports.evaluate = function (opts, callback) {
 						return setFatalError("result of " + key + " is not a string or number: " + evaluated_key, cb2);
 					if (typeof evaluated_key === 'string')
 						value = unwrapOneElementArrays(value);
-					if (!value.hasOwnProperty(evaluated_key))
+					if (!hasOwnProperty(value, evaluated_key))
 						return cb2("no such key in data");
 					value = value[evaluated_key];
 					cb2();
@@ -1974,11 +2666,16 @@ exports.evaluate = function (opts, callback) {
 					cb(value);
 				else if (typeof value === 'number')
 					cb(createDecimal(value));
+				else if (Decimal.isDecimal(value)) {
+					if (!isFiniteDecimal(value))
+						return setFatalError("bad decimal " + value, cb, false);
+					cb(toDoubleRange(value.times(1)));
+				}
 				else if (typeof value === 'string') {
 					if (value.length > constants.MAX_AA_STRING_LENGTH)
 						return setFatalError("string value too long: " + value, cb, false);
 					// convert to number if possible
-					var f = string_utils.getNumericFeedValue(value);
+					var f = string_utils.toNumber(value, bLimitedPrecision);
 					(f === null) ? cb(value) : cb(createDecimal(value));
 				}
 				else if (typeof value === 'object')
@@ -2001,7 +2698,7 @@ exports.evaluate = function (opts, callback) {
 				var fields = pair[0]; // array of keys key1.key2.key3
 				var comp = pair[1]; // comparison operator
 				var search_value_expr = pair[2];
-				if (search_value_expr.type === 'none') {
+				if (search_value_expr.value === 'none') {
 					arrSearchCriteria.push({ fields, comp, search_value: null });
 					return cb3();
 				}
@@ -2026,12 +2723,12 @@ exports.evaluate = function (opts, callback) {
 						for (var i = 0; i < fields.length; i++) {
 							if (typeof val !== 'object')
 								return (search_value === null ? comp === '=' : comp === '!=');
-							val = val.hasOwnProperty(fields[i]) ? val[fields[i]] : undefined;
+							val = hasOwnProperty(val, fields[i]) ? val[fields[i]] : undefined;
 						}
 						if (search_value === null)
 							return (comp === '=' ? val === undefined : val !== undefined);
 						if (typeof val === 'string' && typeof search_value === 'number') {
-							var f = string_utils.getNumericFeedValue(val);
+							var f = string_utils.toNumber(val, bLimitedPrecision);
 							if (f !== null)
 								val = f;
 						}
@@ -2055,11 +2752,77 @@ exports.evaluate = function (opts, callback) {
 		);
 	}
 
+	function callFunction(func, args, cb) {
+		if (early_return !== undefined)
+			throw Error("function called after a return");
+		var func_locals = {};
+		// set a subset of locals that were present in the declaration scope
+		func.scopeVarNames.forEach(name => {
+			assignField(func_locals, name, locals[name]);
+		});
+		// set the arguments as locals too
+		for (var i = 0; i < func.args.length; i++){
+			var arg_name = func.args[i];
+			var value = args[i];
+			if (value === undefined) // no argument passed
+				value = false;
+			if (func_locals[arg_name] !== undefined)
+				throw Error("argument " + arg_name + " would shadow a local var");
+			assignField(func_locals, arg_name, toOscriptType(value));
+		}
+		var saved_locals = _.clone(locals);
+		assignObject(locals, func_locals);
+		// bStateVarAssignmentAllowed is inherited, bStatementsOnly is ignored in functions
+		evaluate(func.body, res => {
+			if (early_return !== undefined)
+				res = early_return;
+			// restore
+			assignObject(locals, saved_locals);
+			early_return = undefined;
+
+			if (fatal_error)
+				return cb(false);
+			if (!isValidValue(res) && !(res instanceof wrappedObject))
+				return setFatalError("bad value returned from func", cb, false);
+			cb(res);
+		});
+	}
+
+	function evaluateFunctionExpression(func_expr, cb) {
+		if (func_expr[0] === 'func_declaration') { // anonymous function
+			var args = func_expr[1];
+			var body = func_expr[2];
+			var scopeVarNames = Object.keys(locals);
+			if (_.intersection(args, scopeVarNames).length > 0)
+				return setFatalError("some args of anonymous function would shadow some local vars", cb, false);
+			cb({ local: new Func(args, body, scopeVarNames) });
+		}
+		else if (func_expr[0] === 'local_var') {
+			var var_name = func_expr[1];
+			var func = locals[var_name];
+			if (!(func instanceof Func))
+				return setFatalError("not a func: " + var_name, cb, false);
+			cb({ local: func });
+		}
+		else if (func_expr[0] === 'remote_func') {
+			var remote_aa_expr = func_expr[1];
+			var func_name = func_expr[2];
+			evaluate(remote_aa_expr, remote_aa => {
+				if (fatal_error)
+					return cb(false);
+				cb({ remote: { remote_aa, func_name } });
+			});
+		}
+		else
+			throw Error("unrecognized function argument: " + func_expr);
+
+	}
+
 	function readAssetInfoPossiblyDefinedByAA(asset, handleAssetInfo) {
 		storage.readAssetInfo(conn, asset, function (objAsset) {
 			if (!objAsset)
 				return handleAssetInfo(null);
-			if (objAsset.main_chain_index !== null && objAsset.main_chain_index <= objValidationState.last_ball_mci)
+			if (objAsset.main_chain_index !== null && objAsset.main_chain_index <= mci)
 				return handleAssetInfo(objAsset);
 			if (!bAA) // we are not an AA and can't see assets defined by fresh AAs
 				return handleAssetInfo(null);
@@ -2102,7 +2865,7 @@ exports.evaluate = function (opts, callback) {
 					return callback('result string is too long', null);
 				callback(null, res);
 			}
-		});
+		}, true);
 	} else {
 		if (parser.results.length > 1) {
 			console.log('ambiguous grammar', parser.results);
@@ -2111,7 +2874,129 @@ exports.evaluate = function (opts, callback) {
 	}
 };
 
-exports.extractInitParams = function (formula) {
+
+function toOscriptType(x) {
+	if (typeof x === 'string' || typeof x === 'boolean' || x instanceof wrappedObject)
+		return x;
+	if (typeof x === 'number')
+		return createDecimal(x);
+	if (Decimal.isDecimal(x))
+		return toDoubleRange(x);
+	if (typeof x === 'object')
+		return new wrappedObject(x);
+	throw Error("unknown type in toOscriptType:" + x);
+}
+
+function toJsType(x) {
+	if (x instanceof wrappedObject)
+		return x.obj;
+	if (Decimal.isDecimal(x))
+		return x.toNumber();
+	if (typeof x === 'string' || typeof x === 'boolean' || typeof x === 'number' || typeof x === 'object')
+		return x;
+	throw Error("unknown type in toJsType:" + x);
+}
+
+function callGetter(conn, aa_address, getter, args, stateVars, objValidationState, cb) {
+	var i = 0;
+	var locals = {};
+	function getNextArgName() {
+		i++;
+		while (locals['arg' + i])
+			i++;
+		return 'arg' + i;
+	}
+	// no need to cloneDeep, we need to rewrite only storage size, assocBalances cache can be updated by reference
+	objValidationState = _.clone(objValidationState);
+	storage.readBaseAADefinitionAndParams(conn, aa_address, function (arrBaseDefinition, params, storage_size) {
+		if (!arrBaseDefinition)
+			return cb("remote AA not found: " + aa_address);
+		// rewrite storage size with the storage size of the AA being called
+		objValidationState.storage_size = storage_size;
+		var f = getFormula(arrBaseDefinition[1].getters);
+		var opts = {
+			conn: conn,
+			formula: f,
+			trigger: null,
+			params: params,
+			locals: locals,
+			stateVars: stateVars,
+			responseVars: null,
+			bStatementsOnly: true,
+			objValidationState: objValidationState,
+			address: aa_address
+		};
+		exports.evaluate(opts, function (err, res) {
+			if (res === null)
+				return cb(err.bounce_message || "formula " + f + " failed: " + err);
+			if (!locals[getter])
+				return cb("no such getter: " + getter);
+			if (!(locals[getter] instanceof Func))
+				return cb(getter + " is not a function");
+			if (typeof args === 'function') // callback function passed instead of args
+				args = args(locals[getter]);
+			if (!Array.isArray(args))
+				throw Error("args is not an array");
+			var argNames = [];
+			args.forEach(arg => {
+				var arg_name = getNextArgName();
+				argNames.push('$' + arg_name);
+				assignField(locals, arg_name, toOscriptType(arg));
+			});
+			var call_formula = '$' + getter + '(' + argNames.join(', ') + ')';
+			var call_opts = {
+				conn: conn,
+				formula: call_formula,
+				trigger: null,
+				params: params,
+				locals: locals,
+				stateVars: stateVars,
+				responseVars: null,
+				bObjectResultAllowed: true,
+				objValidationState: objValidationState,
+				address: aa_address
+			};
+			exports.evaluate(call_opts, function (err, res) {
+				if (res === null)
+					return cb(err.bounce_message || "formula " + call_formula + " failed: " + err);
+				// fractional and large numbers are returned as strings, attempt to convert back
+				if (typeof res === 'string') {
+					var f = string_utils.toNumber(res);
+					if (f !== null)
+						res = f;
+				}
+				cb(null, toOscriptType(res));
+			});	
+		});
+	});
+}
+
+function executeGetter(conn, aa_address, getter, args, cb) {
+	if (!cb)
+		return new Promise((resolve, reject) => {
+			executeGetter(conn, aa_address, getter, args, (err, res) => {
+				err ? reject(new Error(err)) : resolve(res);
+			});
+		});
+	storage.readLastStableMcUnitProps(conn, props => {
+		objValidationState = {
+			last_ball_mci: props.main_chain_index,
+			last_ball_timestamp: props.timestamp,
+			mc_unit: props.unit, // must not be used
+			assocBalances: {},
+			number_of_responses: 0, // must not be used
+			arrPreviousResponseUnits: [],
+		};
+		args = args.map(toOscriptType);
+		callGetter(conn, aa_address, getter, args, {}, objValidationState, (err, res) => {
+			if (err)
+				return cb(err);
+			cb(null, toJsType(res));
+		});
+	});
+}
+
+function extractInitParams(formula) {
 	var parser = {};
 	if(cache[formula])
 		parser.results = cache[formula];
@@ -2149,8 +3034,13 @@ exports.extractInitParams = function (formula) {
 			value = rhs.toNumber();
 		else
 			return true;
-		params[var_name] = value;
+		assignField(params, var_name, value);
 		return false;
 	});
 	return { params, arrRemainingStatements };
 }
+
+exports.wrappedObject = wrappedObject;
+exports.toJsType = toJsType;
+exports.executeGetter = executeGetter;
+exports.extractInitParams = extractInitParams;

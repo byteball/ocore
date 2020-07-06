@@ -13,9 +13,15 @@ var constants = require('../constants.js');
 var test = require('ava');
 require('./_init_datafeeds.js');
 constants.formulaUpgradeMci = 0;
+var db = require("../db");
+var storage = require("../storage");
+
+var readGetterProps = function (aa_address, func_name, cb) {
+	storage.readAAGetterProps(db, aa_address, func_name, cb);
+};
 
 function validateFormula(formula, complexity, cb) {
-	formulaParser.validate({formula: formula, complexity: complexity}, cb);
+	formulaParser.validate({formula: formula, complexity: complexity, mci: Number.MAX_SAFE_INTEGER, readGetterProps, locals: {}}, cb);
 }
 
 var objUnit = {

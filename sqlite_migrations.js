@@ -4,7 +4,7 @@ var eventBus = require('./event_bus.js');
 var constants = require("./constants.js");
 var conf = require("./conf.js");
 
-var VERSION = 39;
+var VERSION = 41;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -430,6 +430,21 @@ function migrateDb(connection, onDone){
 				}
 				cb();
 			},
+			function (cb) {
+				if (version < 39)
+					addTypesToStateVars(cb);
+				else
+					cb();
+			},
+			function (cb) {
+				if (version < 40) {
+					connection.addQuery(arrQueries, "ALTER TABLE aa_addresses ADD COLUMN getters TEXT NULL");
+					connection.addQuery(arrQueries, "PRAGMA user_version=40");
+				}
+				if (version < 41)
+					connection.addQuery(arrQueries, "DELETE FROM known_bad_joints");
+				cb();
+			},
 		],
 		function(){
 			connection.addQuery(arrQueries, "PRAGMA user_version="+VERSION);
@@ -471,6 +486,44 @@ function initStorageSizes(connection, arrQueries, cb){
 		})
 		.on('error', function(error){
 			throw Error('error from data stream: '+error);
+		});
+}
+
+function addTypesToStateVars(cb){
+	if (bCordova || conf.bLight)
+		return cb();
+	var string_utils = require("./string_utils.js");
+	var kvstore = require('./kvstore.js');
+	var batch = kvstore.batch();
+	var options = {};
+	options.gte = "st\n";
+	options.lte = "st\n\uFFFF";
+
+	var bOldFormat = false;
+	var handleData = function (data) {
+		if (data.value.split("\n", 2).length < 2) // check if already upgraded
+			bOldFormat = true; // if at least one non-upgraded value found, then we didn't upgrade yet
+		var f = string_utils.getNumericFeedValue(data.value); // use old rules to convert strings to numbers
+		var type = (f !== null) ? 'n' : 's';
+		batch.put(data.key, type + "\n" + data.value);
+	}
+	var stream = kvstore.createReadStream(options);
+	stream.on('data', handleData)
+		.on('end', function () {
+			if (!bOldFormat) {
+				console.log("state vars already upgraded");
+				batch.clear();
+				return cb();
+			}
+			batch.write(function(err){
+				if (err)
+					throw Error("writer: batch write failed: " + err);
+				console.log("done upgrading state vars");
+				cb();
+			});
+		})
+		.on('error', function(error){
+			throw Error('error from data stream: ' + error);
 		});
 }
 

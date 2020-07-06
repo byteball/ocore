@@ -1,0 +1,55 @@
+{
+	messages: {
+		cases: [
+			{ // withdraw funds
+				if: `{
+					$key = 'balance_'||trigger.address||'_'||trigger.data.asset;
+					$base_key = 'balance_'||trigger.address||'_'||'base';
+					$fee = 1000;
+					$required_amount = trigger.data.amount + ((trigger.data.asset == 'base') ? $fee : 0);
+					trigger.data.withdraw AND trigger.data.asset AND trigger.data.amount AND $required_amount <= var[$key] AND $fee <= var[$base_key]
+				}`,
+				messages: [
+					{
+						app: 'payment',
+						payload: {
+							asset: "{trigger.data.asset}",
+							outputs: [
+								{address: "{trigger.address}", amount: "{trigger.data.amount}"}
+							]
+						}
+					},
+					{
+						app: 'state',
+						state: `{
+							var[$key] = var[$key] - trigger.data.amount;
+							var[$base_key] = var[$base_key] - $fee;
+						}`
+					}
+				]
+			},
+			{ // silently accept coins
+				if: "{!trigger.data.withdraw}",
+				messages: [{
+					app: 'state',
+					state: `{
+						$asset = trigger.output[[asset!=base]].asset;
+						if ($asset == 'ambiguous')
+							bounce('ambiguous asset');
+						if (trigger.output[[asset=base]] > 10000){
+							$base_key = 'balance_'||trigger.address||'_'||'base';
+							var[$base_key] = var[$base_key] + trigger.output[[asset=base]];
+							$response_base = trigger.output[[asset=base]] || ' bytes\n';
+						}
+						if ($asset != 'none'){
+							$asset_key = 'balance_'||trigger.address||'_'||$asset;
+							var[$asset_key] = var[$asset_key] + trigger.output[[asset=$asset]];
+							$response_asset = trigger.output[[asset=$asset]] || ' of ' || $asset || '\n';
+						}
+						response['message'] = 'accepted coins:\n' || ($response_base otherwise '') || ($response_asset otherwise '');
+					}`
+				}]
+			},
+		]
+	}
+}

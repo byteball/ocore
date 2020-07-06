@@ -38,8 +38,8 @@ function pickParentUnits(conn, arrWitnesses, timestamp, onDone){
 			if (rows.filter(function(row){ return (row.count_matching_witnesses >= count_required_matches); }).length === 0)
 				return pickDeepParentUnits(conn, arrWitnesses, timestamp, null, onDone);
 			var arrParentUnits = rows.map(function(row){ return row.unit; });
-			adjustParentsToNotRetreatWitnessedLevel(conn, arrWitnesses, arrParentUnits, function(arrAdjustedParents, max_parent_wl){
-				onDone(null, arrAdjustedParents, max_parent_wl);
+			adjustParentsToNotRetreatWitnessedLevel(conn, arrWitnesses, arrParentUnits, function(err, arrAdjustedParents, max_parent_wl){
+				onDone(err, arrAdjustedParents, max_parent_wl);
 			});
 		//	checkWitnessedLevelNotRetreatingAndLookLower(conn, arrWitnesses, arrParentUnits, (arrParentUnits.length === 1), onDone);
 		}
@@ -85,17 +85,19 @@ function adjustParentsToNotRetreatWitnessedLevel(conn, arrWitnesses, arrParentUn
 		console.log('checkWitnessedLevelAndReplace '+arrCurrentParentUnits.join(', '));
 		if (iterations > 0 && arrExcludedUnits.length === 0)
 			throw Error("infinite cycle");
+		if (iterations >= conf.MAX_PARENT_DEPTH)
+			return handleAdjustedParents("failed to find suitable parents after " + iterations + " attempts, please check that your order provider list is updated.");
 		iterations++;
 		determineWitnessedLevels(conn, arrWitnesses, arrCurrentParentUnits, function(child_witnessed_level, max_parent_wl, parent_with_max_wl, best_parent_unit){
 			if (child_witnessed_level >= max_parent_wl && best_parent_unit){
 				if (arrCurrentParentUnits.length <= constants.MAX_PARENTS_PER_UNIT)
-					return handleAdjustedParents(arrCurrentParentUnits.sort(), max_parent_wl);
+					return handleAdjustedParents(null, arrCurrentParentUnits.sort(), max_parent_wl);
 				var bp_index = arrCurrentParentUnits.indexOf(best_parent_unit);
 				if (bp_index < 0)
 					throw Error("best parent "+best_parent_unit+" not found among parents "+arrCurrentParentUnits.join(', '));
 				arrCurrentParentUnits.splice(bp_index, 1);
 				arrCurrentParentUnits.unshift(best_parent_unit); // moves best_parent_unit to the 1st position to make sure it is not sliced off
-				return handleAdjustedParents(arrCurrentParentUnits.slice(0, constants.MAX_PARENTS_PER_UNIT).sort(), max_parent_wl);
+				return handleAdjustedParents(null, arrCurrentParentUnits.slice(0, constants.MAX_PARENTS_PER_UNIT).sort(), max_parent_wl);
 			}
 			var msg = best_parent_unit ? 'wl would retreat from '+max_parent_wl+' to '+child_witnessed_level : 'no best parent'
 			console.log(msg+', parents '+arrCurrentParentUnits.join(', '));
@@ -298,7 +300,7 @@ function pickParentUnitsAndLastBall(conn, arrWitnesses, timestamp, onDone){
 	function pickParentsDeeper(max_parent_wl){
 		depth++;
 		if (conf.MAX_PARENT_DEPTH && depth > conf.MAX_PARENT_DEPTH)
-			return onDone("failed to pick parents after digging to depth " + depth);
+			return onDone("failed to pick parents after digging to depth " + depth + ", please check that your order provider list is updated.");
 		pickDeepParentUnits(conn, arrWitnesses, timestamp, max_parent_wl, function (err, arrParentUnits, max_parent_wl) {
 			if (err)
 				return onDone(err);

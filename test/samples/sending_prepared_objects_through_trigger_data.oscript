@@ -1,0 +1,32 @@
+{
+	messages: [
+		{
+			if: `{trigger.data.d}`,
+			app: 'data',
+			payload: `{trigger.data.d}`
+		},
+		{
+			if: `{trigger.data.sub}`,
+			app: 'data',
+			payload: {
+				xx: 66.3,
+				sub: `{trigger.data.sub}`
+			}
+		},
+		{
+			if: `{trigger.data.output}`,
+			app: 'payment',
+			payload: {
+				asset: "base",
+				outputs: [
+					`{trigger.data.output}`
+				]
+			}
+		},
+		{
+			if: `{trigger.data.payment}`,
+			app: 'payment',
+			payload: `{trigger.data.payment}`
+		},
+	]
+}

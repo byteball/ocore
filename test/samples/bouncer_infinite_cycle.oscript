@@ -1,0 +1,27 @@
+{
+	messages: [
+		{
+			if: `{trigger.output[[asset=base]] > 2000}`,
+			app: 'payment',
+			payload: {
+				asset: "base",
+				outputs: [
+					{ address: "{trigger.address == '2QHG44PZLJWD2H7C5ZIWH4NZZVB6QCC7' ? 'PCEJIRXNA56T6VQOOSPV6GOJVLVN6AO6' : trigger.address}", amount: "{ trigger.output[[asset=base]] - 2000 }" }
+				]
+			}
+		},
+		{
+			if: `{
+				$asset = trigger.output[[asset!=base]].asset;
+				$asset != 'none' AND $asset != 'ambiguous'
+			}`,
+			app: 'payment',
+			payload: {
+				asset: "{$asset}",
+				outputs: [
+					{ address: "{trigger.address == '2QHG44PZLJWD2H7C5ZIWH4NZZVB6QCC7' ? 'PCEJIRXNA56T6VQOOSPV6GOJVLVN6AO6' : trigger.address}", amount: "{ trigger.output[[asset!=base]] }" }
+				]
+			}
+		},
+	]
+}

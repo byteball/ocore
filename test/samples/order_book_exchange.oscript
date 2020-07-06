@@ -1,0 +1,124 @@
+{
+	messages: {
+		cases: [
+			{ // withdraw funds
+				if: `{
+					$key = 'balance_'||trigger.address||'_'||trigger.data.asset;
+					trigger.data.withdraw AND trigger.data.asset AND trigger.data.amount AND trigger.data.amount <= var[$key]
+				}`,
+				messages: [
+					{
+						app: 'payment',
+						payload: {
+							asset: "{trigger.data.asset}",
+							outputs: [
+								{address: "{trigger.address}", amount: "{trigger.data.amount}"}
+							]
+						}
+					},
+					{
+						app: 'state',
+						state: `{
+							var[$key] = var[$key] - trigger.data.amount;
+						}`
+					}
+				]
+			},
+			{ // execute orders, order1 must be smaller or the same as order2; order2 is partially filled
+				if: `{
+					$order1 = trigger.data.order1.signed_message;
+					$order2 = trigger.data.order2.signed_message;
+					if (!$order1.sell_asset OR !$order2.sell_asset)
+						return false;
+					if ($order1.sell_asset != $order2.buy_asset OR $order1.buy_asset != $order2.sell_asset)
+						return false;
+
+					// to do check expiry
+
+					$sell_key1 = 'balance_' || $order1.address || '_' || $order1.sell_asset;
+					$sell_key2 = 'balance_' || $order2.address || '_' || $order2.sell_asset;
+
+					$id1 = sha256($order1.address || $order1.sell_asset || $order1.buy_asset || $order1.sell_amount || $order1.price || trigger.data.order1.last_ball_unit);
+					$id2 = sha256($order2.address || $order2.sell_asset || $order2.buy_asset || $order2.sell_amount || $order2.price || trigger.data.order2.last_ball_unit);
+
+					if (var['executed_' || $id1] OR var['executed_' || $id2])
+						return false;
+
+					if (!is_valid_signed_package(trigger.data.order1, $order1.address)
+						OR !is_valid_signed_package(trigger.data.order2, $order2.address))
+						return false;
+
+					$amount_left1 = var['amount_left_' || $id1] otherwise $order1.sell_amount;
+					$amount_left2 = var['amount_left_' || $id2] otherwise $order2.sell_amount;
+
+					if ($amount_left1 > var[$sell_key1] OR $amount_left2 > var[$sell_key2])
+						return false;
+
+					$buy_amount1 = round($amount_left1 * $order1.price);
+					if ($buy_amount1 > $amount_left2) // order1 is not the smaller one
+						return false;
+					$expected_buy_amount2 = round($buy_amount1 * $order2.price);
+					if ($expected_buy_amount2 > $amount_left1) // user2 doesn't like the price, he gets less than expects
+						return false;
+
+					true
+				}`,
+				messages: [{
+					app: 'state',
+					state: `{
+						$buy_key1 = 'balance_' || $order1.address || '_' || $order1.buy_asset;
+						$buy_key2 = 'balance_' || $order2.address || '_' || $order2.buy_asset;
+						$base_key1 = 'balance_' || $order1.address || '_base';
+						$base_key2 = 'balance_' || $order2.address || '_base';
+
+						var[$sell_key1] = var[$sell_key1] - $amount_left1;
+						var[$sell_key2] = var[$sell_key2] - $buy_amount1;
+						var[$buy_key1] = var[$buy_key1] + $buy_amount1;
+						var[$buy_key2] = var[$buy_key2] + $amount_left1;
+
+						$fee = 1000;
+						var[$base_key1] = var[$base_key1] - $fee;
+						var[$base_key2] = var[$base_key2] - $fee;
+						if (var[$base_key1] < 0 OR var[$base_key2] < 0)
+							bounce('not enough balance for fees');
+
+						var['executed_' || $id1] = 1;
+						$new_amount_left2 = $amount_left2 - $buy_amount1;
+						if ($new_amount_left2)
+							var['amount_left_' || $id2] = $new_amount_left2;
+						else
+							var['executed_' || $id2] = 1;
+
+						// parsable response for transaction log
+						response[$order1.address || '_' || $order1.sell_asset] = -$amount_left1;
+						response[$order2.address || '_' || $order2.buy_asset] = $amount_left1;
+						response[$order1.address || '_' || $order1.buy_asset] = $buy_amount1;
+						response[$order2.address || '_' || $order2.sell_asset] = -$buy_amount1;
+					}`
+				}]
+			},
+			{ // silently accept coins
+				if: "{!trigger.data}",
+				messages: [{
+					app: 'state',
+					state: `{
+						$asset = trigger.output[[asset!=base]].asset;
+						if ($asset == 'ambiguous')
+							bounce('ambiguous asset');
+						if (trigger.output[[asset=base]] > 10000){
+							$base_key = 'balance_'||trigger.address||'_'||'base';
+							var[$base_key] = var[$base_key] + trigger.output[[asset=base]];
+							$response_base = trigger.output[[asset=base]] || ' bytes\n';
+						}
+						if ($asset != 'none'){
+							$asset_key = 'balance_'||trigger.address||'_'||$asset;
+							var[$asset_key] = var[$asset_key] + trigger.output[[asset=$asset]];
+							$response_asset = trigger.output[[asset=$asset]] || ' of ' || $asset || '\n';
+						}
+						response['message'] = 'accepted coins:\n' || ($response_base otherwise '') || ($response_asset otherwise '');
+					}`
+				}]
+			},
+		]
+	}
+}
