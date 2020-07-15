@@ -88,7 +88,13 @@ exports.parse = function (text, callback) {
 				var msg = e.message;
 				var match = msg.match(/invalid syntax at line ([\d]+) col ([\d]+):([\s\S]+)/m);
 				if (match) {
-					throw new Error(`Invalid formula syntax at line ${tree.context.line + Number(match[1]) - 1} col ${tree.context.col + Number(match[2]) - 1}:${match[3]}`);
+					var line = Number(match[1]) - 1;
+					var col = Number(match[2]);
+					if (line === 0) {
+						throw new Error(`Invalid formula syntax at line ${tree.context.line} col ${tree.context.col + col - 1}:${match[3]}`);
+					} else {
+						throw new Error(`Invalid formula syntax at line ${tree.context.line + line} col ${col}:${match[3]}`);
+					}
 				} else if (msg.startsWith('Error parsing formula starting at line')) {
 					throw new Error(msg)
 			  } else {
