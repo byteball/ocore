@@ -879,7 +879,6 @@ CREATE TABLE watched_light_aas (
 CREATE INDEX wlaabyAA ON watched_light_aas(aa);
 
 -- arbiter contracts
-
 CREATE TABLE IF NOT EXISTS arbiters_locations (
 	arbiter_address CHAR(32) NOT NULL PRIMARY KEY,
 	arbstore_address CHAR(32) NOT NULL,
@@ -911,9 +910,10 @@ CREATE TABLE IF NOT EXISTS arbiter_contracts (
 	peer_contact_info TEXT NULL,
 	peer_pairing_code VARCHAR(200) NULL,
 	shared_address CHAR(32),
-	unit CHAR(44),
+	unit CHAR(44) NULL,
 	cosigners VARCHAR(1500),
 	dispute_mci INT NULL,
+	resolution_unit CHAR(44) NULL,
 	FOREIGN KEY (my_address) REFERENCES my_addresses(address)
 );
 

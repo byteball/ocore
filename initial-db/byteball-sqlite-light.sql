@@ -900,4 +900,4 @@ CREATE TABLE IF NOT EXISTS arbiter_contracts (
 	FOREIGN KEY (my_address) REFERENCES my_addresses(address)
 );
 
-PRAGMA user_version=40;
+PRAGMA user_version=42;

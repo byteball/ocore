@@ -4,7 +4,7 @@ var eventBus = require('./event_bus.js');
 var constants = require("./constants.js");
 var conf = require("./conf.js");
 
-var VERSION = 41;
+var VERSION = 42;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -393,41 +393,6 @@ function migrateDb(connection, onDone){
 				}
 				if (version < 38)
 					connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS byBaseAA ON aa_addresses(base_aa)");
-				if (version < 39) {
-					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS arbiters_locations ( -- table used in arbregistry \n\
-						arbiter_address CHAR(32) NOT NULL PRIMARY KEY, \n\
-						arbstore_address CHAR(32) NOT NULL, \n\
-						unit CHAR(44) NULL \n\
-					)");
-					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS arbiters_wallet ( \n\
-						arbiter_address CHAR(32) NOT NULL PRIMARY KEY, \n\
-						real_name VARCHAR(250) NOT NULL, \n\
-						device_pub_key VARCHAR(44) NULL \n\
-					)");
-					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS arbiter_contracts ( \n\
-						hash CHAR(44) NOT NULL PRIMARY KEY, \n\
-						peer_address CHAR(32) NOT NULL, \n\
-						peer_device_address CHAR(33) NOT NULL, \n\
-						my_address  CHAR(32) NOT NULL, \n\
-						arbiter_address CHAR(32) NOT NULL, \n\
-						me_is_payer TINYINT NOT NULL, \n\
-						amount BIGINT NULL, \n\
-						asset CHAR(44) NULL, \n\
-						is_incoming TINYINT NOT NULL, \n\
-						creation_date TIMESTAMP NOT NULL, \n\
-						ttl INT NOT NULL DEFAULT 168, -- 168 hours = 24 * 7 = 1 week \n\
-						status TEXT CHECK (status IN('pending', 'revoked', 'accepted', 'declined', 'paid', 'cancelled', 'completed')) NOT NULL DEFAULT 'active', \n\
-						title VARCHAR(1000) NOT NULL, \n\
-						`text` TEXT NOT NULL, \n\
-						`my_contact_info` TEXT NULL, \n\
-						`peer_contact_info` TEXT NULL, \n\
-						`peer_pairing_code` VARCHAR(200) NULL, \n\
-						shared_address CHAR(32), \n\
-						unit CHAR(44), \n\
-						cosigners VARCHAR(1500), \n\
-						FOREIGN KEY (my_address) REFERENCES my_addresses(address) \n\
-					)");
-				}
 				cb();
 			},
 			function (cb) {
@@ -443,6 +408,43 @@ function migrateDb(connection, onDone){
 				}
 				if (version < 41)
 					connection.addQuery(arrQueries, "DELETE FROM known_bad_joints");
+				if (version < 42) {
+					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS arbiters_locations ( \n\
+						arbiter_address CHAR(32) NOT NULL PRIMARY KEY, \n\
+						arbstore_address CHAR(32) NOT NULL, \n\
+						unit CHAR(44) NULL \n\
+					);");
+					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS arbiters_wallet ( \n\
+						arbiter_address CHAR(32) NOT NULL PRIMARY KEY, \n\
+						real_name VARCHAR(250) NOT NULL, \n\
+						device_pub_key VARCHAR(44) NULL \n\
+					);");
+					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS arbiter_contracts ( \n\
+						hash CHAR(44) NOT NULL PRIMARY KEY, \n\
+						peer_address CHAR(32) NOT NULL, \n\
+						peer_device_address CHAR(33) NOT NULL, \n\
+						my_address  CHAR(32) NOT NULL, \n\
+						arbiter_address CHAR(32) NOT NULL, \n\
+						me_is_payer TINYINT NOT NULL, \n\
+						amount BIGINT NULL, \n\
+						asset CHAR(44) NULL, \n\
+						is_incoming TINYINT NOT NULL, \n\
+						creation_date TIMESTAMP NOT NULL, \n\
+						ttl INT NOT NULL DEFAULT 168, -- 168 hours = 24 * 7 = 1 week \n\
+						status TEXT CHECK (status IN('pending', 'revoked', 'accepted', 'declined', 'paid', 'in_dispute', 'resolved', 'cancelled', 'completed')) NOT NULL DEFAULT 'active', \n\
+						title VARCHAR(1000) NOT NULL, \n\
+						text TEXT NOT NULL, \n\
+						my_contact_info TEXT NULL, \n\
+						peer_contact_info TEXT NULL, \n\
+						peer_pairing_code VARCHAR(200) NULL, \n\
+						shared_address CHAR(32), \n\
+						unit CHAR(44) NULL, \n\
+						cosigners VARCHAR(1500), \n\
+						dispute_mci INT NULL, \n\
+						resolution_unit CHAR(44) NULL, \n\
+						FOREIGN KEY (my_address) REFERENCES my_addresses(address) \n\
+					);");
+				}
 				cb();
 			},
 		],
