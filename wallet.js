@@ -520,10 +520,10 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			break;
 
 		case 'arbiter_contract_shared':
-			if (!body.title || !body.text || !body.creation_date || !body.arbiter_address || typeof body.me_is_payer === "undefined" || !body.peer_pairing_code || !body.amount || body.amount <= 0)
+			if (!body.title || !body.text || !body.creation_date || !body.arbiter_address || typeof body.me_is_payer === "undefined" || !body.peer_pairing_code || !body.amount || body.amount <= 0 || !body.shared_address)
 				return callbacks.ifError("not all contract fields submitted");
-			if (!ValidationUtils.isValidAddress(body.peer_address) || !ValidationUtils.isValidAddress(body.my_address) || !ValidationUtils.isValidAddress(body.arbiter_address))
-				return callbacks.ifError("either peer_address or address or arbiter_address is not valid in contract");
+			if (!ValidationUtils.isValidAddress(body.peer_address) || !ValidationUtils.isValidAddress(body.my_address) || !ValidationUtils.isValidAddress(body.arbiter_address) || !ValidationUtils.isValidAddress(body.shared_address))
+				return callbacks.ifError("either peer_address or address or arbiter_address or shared_address are not valid in contract");
 			if (body.hash !== arbiter_contract.getHash(body))
 				return callbacks.ifError("wrong contract hash");
 			if (!/^\d{4}\-\d{2}\-\d{2} \d{2}:\d{2}:\d{2}$/.test(body.creation_date))
