@@ -146,7 +146,7 @@ function validateSignedMessage(conn, objSignedMessage, address, handleResult) {
 	}
 	if (!the_author) {
 		if (address)
-			return cb("not signed by the expected address");
+			return handleResult("not signed by the expected address");
 		the_author = authors[0];
 	}
 	var objAuthor = the_author;
