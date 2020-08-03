@@ -94,8 +94,8 @@ if (process.env.devnet) {
 	exports.supported_versions = ['1.0dev', '2.0dev', '3.0dev'];
 	exports.versionWithoutTimestamp = '1.0dev';
 	exports.versionWithoutKeySizes = '2.0dev';
-	exports.GENESIS_UNIT = 'pLzHaCisvxkfgwyBDzgvZzhPp37ZKnuMOxiI3QwXxqM=';
-	exports.BLACKBYTES_ASSET = 'GRzA4D/ElsiwivoUrkCg36s+CoOr6rLsSH2F0EOes64=';
+	exports.GENESIS_UNIT = '7SdqwEe7auaGWhBO/tQuIUm9egyqDyPiYRK9x6Ej9+A='; // THIS CHANGES WITH EVERY UNIT VERSION / ALT CHANGE!!!
+	exports.BLACKBYTES_ASSET = 'ufDvRwtUhzupREcAC1uVNK3B8xHaDG111qzGFAA5OtY='; // THIS CHANGES WITH EVERY UNIT VERSION / ALT CHANGE!!!
 
 	exports.COUNT_WITNESSES = 1;
 	exports.MAJORITY_OF_WITNESSES = (exports.COUNT_WITNESSES%2===0) ? (exports.COUNT_WITNESSES/2+1) : Math.ceil(exports.COUNT_WITNESSES/2);
