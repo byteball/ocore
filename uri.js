@@ -128,7 +128,7 @@ function parseUri(uri, callbacks){
 	}
 
 	var address = main_part;
-	if (!ValidationUtils.isValidAddress(address) && !ValidationUtils.isValidEmail(address) && !address.match(/^(steem\/|reddit\/|@).{3,}/i) && !address.match(/^\+\d{9,14}$/))
+	if (!ValidationUtils.isValidAddress(address) && !ValidationUtils.isValidEmail(address) && !address.match(/^(steem\/|reddit\/|github\/|bitcointalk\/|@).{3,}/i) && !address.match(/^\+\d{9,14}$/))
 		return callbacks.ifError("address "+address+" is invalid");
 	objRequest.type = "address";
 	objRequest.address = address;
