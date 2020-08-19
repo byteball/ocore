@@ -95,7 +95,7 @@ if (process.env.devnet) {
 	exports.versionWithoutTimestamp = '1.0dev';
 	exports.versionWithoutKeySizes = '2.0dev';
 	exports.GENESIS_UNIT = '7SdqwEe7auaGWhBO/tQuIUm9egyqDyPiYRK9x6Ej9+A='; // THIS CHANGES WITH EVERY UNIT VERSION / ALT CHANGE!!!
-	exports.BLACKBYTES_ASSET = 'ufDvRwtUhzupREcAC1uVNK3B8xHaDG111qzGFAA5OtY='; // THIS CHANGES WITH EVERY UNIT VERSION / ALT CHANGE!!!
+	exports.BLACKBYTES_ASSET = '524ZRnEI5cUfM6HydRlvzCjOJT5FxbFlPPr+Ah2w2ws='; // THIS CHANGES WITH EVERY UNIT VERSION / ALT CHANGE!!!
 
 	exports.COUNT_WITNESSES = 1;
 	exports.MAJORITY_OF_WITNESSES = (exports.COUNT_WITNESSES%2===0) ? (exports.COUNT_WITNESSES/2+1) : Math.ceil(exports.COUNT_WITNESSES/2);
