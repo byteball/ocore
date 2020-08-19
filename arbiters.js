@@ -10,7 +10,7 @@ function getInfo(address, cb) {
 		if (rows.length) {
 			cb(rows[0]);
 		} else {
-			device.requestFromHub("hub/get_arbstore_host", address, function(err, host){
+			device.requestFromHub("hub/get_arbstore_address", address, function(err, host){
 				requestInfoFromArbStore(address, host, function(err, info){
 					if (err) {
 						console.error(err);

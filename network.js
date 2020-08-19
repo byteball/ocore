@@ -3456,7 +3456,7 @@ function handleRequest(ws, tag, command, params){
 			});
 			break;
 
-		case 'hub/get_arbstore_host':
+		case 'hub/get_arbstore_address':
 			var arbiter_address = params;
 			db.query("SELECT arbstore_address FROM arbiters_locations WHERE arbiter_address=?", [arbiter_address], function(rows){
 				var host = rows.length ? conf.ArbRegistries[rows[0].arbstore_address] : '';

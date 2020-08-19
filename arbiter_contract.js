@@ -125,8 +125,7 @@ function decodeRow(row) {
 
 function openDispute(hash, cb) {
 	getByHash(hash, function(objContract){
-		//device.requestFromHub("hub/get_arbstore_host", objContract.arbiter_address, function(err, host){
-		var host = "localhost";
+		device.requestFromHub("hub/get_arbstore_address", objContract.arbiter_address, function(err, host){
 			arbiters.getInfo(objContract.arbiter_address, function(objArbiter) {
 				device.getOrGeneratePermanentPairingInfo(function(pairingInfo){
 					var my_pairing_code = pairingInfo.device_pubkey + "@" + pairingInfo.hub + "#" + pairingInfo.pairing_secret;
@@ -172,7 +171,7 @@ function openDispute(hash, cb) {
 					req.end();
 				});
 			});
-		//});
+		});
 	});
 }
 
