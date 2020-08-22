@@ -1355,26 +1355,27 @@ function readFundedAddresses(asset, wallet, estimated_amount, spend_unconfirmed,
 		throw Error('invalid estimated amount: '+estimated_amount);
 	// addresses closest to estimated amount come first
 	var order_by = estimated_amount ? "(SUM(amount)>"+estimated_amount+") DESC, ABS(SUM(amount)-"+estimated_amount+") ASC" : "SUM(amount) DESC";
-	db.query(
-		"SELECT * FROM ( \n\
-			SELECT address, SUM(amount) AS total \n\
-			FROM outputs JOIN my_addresses USING(address) \n\
-			CROSS JOIN units USING(unit) \n\
-			WHERE wallet=? "+inputs.getConfirmationConditionSql(spend_unconfirmed)+" AND sequence='good' \n\
-				AND is_spent=0 AND "+(asset ? "asset=?" : "asset IS NULL")+" \n\
-			GROUP BY address ORDER BY "+order_by+" LIMIT "+constants.MAX_AUTHORS_PER_UNIT+" \n\
-		) AS t \n\
-		WHERE NOT EXISTS ( \n\
-			SELECT * FROM units CROSS JOIN unit_authors USING(unit) \n\
-			WHERE is_stable=0 AND unit_authors.address=t.address AND definition_chash IS NOT NULL AND definition_chash != unit_authors.address \n\
-		)",
-		asset ? [wallet, asset] : [wallet],
-		function(rows){
-			readAssetProps(asset, function (err, objAsset) {
-				if (err) {
-					console.log(err);
-					return handleFundedAddresses([]);
-				}
+	readAssetProps(asset, function (err, objAsset) {
+		if (err) {
+			console.log(err);
+			return handleFundedAddresses([]);
+		}
+		var limit = objAsset.fixed_denominations ? "" : " LIMIT " + constants.MAX_AUTHORS_PER_UNIT;
+		db.query(
+			"SELECT * FROM ( \n\
+				SELECT address, SUM(amount) AS total \n\
+				FROM outputs JOIN my_addresses USING(address) \n\
+				CROSS JOIN units USING(unit) \n\
+				WHERE wallet=? "+inputs.getConfirmationConditionSql(spend_unconfirmed)+" AND sequence='good' \n\
+					AND is_spent=0 AND "+(asset ? "asset=?" : "asset IS NULL")+" \n\
+				GROUP BY address ORDER BY "+order_by + limit + " \n\
+			) AS t \n\
+			WHERE NOT EXISTS ( \n\
+				SELECT * FROM units CROSS JOIN unit_authors USING(unit) \n\
+				WHERE is_stable=0 AND unit_authors.address=t.address AND definition_chash IS NOT NULL AND definition_chash != unit_authors.address \n\
+			)",
+			asset ? [wallet, asset] : [wallet],
+			function(rows){
 				if (objAsset.fixed_denominations)
 					estimated_amount = 0; // don't shorten the list of addresses, indivisible_asset.js will do it later according to denominations
 				if (!objAsset.cap){ // uncapped asset: can be issued from definer_address or from any address
@@ -1391,7 +1392,8 @@ function readFundedAddresses(asset, wallet, estimated_amount, spend_unconfirmed,
 					return;
 				}
 				handleFundedAddresses(composer.filterMostFundedAddresses(rows, estimated_amount));
-			});
+			}
+		);
 			/*if (arrFundedAddresses.length === 0)
 				return handleFundedAddresses([]);
 			if (!asset)
@@ -1399,8 +1401,7 @@ function readFundedAddresses(asset, wallet, estimated_amount, spend_unconfirmed,
 			readFundedAddresses(null, wallet, function(arrBytesFundedAddresses){
 				handleFundedAddresses(_.union(arrFundedAddresses, arrBytesFundedAddresses));
 			});*/
-		}
-	);
+	});
 }
 
 function readAdditionalSigningAddresses(arrPayingAddresses, arrSigningAddresses, arrSigningDeviceAddresses, handleAdditionalSigningAddresses){

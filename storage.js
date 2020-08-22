@@ -10,6 +10,7 @@ var mutex = require('./mutex.js');
 var archiving = require('./archiving.js');
 var eventBus = require('./event_bus.js');
 var profiler = require('./profiler.js');
+var ValidationUtils = require("./validation_utils.js");
 
 var testnetAssetsDefinedByAAsAreVisibleImmediatelyUpgradeMci = 1167000;
 
@@ -782,7 +783,7 @@ function readAAGetterProps(conn, address, func_name, handleGetterProps) {
 	readAAGetters(conn, address, function (getters) {
 		if (!getters)
 			return handleGetterProps(null);
-		if (!getters.hasOwnProperty(func_name))
+		if (!ValidationUtils.hasOwnProperty(getters, func_name))
 			return handleGetterProps(null);
 		handleGetterProps(getters[func_name]);
 	});
@@ -923,9 +924,10 @@ function readAAStateVars(address, var_prefix_from, var_prefix_to, limit, handle)
 	if (limit)
 		options.limit = limit;
 
+	var assignField = require('./formula/common.js').assignField;
 	var objStateVars = {}
 	var handleData = function (data){
-		objStateVars[data.key.slice(36)] = parseStateVar(data.value);
+		assignField(objStateVars, data.key.slice(36), parseStateVar(data.value));
 	}
 	var kvstore = require('./kvstore.js');
 	var stream = kvstore.createReadStream(options);

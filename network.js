@@ -165,7 +165,7 @@ function sendErrorResult(ws, unit, error) {
 
 function sendVersion(ws){
 	sendJustsaying(ws, 'version', {
-		protocol_version: constants.versionWithoutTimestamp, 
+		protocol_version: constants.version, 
 		alt: constants.alt, 
 		library: libraryPackageJson.name, 
 		library_version: libraryPackageJson.version, 
@@ -175,8 +175,9 @@ function sendVersion(ws){
 }
 
 function sendResponse(ws, tag, response){
-	delete ws.assocInPreparingResponse[tag];
-	sendMessage(ws, 'response', {tag: tag, response: response});
+	var command = ws.assocCommandsInPreparingResponse[tag];
+	delete ws.assocCommandsInPreparingResponse[tag];
+	sendMessage(ws, 'response', {tag: tag, command: command, response: response});
 }
 
 function sendErrorResponse(ws, tag, error) {
@@ -426,7 +427,7 @@ function connectToPeer(url, onOpen) {
 		breadcrumbs.add('connected to '+url);
 		delete assocConnectingOutboundWebsockets[url];
 		ws.assocPendingRequests = {};
-		ws.assocInPreparingResponse = {};
+		ws.assocCommandsInPreparingResponse = {};
 		if (!ws.url)
 			throw Error("no url on ws");
 		if (ws.url !== url && ws.url !== url + "/") // browser implementatin of Websocket might add /
@@ -2733,9 +2734,11 @@ function handleJustsaying(ws, subject, body){
 }
 
 function handleRequest(ws, tag, command, params){
-	if (ws.assocInPreparingResponse[tag]) // ignore repeated request while still preparing response to a previous identical request
+	if (!command)
+		return sendErrorResponse(ws, tag, "no command");
+	if (ws.assocCommandsInPreparingResponse[tag]) // ignore repeated request while still preparing response to a previous identical request
 		return console.log("ignoring identical "+command+" request");
-	ws.assocInPreparingResponse[tag] = true;
+	ws.assocCommandsInPreparingResponse[tag] = command;
 	if (command.startsWith('light/')) {
 		if (conf.bLight)
 			return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
@@ -3543,7 +3546,7 @@ function startAcceptingConnections(){
 		ws.peer = ip + ":" + ws.upgradeReq.connection.remotePort;
 		ws.host = ip;
 		ws.assocPendingRequests = {};
-		ws.assocInPreparingResponse = {};
+		ws.assocCommandsInPreparingResponse = {};
 		ws.bInbound = true;
 		ws.last_ts = Date.now();
 		console.log('got connection from '+ws.peer+", host "+ws.host);

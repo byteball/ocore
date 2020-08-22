@@ -10,11 +10,11 @@ if (typeof process === 'object' && typeof process.versions === 'object' && typeo
 if (!Number.MAX_SAFE_INTEGER)
 	Number.MAX_SAFE_INTEGER = Math.pow(2, 53) - 1; // 9007199254740991
 
-exports.COUNT_WITNESSES = 12;
+exports.COUNT_WITNESSES = process.env.COUNT_WITNESSES || 12;
 exports.MAX_WITNESS_LIST_MUTATIONS = 1;
-exports.TOTAL_WHITEBYTES = 1e15;
+exports.TOTAL_WHITEBYTES = process.env.TOTAL_WHITEBYTES || 1e15;
 exports.MAJORITY_OF_WITNESSES = (exports.COUNT_WITNESSES%2===0) ? (exports.COUNT_WITNESSES/2+1) : Math.ceil(exports.COUNT_WITNESSES/2);
-exports.COUNT_MC_BALLS_FOR_PAID_WITNESSING = 100;
+exports.COUNT_MC_BALLS_FOR_PAID_WITNESSING = process.env.COUNT_MC_BALLS_FOR_PAID_WITNESSING || 100;
 
 exports.bTestnet = !!process.env.testnet;
 console.log('===== testnet = ' + exports.bTestnet);
@@ -28,8 +28,8 @@ exports.versionWithoutKeySizes = exports.bTestnet ? '2.0t' : '2.0';
 
 //exports.bTestnet = (exports.alt === '2' && exports.version === '1.0t');
 
-exports.GENESIS_UNIT = exports.bTestnet ? 'TvqutGPz3T4Cs6oiChxFlclY92M2MvCvfXR5/FETato=' : 'oj8yEksX9Ubq7lLc+p6F2uyHUuynugeVq4+ikT67X6E=';
-exports.BLACKBYTES_ASSET = exports.bTestnet ? 'LUQu5ik4WLfCrr8OwXezqBa+i3IlZLqxj2itQZQm8WY=' : 'qO2JsiuDMh/j+pqJYZw3u82O71WjCDf0vTNvsnntr8o=';
+exports.GENESIS_UNIT = process.env.GENESIS_UNIT || (exports.bTestnet ? 'TvqutGPz3T4Cs6oiChxFlclY92M2MvCvfXR5/FETato=' : 'oj8yEksX9Ubq7lLc+p6F2uyHUuynugeVq4+ikT67X6E=');
+exports.BLACKBYTES_ASSET = process.env.BLACKBYTES_ASSET || (exports.bTestnet ? 'LUQu5ik4WLfCrr8OwXezqBa+i3IlZLqxj2itQZQm8WY=' : 'qO2JsiuDMh/j+pqJYZw3u82O71WjCDf0vTNvsnntr8o=');
 
 exports.HASH_LENGTH = 44;
 exports.PUBKEY_LENGTH = 44;
@@ -50,8 +50,8 @@ exports.MAX_DATA_FEED_NAME_LENGTH = 64;
 exports.MAX_DATA_FEED_VALUE_LENGTH = 64;
 exports.MAX_AUTHENTIFIER_LENGTH = 4096;
 exports.MAX_CAP = 9e15;
-exports.MAX_COMPLEXITY = 100;
-exports.MAX_UNIT_LENGTH = 5e6;
+exports.MAX_COMPLEXITY = process.env.MAX_COMPLEXITY || 100;
+exports.MAX_UNIT_LENGTH = process.env.MAX_UNIT_LENGTH || 5e6;
 
 exports.MAX_PROFILE_FIELD_LENGTH = 50;
 exports.MAX_PROFILE_VALUE_LENGTH = 100;
@@ -59,13 +59,13 @@ exports.MAX_PROFILE_VALUE_LENGTH = 100;
 exports.MAX_AA_STRING_LENGTH = 4096;
 exports.MAX_STATE_VAR_NAME_LENGTH = 128;
 exports.MAX_STATE_VAR_VALUE_LENGTH = 1024;
-exports.MAX_OPS = 2000;
-exports.MAX_RESPONSES_PER_PRIMARY_TRIGGER = 10;
+exports.MAX_OPS = process.env.MAX_OPS || 2000;
+exports.MAX_RESPONSES_PER_PRIMARY_TRIGGER = process.env.MAX_RESPONSES_PER_PRIMARY_TRIGGER || 10;
 
-exports.MIN_BYTES_BOUNCE_FEE = 10000;
+exports.MIN_BYTES_BOUNCE_FEE = process.env.MIN_BYTES_BOUNCE_FEE || 10000;
 
-exports.minCoreVersion = exports.bTestnet ? '0.3.12' : '0.3.8';
-exports.minCoreVersionForFullNodes = exports.bTestnet ? '0.3.12' : '0.3.11';
+exports.minCoreVersion = exports.bTestnet ? '0.3.12' : '0.3.12';
+exports.minCoreVersionForFullNodes = exports.bTestnet ? '0.3.12' : '0.3.12';
 exports.minCoreVersionToSharePeers = exports.bTestnet ? '0.3.9' : '0.3.9';
 
 exports.lastBallStableInParentsUpgradeMci =  exports.bTestnet ? 0 : 1300000;
@@ -99,9 +99,13 @@ if (process.env.devnet) {
 
 	exports.COUNT_WITNESSES = 1;
 	exports.MAJORITY_OF_WITNESSES = (exports.COUNT_WITNESSES%2===0) ? (exports.COUNT_WITNESSES/2+1) : Math.ceil(exports.COUNT_WITNESSES/2);
+}
 
+// run the latest version
+if (process.env.devnet || process.env.GENESIS_UNIT) {
 	exports.lastBallStableInParentsUpgradeMci = 0;
 	exports.witnessedLevelMustNotRetreatUpgradeMci = 0;
+	exports.skipEvaluationOfUnusedNestedAddressUpgradeMci = 0;
 	exports.spendUnconfirmedUpgradeMci = 0;
 	exports.branchedMinMcWlUpgradeMci = 0;
 	exports.otherAddressInDefinitionUpgradeMci = 0;
@@ -117,7 +121,7 @@ if (process.env.devnet) {
 	exports.includeKeySizesUpgradeMci = 0;
 }
 
-
+// textcoins
 exports.TEXTCOIN_CLAIM_FEE = 772 + (exports.version.length - 3);
 exports.TEXTCOIN_ASSET_CLAIM_HEADER_FEE = 399 + 115 + (exports.version.length - 3);
 exports.TEXTCOIN_ASSET_CLAIM_MESSAGE_FEE = 201 + 98;

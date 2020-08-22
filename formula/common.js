@@ -61,6 +61,15 @@ function assignObject(target, source) {
 	Object.assign(target, source);
 }
 
+function assignField(obj, field, value) {
+	Object.defineProperty(obj, field, {
+		value: value,
+		writable: true,
+		configurable: true,
+		enumerable: true
+	});
+}
+
 function isValidValue(val){
 	return (typeof val === 'string' || typeof val === 'boolean' || isFiniteDecimal(val));
 }
@@ -102,6 +111,7 @@ exports.createDecimal = createDecimal;
 exports.toOscriptPrecision = toOscriptPrecision;
 exports.isValidValue = isValidValue;
 exports.assignObject = assignObject;
+exports.assignField = assignField;
 
 exports.getFormula = getFormula;
 exports.hasCases = hasCases;

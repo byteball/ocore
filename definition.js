@@ -14,6 +14,7 @@ var objectHash = require("./object_hash.js");
 var formulaParser = require('./formula/index');
 var Decimal = require('decimal.js');
 var dataFeeds = require('./data_feeds.js');
+var assignField = require('./formula/common.js').assignField;
 
 var hasFieldsExcept = ValidationUtils.hasFieldsExcept;
 var isStringOfLength = ValidationUtils.isStringOfLength;
@@ -1334,7 +1335,7 @@ function replaceInTemplate(arrTemplate, params){
 				if (x.charAt(0) !== '$')
 					return x;
 				var name = x.substring(1);
-				if (!params.hasOwnProperty(name))
+				if (!ValidationUtils.hasOwnProperty(params, name))
 					throw new NoVarException("variable "+name+" not specified, template "+JSON.stringify(arrTemplate)+", params "+JSON.stringify(params));
 				return params[name]; // may change type if params[name] is not a string
 			case 'object':
@@ -1343,7 +1344,7 @@ function replaceInTemplate(arrTemplate, params){
 						x[i] = replaceInVar(x[i]);
 				else
 					for (var key in x)
-						x[key] = replaceInVar(x[key]);
+						assignField(x, key, replaceInVar(x[key]));
 				return x;
 			default:
 				throw Error("unknown type");

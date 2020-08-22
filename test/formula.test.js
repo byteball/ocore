@@ -3927,6 +3927,90 @@ test('dictionary with keys containing reserved words', t => {
 	})
 });
 
+test('dictionary with hasOwnProperty key', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {
+			"key1": 7,
+			hasOwnProperty: 8,
+			key2: 9
+		};
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, {key1: 7, hasOwnProperty: 8, key2: 9});
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('hasOwnProperty function', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$hasOwnProperty = $x => $x^2;
+		$y = 6;
+		$x = $hasOwnProperty(3);
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 9);
+		t.deepEqual(complexity, 2);
+	})
+});
+
+test('dictionary with __proto__ key', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {
+			"key1": 7,
+			__proto__: 8,
+			key2: 9
+		};
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, JSON.parse('{ "key1": 7, "__proto__": 8, "key2": 9 }'));
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('__proto__ variable', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$__proto__ = 5;
+		$x = 8;
+		$__proto__ + 1
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		console.log(res);
+		t.deepEqual(res, 6);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('__proto__ function', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$__proto__ = $x => $x^2;
+		$y = 6;
+		$x = $__proto__(3);
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 9);
+		t.deepEqual(complexity, 2);
+	})
+});
+
 test('mutating objects', t => {
 	var trigger = { data: { q: { a: 6 } } };
 	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };

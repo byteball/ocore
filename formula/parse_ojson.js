@@ -2,6 +2,8 @@ var _ = require('lodash');
 var nearley = require('nearley');
 var ojsonGrammar = require('./grammars/ojson.js');
 var oscriptGrammar = require('./grammars/oscript.js');
+var ValidationUtils = require("../validation_utils.js");
+var assignField = require('./common.js').assignField;
 
 var TYPES = {
 	STR: 'STR',
@@ -86,7 +88,13 @@ exports.parse = function (text, callback) {
 				var msg = e.message;
 				var match = msg.match(/invalid syntax at line ([\d]+) col ([\d]+):([\s\S]+)/m);
 				if (match) {
-					throw new Error(`Invalid formula syntax at line ${tree.context.line + Number(match[1]) - 1} col ${tree.context.col + Number(match[2]) - 1}:${match[3]}`);
+					var line = Number(match[1]) - 1;
+					var col = Number(match[2]);
+					if (line === 0) {
+						throw new Error(`Invalid formula syntax at line ${tree.context.line} col ${tree.context.col + col - 1}:${match[3]}`);
+					} else {
+						throw new Error(`Invalid formula syntax at line ${tree.context.line + line} col ${col}:${match[3]}`);
+					}
 				} else if (msg.startsWith('Error parsing formula starting at line')) {
 					throw new Error(msg)
 			  } else {
@@ -109,10 +117,10 @@ exports.parse = function (text, callback) {
 			var res = processTree(st);
 			var key = Object.keys(res)[0];
 			var value = _.values(res)[0];
-			if (obj.hasOwnProperty(key)) {
+			if (ValidationUtils.hasOwnProperty(obj, key)) {
 				throw new Error(`Duplicate key '${key}' at line ${st.context.line} col ${st.context.col}`);
 			}
-			obj[key] = value;
+			assignField(obj, key, value);
 		}
 		return obj;
 	}

@@ -37,7 +37,7 @@ function dataFeedExists(arrAddresses, feed_name, relation, value, min_mci, max_m
 				if (message.app !== 'data_feed')
 					return;
 				var payload = message.payload;
-				if (!payload.hasOwnProperty(feed_name))
+				if (!ValidationUtils.hasOwnProperty(payload, feed_name))
 					return;
 				var feed_value = payload[feed_name];
 				if (relation === '=') {
@@ -205,7 +205,7 @@ function readDataFeedValue(arrAddresses, feed_name, value, min_mci, max_mci, bAA
 				if (message.app !== 'data_feed')
 					return;
 				var payload = message.payload;
-				if (!payload.hasOwnProperty(feed_name))
+				if (!ValidationUtils.hasOwnProperty(payload, feed_name))
 					return;
 				var feed_value = payload[feed_name];
 				if (value === null || value === feed_value || value.toString() === feed_value.toString())

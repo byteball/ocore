@@ -4,7 +4,7 @@ var eventBus = require('./event_bus.js');
 var constants = require("./constants.js");
 var conf = require("./conf.js");
 
-var VERSION = 40;
+var VERSION = 41;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -406,6 +406,8 @@ function migrateDb(connection, onDone){
 					connection.addQuery(arrQueries, "ALTER TABLE aa_addresses ADD COLUMN getters TEXT NULL");
 					connection.addQuery(arrQueries, "PRAGMA user_version=40");
 				}
+				if (version < 41)
+					connection.addQuery(arrQueries, "DELETE FROM known_bad_joints");
 				cb();
 			},
 		],
