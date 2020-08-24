@@ -2700,7 +2700,7 @@ function handleJustsaying(ws, subject, body){
 						return sendError(ws, "not an AA: " + body.aa);
 				}
 				bWatchingForLight = true;
-				db.query("INSERT " + db.getIgnore() + " INTO watched_light_aas (peer, aa, address) VALUES (?,?,?)", [ws.peer, body.aa, body.address], function () {
+				db.query("INSERT " + db.getIgnore() + " INTO watched_light_aas (peer, aa, address) VALUES (?,?,?)", [ws.peer, body.aa, body.address || ''], function () {
 					sendInfo(ws, "now watching AA " + body.aa + " address " + (body.address || 'all'));
 				});
 			});
