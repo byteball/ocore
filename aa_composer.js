@@ -83,6 +83,7 @@ function handlePrimaryAATrigger(mci, unit, address, arrDefinition, arrPostedUnit
 					var arrResponses = [];
 					var trigger = getTrigger(objUnit, address);
 					trigger.initial_address = trigger.address;
+					trigger.initial_unit = trigger.unit;
 					handleTrigger(conn, batch, null, trigger, {}, {}, arrDefinition, address, mci, objMcUnit, false, arrResponses, function(){
 						conn.query("DELETE FROM aa_triggers WHERE mci=? AND unit=? AND address=?", [mci, unit, address], function(){
 							var batch_start_time = Date.now();
@@ -158,6 +159,7 @@ function dryRunPrimaryAATrigger(trigger, address, arrDefinition, onDone) {
 				if (!trigger.address)
 					trigger.address = objMcUnit.authors[0].address;
 				trigger.initial_address = trigger.address;
+				trigger.initial_unit = trigger.unit;
 				var fPrepare = function (cb) {
 					insertFakeOutputsIntoMcUnit(conn, objMcUnit, trigger.outputs, address, cb);
 				};
@@ -253,6 +255,8 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 		throw Error('bad AA definition ' + arrDefinition);
 	if (!trigger.initial_address)
 		trigger.initial_address = trigger.address;
+	if (!trigger.initial_unit)
+		trigger.initial_unit = trigger.unit;
 	var error_message = '';
 	var responseVars = {};
 	var template = arrDefinition[1];
@@ -1157,6 +1161,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 			trigger_address: trigger.address,
 			trigger_initial_address: trigger.initial_address,
 			trigger_unit: trigger.unit,
+			trigger_initial_unit: trigger.initial_unit,
 			aa_address: address,
 			bounced: bBouncing,
 			response_unit: response_unit,
@@ -1242,6 +1247,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 				function (row, cb) {
 					var child_trigger = getTrigger(objUnit, row.address);
 					child_trigger.initial_address = trigger.initial_address;
+					child_trigger.initial_unit = trigger.initial_unit;
 					var arrChildDefinition = JSON.parse(row.definition);
 					handleTrigger(conn, batch, null, child_trigger, {}, stateVars, arrChildDefinition, row.address, mci, objMcUnit, true, arrResponses, function (objSecondaryUnit, bounce_message) {
 						if (bounce_message)
