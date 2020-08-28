@@ -3320,6 +3320,20 @@ function handleRequest(ws, tag, command, params){
 			});
 			break;
 			
+		case 'light/get_aa_balances':
+			if (!params)
+				return sendErrorResponse(ws, tag, "no params in light/get_aa_balances");
+			if (!ValidationUtils.isValidAddress(params.address))
+				return sendErrorResponse(ws, tag, "address not valid");
+			db.query("SELECT asset, balance FROM aa_balances WHERE address=?", [params.address], function (rows) {
+				var assocBalances = {};
+				rows.forEach(function (row) {
+					assocBalances[row.asset] = row.balance;
+				});
+				sendResponse(ws, tag, { balances: assocBalances });
+			});
+			break;
+			
 		case 'light/execute_getter':
 			if (!params)
 				return sendErrorResponse(ws, tag, "no params in light/execute_getter");
