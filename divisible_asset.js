@@ -170,14 +170,19 @@ function validateDivisiblePrivatePayment(conn, objPrivateElement, callbacks){
 // {asset: asset, paying_addresses: arrPayingAddresses, fee_paying_addresses: arrFeePayingAddresses, change_address: change_address, to_address: to_address, amount: amount, signer: signer, callbacks: callbacks}
 function composeDivisibleAssetPaymentJoint(params){
 	console.log("asset payment from "+params.paying_addresses);
+	var bTo = params.to_address ? 1 : 0;
+	var bAssetOutputs = params.asset_outputs ? 1 : 0;
+	var bOutputsByAsset = params.outputs_by_asset ? 1 : 0;
+	if (bTo + bAssetOutputs + bOutputsByAsset !== 1)
+		throw Error("incompatible params");
 	if ((params.to_address || params.amount) && params.asset_outputs)
 		throw Error("to_address and asset_outputs at the same time");
 	if (params.to_address && !params.amount)
 		throw Error("to_address but not amount");
 	if (!params.to_address && params.amount)
 		throw Error("amount but not to_address");
-	if (!params.to_address && !params.asset_outputs)
-		throw Error("neither to_address nor asset_outputs");
+	if (!params.to_address && !params.asset_outputs && !params.outputs_by_asset)
+		throw Error("neither to_address nor asset_outputs nor outputs_by_asset");
 	if (params.asset_outputs && !ValidationUtils.isNonemptyArray(params.asset_outputs))
 		throw Error('asset_outputs must be non-empty array');
 	if (!ValidationUtils.isNonemptyArray(params.fee_paying_addresses))
@@ -186,6 +191,17 @@ function composeDivisibleAssetPaymentJoint(params){
 	var arrBaseOutputs = [{address: params.fee_paying_addresses[0], amount: 0}]; // public outputs: the change only
 	if (params.base_outputs)
 		arrBaseOutputs = arrBaseOutputs.concat(params.base_outputs);
+	if (params.outputs_by_asset && params.outputs_by_asset.base)
+		arrBaseOutputs = arrBaseOutputs.concat(params.outputs_by_asset.base);
+	var arrAssetPayments = [];
+	if (params.to_address)
+		arrAssetPayments.push({ asset: params.asset, outputs: [{ address: params.to_address, amount: params.amount }] });
+	else if (params.asset_outputs)
+		arrAssetPayments.push({ asset: params.asset, outputs: params.asset_outputs });
+	else if (params.outputs_by_asset)
+		for (var a in params.outputs_by_asset)
+			if (a !== 'base')
+				arrAssetPayments.push({ asset: a, outputs: params.outputs_by_asset[a] });
 	composer.composeJoint({
 		paying_addresses: _.union(params.paying_addresses, params.fee_paying_addresses), // addresses that pay for the transfer and commissions
 		signing_addresses: params.signing_addresses,
@@ -196,59 +212,69 @@ function composeDivisibleAssetPaymentJoint(params){
 		// function that creates additional messages to be added to the joint
 		retrieveMessages: function(conn, last_ball_mci, bMultiAuthored, arrPayingAddresses, onDone){
 			var arrAssetPayingAddresses = _.intersection(arrPayingAddresses, params.paying_addresses);
-			storage.loadAssetWithListOfAttestedAuthors(conn, params.asset, last_ball_mci, arrAssetPayingAddresses, function(err, objAsset){
-				if (err)
-					return onDone(err);
-				if (objAsset.fixed_denominations)
-					return onDone("fixed denominations asset type");
-				// fix: also check change address when not transferrable
-				if (!objAsset.is_transferrable && params.to_address !== objAsset.definer_address && arrAssetPayingAddresses.indexOf(objAsset.definer_address) === -1)
-					return onDone("the asset is not transferrable and definer not found on either side of the deal");
-				if (objAsset.cosigned_by_definer && arrPayingAddresses.concat(params.signing_addresses || []).indexOf(objAsset.definer_address) === -1)
-					return onDone("the asset must be cosigned by definer");
-				if (!conf.bLight && objAsset.spender_attested && objAsset.arrAttestedAddresses.length === 0)
-					return onDone("none of the authors is attested");
-				
-				var target_amount = params.to_address 
-					? params.amount 
-					: params.asset_outputs.reduce(function(accumulator, output){ return accumulator + output.amount; }, 0);
-				inputs.pickDivisibleCoinsForAmount(
-					conn, objAsset, arrAssetPayingAddresses, last_ball_mci, target_amount, bMultiAuthored, params.spend_unconfirmed || 'own',
-					function(arrInputsWithProofs, total_input){
-						console.log("pick coins callback "+JSON.stringify(arrInputsWithProofs));
-						if (!arrInputsWithProofs)
-							return onDone({error_code: "NOT_ENOUGH_FUNDS", error: "not enough asset coins"});
-						var arrOutputs = params.to_address ? [{address: params.to_address, amount: params.amount}] : params.asset_outputs;
-						var change = total_input - target_amount;
-						if (change > 0){
-							var objChangeOutput = {address: params.change_address, amount: change};
-							arrOutputs.push(objChangeOutput);
-						}
-						if (objAsset.is_private)
-							arrOutputs.forEach(function(output){ output.blinding = composer.generateBlinding(); });
-						arrOutputs.sort(composer.sortOutputs);
-						var payload = {
-							asset: params.asset,
-							inputs: arrInputsWithProofs.map(function(objInputWithProof){ return objInputWithProof.input; }),
-							outputs: arrOutputs
-						};
-						var objMessage = {
-							app: "payment",
-							payload_location: objAsset.is_private ? "none" : "inline",
-							payload_hash: objectHash.getBase64Hash(payload, last_ball_mci >= constants.timestampUpgradeMci)
-						};
-						var assocPrivatePayloads;
-						if (objAsset.is_private){
-							objMessage.spend_proofs = arrInputsWithProofs.map(function(objInputWithProof){ return objInputWithProof.spend_proof; });
-							private_payload = payload;
-							assocPrivatePayloads[objMessage.payload_hash] = private_payload;
-						}
-						else
-							objMessage.payload = payload;
-						onDone(null, [objMessage], assocPrivatePayloads);
-					}
-				);
-			});
+			var messages = [];
+			var assocPrivatePayloads;
+			async.eachSeries(
+				arrAssetPayments,
+				function (payment, cb) {
+					storage.loadAssetWithListOfAttestedAuthors(conn, payment.asset, last_ball_mci, arrAssetPayingAddresses, function(err, objAsset){
+						if (err)
+							return cb(err);
+						if (objAsset.fixed_denominations)
+							return cb("fixed denominations asset type");
+						// fix: also check change address when not transferrable
+						if (!objAsset.is_transferrable && params.to_address !== objAsset.definer_address && arrAssetPayingAddresses.indexOf(objAsset.definer_address) === -1)
+							return cb("the asset is not transferrable and definer not found on either side of the deal");
+						if (objAsset.cosigned_by_definer && arrPayingAddresses.concat(params.signing_addresses || []).indexOf(objAsset.definer_address) === -1)
+							return cb("the asset must be cosigned by definer");
+						if (!conf.bLight && objAsset.spender_attested && objAsset.arrAttestedAddresses.length === 0)
+							return cb("none of the authors is attested");
+						
+						var target_amount = payment.outputs.reduce(function(accumulator, output){ return accumulator + output.amount; }, 0);
+						inputs.pickDivisibleCoinsForAmount(
+							conn, objAsset, arrAssetPayingAddresses, last_ball_mci, target_amount, bMultiAuthored, params.spend_unconfirmed || 'own',
+							function(arrInputsWithProofs, total_input){
+								console.log("pick coins callback "+JSON.stringify(arrInputsWithProofs));
+								if (!arrInputsWithProofs)
+									return cb({error_code: "NOT_ENOUGH_FUNDS", error: "not enough asset coins"});
+								var arrOutputs = payment.outputs;
+								var change = total_input - target_amount;
+								if (change > 0){
+									var objChangeOutput = {address: params.change_address, amount: change};
+									arrOutputs.push(objChangeOutput);
+								}
+								if (objAsset.is_private)
+									arrOutputs.forEach(function(output){ output.blinding = composer.generateBlinding(); });
+								arrOutputs.sort(composer.sortOutputs);
+								var payload = {
+									asset: payment.asset,
+									inputs: arrInputsWithProofs.map(function(objInputWithProof){ return objInputWithProof.input; }),
+									outputs: arrOutputs
+								};
+								var objMessage = {
+									app: "payment",
+									payload_location: objAsset.is_private ? "none" : "inline",
+									payload_hash: objectHash.getBase64Hash(payload, last_ball_mci >= constants.timestampUpgradeMci)
+								};
+								if (objAsset.is_private){
+									objMessage.spend_proofs = arrInputsWithProofs.map(function(objInputWithProof){ return objInputWithProof.spend_proof; });
+									private_payload = payload;
+									assocPrivatePayloads[objMessage.payload_hash] = private_payload;
+								}
+								else
+									objMessage.payload = payload;
+								messages.push(objMessage);
+								cb();
+							}
+						);
+					});
+				},
+				function (err) {
+					if (err)
+						return onDone(err);
+					onDone(null, messages, assocPrivatePayloads);
+				}
+			);
 		},
 		
 		signer: params.signer, 
