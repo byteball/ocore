@@ -1466,11 +1466,11 @@ function readFundedAndSigningAddresses(
 {
 	var arrFundedAddresses = [];
 	var arrBaseFundedAddresses = [];
-	var bBytesOnly = (arrPayments.length === 1 && !arrPayments[0].asset);
 	if (arrPayments.filter(payment => !payment.asset).length === 0) { // no bytes payment
 		arrPayments = _.clone(arrPayments);
 		arrPayments.push({ asset: null, outputs: [{ amount: TYPICAL_FEE }] }); // dummy payment in bytes
 	}
+	var bBytesOnly = (arrPayments.length === 1 && !arrPayments[0].asset);
 	async.eachSeries(
 		arrPayments,
 		function (payment, cb) {
@@ -1692,7 +1692,7 @@ function sendMultiPayment(opts, handleResult)
 		if (amount < 0)
 			throw Error('amount must be positive');
 	}
-	if (bTo + bOutputs + bOutputsByAsset !== 1)
+	if (bTo + bOutputs + bOutputsByAsset > 1)
 		throw Error("incompatible params in sendMultiPayment");
 	if (asset && outputs_by_asset)
 		throw Error("asset with outputs_by_asset");
