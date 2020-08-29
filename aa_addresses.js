@@ -103,7 +103,7 @@ function readAADefinitions(arrAddresses, handleRows) {
 function checkAAOutputs(arrPayments, handleResult) {
 	var assocAmounts = {};
 	arrPayments.forEach(function (payment) {
-		var asset = payment.asset;
+		var asset = payment.asset || 'base';
 		payment.outputs.forEach(function (output) {
 			if (!assocAmounts[output.address])
 				assocAmounts[output.address] = {};

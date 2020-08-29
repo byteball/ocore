@@ -1466,6 +1466,7 @@ function readFundedAndSigningAddresses(
 {
 	var arrFundedAddresses = [];
 	var arrBaseFundedAddresses = [];
+	var bBytesOnly = (arrPayments.length === 1 && !arrPayments[0].asset);
 	if (arrPayments.filter(payment => !payment.asset).length === 0) { // no bytes payment
 		arrPayments = _.clone(arrPayments);
 		arrPayments.push({ asset: null, outputs: [{ amount: TYPICAL_FEE }] }); // dummy payment in bytes
@@ -1475,7 +1476,7 @@ function readFundedAndSigningAddresses(
 		function (payment, cb) {
 			var estimated_amount = payment.outputs.reduce(function (acc, output) { return acc + output.amount; }, 0);
 			readFundedAddressesWithFeePayingWallet(payment.asset, wallet, fee_paying_wallet, estimated_amount, spend_unconfirmed, function (_arrFundedAddresses) {
-				if (payment.asset)
+				if (payment.asset || bBytesOnly)
 					arrFundedAddresses = _.union(arrFundedAddresses, _arrFundedAddresses);
 				else
 					arrBaseFundedAddresses = _arrFundedAddresses;
@@ -1708,7 +1709,7 @@ function sendMultiPayment(opts, handleResult)
 		arrPayments.push({ asset: null, outputs: base_outputs });
 	if (outputs_by_asset)
 		for (var a in outputs_by_asset)
-			arrPayments.push({ asset: a, outputs: outputs_by_asset[a] });
+			arrPayments.push({ asset: (a === 'base') ? null : a, outputs: outputs_by_asset[a] });
 
 	if (!opts.aa_addresses_checked) {
 		aa_addresses.checkAAOutputs(arrPayments, function (err) {
