@@ -1659,7 +1659,10 @@ function addLightWatchedAddress(address, handle){
 }
 
 function addLightWatchedAa(aa, address, handle){
-	sendJustsayingToLightVendor('light/new_aa_to_watch', {aa: aa , address: address}, handle);
+	var params = { aa: aa };
+	if (address)
+		params.address = address;
+	sendJustsayingToLightVendor('light/new_aa_to_watch', params, handle);
 }
 
 function flushEvents(forceFlushing) {
@@ -2691,7 +2694,7 @@ function handleJustsaying(ws, subject, body){
 				return sendError(ws, "light clients have to be inbound");
 			if (!ValidationUtils.isValidAddress(body.aa))
 				return sendError(ws, "invalid AA: " + body.aa);
-			if ("address" in body && !ValidationUtils.isValidAddress(body.address))
+			if (body.address && !ValidationUtils.isValidAddress(body.address))
 				return sendError(ws, "invalid address: " + body.address);
 			storage.readAADefinition(db, body.aa, function (arrDefinition) {
 				if (!arrDefinition) {
