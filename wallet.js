@@ -1663,7 +1663,7 @@ function sendMultiPayment(opts, handleResult)
 	var messages = opts.messages;
 
 	var bTo = to_address ? 1 : 0;
-	var bAssetOutputs = asset_outputs ? 1 : 0;
+	var bOutputs = (asset_outputs || base_outputs) ? 1 : 0;
 	var bOutputsByAsset = outputs_by_asset ? 1 : 0;
 
 	function getNonbaseAsset() {
@@ -1691,7 +1691,7 @@ function sendMultiPayment(opts, handleResult)
 		if (amount < 0)
 			throw Error('amount must be positive');
 	}
-	if (bTo + bAssetOutputs + bOutputsByAsset !== 1)
+	if (bTo + bOutputs + bOutputsByAsset !== 1)
 		throw Error("incompatible params in sendMultiPayment");
 	if (asset && outputs_by_asset)
 		throw Error("asset with outputs_by_asset");
