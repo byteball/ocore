@@ -3377,7 +3377,7 @@ function handleRequest(ws, tag, command, params){
 						return sendErrorResponse(ws, tag, "invalid type of param " + name + ": " + (typeof value));
 				}
 			}
-			db.query("SELECT address, definition, creation_date FROM aa_addresses WHERE base_aa IN(?)", [base_aas], function (rows) {
+			db.query("SELECT address, definition, unit, creation_date FROM aa_addresses WHERE base_aa IN(?)", [base_aas], function (rows) {
 				var arrAAs = [];
 				rows.forEach(function (row) {
 					var arrDefinition = JSON.parse(row.definition);
@@ -3386,7 +3386,7 @@ function handleRequest(ws, tag, command, params){
 						if (!satisfiesSearchCriteria(this_aa_params[name], aa_params[name]))
 							return;
 					}
-					arrAAs.push({ address: row.address, definition: arrDefinition, creation_date: row.creation_date });
+					arrAAs.push({ address: row.address, definition: arrDefinition, unit: row.unit, creation_date: row.creation_date });
 				});
 				sendResponse(ws, tag, arrAAs);
 			});
