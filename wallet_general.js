@@ -56,6 +56,8 @@ function readMyAddresses(handleAddresses){
 }
 
 function addWatchedAddress(address, handle){
+	if (!handle)
+		handle = function () { };
 	if (!ValidationUtils.isValidAddress(address))
 		return handle("not a valid address");
 	db.query("INSERT "+db.getIgnore()+" INTO my_watched_addresses (address) VALUES (?)", [address], function(){
