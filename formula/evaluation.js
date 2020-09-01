@@ -3000,52 +3000,8 @@ function executeGetter(conn, aa_address, getter, args, cb) {
 	return executeGetterInState(conn, aa_address, getter, args, {}, {}, cb);
 }
 
-function extractInitParams(formula) {
-	var parser = {};
-	if(cache[formula])
-		parser.results = cache[formula];
-	else {
-		parser = new nearley.Parser(nearley.Grammar.fromCompiled(grammar));
-		parser.feed(formula);
-		formulasInCache.push(formula);
-		cache[formula] = parser.results;
-		if (formulasInCache.length > cacheLimit) {
-			var f = formulasInCache.shift();
-			delete cache[f];
-		}
-	}
-	if (parser.results.length !== 1)
-		throw Error("ambiguous formula in already validated init");
-	var arr = parser.results[0];
-	if (arr[0] !== 'main')
-		throw Error("no main in already parsed init");
-	if (arr[2])
-		throw Error("expr in already parsed init");
-	var params = {};
-	var arrStatements = arr[1];
-	var arrLocalVarAssignmentStatements = arr[1].filter(a => a[0] === 'local_var_assignment');
-	var arrRemainingStatements = arrStatements.filter(a => {
-		if (a[0] !== 'local_var_assignment')
-			return true;
-		var var_name = a[1][1];
-		if (typeof var_name !== 'string') // ${expr} not accepted
-			return true;
-		var rhs = a[2];
-		var value;
-		if (typeof rhs !== 'string' || typeof rhs !== 'boolean')
-			value = rhs;
-		else if (!Decimal.isDecimal(rhs))
-			value = rhs.toNumber();
-		else
-			return true;
-		assignField(params, var_name, value);
-		return false;
-	});
-	return { params, arrRemainingStatements };
-}
 
 exports.wrappedObject = wrappedObject;
 exports.toJsType = toJsType;
 exports.executeGetterInState = executeGetterInState;
 exports.executeGetter = executeGetter;
-exports.extractInitParams = extractInitParams;
