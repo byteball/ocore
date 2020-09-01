@@ -1503,7 +1503,7 @@ exports.evaluate = function (opts, callback) {
 						if (arrDefinition) {
 							if (bAA)
 								return cb(new wrappedObject(arrDefinition));
-							// could by defined later, e.g. by fresh AA
+							// could be defined later, e.g. by fresh AA
 							storage.readUnitProps(conn, definition_unit, function (props) {
 								if (props.main_chain_index === null || props.main_chain_index > mci)
 									return cb(false);
@@ -2971,10 +2971,10 @@ function callGetter(conn, aa_address, getter, args, stateVars, objValidationStat
 	});
 }
 
-function executeGetter(conn, aa_address, getter, args, cb) {
+function executeGetterInState(conn, aa_address, getter, args, stateVars, assocBalances, cb) {
 	if (!cb)
 		return new Promise((resolve, reject) => {
-			executeGetter(conn, aa_address, getter, args, (err, res) => {
+			executeGetterInState(conn, aa_address, getter, args, stateVars, assocBalances, (err, res) => {
 				err ? reject(new Error(err)) : resolve(res);
 			});
 		});
@@ -2983,17 +2983,21 @@ function executeGetter(conn, aa_address, getter, args, cb) {
 			last_ball_mci: props.main_chain_index,
 			last_ball_timestamp: props.timestamp,
 			mc_unit: props.unit, // must not be used
-			assocBalances: {},
+			assocBalances: assocBalances,
 			number_of_responses: 0, // must not be used
 			arrPreviousResponseUnits: [],
 		};
 		args = args.map(toOscriptType);
-		callGetter(conn, aa_address, getter, args, {}, objValidationState, (err, res) => {
+		callGetter(conn, aa_address, getter, args, stateVars, objValidationState, (err, res) => {
 			if (err)
 				return cb(err);
 			cb(null, toJsType(res));
 		});
 	});
+}
+
+function executeGetter(conn, aa_address, getter, args, cb) {
+	return executeGetterInState(conn, aa_address, getter, args, {}, {}, cb);
 }
 
 function extractInitParams(formula) {
@@ -3042,5 +3046,6 @@ function extractInitParams(formula) {
 
 exports.wrappedObject = wrappedObject;
 exports.toJsType = toJsType;
+exports.executeGetterInState = executeGetterInState;
 exports.executeGetter = executeGetter;
 exports.extractInitParams = extractInitParams;
