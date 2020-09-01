@@ -30,6 +30,8 @@ function MissingBounceFeesErrorMessage(obj) {
 
 
 function readAADefinitions(arrAddresses, handleRows) {
+	if (!handleRows)
+		return new Promise(resolve => readAADefinitions(arrAddresses, resolve));
 	db.query("SELECT definition, address, base_aa FROM aa_addresses WHERE address IN (" + arrAddresses.map(db.escape).join(', ') + ")", function (rows) {
 		if (!conf.bLight || arrAddresses.length === rows.length)
 			return handleRows(rows);
