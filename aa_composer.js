@@ -84,7 +84,7 @@ function handlePrimaryAATrigger(mci, unit, address, arrDefinition, arrPostedUnit
 					var trigger = getTrigger(objUnit, address);
 					trigger.initial_address = trigger.address;
 					trigger.initial_unit = trigger.unit;
-					handleTrigger(conn, batch, null, trigger, {}, {}, arrDefinition, address, mci, objMcUnit, false, arrResponses, function(){
+					handleTrigger(conn, batch, trigger, {}, {}, arrDefinition, address, mci, objMcUnit, false, arrResponses, function(){
 						conn.query("DELETE FROM aa_triggers WHERE mci=? AND unit=? AND address=?", [mci, unit, address], function(){
 							var batch_start_time = Date.now();
 							batch.write(function(err){
@@ -165,7 +165,7 @@ function dryRunPrimaryAATrigger(trigger, address, arrDefinition, onDone) {
 				};
 				fPrepare(function () {
 					var arrResponses = [];
-					handleTrigger(conn, batch, fPrepare, trigger, {}, {}, arrDefinition, address, mci, objMcUnit, false, arrResponses, function () {
+					handleTrigger(conn, batch, trigger, {}, {}, arrDefinition, address, mci, objMcUnit, false, arrResponses, function () {
 						revertResponsesInCaches(arrResponses);
 						batch.clear();
 						conn.query("ROLLBACK", function () {
@@ -250,7 +250,7 @@ function getTrigger(objUnit, receiving_address) {
 }
 
 // the result is onDone(objResponseUnit, bBounced)
-function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDefinition, address, mci, objMcUnit, bSecondary, arrResponses, onDone) {
+function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, address, mci, objMcUnit, bSecondary, arrResponses, onDone) {
 	if (arrDefinition[0] !== 'autonomous agent')
 		throw Error('bad AA definition ' + arrDefinition);
 	if (!trigger.initial_address)
@@ -267,7 +267,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 			if (!arrBaseDefinition)
 				throw Error("base AA not found");
 			console.log("redirecting to base AA " + template.base_aa + " with params " + JSON.stringify(template.params));
-			handleTrigger(conn, batch, null, trigger, template.params, stateVars, arrBaseDefinition, address, mci, objMcUnit, bSecondary, arrResponses, onDone);
+			handleTrigger(conn, batch, trigger, template.params, stateVars, arrBaseDefinition, address, mci, objMcUnit, bSecondary, arrResponses, onDone);
 		});
 		return;
 	}
@@ -1249,7 +1249,7 @@ function handleTrigger(conn, batch, fPrepare, trigger, params, stateVars, arrDef
 					child_trigger.initial_address = trigger.initial_address;
 					child_trigger.initial_unit = trigger.initial_unit;
 					var arrChildDefinition = JSON.parse(row.definition);
-					handleTrigger(conn, batch, null, child_trigger, {}, stateVars, arrChildDefinition, row.address, mci, objMcUnit, true, arrResponses, function (objSecondaryUnit, bounce_message) {
+					handleTrigger(conn, batch, child_trigger, {}, stateVars, arrChildDefinition, row.address, mci, objMcUnit, true, arrResponses, function (objSecondaryUnit, bounce_message) {
 						if (bounce_message)
 							return cb(bounce_message);
 						cb();
