@@ -2897,6 +2897,26 @@ function toJsType(x) {
 	throw Error("unknown type in toJsType:" + x);
 }
 
+function assoc2stateVars(assoc) {
+	let stateVars = {};
+	for (let var_name in assoc) {
+		let value = toOscriptType(assoc[var_name]);
+		stateVars[var_name] = {
+			value: value,
+			old_value: value,
+			original_old_value: value,
+		};
+	}
+	return stateVars;
+}
+
+function stateVars2assoc(stateVars) {
+	let assoc = {};
+	for (let var_name in stateVars)
+		assoc[var_name] = toJsType(stateVars[var_name].value);
+	return assoc;
+}
+
 function callGetter(conn, aa_address, getter, args, stateVars, objValidationState, cb) {
 	var i = 0;
 	var locals = {};
@@ -3006,5 +3026,8 @@ function executeGetter(conn, aa_address, getter, args, cb) {
 
 exports.wrappedObject = wrappedObject;
 exports.toJsType = toJsType;
+exports.toOscriptType = toOscriptType;
+exports.assoc2stateVars = assoc2stateVars;
+exports.stateVars2assoc = stateVars2assoc;
 exports.executeGetterInState = executeGetterInState;
 exports.executeGetter = executeGetter;
