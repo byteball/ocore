@@ -2978,7 +2978,10 @@ function executeGetterInState(conn, aa_address, getter, args, stateVars, assocBa
 				err ? reject(new Error(err)) : resolve(res);
 			});
 		});
-	storage.readLastStableMcUnitProps(conn, props => {
+	conn.query("SELECT * FROM units ORDER BY main_chain_index DESC LIMIT 1", rows => {
+		var props = rows[0];
+		if (!props)
+			throw Error("no last unit");
 		objValidationState = {
 			last_ball_mci: props.main_chain_index,
 			last_ball_timestamp: props.timestamp,
