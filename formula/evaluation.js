@@ -2898,9 +2898,9 @@ function toJsType(x) {
 }
 
 function assoc2stateVars(assoc) {
-	let stateVars = {};
-	for (let var_name in assoc) {
-		let value = toOscriptType(assoc[var_name]);
+	var stateVars = {};
+	for (var var_name in assoc) {
+		var value = toOscriptType(assoc[var_name]);
 		stateVars[var_name] = {
 			value: value,
 			old_value: value,
@@ -2911,8 +2911,8 @@ function assoc2stateVars(assoc) {
 }
 
 function stateVars2assoc(stateVars) {
-	let assoc = {};
-	for (let var_name in stateVars)
+	var assoc = {};
+	for (var var_name in stateVars)
 		assoc[var_name] = toJsType(stateVars[var_name].value);
 	return assoc;
 }
