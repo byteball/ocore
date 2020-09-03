@@ -21,6 +21,7 @@ var conf = require('./conf.js');
 var getFormula = require('./formula/common.js').getFormula;
 var hasCases = require('./formula/common.js').hasCases;
 var assignField = require('./formula/common.js').assignField;
+var assignObject = require('./formula/common.js').assignObject;
 var wrappedObject = formulaParser.wrappedObject;
 var toJsType = formulaParser.toJsType;
 
@@ -110,6 +111,55 @@ function handlePrimaryAATrigger(mci, unit, address, arrDefinition, arrPostedUnit
 							});
 						});
 					});
+				});
+			});
+		});
+	});
+}
+
+// estimates the effects of an AA trigger before it gets stable.
+// stateVars and assocBalances are updated after the function returns.
+// The estimation is not 100% accurate, e.g. storage_size is ignored, unit validation errors are not caught
+function estimatePrimaryAATrigger(objUnit, address, stateVars, assocBalances, onDone) {
+	if (!onDone)
+		return new Promise(resolve => estimatePrimaryAATrigger(objUnit, address, stateVars, assocBalances, resolve));
+	db.takeConnectionFromPool(function (conn) {
+		conn.query("BEGIN", function () {
+			storage.readAADefinition(conn, address, arrDefinition => {
+				if (!arrDefinition)
+					throw Error("AA not found: " + address)
+				readLastUnit(conn, function (objMcUnit) {
+					// rewrite timestamp in case our last unit is old (light or unsynced full)
+					objMcUnit.timestamp = Math.floor(Date.now() / 1000);
+					var mci = objMcUnit.main_chain_index;
+					var arrResponses = [];
+					var trigger = getTrigger(objUnit, address);
+					trigger.initial_address = trigger.address;
+					trigger.initial_unit = trigger.unit;
+					var trigger_opts = {
+						bAir: true,
+						conn,
+						trigger,
+						params: {},
+						stateVars,
+						assocBalances, // balances _before_ the trigger, not including the coins received in the trigger
+						arrDefinition,
+						address,
+						mci,
+						objMcUnit,
+						arrResponses,
+						onDone: function () {
+							conn.query("ROLLBACK", function () {
+								conn.release();
+								// copy updatedStateVars to all responses
+								if (arrResponses.length > 1 && arrResponses[0].updatedStateVars)
+									for (var i = 1; i < arrResponses.length; i++)
+										arrResponses[i].updatedStateVars = arrResponses[0].updatedStateVars;
+								onDone(arrResponses);
+							});
+						},
+					}
+					handleTrigger(trigger_opts);
 				});
 			});
 		});
@@ -216,6 +266,14 @@ function readMcUnit(conn, mci, handleUnit) {
 	});
 }
 
+function readLastUnit(conn, handleUnit) {
+	conn.query("SELECT unit FROM units ORDER BY main_chain_index DESC LIMIT 1", function (rows) {
+		if (rows.length !== 1)
+			throw Error("found " + rows.length + " last units");
+		readUnit(conn, rows[0].unit, handleUnit);
+	});
+}
+
 function readUnit(conn, unit, handleUnit) {
 	storage.readJoint(conn, unit, {
 		ifNotFound: function () {
@@ -251,6 +309,29 @@ function getTrigger(objUnit, receiving_address) {
 
 // the result is onDone(objResponseUnit, bBounced)
 function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, address, mci, objMcUnit, bSecondary, arrResponses, onDone) {
+	var trigger_opts;
+	if (arguments.length === 1) {
+		trigger_opts = conn;
+		conn = trigger_opts.conn;
+		batch = trigger_opts.batch;
+		trigger = trigger_opts.trigger;
+		params = trigger_opts.params;
+		stateVars = trigger_opts.stateVars;
+		arrDefinition = trigger_opts.arrDefinition;
+		address = trigger_opts.address;
+		mci = trigger_opts.mci;
+		objMcUnit = trigger_opts.objMcUnit;
+		bSecondary = trigger_opts.bSecondary;
+		arrResponses = trigger_opts.arrResponses;
+		onDone = trigger_opts.onDone;
+		// extra options:
+		// trigger_opts.bAir
+		// trigger_opts.assocBalances
+		if (!!trigger_opts.bAir !== !!trigger_opts.assocBalances)
+			throw Error("assocBalances and bAir do not match");
+	}
+	else
+		trigger_opts = { conn, batch, trigger, params, stateVars, arrDefinition, address, mci, objMcUnit, bSecondary, arrResponses, onDone };
 	if (arrDefinition[0] !== 'autonomous agent')
 		throw Error('bad AA definition ' + arrDefinition);
 	if (!trigger.initial_address)
@@ -265,9 +346,11 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 			throw Error("unexpected params");
 		storage.readAADefinition(conn, template.base_aa, function (arrBaseDefinition) {
 			if (!arrBaseDefinition)
-				throw Error("base AA not found");
+				throw Error("base AA not found: " + template.base_aa);
 			console.log("redirecting to base AA " + template.base_aa + " with params " + JSON.stringify(template.params));
-			handleTrigger(conn, batch, trigger, template.params, stateVars, arrBaseDefinition, address, mci, objMcUnit, bSecondary, arrResponses, onDone);
+			trigger_opts.params = template.params;
+			trigger_opts.arrDefinition = arrBaseDefinition;
+			handleTrigger(trigger_opts);
 		});
 		return;
 	}
@@ -289,11 +372,22 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 	var storage_size;
 	var objStateUpdate;
 	var count = 0;
+	var originalStateVars = _.cloneDeep(stateVars);
 	if (bSecondary)
 		updateOriginalOldValues();
 
 	// add the coins received in the trigger
 	function updateInitialAABalances(cb) {
+		if (trigger_opts.assocBalances) {
+			if (!trigger_opts.assocBalances[address])
+				trigger_opts.assocBalances[address] = {};
+			for (var asset in trigger.outputs)
+				trigger_opts.assocBalances[address][asset] = (trigger_opts.assocBalances[address][asset] || 0) + trigger.outputs[asset];
+			objValidationState.assocBalances = trigger_opts.assocBalances;
+			byte_balance = trigger_opts.assocBalances[address].base || 0;
+			storage_size = 0;
+			return cb();
+		}
 		objValidationState.assocBalances[address] = {};
 		var arrAssets = Object.keys(trigger.outputs);
 		conn.query(
@@ -339,6 +433,8 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 	}
 
 	function updateFinalAABalances(arrConsumedOutputs, objUnit, cb) {
+		if (trigger_opts.bAir)
+			throw Error("updateFinalAABalances shouldn't be called with bAir");
 		var assocDeltas = {};
 		arrConsumedOutputs.forEach(function (output) {
 			if (!assocDeltas[output.asset])
@@ -655,6 +751,8 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 	}
 
 	function pickParents(handleParents) {
+		if (trigger_opts.bAir)
+			throw Error("pickParents shouldn't be called with bAir");
 		// first look for a chain of AAs stemming from the MC unit
 		conn.query(
 			"SELECT units.unit \n\
@@ -691,6 +789,8 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 		console.log('bouncing with error', error, new Error().stack);
 		objStateUpdate = null;
 		error_message = error_message ? (error_message + ', then ' + error) : error;
+		if (trigger_opts.bAir)
+			assignObject(stateVars, originalStateVars); // restore state vars
 		if (bBouncing)
 			return finish(null);
 		bBouncing = true;
@@ -714,7 +814,51 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 		sendUnit(messages);
 	}
 
+	// with bAir option, we don't send or save a real unit
+	function sendDummyUnit(messages) {
+		console.log('send dummy unit with messages', JSON.stringify(messages, null, '\t'));
+		var objUnit = messages.length ? {
+			unit: 'dummy',
+			authors: [{ address: address }],
+			messages: messages,
+		} : null;
+		executeStateUpdateFormula(objUnit, function (err) {
+			if (err)
+				return bounce(err);
+			// update balances
+			var arrOutputAddresses = [];
+			messages.forEach(message => {
+				if (message.app !== 'payment')
+					return;
+				var asset = message.payload.asset || 'base';
+				message.payload.outputs.forEach(output => {
+					if (arrOutputAddresses.indexOf(output.address) === -1)
+						arrOutputAddresses.push(output.address);
+					if (!trigger_opts.assocBalances[output.address])
+						trigger_opts.assocBalances[output.address] = {};
+					if (!trigger_opts.assocBalances[output.address][asset])
+						trigger_opts.assocBalances[output.address][asset] = 0;
+					if (!trigger_opts.assocBalances[address][asset])
+						trigger_opts.assocBalances[address][asset] = 0;
+					if (output.amount === undefined) // send all
+						output.amount = trigger_opts.assocBalances[address][asset];
+					trigger_opts.assocBalances[output.address][asset] += output.amount;
+					// deduct from this AA's balance. It can get negative if we are issuing coins but in this case balance[] is probably meaningless
+					trigger_opts.assocBalances[address][asset] -= output.amount;
+				});
+			});
+			if (arrOutputAddresses.length === 0)
+				return finish(objUnit);
+			fixStateVars();
+			addResponse(objUnit, function () {
+				handleSecondaryTriggers(objUnit, arrOutputAddresses);
+			});
+		});
+	}
+
 	function sendUnit(messages) {
+		if (trigger_opts.bAir)
+			return sendDummyUnit(messages);
 		console.log('send unit with messages', JSON.stringify(messages, null, '\t'));
 		var arrUsedOutputIds = [];
 		var arrConsumedOutputs = [];
@@ -1049,7 +1193,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 	}
 
 	function saveStateVars() {
-		if (bSecondary || bBouncing)
+		if (bSecondary || bBouncing || trigger_opts.bAir)
 			return;
 		for (var address in stateVars) {
 			var addressVars = stateVars[address];
@@ -1089,7 +1233,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 	}
 
 	function updateStorageSize(cb) {
-		if (bBouncing)
+		if (bBouncing || trigger_opts.bAir)
 			return cb();
 		var delta_storage_size = 0;
 		var addressVars = stateVars[address] || {};
@@ -1169,6 +1313,8 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 			response: response,
 		};
 		arrResponses.push(objAAResponse);
+		if (trigger_opts.bAir)
+			return cb();
 		conn.query(
 			"INSERT INTO aa_responses (mci, trigger_address, aa_address, trigger_unit, bounced, response_unit, response) \n\
 			VALUES (?, ?,?,?, ?,?,?)",
@@ -1249,11 +1395,19 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 					child_trigger.initial_address = trigger.initial_address;
 					child_trigger.initial_unit = trigger.initial_unit;
 					var arrChildDefinition = JSON.parse(row.definition);
-					handleTrigger(conn, batch, child_trigger, {}, stateVars, arrChildDefinition, row.address, mci, objMcUnit, true, arrResponses, function (objSecondaryUnit, bounce_message) {
+
+					var child_trigger_opts = Object.assign({}, trigger_opts);
+					child_trigger_opts.trigger = child_trigger;
+					child_trigger_opts.params = {};
+					child_trigger_opts.arrDefinition = arrChildDefinition;
+					child_trigger_opts.address = row.address;
+					child_trigger_opts.bSecondary = true;
+					child_trigger_opts.onDone = function (objSecondaryUnit, bounce_message) {
 						if (bounce_message)
 							return cb(bounce_message);
 						cb();
-					});
+					};
+					handleTrigger(child_trigger_opts);
 				},
 				function (err) {
 					if (err) {
@@ -1274,8 +1428,11 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 		console.log('will revert: ' + err);
 		if (bSecondary)
 			return bounce(err);
-		revertResponsesInCaches(arrResponses);
+		if (!trigger_opts.bAir)
+			revertResponsesInCaches(arrResponses);
 		arrResponses.splice(0, arrResponses.length); // start over
+		if (trigger_opts.bAir)
+			return bounce(err);
 		Object.keys(stateVars).forEach(function (address) { delete stateVars[address]; });
 		batch.clear();
 		conn.query("ROLLBACK TO SAVEPOINT initial_balances", function () {
@@ -1529,3 +1686,4 @@ exports.handleAATriggers = handleAATriggers;
 exports.handleTrigger = handleTrigger;
 exports.validateAATriggerObject = validateAATriggerObject;
 exports.dryRunPrimaryAATrigger = dryRunPrimaryAATrigger;
+exports.estimatePrimaryAATrigger = estimatePrimaryAATrigger;
