@@ -204,8 +204,7 @@ function dryRunPrimaryAATrigger(trigger, address, arrDefinition, onDone) {
 	db.takeConnectionFromPool(function (conn) {
 		conn.query("BEGIN", function () {
 			var batch = conf.bLight ? lightBatch : kvstore.batch();
-			readLastUnit(conn, function (objMcUnit) { // it is not really MC unit but this shouldn't matter
-				var mci = objMcUnit.main_chain_index;
+			readLastStableMcUnit(conn, function (mci, objMcUnit) {
 				trigger.unit = objMcUnit.unit;
 				if (!trigger.address)
 					trigger.address = objMcUnit.authors[0].address;
