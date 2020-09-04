@@ -204,7 +204,8 @@ function dryRunPrimaryAATrigger(trigger, address, arrDefinition, onDone) {
 	db.takeConnectionFromPool(function (conn) {
 		conn.query("BEGIN", function () {
 			var batch = conf.bLight ? lightBatch : kvstore.batch();
-			readLastStableMcUnit(conn, function (mci, objMcUnit) {
+			readLastUnit(conn, function (objMcUnit) { // it is not really MC unit but this shouldn't matter
+				var mci = objMcUnit.main_chain_index;
 				trigger.unit = objMcUnit.unit;
 				if (!trigger.address)
 					trigger.address = objMcUnit.authors[0].address;
@@ -267,9 +268,11 @@ function readMcUnit(conn, mci, handleUnit) {
 }
 
 function readLastUnit(conn, handleUnit) {
-	conn.query("SELECT unit FROM units ORDER BY main_chain_index DESC LIMIT 1", function (rows) {
+	conn.query("SELECT unit, main_chain_index FROM units ORDER BY main_chain_index DESC LIMIT 1", function (rows) {
 		if (rows.length !== 1)
 			throw Error("found " + rows.length + " last units");
+		if (!rows[0].main_chain_index)
+			throw Error("no mci on last unit?");
 		readUnit(conn, rows[0].unit, handleUnit);
 	});
 }
