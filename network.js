@@ -1616,12 +1616,18 @@ eventBus.on('aa_response', function (objAAResponse) {
 	if (!bWatchingForLight)
 		return;
 	db.query("SELECT peer, address FROM watched_light_aas WHERE aa=?", [objAAResponse.aa_address], function (rows) {
-		rows.forEach(function (row) {
-			if (!row.address || aaResponseAffectsAddress(objAAResponse, row.address)) {
-				var ws = getPeerWebSocket(row.peer);
-				if (ws && ws.readyState === ws.OPEN)
-					sendJustsaying(ws, 'light/aa_response', objAAResponse);
-			}
+		if (rows.length === 0)
+			return;
+		// add balances to the response
+		storage.readAABalances(db, objAAResponse.aa_address, function (assocBalances) {
+			objAAResponse.balances = assocBalances;
+			rows.forEach(function (row) {
+				if (!row.address || aaResponseAffectsAddress(objAAResponse, row.address)) {
+					var ws = getPeerWebSocket(row.peer);
+					if (ws && ws.readyState === ws.OPEN)
+						sendJustsaying(ws, 'light/aa_response', objAAResponse);
+				}
+			});
 		});
 	});
 });
@@ -3328,11 +3334,7 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "no params in light/get_aa_balances");
 			if (!ValidationUtils.isValidAddress(params.address))
 				return sendErrorResponse(ws, tag, "address not valid");
-			db.query("SELECT asset, balance FROM aa_balances WHERE address=?", [params.address], function (rows) {
-				var assocBalances = {};
-				rows.forEach(function (row) {
-					assocBalances[row.asset] = row.balance;
-				});
+			storage.readAABalances(db, params.address, function(assocBalances) {
 				sendResponse(ws, tag, { balances: assocBalances });
 			});
 			break;
