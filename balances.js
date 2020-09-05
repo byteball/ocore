@@ -149,7 +149,9 @@ function readSharedBalance(wallet, handleBalance){
 	});
 }
 
-function readAllUnspentOutputs(exclude_from_circulation = [], handleSupply) {
+function readAllUnspentOutputs(exclude_from_circulation, handleSupply) {
+	if (!exclude_from_circulation)
+		exclude_from_circulation = [];
 	var supply = {
 		addresses: 0,
 		txouts: 0,
