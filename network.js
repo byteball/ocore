@@ -3268,7 +3268,7 @@ function handleRequest(ws, tag, command, params){
 		case 'light/get_data_feed':
 			if (!params)
 				return sendErrorResponse(ws, tag, "no params in light/get_data_feed");
-			dataFeeds.readDataFeedValueByParams(params, 1e15, true, function (err, value) {
+			dataFeeds.readDataFeedValueByParams(params, 1e15, 'all_unstable', function (err, value) {
 				if (err)
 					return sendErrorResponse(ws, tag, err);
 				sendResponse(ws, tag, value);

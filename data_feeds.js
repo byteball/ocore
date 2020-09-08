@@ -186,16 +186,18 @@ function dataFeedByAddressExists(address, feed_name, relation, value, min_mci, m
 }
 
 
-function readDataFeedValue(arrAddresses, feed_name, value, min_mci, max_mci, bAA, ifseveral, handleResult){
+function readDataFeedValue(arrAddresses, feed_name, value, min_mci, max_mci, unstable_opts, ifseveral, handleResult){
 	var start_time = Date.now();
 	var objResult = { bAbortedBecauseOfSeveral: false, value: undefined, unit: undefined, mci: undefined };
-	if (bAA) {
+	var bIncludeUnstableAAs = !!unstable_opts;
+	var bIncludeAllUnstable = (unstable_opts === 'all_unstable');
+	if (bIncludeUnstableAAs) {
 		var arrCandidates = [];
 		for (var unit in storage.assocUnstableMessages) {
 			var objUnit = storage.assocUnstableUnits[unit] || storage.assocStableUnits[unit];
 			if (!objUnit)
 				throw Error("unstable unit " + unit + " not in assoc");
-			if (!objUnit.bAA)
+			if (!objUnit.bAA && !bIncludeAllUnstable)
 				continue;
 			if (objUnit.latest_included_mc_index < min_mci || objUnit.latest_included_mc_index > max_mci)
 				continue;
@@ -316,7 +318,7 @@ function readDataFeedByAddress(address, feed_name, value, min_mci, max_mci, ifse
 }
 
 
-function readDataFeedValueByParams(params, max_mci, bAA, cb) {
+function readDataFeedValueByParams(params, max_mci, unstable_opts, cb) {
 	var oracles = params.oracles;
 	if (!oracles)
 		return cb("no params in light/get_profiles_units");
@@ -361,7 +363,7 @@ function readDataFeedValueByParams(params, max_mci, bAA, cb) {
 	}
 	if ('ifnone' in params && !isValidValue(params.ifnone))
 		return cb("bad ifnone: " + params.ifnone);
-	readDataFeedValue(oracles, feed_name, value, min_mci, max_mci, bAA, ifseveral, function (objResult) {
+	readDataFeedValue(oracles, feed_name, value, min_mci, max_mci, unstable_opts, ifseveral, function (objResult) {
 		if (objResult.bAbortedBecauseOfSeveral)
 			return cb("several values found");
 		if (objResult.value !== undefined) {
