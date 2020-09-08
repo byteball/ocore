@@ -5,6 +5,7 @@ var composer = require("./composer.js");
 var crypto = require("crypto");
 var arbiters = require("./arbiters.js");
 var http = require("http");
+var url = require("url");
 
 var status_PENDING = "pending";
 exports.CHARGE_AMOUNT = 4000;
@@ -125,7 +126,7 @@ function decodeRow(row) {
 
 function openDispute(hash, cb) {
 	getByHash(hash, function(objContract){
-		device.requestFromHub("hub/get_arbstore_address", objContract.arbiter_address, function(err, host){
+		device.requestFromHub("hub/get_arbstore_address", objContract.arbiter_address, function(err, arbStoreAddress){
 			arbiters.getInfo(objContract.arbiter_address, function(objArbiter) {
 				device.getOrGeneratePermanentPairingInfo(function(pairingInfo){
 					var my_pairing_code = pairingInfo.device_pubkey + "@" + pairingInfo.hub + "#" + pairingInfo.pairing_secret;
@@ -141,15 +142,19 @@ function openDispute(hash, cb) {
 						my_contact_info: objContract.my_contact_info,
 						peer_contact_info: objContract.peer_contact_info
 					});
-					var req = http.request({
-						hostname: host,
-						port: 9003,
-						path: "/api/dispute/new",
-						method: "POST",
-						headers: {
-							"Content-Type": "application/json",
-							"Content-Length": data.length
-						}}, function(resp){
+					var reqParams = Object.assign(url.parse(arbStoreAddress), 
+						{
+							path: "/api/dispute/new",
+							method: "POST",
+							headers: {
+								"Content-Type": "application/json",
+								"Content-Length": data.length
+							}
+						}
+					);
+					var req = http.request(
+						reqParams
+						, function(resp){
 						var data = "";
 						resp.on("data", function(chunk){
 							data += chunk;

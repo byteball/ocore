@@ -71,7 +71,7 @@ function prepareHistory(historyRequest, callbacks){
 	if (arrAddresses){
 		// we don't filter sequence='good' after the unit is stable, so the client will see final doublespends too
 		var strAddressList = arrAddresses.map(db.escape).join(', ');
-		var mciCond = mci ? " AND main_chain_index >= " + mci : "";
+		var mciCond = mci ? " AND main_chain_index >= " + mci +" " : "";
 		arrSelects = ["SELECT DISTINCT unit, main_chain_index, level FROM outputs JOIN units USING(unit) \n\
 			WHERE address IN("+strAddressList+") AND (+sequence='good' OR is_stable=1)"+mciCond+"\n\
 			UNION \n\
