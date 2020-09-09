@@ -126,6 +126,103 @@ function isValidPubKey(b64_pubkey){
 // -------------------------
 // logging in to hub
 
+function handleJustsaying(ws, subject, body){
+	switch (subject){
+		// I'm connected to a hub, received challenge
+		case 'hub/challenge':
+			var challenge = body;
+			handleChallenge(ws, challenge);
+			break;
+			
+		// I'm connected to a hub, received a message through the hub
+		case 'hub/message':
+			var objDeviceMessage = body.message;
+			var message_hash = body.message_hash;
+			var respondWithError = function(error){
+				network.sendError(ws, error);
+				network.sendJustsaying(ws, 'hub/delete', message_hash);
+			};
+			if (!message_hash || !objDeviceMessage || !objDeviceMessage.signature || !objDeviceMessage.pubkey || !objDeviceMessage.to
+					|| !objDeviceMessage.encrypted_package || !objDeviceMessage.encrypted_package.dh
+					|| !objDeviceMessage.encrypted_package.dh.sender_ephemeral_pubkey 
+					|| !objDeviceMessage.encrypted_package.encrypted_message
+					|| !objDeviceMessage.encrypted_package.iv || !objDeviceMessage.encrypted_package.authtag)
+				return network.sendError(ws, "missing fields");
+			if (objDeviceMessage.to !== getMyDeviceAddress())
+				return network.sendError(ws, "not mine");
+			var bOldHashIsCorrect = (message_hash === objectHash.getBase64Hash(objDeviceMessage));
+			if (!bOldHashIsCorrect && message_hash !== objectHash.getBase64Hash(objDeviceMessage, true))
+				return network.sendError(ws, "wrong hash");
+			try{
+				if (!ecdsaSig.verify(objectHash.getDeviceMessageHashToSign(objDeviceMessage), objDeviceMessage.signature, objDeviceMessage.pubkey))
+					return respondWithError("wrong message signature");
+			}
+			catch(e){
+				return respondWithError("failed to caculate message hash to sign:" + e);
+			}
+			// end of checks on the open (unencrypted) part of the message. These checks should've been made by the hub before accepting the message
+			
+			// decrypt the message
+			var json = decryptPackage(objDeviceMessage.encrypted_package);
+			if (!json)
+				return respondWithError("failed to decrypt");
+			
+			// who is the sender
+			var from_address = objectHash.getDeviceAddress(objDeviceMessage.pubkey);
+			// the hub couldn't mess with json.from as it was encrypted, but it could replace the objDeviceMessage.pubkey and re-sign. It'll be caught here
+			if (from_address !== json.from) 
+				return respondWithError("wrong message signature");
+			
+			var handleMessage = function(bIndirectCorrespondent){
+				eventBus.emit("handle_message_from_hub", ws, json, objDeviceMessage.pubkey, bIndirectCorrespondent, {
+					ifError: function(err){
+						respondWithError(err);
+					},
+					ifOk: function(){
+						network.sendJustsaying(ws, 'hub/delete', message_hash);
+					}
+				});
+			};
+			
+			
+			// check that we know this device
+			db.query("SELECT hub, is_indirect FROM correspondent_devices WHERE device_address=?", [from_address], function(rows){
+				if (rows.length > 0){
+					if (json.device_hub && json.device_hub !== rows[0].hub) // update correspondent's home address if necessary
+						db.query("UPDATE correspondent_devices SET hub=? WHERE device_address=?", [json.device_hub, from_address], function(){
+							handleMessage(rows[0].is_indirect);
+						});
+					else
+						handleMessage(rows[0].is_indirect);
+				}
+				else{ // correspondent not known
+					var arrSubjectsAllowedFromNoncorrespondents = ["pairing", "my_xpubkey", "wallet_fully_approved"];
+					if (arrSubjectsAllowedFromNoncorrespondents.indexOf(json.subject) === -1){
+						respondWithError("correspondent not known and not whitelisted subject");
+						return;
+					}
+					handleMessage(false);
+				}
+			});
+			break;
+			
+		// I'm connected to a hub, received a report about my undelivered inbox
+		case 'hub/message_box_status':
+			if (!ws.bLoggedIn)
+				return respondWithError("you are not my hub");
+			if (body === 'empty')
+				scheduleTempDeviceKeyRotation();
+			else if (body === 'has_more')
+				mutex.lock(["from_hub"], function(unlock){ // we'll obtain the lock after all messages are handled
+					setTimeout(function(){ // wait to make sure all hub/deletes finish
+						network.sendJustsaying(ws, 'hub/refresh');
+						unlock();
+					}, 1000)
+				});
+			break;
+	}
+}
+eventBus.on("message_from_hub", handleJustsaying);
 
 function handleChallenge(ws, challenge){
 	console.log('handleChallenge');
