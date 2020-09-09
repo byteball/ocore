@@ -1484,7 +1484,7 @@ function notifyWatchers(objJoint, bGoodSequence, source_ws){
 	var arrAllAAAddresses = arrOutputAddresses.concat(arrBaseAAAddresses);
 	db.query("SELECT peer, address, aa FROM watched_light_aas WHERE aa IN(?)", [arrAllAAAddresses], function (rows) {
 		rows.forEach(function (row) {
-			if ((!row.address || arrAuthorAddresses.includes(row.address)) && arrOutputAddresses.length > 0) {
+			if ((!row.address || arrAuthorAddresses.includes(row.address)) && arrOutputAddresses.includes(row.aa)) {
 				var ws = getPeerWebSocket(row.peer);
 				if (ws && ws.readyState === ws.OPEN && ws !== source_ws)
 					sendJustsaying(ws, 'light/aa_request', { aa_address: row.aa, unit: objUnit });
