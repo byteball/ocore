@@ -3004,7 +3004,7 @@ function executeGetterInState(conn, aa_address, getter, args, stateVars, assocBa
 			throw Error("no last unit");
 		objValidationState = {
 			last_ball_mci: props.main_chain_index,
-			last_ball_timestamp: props.timestamp,
+			last_ball_timestamp: Math.floor(Date.now() / 1000),
 			mc_unit: props.unit, // must not be used
 			assocBalances: assocBalances,
 			number_of_responses: 0, // must not be used
