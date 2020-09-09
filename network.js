@@ -1669,6 +1669,7 @@ function addLightWatchedAa(aa, address, handle){
 	if (address)
 		params.address = address;
 	sendJustsayingToLightVendor('light/new_aa_to_watch', params, handle);
+	eventBus.on('connected', () => sendJustsayingToLightVendor('light/new_aa_to_watch', params));
 }
 
 function flushEvents(forceFlushing) {
