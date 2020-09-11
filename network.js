@@ -3241,6 +3241,9 @@ function handleRequest(ws, tag, command, params){
 						balances[row.address][row.asset || 'base'][row.is_stable ? 'stable' : 'pending'] = row.balance;
 						balances[row.address][row.asset || 'base'][row.is_stable ? 'stable_outputs_count' : 'pending_outputs_count'] = row.outputs_count;
 					});
+					for (var address in balances)
+						for (var asset in balances[address])
+							balances[address][asset].total = (balances[address][asset].stable || 0) + (balances[address][asset].pending || 0);
 					sendResponse(ws, tag, balances);
 				}
 			);
