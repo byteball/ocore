@@ -375,6 +375,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 	var objStateUpdate;
 	var count = 0;
 	var originalStateVars = _.cloneDeep(stateVars);
+	var originalBalances;
 	if (bSecondary)
 		updateOriginalOldValues();
 
@@ -388,6 +389,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 			objValidationState.assocBalances = trigger_opts.assocBalances;
 			byte_balance = trigger_opts.assocBalances[address].base || 0;
 			storage_size = 0;
+			originalBalances = _.cloneDeep(trigger_opts.assocBalances);
 			return cb();
 		}
 		objValidationState.assocBalances[address] = {};
@@ -791,8 +793,10 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 		console.log('bouncing with error', error, new Error().stack);
 		objStateUpdate = null;
 		error_message = error_message ? (error_message + ', then ' + error) : error;
-		if (trigger_opts.bAir)
+		if (trigger_opts.bAir) {
 			assignObject(stateVars, originalStateVars); // restore state vars
+			assignObject(trigger_opts.assocBalances, originalBalances); // restore balances
+		}
 		if (bBouncing)
 			return finish(null);
 		bBouncing = true;
@@ -818,7 +822,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 
 	// with bAir option, we don't send or save a real unit
 	function sendDummyUnit(messages) {
-		console.log('send dummy unit with messages', JSON.stringify(messages, null, '\t'));
+		console.log('AA ' + address + ': send dummy unit with messages', JSON.stringify(messages, null, '\t'));
 		var objUnit = messages.length ? {
 			unit: 'dummy',
 			authors: [{ address: address }],
@@ -836,15 +840,10 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 				message.payload.outputs.forEach(output => {
 					if (arrOutputAddresses.indexOf(output.address) === -1)
 						arrOutputAddresses.push(output.address);
-					if (!trigger_opts.assocBalances[output.address])
-						trigger_opts.assocBalances[output.address] = {};
-					if (!trigger_opts.assocBalances[output.address][asset])
-						trigger_opts.assocBalances[output.address][asset] = 0;
 					if (!trigger_opts.assocBalances[address][asset])
 						trigger_opts.assocBalances[address][asset] = 0;
 					if (output.amount === undefined) // send all
 						output.amount = trigger_opts.assocBalances[address][asset];
-					trigger_opts.assocBalances[output.address][asset] += output.amount;
 					// deduct from this AA's balance. It can get negative if we are issuing coins but in this case balance[] is probably meaningless
 					trigger_opts.assocBalances[address][asset] -= output.amount;
 				});
