@@ -187,6 +187,7 @@ function dataFeedByAddressExists(address, feed_name, relation, value, min_mci, m
 
 
 function readDataFeedValue(arrAddresses, feed_name, value, min_mci, max_mci, unstable_opts, ifseveral, handleResult){
+	var bLimitedPrecision = (max_mci < constants.aa2UpgradeMci);
 	var start_time = Date.now();
 	var objResult = { bAbortedBecauseOfSeveral: false, value: undefined, unit: undefined, mci: undefined };
 	var bIncludeUnstableAAs = !!unstable_opts;
@@ -212,7 +213,7 @@ function readDataFeedValue(arrAddresses, feed_name, value, min_mci, max_mci, uns
 				var feed_value = payload[feed_name];
 				if (value === null || value === feed_value || value.toString() === feed_value.toString())
 					arrCandidates.push({
-						value: feed_value,
+						value: string_utils.getFeedValue(feed_value, bLimitedPrecision),
 						latest_included_mc_index: objUnit.latest_included_mc_index,
 						level: objUnit.level,
 						unit: objUnit.unit,
