@@ -1361,6 +1361,8 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 				//		varInfo.delta = varInfo.value;
 				}
 				assignField(updatedStateVars[var_address], var_name, varInfo);
+				if (state.value === false) // deleted variable
+					delete addressVars[var_name];
 			}
 		}
 		arrResponses[0].updatedStateVars = updatedStateVars;
