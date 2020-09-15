@@ -395,7 +395,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 		objValidationState.assocBalances[address] = {};
 		var arrAssets = Object.keys(trigger.outputs);
 		conn.query(
-			"SELECT asset, balance FROM aa_balances WHERE address=? AND asset IN(" + arrAssets.map(conn.escape).join(',') + ")",
+			"SELECT asset, balance FROM aa_balances WHERE address=?",
 			[address],
 			function (rows) {
 				var arrQueries = [];
@@ -403,6 +403,10 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 				rows.forEach(function (row) {
 					if (constants.bTestnet && mci < testnetAAsDefinedByAAsAreActiveImmediatelyUpgradeMci)
 						reintroduceBalanceBug(address, row);
+					if (!trigger.outputs[row.asset]) {
+						objValidationState.assocBalances[address][row.asset] = row.balance;
+						return;
+					}
 					conn.addQuery(
 						arrQueries,
 						"UPDATE aa_balances SET balance=balance+? WHERE address=? AND asset=? ",
@@ -421,6 +425,8 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 					conn.addQuery(arrQueries, "INSERT INTO aa_balances (address, asset, balance) VALUES "+arrValues.join(', '));
 				}
 				byte_balance = objValidationState.assocBalances[address].base;
+				if (trigger.outputs.base === undefined) // bug-compatible
+					byte_balance = undefined;
 				if (!bSecondary)
 					conn.addQuery(arrQueries, "SAVEPOINT initial_balances");
 				async.series(arrQueries, function () {
