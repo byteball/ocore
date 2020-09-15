@@ -1618,16 +1618,12 @@ eventBus.on('aa_response', function (objAAResponse) {
 	db.query("SELECT peer, address FROM watched_light_aas WHERE aa=?", [objAAResponse.aa_address], function (rows) {
 		if (rows.length === 0)
 			return;
-		// add balances to the response
-		storage.readAABalances(db, objAAResponse.aa_address, function (assocBalances) {
-			objAAResponse.balances = assocBalances;
-			rows.forEach(function (row) {
-				if (!row.address || aaResponseAffectsAddress(objAAResponse, row.address)) {
-					var ws = getPeerWebSocket(row.peer);
-					if (ws && ws.readyState === ws.OPEN)
-						sendJustsaying(ws, 'light/aa_response', objAAResponse);
-				}
-			});
+		rows.forEach(function (row) {
+			if (!row.address || aaResponseAffectsAddress(objAAResponse, row.address)) {
+				var ws = getPeerWebSocket(row.peer);
+				if (ws && ws.readyState === ws.OPEN)
+					sendJustsaying(ws, 'light/aa_response', objAAResponse);
+			}
 		});
 	});
 });

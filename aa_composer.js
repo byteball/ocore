@@ -467,8 +467,12 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 			conn.addQuery(arrQueries, "INSERT "+conn.getIgnore()+" INTO aa_balances (address, asset, balance) VALUES "+arrValues.join(', '));
 		}
 		for (var asset in assocDeltas) {
-			if (assocDeltas[asset])
+			if (assocDeltas[asset]) {
 				conn.addQuery(arrQueries, "UPDATE aa_balances SET balance=balance+? WHERE address=? AND asset=?", [assocDeltas[asset], address, asset]);
+				if (!objValidationState.assocBalances[address][asset])
+					objValidationState.assocBalances[address][asset] = 0;
+				objValidationState.assocBalances[address][asset] += assocDeltas[asset];
+			}
 		}
 		if (assocDeltas.base)
 			byte_balance += assocDeltas.base;
@@ -1312,6 +1316,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 			response_unit: response_unit,
 			objResponseUnit: objResponseUnit,
 			response: response,
+			balances: objValidationState.assocBalances[address],
 		};
 		arrResponses.push(objAAResponse);
 		if (trigger_opts.bAir)
