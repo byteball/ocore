@@ -3321,8 +3321,11 @@ function handleRequest(ws, tag, command, params){
 			if ('limit' in params && params.limit > MAX_STATE_VARS)
 				return sendErrorResponse(ws, tag, "limit cannot be greater than " + MAX_STATE_VARS);
 			storage.readAADefinition(db, params.address, function (arrDefinition) {
-				if (!arrDefinition)
-					return sendErrorResponse(ws, tag, "not an AA");
+				if (!arrDefinition) {
+					arrDefinition = storage.getUnconfirmedAADefinition(params.address);
+					if (!arrDefinition)
+						return sendErrorResponse(ws, tag, "not an AA");
+				}
 				storage.readAAStateVars(params.address, params.var_prefix_from || '', params.var_prefix_to || '', params.limit || MAX_STATE_VARS, function (objStateVars) {
 					sendResponse(ws, tag, objStateVars);
 				});
