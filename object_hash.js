@@ -74,7 +74,7 @@ function getStrippedUnit(objUnit) {
 		objStrippedUnit.last_ball = objUnit.last_ball;
 		objStrippedUnit.last_ball_unit = objUnit.last_ball_unit;
 	}
-	if (bVersion2)
+	if (bVersion2 && objUnit.timestamp !== undefined)
 		objStrippedUnit.timestamp = objUnit.timestamp;
 	return objStrippedUnit;
 }
