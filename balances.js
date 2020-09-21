@@ -54,6 +54,8 @@ function readBalance(wallet, handleBalance){
 							}
 							if (assocBalances[constants.BLACKBYTES_ASSET].stable === 0 && assocBalances[constants.BLACKBYTES_ASSET].pending === 0)
 								delete assocBalances[constants.BLACKBYTES_ASSET];
+							for (var asset in assocBalances)
+								assocBalances[asset].total = assocBalances[asset].stable + assocBalances[asset].pending;
 							handleBalance(assocBalances);
 						}
 					);
@@ -82,6 +84,8 @@ function readOutputsBalance(wallet, handleBalance){
 					assocBalances[asset] = {stable: 0, pending: 0};
 				assocBalances[asset][row.is_stable ? 'stable' : 'pending'] = row.balance;
 			}
+			for (var asset in assocBalances)
+				assocBalances[asset].total = assocBalances[asset].stable + assocBalances[asset].pending;
 			handleBalance(assocBalances);
 		}
 	);
@@ -143,13 +147,18 @@ function readSharedBalance(wallet, handleBalance){
 						assocBalances[asset][row.address] = {stable: 0, pending: 0};
 					assocBalances[asset][row.address][row.is_stable ? 'stable' : 'pending'] += row.balance;
 				}
+				for (var asset in assocBalances)
+					for (var address in assocBalances[asset])
+						assocBalances[asset][address].total = assocBalances[asset][address].stable + assocBalances[asset][address].pending;
 				handleBalance(assocBalances);
 			}
 		);
 	});
 }
 
-function readAllUnspentOutputs(exclude_from_circulation = [], handleSupply) {
+function readAllUnspentOutputs(exclude_from_circulation, handleSupply) {
+	if (!exclude_from_circulation)
+		exclude_from_circulation = [];
 	var supply = {
 		addresses: 0,
 		txouts: 0,

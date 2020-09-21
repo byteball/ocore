@@ -378,7 +378,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					//    if (sender_rows.length !== 1)
 					//        return callbacks.ifError("sender is not cosigner of this address");
 						callbacks.ifOk();
-						if (objUnit.signed_message && !ValidationUtils.hasFieldsExcept(objUnit, ["signed_message", "authors"])){
+						if (objUnit.signed_message && !ValidationUtils.hasFieldsExcept(objUnit, ["signed_message", "authors", "version"])){
 							objUnit.unit = objectHash.getBase64Hash(objUnit); // exact value doesn't matter, it just needs to be there
 							return eventBus.emit("signing_request", objAddress, body.address, objUnit, assocPrivatePayloads, from_address, body.signing_path);
 						}
@@ -1404,6 +1404,16 @@ function readFundedAddresses(asset, wallet, estimated_amount, spend_unconfirmed,
 	});
 }
 
+function readFundedAddressesWithFeePayingWallet(asset, wallet, fee_paying_wallet, estimated_amount, spend_unconfirmed, handleFundedAddresses) {
+	if (asset === 'base')
+		asset = null;
+	readFundedAddresses(asset, wallet, estimated_amount, spend_unconfirmed, function (arrFundedAddresses) {
+		if (arrFundedAddresses.length === 0 && !asset && fee_paying_wallet && fee_paying_wallet !== wallet)
+			return readFundedAddresses(asset, fee_paying_wallet, estimated_amount, spend_unconfirmed, handleFundedAddresses);
+		handleFundedAddresses(arrFundedAddresses);
+	});
+}
+
 function readAdditionalSigningAddresses(arrPayingAddresses, arrSigningAddresses, arrSigningDeviceAddresses, handleAdditionalSigningAddresses){
 	var arrFromAddresses = arrPayingAddresses.concat(arrSigningAddresses);
 	var sql = "SELECT DISTINCT address FROM shared_address_signing_paths \n\
@@ -1447,37 +1457,46 @@ function readAdditionalSigningAddresses(arrPayingAddresses, arrSigningAddresses,
 	);
 }
 
-var TYPICAL_FEE = 1000;
+var TYPICAL_FEE = 1500;
 
 // fee_paying_wallet is used only if there are no bytes on the asset wallet, it is a sort of fallback wallet for fees
 function readFundedAndSigningAddresses(
-		asset, wallet, estimated_amount, spend_unconfirmed, fee_paying_wallet,
-		arrSigningAddresses, arrSigningDeviceAddresses, handleFundedAndSigningAddresses)
+	wallet, arrPayments, spend_unconfirmed, fee_paying_wallet,
+	arrSigningAddresses, arrSigningDeviceAddresses, handleFundedAndSigningAddresses)
 {
-	readFundedAddresses(asset, wallet, estimated_amount, spend_unconfirmed, function(arrFundedAddresses){
-		if (arrFundedAddresses.length === 0)
-			return handleFundedAndSigningAddresses([], [], []);
-		var arrBaseFundedAddresses = [];
-		var addSigningAddressesAndReturn = function(){
+	var arrFundedAddresses = [];
+	var arrBaseFundedAddresses = [];
+	if (arrPayments.filter(payment => !payment.asset).length === 0) { // no bytes payment
+		arrPayments = _.clone(arrPayments);
+		arrPayments.push({ asset: null, outputs: [{ amount: TYPICAL_FEE }] }); // dummy payment in bytes
+	}
+	var bBytesOnly = (arrPayments.length === 1 && !arrPayments[0].asset);
+	async.eachSeries(
+		arrPayments,
+		function (payment, cb) {
+			var estimated_amount = payment.outputs.reduce(function (acc, output) { return acc + output.amount; }, 0);
+			readFundedAddressesWithFeePayingWallet(payment.asset, wallet, fee_paying_wallet, estimated_amount, spend_unconfirmed, function (_arrFundedAddresses) {
+				if (payment.asset || bBytesOnly)
+					arrFundedAddresses = _.union(arrFundedAddresses, _arrFundedAddresses);
+				else
+					arrBaseFundedAddresses = _arrFundedAddresses;
+				if (_arrFundedAddresses.length === 0) {
+					if (payment.asset)
+						arrFundedAddresses = [];
+					return cb("unfunded in " + payment.asset);
+				}
+				cb();
+			});		
+		},
+		function (err) {
+			if (err)
+				return handleFundedAndSigningAddresses(arrFundedAddresses, arrBaseFundedAddresses, []);
 			var arrPayingAddresses = _.union(arrFundedAddresses, arrBaseFundedAddresses);
-			readAdditionalSigningAddresses(arrPayingAddresses, arrSigningAddresses, arrSigningDeviceAddresses, function(arrAdditionalAddresses){
+			readAdditionalSigningAddresses(arrPayingAddresses, arrSigningAddresses, arrSigningDeviceAddresses, function (arrAdditionalAddresses) {
 				handleFundedAndSigningAddresses(arrFundedAddresses, arrBaseFundedAddresses, arrSigningAddresses.concat(arrAdditionalAddresses));
 			});
-		};
-		if (!asset)
-			return addSigningAddressesAndReturn();
-		readFundedAddresses(null, wallet, TYPICAL_FEE, spend_unconfirmed, function(_arrBaseFundedAddresses){
-			// fees will be paid from the same addresses as the asset
-			if (_arrBaseFundedAddresses.length > 0 || !fee_paying_wallet || fee_paying_wallet === wallet){
-				arrBaseFundedAddresses = _arrBaseFundedAddresses;
-				return addSigningAddressesAndReturn();
-			}
-			readFundedAddresses(null, fee_paying_wallet, TYPICAL_FEE, spend_unconfirmed, function(_arrBaseFundedAddresses){
-				arrBaseFundedAddresses = _arrBaseFundedAddresses;
-				addSigningAddressesAndReturn();
-			});
-		});
-	});
+		}
+	);
 }
 
 function sendPaymentFromWallet(
@@ -1641,7 +1660,23 @@ function sendMultiPayment(opts, handleResult)
 
 	var base_outputs = opts.base_outputs;
 	var asset_outputs = opts.asset_outputs;
+	var outputs_by_asset = opts.outputs_by_asset;
 	var messages = opts.messages;
+
+	var bTo = to_address ? 1 : 0;
+	var bOutputs = (asset_outputs || base_outputs) ? 1 : 0;
+	var bOutputsByAsset = outputs_by_asset ? 1 : 0;
+
+	function getNonbaseAsset() {
+		if (asset)
+			return asset;
+		if (outputs_by_asset)
+			for (var a in outputs_by_asset)
+				if (a !== 'base')
+					return a;
+		return null;
+	}
+	var nonbaseAsset = getNonbaseAsset();
 	
 	if (!wallet && !arrPayingAddresses)
 		throw Error("neither wallet id nor paying addresses");
@@ -1657,9 +1692,27 @@ function sendMultiPayment(opts, handleResult)
 		if (amount < 0)
 			throw Error('amount must be positive');
 	}
+	if (bTo + bOutputs + bOutputsByAsset > 1)
+		throw Error("incompatible params in sendMultiPayment");
+	if (asset && outputs_by_asset)
+		throw Error("asset with outputs_by_asset");
 	
+	if (recipient_device_address === device.getMyDeviceAddress())
+		recipient_device_address = null;
+	
+	var arrPayments = [];
+	if (to_address)
+		arrPayments.push({ asset: asset, outputs: [{ address: to_address, amount: amount }] });
+	if (asset_outputs)
+		arrPayments.push({ asset: asset, outputs: asset_outputs });
+	if (base_outputs)
+		arrPayments.push({ asset: null, outputs: base_outputs });
+	if (outputs_by_asset)
+		for (var a in outputs_by_asset)
+			arrPayments.push({ asset: (a === 'base') ? null : a, outputs: outputs_by_asset[a] });
+
 	if (!opts.aa_addresses_checked) {
-		aa_addresses.checkAAOutputs(asset, to_address, amount, base_outputs, asset_outputs, function (err) {
+		aa_addresses.checkAAOutputs(arrPayments, function (err) {
 			if (err)
 				return handleResult(err);
 			opts.aa_addresses_checked = true;
@@ -1668,23 +1721,14 @@ function sendMultiPayment(opts, handleResult)
 		return;
 	}
 	
-	if (recipient_device_address === device.getMyDeviceAddress())
-		recipient_device_address = null;
-	
-	var estimated_amount = amount;
-	if (!estimated_amount && asset_outputs)
-		estimated_amount = asset_outputs.reduce(function(acc, output){ return acc+output.amount; }, 0);
-	if (estimated_amount && !asset)
-		estimated_amount += TYPICAL_FEE;
-	
 	readFundedAndSigningAddresses(
-		asset, wallet || arrPayingAddresses, estimated_amount, opts.spend_unconfirmed || 'own', fee_paying_wallet,
+		wallet || arrPayingAddresses, arrPayments, opts.spend_unconfirmed || 'own', fee_paying_wallet,
 		arrSigningAddresses, arrSigningDeviceAddresses,
 		function(arrFundedAddresses, arrBaseFundedAddresses, arrAllSigningAddresses){
 		
 			if (arrFundedAddresses.length === 0)
 				return handleResult("There are no funded addresses");
-			if (asset && arrBaseFundedAddresses.length === 0)
+			if (nonbaseAsset && arrBaseFundedAddresses.length === 0)
 				return handleResult("No bytes to pay fees");
 
 			var signer = getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey);
@@ -1830,24 +1874,32 @@ function sendMultiPayment(opts, handleResult)
 				}
 			}
 
-			if (asset){
+			if (nonbaseAsset){
 				if (bSendAll)
 					throw Error('send_all with asset');
-				params.asset = asset;
+				if (asset)
+					params.asset = asset;
 				params.available_fee_paying_addresses = arrBaseFundedAddresses;
 				if (to_address){
 					params.to_address = to_address;
 					params.amount = amount; // in asset units
 				}
+				else if (outputs_by_asset)
+					params.outputs_by_asset = outputs_by_asset;
 				else{
 					params.asset_outputs = asset_outputs;
 					params.base_outputs = base_outputs; // only destinations, without the change
 				}
 				params.change_address = change_address;
-				storage.readAsset(db, asset, null, function(err, objAsset){
+
+				// reading only one asset and assuming all others have the same properties.
+				// Will fail if outputs_by_asset has any private or indivisible assets
+				storage.readAsset(db, nonbaseAsset, null, function(err, objAsset){
 					if (err)
 						throw Error(err);
 
+					if (outputs_by_asset && (objAsset.is_private || objAsset.fixed_denominations))
+						throw Error("outputs_by_asset cannot be used for private payments and indivisible assets");
 					if (objAsset.is_private){
 						var saveMnemonicsPreCommit = params.callbacks.preCommitCb;
 						// save messages in outbox before committing
