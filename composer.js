@@ -523,7 +523,7 @@ function composeJoint(params){
 }
 
 
-var TYPICAL_FEE = 1000;
+var TYPICAL_FEE = 1500;
 var MAX_FEE = 20000;
 
 function filterMostFundedAddresses(rows, estimated_amount){

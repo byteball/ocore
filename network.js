@@ -1484,7 +1484,7 @@ function notifyWatchers(objJoint, bGoodSequence, source_ws){
 	var arrAllAAAddresses = arrOutputAddresses.concat(arrBaseAAAddresses);
 	db.query("SELECT peer, address, aa FROM watched_light_aas WHERE aa IN(?)", [arrAllAAAddresses], function (rows) {
 		rows.forEach(function (row) {
-			if ((!row.address || arrAuthorAddresses.includes(row.address)) && arrOutputAddresses.length > 0) {
+			if ((!row.address || arrAuthorAddresses.includes(row.address)) && arrOutputAddresses.includes(row.aa)) {
 				var ws = getPeerWebSocket(row.peer);
 				if (ws && ws.readyState === ws.OPEN && ws !== source_ws)
 					sendJustsaying(ws, 'light/aa_request', { aa_address: row.aa, unit: objUnit });
@@ -1616,6 +1616,8 @@ eventBus.on('aa_response', function (objAAResponse) {
 	if (!bWatchingForLight)
 		return;
 	db.query("SELECT peer, address FROM watched_light_aas WHERE aa=?", [objAAResponse.aa_address], function (rows) {
+		if (rows.length === 0)
+			return;
 		rows.forEach(function (row) {
 			if (!row.address || aaResponseAffectsAddress(objAAResponse, row.address)) {
 				var ws = getPeerWebSocket(row.peer);
@@ -1659,7 +1661,11 @@ function addLightWatchedAddress(address, handle){
 }
 
 function addLightWatchedAa(aa, address, handle){
-	sendJustsayingToLightVendor('light/new_aa_to_watch', {aa: aa , address: address}, handle);
+	var params = { aa: aa };
+	if (address)
+		params.address = address;
+	sendJustsayingToLightVendor('light/new_aa_to_watch', params, handle);
+	eventBus.on('connected', () => sendJustsayingToLightVendor('light/new_aa_to_watch', params));
 }
 
 function flushEvents(forceFlushing) {
@@ -2691,7 +2697,7 @@ function handleJustsaying(ws, subject, body){
 				return sendError(ws, "light clients have to be inbound");
 			if (!ValidationUtils.isValidAddress(body.aa))
 				return sendError(ws, "invalid AA: " + body.aa);
-			if ("address" in body && !ValidationUtils.isValidAddress(body.address))
+			if (body.address && !ValidationUtils.isValidAddress(body.address))
 				return sendError(ws, "invalid address: " + body.address);
 			storage.readAADefinition(db, body.aa, function (arrDefinition) {
 				if (!arrDefinition) {
@@ -2700,7 +2706,7 @@ function handleJustsaying(ws, subject, body){
 						return sendError(ws, "not an AA: " + body.aa);
 				}
 				bWatchingForLight = true;
-				db.query("INSERT " + db.getIgnore() + " INTO watched_light_aas (peer, aa, address) VALUES (?,?,?)", [ws.peer, body.aa, body.address], function () {
+				db.query("INSERT " + db.getIgnore() + " INTO watched_light_aas (peer, aa, address) VALUES (?,?,?)", [ws.peer, body.aa, body.address || ''], function () {
 					sendInfo(ws, "now watching AA " + body.aa + " address " + (body.address || 'all'));
 				});
 			});
@@ -3231,6 +3237,9 @@ function handleRequest(ws, tag, command, params){
 						balances[row.address][row.asset || 'base'][row.is_stable ? 'stable' : 'pending'] = row.balance;
 						balances[row.address][row.asset || 'base'][row.is_stable ? 'stable_outputs_count' : 'pending_outputs_count'] = row.outputs_count;
 					});
+					for (var address in balances)
+						for (var asset in balances[address])
+							balances[address][asset].total = (balances[address][asset].stable || 0) + (balances[address][asset].pending || 0);
 					sendResponse(ws, tag, balances);
 				}
 			);
@@ -3259,7 +3268,7 @@ function handleRequest(ws, tag, command, params){
 		case 'light/get_data_feed':
 			if (!params)
 				return sendErrorResponse(ws, tag, "no params in light/get_data_feed");
-			dataFeeds.readDataFeedValueByParams(params, 1e15, true, function (err, value) {
+			dataFeeds.readDataFeedValueByParams(params, 1e15, 'all_unstable', function (err, value) {
 				if (err)
 					return sendErrorResponse(ws, tag, err);
 				sendResponse(ws, tag, value);
@@ -3312,11 +3321,24 @@ function handleRequest(ws, tag, command, params){
 			if ('limit' in params && params.limit > MAX_STATE_VARS)
 				return sendErrorResponse(ws, tag, "limit cannot be greater than " + MAX_STATE_VARS);
 			storage.readAADefinition(db, params.address, function (arrDefinition) {
-				if (!arrDefinition)
-					return sendErrorResponse(ws, tag, "not an AA");
+				if (!arrDefinition) {
+					arrDefinition = storage.getUnconfirmedAADefinition(params.address);
+					if (!arrDefinition)
+						return sendErrorResponse(ws, tag, "not an AA");
+				}
 				storage.readAAStateVars(params.address, params.var_prefix_from || '', params.var_prefix_to || '', params.limit || MAX_STATE_VARS, function (objStateVars) {
 					sendResponse(ws, tag, objStateVars);
 				});
+			});
+			break;
+			
+		case 'light/get_aa_balances':
+			if (!params)
+				return sendErrorResponse(ws, tag, "no params in light/get_aa_balances");
+			if (!ValidationUtils.isValidAddress(params.address))
+				return sendErrorResponse(ws, tag, "address not valid");
+			storage.readAABalances(db, params.address, function(assocBalances) {
+				sendResponse(ws, tag, { balances: assocBalances });
 			});
 			break;
 			
@@ -3360,7 +3382,7 @@ function handleRequest(ws, tag, command, params){
 						return sendErrorResponse(ws, tag, "invalid type of param " + name + ": " + (typeof value));
 				}
 			}
-			db.query("SELECT address, definition, creation_date FROM aa_addresses WHERE base_aa IN(?)", [base_aas], function (rows) {
+			db.query("SELECT address, definition, unit, creation_date FROM aa_addresses WHERE base_aa IN(?)", [base_aas], function (rows) {
 				var arrAAs = [];
 				rows.forEach(function (row) {
 					var arrDefinition = JSON.parse(row.definition);
@@ -3369,7 +3391,7 @@ function handleRequest(ws, tag, command, params){
 						if (!satisfiesSearchCriteria(this_aa_params[name], aa_params[name]))
 							return;
 					}
-					arrAAs.push({ address: row.address, definition: arrDefinition, creation_date: row.creation_date });
+					arrAAs.push({ address: row.address, definition: arrDefinition, unit: row.unit, creation_date: row.creation_date });
 				});
 				sendResponse(ws, tag, arrAAs);
 			});

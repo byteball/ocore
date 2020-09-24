@@ -30,6 +30,8 @@ function MissingBounceFeesErrorMessage(obj) {
 
 
 function readAADefinitions(arrAddresses, handleRows) {
+	if (!handleRows)
+		return new Promise(resolve => readAADefinitions(arrAddresses, resolve));
 	db.query("SELECT definition, address, base_aa FROM aa_addresses WHERE address IN (" + arrAddresses.map(db.escape).join(', ') + ")", function (rows) {
 		if (!conf.bLight || arrAddresses.length === rows.length)
 			return handleRows(rows);
@@ -100,30 +102,18 @@ function readAADefinitions(arrAddresses, handleRows) {
 	});
 }
 
-function checkAAOutputs(asset, to_address, amount, base_outputs, asset_outputs, handleResult) {
+function checkAAOutputs(arrPayments, handleResult) {
 	var assocAmounts = {};
-	if (to_address) {
-		assocAmounts[to_address] = {};
-		assocAmounts[to_address][asset || 'base'] = amount;
-	}
-	else {
-		if (base_outputs)
-			base_outputs.forEach(function (output) {
-				if (!assocAmounts[output.address])
-					assocAmounts[output.address] = {};
-				if (!assocAmounts[output.address].base)
-					assocAmounts[output.address].base = 0;
-				assocAmounts[output.address].base += output.amount;
-			});
-		if (asset_outputs)
-			asset_outputs.forEach(function (output) {
-				if (!assocAmounts[output.address])
-					assocAmounts[output.address] = {};
-				if (!assocAmounts[output.address][asset])
-					assocAmounts[output.address][asset] = 0;
-				assocAmounts[output.address][asset] += output.amount;
-			});
-	}
+	arrPayments.forEach(function (payment) {
+		var asset = payment.asset || 'base';
+		payment.outputs.forEach(function (output) {
+			if (!assocAmounts[output.address])
+				assocAmounts[output.address] = {};
+			if (!assocAmounts[output.address][asset])
+				assocAmounts[output.address][asset] = 0;
+			assocAmounts[output.address][asset] += output.amount;
+		});
+	});
 	var arrAddresses = Object.keys(assocAmounts);
 	readAADefinitions(arrAddresses, function (rows) {
 		if (rows.length === 0)

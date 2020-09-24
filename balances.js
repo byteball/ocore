@@ -54,6 +54,8 @@ function readBalance(wallet, handleBalance){
 							}
 							if (assocBalances[constants.BLACKBYTES_ASSET].stable === 0 && assocBalances[constants.BLACKBYTES_ASSET].pending === 0)
 								delete assocBalances[constants.BLACKBYTES_ASSET];
+							for (var asset in assocBalances)
+								assocBalances[asset].total = assocBalances[asset].stable + assocBalances[asset].pending;
 							handleBalance(assocBalances);
 						}
 					);
@@ -82,6 +84,8 @@ function readOutputsBalance(wallet, handleBalance){
 					assocBalances[asset] = {stable: 0, pending: 0};
 				assocBalances[asset][row.is_stable ? 'stable' : 'pending'] = row.balance;
 			}
+			for (var asset in assocBalances)
+				assocBalances[asset].total = assocBalances[asset].stable + assocBalances[asset].pending;
 			handleBalance(assocBalances);
 		}
 	);
@@ -143,12 +147,53 @@ function readSharedBalance(wallet, handleBalance){
 						assocBalances[asset][row.address] = {stable: 0, pending: 0};
 					assocBalances[asset][row.address][row.is_stable ? 'stable' : 'pending'] += row.balance;
 				}
+				for (var asset in assocBalances)
+					for (var address in assocBalances[asset])
+						assocBalances[asset][address].total = assocBalances[asset][address].stable + assocBalances[asset][address].pending;
 				handleBalance(assocBalances);
 			}
 		);
 	});
 }
 
+function readAllUnspentOutputs(exclude_from_circulation, handleSupply) {
+	if (!exclude_from_circulation)
+		exclude_from_circulation = [];
+	var supply = {
+		addresses: 0,
+		txouts: 0,
+		total_amount: 0,
+		circulating_txouts: 0,
+		circulating_amount: 0,
+		headers_commission_amount: 0,
+		payload_commission_amount: 0,
+	};
+	db.query('SELECT address, COUNT(*) AS count, SUM(amount) AS amount FROM outputs WHERE is_spent=0 AND asset IS null GROUP BY address;', function(rows) {
+		if (rows.length) {
+			supply.addresses += rows.length;
+			rows.forEach(function(row) {
+				supply.txouts += row.count;
+				supply.total_amount += row.amount;
+				if (!exclude_from_circulation.includes(row.address)) {
+					supply.circulating_txouts += row.count;
+					supply.circulating_amount += row.amount;
+				}
+			});
+		}
+		db.query('SELECT "headers_commission_amount" AS amount_name, SUM(amount) AS amount FROM headers_commission_outputs WHERE is_spent=0 UNION SELECT "payload_commission_amount" AS amount_name, SUM(amount) AS amount FROM witnessing_outputs WHERE is_spent=0;', function(rows) {
+			if (rows.length) {
+				rows.forEach(function(row) {
+					supply.total_amount += row.amount;
+					supply.circulating_amount += row.amount;
+					supply[row.amount_name] += row.amount;
+				});
+			}
+			handleSupply(supply);
+		});
+	});
+}
+
 exports.readBalance = readBalance;
 exports.readOutputsBalance = readOutputsBalance;
 exports.readSharedBalance = readSharedBalance;
+exports.readAllUnspentOutputs = readAllUnspentOutputs;

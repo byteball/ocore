@@ -1503,7 +1503,7 @@ exports.evaluate = function (opts, callback) {
 						if (arrDefinition) {
 							if (bAA)
 								return cb(new wrappedObject(arrDefinition));
-							// could by defined later, e.g. by fresh AA
+							// could be defined later, e.g. by fresh AA
 							storage.readUnitProps(conn, definition_unit, function (props) {
 								if (props.main_chain_index === null || props.main_chain_index > mci)
 									return cb(false);
@@ -2897,6 +2897,26 @@ function toJsType(x) {
 	throw Error("unknown type in toJsType:" + x);
 }
 
+function assoc2stateVars(assoc) {
+	var stateVars = {};
+	for (var var_name in assoc) {
+		var value = toOscriptType(assoc[var_name]);
+		stateVars[var_name] = {
+			value: value,
+			old_value: value,
+			original_old_value: value,
+		};
+	}
+	return stateVars;
+}
+
+function stateVars2assoc(stateVars) {
+	var assoc = {};
+	for (var var_name in stateVars)
+		assoc[var_name] = toJsType(stateVars[var_name].value);
+	return assoc;
+}
+
 function callGetter(conn, aa_address, getter, args, stateVars, objValidationState, cb) {
 	var i = 0;
 	var locals = {};
@@ -2971,24 +2991,27 @@ function callGetter(conn, aa_address, getter, args, stateVars, objValidationStat
 	});
 }
 
-function executeGetter(conn, aa_address, getter, args, cb) {
+function executeGetterInState(conn, aa_address, getter, args, stateVars, assocBalances, cb) {
 	if (!cb)
 		return new Promise((resolve, reject) => {
-			executeGetter(conn, aa_address, getter, args, (err, res) => {
+			executeGetterInState(conn, aa_address, getter, args, stateVars, assocBalances, (err, res) => {
 				err ? reject(new Error(err)) : resolve(res);
 			});
 		});
-	storage.readLastStableMcUnitProps(conn, props => {
+	conn.query("SELECT * FROM units ORDER BY main_chain_index DESC LIMIT 1", rows => {
+		var props = rows[0];
+		if (!props)
+			throw Error("no last unit");
 		objValidationState = {
 			last_ball_mci: props.main_chain_index,
-			last_ball_timestamp: props.timestamp,
+			last_ball_timestamp: Math.floor(Date.now() / 1000),
 			mc_unit: props.unit, // must not be used
-			assocBalances: {},
+			assocBalances: assocBalances,
 			number_of_responses: 0, // must not be used
 			arrPreviousResponseUnits: [],
 		};
 		args = args.map(toOscriptType);
-		callGetter(conn, aa_address, getter, args, {}, objValidationState, (err, res) => {
+		callGetter(conn, aa_address, getter, args, stateVars, objValidationState, (err, res) => {
 			if (err)
 				return cb(err);
 			cb(null, toJsType(res));
@@ -2996,51 +3019,15 @@ function executeGetter(conn, aa_address, getter, args, cb) {
 	});
 }
 
-function extractInitParams(formula) {
-	var parser = {};
-	if(cache[formula])
-		parser.results = cache[formula];
-	else {
-		parser = new nearley.Parser(nearley.Grammar.fromCompiled(grammar));
-		parser.feed(formula);
-		formulasInCache.push(formula);
-		cache[formula] = parser.results;
-		if (formulasInCache.length > cacheLimit) {
-			var f = formulasInCache.shift();
-			delete cache[f];
-		}
-	}
-	if (parser.results.length !== 1)
-		throw Error("ambiguous formula in already validated init");
-	var arr = parser.results[0];
-	if (arr[0] !== 'main')
-		throw Error("no main in already parsed init");
-	if (arr[2])
-		throw Error("expr in already parsed init");
-	var params = {};
-	var arrStatements = arr[1];
-	var arrLocalVarAssignmentStatements = arr[1].filter(a => a[0] === 'local_var_assignment');
-	var arrRemainingStatements = arrStatements.filter(a => {
-		if (a[0] !== 'local_var_assignment')
-			return true;
-		var var_name = a[1][1];
-		if (typeof var_name !== 'string') // ${expr} not accepted
-			return true;
-		var rhs = a[2];
-		var value;
-		if (typeof rhs !== 'string' || typeof rhs !== 'boolean')
-			value = rhs;
-		else if (!Decimal.isDecimal(rhs))
-			value = rhs.toNumber();
-		else
-			return true;
-		assignField(params, var_name, value);
-		return false;
-	});
-	return { params, arrRemainingStatements };
+function executeGetter(conn, aa_address, getter, args, cb) {
+	return executeGetterInState(conn, aa_address, getter, args, {}, {}, cb);
 }
+
 
 exports.wrappedObject = wrappedObject;
 exports.toJsType = toJsType;
+exports.toOscriptType = toOscriptType;
+exports.assoc2stateVars = assoc2stateVars;
+exports.stateVars2assoc = stateVars2assoc;
+exports.executeGetterInState = executeGetterInState;
 exports.executeGetter = executeGetter;
-exports.extractInitParams = extractInitParams;

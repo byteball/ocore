@@ -120,14 +120,14 @@ function validate(objJoint, callbacks, external_conn) {
 		
 		if (!isNonemptyArray(objUnit.messages))
 			return callbacks.ifUnitError("missing or empty messages array");
-		if (objUnit.messages.length > constants.MAX_MESSAGES_PER_UNIT)
+		if (objUnit.messages.length > constants.MAX_MESSAGES_PER_UNIT && !storage.isGenesisUnit(objUnit.unit))
 			return callbacks.ifUnitError("too many messages");
 
 		if (objectLength.getHeadersSize(objUnit) !== objUnit.headers_commission)
 			return callbacks.ifJointError("wrong headers commission, expected "+objectLength.getHeadersSize(objUnit));
 		if (objectLength.getTotalPayloadSize(objUnit) !== objUnit.payload_commission)
 			return callbacks.ifJointError("wrong payload commission, unit "+objUnit.unit+", calculated "+objectLength.getTotalPayloadSize(objUnit)+", expected "+objUnit.payload_commission);
-		if (objUnit.headers_commission + objUnit.payload_commission > constants.MAX_UNIT_LENGTH)
+		if (objUnit.headers_commission + objUnit.payload_commission > constants.MAX_UNIT_LENGTH && !storage.isGenesisUnit(objUnit.unit))
 			return callbacks.ifUnitError("unit too large");
 	}
 	
@@ -1609,7 +1609,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 	var total_input = 0;
 	if (payload.inputs.length > constants.MAX_INPUTS_PER_PAYMENT_MESSAGE && !objValidationState.bAA)
 		return callback("too many inputs");
-	if (payload.outputs.length > constants.MAX_OUTPUTS_PER_PAYMENT_MESSAGE)
+	if (payload.outputs.length > constants.MAX_OUTPUTS_PER_PAYMENT_MESSAGE && !storage.isGenesisUnit(objUnit.unit))
 		return callback("too many outputs");
 	
 	if (objAsset && objAsset.fixed_denominations && payload.inputs.length !== 1)

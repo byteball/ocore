@@ -191,6 +191,9 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 	
 	function takeConnectionFromPool(handleConnection){
 
+		if (!handleConnection)
+			return new Promise(resolve => takeConnectionFromPool(resolve));
+
 		if (!bReady){
 			console.log("takeConnectionFromPool will wait for ready");
 			eventEmitter.once('ready', function(){
