@@ -130,7 +130,8 @@ function refreshLightClientHistory(addresses, handle){
 		return;
 	if (!network.light_vendor_url)
 		return console.log('refreshLightClientHistory called too early: light_vendor_url not set yet');
-	eventBus.emit('refresh_light_started');
+	if (!addresses) // partial refresh stays silent
+		eventBus.emit('refresh_light_started');
 	if (!bFirstRefreshStarted){
 		archiveDoublespendUnits();
 		bFirstRefreshStarted = true;
@@ -143,7 +144,8 @@ function refreshLightClientHistory(addresses, handle){
 				ws.bRefreshingHistory = false;
 			if (handle)
 				handle(err);
-			eventBus.emit('refresh_light_done');
+			if (!addresses)
+				eventBus.emit('refresh_light_done');
 		};
 		if (err)
 			return finish("refreshLightClientHistory: "+err);
@@ -157,7 +159,7 @@ function refreshLightClientHistory(addresses, handle){
 			return setTimeout(function(){
 				console.log("full refresh ongoing, will refresh later for: " + addresses.join(' '));
 				refreshLightClientHistory(addresses, handle); // full refresh must have priority over selective refresh
-			}, 1000)
+			}, 2*1000)
 		}
 		prepareRequestForHistory(addresses, function(objRequest){
 			if (!objRequest)
