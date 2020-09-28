@@ -880,4 +880,4 @@ CREATE TABLE watched_light_aas (
 CREATE INDEX wlaabyAA ON watched_light_aas(aa);
 
 
-PRAGMA user_version=40;
+PRAGMA user_version=42;

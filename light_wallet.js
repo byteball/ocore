@@ -11,7 +11,7 @@ var eventBus = require('./event_bus.js');
 var breadcrumbs = require('./breadcrumbs.js');
 
 var RECONNECT_TO_LIGHT_VENDOR_PERIOD = 60*1000;
-var firstHistoryReceived = false;
+var bFirstHistoryReceived = false;
 
 function setLightVendorHost(light_vendor_host){
 	if (network.light_vendor_url)
@@ -44,49 +44,88 @@ function readListOfUnstableUnits(handleUnits){
 }
 
 
-function prepareRequestForHistory(handleResult){
+function prepareRequestForHistory(newAddresses, handleResult){
 	myWitnesses.readMyWitnesses(function(arrWitnesses){
 		if (arrWitnesses.length === 0) // first start, witnesses not set yet
 			return handleResult(null);
 		var objHistoryRequest = {witnesses: arrWitnesses};
-		walletGeneral.readMyAddresses(function(arrAddresses){
-			if (arrAddresses.length > 0)
-				objHistoryRequest.addresses = arrAddresses;
-			readListOfUnstableUnits(function(arrUnits){
-				if (arrUnits.length > 0)
-					objHistoryRequest.requested_joints = arrUnits;
-				if (!objHistoryRequest.addresses && !objHistoryRequest.requested_joints)
-					return handleResult(null);
-				if (!objHistoryRequest.addresses)
-					return handleResult(objHistoryRequest);
-				objHistoryRequest.last_stable_mci = 0;
-				var strAddressList = arrAddresses.map(db.escape).join(', ');
-				db.query(
-					"SELECT unit FROM unit_authors CROSS JOIN units USING(unit) WHERE is_stable=1 AND address IN("+strAddressList+") \n\
-					UNION \n\
-					SELECT unit FROM outputs CROSS JOIN units USING(unit) WHERE is_stable=1 AND address IN("+strAddressList+")",
-					function(rows){
-						if (rows.length)
-							objHistoryRequest.known_stable_units = rows.map(function(row){ return row.unit; });
-						handleResult(objHistoryRequest);
-					}
-				);
-				/*db.query(
-					"SELECT MAX(main_chain_index) AS last_stable_mci FROM units JOIN unit_authors USING(unit) WHERE is_stable=1 AND address IN(?)",
-					[arrAddresses],
-					function(rows){
-						objHistoryRequest.last_stable_mci = rows[0].last_stable_mci || 0;
-						handleResult(objHistoryRequest);
-					}
-				);*/
+		if (newAddresses)
+			prepareRequest(newAddresses, true);
+		else
+			walletGeneral.readMyAddresses(function(arrAddresses){
+				prepareRequest(arrAddresses);
 			});
-		});
+
+		function prepareRequest(arrAddresses, bNewAddresses){
+			if (arrAddresses.length > 0)
+			objHistoryRequest.addresses = arrAddresses;
+				readListOfUnstableUnits(function(arrUnits){
+					if (arrUnits.length > 0)
+						objHistoryRequest.requested_joints = arrUnits;
+					if (!objHistoryRequest.addresses && !objHistoryRequest.requested_joints)
+						return handleResult(null);
+					if (!objHistoryRequest.addresses)
+						return handleResult(objHistoryRequest);
+
+					var strAddressList = arrAddresses.map(db.escape).join(', ');
+					if (bNewAddresses){
+						db.query(
+							"SELECT unit FROM unit_authors CROSS JOIN units USING(unit) WHERE is_stable=1 AND address IN("+strAddressList+") \n\
+							UNION \n\
+							SELECT unit FROM outputs CROSS JOIN units USING(unit) WHERE is_stable=1 AND address IN("+strAddressList+")",
+							function(rows){
+								if (rows.length)
+									objHistoryRequest.known_stable_units = rows.map(function(row){ return row.unit; });
+								if (typeof conf.refreshHistoryOnlyAboveMci == 'number')
+									objHistoryRequest.min_mci = conf.refreshHistoryOnlyAboveMci;
+								handleResult(objHistoryRequest);
+							}
+						);
+					} else {
+						db.query(
+							"SELECT MAX(main_chain_index) AS last_stable_mci FROM units WHERE is_stable=1",
+							function(rows){
+								objHistoryRequest.min_mci = Math.max(rows[0].last_stable_mci || 0, conf.refreshHistoryOnlyAboveMci || 0);
+								handleResult(objHistoryRequest);
+							}
+						);
+					}
+				});
+		}
+
 	}, 'wait');
 }
 
 var bFirstRefreshStarted = false;
 
-function refreshLightClientHistory(){
+if (conf.bLight) {
+	eventBus.on("new_address", function(address){
+		refreshLightClientHistory([address], function(error){
+			if (error)
+				return console.log(error);
+			db.query("DELETE FROM unprocessed_addresses WHERE address=?", [address]);
+		});
+	});
+
+	// we refresh history for all addresses that could have been missed
+	eventBus.on('connected', function(){
+		bFirstHistoryReceived = false;
+		db.query("SELECT address FROM unprocessed_addresses", function(rows){
+			if (rows.length === 0)
+				return console.log("no unprocessed addresses");
+			var arrAddresses = rows.map(function(row){return row.address});
+			refreshLightClientHistory(arrAddresses, function(error){
+				if (error)
+					return console.log("couldn't process history");
+				db.query("DELETE FROM unprocessed_addresses WHERE address IN("+ arrAddresses.map(db.escape).join(', ') + ")");
+			});
+		})
+		
+	});
+}
+
+
+function refreshLightClientHistory(addresses, handle){
 	if (!conf.bLight)
 		return;
 	if (!network.light_vendor_url)
@@ -97,21 +136,30 @@ function refreshLightClientHistory(){
 		bFirstRefreshStarted = true;
 	}
 	network.findOutboundPeerOrConnect(network.light_vendor_url, function onLocatedLightVendor(err, ws){
-		var finish = function(msg){
-			if (msg)
-				console.log(msg);
-			if (ws)
+		var finish = function(err){
+			if (err)
+				console.log(err);
+			if (ws && !addresses)
 				ws.bRefreshingHistory = false;
+			if (handle)
+				handle(err);
 			eventBus.emit('refresh_light_done');
 		};
 		if (err)
 			return finish("refreshLightClientHistory: "+err);
-		console.log('refreshLightClientHistory connected');
+		console.log('refreshLightClientHistory ' + (addresses ? 'selective' : 'full'));
 		// handling the response may take some time, don't send new requests
-		if (ws.bRefreshingHistory)
-			return console.log("previous refresh not finished yet");
-		ws.bRefreshingHistory = true;
-		prepareRequestForHistory(function(objRequest){
+		if (!addresses){ // bRefreshingHistory flag concerns only a full refresh
+			if (ws.bRefreshingHistory)
+				return console.log("previous refresh not finished yet");
+			ws.bRefreshingHistory = true;
+		} else if (ws.bRefreshingHistory || !isFirstHistoryReceived()) {
+			return setTimeout(function(){
+				console.log("full refresh ongoing, will refresh later for: " + addresses.join(' '));
+				refreshLightClientHistory(addresses, handle); // full refresh must have priority over selective refresh
+			}, 1000)
+		}
+		prepareRequestForHistory(addresses, function(objRequest){
 			if (!objRequest)
 				return finish();
 			network.sendRequest(ws, 'light/get_history', objRequest, false, function(ws, request, response){
@@ -128,12 +176,12 @@ function refreshLightClientHistory(){
 					ifError: function(err){
 						clearInterval(interval);
 						network.sendError(ws, err);
-						finish();
+						finish(err);
 					},
 					ifOk: function(bRefreshUI){
 						clearInterval(interval);
 						finish();
-						firstHistoryReceived = true;
+						bFirstHistoryReceived = true;
 						if (bRefreshUI)
 							eventBus.emit('maybe_new_transactions');
 					}
@@ -175,7 +223,7 @@ if (conf.bLight){
 }
 
 function isFirstHistoryReceived(){
-	return firstHistoryReceived;
+	return bFirstHistoryReceived;
 }
 
 exports.setLightVendorHost = setLightVendorHost;

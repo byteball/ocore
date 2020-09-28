@@ -45,3 +45,7 @@ ALTER TABLE aa_addresses
 	CHANGE COLUMN unit unit CHAR(44) NULL,
 	CHANGE COLUMN mci mci INT NULL;
 
+CREATE TABLE unprocessed_addresses (
+	address CHAR(32) NOT NULL PRIMARY KEY,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
