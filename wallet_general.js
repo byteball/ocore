@@ -4,8 +4,8 @@ var async = require('async');
 var db = require('./db.js');
 var device = require('./device.js');
 var conf = require('./conf.js');
-var network = require('./network.js');
 var ValidationUtils = require("./validation_utils.js");
+var eventBus = require('./event_bus.js');
 
 
 function sendOfferToSign(device_address, address, signing_path, objUnsignedUnit, assocPrivatePayloads){
@@ -67,11 +67,17 @@ function addWatchedAddress(address, handle){
 		handle = function () { };
 	if (!ValidationUtils.isValidAddress(address))
 		return handle("not a valid address");
-	db.query("INSERT "+db.getIgnore()+" INTO my_watched_addresses (address) VALUES (?)", [address], function(){
-		if (conf.bLight)
-			network.addLightWatchedAddress(address);
-		handle();
-	})
+	if (conf.bLight)
+		db.query("INSERT " + db.getIgnore() + " INTO unprocessed_addresses (address) VALUES (?)", [address], insertInDb);
+	else
+		insertInDb();
+
+	function insertInDb(){
+		db.query("INSERT "+db.getIgnore()+" INTO my_watched_addresses (address) VALUES (?)", [address], function(){
+			eventBus.emit("new_address", address); // if light node, this will trigger an history refresh for this address thus it will be watched by the hub
+			handle();
+		});
+	}
 }
 
 exports.sendOfferToSign = sendOfferToSign;

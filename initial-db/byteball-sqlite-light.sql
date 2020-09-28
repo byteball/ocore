@@ -861,5 +861,9 @@ CREATE TABLE watched_light_aas (
 );
 CREATE INDEX wlaabyAA ON watched_light_aas(aa);
 
+CREATE TABLE unprocessed_addresses (
+	address CHAR(32) NOT NULL PRIMARY KEY,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
 PRAGMA user_version=40;
