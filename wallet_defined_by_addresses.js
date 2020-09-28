@@ -236,7 +236,7 @@ function deletePendingSharedAddress(address_definition_template_chash){
 // called from network after the initiator collects approvals from all members of the address and then sends the completed address to all members
 // member_signing_path is now deprecated and unused
 // shared_address_signing_paths.signing_path is now path to member-address, not full path to a signing key
-function addNewSharedAddress(address, arrDefinition, assocSignersByPath, bForwarded, callbacks){
+function addNewSharedAddress(address, arrDefinition, assocSignersByPath, bForwarded, onDone){
 //	network.addWatchedAddress(address);
 	db.query(
 		"INSERT "+db.getIgnore()+" INTO shared_addresses (shared_address, definition) VALUES (?,?)", 
@@ -256,9 +256,9 @@ function addNewSharedAddress(address, arrDefinition, assocSignersByPath, bForwar
 				eventBus.emit("new_address", address);
 
 				if (conf.bLight){
-					db.query("INSERT " + db.getIgnore() + " INTO unprocessed_addresses (address) VALUES (?)", [address], callbacks.ifOk);
-				} else if (callbacks)
-					callbacks.ifOk();
+					db.query("INSERT " + db.getIgnore() + " INTO unprocessed_addresses (address) VALUES (?)", [address], onDone);
+				} else if (onDone)
+					onDone();
 				if (!bForwarded)
 					forwardNewSharedAddressToCosignersOfMyMemberAddresses(address, arrDefinition, assocSignersByPath);
 			
@@ -354,7 +354,7 @@ function handleNewSharedAddress(body, callbacks){
 		validateAddressDefinition(body.definition, function(err){
 			if (err)
 				return callbacks.ifError(err);
-			addNewSharedAddress(body.address, body.definition, body.signers, body.forwarded, callbacks);
+			addNewSharedAddress(body.address, body.definition, body.signers, body.forwarded, callbacks.ifOk);
 		});
 	});
 }

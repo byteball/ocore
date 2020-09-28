@@ -589,7 +589,7 @@ function recordAddress(wallet, is_change, address_index, address, arrDefinition,
 
 function deriveAndRecordAddress(wallet, is_change, address_index, handleNewAddress){
 	deriveAddress(wallet, is_change, address_index, function(address, arrDefinition){
-		recordAddress(wallet, is_change, address_index, address, arrDefinition, function(error){
+		recordAddress(wallet, is_change, address_index, address, arrDefinition, function(){
 			handleNewAddress(address);
 		});
 	});
