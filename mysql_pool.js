@@ -102,6 +102,10 @@ module.exports = function(connection_or_pool){
 
 	// this is for pool only
 	safe_connection.takeConnectionFromPool = function(handleConnection){
+
+		if (!handleConnection)
+			return new Promise(resolve => safe_connection.takeConnectionFromPool(resolve));
+
 		connection_or_pool.getConnection(function(err, new_connection) {
 			if (err)
 				throw err;

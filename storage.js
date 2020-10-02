@@ -886,6 +886,18 @@ function insertAADefinitions(conn, arrPayloads, unit, mci, bForAAsOnly, onDone) 
 	);
 }
 
+function readAABalances(conn, address, handleBalances) {
+	if (!handleBalances)
+		return new Promise(resolve => readAABalances(conn, address, resolve));
+	conn.query("SELECT asset, balance FROM aa_balances WHERE address=?", [address], function (rows) {
+		var assocBalances = {};
+		rows.forEach(function (row) {
+			assocBalances[row.asset] = row.balance;
+		});
+		handleBalances(assocBalances);
+	});
+}
+
 function parseStateVar(type_and_value) {
 	var arrParts = type_and_value.split("\n", 2);
 	if (arrParts.length !== 2)
@@ -1891,6 +1903,7 @@ exports.readBaseAADefinitionAndParams = readBaseAADefinitionAndParams;
 exports.readAAGetters = readAAGetters;
 exports.readAAGetterProps = readAAGetterProps;
 exports.insertAADefinitions = insertAADefinitions;
+exports.readAABalances = readAABalances;
 exports.readAAStateVar = readAAStateVar;
 exports.readAAStateVars = readAAStateVars;
 

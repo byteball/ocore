@@ -55,7 +55,16 @@ function readMyAddresses(handleAddresses){
 	});
 }
 
+function readMyPersonalAddresses(handleAddresses){
+	db.query("SELECT address FROM my_addresses", function(rows){
+		var arrAddresses = rows.map(function(row){ return row.address; });
+		handleAddresses(arrAddresses);
+	});
+}
+
 function addWatchedAddress(address, handle){
+	if (!handle)
+		handle = function () { };
 	if (!ValidationUtils.isValidAddress(address))
 		return handle("not a valid address");
 	db.query("INSERT "+db.getIgnore()+" INTO my_watched_addresses (address) VALUES (?)", [address], function(){
@@ -70,4 +79,5 @@ exports.sendPrivatePayments = sendPrivatePayments;
 exports.forwardPrivateChainsToDevices = forwardPrivateChainsToDevices;
 exports.sendPaymentNotification = sendPaymentNotification;
 exports.readMyAddresses = readMyAddresses;
+exports.readMyPersonalAddresses = readMyPersonalAddresses;
 exports.addWatchedAddress = addWatchedAddress;

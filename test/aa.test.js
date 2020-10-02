@@ -684,7 +684,7 @@ test.cb.serial('compose simple AA', t => {
 		conn.query("INSERT INTO aa_addresses (address, definition, unit, mci) VALUES(?, ?, ?, ?)", [address, JSON.stringify(aa), objMcUnit.last_ball_unit, 500]);
 		conn.query("INSERT INTO outputs (unit, message_index, output_index, address, amount) VALUES(?, 0, 0, ?, ?)", [objMcUnit.unit, address, trigger.outputs.base]);
 		conn.query("DELETE FROM aa_responses WHERE trigger_unit=? AND aa_address=?", [trigger.unit, address]);
-		aa_composer.handleTrigger(conn, batch, null, trigger, {}, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (bPosted, bBounced) => {
+		aa_composer.handleTrigger(conn, batch, trigger, {}, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (bPosted, bBounced) => {
 			conn.query('ROLLBACK', () => {
 				conn.release();
 			});
@@ -779,7 +779,7 @@ test.cb.serial('compose complex AA', t => {
 		conn.query("INSERT INTO aa_addresses (address, definition, unit, mci) VALUES(?, ?, ?, ?)", [address, JSON.stringify(aa), objMcUnit.last_ball_unit, 500]);
 		conn.query("INSERT INTO outputs (unit, message_index, output_index, address, amount) VALUES(?, 0, 1, ?, ?)", [objMcUnit.unit, address, trigger.outputs.base]);
 		conn.query("DELETE FROM aa_responses WHERE trigger_unit=? AND aa_address=?", [trigger.unit, address]);
-		aa_composer.handleTrigger(conn, batch, null, trigger, {}, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (bPosted, bBounced) => {
+		aa_composer.handleTrigger(conn, batch, trigger, {}, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (bPosted, bBounced) => {
 			conn.query('ROLLBACK', () => {
 				conn.release();
 			});
@@ -846,7 +846,7 @@ test.cb.serial('variable reassignment', t => {
 		conn.query("INSERT INTO aa_addresses (address, definition, unit, mci) VALUES(?, ?, ?, ?)", [address, JSON.stringify(aa), objMcUnit.last_ball_unit, 500]);
 		conn.query("INSERT INTO outputs (unit, message_index, output_index, address, amount) VALUES(?, 0, 2, ?, ?)", [objMcUnit.unit, address, trigger.outputs.base]);
 		conn.query("DELETE FROM aa_responses WHERE trigger_unit=? AND aa_address=?", [trigger.unit, address]);
-		aa_composer.handleTrigger(conn, batch, null, trigger, {}, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (bPosted, bounce_message) => {
+		aa_composer.handleTrigger(conn, batch, trigger, {}, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (bPosted, bounce_message) => {
 			conn.query('ROLLBACK', () => {
 				conn.release();
 			});
@@ -901,7 +901,7 @@ test.cb.serial('no messages', t => {
 			onDone();
 		}
 		
-		aa_composer.handleTrigger(conn, batch, null, trigger, {}, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (objResponseUnit, bounce_message) => {
+		aa_composer.handleTrigger(conn, batch, trigger, {}, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (objResponseUnit, bounce_message) => {
 			conn.query('ROLLBACK', () => {
 				conn.release();
 			});
@@ -956,7 +956,7 @@ test.cb.serial('no outputs', t => {
 			onDone();
 		}
 		
-		aa_composer.handleTrigger(conn, batch, null, trigger, {}, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (objResponseUnit, bounce_message) => {
+		aa_composer.handleTrigger(conn, batch, trigger, {}, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (objResponseUnit, bounce_message) => {
 			conn.query('ROLLBACK', () => {
 				conn.release();
 			});
@@ -1009,7 +1009,7 @@ test.cb.serial('only 0 output', t => {
 			onDone();
 		}
 		
-		aa_composer.handleTrigger(conn, batch, null, trigger, {}, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (objResponseUnit, bounce_message) => {
+		aa_composer.handleTrigger(conn, batch, trigger, {}, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (objResponseUnit, bounce_message) => {
 			conn.query('ROLLBACK', () => {
 				conn.release();
 			});
@@ -1063,7 +1063,7 @@ test.cb.serial('AA with response vars', t => {
 			onDone();
 		}
 		
-		aa_composer.handleTrigger(conn, batch, null, trigger, {}, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (bPosted, bBounced) => {
+		aa_composer.handleTrigger(conn, batch, trigger, {}, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (bPosted, bBounced) => {
 			conn.query('ROLLBACK', () => {
 				conn.release();
 			});
