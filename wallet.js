@@ -2005,7 +2005,12 @@ function sendMultiPayment(opts, handleResult)
 					params.outputs = [{address: to_address, amount: 0}];
 				}
 				else{
-					params.outputs = to_address ? [{address: to_address, amount: amount}] : (base_outputs || []);
+					if (to_address)
+						params.outputs = [{address: to_address, amount: amount}];
+					else if (outputs_by_asset)
+						params.outputs = outputs_by_asset.base;
+					else
+						params.outputs = base_outputs || [];
 					params.outputs.push({address: change_address, amount: 0});
 					addFeesToParams();
 				}
