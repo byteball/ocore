@@ -1898,8 +1898,20 @@ function sendMultiPayment(opts, handleResult)
 					if (err)
 						throw Error(err);
 
-					if (outputs_by_asset && (objAsset.is_private || objAsset.fixed_denominations))
-						throw Error("outputs_by_asset cannot be used for private payments and indivisible assets");
+					if (outputs_by_asset && (objAsset.is_private || objAsset.fixed_denominations)) {
+						if (Object.keys(outputs_by_asset).filter(a => a !== 'base' && a !== nonbaseAsset).length > 0)
+							throw Error("outputs_by_asset with multiple assets cannot be used for private payments and indivisible assets");
+						// else rewrite using base_outputs/asset_outputs
+						asset = nonbaseAsset;
+						asset_outputs = outputs_by_asset[nonbaseAsset];
+						base_outputs = outputs_by_asset.base; // might be undefined
+						outputs_by_asset = null;
+						delete params.outputs_by_asset;
+						
+						params.asset = asset;
+						params.asset_outputs = asset_outputs;
+						params.base_outputs = base_outputs;
+					}
 					if (objAsset.is_private){
 						var saveMnemonicsPreCommit = params.callbacks.preCommitCb;
 						// save messages in outbox before committing
