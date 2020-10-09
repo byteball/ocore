@@ -36,7 +36,7 @@ var STALLED_TIMEOUT = 5000; // a request is treated as stalled if no response re
 var RESPONSE_TIMEOUT = 300*1000; // after this timeout, the request is abandoned
 var HEARTBEAT_TIMEOUT = conf.HEARTBEAT_TIMEOUT || 10*1000;
 var HEARTBEAT_RESPONSE_TIMEOUT = 60*1000;
-var PAUSE_TIMEOUT = 2*HEARTBEAT_TIMEOUT;
+var HEARTBEAT_PAUSE_TIMEOUT = 2*HEARTBEAT_TIMEOUT;
 var MAX_STATE_VARS = 2000;
 
 var wss;
@@ -676,7 +676,7 @@ function handleNewPeers(ws, request, arrPeerUrls){
 
 function heartbeat(){
 	// just resumed after sleeping
-	var bJustResumed = (typeof window !== 'undefined' && window && window.cordova && Date.now() - last_hearbeat_wake_ts > 2*HEARTBEAT_TIMEOUT);
+	var bJustResumed = (typeof window !== 'undefined' && window && window.cordova && Date.now() - last_hearbeat_wake_ts > HEARTBEAT_PAUSE_TIMEOUT);
 	last_hearbeat_wake_ts = Date.now();
 	wss.clients.concat(arrOutboundPeers).forEach(function(ws){
 		if (ws.bSleeping || ws.readyState !== ws.OPEN)
@@ -2758,7 +2758,7 @@ function handleRequest(ws, tag, command, params){
 			// true if our timers were paused
 			// Happens only on android, which suspends timers when the app becomes paused but still keeps network connections
 			// Handling 'pause' event would've been more straightforward but with preference KeepRunning=false, the event is delayed till resume
-			var bPaused = (typeof window !== 'undefined' && window && window.cordova && Date.now() - last_hearbeat_wake_ts > PAUSE_TIMEOUT);
+			var bPaused = (typeof window !== 'undefined' && window && window.cordova && Date.now() - last_hearbeat_wake_ts > HEARTBEAT_PAUSE_TIMEOUT);
 			if (bPaused)
 				return sendResponse(ws, tag, 'sleep'); // opt out of receiving heartbeats and move the connection into a sleeping state
 			sendResponse(ws, tag);
