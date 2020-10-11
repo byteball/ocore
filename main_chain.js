@@ -470,10 +470,10 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStability
 	}
 	
 	function updateStableMcFlag(){
+		profiler.start();
 		if (bKeepStabilityPoint)
 			return finish();
 		console.log("updateStableMcFlag");
-		profiler.start();
 		readLastStableMcUnit(function(last_stable_mc_unit){
 			console.log("last stable mc unit "+last_stable_mc_unit);
 			storage.readWitnesses(conn, last_stable_mc_unit, function(arrWitnesses){

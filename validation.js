@@ -728,9 +728,9 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 			WHERE address=definition_chash AND +sequence='good' AND is_stable=1 AND main_chain_index<=? AND definition_chash IN(?)",
 			[objValidationState.last_ball_mci, objUnit.witnesses],
 			function(rows){
+				profiler.stop('validation-witnesses-stable');
 				if (rows[0].count_stable_good_witnesses !== constants.COUNT_WITNESSES)
 					return callback("some witnesses are not stable, not serial, or don't come before last ball");
-				profiler.stop('validation-witnesses-stable');
 				validateWitnessListMutations(objUnit.witnesses);
 			}
 		);
