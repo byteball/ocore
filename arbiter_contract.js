@@ -128,6 +128,8 @@ function openDispute(hash, cb) {
 	getByHash(hash, function(objContract){
 		device.requestFromHub("hub/get_arbstore_address", objContract.arbiter_address, function(err, arbStoreAddress){
 			arbiters.getInfo(objContract.arbiter_address, function(objArbiter) {
+				if (!objArbiter)
+					return cb("can't get arbiter info from ArbStore");
 				device.getOrGeneratePermanentPairingInfo(function(pairingInfo){
 					var my_pairing_code = pairingInfo.device_pubkey + "@" + pairingInfo.hub + "#" + pairingInfo.pairing_secret;
 					var data = JSON.stringify({
@@ -180,6 +182,56 @@ function openDispute(hash, cb) {
 	});
 }
 
+function appeal(hash, cb) {
+	getByHash(hash, function(objContract){
+		device.requestFromHub("hub/get_arbstore_address", objContract.arbiter_address, function(err, arbStoreAddress){
+			if (err)
+				return cb(err);
+			device.getOrGeneratePermanentPairingInfo(function(pairingInfo){
+				var my_pairing_code = pairingInfo.device_pubkey + "@" + pairingInfo.hub + "#" + pairingInfo.pairing_secret;
+				var data = JSON.stringify({
+					contract_hash: hash,
+					my_pairing_code: my_pairing_code,
+					my_address: objContract.my_address,
+					contract: {title: objContract.title, text: objContract.text, creation_date: objContract.creation_date}
+				});
+				var reqParams = Object.assign(url.parse(arbStoreAddress), 
+					{
+						path: "/api/appeal/new",
+						method: "POST",
+						headers: {
+							"Content-Type": "application/json",
+							"Content-Length": data.length
+						}
+					}
+				);
+				var req = http.request(
+					reqParams
+					, function(resp){
+					var data = "";
+					resp.on("data", function(chunk){
+						data += chunk;
+					});
+					resp.on("end", function(){
+						try {
+							data = JSON.parse(data);
+							if (data.error) {
+								return cb(data.error);
+							}
+							setField(hash, "status", "in_appeal");
+							cb(null, data);
+						} catch (e) {
+							cb(e);
+						}
+					});
+				}).on("error", cb);
+				req.write(data);
+				req.end();
+			});
+		});
+	});
+}
+
 exports.createAndSend = createAndSend;
 exports.getByHash = getByHash;
 exports.getBySharedAddress = getBySharedAddress;
@@ -190,3 +242,4 @@ exports.store = store;
 exports.getHash = getHash;
 exports.share = share;
 exports.openDispute = openDispute;
+exports.appeal = appeal;

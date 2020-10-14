@@ -714,8 +714,9 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					if (!objContract || objContract.peer_device_address !== from_address)
 						return callbacks.ifError("wrong contract hash or not an owner");
 					if (body.field === "status") {
-						if (objContract.status === "pending" && body.value !== "revoked" && body.value !== "accepted" || 
-							objContract.status === "paid" && body.value !== "in_dispute")
+						if ((objContract.status === "pending" && body.value !== "revoked" && body.value !== "accepted") || 
+							(objContract.status === "paid" && body.value !== "in_dispute") ||
+							((objContract.status === "dispute_resolved" && body.value !== "in_appeal")))
 								return callbacks.ifError("wrong status for contract supplied");
 					} else 
 					if (body.field === "unit") {
