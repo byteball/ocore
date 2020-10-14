@@ -253,12 +253,15 @@ function addNewSharedAddress(address, arrDefinition, assocSignersByPath, bForwar
 			async.series(arrQueries, function(){
 				console.log('added new shared address '+address);
 				eventBus.emit("new_address-"+address);
-				if (conf.bLight)
-					network.addLightWatchedAddress(address);
+				eventBus.emit("new_address", address);
+
+				if (conf.bLight){
+					db.query("INSERT " + db.getIgnore() + " INTO unprocessed_addresses (address) VALUES (?)", [address], onDone);
+				} else if (onDone)
+					onDone();
 				if (!bForwarded)
 					forwardNewSharedAddressToCosignersOfMyMemberAddresses(address, arrDefinition, assocSignersByPath);
-				if (onDone)
-					onDone();
+			
 			});
 		}
 	);

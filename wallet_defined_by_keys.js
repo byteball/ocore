@@ -8,7 +8,6 @@ var mutex = require('./mutex.js');
 var conf = require('./conf.js');
 var objectHash = require('./object_hash.js');
 var _ = require('lodash');
-var network = require('./network.js');
 var device = require('./device.js');
 var walletGeneral = require('./wallet_general.js');
 var eventBus = require('./event_bus.js');
@@ -567,18 +566,25 @@ function recordAddress(wallet, is_change, address_index, address, arrDefinition,
 	if (typeof address_index === 'string' && is_change)
 		throw Error("address with string index cannot be change address");
 	var address_index_column_name = (typeof address_index === 'string') ? 'app' : 'address_index';
-	db.query( // IGNORE in case the address was already generated
-		"INSERT "+db.getIgnore()+" INTO my_addresses (wallet, is_change, "+address_index_column_name+", address, definition) VALUES (?,?,?,?,?)", 
-		[wallet, is_change, address_index, address, JSON.stringify(arrDefinition)], 
-		function(){
-			eventBus.emit("new_address-"+address);
-			if (onDone)
-				onDone();
-		//	network.addWatchedAddress(address);
-			if (conf.bLight && !is_change)
-				network.addLightWatchedAddress(address);
-		}
-	);
+	if (conf.bLight){
+		db.query("INSERT " + db.getIgnore() + " INTO unprocessed_addresses (address) VALUES (?)", [address], insertInDb);
+	} else
+		insertInDb();
+
+	function insertInDb(){
+		db.query( // IGNORE in case the address was already generated
+			"INSERT "+db.getIgnore()+" INTO my_addresses (wallet, is_change, "+address_index_column_name+", address, definition) VALUES (?,?,?,?,?)", 
+			[wallet, is_change, address_index, address, JSON.stringify(arrDefinition)], 
+			function(){
+				eventBus.emit("new_address-"+address);
+				eventBus.emit("new_address", address); // if light node, this will trigger an history refresh for this address thus it will be watched by the hub
+				if (onDone)
+					onDone();
+			//	network.addWatchedAddress(address);			
+			}
+		);
+	}
+
 }
 
 function deriveAndRecordAddress(wallet, is_change, address_index, handleNewAddress){

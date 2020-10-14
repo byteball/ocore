@@ -16,8 +16,6 @@ var TYPES = {
 	FORMULA: 'FORMULA'
 };
 
-
-
 function validateFormula (formula, parserResults, context) {
 	function searchNewlineRecursive (st) {
 		if (_.isArray(st)) {
@@ -43,11 +41,22 @@ function validateFormula (formula, parserResults, context) {
 	}
 }
 
-exports.parse = function (text, callback) {
+function parseOjsonGrammar (text) {
+	var nearleyParser = new nearley.Parser(nearley.Grammar.fromCompiled(ojsonGrammar));
+	nearleyParser.feed(text);
+	return nearleyParser;
+};
+
+function parseOscriptGrammar (formula) {
+	var nearleyParser = new nearley.Parser(nearley.Grammar.fromCompiled(oscriptGrammar));
+	nearleyParser.feed(formula);
+	return nearleyParser;
+};
+
+function parse (text, callback) {
 	var parser = {};
 	try {
-		parser = new nearley.Parser(nearley.Grammar.fromCompiled(ojsonGrammar));
-		parser.feed(text);
+		parser = parseOjsonGrammar(text);
 	} catch (e) {
 		return callback('ojson parsing failed: ' + e, null);
 	}
@@ -80,8 +89,7 @@ exports.parse = function (text, callback) {
 		} else if (tree.type === TYPES.FORMULA) {
 			var formula = tree.value;
 			try {
-				parser = new nearley.Parser(nearley.Grammar.fromCompiled(oscriptGrammar));
-				parser.feed(formula);
+				parser = parseOscriptGrammar(formula);
 				validateFormula(formula, parser.results, tree.context)
 				return '{' + formula + '}';
 			} catch (e) {
@@ -134,3 +142,8 @@ exports.parse = function (text, callback) {
 		return arr;
 	}
 };
+
+exports.parse = parse;
+exports.TYPES = TYPES;
+exports.parseOjsonGrammar = parseOjsonGrammar;
+exports.parseOscriptGrammar = parseOscriptGrammar;

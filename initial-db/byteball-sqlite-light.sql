@@ -860,6 +860,11 @@ CREATE TABLE watched_light_aas (
 );
 CREATE INDEX wlaabyAA ON watched_light_aas(aa);
 
+CREATE TABLE unprocessed_addresses (
+	address CHAR(32) NOT NULL PRIMARY KEY,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- arbiter contracts
 
 CREATE TABLE IF NOT EXISTS arbiters_locations (
@@ -900,4 +905,4 @@ CREATE TABLE IF NOT EXISTS arbiter_contracts (
 	FOREIGN KEY (my_address) REFERENCES my_addresses(address)
 );
 
-PRAGMA user_version=42;
+PRAGMA user_version=43;

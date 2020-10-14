@@ -4,7 +4,7 @@ var eventBus = require('./event_bus.js');
 var constants = require("./constants.js");
 var conf = require("./conf.js");
 
-var VERSION = 42;
+var VERSION = 43;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -408,7 +408,13 @@ function migrateDb(connection, onDone){
 				}
 				if (version < 41)
 					connection.addQuery(arrQueries, "DELETE FROM known_bad_joints");
-				if (version < 42) {
+				if (version < 42 && conf.bLight) {
+					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS unprocessed_addresses (\n\
+						address CHAR(32) NOT NULL PRIMARY KEY,\n\
+						creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP\n\
+					);");
+				}
+				if (version < 43) {
 					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS arbiters_locations ( \n\
 						arbiter_address CHAR(32) NOT NULL PRIMARY KEY, \n\
 						arbstore_address CHAR(32) NOT NULL, \n\
