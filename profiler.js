@@ -3,8 +3,8 @@
 if (typeof window === 'object' && window.cordova)
 	return;
 var fs = require("fs");
-var eventBus = require("ocore/event_bus.js");
-var desktopApp = require('ocore/desktop_app.js');
+var eventBus = require("./event_bus.js");
+var desktopApp = require('./desktop_app.js');
 var appDataDir = desktopApp.getAppDataDir();
 
 var bPrintOnExit = false;
