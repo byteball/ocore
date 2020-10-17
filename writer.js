@@ -637,11 +637,13 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 						}
 						
 						saveToKvStore(function(){
+							profiler.stop('write-batch-write');
+							profiler.start();
 							commit_fn(err ? "ROLLBACK" : "COMMIT", function(){
 								var consumed_time = Date.now()-start_time;
 								profiler.add_result('write', consumed_time);
 								console.log((err ? (err+", therefore rolled back unit ") : "committed unit ")+objUnit.unit+", write took "+consumed_time+"ms");
-								profiler.stop('write-commit');
+								profiler.stop('write-sql-commit');
 								profiler.increment();
 								if (err) {
 									var headers_commission = require("./headers_commission.js");

@@ -92,6 +92,10 @@ function stop_sl1(tag){
 	start_ts_sl1 = 0;
 }
 
+function isStarted(){
+	return !!start_ts;
+}
+
 function print_on_screen(){
 	console.error("\n" + getFormattedResults());
 }
@@ -228,18 +232,20 @@ if (bOn){
 	exports.start_sl1 = start_sl1;
 	exports.stop_sl1 = stop_sl1;
 	exports.increment = increment;
-}
-exports.print = print_on_log;
-exports.mark_start = mark_start;
-exports.mark_end = mark_end;
-exports.add_result = add_result;
-exports.time_in_db = 0;
-
-if (!bOn){
+	exports.isStarted = isStarted;
+} else {
 	exports.start = function(){};
 	exports.stop = function(){};
 	exports.start_sl1 = function(){};
 	exports.stop_sl1 = function(){};
 	exports.increment = function(){};
 }
+
+exports.print = print_on_log;
+exports.mark_start = mark_start;
+exports.mark_end = mark_end;
+exports.add_result = add_result;
+exports.time_in_db = 0;
+
+
 //exports.print = function(){};

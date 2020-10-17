@@ -273,7 +273,8 @@ function validate(objJoint, callbacks, external_conn) {
 			], 
 			function(err){
 				if(err){
-					profiler.stop('validation-advanced-stability');
+					if (profiler.isStarted())
+						profiler.stop('validation-advanced-stability');
 					// We might have advanced the stability point and have to commit the changes as the caches are already updated.
 					// There are no other updates/inserts/deletes during validation
 					commit_fn(function(){
