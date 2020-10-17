@@ -111,7 +111,7 @@ if (printOnFileMciPeriod){
 				var total = 0;
 				for (var tag in times)
 					total += times[tag];
-				fs.writeFile(appDataDir + '/' + directoryName + "/mci-" + mci + "-" + (total/count).toFixed(2) +' ms', getFormattedResults());
+				fs.writeFile(appDataDir + '/' + directoryName + "/mci-" + mci + "-" + (total/count).toFixed(2) +' ms', getFormattedResults(), ()=>{});
 				count = 0;
 				times = {};
 				times_sl1 = {};
