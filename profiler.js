@@ -1,8 +1,16 @@
 /*jslint node: true */
 "use strict";
+if (typeof window === 'object' && window.cordova)
+	return;
+var fs = require("fs");
+var eventBus = require("ocore/event_bus.js");
+var desktopApp = require('ocore/desktop_app.js');
+var appDataDir = desktopApp.getAppDataDir();
 
 var bPrintOnExit = false;
 var printOnScreenPeriodInSeconds = 0;
+var printOnFileMciPeriod = 0;
+var directoryName = "profiler";
 
 var bOn = bPrintOnExit || printOnScreenPeriodInSeconds > 0;
 
@@ -14,7 +22,7 @@ var times_sl1 = {};
 var counters_sl1 = {};
 
 var start_ts_sl1 = 0;
-	
+
 var timers = {};
 var counters = {};
 var timers_results = {};
@@ -86,12 +94,37 @@ function stop_sl1(tag){
 	start_ts_sl1 = 0;
 }
 
+function isStarted(){
+	return !!start_ts;
+}
+
 function print_on_screen(){
 	console.error("\n" + getFormattedResults());
 }
 
 function print_on_log(){
 	console.log(getFormattedResults());
+}
+
+if (printOnFileMciPeriod){
+	fs.mkdir(appDataDir + '/' + directoryName, (err) => { 
+		eventBus.on("mci_became_stable", function(mci){
+			if (mci % printOnFileMciPeriod === 0){
+				var total = 0;
+				for (var tag in times)
+					total += times[tag];
+				fs.writeFile(appDataDir + '/' + directoryName + "/mci-" + mci + "-" + (total/count).toFixed(2) +' ms', getFormattedResults(), ()=>{});
+				count = 0;
+				times = {};
+				times_sl1 = {};
+				counters_sl1 = {};
+				timers = {};
+				counters = {};
+				timers_results = {};
+				profiler_start_ts = Date.now();
+			}
+		});
+	}); 
 }
 
 
@@ -201,18 +234,20 @@ if (bOn){
 	exports.start_sl1 = start_sl1;
 	exports.stop_sl1 = stop_sl1;
 	exports.increment = increment;
-}
-exports.print = print_on_log;
-exports.mark_start = mark_start;
-exports.mark_end = mark_end;
-exports.add_result = add_result;
-exports.time_in_db = 0;
-
-if (!bOn){
+	exports.isStarted = isStarted;
+} else {
 	exports.start = function(){};
 	exports.stop = function(){};
 	exports.start_sl1 = function(){};
 	exports.stop_sl1 = function(){};
 	exports.increment = function(){};
 }
+
+exports.print = print_on_log;
+exports.mark_start = mark_start;
+exports.mark_end = mark_end;
+exports.add_result = add_result;
+exports.time_in_db = 0;
+
+
 //exports.print = function(){};
