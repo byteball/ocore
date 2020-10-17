@@ -1,5 +1,7 @@
 /*jslint node: true */
 "use strict";
+if (typeof window === 'object' && window.cordova)
+	return;
 var fs = require("fs");
 var eventBus = require("ocore/event_bus.js");
 var desktopApp = require('ocore/desktop_app.js');
