@@ -241,6 +241,7 @@ if (bOn){
 	exports.start_sl1 = function(){};
 	exports.stop_sl1 = function(){};
 	exports.increment = function(){};
+	exports.isStarted = function(){};
 }
 
 exports.print = print_on_log;
