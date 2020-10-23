@@ -867,7 +867,7 @@ CREATE TABLE unprocessed_addresses (
 
 -- arbiter contracts
 
-CREATE TABLE IF NOT EXISTS arbiters_locations (
+CREATE TABLE IF NOT EXISTS arbiter_locations (
 	arbiter_address CHAR(32) NOT NULL PRIMARY KEY,
 	arbstore_address CHAR(32) NOT NULL,
 	unit CHAR(44) NULL

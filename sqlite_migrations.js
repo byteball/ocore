@@ -415,7 +415,7 @@ function migrateDb(connection, onDone){
 					);");
 				}
 				if (version < 43) {
-					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS arbiters_locations ( \n\
+					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS arbiter_locations ( \n\
 						arbiter_address CHAR(32) NOT NULL PRIMARY KEY, \n\
 						arbstore_address CHAR(32) NOT NULL, \n\
 						unit CHAR(44) NULL \n\
