@@ -41,8 +41,6 @@ function prepareHistory(historyRequest, callbacks){
 			return callbacks.ifError("no addresses");
 		if (!arrAddresses.every(ValidationUtils.isValidAddress))
 			return callbacks.ifError("some addresses are not valid");
-		if (mci && !ValidationUtils.isPositiveInteger(mci))
-			return callbacks.ifError("mci should be positive integer");
 	}
 	if (arrRequestedJoints) {
 		if (!ValidationUtils.isNonemptyArray(arrRequestedJoints))

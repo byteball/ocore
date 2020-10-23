@@ -113,7 +113,7 @@ function share(hash, device_address) {
 }
 
 function getHash(contract) {
-	return crypto.createHash("sha256").update(contract.title + contract.text + contract.creation_date + contract.arbiter_address + contract.amount, "utf8").digest("base64");
+	return crypto.createHash("sha256").update(contract.title + contract.text + contract.creation_date + contract.arbiter_address + contract.amount + contract.asset, "utf8").digest("base64");
 }
 
 function decodeRow(row) {

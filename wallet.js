@@ -613,6 +613,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				});
 				break;
 
+			// sent by peer
 			case 'arbiter_contract_response':
 				var validation = require('./validation.js');
 
@@ -670,7 +671,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 						catch(e){
 							return callbacks.ifError("wrong signed message");
 						}
-						validation.validateSignedMessage(objSignedMessage, function(err) {
+						signed_message.validateSignedMessage(db, objSignedMessage, objContract.peer_address, function(err) {
 							if (err || objSignedMessage.authors[0].address !== objContract.peer_address || objSignedMessage.signed_message != objContract.title)
 								return callbacks.ifError("wrong contract signature");
 							processResponse(objSignedMessage);
@@ -709,6 +710,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				});
 				break;
 
+			// sent by both contract parties, in both directions
 			case 'arbiter_contract_update':
 				arbiter_contract.getByHash(body.hash, function(objContract){
 					if (!objContract || objContract.peer_device_address !== from_address)
@@ -1758,7 +1760,7 @@ function getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey) {
 						if (!payment_msg)
 							return cb();
 						var possible_contract_output = _.find(payment_msg.payload.outputs, function(o){return o.amount==prosaic_contract.CHARGE_AMOUNT || o.amount==arbiter_contract.CHARGE_AMOUNT});
-						if (!possible_contract_output)
+						if (payment_msg.payload.asset || !possible_contract_output)
 							return cb();
 						var table = possible_contract_output.amount==prosaic_contract.CHARGE_AMOUNT ? 'prosaic' : 'arbiter';
 						db.query("SELECT 1 FROM "+table+"_contracts WHERE shared_address=?", [possible_contract_output.address], function(rows) {
