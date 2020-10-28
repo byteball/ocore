@@ -2181,7 +2181,6 @@ function requestHistoryAfterMCI(arrUnits, addresses, minMCI, onDone){
 	if (!onDone)
 		onDone = function(){};
 	var arrAddresses = [];
-	var mci;
 	if (Array.isArray(addresses))
 		arrAddresses = addresses;
 	myWitnesses.readMyWitnesses(function(arrWitnesses){
@@ -2191,7 +2190,7 @@ function requestHistoryAfterMCI(arrUnits, addresses, minMCI, onDone){
 		if (arrAddresses.length)
 			objHistoryRequest.addresses = arrAddresses;
 		if (minMCI !== -1)
-			objHistoryRequest.mci = mci;
+			objHistoryRequest.min_mci = minMCI;
 		requestFromLightVendor('light/get_history', objHistoryRequest, function(ws, request, response){
 			if (response.error){
 				console.log(response.error);
@@ -3481,7 +3480,7 @@ function handleRequest(ws, tag, command, params){
 		case 'hub/get_arbstore_address':
 			var arbiter_address = params;
 			db.query("SELECT arbstore_address FROM arbiter_locations WHERE arbiter_address=?", [arbiter_address], function(rows){
-				var host = rows.length ? conf.ArbStores[rows[0].arbstore_address] : '';
+				var host = rows.length ? conf.arbstores[rows[0].arbstore_address] : '';
 				sendResponse(ws, tag, host);
 			});
 			break;

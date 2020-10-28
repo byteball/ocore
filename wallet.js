@@ -654,10 +654,10 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 						var objDateCopy = new Date(objContract.creation_date_obj);
 						if (objDateCopy.setHours(objDateCopy.getHours() + objContract.ttl) < Date.now())
 							return callbacks.ifError("contract already expired");
-						if (body.peer_pairing_code)
-							arbiter_contract.setField(objContract.hash, "peer_pairing_code", body.peer_pairing_code);
-						if (body.peer_contact_info)
-							arbiter_contract.setField(objContract.hash, "peer_contact_info", body.peer_contact_info);
+						if (body.my_pairing_code)
+							arbiter_contract.setField(objContract.hash, "peer_pairing_code", body.my_pairing_code);
+						if (body.my_contact_info)
+							arbiter_contract.setField(objContract.hash, "peer_contact_info", body.my_contact_info);
 						arbiter_contract.setField(objContract.hash, "status", body.status);
 						eventBus.emit("text", from_address, "contract \""+objContract.title+"\" " + body.status, ++message_counter);
 						eventBus.emit("arbiter_contract_response_received" + body.hash, (body.status === "accepted"), body.authors);
@@ -751,15 +751,21 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 
 			case 'arbiter_contract_offer':
 				body.peer_device_address = from_address;
-				if (!body.title || !body.text || !body.creation_date || !body.arbiter_address || typeof body.me_is_payer === "undefined" || !body.peer_pairing_code || !body.amount || body.amount <= 0)
+				if (!body.title || !body.text || !body.creation_date || !body.arbiter_address || typeof body.me_is_payer === "undefined" || !body.my_pairing_code || !body.amount || body.amount <= 0)
 					return callbacks.ifError("not all contract fields submitted");
-				if (!ValidationUtils.isValidAddress(body.peer_address) || !ValidationUtils.isValidAddress(body.my_address) || !ValidationUtils.isValidAddress(body.arbiter_address))
+				if (!ValidationUtils.isValidAddress(body.my_address) || !ValidationUtils.isValidAddress(body.peer_address) || !ValidationUtils.isValidAddress(body.arbiter_address))
 					return callbacks.ifError("either peer_address or address or arbiter_address is not valid in contract");
 				if (body.hash !== arbiter_contract.getHash(body)) {
 					return callbacks.ifError("wrong contract hash");
 				}
 				if (!/^\d{4}\-\d{2}\-\d{2} \d{2}:\d{2}:\d{2}$/.test(body.creation_date))
 					return callbacks.ifError("wrong contract creation date");
+				var my_address = body.peer_address;
+				body.peer_address = body.my_address;
+				body.my_address = my_address;
+				body.peer_pairing_code = body.my_pairing_code; body.my_pairing_code = null;
+				body.peer_contact_info = body.my_contact_info; body.my_contact_info = null;
+				body.me_is_payer = !body.me_is_payer;
 				db.query("SELECT 1 FROM my_addresses WHERE address=?", [body.my_address], function(rows) {
 					if (!rows.length)
 						return callbacks.ifError("contract does not contain my address");

@@ -4,16 +4,29 @@ var device = require("./device.js");
 var composer = require("./composer.js");
 var crypto = require("crypto");
 var arbiters = require("./arbiters.js");
-var http = require("http");
+var http = require("https");
 var url = require("url");
 
 var status_PENDING = "pending";
 exports.CHARGE_AMOUNT = 4000;
 
-function createAndSend(hash, peer_address, peer_device_address, my_address, arbiter_address, me_is_payer, amount, asset, creation_date, ttl, title, text, cosigners, pairing_code, myContactInfo, cb) {
-	db.query("INSERT INTO arbiter_contracts (hash, peer_address, peer_device_address, my_address, arbiter_address, me_is_payer, amount, asset, is_incoming, creation_date, ttl, status, title, text, my_contact_info, cosigners) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [hash, peer_address, peer_device_address, my_address, arbiter_address, me_is_payer, amount, asset, false, creation_date, ttl, status_PENDING, title, text, myContactInfo, JSON.stringify(cosigners)], function() {
-		var objContract = {title: title, text: text, creation_date: creation_date, hash: hash, peer_address: my_address, ttl: ttl, my_address: peer_address, arbiter_address: arbiter_address, me_is_payer: !me_is_payer, amount: amount, asset: asset, peer_pairing_code: pairing_code, peer_contact_info: myContactInfo};
-		device.sendMessageToDevice(peer_device_address, "arbiter_contract_offer", objContract);
+function createAndSend(params, cb) {
+	db.query("INSERT INTO arbiter_contracts (hash, peer_address, peer_device_address, my_address, arbiter_address, me_is_payer, amount, asset, is_incoming, creation_date, ttl, status, title, text, my_contact_info, cosigners) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [params.hash, params.peer_address, params.peer_device_address, params.my_address, params.arbiter_address, params.me_is_payer, params.amount, params.asset, false, params.creation_date, params.ttl, status_PENDING, params.title, params.text, params.my_contact_info, JSON.stringify(params.cosigners)], function() {
+		var objContract = {
+			title: params.title,
+			text: params.text,
+			creation_date: params.creation_date,
+			hash: params.hash,
+			my_address: params.my_address,
+			ttl: params.ttl,
+			peer_address: params.peer_address,
+			arbiter_address: params.arbiter_address,
+			me_is_payer: params.me_is_payer,
+			amount: params.amount,
+			asset: params.asset,
+			my_pairing_code: params.pairing_code,
+			my_contact_info: params.my_contact_info};
+		device.sendMessageToDevice(params.peer_device_address, "arbiter_contract_offer", objContract);
 		if (cb) {
 			cb(objContract);
 		}
@@ -87,7 +100,7 @@ function respond(objContract, status, signedMessageBase64, pairing_code, my_cont
 		cb = function(){};
 	}
 	var send = function(authors) {
-		var response = {hash: objContract.hash, status: status, signed_message: signedMessageBase64, peer_pairing_code: pairing_code, peer_contact_info: my_contact_info};
+		var response = {hash: objContract.hash, status: status, signed_message: signedMessageBase64, my_pairing_code: pairing_code, my_contact_info: my_contact_info};
 		if (authors) {
 			response.authors = authors;
 		}
