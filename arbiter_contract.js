@@ -6,27 +6,16 @@ var crypto = require("crypto");
 var arbiters = require("./arbiters.js");
 var http = require("https");
 var url = require("url");
+var _ = require('lodash');
 
 var status_PENDING = "pending";
 exports.CHARGE_AMOUNT = 4000;
 
-function createAndSend(params, cb) {
-	db.query("INSERT INTO arbiter_contracts (hash, peer_address, peer_device_address, my_address, arbiter_address, me_is_payer, amount, asset, is_incoming, creation_date, ttl, status, title, text, my_contact_info, cosigners) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [params.hash, params.peer_address, params.peer_device_address, params.my_address, params.arbiter_address, params.me_is_payer, params.amount, params.asset, false, params.creation_date, params.ttl, status_PENDING, params.title, params.text, params.my_contact_info, JSON.stringify(params.cosigners)], function() {
-		var objContract = {
-			title: params.title,
-			text: params.text,
-			creation_date: params.creation_date,
-			hash: params.hash,
-			my_address: params.my_address,
-			ttl: params.ttl,
-			peer_address: params.peer_address,
-			arbiter_address: params.arbiter_address,
-			me_is_payer: params.me_is_payer,
-			amount: params.amount,
-			asset: params.asset,
-			my_pairing_code: params.pairing_code,
-			my_contact_info: params.my_contact_info};
-		device.sendMessageToDevice(params.peer_device_address, "arbiter_contract_offer", objContract);
+function createAndSend(objContract, cb) {
+	db.query("INSERT INTO arbiter_contracts (hash, peer_address, peer_device_address, my_address, arbiter_address, me_is_payer, amount, asset, is_incoming, creation_date, ttl, status, title, text, my_contact_info, cosigners) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [objContract.hash, objContract.peer_address, objContract.peer_device_address, objContract.my_address, objContract.arbiter_address, objContract.me_is_payer, objContract.amount, objContract.asset, false, objContract.creation_date, objContract.ttl, status_PENDING, objContract.title, objContract.text, objContract.my_contact_info, JSON.stringify(objContract.cosigners)], function() {
+		var objContractForPeer = _.cloneDeep(objContract);
+		delete objContractForPeer.cosigners;
+		device.sendMessageToDevice(objContract.peer_device_address, "arbiter_contract_offer", objContractForPeer);
 		if (cb) {
 			cb(objContract);
 		}

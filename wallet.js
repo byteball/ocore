@@ -527,6 +527,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				);
 				break;
 
+			// to cosigners
 			case 'arbiter_contract_shared':
 				if (!body.title || !body.text || !body.creation_date || !body.arbiter_address || typeof body.me_is_payer === "undefined" || !body.peer_pairing_code || !body.amount || body.amount <= 0 || !body.shared_address)
 					return callbacks.ifError("not all contract fields submitted");
@@ -742,10 +743,12 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 							return callbacks.ifError("contract already has dispute mci");
 						if (!ValidationUtils.isNonnegativeInteger(body.value))
 							return callbacks.ifError("mci should be non-negative integer");
+						objContract.dispute_mci = body.value;
 					} else {
 						return callbacks.ifError("wrong field");
 					}
 					arbiter_contract.setField(objContract.hash, body.field, body.value, callbacks.ifOk);
+					eventBus.emit("arbiter_contract_update", objContract, body.field, body.value);
 				});
 				break;
 
@@ -776,6 +779,8 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					});
 				});
 				break;
+
+			// arbstore sends to arbiter's wallet
 			case 'arbiter_dispute_request':
 				var contractContent = device.decryptPackage(body.encrypted_contract);
 				if (!contractContent || !contractContent.creation_date || !contractContent.title || !contractContent.text)
@@ -1762,11 +1767,11 @@ function getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey) {
 
 					// filter out prosaic and arbiter contract txs to change/suppress popup messages
 					async.series([function(cb) { // step 1: prosaic contract shared address deposit
-						var payment_msg = _.find(objUnsignedUnit.messages, function(m){return m.app=="payment"});
+						var payment_msg = _.find(objUnsignedUnit.messages, function(m){return m.app=="payment" && m.payload && !m.payload.asset});
 						if (!payment_msg)
 							return cb();
 						var possible_contract_output = _.find(payment_msg.payload.outputs, function(o){return o.amount==prosaic_contract.CHARGE_AMOUNT || o.amount==arbiter_contract.CHARGE_AMOUNT});
-						if (payment_msg.payload.asset || !possible_contract_output)
+						if (!possible_contract_output)
 							return cb();
 						var table = possible_contract_output.amount==prosaic_contract.CHARGE_AMOUNT ? 'prosaic' : 'arbiter';
 						db.query("SELECT 1 FROM "+table+"_contracts WHERE shared_address=?", [possible_contract_output.address], function(rows) {
