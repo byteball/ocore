@@ -869,7 +869,7 @@ CREATE TABLE IF NOT EXISTS wallet_arbiters (
 	device_pub_key VARCHAR(44) NULL
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
-CREATE TABLE IF NOT EXISTS arbiter_contracts (
+CREATE TABLE IF NOT EXISTS wallet_arbiter_contracts (
 	hash CHAR(44) NOT NULL PRIMARY KEY,
 	peer_address CHAR(32) NOT NULL,
 	peer_device_address CHAR(33) NOT NULL,

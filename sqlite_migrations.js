@@ -425,7 +425,7 @@ function migrateDb(connection, onDone){
 						real_name VARCHAR(250) NOT NULL, \n\
 						device_pub_key VARCHAR(44) NULL \n\
 					);");
-					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS arbiter_contracts ( \n\
+					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS wallet_arbiter_contracts ( \n\
 						hash CHAR(44) NOT NULL PRIMARY KEY, \n\
 						peer_address CHAR(32) NOT NULL, \n\
 						peer_device_address CHAR(33) NOT NULL, \n\

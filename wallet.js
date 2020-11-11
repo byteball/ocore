@@ -1773,7 +1773,7 @@ function getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey) {
 						var possible_contract_output = _.find(payment_msg.payload.outputs, function(o){return o.amount==prosaic_contract.CHARGE_AMOUNT || o.amount==arbiter_contract.CHARGE_AMOUNT});
 						if (!possible_contract_output)
 							return cb();
-						var table = possible_contract_output.amount==prosaic_contract.CHARGE_AMOUNT ? 'prosaic' : 'arbiter';
+						var table = possible_contract_output.amount==prosaic_contract.CHARGE_AMOUNT ? 'prosaic' : 'wallet_arbiter';
 						db.query("SELECT 1 FROM "+table+"_contracts WHERE shared_address=?", [possible_contract_output.address], function(rows) {
 							if (!rows.length)
 								return cb();
@@ -1785,7 +1785,7 @@ function getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey) {
 						});
 					}, function(cb) { // step 2: posting unit with contract hash (or not a prosaic and arbiter contract / not a tx at all)
 						db.query("SELECT peer_device_address FROM prosaic_contracts WHERE shared_address=? OR peer_address=?\n\
-							UNION SELECT peer_device_address FROM arbiter_contracts WHERE shared_address=? OR peer_address=?", [address, address, address, address], function(rows) {
+							UNION SELECT peer_device_address FROM wallet_arbiter_contracts WHERE shared_address=? OR peer_address=?", [address, address, address, address], function(rows) {
 							if (!rows.length) 
 								return cb();
 							// do not show alert for peer address in prosaic contracts
@@ -2555,7 +2555,7 @@ function readNonRemovableDevices(onDone){
 	sql += "UNION SELECT DISTINCT device_address FROM wallet_signing_paths ";
 	sql += "UNION SELECT DISTINCT device_address FROM pending_shared_address_signing_paths ";
 	sql += "UNION SELECT DISTINCT peer_device_address AS device_address FROM prosaic_contracts ";
-	sql += "UNION SELECT DISTINCT peer_device_address AS device_address FROM arbiter_contracts ";
+	sql += "UNION SELECT DISTINCT peer_device_address AS device_address FROM wallet_arbiter_contracts ";
 	if (conf.ArbStoreWebURI)
 		sql += "UNION SELECT DISTINCT device_address AS device_address FROM arbiters";
 	

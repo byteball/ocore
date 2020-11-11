@@ -12,7 +12,7 @@ var status_PENDING = "pending";
 exports.CHARGE_AMOUNT = 4000;
 
 function createAndSend(objContract, cb) {
-	db.query("INSERT INTO arbiter_contracts (hash, peer_address, peer_device_address, my_address, arbiter_address, me_is_payer, amount, asset, is_incoming, creation_date, ttl, status, title, text, my_contact_info, cosigners) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [objContract.hash, objContract.peer_address, objContract.peer_device_address, objContract.my_address, objContract.arbiter_address, objContract.me_is_payer, objContract.amount, objContract.asset, false, objContract.creation_date, objContract.ttl, status_PENDING, objContract.title, objContract.text, objContract.my_contact_info, JSON.stringify(objContract.cosigners)], function() {
+	db.query("INSERT INTO wallet_arbiter_contracts (hash, peer_address, peer_device_address, my_address, arbiter_address, me_is_payer, amount, asset, is_incoming, creation_date, ttl, status, title, text, my_contact_info, cosigners) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [objContract.hash, objContract.peer_address, objContract.peer_device_address, objContract.my_address, objContract.arbiter_address, objContract.me_is_payer, objContract.amount, objContract.asset, false, objContract.creation_date, objContract.ttl, status_PENDING, objContract.title, objContract.text, objContract.my_contact_info, JSON.stringify(objContract.cosigners)], function() {
 		var objContractForPeer = _.cloneDeep(objContract);
 		delete objContractForPeer.cosigners;
 		device.sendMessageToDevice(objContract.peer_device_address, "arbiter_contract_offer", objContractForPeer);
@@ -23,7 +23,7 @@ function createAndSend(objContract, cb) {
 }
 
 function getByHash(hash, cb) {
-	db.query("SELECT * FROM arbiter_contracts WHERE hash=?", [hash], function(rows){
+	db.query("SELECT * FROM wallet_arbiter_contracts WHERE hash=?", [hash], function(rows){
 		if (!rows.length) {
 			return cb(null);
 		}
@@ -32,7 +32,7 @@ function getByHash(hash, cb) {
 	});
 }
 function getBySharedAddress(address, cb) {
-	db.query("SELECT * FROM arbiter_contracts WHERE shared_address=?", [address], function(rows){
+	db.query("SELECT * FROM wallet_arbiter_contracts WHERE shared_address=?", [address], function(rows){
 		if (!rows.length) {
 			return cb(null);
 		}
@@ -42,7 +42,7 @@ function getBySharedAddress(address, cb) {
 }
 
 function getAllByStatus(status, cb) {
-	db.query("SELECT hash, title, my_address, peer_address, shared_address, arbiter_address, status, amount, asset, peer_device_address, cosigners, creation_date, dispute_mci, unit FROM arbiter_contracts WHERE status IN (?) ORDER BY creation_date DESC", [status], function(rows){
+	db.query("SELECT hash, title, my_address, peer_address, shared_address, arbiter_address, status, amount, asset, peer_device_address, cosigners, creation_date, dispute_mci, unit FROM wallet_arbiter_contracts WHERE status IN (?) ORDER BY creation_date DESC", [status], function(rows){
 		rows.forEach(function(row) {
 			row = decodeRow(row);
 		});
@@ -54,7 +54,7 @@ function setField(hash, field, value, cb) {
 	if (!["status", "shared_address", "unit", "my_contact_info", "peer_contact_info", "peer_pairing_code", "dispute_mci", "resolution_unit"].includes(field)) {
 		throw new Error("wrong field for setField method");
 	}
-	db.query("UPDATE arbiter_contracts SET " + field + "=? WHERE hash=?", [value, hash], function(res) {
+	db.query("UPDATE wallet_arbiter_contracts SET " + field + "=? WHERE hash=?", [value, hash], function(res) {
 		if (cb) {
 			cb(res);
 		}
@@ -77,7 +77,7 @@ function store(objContract, cb) {
 	}
 	fields += ")";
 	placeholders += ")";
-	db.query("INSERT "+db.getIgnore()+" INTO arbiter_contracts "+fields+" VALUES "+placeholders, values, function(res) {
+	db.query("INSERT "+db.getIgnore()+" INTO wallet_arbiter_contracts "+fields+" VALUES "+placeholders, values, function(res) {
 		if (cb) {
 			cb(res);
 		}

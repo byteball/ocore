@@ -879,7 +879,7 @@ CREATE TABLE IF NOT EXISTS wallet_arbiters (
 	device_pub_key VARCHAR(44) NULL
 );
 
-CREATE TABLE IF NOT EXISTS arbiter_contracts (
+CREATE TABLE IF NOT EXISTS wallet_arbiter_contracts (
 	hash CHAR(44) NOT NULL PRIMARY KEY,
 	peer_address CHAR(32) NOT NULL,
 	peer_device_address CHAR(33) NOT NULL,
