@@ -1766,7 +1766,7 @@ function getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey) {
 					walletGeneral.sendOfferToSign(device_address, address, signing_path, objUnsignedUnit, assocPrivatePayloads);
 
 					// filter out prosaic and arbiter contract txs to change/suppress popup messages
-					async.series([function(cb) { // step 1: prosaic contract shared address deposit
+					async.series([function(cb) { // step 1: prosaic/arbiter contract shared address deposit
 						var payment_msg = _.find(objUnsignedUnit.messages, function(m){return m.app=="payment" && m.payload && !m.payload.asset});
 						if (!payment_msg)
 							return cb();
@@ -1774,11 +1774,12 @@ function getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey) {
 						if (!possible_contract_output)
 							return cb();
 						var table = possible_contract_output.amount==prosaic_contract.CHARGE_AMOUNT ? 'prosaic' : 'wallet_arbiter';
-						db.query("SELECT 1 FROM "+table+"_contracts WHERE shared_address=?", [possible_contract_output.address], function(rows) {
+						db.query("SELECT peer_device_address FROM "+table+"_contracts WHERE shared_address=?", [possible_contract_output.address], function(rows) {
 							if (!rows.length)
 								return cb();
 							if (!bRequestedConfirmation) {
-								eventBus.emit("confirm_contract_deposit");
+								if (rows[0].peer_device_address !== device_address)
+									eventBus.emit("confirm_contract_deposit");
 								bRequestedConfirmation = true;
 							}
 							return cb(true);

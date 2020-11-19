@@ -422,7 +422,7 @@ function migrateDb(connection, onDone){
 					);");
 					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS wallet_arbiters ( \n\
 						arbiter_address CHAR(32) NOT NULL PRIMARY KEY, \n\
-						real_name VARCHAR(250) NOT NULL, \n\
+						real_name VARCHAR(250) NULL, \n\
 						device_pub_key VARCHAR(44) NULL \n\
 					);");
 					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS wallet_arbiter_contracts ( \n\

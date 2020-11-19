@@ -887,7 +887,7 @@ CREATE TABLE IF NOT EXISTS arbiter_locations (
 
 CREATE TABLE IF NOT EXISTS wallet_arbiters (
 	arbiter_address CHAR(32) NOT NULL PRIMARY KEY,
-	real_name VARCHAR(250) NOT NULL,
+	real_name VARCHAR(250) NULL,
 	device_pub_key VARCHAR(44) NULL
 );
 
