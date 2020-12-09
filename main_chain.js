@@ -929,6 +929,7 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 								});
 								return cb();
 							}
+							var count = arrBestChildren.length;
 							async.eachSeries(
 								rows, 
 								function(row, cb2){
@@ -947,12 +948,14 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 										cb2();
 									}
 									else {
-										if (arrBestChildren.length % 100 === 0)
+										if (count % 100 === 0)
 											return setImmediate(goDownAndCollectBestChildrenFast, [row.unit], cb2);
 										goDownAndCollectBestChildrenFast([row.unit], cb2);
 									}
 								},
-								cb
+								function () {
+									(count % 100 === 0) ? setImmediate(cb) : cb();
+								}
 							);
 						});
 					}
