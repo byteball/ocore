@@ -296,6 +296,7 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStability
 		}
 		
 		function calcLIMCIs(onUpdated){
+			console.log("will calcLIMCIs for " + Object.keys(assocChangedUnits).length + " changed units");
 			var arrFilledUnits = [];
 			async.forEachOfSeries(
 				assocChangedUnits,
@@ -356,6 +357,7 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStability
 			}
 		}
 		calcLIMCIs(function(){
+			console.log("calcLIMCIs done");
 			if (conf.bFaster){
 				return async.forEachOfSeries(
 					assocLimcisByUnit,
