@@ -169,8 +169,9 @@ function openDispute(hash, cb) {
 								if (data.error) {
 									return cb(data.error);
 								}
-								setField(hash, "status", "in_dispute");
-								cb(null, data);
+								setField(hash, "status", "in_dispute", function(){
+									cb(null, data);
+								});
 							} catch (e) {
 								cb(e);
 							}

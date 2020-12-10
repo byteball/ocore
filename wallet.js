@@ -747,8 +747,10 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					} else {
 						return callbacks.ifError("wrong field");
 					}
-					arbiter_contract.setField(objContract.hash, body.field, body.value, callbacks.ifOk);
-					eventBus.emit("arbiter_contract_update", objContract, body.field, body.value);
+					arbiter_contract.setField(objContract.hash, body.field, body.value, function() {
+						eventBus.emit("arbiter_contract_update", objContract, body.field, body.value);
+						callbacks.ifOk();
+					});
 				});
 				break;
 
