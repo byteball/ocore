@@ -78,10 +78,15 @@ function lock(arrKeys, proc, next_proc){
 }
 
 function lockOrSkip(arrKeys, proc, next_proc){
-	if (arguments.length === 1)
-		return new Promise(resolve => lockOrSkip(arrKeys, resolve));
 	if (typeof arrKeys === 'string')
 		arrKeys = [arrKeys];
+	if (arguments.length === 1) {
+		if (isAnyOfKeysLocked(arrKeys)) {
+			console.log("promise: skipping job held by keys", arrKeys);
+			return null;
+		}
+		return new Promise(resolve => lockOrSkip(arrKeys, resolve));
+	}
 	if (isAnyOfKeysLocked(arrKeys)){
 		console.log("skipping job held by keys", arrKeys);
 		if (next_proc)

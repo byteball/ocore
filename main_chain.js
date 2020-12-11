@@ -296,6 +296,7 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStability
 		}
 		
 		function calcLIMCIs(onUpdated){
+			console.log("will calcLIMCIs for " + Object.keys(assocChangedUnits).length + " changed units");
 			var arrFilledUnits = [];
 			async.forEachOfSeries(
 				assocChangedUnits,
@@ -356,6 +357,7 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStability
 			}
 		}
 		calcLIMCIs(function(){
+			console.log("calcLIMCIs done");
 			if (conf.bFaster){
 				return async.forEachOfSeries(
 					assocLimcisByUnit,
@@ -470,10 +472,10 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStability
 	}
 	
 	function updateStableMcFlag(){
+		profiler.start();
 		if (bKeepStabilityPoint)
 			return finish();
 		console.log("updateStableMcFlag");
-		profiler.start();
 		readLastStableMcUnit(function(last_stable_mc_unit){
 			console.log("last stable mc unit "+last_stable_mc_unit);
 			storage.readWitnesses(conn, last_stable_mc_unit, function(arrWitnesses){
@@ -929,6 +931,7 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 								});
 								return cb();
 							}
+							var count = arrBestChildren.length;
 							async.eachSeries(
 								rows, 
 								function(row, cb2){
@@ -947,12 +950,14 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 										cb2();
 									}
 									else {
-										if (arrBestChildren.length % 100 === 0)
+										if (count % 100 === 0)
 											return setImmediate(goDownAndCollectBestChildrenFast, [row.unit], cb2);
 										goDownAndCollectBestChildrenFast([row.unit], cb2);
 									}
 								},
-								cb
+								function () {
+									(count % 100 === 0) ? setImmediate(cb) : cb();
+								}
 							);
 						});
 					}
