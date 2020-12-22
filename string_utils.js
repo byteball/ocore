@@ -179,7 +179,8 @@ if (!String.prototype.padStart) {
 var bWellFormedJsonStringify = (JSON.stringify("\uD800") === '"\\ud800"');
 function toWellFormedJsonStringify(obj) {
 	var str = JSON.stringify(obj);
-	return bWellFormedJsonStringify ? str : str.replace(/[\ud800-\udfff]/g, chr => "\\u" + chr.codePointAt(0).toString(16));
+	// we used to replace all such symbols, not just lone surrogates
+	return /*bWellFormedJsonStringify ? str :*/ str.replace(/[\ud800-\udfff]/g, chr => "\\u" + chr.codePointAt(0).toString(16));
 }
 
 function getJsonSourceString(obj, bAllowEmpty) {
