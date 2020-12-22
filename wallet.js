@@ -541,8 +541,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					if (!rows.length)
 						return callbacks.ifError("contract does not contain my address");
 					arbiter_contract.store(body, function() {
-						var chat_message = "(arbiter-contract:" + Buffer.from(JSON.stringify(body), 'utf8').toString('base64') + ")";
-						eventBus.emit("text", from_address, chat_message, ++message_counter);
+						eventBus.emit("arbiter_contract_offer", body.hash);
 						callbacks.ifOk();
 					});
 				});
@@ -662,7 +661,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 								}
 							);
 						}
-						if (objContract.status !== 'pending' && (objContract.status !== 'accepted' && body.status !== 'accepted'))
+						if (objContract.status !== 'pending' && (objContract.status !== 'accepted' || body.status !== 'accepted'))
 							return callbacks.ifError("contract is not active, current status: " + objContract.status);
 						var objDateCopy = new Date(objContract.creation_date_obj);
 						if (objDateCopy.setHours(objDateCopy.getHours() + objContract.ttl) < Date.now())
@@ -671,9 +670,9 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 							arbiter_contract.setField(objContract.hash, "peer_pairing_code", body.my_pairing_code);
 						if (body.my_contact_info)
 							arbiter_contract.setField(objContract.hash, "peer_contact_info", body.my_contact_info);
-						arbiter_contract.setField(objContract.hash, "status", body.status);
-						eventBus.emit("text", from_address, "contract \""+objContract.title+"\" " + body.status, ++message_counter);
-						eventBus.emit("arbiter_contract_response_received" + body.hash, (body.status === "accepted"), body.authors);
+						arbiter_contract.setField(objContract.hash, "status", body.status, function(){
+							eventBus.emit("arbiter_contract_response_received" + body.hash);
+						});
 						callbacks.ifOk();
 					};
 					if (body.signed_message) {

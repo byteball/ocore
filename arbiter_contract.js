@@ -42,7 +42,7 @@ function getBySharedAddress(address, cb) {
 }
 
 function getAllByStatus(status, cb) {
-	db.query("SELECT hash, title, my_address, peer_address, shared_address, arbiter_address, status, amount, asset, me_is_payer, peer_device_address, cosigners, creation_date, dispute_mci, unit FROM wallet_arbiter_contracts WHERE status IN (?) ORDER BY creation_date DESC", [status], function(rows){
+	db.query("SELECT * FROM wallet_arbiter_contracts WHERE status IN (?) ORDER BY creation_date DESC", [status], function(rows){
 		rows.forEach(function(row) {
 			row = decodeRow(row);
 		});
