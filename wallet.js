@@ -605,7 +605,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					} else {
 						return callbacks.ifError("wrong field");
 					}
-					arbiter_contract.setField(objContract.hash, body.field, body.value, function() {
+					arbiter_contract.setField(objContract.hash, body.field, body.value, function(objContract) {
 						eventBus.emit("arbiter_contract_update", objContract, body.field, body.value);
 						callbacks.ifOk();
 					});
