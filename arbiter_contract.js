@@ -56,7 +56,7 @@ function setField(hash, field, value, cb) {
 	}
 	db.query("UPDATE wallet_arbiter_contracts SET " + field + "=? WHERE hash=?", [value, hash], function(res) {
 		if (cb) {
-			cb(res);
+			getByHash(hash, cb);
 		}
 	});
 }
