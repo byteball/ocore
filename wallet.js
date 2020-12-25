@@ -1605,6 +1605,7 @@ opts = {
 */
 function getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey) {
 	var bRequestedConfirmation = false;
+	var responses = {};
 	return {
 		readSigningPaths: function (conn, address, handleLengthsBySigningPaths) { // returns assoc array signing_path => length
 			readFullSigningPaths(conn, address, arrSigningDeviceAddresses, function (assocTypesBySigningPaths) {
@@ -1659,6 +1660,10 @@ function getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey) {
 				ifRemote: function (device_address) {
 					// we'll receive this event after the peer signs
 					eventBus.once("signature-" + device_address + "-" + address + "-" + signing_path + "-" + buf_to_sign.toString("base64"), function (sig) {
+						var key = device_address + address + buf_to_sign.toString("base64");
+						if (responses[key])
+							return;
+						responses[key] = true;
 						handleSignature(null, sig);
 						if (sig === '[refused]')
 							eventBus.emit('refused_to_sign', device_address);
