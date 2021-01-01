@@ -609,6 +609,8 @@ function readWitnessList(conn, unit, handleWitnessList, bAllowEmptyList){
 }
 
 function readWitnesses(conn, unit, handleWitnessList){
+	if (!handleWitnessList)
+		return new Promise(resolve => readWitnesses(conn, unit, resolve));
 	var arrWitnesses = assocCachedUnitWitnesses[unit];
 	if (arrWitnesses)
 		return handleWitnessList(arrWitnesses);
@@ -696,6 +698,8 @@ function readWitnessesOnMcUnit(conn, main_chain_index, handleWitnesses){
 
 
 function readDefinitionChashByAddress(conn, address, max_mci, handle){
+	if (!handle)
+		return new Promise(resolve => readDefinitionChashByAddress(conn, address, max_mci, resolve));
 	if (max_mci == null || max_mci == undefined)
 		max_mci = MAX_INT32;
 	// try to find last definition change, otherwise definition_chash=address
@@ -713,7 +717,7 @@ function readDefinitionChashByAddress(conn, address, max_mci, handle){
 // max_mci must be stable
 function readDefinitionByAddress(conn, address, max_mci, callbacks){
 	readDefinitionChashByAddress(conn, address, max_mci, function(definition_chash){
-			readDefinitionAtMci(conn, definition_chash, max_mci, callbacks);
+		readDefinitionAtMci(conn, definition_chash, max_mci, callbacks);
 	});
 }
 
@@ -738,6 +742,8 @@ function readDefinition(conn, definition_chash, callbacks){
 }
 
 function readAADefinition(conn, address, handleDefinition) {
+	if (!handleDefinition)
+		return new Promise(resolve => readAADefinition(conn, address, (arrDefinition, unit, storage_size) => resolve({ arrDefinition, unit, storage_size })));
 	conn.query("SELECT definition, unit, storage_size FROM aa_addresses WHERE address=?", [address], function (rows) {
 		if (rows.length !== 1)
 			return handleDefinition(null);
@@ -749,6 +755,8 @@ function readAADefinition(conn, address, handleDefinition) {
 }
 
 function readBaseAADefinitionAndParams(conn, address, handleDefinitionAndParams) {
+	if (!handleDefinitionAndParams)
+		return new Promise(resolve => readBaseAADefinitionAndParams(conn, address, (arrBaseDefinition, params, storage_size) => resolve({ arrBaseDefinition, params, storage_size })));
 	readAADefinition(conn, address, function (arrDefinition, unit, storage_size) {
 		if (!arrDefinition)
 			return handleDefinitionAndParams(null);
@@ -764,6 +772,8 @@ function readBaseAADefinitionAndParams(conn, address, handleDefinitionAndParams)
 }
 
 function readAAGetters(conn, address, handleGetters) {
+	if (!handleGetters)
+		return new Promise(resolve => readAAGetters(conn, address, resolve));
 	conn.query("SELECT getters, base_aa FROM aa_addresses WHERE address=?", [address], function (rows) {
 		if (rows.length !== 1)
 			return handleGetters(null);
@@ -780,6 +790,8 @@ function readAAGetters(conn, address, handleGetters) {
 }
 
 function readAAGetterProps(conn, address, func_name, handleGetterProps) {
+	if (!handleGetterProps)
+		return new Promise(resolve => readAAGetterProps(conn, address, func_name, resolve));
 	readAAGetters(conn, address, function (getters) {
 		if (!getters)
 			return handleGetterProps(null);
@@ -924,12 +936,14 @@ function readAAStateVar(address, var_name, handleResult) {
 }
 
 function readAAStateVars(address, var_prefix_from, var_prefix_to, limit, handle) {
-	if (arguments.length === 2) {
+	if (arguments.length <= 2) {
 		handle = var_prefix_from;
 		var_prefix_from = '';
 		var_prefix_to = '';
 		limit = 0;
 	}
+	if (!handle)
+		return new Promise(resolve => readAAStateVars(address, var_prefix_from, var_prefix_to, limit, resolve));
 	var options = {};
 	options.gte = "st\n" + address + "\n" + var_prefix_from;
 	options.lte = "st\n" + address + "\n" + var_prefix_to + "\uFFFF";
