@@ -235,6 +235,19 @@ function appeal(hash, cb) {
 	});
 }
 
+function meIsCosigner(objContract, cb) {
+	db.query("SELECT COUNT(1) AS count FROM wallet_signing_paths\n\
+		JOIN my_addresses USING(wallet)\n\
+		WHERE address=?", [objContract.my_address], function(rows) {
+			if (rows[0].count > 1 && objContract.is_incoming && objContract.cosigners) {
+				cb(true)
+			} else {
+				cb(false);
+			}
+		});
+	return objContract.is_incoming
+}
+
 exports.createAndSend = createAndSend;
 exports.getByHash = getByHash;
 exports.getBySharedAddress = getBySharedAddress;
@@ -246,3 +259,4 @@ exports.getHash = getHash;
 exports.share = share;
 exports.openDispute = openDispute;
 exports.appeal = appeal;
+exports.meIsCosigner = meIsCosigner;

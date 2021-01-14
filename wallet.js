@@ -572,42 +572,47 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			// sent by both contract parties, in both directions
 			case 'arbiter_contract_update':
 				arbiter_contract.getByHash(body.hash, function(objContract){
-					if (!objContract || objContract.peer_device_address !== from_address)
-						return callbacks.ifError("wrong contract hash or not an owner");
-					if (body.field === "status") {
-						if ((objContract.status === "pending" && body.value !== "revoked" && body.value !== "accepted") || 
-							(objContract.status === "paid" && body.value !== "in_dispute") ||
-							((objContract.status === "dispute_resolved" && body.value !== "in_appeal")))
-								return callbacks.ifError("wrong status for contract supplied");
-					} else 
-					if (body.field === "unit") {
-						if (objContract.status !== "accepted")
-							return callbacks.ifError("contract was not accepted");
-						if (objContract.unit)
-								return callbacks.ifError("unit was already provided for this contract");
-					} else
-					if (body.field === "shared_address") {
-						if (objContract.status !== "accepted")
-							return callbacks.ifError("contract was not accepted");
-						if (objContract.shared_address)
-								return callbacks.ifError("shared_address was already provided for this contract");
-						if (!ValidationUtils.isValidAddress(body.value))
-							return callbacks.ifError("invalid address provided");
-					} else
-					if (body.field === "dispute_mci") {
-						if (objContract.status !== "in_dispute" && objContract.status !== "paid") // paid cause both "in_dispute" status change and dispute_mci are sent simultaniously and can be reordered
-							return callbacks.ifError("contract is not in dispute");
-						if (objContract.dispute_mci)
-							return callbacks.ifError("contract already has dispute mci");
-						if (!ValidationUtils.isNonnegativeInteger(body.value))
-							return callbacks.ifError("mci should be non-negative integer");
-						objContract.dispute_mci = body.value;
-					} else {
-						return callbacks.ifError("wrong field");
-					}
-					arbiter_contract.setField(objContract.hash, body.field, body.value, function(objContract) {
-						eventBus.emit("arbiter_contract_update", objContract, body.field, body.value);
-						callbacks.ifOk();
+					var from_cosigner = false;
+					db.query("SELECT 1 FROM wallet_signing_paths WHERE device_address=?", [from_address], function(rows) {
+						if (rows)
+							from_cosigner = true;
+						if (!objContract || (from_address !== objContract.peer_device_address && !from_cosigner))
+							return callbacks.ifError("wrong contract hash or not an owner");
+						if (body.field === "status") {
+							if ((objContract.status === "pending" && body.value !== "revoked" && body.value !== "accepted") || 
+								(objContract.status === "paid" && body.value !== "in_dispute") ||
+								((objContract.status === "dispute_resolved" && body.value !== "in_appeal")))
+									return callbacks.ifError("wrong status for contract supplied");
+						} else 
+						if (body.field === "unit") {
+							if (objContract.status !== "accepted")
+								return callbacks.ifError("contract was not accepted");
+							if (objContract.unit)
+									return callbacks.ifError("unit was already provided for this contract");
+						} else
+						if (body.field === "shared_address") {
+							if (objContract.status !== "accepted")
+								return callbacks.ifError("contract was not accepted");
+							if (objContract.shared_address)
+									return callbacks.ifError("shared_address was already provided for this contract");
+							if (!ValidationUtils.isValidAddress(body.value))
+								return callbacks.ifError("invalid address provided");
+						} else
+						if (body.field === "dispute_mci") {
+							if (objContract.status !== "in_dispute" && objContract.status !== "paid") // paid cause both "in_dispute" status change and dispute_mci are sent simultaniously and can be reordered
+								return callbacks.ifError("contract is not in dispute");
+							if (objContract.dispute_mci)
+								return callbacks.ifError("contract already has dispute mci");
+							if (!ValidationUtils.isNonnegativeInteger(body.value))
+								return callbacks.ifError("mci should be non-negative integer");
+							objContract.dispute_mci = body.value;
+						} else {
+							return callbacks.ifError("wrong field");
+						}
+						arbiter_contract.setField(objContract.hash, body.field, body.value, function(objContract) {
+							eventBus.emit("arbiter_contract_update", objContract, body.field, body.value);
+							callbacks.ifOk();
+						});
 					});
 				});
 				break;
@@ -1661,10 +1666,10 @@ function getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey) {
 					// we'll receive this event after the peer signs
 					eventBus.once("signature-" + device_address + "-" + address + "-" + signing_path + "-" + buf_to_sign.toString("base64"), function (sig) {
 						var key = device_address + address + buf_to_sign.toString("base64");
-						if (responses[key])
+						handleSignature(null, sig);
+						if (responses[key]) // it's a cache to not emit multiple similar events for one unit (when we have same address in multiple paths)
 							return;
 						responses[key] = true;
-						handleSignature(null, sig);
 						if (sig === '[refused]')
 							eventBus.emit('refused_to_sign', device_address);
 					});
