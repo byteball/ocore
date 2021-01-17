@@ -268,8 +268,19 @@ function readMcUnit(conn, mci, handleUnit) {
 
 function readLastUnit(conn, handleUnit) {
 	conn.query("SELECT unit, main_chain_index FROM units ORDER BY main_chain_index DESC LIMIT 1", function (rows) {
-		if (rows.length !== 1)
-			throw Error("found " + rows.length + " last units");
+		if (rows.length !== 1) {
+			if (!conf.bLight)
+				throw Error("found " + rows.length + " last units");
+			var objMcUnit = {
+				unit: 'mcunit',
+				witness_list_unit: 'mcwitnesslistunit',
+				last_ball_unit: 'mclastballunit',
+				last_ball: 'mclastball',
+				timestamp: Math.floor(Date.now() / 1000),
+				main_chain_index: 1e9,
+			};
+			return handleUnit(objMcUnit);
+		}
 		if (!rows[0].main_chain_index)
 			throw Error("no mci on last unit?");
 		readUnit(conn, rows[0].unit, handleUnit);
