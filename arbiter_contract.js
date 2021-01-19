@@ -221,8 +221,9 @@ function appeal(hash, cb) {
 							if (data.error) {
 								return cb(data.error);
 							}
-							setField(hash, "status", "in_appeal");
-							cb(null, data);
+							setField(hash, "status", "in_appeal", function() {
+								cb(null, data);
+							});
 						} catch (e) {
 							cb(e);
 						}
