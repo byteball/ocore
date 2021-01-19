@@ -10,6 +10,7 @@ var chash = require("../chash.js");
 var objectHash = require("../object_hash.js");
 var merkle = require('../merkle.js');
 var constants = require('../constants');
+var conf = require('../conf');
 var dataFeeds = require('../data_feeds.js');
 var storage = require('../storage.js');
 var signed_message = require("../signed_message.js"); // which requires definition.js - cyclic dependency :(
@@ -3000,8 +3001,14 @@ function executeGetterInState(conn, aa_address, getter, args, stateVars, assocBa
 		});
 	conn.query("SELECT * FROM units ORDER BY main_chain_index DESC LIMIT 1", rows => {
 		var props = rows[0];
-		if (!props)
-			throw Error("no last unit");
+		if (!props) {
+			if (!conf.bLight)
+				throw Error("no last unit");
+			props = {
+				main_chain_index: 1e9,
+				unit: 'dummyforgetter',
+			};
+		}
 		objValidationState = {
 			last_ball_mci: props.main_chain_index,
 			last_ball_timestamp: Math.floor(Date.now() / 1000),

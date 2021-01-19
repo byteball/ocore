@@ -1648,8 +1648,12 @@ eventBus.on('aa_definition_saved', function (payload, unit) {
 				console.log('recently saved unit ' + unit + ' not found');
 			},
 			ifFound: function (objJoint) {
+				var objUnit = objJoint.unit;
 				arrWses.forEach(function (ws) {
-					sendJustsaying(ws, 'light/aa_definition_saved', objJoint.unit);
+					sendJustsaying(ws, 'light/aa_definition_saved', objUnit);
+					// posted by an AA, it was skipped when handling the request
+					if (objUnit.authors.length === 1 && !objUnit.authors[0].authentifiers)
+						sendJustsaying(ws, 'light/aa_definition', objUnit);
 				});
 			}
 		})
