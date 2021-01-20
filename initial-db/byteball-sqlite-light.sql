@@ -900,7 +900,6 @@ CREATE TABLE IF NOT EXISTS wallet_arbiter_contracts (
 	shared_address CHAR(32),
 	unit CHAR(44) NULL,
 	cosigners VARCHAR(1500),
-	dispute_mci INT NULL,
 	resolution_unit CHAR(44) NULL,
 	FOREIGN KEY (my_address) REFERENCES my_addresses(address)
 );

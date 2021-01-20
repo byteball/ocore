@@ -597,15 +597,6 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 									return callbacks.ifError("shared_address was already provided for this contract");
 							if (!ValidationUtils.isValidAddress(body.value))
 								return callbacks.ifError("invalid address provided");
-						} else
-						if (body.field === "dispute_mci") {
-							if (objContract.status !== "in_dispute" && objContract.status !== "paid") // paid cause both "in_dispute" status change and dispute_mci are sent simultaniously and can be reordered
-								return callbacks.ifError("contract is not in dispute");
-							if (objContract.dispute_mci)
-								return callbacks.ifError("contract already has dispute mci");
-							if (!ValidationUtils.isNonnegativeInteger(body.value))
-								return callbacks.ifError("mci should be non-negative integer");
-							objContract.dispute_mci = body.value;
 						} else {
 							return callbacks.ifError("wrong field");
 						}

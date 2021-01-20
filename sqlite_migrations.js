@@ -446,7 +446,6 @@ function migrateDb(connection, onDone){
 						shared_address CHAR(32), \n\
 						unit CHAR(44) NULL, \n\
 						cosigners VARCHAR(1500), \n\
-						dispute_mci INT NULL, \n\
 						resolution_unit CHAR(44) NULL, \n\
 						FOREIGN KEY (my_address) REFERENCES my_addresses(address) \n\
 					);");
