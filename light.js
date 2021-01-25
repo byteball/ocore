@@ -190,9 +190,10 @@ function processHistory(objResponse, arrWitnesses, callbacks){
 					return callbacks.ifError("wrong ball hash: unit "+objBall.unit+", ball "+objBall.ball);
 				if (!assocKnownBalls[objBall.ball])
 					return callbacks.ifError("ball not known: "+objBall.ball);
-				objBall.parent_balls.forEach(function(parent_ball){
-					assocKnownBalls[parent_ball] = true;
-				});
+				if (objBall.unit !== constants.GENESIS_UNIT)
+					objBall.parent_balls.forEach(function(parent_ball){
+						assocKnownBalls[parent_ball] = true;
+					});
 				if (objBall.skiplist_balls)
 					objBall.skiplist_balls.forEach(function(skiplist_ball){
 						assocKnownBalls[skiplist_ball] = true;
@@ -698,9 +699,10 @@ function processLinkProofs(arrUnits, arrChain, callbacks){
 				return callbacks.ifError("unknown ball "+objBall.ball);
 			if (objBall.ball !== objectHash.getBallHash(objBall.unit, objBall.parent_balls, objBall.skiplist_balls, objBall.is_nonserial))
 				return callbacks.ifError("invalid ball hash");
-			objBall.parent_balls.forEach(function(parent_ball){
-				assocKnownBalls[parent_ball] = true;
-			});
+			if (objBall.unit !== constants.GENESIS_UNIT)
+				objBall.parent_balls.forEach(function(parent_ball){
+					assocKnownBalls[parent_ball] = true;
+				});
 			if (objBall.skiplist_balls)
 				objBall.skiplist_balls.forEach(function(skiplist_ball){
 					assocKnownBalls[skiplist_ball] = true;
