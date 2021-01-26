@@ -589,6 +589,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 								return callbacks.ifError("contract was not accepted");
 							if (objContract.unit)
 									return callbacks.ifError("unit was already provided for this contract");
+							arbiter_contract.setField(objContract.hash, "status", "signed");
 						} else
 						if (body.field === "shared_address") {
 							if (objContract.status !== "accepted")

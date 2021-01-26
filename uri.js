@@ -14,8 +14,14 @@ function parseUri(uri, callbacks){
 		var oprotocol = protocol.replace(/byteball/i, 'obyte');
 		re = new RegExp('^'+oprotocol+':(.+)$', 'i');
 		arrMatches = uri.match(re);
-		if (!arrMatches)
-			return callbacks.ifError("no "+protocol+" or "+oprotocol+" prefix");
+		if (!arrMatches) {
+			// try the default proto
+			protocol = 'obyte';
+			re = new RegExp('^'+protocol+':(.+)$', 'i');
+			arrMatches = uri.match(re);
+			if (!arrMatches)
+				return callbacks.ifError("no "+protocol+" or "+oprotocol+" prefix");
+		}
 	}
 	var value = arrMatches[1];
 	var objRequest = {};
