@@ -1087,8 +1087,9 @@ function readTransactionHistory(opts, handleHistory){
 								}
 								var has_asset = payee_rows.some(function(payee){ return payee.asset; });
 								if (has_asset && !asset) { // filter out "fees" txs from history
-									cb();
-									return;
+									var has_external_bytes_payment = payee_rows.some(function (payee) { return !payee.asset && payee.is_external; });
+									if (!has_external_bytes_payment)
+										return cb();
 								}
 								async.eachSeries(payee_rows, function(payee, cb2){
 									if ((action === 'sent' && !payee.is_external) || (asset != payee.asset)) {
