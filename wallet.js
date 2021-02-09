@@ -972,14 +972,14 @@ function readTransactionHistory(opts, handleHistory){
 	}
 	db.query(
 		"SELECT unit, level, is_stable, sequence, address, \n\
-			"+db.getUnixTimestamp("units.creation_date")+" AS ts, headers_commission+payload_commission AS fee, \n\
+			"+db.getUnixTimestamp("units.creation_date")+" AS ts, timestamp, headers_commission+payload_commission AS fee, \n\
 			SUM(amount) AS amount, address AS to_address, NULL AS from_address, main_chain_index AS mci \n\
 		FROM units "+cross+" JOIN outputs USING(unit) "+join_my_addresses+" \n\
 		WHERE "+where_condition+" AND "+asset_condition+" \n\
 		GROUP BY unit, address \n\
 		UNION \n\
 		SELECT unit, level, is_stable, sequence, address, \n\
-			"+db.getUnixTimestamp("units.creation_date")+" AS ts, headers_commission+payload_commission AS fee, \n\
+			"+db.getUnixTimestamp("units.creation_date")+" AS ts, timestamp, headers_commission+payload_commission AS fee, \n\
 			NULL AS amount, NULL AS to_address, address AS from_address, main_chain_index AS mci \n\
 		FROM units "+cross+" JOIN inputs USING(unit) "+join_my_addresses+" \n\
 		WHERE "+where_condition+" AND "+asset_condition+" \n\
@@ -991,6 +991,8 @@ function readTransactionHistory(opts, handleHistory){
 				var row = rows[i];
 				//if (asset !== "base")
 				//    row.fee = null;
+				if (row.timestamp)
+					row.ts = row.timestamp;
 				if (!assocMovements[row.unit])
 					assocMovements[row.unit] = {
 						plus:0, has_minus:false, ts: row.ts, level: row.level, is_stable: row.is_stable, sequence: row.sequence, fee: row.fee, mci: row.mci
