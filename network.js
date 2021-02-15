@@ -3759,3 +3759,5 @@ exports.exchangeRates = exchangeRates;
 exports.knownWitnesses = knownWitnesses;
 exports.getInboundDeviceWebSocket = getInboundDeviceWebSocket;
 exports.deletePendingRequest = deletePendingRequest;
+
+exports.MAX_STATE_VARS = MAX_STATE_VARS;
