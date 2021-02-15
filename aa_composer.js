@@ -845,7 +845,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 	function sendDummyUnit(messages) {
 		console.log('AA ' + address + ': send dummy unit with messages', JSON.stringify(messages, null, '\t'));
 		var objUnit = messages.length ? {
-			unit: 'dummy',
+			unit: 'dummy' + Date.now(),
 			authors: [{ address: address }],
 			messages: messages,
 		} : null;
