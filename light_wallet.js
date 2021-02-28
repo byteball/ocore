@@ -109,6 +109,7 @@ if (conf.bLight) {
 
 	// we refresh history for all addresses that could have been missed
 	eventBus.on('connected', function(){
+		console.log('light connected');
 		bFirstHistoryReceived = false;
 		db.query("SELECT address FROM unprocessed_addresses", function(rows){
 			if (rows.length === 0)
@@ -138,8 +139,8 @@ function refreshLightClientHistory(addresses, handle){
 	}
 	network.findOutboundPeerOrConnect(network.light_vendor_url, function onLocatedLightVendor(err, ws){
 		var finish = function(err){
-			if (err)
-				console.log(err);
+		//	if (err)
+				console.log("finished refresh, err =", err);
 			if (ws && !addresses)
 				ws.bRefreshingHistory = false;
 			if (handle)
@@ -155,9 +156,10 @@ function refreshLightClientHistory(addresses, handle){
 			if (ws.bRefreshingHistory)
 				return console.log("previous refresh not finished yet");
 			ws.bRefreshingHistory = true;
-		} else if (ws.bRefreshingHistory || !isFirstHistoryReceived()) {
+		}
+		else if (ws.bRefreshingHistory || !isFirstHistoryReceived()) {
+			console.log("full refresh ongoing, refreshing=" + ws.bRefreshingHistory + " firstReceived=" + isFirstHistoryReceived() + " will refresh later for: " + addresses.join(' '));
 			return setTimeout(function(){
-				console.log("full refresh ongoing, will refresh later for: " + addresses.join(' '));
 				refreshLightClientHistory(addresses, handle); // full refresh must have priority over selective refresh
 			}, 2*1000)
 		}
@@ -183,7 +185,8 @@ function refreshLightClientHistory(addresses, handle){
 					ifOk: function(bRefreshUI){
 						clearInterval(interval);
 						finish();
-						bFirstHistoryReceived = true;
+						if (!addresses)
+							bFirstHistoryReceived = true;
 						if (bRefreshUI)
 							eventBus.emit('maybe_new_transactions');
 					}
