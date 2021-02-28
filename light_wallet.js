@@ -108,9 +108,12 @@ if (conf.bLight) {
 	});
 
 	// we refresh history for all addresses that could have been missed
-	eventBus.on('connected', function(){
-		console.log('light connected');
-		bFirstHistoryReceived = false;
+	eventBus.on('connected', function(ws){
+		console.log('light connected to ' + ws.peer);
+		if (ws.peer === network.light_vendor_url) {
+			console.log('resetting bFirstHistoryReceived');
+			bFirstHistoryReceived = false;
+		}
 		db.query("SELECT address FROM unprocessed_addresses", function(rows){
 			if (rows.length === 0)
 				return console.log("no unprocessed addresses");
