@@ -28,6 +28,7 @@ var toJsType = formulaParser.toJsType;
 var isNonnegativeInteger = ValidationUtils.isNonnegativeInteger;
 var isNonemptyArray = ValidationUtils.isNonemptyArray;
 var isNonemptyObject = ValidationUtils.isNonemptyObject;
+var isEmptyObjectOrArray = ValidationUtils.isEmptyObjectOrArray;
 
 var testnetAAsDefinedByAAsAreActiveImmediatelyUpgradeMci = 1167000;
 
@@ -591,7 +592,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 			//	console.log('--- f', f, '=', res, typeof res);
 				if (res === null)
 					return cb(err.bounce_message || "formula " + f + " failed: "+err);
-				if (res === '') { // signals that the key should be removed (only empty string, cannot be false as it is a valid value for asset properties)
+				if (res === '' || isEmptyObjectOrArray(res)) { // signals that the key should be removed (only empty string or array or object, cannot be false as it is a valid value for asset properties)
 					if (typeof name === 'string')
 						delete obj[name];
 					else
@@ -1075,9 +1076,14 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 			messages,
 			function (message, cb) {
 				if (message.app !== 'payment') {
-					if (message.app === 'definition')
-						message.payload.address = objectHash.getChash160(message.payload.definition);
-					completeMessage(message);
+					try {
+						if (message.app === 'definition')
+							message.payload.address = objectHash.getChash160(message.payload.definition);
+						completeMessage(message);
+					}
+					catch (e) { // may error if there are empty objects or arrays inside
+						return cb("some hashes failed: " + e.toString());
+					}
 					return cb();
 				}
 				var payload = message.payload;
