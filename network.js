@@ -1628,6 +1628,7 @@ eventBus.on('aa_response', function (objAAResponse) {
 	});
 });
 
+// full wallets only
 eventBus.on('aa_definition_saved', function (payload, unit) {
 	if (!bWatchingForLight)
 		return;
