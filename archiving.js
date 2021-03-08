@@ -20,14 +20,12 @@ function generateQueriesToRemoveJoint(conn, unit, arrQueries, cb){
 		conn.addQuery(arrQueries, "DELETE FROM witness_list_hashes WHERE witness_list_unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM earned_headers_commission_recipients WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM unit_witnesses WHERE unit=?", [unit]);
-		conn.addQuery(arrQueries, "DELETE FROM authentifiers WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM unit_authors WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM parenthoods WHERE child_unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM address_definition_changes WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM inputs WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM outputs WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM spend_proofs WHERE unit=?", [unit]);
-		conn.addQuery(arrQueries, "DELETE FROM data_feeds WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM poll_choices WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM polls WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM votes WHERE unit=?", [unit]);
@@ -50,13 +48,11 @@ function generateQueriesToVoidJoint(conn, unit, arrQueries, cb){
 		// we keep witnesses, author addresses, and the unit itself
 		conn.addQuery(arrQueries, "DELETE FROM witness_list_hashes WHERE witness_list_unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM earned_headers_commission_recipients WHERE unit=?", [unit]);
-		conn.addQuery(arrQueries, "DELETE FROM authentifiers WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "UPDATE unit_authors SET definition_chash=NULL WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM address_definition_changes WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM inputs WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM outputs WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM spend_proofs WHERE unit=?", [unit]);
-		conn.addQuery(arrQueries, "DELETE FROM data_feeds WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM poll_choices WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM polls WHERE unit=?", [unit]);
 		conn.addQuery(arrQueries, "DELETE FROM votes WHERE unit=?", [unit]);
