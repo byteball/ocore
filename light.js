@@ -257,6 +257,23 @@ function processHistory(objResponse, arrWitnesses, callbacks){
 					});
 					var arrNewUnits = [];
 					var arrProvenUnits = [];
+					
+					var processProvenUnits = function (cb) {
+						if (arrProvenUnits.length === 0)
+							return cb(true);
+						var sqlProvenUnits = arrProvenUnits.map(db.escape).join(', ');
+						db.query("UPDATE inputs SET is_unique=1 WHERE unit IN(" + sqlProvenUnits + ")", function () {
+							db.query("UPDATE units SET is_stable=1, is_free=0 WHERE unit IN(" + sqlProvenUnits + ")", function () {
+								var arrGoodProvenUnits = arrProvenUnits.filter(function (unit) { return !assocProvenUnitsNonserialness[unit]; });
+								if (arrGoodProvenUnits.length === 0)
+									return cb(true);
+								emitStability(arrGoodProvenUnits, function (bEmitted) {
+									cb(!bEmitted);
+								});
+							});
+						});
+					};
+		
 					async.eachSeries(
 						objResponse.joints.reverse(), // have them in forward chronological order so that we correctly mark is_spent flag
 						function(objJoint, cb2){
@@ -303,21 +320,9 @@ function processHistory(objResponse, arrWitnesses, callbacks){
 							fixIsSpentFlagAndInputAddress(function(){
 								if (arrNewUnits.length > 0)
 									emitNewMyTransactions(arrNewUnits);
-								if (arrProvenUnits.length === 0){
+								processProvenUnits(function (bHaveUpdates) {
 									unlock();
-									return callbacks.ifOk(true);
-								}
-								var sqlProvenUnits = arrProvenUnits.map(db.escape).join(', ');
-								db.query("UPDATE inputs SET is_unique=1 WHERE unit IN("+sqlProvenUnits+")", function(){
-									db.query("UPDATE units SET is_stable=1, is_free=0 WHERE unit IN("+sqlProvenUnits+")", function(){
-										unlock();
-										arrProvenUnits = arrProvenUnits.filter(function(unit){ return !assocProvenUnitsNonserialness[unit]; });
-										if (arrProvenUnits.length === 0)
-											return callbacks.ifOk(true);
-										emitStability(arrProvenUnits, function(bEmitted){
-											callbacks.ifOk(!bEmitted);
-										});
-									});
+									callbacks.ifOk(bHaveUpdates);
 								});
 							});
 							// this can execute after callbacks
