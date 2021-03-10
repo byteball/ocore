@@ -321,32 +321,10 @@ function processHistory(objResponse, arrWitnesses, callbacks){
 								if (arrNewUnits.length > 0)
 									emitNewMyTransactions(arrNewUnits);
 								processProvenUnits(function (bHaveUpdates) {
-									unlock();
-									callbacks.ifOk(bHaveUpdates);
-								});
-							});
-							// this can execute after callbacks
-							if (!objResponse.aa_responses)
-								return;
-							var arrAAResponsesToEmit = [];
-							async.eachSeries(objResponse.aa_responses, function (objAAResponse, cb3) {
-								db.query(
-									"INSERT " + db.getIgnore() + " INTO aa_responses (mci, trigger_address, aa_address, trigger_unit, bounced, response_unit, response, creation_date) VALUES (?, ?,?, ?, ?, ?,?, ?)",
-									[objAAResponse.mci, objAAResponse.trigger_address, objAAResponse.aa_address, objAAResponse.trigger_unit, objAAResponse.bounced, objAAResponse.response_unit, objAAResponse.response, objAAResponse.creation_date],
-									function (res) {
-										if (res.affectedRows === 0) // don't emit events again
-											return cb3();
-										objAAResponse.response = JSON.parse(objAAResponse.response);
-										arrAAResponsesToEmit.push(objAAResponse);
-										return cb3();
-									}
-								);
-							}, function () {
-								arrAAResponsesToEmit.forEach(function (objAAResponse) {
-									eventBus.emit('aa_response', objAAResponse);
-									eventBus.emit('aa_response_to_unit-'+objAAResponse.trigger_unit, objAAResponse);
-									eventBus.emit('aa_response_to_address-'+objAAResponse.trigger_address, objAAResponse);
-									eventBus.emit('aa_response_from_aa-'+objAAResponse.aa_address, objAAResponse);
+									processAAResponses(objResponse.aa_responses, function () {
+										unlock();
+										callbacks.ifOk(bHaveUpdates);
+									});
 								});
 							});
 						}
@@ -357,6 +335,33 @@ function processHistory(objResponse, arrWitnesses, callbacks){
 		}
 	);
 
+}
+
+function processAAResponses(aa_responses, onDone) {
+	if (!aa_responses)
+		return onDone();
+	var arrAAResponsesToEmit = [];
+	async.eachSeries(aa_responses, function (objAAResponse, cb3) {
+		db.query(
+			"INSERT " + db.getIgnore() + " INTO aa_responses (mci, trigger_address, aa_address, trigger_unit, bounced, response_unit, response, creation_date) VALUES (?, ?,?, ?, ?, ?,?, ?)",
+			[objAAResponse.mci, objAAResponse.trigger_address, objAAResponse.aa_address, objAAResponse.trigger_unit, objAAResponse.bounced, objAAResponse.response_unit, objAAResponse.response, objAAResponse.creation_date],
+			function (res) {
+				if (res.affectedRows === 0) // don't emit events again
+					return cb3();
+				objAAResponse.response = JSON.parse(objAAResponse.response);
+				arrAAResponsesToEmit.push(objAAResponse);
+				return cb3();
+			}
+		);
+	}, function () {
+		arrAAResponsesToEmit.forEach(function (objAAResponse) {
+			eventBus.emit('aa_response', objAAResponse);
+			eventBus.emit('aa_response_to_unit-'+objAAResponse.trigger_unit, objAAResponse);
+			eventBus.emit('aa_response_to_address-'+objAAResponse.trigger_address, objAAResponse);
+			eventBus.emit('aa_response_from_aa-'+objAAResponse.aa_address, objAAResponse);
+		});
+		onDone();
+	});
 }
 
 // fixes is_spent in case units were received out of order
