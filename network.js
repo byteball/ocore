@@ -47,7 +47,6 @@ var assocRequestedUnits = {};
 var bStarted = false;
 var bCatchingUp = false;
 var bWaitingForCatchupChain = false;
-var bWaitingTillIdle = false;
 var coming_online_time = Date.now();
 var assocReroutedConnectionsByTag = {};
 var arrWatchedAddresses = []; // does not include my addresses, therefore always empty
@@ -1769,14 +1768,33 @@ function isIdle(){
 
 function waitTillIdle(onIdle){
 	if (isIdle()){
-		bWaitingTillIdle = false;
-		onIdle();
+		eventBus.emit('idle'); // first call the callbacks that were queued earlier
+		if (onIdle)
+			onIdle();
 	}
 	else{
-		bWaitingTillIdle = true;
-		setTimeout(function(){
-			waitTillIdle(onIdle);
-		}, 100);
+		console.log('not idle, will wait');
+		if (onIdle)
+			eventBus.once('idle', onIdle);
+		setTimeout(waitTillIdle, 100);
+	}
+}
+
+function isSyncIdle() {
+	return (db.getCountUsedConnections() === 0 && Object.keys(assocUnitsInWork).length === 0);
+}
+
+function waitTillSyncIdle(onIdle){
+	if (isSyncIdle()){
+		eventBus.emit('sync_idle'); // first call the callbacks that were queued earlier
+		if (onIdle)
+			onIdle();
+	}
+	else {
+		console.log('sync is active, will wait');
+		if (onIdle)
+			eventBus.once('sync_idle', onIdle);
+		setTimeout(waitTillSyncIdle, 100);
 	}
 }
 
@@ -3712,6 +3730,19 @@ function isCatchingUp(){
 	return bCatchingUp;
 }
 
+function waitUntilCatchedUp(cb) {
+	if (conf.bLight)
+		throw Error("call waitUntilCatchedUp in full wallets only");
+	if (!cb)
+		return new Promise(resolve => waitUntilCatchedUp(resolve));
+	waitTillSyncIdle(() => {
+		if (!bCatchingUp && !bWaitingForCatchupChain)
+			return cb();
+		console.log('bCatchingUp =', bCatchingUp, 'bWaitingForCatchupChain =', bWaitingForCatchupChain, ' will wait for catchup to finish');
+		eventBus.once('catching_up_done', () => waitUntilCatchedUp(cb));
+	});
+}
+
 if (!conf.explicitStart) {
 	start();
 }
@@ -3755,6 +3786,7 @@ exports.closeAllWsConnections = closeAllWsConnections;
 exports.isStarted = isStarted;
 exports.isConnected = isConnected;
 exports.isCatchingUp = isCatchingUp;
+exports.waitUntilCatchedUp = waitUntilCatchedUp;
 exports.requestHistoryFor = requestHistoryFor;
 exports.exchangeRates = exchangeRates;
 exports.knownWitnesses = knownWitnesses;

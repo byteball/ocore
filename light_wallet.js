@@ -188,8 +188,10 @@ function refreshLightClientHistory(addresses, handle){
 					ifOk: function(bRefreshUI){
 						clearInterval(interval);
 						finish();
-						if (!addresses)
+						if (!addresses) {
 							bFirstHistoryReceived = true;
+							eventBus.emit('first_history_received');
+						}
 						if (bRefreshUI)
 							eventBus.emit('maybe_new_transactions');
 					}
@@ -234,6 +236,15 @@ function isFirstHistoryReceived(){
 	return bFirstHistoryReceived;
 }
 
+function waitUntilFirstHistoryReceived(cb) {
+	if (!cb)
+		return new Promise(resolve => waitUntilFirstHistoryReceived(resolve));
+	if (bFirstHistoryReceived)
+		return cb();
+	eventBus.once('first_history_received', () => process.nextTick(cb));
+}
+
 exports.setLightVendorHost = setLightVendorHost;
 exports.refreshLightClientHistory = refreshLightClientHistory;
 exports.isFirstHistoryReceived = isFirstHistoryReceived;
+exports.waitUntilFirstHistoryReceived = waitUntilFirstHistoryReceived;
