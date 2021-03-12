@@ -77,6 +77,12 @@ function isNonemptyObject(obj){
 	return (obj && typeof obj === "object" && !Array.isArray(obj) && Object.keys(obj).length > 0);
 }
 
+function isEmptyObjectOrArray(obj) {
+	if (typeof obj !== "object" || obj === null)
+		return false;
+	return (Array.isArray(obj) && obj.length === 0 || Object.keys(obj).length === 0);
+}
+
 function isValidBase64(b64, len){
 	return (typeof b64 === "string" && (!len || b64.length === len) && b64 === Buffer.from(b64, "base64").toString("base64"));
 }
@@ -106,6 +112,8 @@ exports.isStringOfLength = isStringOfLength;
 exports.isInteger = isInteger;
 exports.isNonnegativeInteger = isNonnegativeInteger;
 exports.isPositiveInteger = isPositiveInteger;
+
+exports.isEmptyObjectOrArray = isEmptyObjectOrArray;
 
 exports.isNonemptyObject = isNonemptyObject;
 

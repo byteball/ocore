@@ -669,6 +669,7 @@ function sendMessageToDevice(device_address, subject, body, callbacks, conn){
 		if (rows.length !== 1 && !conf.bIgnoreMissingCorrespondents)
 			throw Error("correspondent not found");
 		if (rows.length === 0 && conf.bIgnoreMissingCorrespondents || rows[0].is_blackhole){
+			console.log(rows.length === 0 ? "ignoring missing correspondent " + device_address : "not sending to " + device_address + " which is set as blackhole");
 			if (callbacks && callbacks.onSaved)
 				callbacks.onSaved();
 			if (callbacks && callbacks.ifOk)

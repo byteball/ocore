@@ -1817,6 +1817,12 @@ function initUnstableMessages(conn, onDone){
 								assocUnstableMessages[row.unit].push(message);
 							}
 						});
+						// set bAA flag
+						if (!assocUnstableUnits[row.unit])
+							throw Error("no unstable unit " + row.unit);
+						var authors = objJoint.unit.authors;
+						if (authors.length === 1 && !authors[0].authentifiers)
+							assocUnstableUnits[row.unit].bAA = true;
 						cb();
 					}
 				});

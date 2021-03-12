@@ -73,8 +73,9 @@ function addWatchedAddress(address, handle){
 		insertInDb();
 
 	function insertInDb(){
-		db.query("INSERT "+db.getIgnore()+" INTO my_watched_addresses (address) VALUES (?)", [address], function(){
-			eventBus.emit("new_address", address); // if light node, this will trigger an history refresh for this address thus it will be watched by the hub
+		db.query("INSERT " + db.getIgnore() + " INTO my_watched_addresses (address) VALUES (?)", [address], function (res) {
+			if (res.affectedRows)
+				eventBus.emit("new_address", address); // if light node, this will trigger an history refresh for this address thus it will be watched by the hub
 			handle();
 		});
 	}
