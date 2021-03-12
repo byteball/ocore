@@ -78,6 +78,8 @@ function getValueFromDataFeedKey(key){
 
 // returns a number if the value looks like a valid float
 function toNumber(value, bLimitedPrecision) {
+	if (typeof value === 'number')
+		return value;
 	if (bLimitedPrecision)
 		return getNumericFeedValue(value);
 	if (typeof value !== 'string')

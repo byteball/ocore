@@ -190,9 +190,10 @@ function processHistory(objResponse, arrWitnesses, callbacks){
 					return callbacks.ifError("wrong ball hash: unit "+objBall.unit+", ball "+objBall.ball);
 				if (!assocKnownBalls[objBall.ball])
 					return callbacks.ifError("ball not known: "+objBall.ball);
-				objBall.parent_balls.forEach(function(parent_ball){
-					assocKnownBalls[parent_ball] = true;
-				});
+				if (objBall.unit !== constants.GENESIS_UNIT)
+					objBall.parent_balls.forEach(function(parent_ball){
+						assocKnownBalls[parent_ball] = true;
+					});
 				if (objBall.skiplist_balls)
 					objBall.skiplist_balls.forEach(function(skiplist_ball){
 						assocKnownBalls[skiplist_ball] = true;
@@ -256,6 +257,23 @@ function processHistory(objResponse, arrWitnesses, callbacks){
 					});
 					var arrNewUnits = [];
 					var arrProvenUnits = [];
+					
+					var processProvenUnits = function (cb) {
+						if (arrProvenUnits.length === 0)
+							return cb(true);
+						var sqlProvenUnits = arrProvenUnits.map(db.escape).join(', ');
+						db.query("UPDATE inputs SET is_unique=1 WHERE unit IN(" + sqlProvenUnits + ")", function () {
+							db.query("UPDATE units SET is_stable=1, is_free=0 WHERE unit IN(" + sqlProvenUnits + ")", function () {
+								var arrGoodProvenUnits = arrProvenUnits.filter(function (unit) { return !assocProvenUnitsNonserialness[unit]; });
+								if (arrGoodProvenUnits.length === 0)
+									return cb(true);
+								emitStability(arrGoodProvenUnits, function (bEmitted) {
+									cb(!bEmitted);
+								});
+							});
+						});
+					};
+		
 					async.eachSeries(
 						objResponse.joints.reverse(), // have them in forward chronological order so that we correctly mark is_spent flag
 						function(objJoint, cb2){
@@ -302,45 +320,11 @@ function processHistory(objResponse, arrWitnesses, callbacks){
 							fixIsSpentFlagAndInputAddress(function(){
 								if (arrNewUnits.length > 0)
 									emitNewMyTransactions(arrNewUnits);
-								if (arrProvenUnits.length === 0){
-									unlock();
-									return callbacks.ifOk(true);
-								}
-								var sqlProvenUnits = arrProvenUnits.map(db.escape).join(', ');
-								db.query("UPDATE inputs SET is_unique=1 WHERE unit IN("+sqlProvenUnits+")", function(){
-									db.query("UPDATE units SET is_stable=1, is_free=0 WHERE unit IN("+sqlProvenUnits+")", function(){
+								processProvenUnits(function (bHaveUpdates) {
+									processAAResponses(objResponse.aa_responses, function () {
 										unlock();
-										arrProvenUnits = arrProvenUnits.filter(function(unit){ return !assocProvenUnitsNonserialness[unit]; });
-										if (arrProvenUnits.length === 0)
-											return callbacks.ifOk(true);
-										emitStability(arrProvenUnits, function(bEmitted){
-											callbacks.ifOk(!bEmitted);
-										});
+										callbacks.ifOk(bHaveUpdates);
 									});
-								});
-							});
-							// this can execute after callbacks
-							if (!objResponse.aa_responses)
-								return;
-							var arrAAResponsesToEmit = [];
-							async.eachSeries(objResponse.aa_responses, function (objAAResponse, cb3) {
-								db.query(
-									"INSERT " + db.getIgnore() + " INTO aa_responses (mci, trigger_address, aa_address, trigger_unit, bounced, response_unit, response, creation_date) VALUES (?, ?,?, ?, ?, ?,?, ?)",
-									[objAAResponse.mci, objAAResponse.trigger_address, objAAResponse.aa_address, objAAResponse.trigger_unit, objAAResponse.bounced, objAAResponse.response_unit, objAAResponse.response, objAAResponse.creation_date],
-									function (res) {
-										if (res.affectedRows === 0) // don't emit events again
-											return cb3();
-										objAAResponse.response = JSON.parse(objAAResponse.response);
-										arrAAResponsesToEmit.push(objAAResponse);
-										return cb3();
-									}
-								);
-							}, function () {
-								arrAAResponsesToEmit.forEach(function (objAAResponse) {
-									eventBus.emit('aa_response', objAAResponse);
-									eventBus.emit('aa_response_to_unit-'+objAAResponse.trigger_unit, objAAResponse);
-									eventBus.emit('aa_response_to_address-'+objAAResponse.trigger_address, objAAResponse);
-									eventBus.emit('aa_response_from_aa-'+objAAResponse.aa_address, objAAResponse);
 								});
 							});
 						}
@@ -351,6 +335,33 @@ function processHistory(objResponse, arrWitnesses, callbacks){
 		}
 	);
 
+}
+
+function processAAResponses(aa_responses, onDone) {
+	if (!aa_responses)
+		return onDone();
+	var arrAAResponsesToEmit = [];
+	async.eachSeries(aa_responses, function (objAAResponse, cb3) {
+		db.query(
+			"INSERT " + db.getIgnore() + " INTO aa_responses (mci, trigger_address, aa_address, trigger_unit, bounced, response_unit, response, creation_date) VALUES (?, ?,?, ?, ?, ?,?, ?)",
+			[objAAResponse.mci, objAAResponse.trigger_address, objAAResponse.aa_address, objAAResponse.trigger_unit, objAAResponse.bounced, objAAResponse.response_unit, objAAResponse.response, objAAResponse.creation_date],
+			function (res) {
+				if (res.affectedRows === 0) // don't emit events again
+					return cb3();
+				objAAResponse.response = JSON.parse(objAAResponse.response);
+				arrAAResponsesToEmit.push(objAAResponse);
+				return cb3();
+			}
+		);
+	}, function () {
+		arrAAResponsesToEmit.forEach(function (objAAResponse) {
+			eventBus.emit('aa_response', objAAResponse);
+			eventBus.emit('aa_response_to_unit-'+objAAResponse.trigger_unit, objAAResponse);
+			eventBus.emit('aa_response_to_address-'+objAAResponse.trigger_address, objAAResponse);
+			eventBus.emit('aa_response_from_aa-'+objAAResponse.aa_address, objAAResponse);
+		});
+		onDone();
+	});
 }
 
 // fixes is_spent in case units were received out of order
@@ -439,13 +450,17 @@ function emitStability(arrProvenUnits, onDone){
 	db.query(
 		getSqlToFilterMyUnits(arrProvenUnits),
 		function(rows){
-			onDone(rows.length > 0);
-			if (rows.length > 0){
-				eventBus.emit('my_transactions_became_stable', rows.map(function(row){ return row.unit; }));
-				rows.forEach(function(row){
-					eventBus.emit('my_stable-'+row.unit);
+			var ownUnits = rows.map(function(row){ return row.unit; });
+			onDone(ownUnits.length > 0);
+			if (ownUnits.length > 0){
+				eventBus.emit('my_transactions_became_stable', ownUnits);
+				ownUnits.forEach(function(unit){
+					eventBus.emit('my_stable-'+unit);
 				});
 			}
+			_.difference(arrProvenUnits, ownUnits).forEach(function(unit){
+				eventBus.emit('not_my_stable-'+unit);
+			});
 		}
 	);
 }
@@ -698,9 +713,10 @@ function processLinkProofs(arrUnits, arrChain, callbacks){
 				return callbacks.ifError("unknown ball "+objBall.ball);
 			if (objBall.ball !== objectHash.getBallHash(objBall.unit, objBall.parent_balls, objBall.skiplist_balls, objBall.is_nonserial))
 				return callbacks.ifError("invalid ball hash");
-			objBall.parent_balls.forEach(function(parent_ball){
-				assocKnownBalls[parent_ball] = true;
-			});
+			if (objBall.unit !== constants.GENESIS_UNIT)
+				objBall.parent_balls.forEach(function(parent_ball){
+					assocKnownBalls[parent_ball] = true;
+				});
 			if (objBall.skiplist_balls)
 				objBall.skiplist_balls.forEach(function(skiplist_ball){
 					assocKnownBalls[skiplist_ball] = true;

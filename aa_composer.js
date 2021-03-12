@@ -28,6 +28,7 @@ var toJsType = formulaParser.toJsType;
 var isNonnegativeInteger = ValidationUtils.isNonnegativeInteger;
 var isNonemptyArray = ValidationUtils.isNonemptyArray;
 var isNonemptyObject = ValidationUtils.isNonemptyObject;
+var isEmptyObjectOrArray = ValidationUtils.isEmptyObjectOrArray;
 
 var testnetAAsDefinedByAAsAreActiveImmediatelyUpgradeMci = 1167000;
 
@@ -268,8 +269,19 @@ function readMcUnit(conn, mci, handleUnit) {
 
 function readLastUnit(conn, handleUnit) {
 	conn.query("SELECT unit, main_chain_index FROM units ORDER BY main_chain_index DESC LIMIT 1", function (rows) {
-		if (rows.length !== 1)
-			throw Error("found " + rows.length + " last units");
+		if (rows.length !== 1) {
+			if (!conf.bLight)
+				throw Error("found " + rows.length + " last units");
+			var objMcUnit = {
+				unit: 'mcunit',
+				witness_list_unit: 'mcwitnesslistunit',
+				last_ball_unit: 'mclastballunit',
+				last_ball: 'mclastball',
+				timestamp: Math.floor(Date.now() / 1000),
+				main_chain_index: 1e9,
+			};
+			return handleUnit(objMcUnit);
+		}
 		if (!rows[0].main_chain_index)
 			throw Error("no mci on last unit?");
 		readUnit(conn, rows[0].unit, handleUnit);
@@ -580,7 +592,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 			//	console.log('--- f', f, '=', res, typeof res);
 				if (res === null)
 					return cb(err.bounce_message || "formula " + f + " failed: "+err);
-				if (res === '') { // signals that the key should be removed (only empty string, cannot be false as it is a valid value for asset properties)
+				if (res === '' || isEmptyObjectOrArray(res)) { // signals that the key should be removed (only empty string or array or object, cannot be false as it is a valid value for asset properties)
 					if (typeof name === 'string')
 						delete obj[name];
 					else
@@ -834,7 +846,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 	function sendDummyUnit(messages) {
 		console.log('AA ' + address + ': send dummy unit with messages', JSON.stringify(messages, null, '\t'));
 		var objUnit = messages.length ? {
-			unit: 'dummy',
+			unit: 'dummy' + Date.now(),
 			authors: [{ address: address }],
 			messages: messages,
 		} : null;
@@ -1064,9 +1076,14 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 			messages,
 			function (message, cb) {
 				if (message.app !== 'payment') {
-					if (message.app === 'definition')
-						message.payload.address = objectHash.getChash160(message.payload.definition);
-					completeMessage(message);
+					try {
+						if (message.app === 'definition')
+							message.payload.address = objectHash.getChash160(message.payload.definition);
+						completeMessage(message);
+					}
+					catch (e) { // may error if there are empty objects or arrays inside
+						return cb("some hashes failed: " + e.toString());
+					}
 					return cb();
 				}
 				var payload = message.payload;

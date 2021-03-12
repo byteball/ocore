@@ -10,6 +10,7 @@ var chash = require("../chash.js");
 var objectHash = require("../object_hash.js");
 var merkle = require('../merkle.js');
 var constants = require('../constants');
+var conf = require('../conf');
 var dataFeeds = require('../data_feeds.js');
 var storage = require('../storage.js');
 var signed_message = require("../signed_message.js"); // which requires definition.js - cyclic dependency :(
@@ -1162,7 +1163,7 @@ exports.evaluate = function (opts, callback) {
 						if (fatal_error)
 							return cb(false);
 						if (!isValidValue(res) && !(res instanceof wrappedObject))
-							return setFatalError("evaluation of rhs " + rhs + " failed: " + res, cb, false);
+							return setFatalError("evaluation of rhs " + rhs + " in local var assignment failed: " + JSON.stringify(res), cb, false);
 						if (Decimal.isDecimal(res))
 							res = toDoubleRange(res);
 						if (hasOwnProperty(locals, var_name)) { // mutating an object
@@ -1212,7 +1213,7 @@ exports.evaluate = function (opts, callback) {
 						if (fatal_error)
 							return cb(false);
 						if (!isValidValue(res) && !(res instanceof wrappedObject))
-							return setFatalError("evaluation of rhs " + rhs + " failed: " + res, cb, false);
+							return setFatalError("evaluation of rhs " + rhs + " in state var assignment failed: " + JSON.stringify(res), cb, false);
 						if (Decimal.isDecimal(res))
 							res = toDoubleRange(res);
 						// state vars can store strings, decimals, objects, and booleans but booleans are treated specially when persisting to the db: true is converted to 1, false deletes the var
@@ -1306,7 +1307,7 @@ exports.evaluate = function (opts, callback) {
 						if (res instanceof wrappedObject)
 							res = true;
 						if (!isValidValue(res))
-							return setFatalError("evaluation of rhs " + rhs + " failed: " + res, cb, false);
+							return setFatalError("evaluation of rhs " + rhs + " in response var assignment failed: " + JSON.stringify(res), cb, false);
 						if (Decimal.isDecimal(res)) {
 							res = res.toNumber();
 							if (!isFinite(res))
@@ -3000,8 +3001,14 @@ function executeGetterInState(conn, aa_address, getter, args, stateVars, assocBa
 		});
 	conn.query("SELECT * FROM units ORDER BY main_chain_index DESC LIMIT 1", rows => {
 		var props = rows[0];
-		if (!props)
-			throw Error("no last unit");
+		if (!props) {
+			if (!conf.bLight)
+				throw Error("no last unit");
+			props = {
+				main_chain_index: 1e9,
+				unit: 'dummyforgetter',
+			};
+		}
 		objValidationState = {
 			last_ball_mci: props.main_chain_index,
 			last_ball_timestamp: Math.floor(Date.now() / 1000),
