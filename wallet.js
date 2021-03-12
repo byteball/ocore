@@ -549,9 +549,9 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				
 			// to cosigners
 			case 'arbiter_contract_shared':
-				if (!body.title || !body.text || !body.creation_date || !body.arbiter_address || typeof body.me_is_payer === "undefined" || !body.peer_pairing_code || !body.amount || body.amount <= 0 || !body.shared_address)
+				if (!body.title || !body.text || !body.creation_date || !body.arbiter_address || typeof body.me_is_payer === "undefined" || !body.peer_pairing_code || !body.amount || body.amount <= 0)
 					return callbacks.ifError("not all contract fields submitted");
-				if (!ValidationUtils.isValidAddress(body.peer_address) || !ValidationUtils.isValidAddress(body.my_address) || !ValidationUtils.isValidAddress(body.arbiter_address) || !ValidationUtils.isValidAddress(body.shared_address))
+				if (!ValidationUtils.isValidAddress(body.peer_address) || !ValidationUtils.isValidAddress(body.my_address) || !ValidationUtils.isValidAddress(body.arbiter_address) )
 					return callbacks.ifError("either peer_address or address or arbiter_address or shared_address are not valid in contract");
 				if (body.hash !== arbiter_contract.getHash(body))
 					return callbacks.ifError("wrong contract hash");
@@ -605,6 +605,11 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 							eventBus.emit("arbiter_contract_update", objContract, body.field, body.value);
 							callbacks.ifOk();
 						});
+						if (objContract.cosigners) {
+							objContract.cosigners.forEach(function(cosigner) {
+								device.sendMessageToDevice(cosigner, "arbiter_contract_update", body);
+							});
+						}
 					});
 				});
 				break;
@@ -786,13 +791,13 @@ function handlePrivatePaymentChains(ws, body, from_address, callbacks){
 			callbacks.ifOk();
 			// forward the chains to other members of output addresses
 			if (!body.forwarded)
-				forwardPrivateChainsToOtherMembersOfOutputAddresses(arrChains);
+				forwardPrivateChainsToOtherMembersOfOutputAddresses(arrChains, true);
 		}
 	);
 }
 
 
-function forwardPrivateChainsToOtherMembersOfOutputAddresses(arrChains, conn, onSaved){
+function forwardPrivateChainsToOtherMembersOfOutputAddresses(arrChains, bForwarded, conn, onSaved){
 	console.log("forwardPrivateChainsToOtherMembersOfOutputAddresses", arrChains);
 	var assocOutputAddresses = {};
 	arrChains.forEach(function(arrPrivateElements){
@@ -819,10 +824,10 @@ function forwardPrivateChainsToOtherMembersOfOutputAddresses(arrChains, conn, on
 		var arrFuncs = [];
 		if (arrWallets.length > 0)
 			arrFuncs.push(function(cb){
-				walletDefinedByKeys.forwardPrivateChainsToOtherMembersOfWallets(arrChains, arrWallets, conn, cb);
+				walletDefinedByKeys.forwardPrivateChainsToOtherMembersOfWallets(arrChains, arrWallets, bForwarded, conn, cb);
 			});
 		arrFuncs.push(function(cb){
-			walletDefinedByAddresses.forwardPrivateChainsToOtherMembersOfAddresses(arrChains, arrOutputAddresses, conn, cb);
+			walletDefinedByAddresses.forwardPrivateChainsToOtherMembersOfAddresses(arrChains, arrOutputAddresses, bForwarded, conn, cb);
 		});
 		async.series(arrFuncs, onSaved);
 	});
@@ -877,10 +882,21 @@ function emitNewPrivatePaymentReceived(payer_device_address, arrChains, message_
 		if (arrMyReceivingAddresses.length === 0)
 			return;
 		db.query("SELECT 1 FROM shared_addresses WHERE shared_address IN(?)", [arrMyReceivingAddresses], function(rows){
+			var emit = function(address_type) {
+				for (var asset in assocAmountsByAsset)
+					if (assocAmountsByAsset[asset])
+						eventBus.emit('received_payment', payer_device_address, assocAmountsByAsset[asset], asset, message_counter, address_type);
+			}
 			var bToSharedAddress = (rows.length > 0);
-			for (var asset in assocAmountsByAsset)
-				if (assocAmountsByAsset[asset])
-					eventBus.emit('received_payment', payer_device_address, assocAmountsByAsset[asset], asset, message_counter, bToSharedAddress);
+			if (!bToSharedAddress) {
+				db.query("SELECT 1 FROM my_watched_addresses WHERE address IN(?)", [arrMyReceivingAddresses], function(rows){
+					if (rows.length > 0)
+						emit('watched');
+					else
+						emit('main');
+				});
+			} else
+				emit('shared');
 		});
 	});
 }
@@ -908,7 +924,7 @@ function emitNewPublicPaymentReceived(payer_device_address, objUnit){ // current
 				var amounts = assocAmountsByAsset[asset];
 				for (var type in amounts)
 					if (amounts[type])
-						eventBus.emit('received_payment', payer_device_address, amounts[type], asset, ++message_counter, type === 'shared');
+						eventBus.emit('received_payment', payer_device_address, amounts[type], asset, ++message_counter, type);
 			}
 		});
 	});
@@ -1687,8 +1703,8 @@ function getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey) {
 							return cb(true);
 						});
 					}, function(cb) { // step 2: posting unit with contract hash (or not a prosaic and arbiter contract / not a tx at all)
-						db.query("SELECT peer_device_address FROM prosaic_contracts WHERE shared_address=? OR peer_address=?\n\
-							UNION SELECT peer_device_address FROM wallet_arbiter_contracts WHERE shared_address=? OR peer_address=?", [address, address, address, address], function(rows) {
+						db.query("SELECT peer_device_address, NULL AS amount, NULL AS asset, NULL AS my_address FROM prosaic_contracts WHERE shared_address=? OR peer_address=?\n\
+							UNION SELECT peer_device_address, amount, asset, my_address FROM wallet_arbiter_contracts WHERE shared_address=? OR peer_address=?", [address, address, address, address], function(rows) {
 							if (!rows.length) 
 								return cb();
 							// do not show alert for peer address in prosaic contracts
@@ -1696,7 +1712,19 @@ function getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey) {
 								return cb(true);
 							// co-signers on our side
 							if (!bRequestedConfirmation) {
-								eventBus.emit("confirm_contract_post");
+								var isClaim = false;
+								objUnsignedUnit.messages.forEach(function(message) {
+									var payload = message.payload || assocPrivatePayloads[message.payload_hash];
+									if (!payload)
+										return;
+									var possible_contract_output = _.find(payload.outputs, function(o){return payload.asset==rows[0].asset && o.address == rows[0].my_address});
+									if (possible_contract_output)
+										isClaim = true;
+								});
+								if (isClaim)
+									eventBus.emit("confirm_contract_claim");
+								else
+									eventBus.emit("confirm_contract_sign");
 								bRequestedConfirmation = true;
 							}
 							return cb(true);
@@ -2027,12 +2055,12 @@ function sendMultiPayment(opts, handleResult)
 									}
 								}
 								else { // paying to another wallet on the same device
-									forwardPrivateChainsToOtherMembersOfOutputAddresses(arrChainsOfRecipientPrivateElements, conn, cb2);
+									forwardPrivateChainsToOtherMembersOfOutputAddresses(arrChainsOfRecipientPrivateElements, false, conn, cb2);
 								}
 							};
 							var sendToCosigners = function(cb2){
 								if (wallet)
-									walletDefinedByKeys.forwardPrivateChainsToOtherMembersOfWallets(arrChainsOfCosignerPrivateElements, [wallet], conn, cb2);
+									walletDefinedByKeys.forwardPrivateChainsToOtherMembersOfWallets(arrChainsOfCosignerPrivateElements, [wallet], false, conn, cb2);
 								else // arrPayingAddresses can be only shared addresses
 									forwardPrivateChainsToOtherMembersOfSharedAddresses(arrChainsOfCosignerPrivateElements, arrPayingAddresses, null, false, conn, cb2);
 							};
@@ -2134,6 +2162,76 @@ function forwardPrivateChainsToOtherMembersOfSharedAddresses(arrChainsOfCosigner
 		});
 	});
 }
+
+/*
+This was an attempt to implement recursive forwarding of private chains to all inner cosigners / members of output addresses.
+Mostly for situations when one output address is also shared or multi-sig address, so when we receive private chain
+we should check on which address we received it and forward them further to inner members of this address.
+At first we had to do it for arbiter contracts, as output address included multiple shared addresses, but
+we ended up fixing the originator of private chains, setting it isForwarded flag to false, when
+they were sending payments to own shared address. This was enough to make other members of shared address to forward
+the chains to their cosigners, so-called 2nd hop. No real life situations were observed when we need 3rd hop.
+
+function forwardPrivateChainsToInnerMembers(arrChains, from_address) {
+	var assocOutputAddresses = {};
+	var arrUnits = [];
+	arrChains.forEach(function(arrPrivateElements){
+		var objHeadPrivateElement = arrPrivateElements[0];
+		arrUnits.push(objHeadPrivateElement.unit);
+		var payload = objHeadPrivateElement.payload;
+		payload.outputs.forEach(function(output){
+			if (output.address)
+				assocOutputAddresses[output.address] = true;
+		});
+		if (objHeadPrivateElement.output && objHeadPrivateElement.output.address)
+			assocOutputAddresses[objHeadPrivateElement.output.address] = true;
+	});
+	var arrOutputAddresses = Object.keys(assocOutputAddresses);
+	db.query("SELECT address FROM unit_authors WHERE unit IN(?)", [arrUnits], function(rows){
+		var arrAddresses = _.union([rows.map(function(row){ return row.address; }), arrOutputAddresses]);
+
+		// find at which level (which shared address) we received chains (our neighbour sent them to us, so we need to forward them deeper)
+		db.query("SELECT DISTINCT address FROM shared_address_signing_paths WHERE shared_address IN(\n\
+			SELECT DISTINCT shared_address FROM shared_address_signing_paths WHERE device_address=? AND shared_address IN(?))\n\
+			AND device_address=?"[from_address, arrAddresses, device.getMyDeviceAddress()])
+
+		var amISharedMember = function(arrAddresses, cb) {
+			db.query(
+				"SELECT DISTINCT address, shared_address_signing_paths.device_address, (correspondent_devices.device_address IS NOT NULL) AS have_correspondent \n\
+				FROM shared_address_signing_paths LEFT JOIN correspondent_devices USING(device_address) WHERE shared_address IN(?)", 
+				[arrAddresses], 
+				function(rows){
+					if (rows.length === 0)
+						return cb([]);
+					var arrControlAddresses = rows.map(function(row){ return row.address; });
+					var arrControlDeviceAddresses = rows.filter(function(row){ return row.have_correspondent; }).map(function(row){ return row.device_address; });
+					searchDeeper(arrControlAddresses, function(arrControlAddresses2, arrControlDeviceAddresses2){
+						handleLists(_.union(arrControlAddresses, arrControlAddresses2), _.union(arrControlDeviceAddresses, arrControlDeviceAddresses2));
+					});
+				}
+			);
+		};
+	});
+	if (!onSaved)
+		onSaved = function(){};
+	readWalletsByAddresses(db, arrOutputAddresses, function(arrWallets){
+		if (arrWallets.length === 0){
+		//	breadcrumbs.add("forwardPrivateChainsToOtherMembersOfOutputAddresses: " + JSON.stringify(arrChains)); // remove in livenet
+		//	eventBus.emit('nonfatal_error', "not my wallet? output addresses: "+arrOutputAddresses.join(', '), new Error());
+		//	throw Error("not my wallet? output addresses: "+arrOutputAddresses.join(', '));
+		}
+		var arrFuncs = [];
+		if (arrWallets.length > 0)
+			arrFuncs.push(function(cb){
+				walletDefinedByKeys.forwardPrivateChainsToOtherMembersOfWallets(arrChains, arrWallets, conn, cb);
+			});
+		arrFuncs.push(function(cb){
+			walletDefinedByAddresses.forwardPrivateChainsToOtherMembersOfAddresses(arrChains, arrOutputAddresses, conn, cb);
+		});
+		async.series(arrFuncs, onSaved);
+	});
+}
+*/
 
 function sendTextcoinEmail(email, subject, amount, asset, mnemonic){
 	var mail = require('./mail.js');

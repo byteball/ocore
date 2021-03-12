@@ -59,8 +59,17 @@ function getAllByArbiterAddress(address, cb) {
 	});
 }
 
+function getAllByPeerAddress(address, cb) {
+	db.query("SELECT * FROM wallet_arbiter_contracts WHERE peer_address IN (?) ORDER BY creation_date DESC", [address], function(rows){
+		rows.forEach(function(row) {
+			row = decodeRow(row);
+		});
+		cb(rows);
+	});
+}
+
 function setField(hash, field, value, cb) {
-	if (!["status", "shared_address", "unit", "my_contact_info", "peer_contact_info", "peer_pairing_code", "resolution_unit"].includes(field)) {
+	if (!["status", "shared_address", "unit", "my_contact_info", "peer_contact_info", "peer_pairing_code", "resolution_unit", "cosigners"].includes(field)) {
 		throw new Error("wrong field for setField method");
 	}
 	db.query("UPDATE wallet_arbiter_contracts SET " + field + "=? WHERE hash=?", [value, hash], function(res) {
@@ -143,7 +152,7 @@ function openDispute(hash, cb) {
 					return cb("can't get arbiter info from ArbStore");
 				device.getOrGeneratePermanentPairingInfo(function(pairingInfo){
 					var my_pairing_code = pairingInfo.device_pubkey + "@" + pairingInfo.hub + "#" + pairingInfo.pairing_secret;
-					var data = JSON.stringify({
+					var data = {
 						contract_hash: hash,
 						unit: objContract.unit,
 						my_address: objContract.my_address,
@@ -154,40 +163,47 @@ function openDispute(hash, cb) {
 						encrypted_contract: device.createEncryptedPackage({title: objContract.title, text: objContract.text, creation_date: objContract.creation_date}, objArbiter.device_pub_key),
 						my_contact_info: objContract.my_contact_info,
 						peer_contact_info: objContract.peer_contact_info
-					});
-					var reqParams = Object.assign(url.parse(arbStoreAddress), 
-						{
-							path: "/api/dispute/new",
-							method: "POST",
-							headers: {
-								"Content-Type": "application/json",
-								"Content-Length": data.length
-							}
+					};
+					db.query("SELECT 1 FROM assets WHERE unit IN(?) AND is_private=1 LIMIT 1", [objContract.asset], function(rows){
+						if (rows.length > 0) {
+							data.asset = objContract.asset;
+							data.amount = objContract.amount;
 						}
-					);
-					var req = http.request(
-						reqParams
-						, function(resp){
-						var data = "";
-						resp.on("data", function(chunk){
-							data += chunk;
-						});
-						resp.on("end", function(){
-							try {
-								data = JSON.parse(data);
-								if (data.error) {
-									return cb(data.error);
+						var dataJSON = JSON.stringify(data);
+						var reqParams = Object.assign(url.parse(arbStoreAddress), 
+							{
+								path: "/api/dispute/new",
+								method: "POST",
+								headers: {
+									"Content-Type": "application/json",
+									"Content-Length": dataJSON.length
 								}
-								setField(hash, "status", "in_dispute", function(objContract){
-									cb(null, data, objContract);
-								});
-							} catch (e) {
-								cb(e);
 							}
-						});
-					}).on("error", cb);
-					req.write(data);
-					req.end();
+						);
+						var req = http.request(
+							reqParams
+							, function(resp){
+							var data = "";
+							resp.on("data", function(chunk){
+								data += chunk;
+							});
+							resp.on("end", function(){
+								try {
+									data = JSON.parse(data);
+									if (data.error) {
+										return cb(data.error);
+									}
+									setField(hash, "status", "in_dispute", function(objContract){
+										cb(null, data, objContract);
+									});
+								} catch (e) {
+									cb(e);
+								}
+							});
+						}).on("error", cb);
+						req.write(dataJSON);
+						req.end();
+					});
 				});
 			});
 		});
@@ -249,7 +265,7 @@ function meIsCosigner(objContract, cb) {
 	db.query("SELECT COUNT(1) AS count FROM wallet_signing_paths\n\
 		JOIN my_addresses USING(wallet)\n\
 		WHERE address=?", [objContract.my_address], function(rows) {
-			if (rows[0].count > 1 && objContract.is_incoming && objContract.cosigners) {
+			if (rows[0].count > 1 && objContract.is_incoming && (!objContract.cosigners || objContract.cosigners.length == 0) && objContract.status !== 'pending') {
 				cb(true)
 			} else {
 				cb(false);
@@ -271,3 +287,4 @@ exports.openDispute = openDispute;
 exports.appeal = appeal;
 exports.meIsCosigner = meIsCosigner;
 exports.getAllByArbiterAddress = getAllByArbiterAddress;
+exports.getAllByPeerAddress = getAllByPeerAddress;

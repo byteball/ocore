@@ -817,7 +817,7 @@ function readAllAddresses(wallet, handleAddresses){
 
 
 
-function forwardPrivateChainsToOtherMembersOfWallets(arrChains, arrWallets, conn, onSaved){
+function forwardPrivateChainsToOtherMembersOfWallets(arrChains, arrWallets, bForwarded, conn, onSaved){
 	console.log("forwardPrivateChainsToOtherMembersOfWallets", arrWallets);
 	conn = conn || db;
 	conn.query(
@@ -825,7 +825,7 @@ function forwardPrivateChainsToOtherMembersOfWallets(arrChains, arrWallets, conn
 		[arrWallets, device.getMyDeviceAddress()], 
 		function(rows){
 			var arrDeviceAddresses = rows.map(function(row){ return row.device_address; });
-			walletGeneral.forwardPrivateChainsToDevices(arrDeviceAddresses, arrChains, true, conn, onSaved);
+			walletGeneral.forwardPrivateChainsToDevices(arrDeviceAddresses, arrChains, bForwarded, conn, onSaved);
 		}
 	);
 }
