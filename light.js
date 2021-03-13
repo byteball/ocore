@@ -450,13 +450,17 @@ function emitStability(arrProvenUnits, onDone){
 	db.query(
 		getSqlToFilterMyUnits(arrProvenUnits),
 		function(rows){
-			onDone(rows.length > 0);
-			if (rows.length > 0){
-				eventBus.emit('my_transactions_became_stable', rows.map(function(row){ return row.unit; }));
-				rows.forEach(function(row){
-					eventBus.emit('my_stable-'+row.unit);
+			var ownUnits = rows.map(function(row){ return row.unit; });
+			onDone(ownUnits.length > 0);
+			if (ownUnits.length > 0){
+				eventBus.emit('my_transactions_became_stable', ownUnits);
+				ownUnits.forEach(function(unit){
+					eventBus.emit('my_stable-'+unit);
 				});
 			}
+			_.difference(arrProvenUnits, ownUnits).forEach(function(unit){
+				eventBus.emit('not_my_stable-'+unit);
+			});
 		}
 	);
 }

@@ -357,7 +357,7 @@ function findRandomInboundPeer(handleInboundPeer){
 		function(rows){
 			console.log(rows.length+" inbound peers");
 			if (rows.length === 0)
-				return handleInboundPeer(null);
+				return handleInboundPeer(constants.bDevnet ? arrInboundSources[Math.floor(Math.random()*arrInboundSources.length)] : null);
 			var host = rows[0].peer_host;
 			console.log("selected inbound peer "+host);
 			var ws = arrInboundSources.filter(function(ws){ return (ws.host === host); })[0];
