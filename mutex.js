@@ -38,9 +38,11 @@ function exec(arrKeys, proc, next_proc){
 	arrLockedKeyArrays.push(arrKeys);
 	console.log("lock acquired", arrKeys);
 	var bLocked = true;
-	proc(function(){
+	proc(function unlock(unlock_msg) {
 		if (!bLocked)
 			throw Error("double unlock?");
+		if (unlock_msg)
+			console.log(unlock_msg);
 		bLocked = false;
 		release(arrKeys);
 		console.log("lock released", arrKeys);
