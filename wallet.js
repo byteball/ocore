@@ -701,10 +701,16 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 	});
 }
 
+var handledChainsCache = {};
+
 function handlePrivatePaymentChains(ws, body, from_address, callbacks){
 	var arrChains = body.chains;
 	if (!ValidationUtils.isNonemptyArray(arrChains))
 		return callbacks.ifError("no chains found");
+	var cache_key = objectHash.getBase64Hash(arrChains);
+	if (handledChainsCache[cache_key])
+		return;
+	handledChainsCache[cache_key] = true;
 	profiler.increment();
 	
 	if (conf.bLight)
@@ -858,13 +864,15 @@ function emitNewPrivatePaymentReceived(payer_device_address, arrChains, message_
 	walletGeneral.readMyAddresses(function(arrAddresses){
 		var assocAmountsByAsset = {};
 		var assocMyReceivingAddresses = {};
+		var units = [];
 		arrChains.forEach(function(arrPrivateElements){
 			var objHeadPrivateElement = arrPrivateElements[0];
+			units.push(objHeadPrivateElement.unit);
 			var payload = objHeadPrivateElement.payload;
 			var asset = payload.asset || 'base';
 			if (!assocAmountsByAsset[asset])
 				assocAmountsByAsset[asset] = 0;
-			payload.outputs.forEach(function(output){
+			payload.outputs.forEach(function(output){ // FIX: do not take change into account (here and below for indivisible)
 				if (output.address && arrAddresses.indexOf(output.address) >= 0){
 					assocAmountsByAsset[asset] += output.amount;
 					assocMyReceivingAddresses[output.address] = true;
@@ -881,23 +889,31 @@ function emitNewPrivatePaymentReceived(payer_device_address, arrChains, message_
 		var arrMyReceivingAddresses = Object.keys(assocMyReceivingAddresses);
 		if (arrMyReceivingAddresses.length === 0)
 			return;
-		db.query("SELECT 1 FROM shared_addresses WHERE shared_address IN(?)", [arrMyReceivingAddresses], function(rows){
-			var emit = function(address_type) {
-				for (var asset in assocAmountsByAsset)
-					if (assocAmountsByAsset[asset])
-						eventBus.emit('received_payment', payer_device_address, assocAmountsByAsset[asset], asset, message_counter, address_type);
-			}
-			var bToSharedAddress = (rows.length > 0);
-			if (!bToSharedAddress) {
-				db.query("SELECT 1 FROM my_watched_addresses WHERE address IN(?)", [arrMyReceivingAddresses], function(rows){
-					if (rows.length > 0)
-						emit('watched');
-					else
-						emit('main');
+		// skip notification if the payment was from our adddress
+		db.query("SELECT 1 FROM unit_authors JOIN my_addresses USING(address) WHERE unit IN(?)\n\
+			UNION SELECT 1 FROM unit_authors JOIN shared_addresses ON unit_authors.address=shared_addresses.shared_address WHERE unit IN(?)", [units, units],
+			function(rows) {
+				if (rows.length)
+					return;
+				db.query("SELECT 1 FROM shared_addresses WHERE shared_address IN(?)", [arrMyReceivingAddresses], function(rows){
+					var emit = function(address_type) {
+						for (var asset in assocAmountsByAsset)
+							if (assocAmountsByAsset[asset])
+								eventBus.emit('received_payment', payer_device_address, assocAmountsByAsset[asset], asset, message_counter, address_type);
+					}
+					var bToSharedAddress = (rows.length > 0);
+					if (!bToSharedAddress) {
+						db.query("SELECT 1 FROM my_watched_addresses WHERE address IN(?)", [arrMyReceivingAddresses], function(rows){
+							if (rows.length > 0)
+								emit('watched');
+							else
+								emit('main');
+						});
+					} else
+						emit('shared');
 				});
-			} else
-				emit('shared');
-		});
+			}
+		);
 	});
 }
 

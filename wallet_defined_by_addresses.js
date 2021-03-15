@@ -471,7 +471,8 @@ function validateAddressDefinition(arrDefinition, handleResult){
 function forwardPrivateChainsToOtherMembersOfAddresses(arrChains, arrAddresses, bForwarded, conn, onSaved){
 	conn = conn || db;
 	conn.query(
-		"SELECT device_address FROM shared_address_signing_paths WHERE shared_address IN(?) AND device_address!=?", 
+		"SELECT device_address FROM shared_address_signing_paths \n\
+		JOIN correspondent_devices USING(device_address) WHERE shared_address IN(?) AND device_address!=?", 
 		[arrAddresses, device.getMyDeviceAddress()], 
 		function(rows){
 			console.log("shared address devices: "+rows.length);
