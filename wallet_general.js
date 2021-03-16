@@ -67,18 +67,14 @@ function addWatchedAddress(address, handle){
 		handle = function () { };
 	if (!ValidationUtils.isValidAddress(address))
 		return handle("not a valid address");
-	if (conf.bLight)
-		db.query("INSERT " + db.getIgnore() + " INTO unprocessed_addresses (address) VALUES (?)", [address], insertInDb);
-	else
-		insertInDb();
-
-	function insertInDb(){
-		db.query("INSERT " + db.getIgnore() + " INTO my_watched_addresses (address) VALUES (?)", [address], function (res) {
-			if (res.affectedRows)
-				eventBus.emit("new_address", address); // if light node, this will trigger an history refresh for this address thus it will be watched by the hub
-			handle();
-		});
-	}
+	db.query("INSERT " + db.getIgnore() + " INTO my_watched_addresses (address) VALUES (?)", [address], function (res) {
+		if (res.affectedRows) {
+			if (conf.bLight)
+				db.query("INSERT " + db.getIgnore() + " INTO unprocessed_addresses (address) VALUES (?)", [address]);
+			eventBus.emit("new_address", address); // if light node, this will trigger an history refresh for this address thus it will be watched by the hub
+		}
+		handle();
+	});
 }
 
 function removeWatchedAddress(address){

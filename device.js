@@ -264,6 +264,7 @@ function getHubWs(cb) {
 
 setInterval(loginToHub, RECONNECT_TO_HUB_PERIOD);
 eventBus.on('connected', loginToHub);
+eventBus.once('network_started', loginToHub);
 
 function getLoginMessage(challenge, priv, pubkey){
  var objLogin = {challenge: challenge, pubkey: pubkey};
