@@ -1766,7 +1766,7 @@ function isIdle(){
 	return (db.getCountUsedConnections() === 0 && mutex.getCountOfQueuedJobs() === 0 && mutex.getCountOfLocks() === 0 && Object.keys(assocUnitsInWork).length === 0);
 }
 
-function waitTillIdle(onIdle){
+function _waitTillIdle(onIdle){
 	if (isIdle()){
 		eventBus.emit('idle'); // first call the callbacks that were queued earlier
 		if (onIdle)
@@ -1776,15 +1776,21 @@ function waitTillIdle(onIdle){
 		console.log('not idle, will wait');
 		if (onIdle)
 			eventBus.once('idle', onIdle);
-		setTimeout(waitTillIdle, 100);
+		setTimeout(_waitTillIdle, 100);
 	}
+}
+
+function waitTillIdle(onIdle) {
+	if (!onIdle)
+		return new Promise(resolve => _waitTillIdle(resolve));
+	_waitTillIdle(onIdle);
 }
 
 function isSyncIdle() {
 	return (db.getCountUsedConnections() === 0 && Object.keys(assocUnitsInWork).length === 0);
 }
 
-function waitTillSyncIdle(onIdle){
+function _waitTillSyncIdle(onIdle){
 	if (isSyncIdle()){
 		eventBus.emit('sync_idle'); // first call the callbacks that were queued earlier
 		if (onIdle)
@@ -1794,8 +1800,14 @@ function waitTillSyncIdle(onIdle){
 		console.log('sync is active, will wait');
 		if (onIdle)
 			eventBus.once('sync_idle', onIdle);
-		setTimeout(waitTillSyncIdle, 100);
+		setTimeout(_waitTillSyncIdle, 100);
 	}
+}
+
+function waitTillSyncIdle(onIdle) {
+	if (!onIdle)
+		return new Promise(resolve => _waitTillSyncIdle(resolve));
+	_waitTillSyncIdle(onIdle);
 }
 
 function broadcastJoint(objJoint){
@@ -3797,6 +3809,8 @@ exports.isStarted = isStarted;
 exports.isConnected = isConnected;
 exports.isCatchingUp = isCatchingUp;
 exports.waitUntilCatchedUp = waitUntilCatchedUp;
+exports.waitTillIdle = waitTillIdle;
+exports.waitTillSyncIdle = waitTillSyncIdle;
 exports.requestHistoryFor = requestHistoryFor;
 exports.exchangeRates = exchangeRates;
 exports.knownWitnesses = knownWitnesses;
