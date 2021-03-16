@@ -255,8 +255,9 @@ function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 									conn.addQuery(arrQueries, "BEGIN");
 									archiving.generateQueriesToArchiveJoint(conn, objJoint, 'uncovered', arrQueries, function(){
 										conn.addQuery(arrQueries, "COMMIT");
-										kvstore.del('j\n'+row.unit, function(){
-											async.series(arrQueries, function(){
+										// sql goes first, deletion from kv is the last step
+										async.series(arrQueries, function(){
+											kvstore.del('j\n'+row.unit, function(){
 												breadcrumbs.add("------- done archiving "+row.unit);
 												var parent_units = storage.assocUnstableUnits[row.unit].parent_units;
 												storage.forgetUnit(row.unit);

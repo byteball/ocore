@@ -2916,6 +2916,16 @@ function handleRequest(ws, tag, command, params){
 			});
 			break;
 			
+		case 'get_last_stable_unit_props':
+			storage.readLastStableMcUnitProps(db, function(props){
+				sendResponse(ws, tag, {
+					unit: props.unit,
+					main_chain_index: props.main_chain_index,
+					timestamp: props.timestamp,
+				});
+			});
+			break;
+			
 		// I'm a hub, the peer wants to deliver a message to one of my clients
 		case 'hub/deliver':
 			var objDeviceMessage = params;

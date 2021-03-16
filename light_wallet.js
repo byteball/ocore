@@ -118,6 +118,7 @@ if (conf.bLight) {
 			if (rows.length === 0)
 				return console.log("no unprocessed addresses");
 			var arrAddresses = rows.map(function(row){return row.address});
+			console.log('found unprocessed addresses, will request their full history', arrAddresses);
 			refreshLightClientHistory(arrAddresses, function(error){
 				if (error)
 					return console.log("couldn't process history");
