@@ -709,7 +709,7 @@ function handlePrivatePaymentChains(ws, body, from_address, callbacks){
 		return callbacks.ifError("no chains found");
 	var cache_key = objectHash.getBase64Hash(arrChains);
 	if (handledChainsCache[cache_key])
-		return;
+		return callbacks.ifOk();
 	handledChainsCache[cache_key] = true;
 	profiler.increment();
 	
