@@ -869,12 +869,12 @@ function readAssetMetadata(arrAssets, handleMetadata){
 		}
 		handleMetadata(assocAssetMetadata);
 		// after calling the callback, try to fetch missing data about assets
-		if (!arrAssets)
+		if (!arrAssets || arrAssets.length === 0)
 			return;
 		var updateAssets = conf.bLight ? network.requestProofsOfJointsIfNewOrUnstable : function(arrAssets, onDone){ onDone(); };
-		updateAssets(arrAssets, function(){ // make sure we have assets itself
+		updateAssets(arrAssets, function(){ // make sure we have assets themselves
 			arrAssets.forEach(function(asset){
-				if (assocAssetMetadata[asset] || asset === 'base' && asset === constants.BLACKBYTES_ASSET)
+				if (assocAssetMetadata[asset] || asset === 'base' || asset === constants.BLACKBYTES_ASSET)
 					return;
 				if ((assocLastFailedAssetMetadataTimestamps[asset] || 0) > Date.now() - ASSET_METADATA_RETRY_PERIOD)
 					return;
