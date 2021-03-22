@@ -67,6 +67,8 @@ if (process.browser){
 }
 exports.database = {};
 
+exports.updatableAssetRegistries = ['O6H6ZIFI57X3PLTYHOCVYPP5A553CYFQ'];
+
 
 /*
 There are 3 ways to customize conf in modules that use ocore lib:
