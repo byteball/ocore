@@ -33,6 +33,7 @@ var aa_addresses = require('./aa_addresses.js');
 var message_counter = 0;
 var assocLastFailedAssetMetadataTimestamps = {};
 var ASSET_METADATA_RETRY_PERIOD = 3600*1000;
+var ASSET_METADATA_EXPIRY_PERIOD = 3 * 24 * 3600; // in seconds
 
 function handleLightJustsaying(ws, subject, body){
 	switch (subject){
@@ -853,15 +854,20 @@ function readBalancesOnAddresses(walletId, handleBalancesOnAddresses) {
 }
 
 function readAssetMetadata(arrAssets, handleMetadata){
-	var sql = "SELECT asset, metadata_unit, name, suffix, decimals FROM asset_metadata";
+	var sql = "SELECT asset, metadata_unit, name, suffix, decimals, registry_address, " + db.getUnixTimestamp("creation_date") + " AS timestamp FROM asset_metadata";
 	if (arrAssets && arrAssets.length)
 		sql += " WHERE asset IN ("+arrAssets.map(db.escape).join(', ')+")";
 	db.query(sql, function(rows){
 		var assocAssetMetadata = {};
 		for (var i=0; i<rows.length; i++){
 			var row = rows[i];
+			// if expired, we'll download the asset's metadata again
+			var is_expired = isUpdatableRegistry(row.registry_address) && row.timestamp < Date.now() / 1000 - ASSET_METADATA_EXPIRY_PERIOD;
+			if (is_expired)
+				console.log(row.name + " metadata has expired, will update it");
 			var asset = row.asset || "base";
 			assocAssetMetadata[asset] = {
+				is_expired: is_expired,
 				metadata_unit: row.metadata_unit,
 				decimals: row.decimals,
 				name: row.suffix ? row.name+'.'+row.suffix : row.name
@@ -869,12 +875,12 @@ function readAssetMetadata(arrAssets, handleMetadata){
 		}
 		handleMetadata(assocAssetMetadata);
 		// after calling the callback, try to fetch missing data about assets
-		if (!arrAssets)
+		if (!arrAssets || arrAssets.length === 0)
 			return;
 		var updateAssets = conf.bLight ? network.requestProofsOfJointsIfNewOrUnstable : function(arrAssets, onDone){ onDone(); };
-		updateAssets(arrAssets, function(){ // make sure we have assets itself
+		updateAssets(arrAssets, function(){ // make sure we have assets themselves
 			arrAssets.forEach(function(asset){
-				if (assocAssetMetadata[asset] || asset === 'base' && asset === constants.BLACKBYTES_ASSET)
+				if (assocAssetMetadata[asset] && !assocAssetMetadata[asset].is_expired || asset === 'base' || asset === constants.BLACKBYTES_ASSET)
 					return;
 				if ((assocLastFailedAssetMetadataTimestamps[asset] || 0) > Date.now() - ASSET_METADATA_RETRY_PERIOD)
 					return;
@@ -922,6 +928,8 @@ function fetchAssetMetadata(asset, handleMetadata){
 					handleMetadata("metadata unit "+metadata_unit+" not found");
 				},
 				ifFound: function(objJoint){
+					if (objJoint.unit.authors[0].address !== registry_address)
+						return handleMetadata("registry address doesn't match: expected " + registry_address + ", got " + bjJoint.unit.authors[0].address);
 					objJoint.unit.messages.forEach(function(message){
 						if (message.app !== 'data')
 							return;
@@ -933,8 +941,9 @@ function fetchAssetMetadata(asset, handleMetadata){
 						var decimals = (payload.decimals !== undefined) ? parseInt(payload.decimals) : undefined;
 						if (decimals !== undefined && !ValidationUtils.isNonnegativeInteger(decimals))
 							return handleMetadata("bad decimals in asset metadata "+metadata_unit);
+						var verb = isUpdatableRegistry(registry_address) ? "REPLACE" : "INSERT " + db.getIgnore();
 						db.query(
-							"INSERT "+db.getIgnore()+" INTO asset_metadata (asset, metadata_unit, registry_address, suffix, name, decimals) \n\
+							verb + " INTO asset_metadata (asset, metadata_unit, registry_address, suffix, name, decimals) \n\
 							VALUES (?,?,?, ?,?,?)",
 							[asset, metadata_unit, registry_address, suffix, payload.name, decimals],
 							function(){
@@ -952,6 +961,10 @@ function fetchAssetMetadata(asset, handleMetadata){
 			});
 		});
 	});
+}
+
+function isUpdatableRegistry(registry_address) {
+	return (conf.updatableAssetRegistries && conf.updatableAssetRegistries.indexOf(registry_address) >= 0);
 }
 
 function readTransactionHistory(opts, handleHistory){
