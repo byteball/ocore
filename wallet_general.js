@@ -62,6 +62,14 @@ function readMyPersonalAddresses(handleAddresses){
 	});
 }
 
+function readMyPersonalAndSharedAddresses(handleAddresses){
+	db.query("SELECT address FROM my_addresses \n\
+		UNION SELECT shared_address AS address FROM shared_addresses", function(rows){
+		var arrAddresses = rows.map(function(row){ return row.address; });
+		handleAddresses(arrAddresses);
+	});
+}
+
 function addWatchedAddress(address, handle){
 	if (!handle)
 		handle = function () { };
@@ -83,4 +91,5 @@ exports.forwardPrivateChainsToDevices = forwardPrivateChainsToDevices;
 exports.sendPaymentNotification = sendPaymentNotification;
 exports.readMyAddresses = readMyAddresses;
 exports.readMyPersonalAddresses = readMyPersonalAddresses;
+exports.readMyPersonalAndSharedAddresses = readMyPersonalAndSharedAddresses;
 exports.addWatchedAddress = addWatchedAddress;
