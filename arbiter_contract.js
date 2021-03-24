@@ -43,27 +43,21 @@ function getBySharedAddress(address, cb) {
 
 function getAllByStatus(status, cb) {
 	db.query("SELECT * FROM wallet_arbiter_contracts WHERE status IN (?) ORDER BY creation_date DESC", [status], function(rows){
-		rows.forEach(function(row) {
-			row = decodeRow(row);
-		});
+		rows.forEach(decodeRow);
 		cb(rows);
 	});
 }
 
 function getAllByArbiterAddress(address, cb) {
 	db.query("SELECT * FROM wallet_arbiter_contracts WHERE arbiter_address IN (?) ORDER BY creation_date DESC", [address], function(rows){
-		rows.forEach(function(row) {
-			row = decodeRow(row);
-		});
+		rows.forEach(decodeRow);
 		cb(rows);
 	});
 }
 
 function getAllByPeerAddress(address, cb) {
 	db.query("SELECT * FROM wallet_arbiter_contracts WHERE peer_address IN (?) ORDER BY creation_date DESC", [address], function(rows){
-		rows.forEach(function(row) {
-			row = decodeRow(row);
-		});
+		rows.forEach(decodeRow);
 		cb(rows);
 	});
 }
@@ -147,6 +141,8 @@ function decodeRow(row) {
 function openDispute(hash, cb) {
 	getByHash(hash, function(objContract){
 		device.requestFromHub("hub/get_arbstore_address", objContract.arbiter_address, function(err, arbStoreAddress){
+			if (err)
+				return cb(err);
 			arbiters.getInfo(objContract.arbiter_address, function(objArbiter) {
 				if (!objArbiter)
 					return cb("can't get arbiter info from ArbStore");
@@ -181,26 +177,26 @@ function openDispute(hash, cb) {
 							}
 						);
 						var req = http.request(
-							reqParams
-							, function(resp){
-							var data = "";
-							resp.on("data", function(chunk){
-								data += chunk;
-							});
-							resp.on("end", function(){
-								try {
-									data = JSON.parse(data);
-									if (data.error) {
-										return cb(data.error);
+							reqParams,
+							function(resp){
+								var data = "";
+								resp.on("data", function(chunk){
+									data += chunk;
+								});
+								resp.on("end", function(){
+									try {
+										data = JSON.parse(data);
+										if (data.error) {
+											return cb(data.error);
+										}
+										setField(hash, "status", "in_dispute", function(objContract){
+											cb(null, data, objContract);
+										});
+									} catch (e) {
+										cb(e);
 									}
-									setField(hash, "status", "in_dispute", function(objContract){
-										cb(null, data, objContract);
-									});
-								} catch (e) {
-									cb(e);
-								}
-							});
-						}).on("error", cb);
+								});
+							}).on("error", cb);
 						req.write(dataJSON);
 						req.end();
 					});
@@ -234,26 +230,26 @@ function appeal(hash, cb) {
 					}
 				);
 				var req = http.request(
-					reqParams
-					, function(resp){
-					var data = "";
-					resp.on("data", function(chunk){
-						data += chunk;
-					});
-					resp.on("end", function(){
-						try {
-							data = JSON.parse(data);
-							if (data.error) {
-								return cb(data.error);
+					reqParams,
+					function(resp){
+						var data = "";
+						resp.on("data", function(chunk){
+							data += chunk;
+						});
+						resp.on("end", function(){
+							try {
+								data = JSON.parse(data);
+								if (data.error) {
+									return cb(data.error);
+								}
+								setField(hash, "status", "in_appeal", function(objContract) {
+									cb(null, data, objContract);
+								});
+							} catch (e) {
+								cb(e);
 							}
-							setField(hash, "status", "in_appeal", function(objContract) {
-								cb(null, data, objContract);
-							});
-						} catch (e) {
-							cb(e);
-						}
-					});
-				}).on("error", cb);
+						});
+					}).on("error", cb);
 				req.write(data);
 				req.end();
 			});
@@ -271,7 +267,6 @@ function meIsCosigner(objContract, cb) {
 				cb(false);
 			}
 		});
-	return objContract.is_incoming
 }
 
 exports.createAndSend = createAndSend;

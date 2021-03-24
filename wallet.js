@@ -570,12 +570,12 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				);
 				break;
 
-			// sent by both contract parties, in both directions
+			// sent by both contract parties and your cosigners, in both directions
 			case 'arbiter_contract_update':
 				arbiter_contract.getByHash(body.hash, function(objContract){
 					var from_cosigner = false;
 					db.query("SELECT 1 FROM wallet_signing_paths WHERE device_address=?", [from_address], function(rows) {
-						if (rows)
+						if (rows.length)
 							from_cosigner = true;
 						if (!objContract || (from_address !== objContract.peer_device_address && !from_cosigner))
 							return callbacks.ifError("wrong contract hash or not an owner");
@@ -873,7 +873,7 @@ function emitNewPrivatePaymentReceived(payer_device_address, arrChains, message_
 			var asset = payload.asset || 'base';
 			if (!assocAmountsByAsset[asset])
 				assocAmountsByAsset[asset] = 0;
-			payload.outputs.forEach(function(output){ // FIX: do not take change into account (here and below for indivisible)
+			payload.outputs.forEach(function(output){
 				if (output.address && arrAddresses.indexOf(output.address) >= 0){
 					assocAmountsByAsset[asset] += output.amount;
 					assocMyReceivingAddresses[output.address] = true;
@@ -1749,7 +1749,7 @@ function getSigner(opts, arrSigningDeviceAddresses, signWithLocalPrivateKey) {
 									var payload = message.payload || assocPrivatePayloads[message.payload_hash];
 									if (!payload)
 										return;
-									var possible_contract_output = _.find(payload.outputs, function(o){return payload.asset==rows[0].asset && o.address == rows[0].my_address});
+									var possible_contract_output = _.find(payload.outputs, function(o){return payload.asset==rows[0].asset && o.address === rows[0].my_address});
 									if (possible_contract_output)
 										isClaim = true;
 								});
