@@ -98,8 +98,14 @@ function prepareRequestForHistory(newAddresses, handleResult){
 
 var bFirstRefreshStarted = false;
 
+exports.bRefreshHistoryOnNewAddress = true;
+
 if (conf.bLight) {
 	eventBus.on("new_address", function(address){
+		if (!exports.bRefreshHistoryOnNewAddress) {
+			db.query("DELETE FROM unprocessed_addresses WHERE address=?", [address]);
+			return console.log("skipping history refresh on new address " + address);
+		}
 		refreshLightClientHistory([address], function(error){
 			if (error)
 				return console.log(error);
