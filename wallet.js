@@ -465,7 +465,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 						if (objContract.status !== 'pending')
 							return callbacks.ifError("contract is not active, current status: " + objContract.status);
 						var objDateCopy = new Date(objContract.creation_date_obj);
-						if (objDateCopy.setHours(objDateCopy.getHours() + objContract.ttl) < Date.now())
+						if (objDateCopy.setHours(objDateCopy.getHours(), objDateCopy.getMinutes(), (objDateCopy.getSeconds() + objContract.ttl * 60 * 60)|0) < Date.now())
 							return callbacks.ifError("contract already expired");
 						prosaic_contract.setField(objContract.hash, "status", body.status);
 						eventBus.emit("text", from_address, "contract \""+objContract.title+"\" " + body.status, ++message_counter);
@@ -580,10 +580,23 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 						if (!objContract || (from_address !== objContract.peer_device_address && !from_cosigner))
 							return callbacks.ifError("wrong contract hash or not an owner");
 						if (body.field === "status") {
-							if ((objContract.status === "pending" && body.value !== "revoked" && body.value !== "accepted") || 
-								(objContract.status === "paid" && body.value !== "in_dispute" && body.value !== "cancelled" && body.value !== "completed") ||
-								((objContract.status === "dispute_resolved" && body.value !== "in_appeal")))
-									return callbacks.ifError("wrong status for contract supplied");
+							var isOK = false;
+							switch (objContract.status) {
+								case "pending":
+									if (body.value === "revoked" || body.value === "accepted")
+										isOK = true;
+									break;
+								case "paid":
+									if (body.value === "in_dispute" || body.value === "cancelled" || body.value === "completed")
+										isOK = true;
+									break;
+								case "dispute_resolved":
+									if (body.value === "in_appeal")
+										isOK = true;
+									break;
+							}
+							if (!isOK)
+								return callbacks.ifError("wrong status for contract supplied");
 						} else 
 						if (body.field === "unit") {
 							if (objContract.status !== "accepted")
@@ -664,10 +677,11 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 								}
 							);
 						}
-						if (objContract.status !== 'pending' && (objContract.status !== 'accepted' || body.status !== 'accepted'))
+						var isAllowed = objContract.status === "pending" || (objContract.status === 'accepted' && body.status === 'accepted');
+						if (!isAllowed)
 							return callbacks.ifError("contract is not active, current status: " + objContract.status);
 						var objDateCopy = new Date(objContract.creation_date_obj);
-						if (objDateCopy.setHours(objDateCopy.getHours() + objContract.ttl) < Date.now())
+						if (objDateCopy.setHours(objDateCopy.getHours(), objDateCopy.getMinutes(), (objDateCopy.getSeconds() + objContract.ttl * 60 * 60)|0) < Date.now())
 							return callbacks.ifError("contract already expired");
 						if (body.my_pairing_code)
 							arbiter_contract.setField(objContract.hash, "peer_pairing_code", body.my_pairing_code);

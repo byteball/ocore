@@ -437,18 +437,22 @@ function migrateDb(connection, onDone){
 						is_incoming TINYINT NOT NULL, \n\
 						creation_date TIMESTAMP NOT NULL, \n\
 						ttl INT NOT NULL DEFAULT 168, -- 168 hours = 24 * 7 = 1 week \n\
-						status TEXT CHECK (status IN('pending', 'revoked', 'accepted', 'signed', 'declined', 'paid', 'in_dispute', 'dispute_resolved', 'in_appeal', 'appeal_resolved', 'cancelled', 'completed')) NOT NULL DEFAULT 'pending', \n\
+						status VARCHAR CHECK (status IN('pending', 'revoked', 'accepted', 'signed', 'declined', 'paid', 'in_dispute', 'dispute_resolved', 'in_appeal', 'appeal_resolved', 'cancelled', 'completed')) NOT NULL DEFAULT 'pending', \n\
 						title VARCHAR(1000) NOT NULL, \n\
 						text TEXT NOT NULL, \n\
 						my_contact_info TEXT NULL, \n\
 						peer_contact_info TEXT NULL, \n\
 						peer_pairing_code VARCHAR(200) NULL, \n\
-						shared_address CHAR(32), \n\
+						shared_address CHAR(32) NULL UNIQUE, \n\
 						unit CHAR(44) NULL, \n\
 						cosigners VARCHAR(1500), \n\
 						resolution_unit CHAR(44) NULL, \n\
 						FOREIGN KEY (my_address) REFERENCES my_addresses(address) \n\
-					);");
+					)");
+					connection.addQuery(arrQueries, "CREATE INDEX wacSharedAddress ON wallet_arbiter_contracts(shared_address)");
+					connection.addQuery(arrQueries, "CREATE INDEX wacStatus ON wallet_arbiter_contracts(status)");
+					connection.addQuery(arrQueries, "CREATE INDEX wacArbiterAddress ON wallet_arbiter_contracts(arbiter_address)");
+					connection.addQuery(arrQueries, "CREATE INDEX wacPeerAddress ON wallet_arbiter_contracts(peer_address)");
 				}
 				cb();
 			},

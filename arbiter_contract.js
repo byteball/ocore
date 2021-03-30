@@ -140,7 +140,7 @@ function decodeRow(row) {
 
 function openDispute(hash, cb) {
 	getByHash(hash, function(objContract){
-		device.requestFromHub("hub/get_arbstore_address", objContract.arbiter_address, function(err, arbStoreAddress){
+		device.requestFromHub("hub/get_arbstore_url", objContract.arbiter_address, function(err, url){
 			if (err)
 				return cb(err);
 			arbiters.getInfo(objContract.arbiter_address, function(objArbiter) {
@@ -166,39 +166,13 @@ function openDispute(hash, cb) {
 							data.amount = objContract.amount;
 						}
 						var dataJSON = JSON.stringify(data);
-						var reqParams = Object.assign(url.parse(arbStoreAddress), 
-							{
-								path: "/api/dispute/new",
-								method: "POST",
-								headers: {
-									"Content-Type": "application/json",
-									"Content-Length": dataJSON.length
-								}
-							}
-						);
-						var req = http.request(
-							reqParams,
-							function(resp){
-								var data = "";
-								resp.on("data", function(chunk){
-									data += chunk;
-								});
-								resp.on("end", function(){
-									try {
-										data = JSON.parse(data);
-										if (data.error) {
-											return cb(data.error);
-										}
-										setField(hash, "status", "in_dispute", function(objContract){
-											cb(null, data, objContract);
-										});
-									} catch (e) {
-										cb(e);
-									}
-								});
-							}).on("error", cb);
-						req.write(dataJSON);
-						req.end();
+						httpRequest(url, "/api/dispute/new", dataJSON, function(err, resp) {
+							if (err)
+								return cb(err);
+							setField(hash, "status", "in_dispute", function(objContract) {
+								cb(null, resp, objContract);
+							});
+						});
 					});
 				});
 			});
@@ -208,7 +182,7 @@ function openDispute(hash, cb) {
 
 function appeal(hash, cb) {
 	getByHash(hash, function(objContract){
-		device.requestFromHub("hub/get_arbstore_address", objContract.arbiter_address, function(err, arbStoreAddress){
+		device.requestFromHub("hub/get_arbstore_url", objContract.arbiter_address, function(err, url){
 			if (err)
 				return cb(err);
 			device.getOrGeneratePermanentPairingInfo(function(pairingInfo){
@@ -219,39 +193,13 @@ function appeal(hash, cb) {
 					my_address: objContract.my_address,
 					contract: {title: objContract.title, text: objContract.text, creation_date: objContract.creation_date}
 				});
-				var reqParams = Object.assign(url.parse(arbStoreAddress), 
-					{
-						path: "/api/appeal/new",
-						method: "POST",
-						headers: {
-							"Content-Type": "application/json",
-							"Content-Length": data.length
-						}
-					}
-				);
-				var req = http.request(
-					reqParams,
-					function(resp){
-						var data = "";
-						resp.on("data", function(chunk){
-							data += chunk;
-						});
-						resp.on("end", function(){
-							try {
-								data = JSON.parse(data);
-								if (data.error) {
-									return cb(data.error);
-								}
-								setField(hash, "status", "in_appeal", function(objContract) {
-									cb(null, data, objContract);
-								});
-							} catch (e) {
-								cb(e);
-							}
-						});
-					}).on("error", cb);
-				req.write(data);
-				req.end();
+				httpRequest(url, "/api/appeal/new", data, function(err, resp) {
+					if (err)
+						return cb(err);
+					setField(hash, "status", "in_appeal", function(objContract) {
+						cb(null, resp, objContract);
+					});
+				});
 			});
 		});
 	});
@@ -269,6 +217,54 @@ function meIsCosigner(objContract, cb) {
 		});
 }
 
+function httpRequest(host, path, data, cb) {
+	var reqParams = Object.assign(url.parse(host),
+		{
+			path: path,
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"Content-Length": data.length
+			}
+		}
+	);
+	var req = http.request(
+		reqParams,
+		function(resp){
+			var data = "";
+			resp.on("data", function(chunk){
+				data += chunk;
+			});
+			resp.on("end", function(){
+				try {
+					data = JSON.parse(data);
+					if (data.error) {
+						return cb(data.error);
+					}
+					cb(null, data);
+				} catch (e) {
+					cb(e);
+				}
+			});
+		}).on("error", cb);
+	req.write(data);
+	req.end();
+}
+
+function getAllMyCosigners(hash, cb) {
+	db.query("SELECT device_address FROM wallet_signing_paths \n\
+		JOIN my_addresses AS ma USING(wallet)\n\
+		JOIN wallet_arbiter_contracts AS wac ON wac.my_address=ma.address\n\
+		WHERE wac.hash=?", [hash], function(rows) {
+			var cosigners = [];
+			rows.forEach(function(row) {
+				if (row.device_address !== device.getMyDeviceAddress())
+					cosigners.push(row.device_address);
+			});
+			cb(cosigners);
+		});
+}
+
 exports.createAndSend = createAndSend;
 exports.getByHash = getByHash;
 exports.getBySharedAddress = getBySharedAddress;
@@ -283,3 +279,4 @@ exports.appeal = appeal;
 exports.meIsCosigner = meIsCosigner;
 exports.getAllByArbiterAddress = getAllByArbiterAddress;
 exports.getAllByPeerAddress = getAllByPeerAddress;
+exports.getAllMyCosigners = getAllMyCosigners;

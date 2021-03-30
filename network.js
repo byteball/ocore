@@ -3522,7 +3522,7 @@ function handleRequest(ws, tag, command, params){
 			});
 			break;
 
-		case 'hub/get_arbstore_address':
+		case 'hub/get_arbstore_url':
 			var arbiter_address = params;
 			db.query("SELECT arbstore_address FROM arbiter_locations WHERE arbiter_address=?", [arbiter_address], function(rows){
 				var host = rows.length ? conf.arbstores[rows[0].arbstore_address] : '';

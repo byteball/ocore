@@ -10,12 +10,12 @@ function getInfo(address, cb) {
 		if (rows.length) {
 			cb(rows[0]);
 		} else {
-			device.requestFromHub("hub/get_arbstore_address", address, function(err, arbstore_address){
-				if (!arbstore_address) {
+			device.requestFromHub("hub/get_arbstore_url", address, function(err, url){
+				if (!url) {
 					console.warn("no arbstore for arbiter address", address);
 					return cb();
 				}
-				requestInfoFromArbStore(address, arbstore_address, function(err, info){
+				requestInfoFromArbStore(address, url, function(err, info){
 					if (err) {
 						console.error(err);
 						return cb();
@@ -27,8 +27,8 @@ function getInfo(address, cb) {
 	});
 }
 
-function requestInfoFromArbStore(address, arbstore_address, cb){
-	http.get(arbstore_address+'/api/arbiter/'+address, function(resp){
+function requestInfoFromArbStore(address, url, cb){
+	http.get(url+'/api/arbiter/'+address, function(resp){
 		var data = '';
 		resp.on('data', function(chunk){
 			data += chunk;
