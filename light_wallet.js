@@ -160,7 +160,7 @@ function refreshLightClientHistory(addresses, handle){
 		};
 		if (err)
 			return finish("refreshLightClientHistory: "+err);
-		console.log('refreshLightClientHistory ' + (addresses ? 'selective' : 'full'));
+		console.log('refreshLightClientHistory ' + (addresses ? 'selective ' + addresses.join(', ') : 'full'));
 		// handling the response may take some time, don't send new requests
 		if (!addresses){ // bRefreshingHistory flag concerns only a full refresh
 			if (ws.bRefreshingHistory)
@@ -197,6 +197,7 @@ function refreshLightClientHistory(addresses, handle){
 						finish();
 						if (!addresses) {
 							bFirstHistoryReceived = true;
+							console.log('received 1st history');
 							eventBus.emit('first_history_received');
 						}
 						if (bRefreshUI)
@@ -248,6 +249,7 @@ function waitUntilFirstHistoryReceived(cb) {
 		return new Promise(resolve => waitUntilFirstHistoryReceived(resolve));
 	if (bFirstHistoryReceived)
 		return cb();
+	console.log('will wait for the 1st history');
 	eventBus.once('first_history_received', () => process.nextTick(cb));
 }
 
@@ -259,6 +261,7 @@ function waitUntilHistoryRefreshDone(cb) {
 			return cb(err);
 		if (!ws.bRefreshingHistory)
 			return cb();
+		console.log('will wait for history refresh to complete');
 		eventBus.once('refresh_light_done', () => process.nextTick(cb));
 	});
 }
