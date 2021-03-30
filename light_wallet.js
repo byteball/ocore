@@ -251,7 +251,20 @@ function waitUntilFirstHistoryReceived(cb) {
 	eventBus.once('first_history_received', () => process.nextTick(cb));
 }
 
+function waitUntilHistoryRefreshDone(cb) {
+	if (!cb)
+		return new Promise((resolve, reject) => waitUntilHistoryRefreshDone(err => err ? reject(err) : resolve()));
+	network.findOutboundPeerOrConnect(network.light_vendor_url, (err, ws) => {
+		if (err)
+			return cb(err);
+		if (!ws.bRefreshingHistory)
+			return cb();
+		eventBus.once('refresh_light_done', () => process.nextTick(cb));
+	});
+}
+
 exports.setLightVendorHost = setLightVendorHost;
 exports.refreshLightClientHistory = refreshLightClientHistory;
 exports.isFirstHistoryReceived = isFirstHistoryReceived;
 exports.waitUntilFirstHistoryReceived = waitUntilFirstHistoryReceived;
+exports.waitUntilHistoryRefreshDone = waitUntilHistoryRefreshDone;
