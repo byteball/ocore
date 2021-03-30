@@ -99,6 +99,8 @@ function prepareRequestForHistory(newAddresses, handleResult){
 var bFirstRefreshStarted = false;
 
 exports.bRefreshHistoryOnNewAddress = true;
+exports.bRefreshFullHistory = true;
+exports.bRefreshHistory = true;
 
 if (conf.bLight) {
 	eventBus.on("new_address", function(address){
@@ -139,8 +141,15 @@ if (conf.bLight) {
 function refreshLightClientHistory(addresses, handle){
 	if (!conf.bLight)
 		return;
+	var refuse = function (err) {
+		console.log(err);
+		if (handle)
+			throw Error("have a callback but can't refresh history");
+	};
 	if (!network.light_vendor_url)
-		return console.log('refreshLightClientHistory called too early: light_vendor_url not set yet');
+		return refuse('refreshLightClientHistory called too early: light_vendor_url not set yet');
+	if (!addresses && !exports.bRefreshFullHistory || !exports.bRefreshHistory)
+		return refuse("history refresh is disabled now");
 	if (!addresses) // partial refresh stays silent
 		eventBus.emit('refresh_light_started');
 	if (!bFirstRefreshStarted){
@@ -164,7 +173,7 @@ function refreshLightClientHistory(addresses, handle){
 		// handling the response may take some time, don't send new requests
 		if (!addresses){ // bRefreshingHistory flag concerns only a full refresh
 			if (ws.bRefreshingHistory)
-				return console.log("previous refresh not finished yet");
+				return refuse("previous refresh not finished yet");
 			ws.bRefreshingHistory = true;
 		}
 		else if (ws.bRefreshingHistory || !isFirstHistoryReceived()) {
