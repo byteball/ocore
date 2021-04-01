@@ -3525,11 +3525,21 @@ function handleRequest(ws, tag, command, params){
 		case 'hub/get_arbstore_url':
 			var arbiter_address = params;
 			db.query("SELECT arbstore_address FROM arbiter_locations WHERE arbiter_address=?", [arbiter_address], function(rows){
-				var host = rows.length ? conf.arbstores[rows[0].arbstore_address] : '';
-				sendResponse(ws, tag, host);
+				var url = rows.length ? conf.arbstores[rows[0].arbstore_address] : '';
+				sendResponse(ws, tag, url);
 			});
 			break;
-			
+		case 'hub/get_arbstore_address':
+			var arbiter_address = params;
+			db.query("SELECT arbstore_address FROM arbiter_locations WHERE arbiter_address=?", [arbiter_address], function(rows){
+				var address = rows.length ? rows[0].arbstore_address : '';
+				sendResponse(ws, tag, address);
+			});
+			break;
+		case 'hub/get_arbstore_url_by_address':
+			sendResponse(ws, tag, conf.arbstores[params]);
+			break;
+
 		case 'custom':
 			eventBus.emit('custom_request', ws, params,tag);
 		break;

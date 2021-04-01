@@ -577,7 +577,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					db.query("SELECT 1 FROM wallet_signing_paths WHERE device_address=?", [from_address], function(rows) {
 						if (rows.length)
 							from_cosigner = true;
-						if (!objContract || (from_address !== objContract.peer_device_address && !from_cosigner))
+						if (!objContract || (from_address !== objContract.peer_device_address && !from_cosigner && !(from_address === objContract.arbstore_device_address && objContract.status === 'in_appeal' && body.field === 'status')))
 							return callbacks.ifError("wrong contract hash or not an owner");
 						if (body.field === "status") {
 							var isOK = false;
@@ -593,6 +593,10 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 								case "dispute_resolved":
 									if (body.value === "in_appeal")
 										isOK = true;
+									break;
+								case "in_appeal":
+									if (body.value === 'appeal_resolved' || body.value === 'appeal_declined')
+										isOK = (objContract.arbstore_device_address === from_address);
 									break;
 							}
 							if (!isOK)

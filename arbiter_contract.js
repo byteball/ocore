@@ -169,6 +169,21 @@ function openDispute(hash, cb) {
 						httpRequest(url, "/api/dispute/new", dataJSON, function(err, resp) {
 							if (err)
 								return cb(err);
+
+							device.requestFromHub("hub/get_arbstore_address", objContract.arbiter_address, function(err, arbstore_address){
+								if (err) {
+									console.warn("no arbstore_address", err);
+									return;
+								}
+								httpRequest(url, "/api/get_device_address", "", function(err, arbstore_device_address) {
+									if (err) {
+										console.warn("no arbstore_device_address", err);
+										return;
+									}
+									db.query("UPDATE wallet_arbiter_contracts SET arbstore_address=?, arbstore_device_address=? WHERE hash=?", [arbstore_address, arbstore_device_address, objContract.hash], function(){});
+								});
+							});
+
 							setField(hash, "status", "in_dispute", function(objContract) {
 								cb(null, resp, objContract);
 							});
@@ -182,7 +197,13 @@ function openDispute(hash, cb) {
 
 function appeal(hash, cb) {
 	getByHash(hash, function(objContract){
-		device.requestFromHub("hub/get_arbstore_url", objContract.arbiter_address, function(err, url){
+		var command = "hub/get_arbstore_url";
+		var address = objContract.arbiter_address;
+		if (objContract.arbstore_address) {
+			command = "hub/get_arbstore_url_by_address";
+			address = objContract.arbstore_address;
+		}
+		device.requestFromHub(command, address, function(err, url){
 			if (err)
 				return cb(err);
 			device.getOrGeneratePermanentPairingInfo(function(pairingInfo){

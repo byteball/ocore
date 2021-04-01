@@ -903,7 +903,7 @@ CREATE TABLE IF NOT EXISTS wallet_arbiter_contracts (
 	is_incoming TINYINT NOT NULL,
 	creation_date TIMESTAMP NOT NULL,
 	ttl INT NOT NULL DEFAULT 168, -- 168 hours = 24 * 7 = 1 week \n\
-	status VARCHAR(40) CHECK (status IN('pending', 'revoked', 'accepted', 'signed', 'declined', 'paid', 'in_dispute', 'dispute_resolved', 'in_appeal', 'appeal_resolved', 'cancelled', 'completed')) NOT NULL DEFAULT 'pending',
+	status VARCHAR(40) CHECK (status IN('pending', 'revoked', 'accepted', 'signed', 'declined', 'paid', 'in_dispute', 'dispute_resolved', 'in_appeal', 'appeal_resolved', 'appeal_declined', 'cancelled', 'completed')) NOT NULL DEFAULT 'pending',
 	title VARCHAR(1000) NOT NULL,
 	text TEXT NOT NULL,
 	my_contact_info TEXT NULL,
@@ -915,7 +915,6 @@ CREATE TABLE IF NOT EXISTS wallet_arbiter_contracts (
 	resolution_unit CHAR(44) NULL,
 	FOREIGN KEY (my_address) REFERENCES my_addresses(address)
 );
-CREATE INDEX wacSharedAddress ON wallet_arbiter_contracts(shared_address);
 CREATE INDEX wacStatus ON wallet_arbiter_contracts(status);
 CREATE INDEX wacArbiterAddress ON wallet_arbiter_contracts(arbiter_address);
 CREATE INDEX wacPeerAddress ON wallet_arbiter_contracts(peer_address);
