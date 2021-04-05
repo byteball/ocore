@@ -3523,19 +3523,23 @@ function handleRequest(ws, tag, command, params){
 		case 'hub/get_arbstore_url':
 			var arbiter_address = params;
 			db.query("SELECT arbstore_address FROM arbiter_locations WHERE arbiter_address=?", [arbiter_address], function(rows){
-				var url = rows.length ? conf.arbstores[rows[0].arbstore_address] : '';
-				sendResponse(ws, tag, url);
+				if (!rows.length)
+					return sendErrorResponse(ws, tag, "arbiter is not known");
+				sendResponse(ws, tag, conf.arbstores[rows[0].arbstore_address]);
 			});
 			break;
 		case 'hub/get_arbstore_address':
 			var arbiter_address = params;
 			db.query("SELECT arbstore_address FROM arbiter_locations WHERE arbiter_address=?", [arbiter_address], function(rows){
-				var address = rows.length ? rows[0].arbstore_address : '';
-				sendResponse(ws, tag, address);
+				if (!rows.length)
+					return sendErrorResponse(ws, tag, "arbiter is not known");
+				sendResponse(ws, tag, rows[0].arbstore_address);
 			});
 			break;
 		case 'hub/get_arbstore_url_by_address':
-			sendResponse(ws, tag, conf.arbstores[params] || '');
+			if (!conf.arbstores[params])
+				return sendErrorResponse(ws, tag, "arbstore is not known");
+			sendResponse(ws, tag, conf.arbstores[params]);
 			break;
 
 		case 'custom':

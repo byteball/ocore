@@ -11,8 +11,8 @@ function getInfo(address, cb) {
 			cb(rows[0]);
 		} else {
 			device.requestFromHub("hub/get_arbstore_url", address, function(err, url){
-				if (!url) {
-					console.warn("no arbstore for arbiter address", address);
+				if (err) {
+					console.error(err);
 					return cb();
 				}
 				requestInfoFromArbStore(address, url, function(err, info){

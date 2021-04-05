@@ -172,7 +172,7 @@ function openDispute(hash, cb) {
 
 							device.requestFromHub("hub/get_arbstore_address", objContract.arbiter_address, function(err, arbstore_address){
 								if (err) {
-									console.warn("no arbstore_address", err);
+									console.error(err);
 									return;
 								}
 								httpRequest(url, "/api/get_device_address", "", function(err, arbstore_device_address) {
@@ -204,8 +204,8 @@ function appeal(hash, cb) {
 			address = objContract.arbstore_address;
 		}
 		device.requestFromHub(command, address, function(err, url){
-			if (!url)
-				return cb("can't get arbstore url");
+			if (err)
+				return cb("can't get arbstore url:", err);
 			device.getOrGeneratePermanentPairingInfo(function(pairingInfo){
 				var my_pairing_code = pairingInfo.device_pubkey + "@" + pairingInfo.hub + "#" + pairingInfo.pairing_secret;
 				var data = JSON.stringify({
