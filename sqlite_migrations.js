@@ -437,7 +437,7 @@ function migrateDb(connection, onDone){
 						is_incoming TINYINT NOT NULL, \n\
 						creation_date TIMESTAMP NOT NULL, \n\
 						ttl INT NOT NULL DEFAULT 168, -- 168 hours = 24 * 7 = 1 week \n\
-						status VARCHAR CHECK (status IN('pending', 'revoked', 'accepted', 'signed', 'declined', 'paid', 'in_dispute', 'dispute_resolved', 'in_appeal', 'appeal_resolved', 'appeal_declined', cancelled', 'completed')) NOT NULL DEFAULT 'pending', \n\
+						status VARCHAR CHECK (status IN('pending', 'revoked', 'accepted', 'signed', 'declined', 'paid', 'in_dispute', 'dispute_resolved', 'in_appeal', 'appeal_approved', 'appeal_declined', cancelled', 'completed')) NOT NULL DEFAULT 'pending', \n\
 						title VARCHAR(1000) NOT NULL, \n\
 						text TEXT NOT NULL, \n\
 						my_contact_info TEXT NULL, \n\

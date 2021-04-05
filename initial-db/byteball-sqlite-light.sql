@@ -891,7 +891,7 @@ CREATE TABLE IF NOT EXISTS wallet_arbiter_contracts (
 	is_incoming TINYINT NOT NULL,
 	creation_date TIMESTAMP NOT NULL,
 	ttl INT NOT NULL DEFAULT 168, -- 168 hours = 24 * 7 = 1 week \n\
-	status VARCHAR(40) CHECK (status IN('pending', 'revoked', 'accepted', 'signed', 'declined', 'paid', 'in_dispute', 'dispute_resolved', 'in_appeal', 'appeal_resolved', 'appeal_declined', 'cancelled', 'completed')) NOT NULL DEFAULT 'pending',
+	status VARCHAR(40) CHECK (status IN('pending', 'revoked', 'accepted', 'signed', 'declined', 'paid', 'in_dispute', 'dispute_resolved', 'in_appeal', 'appeal_approved', 'appeal_declined', 'cancelled', 'completed')) NOT NULL DEFAULT 'pending',
 	title VARCHAR(1000) NOT NULL,
 	text TEXT NOT NULL,
 	my_contact_info TEXT NULL,
@@ -901,6 +901,8 @@ CREATE TABLE IF NOT EXISTS wallet_arbiter_contracts (
 	unit CHAR(44) NULL,
 	cosigners VARCHAR(1500),
 	resolution_unit CHAR(44) NULL,
+	arbstore_address  CHAR(32) NULL,
+	arbstore_device_address  CHAR(33) NULL,
 	FOREIGN KEY (my_address) REFERENCES my_addresses(address)
 );
 CREATE INDEX wacStatus ON wallet_arbiter_contracts(status);

@@ -3537,7 +3537,7 @@ function handleRequest(ws, tag, command, params){
 			});
 			break;
 		case 'hub/get_arbstore_url_by_address':
-			sendResponse(ws, tag, conf.arbstores[params]);
+			sendResponse(ws, tag, conf.arbstores[params] || '');
 			break;
 
 		case 'custom':

@@ -204,8 +204,8 @@ function appeal(hash, cb) {
 			address = objContract.arbstore_address;
 		}
 		device.requestFromHub(command, address, function(err, url){
-			if (err)
-				return cb(err);
+			if (!url)
+				return cb("can't get arbstore url");
 			device.getOrGeneratePermanentPairingInfo(function(pairingInfo){
 				var my_pairing_code = pairingInfo.device_pubkey + "@" + pairingInfo.hub + "#" + pairingInfo.pairing_secret;
 				var data = JSON.stringify({

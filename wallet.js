@@ -595,7 +595,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 										isOK = true;
 									break;
 								case "in_appeal":
-									if (objContract.arbstore_device_address === from_address && (body.value === 'appeal_resolved' || body.value === 'appeal_declined'))
+									if (objContract.arbstore_device_address === from_address && (body.value === 'appeal_approved' || body.value === 'appeal_declined'))
 										isOK = true;
 									break;
 							}
