@@ -2215,9 +2215,7 @@ function requestUnfinishedPastUnitsOfPrivateChains(arrChains, onDone){
 function requestHistoryAfterMCI(arrUnits, addresses, minMCI, onDone){
 	if (!onDone)
 		onDone = function(){};
-	var arrAddresses = [];
-	if (Array.isArray(addresses))
-		arrAddresses = addresses;
+	var arrAddresses = Array.isArray(addresses) ? addresses : [];
 	myWitnesses.readMyWitnesses(function(arrWitnesses){
 		var objHistoryRequest = {witnesses: arrWitnesses};
 		if (arrUnits.length)
