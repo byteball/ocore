@@ -100,24 +100,31 @@ function store(objContract, cb) {
 	});
 }
 
-function respond(objContract, status, signedMessageBase64, pairing_code, my_contact_info, signer, cb) {
-	if (!cb) {
-		cb = function(){};
-	}
-	var send = function(authors) {
-		var response = {hash: objContract.hash, status: status, signed_message: signedMessageBase64, my_pairing_code: pairing_code, my_contact_info: my_contact_info};
+function respond(objContract, status, signedMessageBase64, signer, cb) {
+	cb = cb || function(){};
+	var send = function(authors, pairing_code) {
+		var response = {hash: objContract.hash, status: status, signed_message: signedMessageBase64, my_contact_info: objContract.my_contact_info};
 		if (authors) {
 			response.authors = authors;
 		}
+		if (pairing_code) {
+			response.my_pairing_code = pairing_code;
+		}
 		device.sendMessageToDevice(objContract.peer_device_address, "arbiter_contract_response", response);
-		cb();
+
+		setField(objContract.hash, "status", status, function(objContract) {
+			cb(null, objContract);
+		});
 	};
 	if (status === "accepted") {
-		composer.composeAuthorsAndMciForAddresses(db, [objContract.my_address], signer, function(err, authors) {
-			if (err) {
-				return cb(err);
-			}
-			send(authors);
+		device.getOrGeneratePermanentPairingInfo(function(pairingInfo){
+			var pairing_code = pairingInfo.device_pubkey + "@" + pairingInfo.hub + "#" + pairingInfo.pairing_secret;
+			composer.composeAuthorsAndMciForAddresses(db, [objContract.my_address], signer, function(err, authors) {
+				if (err) {
+					return cb(err);
+				}
+				send(authors, pairing_code);
+			});
 		});
 	} else {
 		send();
