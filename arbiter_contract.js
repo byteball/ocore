@@ -4,9 +4,13 @@ var device = require("./device.js");
 var composer = require("./composer.js");
 var crypto = require("crypto");
 var arbiters = require("./arbiters.js");
+var objectHash = require("./object_hash.js");
+var storage = require("./storage.js");
+var constants = require("./constants.js");
 var http = require("https");
 var url = require("url");
 var _ = require('lodash');
+var eventBus = require('./event_bus.js');
 
 var status_PENDING = "pending";
 exports.CHARGE_AMOUNT = 4000;
@@ -286,6 +290,153 @@ function getAllMyCosigners(hash, cb) {
 		});
 }
 
+// walletInstance should have "sendMultiPayment" function with appropriate signer inside
+function createSharedAddressAndPostUnit(contract, walletInstance, cb) {
+	db.query("SELECT 1 FROM assets WHERE unit IN(?) AND is_private=1 LIMIT 1", [contract.asset], function(rows){
+	    var arrDefinition =
+		["or", [
+			["and", [
+				["address", contract.my_address],
+				["address", contract.peer_address]
+			]],
+			[], // placeholders [1][1]
+			[],	// placeholders [1][2]
+			["and", [
+		        ["address", contract.my_address],
+		        ["in data feed", [[contract.arbiter_address], "CONTRACT_" + contract.hash, "=", contract.my_address]]
+		    ]],
+		    ["and", [
+		        ["address", contract.peer_address],
+		        ["in data feed", [[contract.arbiter_address], "CONTRACT_" + contract.hash, "=", contract.peer_address]]
+		    ]]
+		]];
+		var isPrivate = rows.length > 0;
+		if (isPrivate) { // private asset
+			arrDefinition[1][1] = ["and", [
+		        ["address", contract.my_address],
+		        ["in data feed", [[contract.peer_address], "CONTRACT_DONE_" + contract.hash, "=", contract.my_address]]
+		    ]];
+		    arrDefinition[1][2] = ["and", [
+		        ["address", contract.peer_address],
+		        ["in data feed", [[contract.my_address], "CONTRACT_DONE_" + contract.hash, "=", contract.peer_address]]
+		    ]];
+		} else {
+			arrDefinition[1][1] = ["and", [
+		        ["address", contract.my_address],
+		        ["has", {
+		            what: "output",
+		            asset: contract.asset || "base", 
+		            amount: contract.amount, 
+		            address: contract.peer_address
+		        }]
+		    ]];
+		    arrDefinition[1][2] = ["and", [
+		        ["address", contract.peer_address],
+		        ["has", {
+		            what: "output",
+		            asset: contract.asset || "base", 
+		            amount: contract.amount, 
+		            address: contract.my_address
+		        }]
+		    ]];
+		}
+		var assocSignersByPath = {
+			"r.0.0": {
+				address: contract.my_address,
+				member_signing_path: "r",
+				device_address: device.getMyDeviceAddress()
+			},
+			"r.0.1": {
+				address: contract.peer_address,
+				member_signing_path: "r",
+				device_address: contract.peer_device_address
+			},
+			"r.1.0": {
+				address: contract.my_address,
+				member_signing_path: "r",
+				device_address: device.getMyDeviceAddress()
+			},
+			"r.2.0": {
+				address: contract.peer_address,
+				member_signing_path: "r",
+				device_address: contract.peer_device_address
+			},
+			"r.3.0": {
+				address: contract.my_address,
+				member_signing_path: "r",
+				device_address: device.getMyDeviceAddress()
+			},
+			"r.4.0": {
+				address: contract.peer_address,
+				member_signing_path: "r",
+				device_address: contract.peer_device_address
+			},
+		};
+		require("ocore/wallet_defined_by_addresses.js").createNewSharedAddress(arrDefinition, assocSignersByPath, {
+			ifError: function(err){
+				cb(err);
+			},
+			ifOk: function(shared_address){
+				setField(contract.hash, "shared_address", shared_address, function(contract) {
+					// share this contract to my cosigners for them to show proper ask dialog
+					contract.cosigners.forEach(function(cosigner) {
+						share(contract.hash, cosigner);
+					});
+
+					// post a unit with contract text hash and send it for signing to correspondent
+					var value = {"contract_text_hash": contract.hash, "arbiter": contract.arbiter_address};
+					var objContractMessage = {
+						app: "data",
+						payload_location: "inline",
+						payload_hash: objectHash.getBase64Hash(value, storage.getMinRetrievableMci() >= constants.timestampUpgradeMci),
+						payload: value
+					};
+
+					walletInstance.sendMultiPayment({
+						asset: "base",
+						to_address: shared_address,
+						amount: exports.CHARGE_AMOUNT,
+						arrSigningDeviceAddresses: contract.cosigners.length ? contract.cosigners.concat([contract.peer_device_address, device.getMyDeviceAddress()]) : [],
+						signing_addresses: [shared_address],
+						messages: [objContractMessage]
+					}, function(err, unit) { // can take long if multisig
+						if (err)
+							return cb(err);
+
+						// set contract's unit field
+						setField(contract.hash, "unit", unit, function(contract) {
+							// set signed status
+							setField(contract.hash, "status", "signed", function(contract) {
+								// share new contract fields (shared address and unit) to peer & my cosigners
+								contract.cosigners.concat([contract.peer_device_address]).forEach(function(cosigner) {
+									device.sendMessageToDevice(cosigner, "arbiter_contract_update", {
+										hash: contract.hash,
+										field: "shared_address",
+										value: shared_address
+									});
+									device.sendMessageToDevice(cosigner, "arbiter_contract_update", {
+										hash: contract.hash,
+										field: "unit",
+										value: unit
+									});
+								});
+
+								cb(null, contract);
+							});
+						});
+					});
+				});
+			}
+		});
+	});
+}
+
+/* ==== LISTENERS ==== */
+
+function showError(msg) {
+	eventBus.emit('alert_error', msg);
+}
+
 exports.createAndSend = createAndSend;
 exports.getByHash = getByHash;
 exports.getBySharedAddress = getBySharedAddress;
@@ -301,3 +452,4 @@ exports.meIsCosigner = meIsCosigner;
 exports.getAllByArbiterAddress = getAllByArbiterAddress;
 exports.getAllByPeerAddress = getAllByPeerAddress;
 exports.getAllMyCosigners = getAllMyCosigners;
+exports.createSharedAddressAndPostUnit = createSharedAddressAndPostUnit;

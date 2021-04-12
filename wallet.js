@@ -691,8 +691,8 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 							arbiter_contract.setField(objContract.hash, "peer_pairing_code", body.my_pairing_code);
 						if (body.my_contact_info)
 							arbiter_contract.setField(objContract.hash, "peer_contact_info", body.my_contact_info);
-						arbiter_contract.setField(objContract.hash, "status", body.status, function(){
-							eventBus.emit("arbiter_contract_response_received" + body.hash);
+						arbiter_contract.setField(objContract.hash, "status", body.status, function(objContract){
+							eventBus.emit("arbiter_contract_response_received", objContract);
 						});
 						callbacks.ifOk();
 					};
