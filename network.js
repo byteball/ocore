@@ -3458,28 +3458,46 @@ function handleRequest(ws, tag, command, params){
 				WHERE aa_address IN(?) ORDER BY aa_response_id DESC LIMIT 30",
 				[aas],
 				function (rows) {
-					async.eachSeries(
-						rows,
-						function (row, cb) {
-							row.response = JSON.parse(row.response);
-							if (!row.response_unit)
-								return cb();
-							storage.readJoint(db, row.response_unit, {
-								ifNotFound: function () {
-									throw Error("response unit " + row.response_unit + " not found");
-								},
-								ifFound: function (objJoint) {
-									row.objResponseUnit = objJoint.unit;
-									cb();
-								}
-							});
-						},
-						function () {
-							sendResponse(ws, tag, rows);
-						}
-					);
+					enrichAAResponses(rows, () => {
+						sendResponse(ws, tag, rows);
+					});
 				}
 			);
+			break;
+
+		// get a chain of AA responses starting from a specific trigger unit. The chain can branch.
+		case 'light/get_aa_response_chain':
+			if (!params)
+				return sendErrorResponse(ws, tag, "no params in light/get_aa_response_chain");
+			var trigger_unit = params.trigger_unit;
+			if (!ValidationUtils.isValidBase64(trigger_unit, constants.HASH_LENGTH))
+				return sendErrorResponse(ws, tag, "invalid trigger unit in light/get_aa_response_chain");
+			var all_rows = [];
+			var addAAResponse = function (trigger_unit, onDone) {
+				db.query(
+					"SELECT mci, trigger_address, aa_address, trigger_unit, bounced, response_unit, response, timestamp \n\
+					FROM aa_responses CROSS JOIN units ON trigger_unit=unit \n\
+					WHERE trigger_unit=? ORDER BY aa_address",
+					[trigger_unit],
+					function (rows) {
+						async.series(
+							rows,
+							function (row, cb) {
+								all_rows.push(row);
+								row.response_unit ? addAAResponse(row.response_unit, cb) : cb();
+							},
+							onDone
+						);
+					}
+				);
+			};
+			addAAResponse(trigger_unit, () => {
+				if (all_rows.length === 0)
+					return sendErrorResponse(ws, tag, "no such trigger unit in light/get_aa_response_chain");
+				enrichAAResponses(all_rows, () => {
+					sendResponse(ws, tag, all_rows);
+				});
+			});
 			break;
 
 		// I'm a hub, the peer wants to enable push notifications
@@ -3517,6 +3535,27 @@ function handleRequest(ws, tag, command, params){
 			eventBus.emit('custom_request', ws, params,tag);
 		break;
 	}
+}
+
+function enrichAAResponses(rows, onDone) {
+	async.eachSeries(
+		rows,
+		function (row, cb) {
+			row.response = JSON.parse(row.response);
+			if (!row.response_unit)
+				return cb();
+			storage.readJoint(db, row.response_unit, {
+				ifNotFound: function () {
+					throw Error("response unit " + row.response_unit + " not found");
+				},
+				ifFound: function (objJoint) {
+					row.objResponseUnit = objJoint.unit;
+					cb();
+				}
+			});
+		},
+		onDone
+	);
 }
 
 function satisfiesSearchCriteria(this_param_value, searched_param_value) {
