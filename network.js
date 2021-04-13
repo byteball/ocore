@@ -3480,7 +3480,7 @@ function handleRequest(ws, tag, command, params){
 					WHERE trigger_unit=? ORDER BY aa_address",
 					[trigger_unit],
 					function (rows) {
-						async.series(
+						async.eachSeries(
 							rows,
 							function (row, cb) {
 								all_rows.push(row);
