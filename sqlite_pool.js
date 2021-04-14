@@ -89,7 +89,7 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 
 				var sql = arguments[0];
 				//console.log("======= query: "+sql);
-				var bSelect = !!sql.match(/^SELECT/i);
+				var bSelect = !!sql.match(/^\s*SELECT/i);
 				var count_arguments_without_callback = bHasCallback ? (arguments.length-1) : arguments.length;
 				var new_args = [];
 				var self = this;
