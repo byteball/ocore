@@ -27,7 +27,13 @@ function sendmail(params, cb){
 }
 
 function sendMailThroughUnixSendmail(params, cb){
-	var child = child_process.spawn('/usr/sbin/sendmail', ['-t', params.to]);
+	try {
+		var child = child_process.spawn('/usr/sbin/sendmail', ['-t', params.to]);
+	}
+	catch (e) {
+		console.error("failed to spawn /usr/sbin/sendmail while trying to send", params.subject, e);
+		throw e;
+	}
 	child.stdin.on('error', function(err){
 		console.log("Error when sending mail through Mail Transfer Agent: " + err);
 	});
