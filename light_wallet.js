@@ -98,8 +98,16 @@ function prepareRequestForHistory(newAddresses, handleResult){
 
 var bFirstRefreshStarted = false;
 
+exports.bRefreshHistoryOnNewAddress = true;
+exports.bRefreshFullHistory = true;
+exports.bRefreshHistory = true;
+
 if (conf.bLight) {
 	eventBus.on("new_address", function(address){
+		if (!exports.bRefreshHistoryOnNewAddress) {
+			db.query("DELETE FROM unprocessed_addresses WHERE address=?", [address]);
+			return console.log("skipping history refresh on new address " + address);
+		}
 		refreshLightClientHistory([address], function(error){
 			if (error)
 				return console.log(error);
@@ -133,8 +141,15 @@ if (conf.bLight) {
 function refreshLightClientHistory(addresses, handle){
 	if (!conf.bLight)
 		return;
+	var refuse = function (err) {
+		console.log(err);
+		if (handle)
+			throw Error("have a callback but can't refresh history");
+	};
 	if (!network.light_vendor_url)
-		return console.log('refreshLightClientHistory called too early: light_vendor_url not set yet');
+		return refuse('refreshLightClientHistory called too early: light_vendor_url not set yet');
+	if (!addresses && !exports.bRefreshFullHistory || !exports.bRefreshHistory)
+		return refuse("history refresh is disabled now");
 	if (!addresses) // partial refresh stays silent
 		eventBus.emit('refresh_light_started');
 	if (!bFirstRefreshStarted){
@@ -154,11 +169,11 @@ function refreshLightClientHistory(addresses, handle){
 		};
 		if (err)
 			return finish("refreshLightClientHistory: "+err);
-		console.log('refreshLightClientHistory ' + (addresses ? 'selective' : 'full'));
+		console.log('refreshLightClientHistory ' + (addresses ? 'selective ' + addresses.join(', ') : 'full'));
 		// handling the response may take some time, don't send new requests
 		if (!addresses){ // bRefreshingHistory flag concerns only a full refresh
 			if (ws.bRefreshingHistory)
-				return console.log("previous refresh not finished yet");
+				return refuse("previous refresh not finished yet");
 			ws.bRefreshingHistory = true;
 		}
 		else if (ws.bRefreshingHistory || !isFirstHistoryReceived()) {
@@ -191,6 +206,7 @@ function refreshLightClientHistory(addresses, handle){
 						finish();
 						if (!addresses) {
 							bFirstHistoryReceived = true;
+							console.log('received 1st history');
 							eventBus.emit('first_history_received');
 						}
 						if (bRefreshUI)
@@ -242,10 +258,25 @@ function waitUntilFirstHistoryReceived(cb) {
 		return new Promise(resolve => waitUntilFirstHistoryReceived(resolve));
 	if (bFirstHistoryReceived)
 		return cb();
+	console.log('will wait for the 1st history');
 	eventBus.once('first_history_received', () => process.nextTick(cb));
+}
+
+function waitUntilHistoryRefreshDone(cb) {
+	if (!cb)
+		return new Promise((resolve, reject) => waitUntilHistoryRefreshDone(err => err ? reject(err) : resolve()));
+	network.findOutboundPeerOrConnect(network.light_vendor_url, (err, ws) => {
+		if (err)
+			return cb(err);
+		if (!ws.bRefreshingHistory)
+			return cb();
+		console.log('will wait for history refresh to complete');
+		eventBus.once('refresh_light_done', () => process.nextTick(cb));
+	});
 }
 
 exports.setLightVendorHost = setLightVendorHost;
 exports.refreshLightClientHistory = refreshLightClientHistory;
 exports.isFirstHistoryReceived = isFirstHistoryReceived;
 exports.waitUntilFirstHistoryReceived = waitUntilFirstHistoryReceived;
+exports.waitUntilHistoryRefreshDone = waitUntilHistoryRefreshDone;
