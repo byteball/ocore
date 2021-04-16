@@ -901,6 +901,7 @@ CREATE TABLE IF NOT EXISTS wallet_arbiter_contracts (
 	amount BIGINT NULL,
 	asset CHAR(44) NULL,
 	is_incoming TINYINT NOT NULL,
+	me_is_cosigner TINYINT NULL,
 	creation_date TIMESTAMP NOT NULL,
 	ttl INT NOT NULL DEFAULT 168, -- 168 hours = 24 * 7 = 1 week \n\
 	status VARCHAR(40) CHECK (status IN('pending', 'revoked', 'accepted', 'signed', 'declined', 'paid', 'in_dispute', 'dispute_resolved', 'in_appeal', 'appeal_approved', 'appeal_declined', 'cancelled', 'completed')) NOT NULL DEFAULT 'pending',

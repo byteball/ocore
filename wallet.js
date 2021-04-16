@@ -564,6 +564,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					function(rows) {
 						if (!rows.length)
 							return callbacks.ifError("contract does not contain my address");
+						body.me_is_cosigner = true;
 						arbiter_contract.store(body);
 						callbacks.ifOk();
 					}
@@ -606,8 +607,8 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 							if (objContract.status !== "accepted")
 								return callbacks.ifError("contract was not accepted");
 							if (objContract.unit)
-									return callbacks.ifError("unit was already provided for this contract");
-							arbiter_contract.setField(objContract.hash, "status", "signed");
+								return callbacks.ifError("unit was already provided for this contract");
+							arbiter_contract.setField(objContract.hash, "status", "signed", null, true);
 						} else
 						if (body.field === "shared_address") {
 							if (objContract.status !== "accepted")
@@ -622,12 +623,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 						arbiter_contract.setField(objContract.hash, body.field, body.value, function(objContract) {
 							eventBus.emit("arbiter_contract_update", objContract, body.field, body.value);
 							callbacks.ifOk();
-						});
-						if (objContract.cosigners) {
-							objContract.cosigners.forEach(function(cosigner) {
-								device.sendMessageToDevice(cosigner, "arbiter_contract_update", body);
-							});
-						}
+						}, from_cosigner);
 					});
 				});
 				break;
