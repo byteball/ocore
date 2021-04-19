@@ -605,21 +605,24 @@ eventBus.on("new_my_transactions", function(arrNewUnits) {
 });
 
 // arbiter response
-eventBus.on("saved_unit", function(objJoint) { //TODO: prefix sql queries with some in-memory unit checks for if the unit is looking as a candidate
-	var objUnit = objJoint.unit;
-	var address = objUnit.authors[0].address;
-	getAllByArbiterAddress(address, function(contracts) {
-		contracts.forEach(function(objContract) {
-			if (objContract.status !== "in_dispute")
-				return;
-			var winner = parseWinnerFromUnit(objContract, objUnit);
-			if (!winner) {
-				return;
-			}
-			var unit = objJoint.unit.unit;
-			setField(objContract.hash, "resolution_unit", unit);
-			setField(objContract.hash, "status", "dispute_resolved", function(objContract) {
-				eventBus.emit("arbiter_contract_update", objContract, "status", "dispute_resolved", unit, winner);
+eventBus.on("new_my_transactions", function(units) {
+	units.forEach(function(unit) {
+		storage.readUnit(unit, function(objUnit) {
+			var address = objUnit.authors[0].address;
+			getAllByArbiterAddress(address, function(contracts) {
+				contracts.forEach(function(objContract) {
+					if (objContract.status !== "in_dispute")
+						return;
+					var winner = parseWinnerFromUnit(objContract, objUnit);
+					if (!winner) {
+						return;
+					}
+					var unit = objUnit.unit;
+					setField(objContract.hash, "resolution_unit", unit);
+					setField(objContract.hash, "status", "dispute_resolved", function(objContract) {
+						eventBus.emit("arbiter_contract_update", objContract, "status", "dispute_resolved", unit, winner);
+					});
+				});
 			});
 		});
 	});
