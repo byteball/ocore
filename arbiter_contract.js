@@ -17,13 +17,19 @@ var status_PENDING = "pending";
 exports.CHARGE_AMOUNT = 4000;
 
 function createAndSend(objContract, cb) {
-	db.query("INSERT INTO wallet_arbiter_contracts (hash, peer_address, peer_device_address, my_address, arbiter_address, me_is_payer, amount, asset, is_incoming, creation_date, ttl, status, title, text, my_contact_info, cosigners) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [objContract.hash, objContract.peer_address, objContract.peer_device_address, objContract.my_address, objContract.arbiter_address, objContract.me_is_payer, objContract.amount, objContract.asset, false, objContract.creation_date, objContract.ttl, status_PENDING, objContract.title, objContract.text, objContract.my_contact_info, JSON.stringify(objContract.cosigners)], function() {
-		var objContractForPeer = _.cloneDeep(objContract);
-		delete objContractForPeer.cosigners;
-		device.sendMessageToDevice(objContract.peer_device_address, "arbiter_contract_offer", objContractForPeer);
-		if (cb) {
-			cb(objContract);
-		}
+	objContract.creation_date = new Date().toISOString().slice(0, 19).replace('T', ' ');
+	objContract.hash = getHash(objContract);
+	device.getOrGeneratePermanentPairingInfo(pairingInfo => {
+		objContract.my_pairing_code = pairingInfo.device_pubkey + "@" + pairingInfo.hub + "#" + pairingInfo.pairing_secret;
+
+		db.query("INSERT INTO wallet_arbiter_contracts (hash, peer_address, peer_device_address, my_address, arbiter_address, me_is_payer, amount, asset, is_incoming, creation_date, ttl, status, title, text, my_contact_info, cosigners) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [objContract.hash, objContract.peer_address, objContract.peer_device_address, objContract.my_address, objContract.arbiter_address, objContract.me_is_payer, objContract.amount, objContract.asset, false, objContract.creation_date, objContract.ttl, status_PENDING, objContract.title, objContract.text, objContract.my_contact_info, JSON.stringify(objContract.cosigners)], function() {
+				var objContractForPeer = _.cloneDeep(objContract);
+				delete objContractForPeer.cosigners;
+				device.sendMessageToDevice(objContract.peer_device_address, "arbiter_contract_offer", objContractForPeer);
+				if (cb) {
+					cb(objContract);
+				}
+		});
 	});
 }
 
@@ -476,9 +482,10 @@ function pay(hash, walletInstance, arrSigningDeviceAddresses, cb) {
 		var opts = {
 			asset: objContract.asset,
 			to_address: objContract.shared_address,
-			amount: objContract.amount,
-			arrSigningDeviceAddresses: arrSigningDeviceAddresses
+			amount: objContract.amount
 		};
+		if (arrSigningDeviceAddresses.length)
+			opts.arrSigningDeviceAddresses = arrSigningDeviceAddresses;
 		walletInstance.sendMultiPayment(opts, function(err, unit){								
 			if (err)
 				return cb(err);
@@ -507,7 +514,6 @@ function complete(hash, walletInstance, arrSigningDeviceAddresses, cb) {
 					paying_addresses: [objContract.my_address],
 					signing_addresses: [objContract.my_address],
 					change_address: objContract.my_address,
-					arrSigningDeviceAddresses: arrSigningDeviceAddresses,
 					messages: [{
 						app: 'data_feed',
 						payload_location: "inline",
@@ -520,10 +526,11 @@ function complete(hash, walletInstance, arrSigningDeviceAddresses, cb) {
 					shared_address: objContract.shared_address,
 					asset: objContract.asset,
 					to_address: objContract.peer_address,
-					amount: objContract.amount,
-					arrSigningDeviceAddresses: arrSigningDeviceAddresses
+					amount: objContract.amount
 				};
 			}
+			if (arrSigningDeviceAddresses.length)
+				opts.arrSigningDeviceAddresses = arrSigningDeviceAddresses;
 			walletInstance.sendMultiPayment(opts, function(err, unit){
 				if (err)
 					return cb(err);
@@ -564,14 +571,23 @@ eventBus.on("arbiter_contract_update", function(objContract, field, value) {
 });
 
 // contract payment received
-eventBus.on("new_my_transactions", function(arrNewUnits) {
+eventBus.on("new_my_transactions", function newtxs(arrNewUnits) {
 	db.query("SELECT hash, outputs.unit FROM wallet_arbiter_contracts\n\
 		JOIN outputs ON outputs.address=wallet_arbiter_contracts.shared_address\n\
-		WHERE outputs.unit IN (?) AND outputs.asset IS wallet_arbiter_contracts.asset AND wallet_arbiter_contracts.status='signed'\n\
+		WHERE outputs.unit IN (?) AND outputs.asset IS wallet_arbiter_contracts.asset AND (wallet_arbiter_contracts.status='signed' OR wallet_arbiter_contracts.status='accepted')\n\
 		GROUP BY outputs.address\n\
 		HAVING SUM(outputs.amount) >= wallet_arbiter_contracts.amount", [arrNewUnits], function(rows) {
 			rows.forEach(function(row) {
 				getByHash(row.hash, function(contract){
+					if (contract.status === 'accepted') { // we received payment already but did not yet receive signature unit message, wait for unit to be received
+						eventBus.on('arbiter_contract_update', function retryPaymentCheck(objContract, field, value){
+							if (objContract.hash === contract.hash && field === 'unit') {
+								newtxs(arrNewUnits);
+								eventBus.removeListener('arbiter_contract_update', retryPaymentCheck);
+							}
+						});
+						return;
+					}
 					setField(contract.hash, "status", "paid", function(objContract) {
 						eventBus.emit("arbiter_contract_update", objContract, "status", "paid", row.unit);
 						// listen for peer announce to withdraw funds
