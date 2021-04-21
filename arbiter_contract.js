@@ -646,20 +646,26 @@ eventBus.on("new_my_transactions", function(units) {
 
 // arbiter response stabilized
 eventBus.on("my_transactions_became_stable", function(units) {
-	db.query("SELECT * FROM wallet_arbiter_contracts WHERE resolution_unit IN (?)", [units], function(rows) {
-		rows.forEach(function(objContract) {
-			storage.readUnit(objContract.resolution_unit, function(objUnit) {
-				var winner = parseWinnerFromUnit(objContract, objUnit);
-				if (winner == objContract.my_address)
-					eventBus.emit("arbiter_contract_update", objContract, "resolution_unit_stabilized", null, null, winner);
-				var count = 0;
-				getAllByArbiterAddress(objContract.arbiter_address, function(contracts) {
-					contracts.forEach(function(objContract) {
-						if (objContract.status === "in_dispute")
-							count++;
+	units.forEach(function(unit) {
+		storage.readUnit(unit, function(objUnit) {
+			var address = objUnit.authors[0].address;
+			getAllByArbiterAddress(address, function(contracts) {
+				contracts.forEach(function(objContract) {
+					if (objContract.status !== "dispute_resolved" && objContract.status !== "in_dispute") // we still can be in dispute in case of light wallet stayed offline
+						return;
+					var winner = parseWinnerFromUnit(objContract, objUnit);
+					if (winner === objContract.my_address)
+						eventBus.emit("arbiter_contract_update", objContract, "resolution_unit_stabilized", null, null, winner);
+
+					var count = 0;
+					getAllByArbiterAddress(objContract.arbiter_address, function(contracts) {
+						contracts.forEach(function(objContract2) {
+							if (objContract2.status === "in_dispute" && objContract2.hash !== objContract.hash)
+								count++;
+						});
+						if (count == 0)
+							wallet_general.removeWatchedAddress(objContract.arbiter_address);
 					});
-					if (count == 0)
-						wallet_general.removeWatchedAddress(objContract.arbiter_address);
 				});
 			});
 		});
