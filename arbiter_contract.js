@@ -297,7 +297,7 @@ function httpRequest(host, path, data, cb) {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
-				"Content-Length": data.length
+				"Content-Length": (new TextEncoder().encode(data)).length
 			}
 		}
 	);
