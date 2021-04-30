@@ -1673,6 +1673,15 @@ function checkBalances() {
 					[sql_base, sql_assets_balances_to_outputs, sql_assets_outputs_to_balances],
 					function (sql, cb) {
 						conn.query(sql, function (rows) {
+							// ignore discrepancies that result from limited precision of js numbers
+							rows = rows.filter(row => {
+								if (row.balance <= Number.MAX_SAFE_INTEGER || row.calculated_balance <= Number.MAX_SAFE_INTEGER)
+									return true;
+								var diff = Math.abs(row.balance - row.calculated_balance);
+								if (diff > row.balance * 1e-5) // large relative difference cannot result from precision loss
+									return true;
+								return false;
+							});
 							if (rows.length > 0)
 								throw Error("checkBalances failed: sql:\n" + sql + "\n\nrows:\n" + JSON.stringify(rows, null, '\t'));
 							cb();
