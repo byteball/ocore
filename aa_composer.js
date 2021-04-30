@@ -1680,6 +1680,7 @@ function checkBalances() {
 								var diff = Math.abs(row.balance - row.calculated_balance);
 								if (diff > row.balance * 1e-5) // large relative difference cannot result from precision loss
 									return true;
+								console.log("ignoring balance difference in", row);
 								return false;
 							});
 							if (rows.length > 0)
