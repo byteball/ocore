@@ -150,6 +150,18 @@ function estimatePrimaryAATrigger(objUnit, address, stateVars, assocBalances, on
 						objMcUnit,
 						arrResponses,
 						onDone: function () {
+							// remove the 'updated' flag for future triggers
+							for (var aa in stateVars) {
+								var addressVars = stateVars[aa];
+								for (var var_name in addressVars) {
+									var state = addressVars[var_name];
+									if (state.updated) {
+										delete state.updated;
+										state.old_value = state.value;
+										state.original_old_value = state.value;
+									}
+								}
+							}
 							conn.query("ROLLBACK", function () {
 								conn.release();
 								// copy updatedStateVars to all responses
