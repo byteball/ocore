@@ -2215,6 +2215,8 @@ function requestUnfinishedPastUnitsOfPrivateChains(arrChains, onDone){
 function requestHistoryFor(arrUnits, arrAddresses, onDone){
 	if (!onDone)
 		onDone = function(){};
+	if (!arrUnits.every(unit => ValidationUtils.isValidBase64(unit, constants.HASH_LENGTH)))
+		throw Error("some units are invalid: " + arrUnits.join(', '));
 	myWitnesses.readMyWitnesses(function(arrWitnesses){
 		var objHistoryRequest = {witnesses: arrWitnesses};
 		if (arrUnits.length)
