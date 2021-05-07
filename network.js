@@ -995,7 +995,7 @@ function handleJoint(ws, objJoint, bSaved, bPosted, callbacks){
 					purgeJointAndDependenciesAndNotifyPeers(objJoint, error, function(){
 						delete assocUnitsInWork[unit];
 					});
-					if (ws && error !== 'authentifier verification failed' && !error.match(/bad merkle proof at path/))
+					if (ws && error !== 'authentifier verification failed' && !error.match(/bad merkle proof at path/) && !bPosted)
 						writeEvent('invalid', ws.host);
 					if (objJoint.unsigned)
 						eventBus.emit("validated-"+unit, false);
