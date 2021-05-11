@@ -150,6 +150,18 @@ function estimatePrimaryAATrigger(objUnit, address, stateVars, assocBalances, on
 						objMcUnit,
 						arrResponses,
 						onDone: function () {
+							// remove the 'updated' flag for future triggers
+							for (var aa in stateVars) {
+								var addressVars = stateVars[aa];
+								for (var var_name in addressVars) {
+									var state = addressVars[var_name];
+									if (state.updated) {
+										delete state.updated;
+										state.old_value = state.value;
+										state.original_old_value = state.value;
+									}
+								}
+							}
 							conn.query("ROLLBACK", function () {
 								conn.release();
 								// copy updatedStateVars to all responses
@@ -1673,6 +1685,16 @@ function checkBalances() {
 					[sql_base, sql_assets_balances_to_outputs, sql_assets_outputs_to_balances],
 					function (sql, cb) {
 						conn.query(sql, function (rows) {
+							// ignore discrepancies that result from limited precision of js numbers
+							rows = rows.filter(row => {
+								if (row.balance <= Number.MAX_SAFE_INTEGER || row.calculated_balance <= Number.MAX_SAFE_INTEGER)
+									return true;
+								var diff = Math.abs(row.balance - row.calculated_balance);
+								if (diff > row.balance * 1e-5) // large relative difference cannot result from precision loss
+									return true;
+								console.log("ignoring balance difference in", row);
+								return false;
+							});
 							if (rows.length > 0)
 								throw Error("checkBalances failed: sql:\n" + sql + "\n\nrows:\n" + JSON.stringify(rows, null, '\t'));
 							cb();

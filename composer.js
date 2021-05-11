@@ -563,7 +563,15 @@ function readSortedFundedAddresses(asset, arrAvailableAddresses, estimated_amoun
 		asset ? [arrAvailableAddresses, asset] : [arrAvailableAddresses],
 		function(rows){
 			var arrFundedAddresses = filterMostFundedAddresses(rows, estimated_amount);
-			handleFundedAddresses(arrFundedAddresses);
+			if (arrFundedAddresses.length > 0 || !asset)
+				return handleFundedAddresses(arrFundedAddresses);
+			storage.readAssetInfo(db, asset, objAsset => {
+				if (!objAsset)
+					throw Error("no such asset " + asset);
+				if (objAsset.issued_by_definer_only && arrAvailableAddresses.indexOf(objAsset.definer_address) >= 0 || !objAsset.issued_by_definer_only)
+					return handleFundedAddresses(objAsset.issued_by_definer_only ? [objAsset.definer_address] : arrAvailableAddresses);
+				handleFundedAddresses([]);
+			});
 		/*	if (arrFundedAddresses.length === 0)
 				return handleFundedAddresses([]);
 			if (!asset || arrFundedAddresses.length === arrAvailableAddresses.length) // base asset or all available addresses already used
