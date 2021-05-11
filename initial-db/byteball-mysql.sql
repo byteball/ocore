@@ -900,3 +900,24 @@ CREATE TABLE IF NOT EXISTS wallet_arbiter_contracts (
 CREATE INDEX wacStatus ON wallet_arbiter_contracts(status);
 CREATE INDEX wacArbiterAddress ON wallet_arbiter_contracts(arbiter_address);
 CREATE INDEX wacPeerAddress ON wallet_arbiter_contracts(peer_address);
+
+CREATE TABLE IF NOT EXISTS arbiter_disputes (
+	contract_hash CHAR(44) NOT NULL PRIMARY KEY,
+	plaintiff_address CHAR(32) NOT NULL,
+	respondent_address CHAR(32) NOT NULL,
+	plaintiff_is_payer TINYINT(1) NOT NULL,
+	plaintiff_pairing_code VARCHAR(200) NOT NULL,
+	respondent_pairing_code VARCHAR(200) NOT NULL,
+	contract_content TEXT NOT NULL,
+	contract_unit CHAR(44) NOT NULL,
+	amount BIGINT NOT NULL,
+	asset CHAR(44) NULL,
+	arbiter_address CHAR(32) NOT NULL,
+	service_fee_asset CHAR(44) NULL,
+	arbstore_device_address CHAR(33) NOT NULL,
+	status VARCHAR(40) CHECK (status IN('pending', 'resolved')) NOT NULL DEFAULT 'pending',
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	plaintiff_contact_info TEXT NULL,
+	respondent_contact_info TEXT NULL,
+	FOREIGN KEY (arbstore_device_address) REFERENCES correspondent_devices(device_address)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;

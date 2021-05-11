@@ -455,6 +455,27 @@ function migrateDb(connection, onDone){
 					connection.addQuery(arrQueries, "CREATE INDEX wacStatus ON wallet_arbiter_contracts(status)");
 					connection.addQuery(arrQueries, "CREATE INDEX wacArbiterAddress ON wallet_arbiter_contracts(arbiter_address)");
 					connection.addQuery(arrQueries, "CREATE INDEX wacPeerAddress ON wallet_arbiter_contracts(peer_address)");
+
+					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS arbiter_disputes (\n\
+						contract_hash CHAR(44) NOT NULL PRIMARY KEY,\n\
+						plaintiff_address CHAR(32) NOT NULL,\n\
+						respondent_address CHAR(32) NOT NULL,\n\
+						plaintiff_is_payer TINYINT(1) NOT NULL,\n\
+						plaintiff_pairing_code VARCHAR(200) NOT NULL,\n\
+						respondent_pairing_code VARCHAR(200) NOT NULL,\n\
+						contract_content TEXT NOT NULL,\n\
+						contract_unit CHAR(44) NOT NULL,\n\
+						amount BIGINT NOT NULL,\n\
+						asset CHAR(44) NULL,\n\
+						arbiter_address CHAR(32) NOT NULL,\n\
+						service_fee_asset CHAR(44) NULL,\n\
+						arbstore_device_address CHAR(33) NOT NULL,\n\
+						status VARCHAR(40) CHECK (status IN('pending', 'resolved')) NOT NULL DEFAULT 'pending',\n\
+						creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,\n\
+						plaintiff_contact_info TEXT NULL,\n\
+						respondent_contact_info TEXT NULL,\n\
+						FOREIGN KEY (arbstore_device_address) REFERENCES correspondent_devices(device_address)\n\
+					)");
 				}
 				cb();
 			},

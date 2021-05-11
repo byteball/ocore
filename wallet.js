@@ -630,15 +630,30 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 
 			// arbstore sends to arbiter's wallet
 			case 'arbiter_dispute_request':
+				if (!body.contract_hash || !body.my_address || !body.peer_address || body.me_is_payer === undefined || !body.my_pairing_code || !body.peer_pairing_code
+					|| !body.encrypted_contract || !body.unit || !body.amount || body.asset === undefined || !body.arbiter_address || !body.service_fee_asset)
+					return callbacks.ifError("wrong dispute request");
 				var contractContent = device.decryptPackage(body.encrypted_contract);
 				if (!contractContent || !contractContent.creation_date || !contractContent.title || !contractContent.text)
 					return callbacks.ifError("wrong contract content");
 				if (conf.bLight)
 					network.requestHistoryFor([body.unit], [], function(){});
 				body.contract_content = contractContent;
-				var chat_message = "(arbiter-dispute:" + Buffer.from(JSON.stringify(body), 'utf8').toString('base64') + ")";
+				body.arbstore_device_address = from_address;
+				arbiter_contract.insertDispute(body, function(res) {
+					if (res.affectedRows == 0) {
+						return callbacks.ifError("can't insert dispute request into db");
+					}
+					var objDispute = {
+						contract_hash: body.contract_hash,
+						title: contractContent.title,
+						service_fee_asset: body.service_fee_asset
+					};
+					var chat_message = "(arbiter-dispute:" + Buffer.from(JSON.stringify(objDispute), 'utf8').toString('base64') + ")";
 					eventBus.emit("text", from_address, chat_message, ++message_counter);
 					callbacks.ifOk();
+					}
+				);
 				break;
 
 			// sent by peer
@@ -2603,6 +2618,7 @@ function readNonRemovableDevices(onDone){
 	sql += "UNION SELECT DISTINCT device_address FROM pending_shared_address_signing_paths ";
 	sql += "UNION SELECT DISTINCT peer_device_address AS device_address FROM prosaic_contracts ";
 	sql += "UNION SELECT DISTINCT peer_device_address AS device_address FROM wallet_arbiter_contracts ";
+	sql += "UNION SELECT DISTINCT arbstore_device_address AS device_address FROM arbiter_disputes ";
 	if (conf.ArbStoreWebURI)
 		sql += "UNION SELECT DISTINCT device_address AS device_address FROM arbiters";
 	

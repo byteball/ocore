@@ -189,10 +189,12 @@ function getHash(contract) {
 }
 
 function decodeRow(row) {
-	if (row.cosigners) {
+	if (row.cosigners)
 		row.cosigners = JSON.parse(row.cosigners);
-	}
-	row.creation_date_obj = new Date(row.creation_date.replace(" ", "T")+".000Z");
+	if (row.creation_date)
+		row.creation_date_obj = new Date(row.creation_date.replace(" ", "T")+".000Z");
+	if (row.contract_content)
+		row.contract_content = JSON.parse(row.contract_content);
 	return row;
 }
 
@@ -322,6 +324,35 @@ function httpRequest(host, path, data, cb) {
 		}).on("error", cb);
 	req.write(data);
 	req.end();
+}
+
+function getDisputeByContractHash(hash, cb) {
+	db.query("SELECT * FROM arbiter_disputes WHERE contract_hash=?", [hash], function(rows){
+		if (!rows.length) {
+			return cb(null);
+		}
+		var contract = rows[0];
+		cb(decodeRow(contract));
+	});
+}
+
+function insertDispute(objDispute, cb) {
+	db.query("INSERT INTO arbiter_disputes (contract_hash,plaintiff_address,respondent_address,plaintiff_is_payer,plaintiff_pairing_code,\n\
+					respondent_pairing_code,contract_content,contract_unit,amount,asset,arbiter_address,service_fee_asset,arbstore_device_address,\n\
+					plaintiff_contact_info,respondent_contact_info)\n\
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [objDispute.contract_hash,objDispute.my_address,objDispute.peer_address,objDispute.me_is_payer,
+			objDispute.my_pairing_code,objDispute.peer_pairing_code,JSON.stringify(objDispute.contract_content),objDispute.unit,objDispute.amount,objDispute.asset,objDispute.arbiter_address,
+			objDispute.service_fee_asset,objDispute.arbstore_device_address,objDispute.plaintiff_contact_info,objDispute.respondent_contact_info], function(res) {
+				cb(res);
+		}
+	);
+}
+
+function getDisputesByArbstore(arbstore_device_address, cb) {
+	db.query("SELECT * FROM arbiter_disputes WHERE arbstore_device_address=? ORDER BY creation_date DESC", [arbstore_device_address], function(rows){
+		rows.forEach(decodeRow);
+		cb(rows);
+	});
 }
 
 function getAllMyCosigners(hash, cb) {
@@ -724,6 +755,9 @@ exports.setField = setField;
 exports.store = store;
 exports.getHash = getHash;
 exports.openDispute = openDispute;
+exports.getDisputeByContractHash = getDisputeByContractHash;
+exports.insertDispute = insertDispute;
+exports.getDisputesByArbstore = getDisputesByArbstore;
 exports.appeal = appeal;
 exports.getAllByArbiterAddress = getAllByArbiterAddress;
 exports.getAllByPeerAddress = getAllByPeerAddress;
