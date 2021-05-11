@@ -995,7 +995,7 @@ function handleJoint(ws, objJoint, bSaved, bPosted, callbacks){
 					purgeJointAndDependenciesAndNotifyPeers(objJoint, error, function(){
 						delete assocUnitsInWork[unit];
 					});
-					if (ws && error !== 'authentifier verification failed' && !error.match(/bad merkle proof at path/))
+					if (ws && error !== 'authentifier verification failed' && !error.match(/bad merkle proof at path/) && !bPosted)
 						writeEvent('invalid', ws.host);
 					if (objJoint.unsigned)
 						eventBus.emit("validated-"+unit, false);
@@ -2216,6 +2216,8 @@ function requestHistoryAfterMCI(arrUnits, addresses, minMCI, onDone){
 	if (!onDone)
 		onDone = function(){};
 	var arrAddresses = Array.isArray(addresses) ? addresses : [];
+	if (!arrUnits.every(unit => ValidationUtils.isValidBase64(unit, constants.HASH_LENGTH)))
+		throw Error("some units are invalid: " + arrUnits.join(', '));
 	myWitnesses.readMyWitnesses(function(arrWitnesses){
 		var objHistoryRequest = {witnesses: arrWitnesses};
 		if (arrUnits.length)
