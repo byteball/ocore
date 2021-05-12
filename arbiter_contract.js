@@ -292,6 +292,26 @@ function appeal(hash, cb) {
 	});
 }
 
+function getAppealFee(hash, cb) {
+	getByHash(hash, function(objContract){
+		var command = "hub/get_arbstore_url";
+		var address = objContract.arbiter_address;
+		if (objContract.arbstore_address) {
+			command = "hub/get_arbstore_url_by_address";
+			address = objContract.arbstore_address;
+		}
+		device.requestFromHub(command, address, function(err, url){
+			if (err)
+				return cb("can't get arbstore url:", err);
+			httpRequest(url, "/api/get_appeal_fee", "", function(err, resp) {
+				if (err)
+					return cb(err);
+				cb(null, resp);
+			});
+		});
+	});
+}
+
 function httpRequest(host, path, data, cb) {
 	var reqParams = Object.assign(url.parse(host),
 		{
@@ -759,6 +779,7 @@ exports.getDisputeByContractHash = getDisputeByContractHash;
 exports.insertDispute = insertDispute;
 exports.getDisputesByArbstore = getDisputesByArbstore;
 exports.appeal = appeal;
+exports.getAppealFee = getAppealFee;
 exports.getAllByArbiterAddress = getAllByArbiterAddress;
 exports.getAllByPeerAddress = getAllByPeerAddress;
 exports.getAllMyCosigners = getAllMyCosigners;
