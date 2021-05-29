@@ -574,7 +574,8 @@ function complete(hash, walletInstance, arrSigningDeviceAddresses, cb) {
 				};
 			} else {
 				opts = {
-					shared_address: objContract.shared_address,
+					paying_addresses: [objContract.shared_address],
+					change_address: objContract.shared_address,
 					asset: objContract.asset,
 					to_address: objContract.peer_address,
 					amount: objContract.amount
