@@ -85,6 +85,10 @@ function addWatchedAddress(address, handle){
 	});
 }
 
+function removeWatchedAddress(address){
+	db.query("DELETE FROM my_watched_addresses WHERE address=?", [address], function(){});
+}
+
 exports.sendOfferToSign = sendOfferToSign;
 exports.sendPrivatePayments = sendPrivatePayments;
 exports.forwardPrivateChainsToDevices = forwardPrivateChainsToDevices;
@@ -93,3 +97,4 @@ exports.readMyAddresses = readMyAddresses;
 exports.readMyPersonalAddresses = readMyPersonalAddresses;
 exports.readMyPersonalAndSharedAddresses = readMyPersonalAndSharedAddresses;
 exports.addWatchedAddress = addWatchedAddress;
+exports.removeWatchedAddress = removeWatchedAddress;
