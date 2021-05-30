@@ -476,6 +476,20 @@ function migrateDb(connection, onDone){
 						respondent_contact_info TEXT NULL,\n\
 						FOREIGN KEY (arbstore_device_address) REFERENCES correspondent_devices(device_address)\n\
 					)");
+
+					connection.addQuery(arrQueries, "DROP TABLE IF EXISTS asset_metadata");
+					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS asset_metadata ( \n\
+						asset CHAR(44) NOT NULL PRIMARY KEY, \n\
+						metadata_unit CHAR(44) NOT NULL, \n\
+						registry_address CHAR(32) NULL, \n\
+						suffix VARCHAR(20) NULL, \n\
+						name VARCHAR(20) NULL, \n\
+						decimals TINYINT NULL, \n\
+						creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, \n\
+						UNIQUE (name, registry_address), \n\
+						FOREIGN KEY (asset) REFERENCES assets(unit), \n\
+						FOREIGN KEY (metadata_unit) REFERENCES units(unit) \n\
+					)");
 				}
 				cb();
 			},
