@@ -2212,9 +2212,10 @@ function requestUnfinishedPastUnitsOfPrivateChains(arrChains, onDone){
 	});
 }
 
-function requestHistoryFor(arrUnits, arrAddresses, onDone){
+function requestHistoryAfterMCI(arrUnits, addresses, minMCI, onDone){
 	if (!onDone)
 		onDone = function(){};
+	var arrAddresses = Array.isArray(addresses) ? addresses : [];
 	if (!arrUnits.every(unit => ValidationUtils.isValidBase64(unit, constants.HASH_LENGTH)))
 		throw Error("some units are invalid: " + arrUnits.join(', '));
 	myWitnesses.readMyWitnesses(function(arrWitnesses){
@@ -2223,6 +2224,8 @@ function requestHistoryFor(arrUnits, arrAddresses, onDone){
 			objHistoryRequest.requested_joints = arrUnits;
 		if (arrAddresses.length)
 			objHistoryRequest.addresses = arrAddresses;
+		if (minMCI !== -1)
+			objHistoryRequest.min_mci = minMCI;
 		requestFromLightVendor('light/get_history', objHistoryRequest, function(ws, request, response){
 			if (response.error){
 				console.log(response.error);
@@ -2239,6 +2242,10 @@ function requestHistoryFor(arrUnits, arrAddresses, onDone){
 			});
 		});
 	}, 'wait');
+}
+
+function requestHistoryFor(arrUnits, addresses, onDone) {
+	return requestHistoryAfterMCI(arrUnits, addresses, -1, onDone);
 }
 
 function requestProofsOfJointsIfNewOrUnstable(arrUnits, onDone){
@@ -3532,7 +3539,29 @@ function handleRequest(ws, tag, command, params){
 				sendResponse(ws, tag, rows[0]);
 			});
 			break;
-			
+
+		case 'hub/get_arbstore_url':
+			var arbiter_address = params;
+			db.query("SELECT arbstore_address FROM arbiter_locations WHERE arbiter_address=?", [arbiter_address], function(rows){
+				if (!rows.length)
+					return sendErrorResponse(ws, tag, "arbiter is not known");
+				sendResponse(ws, tag, conf.arbstores[rows[0].arbstore_address]);
+			});
+			break;
+		case 'hub/get_arbstore_address':
+			var arbiter_address = params;
+			db.query("SELECT arbstore_address FROM arbiter_locations WHERE arbiter_address=?", [arbiter_address], function(rows){
+				if (!rows.length)
+					return sendErrorResponse(ws, tag, "arbiter is not known");
+				sendResponse(ws, tag, rows[0].arbstore_address);
+			});
+			break;
+		case 'hub/get_arbstore_url_by_address':
+			if (!conf.arbstores[params])
+				return sendErrorResponse(ws, tag, "arbstore is not known");
+			sendResponse(ws, tag, conf.arbstores[params]);
+			break;
+
 		case 'custom':
 			eventBus.emit('custom_request', ws, params,tag);
 		break;
@@ -3853,6 +3882,7 @@ exports.waitUntilCatchedUp = waitUntilCatchedUp;
 exports.waitTillIdle = waitTillIdle;
 exports.waitTillSyncIdle = waitTillSyncIdle;
 exports.requestHistoryFor = requestHistoryFor;
+exports.requestHistoryAfterMCI = requestHistoryAfterMCI;
 exports.exchangeRates = exchangeRates;
 exports.knownWitnesses = knownWitnesses;
 exports.getInboundDeviceWebSocket = getInboundDeviceWebSocket;

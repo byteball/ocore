@@ -793,7 +793,6 @@ CREATE TABLE correspondent_settings (
 	PRIMARY KEY (device_address, correspondent_address)
 );
 
-
 -- Autonomous agents
 
 CREATE TABLE aa_addresses (
@@ -866,4 +865,70 @@ CREATE TABLE unprocessed_addresses (
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-PRAGMA user_version=40;
+-- arbiter contracts
+
+CREATE TABLE IF NOT EXISTS arbiter_locations (
+	arbiter_address CHAR(32) NOT NULL PRIMARY KEY,
+	arbstore_address CHAR(32) NOT NULL,
+	unit CHAR(44) NULL
+);
+
+CREATE TABLE IF NOT EXISTS wallet_arbiters (
+	arbiter_address CHAR(32) NOT NULL PRIMARY KEY,
+	real_name VARCHAR(250) NULL,
+	device_pub_key VARCHAR(44) NULL
+);
+
+CREATE TABLE IF NOT EXISTS wallet_arbiter_contracts (
+	hash CHAR(44) NOT NULL PRIMARY KEY,
+	peer_address CHAR(32) NOT NULL,
+	peer_device_address CHAR(33) NOT NULL,
+	my_address  CHAR(32) NOT NULL,
+	arbiter_address CHAR(32) NOT NULL,
+	me_is_payer TINYINT NOT NULL,
+	amount BIGINT NULL,
+	asset CHAR(44) NULL,
+	is_incoming TINYINT NOT NULL,
+	me_is_cosigner TINYINT NULL,
+	creation_date TIMESTAMP NOT NULL,
+	ttl INT NOT NULL DEFAULT 168, -- 168 hours = 24 * 7 = 1 week \n\
+	status VARCHAR(40) CHECK (status IN('pending', 'revoked', 'accepted', 'signed', 'declined', 'paid', 'in_dispute', 'dispute_resolved', 'in_appeal', 'appeal_approved', 'appeal_declined', 'cancelled', 'completed')) NOT NULL DEFAULT 'pending',
+	title VARCHAR(1000) NOT NULL,
+	text TEXT NOT NULL,
+	my_contact_info TEXT NULL,
+	peer_contact_info TEXT NULL,
+	peer_pairing_code VARCHAR(200) NULL,
+	shared_address CHAR(32) NULL UNIQUE,
+	unit CHAR(44) NULL,
+	cosigners VARCHAR(1500),
+	resolution_unit CHAR(44) NULL,
+	arbstore_address  CHAR(32) NULL,
+	arbstore_device_address  CHAR(33) NULL,
+	FOREIGN KEY (my_address) REFERENCES my_addresses(address)
+);
+CREATE INDEX wacStatus ON wallet_arbiter_contracts(status);
+CREATE INDEX wacArbiterAddress ON wallet_arbiter_contracts(arbiter_address);
+CREATE INDEX wacPeerAddress ON wallet_arbiter_contracts(peer_address);
+
+CREATE TABLE IF NOT EXISTS arbiter_disputes (
+	contract_hash CHAR(44) NOT NULL PRIMARY KEY,
+	plaintiff_address CHAR(32) NOT NULL,
+	respondent_address CHAR(32) NOT NULL,
+	plaintiff_is_payer TINYINT(1) NOT NULL,
+	plaintiff_pairing_code VARCHAR(200) NOT NULL,
+	respondent_pairing_code VARCHAR(200) NOT NULL,
+	contract_content TEXT NOT NULL,
+	contract_unit CHAR(44) NOT NULL,
+	amount BIGINT NOT NULL,
+	asset CHAR(44) NULL,
+	arbiter_address CHAR(32) NOT NULL,
+	service_fee_asset CHAR(44) NULL,
+	arbstore_device_address CHAR(33) NOT NULL,
+	status VARCHAR(40) CHECK (status IN('pending', 'resolved')) NOT NULL DEFAULT 'pending',
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	plaintiff_contact_info TEXT NULL,
+	respondent_contact_info TEXT NULL,
+	FOREIGN KEY (arbstore_device_address) REFERENCES correspondent_devices(device_address)
+);
+
+PRAGMA user_version=43;

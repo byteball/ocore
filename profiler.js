@@ -1,5 +1,17 @@
 /*jslint node: true */
 "use strict";
+
+exports.start = function () { };
+exports.stop = function(){};
+exports.start_sl1 = function(){};
+exports.stop_sl1 = function(){};
+exports.increment = function(){};
+exports.isStarted = function () { };
+exports.print = function(){};
+exports.mark_start = function(){};
+exports.mark_end = function(){};
+exports.add_result = function(){};
+
 if (typeof window === 'object' && window.cordova)
 	return;
 var fs = require("fs");
@@ -235,13 +247,6 @@ if (bOn){
 	exports.stop_sl1 = stop_sl1;
 	exports.increment = increment;
 	exports.isStarted = isStarted;
-} else {
-	exports.start = function(){};
-	exports.stop = function(){};
-	exports.start_sl1 = function(){};
-	exports.stop_sl1 = function(){};
-	exports.increment = function(){};
-	exports.isStarted = function(){};
 }
 
 exports.print = print_on_log;

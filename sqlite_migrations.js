@@ -4,7 +4,7 @@ var eventBus = require('./event_bus.js');
 var constants = require("./constants.js");
 var conf = require("./conf.js");
 
-var VERSION = 42;
+var VERSION = 43;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -408,12 +408,88 @@ function migrateDb(connection, onDone){
 				}
 				if (version < 41)
 					connection.addQuery(arrQueries, "DELETE FROM known_bad_joints");
-
-				if (version < 42 && conf.bLight){
+				if (version < 42 && conf.bLight) {
 					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS unprocessed_addresses (\n\
 						address CHAR(32) NOT NULL PRIMARY KEY,\n\
 						creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP\n\
 					);");
+				}
+				if (version < 43) {
+					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS arbiter_locations ( \n\
+						arbiter_address CHAR(32) NOT NULL PRIMARY KEY, \n\
+						arbstore_address CHAR(32) NOT NULL, \n\
+						unit CHAR(44) NULL \n\
+					);");
+					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS wallet_arbiters ( \n\
+						arbiter_address CHAR(32) NOT NULL PRIMARY KEY, \n\
+						real_name VARCHAR(250) NULL, \n\
+						device_pub_key VARCHAR(44) NULL \n\
+					);");
+					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS wallet_arbiter_contracts ( \n\
+						hash CHAR(44) NOT NULL PRIMARY KEY, \n\
+						peer_address CHAR(32) NOT NULL, \n\
+						peer_device_address CHAR(33) NOT NULL, \n\
+						my_address  CHAR(32) NOT NULL, \n\
+						arbiter_address CHAR(32) NOT NULL, \n\
+						me_is_payer TINYINT NOT NULL, \n\
+						amount BIGINT NULL, \n\
+						asset CHAR(44) NULL, \n\
+						is_incoming TINYINT NOT NULL, \n\
+						me_is_cosigner TINYINT NULL, \n\
+						creation_date TIMESTAMP NOT NULL, \n\
+						ttl INT NOT NULL DEFAULT 168, -- 168 hours = 24 * 7 = 1 week \n\
+						status VARCHAR CHECK (status IN('pending', 'revoked', 'accepted', 'signed', 'declined', 'paid', 'in_dispute', 'dispute_resolved', 'in_appeal', 'appeal_approved', 'appeal_declined', 'cancelled', 'completed')) NOT NULL DEFAULT 'pending', \n\
+						title VARCHAR(1000) NOT NULL, \n\
+						text TEXT NOT NULL, \n\
+						my_contact_info TEXT NULL, \n\
+						peer_contact_info TEXT NULL, \n\
+						peer_pairing_code VARCHAR(200) NULL, \n\
+						shared_address CHAR(32) NULL UNIQUE, \n\
+						unit CHAR(44) NULL, \n\
+						cosigners VARCHAR(1500), \n\
+						resolution_unit CHAR(44) NULL, \n\
+						arbstore_address  CHAR(32) NULL, \n\
+						arbstore_device_address  CHAR(33) NULL, \n\
+						FOREIGN KEY (my_address) REFERENCES my_addresses(address) \n\
+					)");
+					connection.addQuery(arrQueries, "CREATE INDEX wacStatus ON wallet_arbiter_contracts(status)");
+					connection.addQuery(arrQueries, "CREATE INDEX wacArbiterAddress ON wallet_arbiter_contracts(arbiter_address)");
+					connection.addQuery(arrQueries, "CREATE INDEX wacPeerAddress ON wallet_arbiter_contracts(peer_address)");
+
+					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS arbiter_disputes (\n\
+						contract_hash CHAR(44) NOT NULL PRIMARY KEY,\n\
+						plaintiff_address CHAR(32) NOT NULL,\n\
+						respondent_address CHAR(32) NOT NULL,\n\
+						plaintiff_is_payer TINYINT(1) NOT NULL,\n\
+						plaintiff_pairing_code VARCHAR(200) NOT NULL,\n\
+						respondent_pairing_code VARCHAR(200) NOT NULL,\n\
+						contract_content TEXT NOT NULL,\n\
+						contract_unit CHAR(44) NOT NULL,\n\
+						amount BIGINT NOT NULL,\n\
+						asset CHAR(44) NULL,\n\
+						arbiter_address CHAR(32) NOT NULL,\n\
+						service_fee_asset CHAR(44) NULL,\n\
+						arbstore_device_address CHAR(33) NOT NULL,\n\
+						status VARCHAR(40) CHECK (status IN('pending', 'resolved')) NOT NULL DEFAULT 'pending',\n\
+						creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,\n\
+						plaintiff_contact_info TEXT NULL,\n\
+						respondent_contact_info TEXT NULL,\n\
+						FOREIGN KEY (arbstore_device_address) REFERENCES correspondent_devices(device_address)\n\
+					)");
+
+					connection.addQuery(arrQueries, "DROP TABLE IF EXISTS asset_metadata");
+					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS asset_metadata ( \n\
+						asset CHAR(44) NOT NULL PRIMARY KEY, \n\
+						metadata_unit CHAR(44) NOT NULL, \n\
+						registry_address CHAR(32) NULL, \n\
+						suffix VARCHAR(20) NULL, \n\
+						name VARCHAR(20) NULL, \n\
+						decimals TINYINT NULL, \n\
+						creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, \n\
+						UNIQUE (name, registry_address), \n\
+						FOREIGN KEY (asset) REFERENCES assets(unit), \n\
+						FOREIGN KEY (metadata_unit) REFERENCES units(unit) \n\
+					)");
 				}
 				cb();
 			},

@@ -4,8 +4,8 @@ var _ = require('lodash');
 var constants = require('./constants.js');
 var db = require('./db');
 
-function readBalance(wallet, handleBalance){
-	var walletIsAddress = typeof wallet === 'string' && wallet.length === 32; // ValidationUtils.isValidAddress
+function readBalance(walletOrAddress, handleBalance){
+	var walletIsAddress = typeof walletOrAddress === 'string' && walletOrAddress.length === 32; // ValidationUtils.isValidAddress
 	var join_my_addresses = walletIsAddress ? "" : "JOIN my_addresses USING(address)";
 	var where_condition = walletIsAddress ? "address=?" : "wallet=?";
 	var assocBalances = {base: {stable: 0, pending: 0}};
@@ -15,7 +15,7 @@ function readBalance(wallet, handleBalance){
 		FROM outputs "+join_my_addresses+" CROSS JOIN units USING(unit) \n\
 		WHERE is_spent=0 AND "+where_condition+" AND sequence='good' \n\
 		GROUP BY asset, is_stable",
-		[wallet],
+		[walletOrAddress],
 		function(rows){
 			for (var i=0; i<rows.length; i++){
 				var row = rows[i];
@@ -31,7 +31,7 @@ function readBalance(wallet, handleBalance){
 				SELECT SUM(amount) AS total FROM "+my_addresses_join+" witnessing_outputs "+using+" WHERE is_spent=0 AND "+where_condition+" \n\
 				UNION ALL \n\
 				SELECT SUM(amount) AS total FROM "+my_addresses_join+" headers_commission_outputs "+using+" WHERE is_spent=0 AND "+where_condition+" ) AS t",
-				[wallet,wallet],
+				[walletOrAddress,walletOrAddress],
 				function(rows) {
 					if(rows.length){
 						assocBalances["base"]["stable"] += rows[0].total;
@@ -43,7 +43,7 @@ function readBalance(wallet, handleBalance){
 						CROSS JOIN units USING(unit) \n\
 						LEFT JOIN assets ON outputs.asset=assets.unit \n\
 						WHERE "+where_condition+" AND sequence='good'",
-						[wallet],
+						[walletOrAddress],
 						function(rows){
 							for (var i=0; i<rows.length; i++){
 								var row = rows[i];
