@@ -533,7 +533,8 @@ function pay(hash, walletInstance, arrSigningDeviceAddresses, cb) {
 		var opts = {
 			asset: objContract.asset,
 			to_address: objContract.shared_address,
-			amount: objContract.amount
+			amount: objContract.amount,
+			spend_unconfirmed: walletInstance.spendUnconfirmed ? 'all' : 'own',
 		};
 		if (arrSigningDeviceAddresses.length)
 			opts.arrSigningDeviceAddresses = arrSigningDeviceAddresses;
