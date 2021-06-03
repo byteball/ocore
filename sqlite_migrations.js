@@ -476,7 +476,6 @@ function migrateDb(connection, onDone){
 						respondent_contact_info TEXT NULL,\n\
 						FOREIGN KEY (arbstore_device_address) REFERENCES correspondent_devices(device_address)\n\
 					)");
-
 					connection.addQuery(arrQueries, "DROP TABLE IF EXISTS asset_metadata");
 					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS asset_metadata ( \n\
 						asset CHAR(44) NOT NULL PRIMARY KEY, \n\
