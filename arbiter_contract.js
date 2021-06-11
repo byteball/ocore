@@ -767,6 +767,7 @@ exports.createAndSend = createAndSend;
 exports.getByHash = getByHash;
 exports.getBySharedAddress = getBySharedAddress;
 exports.respond = respond;
+exports.revoke = revoke;
 exports.getAllByStatus = getAllByStatus;
 exports.setField = setField;
 exports.store = store;
