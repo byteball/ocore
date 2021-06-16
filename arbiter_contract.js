@@ -17,6 +17,7 @@ var status_PENDING = "pending";
 exports.CHARGE_AMOUNT = 4000;
 
 function createAndSend(objContract, cb) {
+	objContract = _.cloneDeep(objContract);
 	objContract.creation_date = new Date().toISOString().slice(0, 19).replace('T', ' ');
 	objContract.hash = getHash(objContract);
 	device.getOrGeneratePermanentPairingInfo(pairingInfo => {
@@ -528,7 +529,7 @@ function isAssetPrivate(asset, cb) {
 
 function pay(hash, walletInstance, arrSigningDeviceAddresses, cb) {
 	getByHash(hash, function(objContract) {
-		if (!objContract.shared_address || objContract.status !== "signed")
+		if (!objContract.shared_address || objContract.status !== "signed" || !objContract.me_is_payer)
 			return cb("contract can't be paid");
 		var opts = {
 			asset: objContract.asset,
