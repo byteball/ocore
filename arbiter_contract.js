@@ -363,7 +363,7 @@ function insertDispute(objDispute, cb) {
 					plaintiff_contact_info,respondent_contact_info)\n\
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [objDispute.contract_hash,objDispute.my_address,objDispute.peer_address,objDispute.me_is_payer,
 			objDispute.my_pairing_code,objDispute.peer_pairing_code,JSON.stringify(objDispute.contract_content),objDispute.unit,objDispute.amount,objDispute.asset,objDispute.arbiter_address,
-			objDispute.service_fee_asset,objDispute.arbstore_device_address,objDispute.plaintiff_contact_info,objDispute.respondent_contact_info], function(res) {
+			objDispute.service_fee_asset,objDispute.arbstore_device_address,objDispute.my_contact_info,objDispute.peer_contact_info], function(res) {
 				cb(res);
 		}
 	);
