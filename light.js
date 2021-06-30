@@ -252,8 +252,11 @@ function processHistory(objResponse, arrWitnesses, callbacks){
 				breadcrumbs.add('got light_joints for processHistory '+arrUnits.join(', '));
 				db.query("SELECT unit, is_stable FROM units WHERE unit IN("+arrUnits.map(db.escape).join(', ')+")", function(rows){
 					var assocExistingUnits = {};
+					var assocStableUnits = {};
 					rows.forEach(function(row){
 						assocExistingUnits[row.unit] = true;
+						if (row.is_stable)
+							assocStableUnits[row.unit] = true;
 					});
 					var arrNewUnits = [];
 					var arrProvenUnits = [];
@@ -279,6 +282,10 @@ function processHistory(objResponse, arrWitnesses, callbacks){
 						function(objJoint, cb2){
 							var objUnit = objJoint.unit;
 							var unit = objUnit.unit;
+							if (assocStableUnits[unit]) { // already processed before, don't emit stability again
+								console.log('skipping known unit ' + unit);
+								return cb2();
+							}
 							// assocProvenUnitsNonserialness[unit] is true for non-serials, false for serials, undefined for unstable
 							var sequence = assocProvenUnitsNonserialness[unit] ? 'final-bad' : 'good';
 							if (assocProvenUnitsNonserialness.hasOwnProperty(unit))
