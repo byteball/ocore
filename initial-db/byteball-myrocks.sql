@@ -1,10 +1,10 @@
 CREATE TABLE units (
-	unit CHAR(44) BINARY NOT NULL PRIMARY KEY, -- sha256 in base64
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL PRIMARY KEY, -- sha256 in base64
 	creation_date timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	version VARCHAR(10) NOT NULL DEFAULT '1.0',
 	alt VARCHAR(3) NOT NULL DEFAULT '1',
-	witness_list_unit CHAR(44) BINARY NULL,
-	last_ball_unit CHAR(44) BINARY NULL,
+	witness_list_unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NULL,
+	last_ball_unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NULL,
 	timestamp INT NOT NULL DEFAULT 0,
 	content_hash CHAR(44) NULL,
 	headers_commission INT NOT NULL,
@@ -17,7 +17,7 @@ CREATE TABLE units (
 	witnessed_level INT NULL,
 	is_stable TINYINT NOT NULL DEFAULT 0,
 	sequence ENUM('good','temp-bad','final-bad') NOT NULL DEFAULT 'good',
-	best_parent_unit CHAR(44) BINARY NULL,
+	best_parent_unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NULL,
 	KEY byMainChain(is_on_main_chain),
 	KEY byMcIndex(main_chain_index),
 	KEY byLimci(latest_included_mc_index),
@@ -31,9 +31,9 @@ CREATE TABLE units (
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE balls (
-	ball CHAR(44) BINARY NOT NULL PRIMARY KEY, -- sha256 in base64
+	ball CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL PRIMARY KEY, -- sha256 in base64
 	creation_date timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	unit CHAR(44) BINARY NOT NULL UNIQUE, -- sha256 in base64
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL UNIQUE, -- sha256 in base64
 	-- count_witnesses TINYINT NOT NULL DEFAULT 0,
 	count_paid_witnesses TINYINT NULL,
 	KEY byCountPaidWitnesses(count_paid_witnesses),
@@ -41,8 +41,8 @@ CREATE TABLE balls (
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE skiplist_units (
-	unit CHAR(44) BINARY NOT NULL,
-	skiplist_unit CHAR(44) BINARY NOT NULL, -- only for MC units with MCI divisible by 10: previous MC units divisible by 10
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
+	skiplist_unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL, -- only for MC units with MCI divisible by 10: previous MC units divisible by 10
 	PRIMARY KEY (unit, skiplist_unit),
 	KEY (skiplist_unit)
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
@@ -52,8 +52,8 @@ CREATE TABLE skiplist_units (
 
 -- must be sorted by parent_unit
 CREATE TABLE parenthoods (
-	child_unit CHAR(44) BINARY NOT NULL,
-	parent_unit CHAR(44) BINARY NOT NULL,
+	child_unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
+	parent_unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	PRIMARY KEY (parent_unit, child_unit),
 	KEY (child_unit)
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
@@ -76,7 +76,7 @@ CREATE TABLE addresses (
 
 -- must be sorted by address
 CREATE TABLE unit_authors (
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	address CHAR(32) BINARY NOT NULL,
 	definition_chash CHAR(32) BINARY NULL, -- only with 1st ball from this address, and with next ball after definition change
 	_mci INT NULL,
@@ -87,7 +87,7 @@ CREATE TABLE unit_authors (
 
 
 CREATE TABLE authentifiers (
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	address CHAR(32) BINARY NOT NULL,
 	path VARCHAR(40) BINARY NOT NULL,
 	authentifier VARCHAR(4096) BINARY NOT NULL,
@@ -97,15 +97,15 @@ CREATE TABLE authentifiers (
 
 -- must be sorted by address
 CREATE TABLE unit_witnesses (
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	address CHAR(32) BINARY NOT NULL,
 	PRIMARY KEY (unit, address),
 	KEY byAddress(address) -- no foreign key as the address might not be used yet
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE witness_list_hashes (
-	witness_list_unit CHAR(44) BINARY NOT NULL PRIMARY KEY,
-	witness_list_hash CHAR(44) BINARY NOT NULL UNIQUE,
+	witness_list_unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL PRIMARY KEY,
+	witness_list_hash CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL UNIQUE,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
@@ -114,7 +114,7 @@ CREATE TABLE witness_list_hashes (
 -- required if more than one author
 -- if one author, all commission goes to the author by default
 CREATE TABLE earned_headers_commission_recipients (
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	address CHAR(32) BINARY NOT NULL,
 	earned_headers_commission_share INT NOT NULL, -- percentage
 	PRIMARY KEY (unit, address),
@@ -123,23 +123,23 @@ CREATE TABLE earned_headers_commission_recipients (
 
 
 CREATE TABLE messages (
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	message_index TINYINT NOT NULL,
 	app VARCHAR(30) BINARY NOT NULL,
 	payload_location ENUM('inline','uri','none') NOT NULL,
-	payload_hash CHAR(44) BINARY NOT NULL,
+	payload_hash CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	payload LONGTEXT NULL,
-	payload_uri_hash CHAR(44) BINARY NULL,
+	payload_uri_hash CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NULL,
 	payload_uri VARCHAR(500) BINARY NULL,
 	PRIMARY KEY (unit, message_index)
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 -- must be sorted by spend_proof
 CREATE TABLE spend_proofs (
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	message_index TINYINT NOT NULL,
 	spend_proof_index TINYINT NOT NULL,
-	spend_proof CHAR(44) BINARY NOT NULL,
+	spend_proof CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	address CHAR(32) BINARY NOT NULL,
 	PRIMARY KEY (unit, message_index, spend_proof_index),
 	UNIQUE KEY bySpendProof(spend_proof, unit),
@@ -152,7 +152,7 @@ CREATE TABLE spend_proofs (
 
 
 CREATE TABLE address_definition_changes (
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	message_index TINYINT NOT NULL,
 	address CHAR(32) BINARY NOT NULL,
 	definition_chash CHAR(32) BINARY NOT NULL, -- might not be defined in definitions yet (almost always, it is not defined)
@@ -162,11 +162,11 @@ CREATE TABLE address_definition_changes (
 
 
 CREATE TABLE data_feeds (
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	message_index TINYINT NOT NULL,
-	feed_name VARCHAR(64) BINARY NOT NULL,
+	feed_name VARCHAR(256) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
 	-- type ENUM('string', 'number') NOT NULL,
-	`value` VARCHAR(64) BINARY NULL,
+	`value` VARCHAR(256) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL,
 	`int_value` BIGINT NULL,
 	PRIMARY KEY (unit, feed_name),
 	KEY byNameStringValue(feed_name, `value`),
@@ -174,35 +174,35 @@ CREATE TABLE data_feeds (
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE polls (
-	unit CHAR(44) BINARY NOT NULL PRIMARY KEY,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL PRIMARY KEY,
 	message_index TINYINT NOT NULL,
 	question VARCHAR(4096) BINARY NOT NULL
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE poll_choices (
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	choice_index TINYINT NOT NULL,
-	choice VARCHAR(64) BINARY NOT NULL,
+	choice VARCHAR(256) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
 	PRIMARY KEY (unit, choice_index),
 	UNIQUE KEY (unit, choice)
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE votes (
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	message_index TINYINT NOT NULL,
-	poll_unit CHAR(44) BINARY NOT NULL,
-	choice VARCHAR(64) BINARY NOT NULL,
+	poll_unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
+	choice VARCHAR(256) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
 	PRIMARY KEY (unit, message_index),
 	UNIQUE KEY (unit, choice),
 	KEY (poll_unit, choice)
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE attestations (
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	message_index TINYINT NOT NULL,
 	attestor_address CHAR(32) BINARY NOT NULL,
 	address CHAR(32) BINARY NOT NULL,
-	-- name VARCHAR(44) BINARY NOT NULL,
+	-- name VARCHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	PRIMARY KEY (unit, message_index),
 	KEY byAddress(address),
 	KEY (attestor_address)
@@ -210,7 +210,7 @@ CREATE TABLE attestations (
 
 
 CREATE TABLE assets (
-	unit CHAR(44) BINARY NOT NULL PRIMARY KEY,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL PRIMARY KEY,
 	message_index TINYINT NOT NULL,
 	cap BIGINT NULL,
 	is_private TINYINT NOT NULL,
@@ -225,7 +225,7 @@ CREATE TABLE assets (
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE asset_denominations (
-	asset CHAR(44) BINARY NOT NULL,
+	asset CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	denomination INT NOT NULL,
 	count_coins BIGINT NULL,
 	max_issued_serial_number BIGINT NOT NULL DEFAULT 0,
@@ -233,9 +233,9 @@ CREATE TABLE asset_denominations (
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE asset_attestors (
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	message_index TINYINT NOT NULL,
-	asset CHAR(44) BINARY NOT NULL, -- in the initial attestor list: same as unit
+	asset CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL, -- in the initial attestor list: same as unit
 	attestor_address CHAR(32) BINARY NOT NULL,
 	PRIMARY KEY (unit, message_index, attestor_address),
 	UNIQUE KEY byAssetAttestorUnit(asset, attestor_address, unit)
@@ -246,14 +246,14 @@ CREATE TABLE asset_attestors (
 -- Payments
 
 CREATE TABLE inputs (
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	message_index TINYINT NOT NULL,
 	input_index TINYINT NOT NULL,
-	asset CHAR(44) BINARY NULL,
+	asset CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NULL,
 	denomination INT NOT NULL DEFAULT 1,
 	is_unique TINYINT NULL DEFAULT 1,
 	type ENUM('transfer','headers_commission','witnessing','issue') NOT NULL,
-	src_unit CHAR(44) BINARY NULL, -- transfer
+	src_unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NULL, -- transfer
 	src_message_index TINYINT NULL, -- transfer
 	src_output_index TINYINT NULL, -- transfer
 	from_main_chain_index INT NULL, -- witnessing/hc
@@ -274,15 +274,15 @@ CREATE TABLE inputs (
 
 CREATE TABLE outputs (
 	output_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	message_index TINYINT NOT NULL,
 	output_index TINYINT NOT NULL,
-	asset CHAR(44) BINARY NULL,
+	asset CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NULL,
 	denomination INT NOT NULL DEFAULT 1,
 	address CHAR(32) BINARY NULL, -- NULL if hidden by output_hash
 	amount BIGINT NOT NULL,
 	blinding CHAR(16) BINARY NULL,
-	output_hash CHAR(44) BINARY NULL,
+	output_hash CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NULL,
 	is_serial TINYINT NULL, -- NULL if not stable yet
 	is_spent TINYINT NOT NULL DEFAULT 0,
 	UNIQUE KEY (unit, message_index, output_index),
@@ -296,7 +296,7 @@ CREATE TABLE outputs (
 
 -- updated immediately after main chain is updated
 CREATE TABLE headers_commission_contributions (
-	unit CHAR(44) BINARY NOT NULL, -- parent unit that pays commission
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL, -- parent unit that pays commission
 	address CHAR(32) BINARY NOT NULL, -- address of the commission receiver: author of child unit or address named in earned_headers_commission_recipients
 	amount BIGINT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -317,9 +317,9 @@ CREATE TABLE headers_commission_outputs (
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE paid_witness_events (
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	address CHAR(32) BINARY NOT NULL, -- witness address
-	-- witnessed_in_ball CHAR(44) BINARY NOT NULL, -- if expired, MC ball next after expiry. Or NULL?
+	-- witnessed_in_ball CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL, -- if expired, MC ball next after expiry. Or NULL?
 	delay TINYINT NULL, -- NULL if expired
 	PRIMARY KEY (unit, address),
 	KEY (address)
@@ -343,22 +343,22 @@ CREATE TABLE witnessing_outputs (
 -- Networking
 
 CREATE TABLE dependencies (
-	unit CHAR(44) BINARY NOT NULL,
-	depends_on_unit CHAR(44) BINARY NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
+	depends_on_unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	UNIQUE KEY (depends_on_unit, unit),
 	KEY byUnit(unit)
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE unhandled_joints (
-	unit CHAR(44) BINARY NOT NULL PRIMARY KEY,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL PRIMARY KEY,
 	peer VARCHAR(100) BINARY NOT NULL,
 	json LONGTEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE archived_joints (
-	unit CHAR(44) BINARY NOT NULL PRIMARY KEY,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL PRIMARY KEY,
 	reason ENUM('uncovered', 'voided') NOT NULL,
 	-- is_retrievable TINYINT NOT NULL,
 	json LONGTEXT NOT NULL,
@@ -367,21 +367,21 @@ CREATE TABLE archived_joints (
 
 
 CREATE TABLE known_bad_joints (
-	joint CHAR(44) BINARY NULL UNIQUE,
-	unit CHAR(44) BINARY NULL UNIQUE,
+	joint CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NULL UNIQUE,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NULL UNIQUE,
 	json LONGTEXT NOT NULL,
 	error LONGTEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE joints (
-	unit CHAR(44) BINARY NOT NULL PRIMARY KEY,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL PRIMARY KEY,
 	json LONGTEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE unhandled_private_payments (
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	message_index TINYINT NOT NULL,
 	output_index TINYINT NOT NULL,
 	json LONGTEXT NOT NULL,
@@ -396,13 +396,13 @@ CREATE TABLE unhandled_private_payments (
 
 CREATE TABLE hash_tree_balls (
 	ball_index INT NOT NULL PRIMARY KEY AUTO_INCREMENT, -- in increasing level order
-	ball CHAR(44) BINARY NOT NULL UNIQUE,
-	unit CHAR(44) BINARY NOT NULL UNIQUE
+	ball CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL UNIQUE,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL UNIQUE
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE catchup_chain_balls (
 	member_index INT NOT NULL PRIMARY KEY AUTO_INCREMENT, -- in increasing level order
-	ball CHAR(44) BINARY NOT NULL UNIQUE
+	ball CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL UNIQUE
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 
@@ -458,7 +458,7 @@ CREATE TABLE peer_host_urls (
 
 -- wallets composed of BIP44 keys, the keys live on different devices, each device knows each other's extended public key
 CREATE TABLE wallets (
-	wallet CHAR(44) BINARY NOT NULL PRIMARY KEY,
+	wallet CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL PRIMARY KEY,
 	account INT NOT NULL,
 	definition_template LONGTEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -470,7 +470,7 @@ CREATE TABLE wallets (
 -- derivation path is m/44'/0'/account'/is_change/address_index
 CREATE TABLE my_addresses (
 	address CHAR(32) BINARY NOT NULL PRIMARY KEY,
-	wallet CHAR(44) BINARY NOT NULL,
+	wallet CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	is_change TINYINT NOT NULL,
 	address_index INT NOT NULL,
 	definition LONGTEXT NOT NULL,
@@ -488,13 +488,13 @@ CREATE TABLE my_witnesses (
 
 CREATE TABLE devices (
 	device_address CHAR(33) BINARY NOT NULL PRIMARY KEY,
-	pubkey CHAR(44) BINARY NOT NULL,
+	pubkey CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	temp_pubkey_package LONGTEXT NULL, -- temporary pubkey signed by the permanent pubkey
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE device_messages (
-	message_hash CHAR(44) BINARY NOT NULL PRIMARY KEY,
+	message_hash CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL PRIMARY KEY,
 	device_address CHAR(33) BINARY NOT NULL, -- the device this message is addressed to
 	message LONGTEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -508,7 +508,7 @@ CREATE TABLE device_messages (
 CREATE TABLE correspondent_devices (
 	device_address CHAR(33) BINARY NOT NULL PRIMARY KEY,
 	name VARCHAR(100) BINARY NOT NULL,
-	pubkey CHAR(44) BINARY NOT NULL,
+	pubkey CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	hub VARCHAR(100) BINARY NOT NULL, -- domain name of the hub this address is subscribed to
 	is_confirmed TINYINT NOT NULL DEFAULT 0,
 	is_indirect TINYINT NOT NULL DEFAULT 0,
@@ -524,7 +524,7 @@ CREATE TABLE pairing_secrets (
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE extended_pubkeys (
-	wallet CHAR(44) BINARY NOT NULL, -- no FK because xpubkey may arrive earlier than the wallet is approved by the user and written to the db
+	wallet CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL, -- no FK because xpubkey may arrive earlier than the wallet is approved by the user and written to the db
 	extended_pubkey CHAR(112) BINARY NULL, -- base58 encoded, see bip32, NULL while pending
 	device_address CHAR(33) BINARY NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -536,8 +536,8 @@ CREATE TABLE extended_pubkeys (
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE wallet_signing_paths (
-	wallet CHAR(44) BINARY NOT NULL, -- no FK because xpubkey may arrive earlier than the wallet is approved by the user and written to the db
-	signing_path VARCHAR(255) BINARY CHARACTER SET latin1 COLLATE latin1_general_cs NULL, -- NULL if xpubkey arrived earlier than the wallet was approved by the user
+	wallet CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL, -- no FK because xpubkey may arrive earlier than the wallet is approved by the user and written to the db
+	signing_path VARCHAR(255) CHARACTER SET latin1 COLLATE latin1_bin NULL, -- NULL if xpubkey arrived earlier than the wallet was approved by the user
 	device_address CHAR(33) BINARY NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	UNIQUE KEY byWalletSigningPath(wallet, signing_path)
@@ -567,7 +567,7 @@ CREATE TABLE pending_shared_addresses (
 CREATE TABLE pending_shared_address_signing_paths (
 	definition_template_chash CHAR(32) BINARY NOT NULL,
 	device_address CHAR(33) BINARY NOT NULL,
-	signing_path VARCHAR(255) BINARY CHARACTER SET latin1 COLLATE latin1_general_cs NOT NULL, -- path from root to member address
+	signing_path VARCHAR(255) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL, -- path from root to member address
 	address CHAR(32) BINARY NULL, -- member address
 	device_addresses_by_relative_signing_paths LONGTEXT NULL, -- json
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -579,9 +579,9 @@ CREATE TABLE pending_shared_address_signing_paths (
 
 CREATE TABLE shared_address_signing_paths (
 	shared_address CHAR(32) BINARY NOT NULL,
-	signing_path VARCHAR(255) BINARY CHARACTER SET latin1 COLLATE latin1_general_cs NULL, -- full path to signing key which is a member of the member address
+	signing_path VARCHAR(255) CHARACTER SET latin1 COLLATE latin1_bin NULL, -- full path to signing key which is a member of the member address
 	address CHAR(32) BINARY NOT NULL, -- member address
-	member_signing_path VARCHAR(255) BINARY CHARACTER SET latin1 COLLATE latin1_general_cs NULL, -- path to signing key from root of the member address
+	member_signing_path VARCHAR(255) CHARACTER SET latin1 COLLATE latin1_bin NULL, -- path to signing key from root of the member address
 	device_address CHAR(33) BINARY NOT NULL, -- where this signing key lives or is reachable through
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	UNIQUE KEY bySharedAddressSigningPath(shared_address, signing_path)
@@ -591,7 +591,7 @@ CREATE TABLE shared_address_signing_paths (
 CREATE INDEX sharedAddressSigningPathsByDeviceAddress ON shared_address_signing_paths(device_address);
 
 CREATE TABLE outbox (
-	message_hash CHAR(44) BINARY NOT NULL PRIMARY KEY,
+	message_hash CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL PRIMARY KEY,
 	`to` CHAR(33) BINARY NOT NULL, -- the device this message is addressed to, no FK because of pairing case
 	message LONGTEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -636,7 +636,7 @@ ALTER TABLE correspondent_devices ADD COLUMN peer_record_pref INTEGER DEFAULT 1;
 
 CREATE TABLE watched_light_units (
 	peer VARCHAR(100) BINARY NOT NULL,
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (peer, unit)
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
@@ -644,15 +644,15 @@ CREATE INDEX wlabyUnit ON watched_light_units(unit);
 
 CREATE TABLE bots (
 	id INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,
-	rank INTEGER NOT NULL DEFAULT 0,
-	name VARCHAR(100) BINARY NOT NULL UNIQUE,
-	pairing_code VARCHAR(200) BINARY CHARACTER SET latin1 COLLATE latin1_general_cs NOT NULL,
+	`rank` INTEGER NOT NULL DEFAULT 0,
+	name VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL UNIQUE,
+	pairing_code VARCHAR(200) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	description LONGTEXT NOT NULL
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE asset_metadata (
-	asset CHAR(44) BINARY NOT NULL PRIMARY KEY,
-	metadata_unit CHAR(44) BINARY NOT NULL,
+	asset CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL PRIMARY KEY,
+	metadata_unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	registry_address CHAR(32) BINARY NULL,
 	suffix VARCHAR(20) BINARY NULL, -- added only if the same name is registered by different registries for different assets, equal to registry name
 	name VARCHAR(20) BINARY NULL,
@@ -664,7 +664,7 @@ CREATE TABLE asset_metadata (
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE sent_mnemonics (
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	address CHAR(32) BINARY NOT NULL,
 	mnemonic VARCHAR(107) BINARY NOT NULL,
 	textAddress VARCHAR(120) BINARY NOT NULL,
@@ -675,8 +675,8 @@ CREATE INDEX sentByAddress ON sent_mnemonics(address);
 
 CREATE TABLE private_profiles (
 	private_profile_id INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,
-	unit CHAR(44) BINARY NOT NULL,
-	payload_hash CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
+	payload_hash CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	attestor_address CHAR(32) BINARY NOT NULL,
 	address CHAR(32) BINARY NOT NULL,
 	src_profile LONGTEXT NOT NULL,
@@ -697,7 +697,7 @@ CREATE INDEX ppfByField ON private_profile_fields(`field`);
 
 
 CREATE TABLE attested_fields (
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	message_index TINYINT NOT NULL,
 	attestor_address CHAR(32) BINARY NOT NULL,
 	address CHAR(32) BINARY NOT NULL,
@@ -712,7 +712,7 @@ CREATE INDEX attestedFieldsByAddressField ON attested_fields(address, `field`);
 
 -- user enters an email address (it is original address) and it is translated to BB address
 CREATE TABLE original_addresses (
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	address CHAR(32) BINARY NOT NULL,
 	original_address VARCHAR(100) BINARY NOT NULL, -- email
 	PRIMARY KEY (unit, address)
@@ -797,9 +797,9 @@ CREATE TABLE aa_responses (
 	mci INT NOT NULL, -- mci of the trigger unit
 	trigger_address CHAR(32) NOT NULL, -- trigger address
 	aa_address CHAR(32) NOT NULL,
-	trigger_unit CHAR(44) BINARY NOT NULL,
+	trigger_unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	bounced TINYINT NOT NULL,
-	response_unit CHAR(44) BINARY NULL UNIQUE,
+	response_unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NULL UNIQUE,
 	response TEXT NULL, -- json
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	UNIQUE (trigger_unit, aa_address)

@@ -1,10 +1,10 @@
 CREATE TABLE units (
-	unit CHAR(44) BINARY NOT NULL PRIMARY KEY, -- sha256 in base64
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL PRIMARY KEY, -- sha256 in base64
 	creation_date timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	version VARCHAR(10) NOT NULL DEFAULT '1.0',
 	alt VARCHAR(3) NOT NULL DEFAULT '1',
-	witness_list_unit CHAR(44) BINARY NULL,
-	last_ball_unit CHAR(44) BINARY NULL,
+	witness_list_unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NULL,
+	last_ball_unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NULL,
 	timestamp INT NOT NULL DEFAULT 0,
 	content_hash CHAR(44) NULL,
 	headers_commission INT NOT NULL,
@@ -17,7 +17,7 @@ CREATE TABLE units (
 	witnessed_level INT NULL,
 	is_stable TINYINT NOT NULL DEFAULT 0,
 	sequence ENUM('good','temp-bad','final-bad') NOT NULL DEFAULT 'good',
-	best_parent_unit CHAR(44) BINARY NULL,
+	best_parent_unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NULL,
 	KEY byMainChain(is_on_main_chain),
 	KEY byMcIndex(main_chain_index),
 	KEY byLimci(latest_included_mc_index),
@@ -31,9 +31,9 @@ CREATE TABLE units (
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE balls (
-	ball CHAR(44) BINARY NOT NULL PRIMARY KEY, -- sha256 in base64
+	ball CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL PRIMARY KEY, -- sha256 in base64
 	creation_date timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	unit CHAR(44) BINARY NOT NULL UNIQUE, -- sha256 in base64
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL UNIQUE, -- sha256 in base64
 	-- count_witnesses TINYINT NOT NULL DEFAULT 0,
 	count_paid_witnesses TINYINT NULL,
 	KEY byCountPaidWitnesses(count_paid_witnesses),
@@ -41,8 +41,8 @@ CREATE TABLE balls (
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE skiplist_units (
-	unit CHAR(44) BINARY NOT NULL,
-	skiplist_unit CHAR(44) BINARY NOT NULL, -- only for MC units with MCI divisible by 10: previous MC units divisible by 10
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
+	skiplist_unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL, -- only for MC units with MCI divisible by 10: previous MC units divisible by 10
 	PRIMARY KEY (unit, skiplist_unit),
 	FOREIGN KEY (unit) REFERENCES units(unit),
 	FOREIGN KEY (skiplist_unit) REFERENCES units(unit)
@@ -53,8 +53,8 @@ CREATE TABLE skiplist_units (
 
 -- must be sorted by parent_unit
 CREATE TABLE parenthoods (
-	child_unit CHAR(44) BINARY NOT NULL,
-	parent_unit CHAR(44) BINARY NOT NULL,
+	child_unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
+	parent_unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	PRIMARY KEY (parent_unit, child_unit),
 	CONSTRAINT parenthoodsByChild FOREIGN KEY (child_unit) REFERENCES units(unit),
 	CONSTRAINT parenthoodsByParent FOREIGN KEY (parent_unit) REFERENCES units(unit)
@@ -78,7 +78,7 @@ CREATE TABLE addresses (
 
 -- must be sorted by address
 CREATE TABLE unit_authors (
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	address CHAR(32) NOT NULL,
 	definition_chash CHAR(32) NULL, -- only with 1st ball from this address, and with next ball after definition change
 	_mci INT NULL,
@@ -92,7 +92,7 @@ CREATE TABLE unit_authors (
 
 
 CREATE TABLE authentifiers (
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	address CHAR(32) NOT NULL,
 	path VARCHAR(40) NOT NULL,
 	authentifier VARCHAR(4096) NOT NULL,
@@ -103,7 +103,7 @@ CREATE TABLE authentifiers (
 
 -- must be sorted by address
 CREATE TABLE unit_witnesses (
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	address CHAR(32) NOT NULL,
 	PRIMARY KEY (unit, address),
 	KEY byAddress(address), -- no foreign key as the address might not be used yet
@@ -111,7 +111,7 @@ CREATE TABLE unit_witnesses (
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE witness_list_hashes (
-	witness_list_unit CHAR(44) BINARY NOT NULL PRIMARY KEY,
+	witness_list_unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL PRIMARY KEY,
 	witness_list_hash CHAR(44) NOT NULL UNIQUE,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	FOREIGN KEY (witness_list_unit) REFERENCES units(unit)
@@ -122,7 +122,7 @@ CREATE TABLE witness_list_hashes (
 -- required if more than one author
 -- if one author, all commission goes to the author by default
 CREATE TABLE earned_headers_commission_recipients (
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	address CHAR(32) NOT NULL,
 	earned_headers_commission_share INT NOT NULL, -- percentage
 	PRIMARY KEY (unit, address),
@@ -132,7 +132,7 @@ CREATE TABLE earned_headers_commission_recipients (
 
 
 CREATE TABLE messages (
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	message_index TINYINT NOT NULL,
 	app VARCHAR(30) NOT NULL,
 	payload_location ENUM('inline','uri','none') NOT NULL,
@@ -146,7 +146,7 @@ CREATE TABLE messages (
 
 -- must be sorted by spend_proof
 CREATE TABLE spend_proofs (
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	message_index TINYINT NOT NULL,
 	spend_proof_index TINYINT NOT NULL,
 	spend_proof CHAR(44) NOT NULL,
@@ -163,7 +163,7 @@ CREATE TABLE spend_proofs (
 
 
 CREATE TABLE address_definition_changes (
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	message_index TINYINT NOT NULL,
 	address CHAR(32) NOT NULL,
 	definition_chash CHAR(32) NOT NULL, -- might not be defined in definitions yet (almost always, it is not defined)
@@ -175,11 +175,11 @@ CREATE TABLE address_definition_changes (
 
 
 CREATE TABLE data_feeds (
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	message_index TINYINT NOT NULL,
-	feed_name VARBINARY(256) NOT NULL,
+	feed_name VARCHAR(256) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
 	-- type ENUM('string', 'number') NOT NULL,
-	`value` VARBINARY(256) NULL,
+	`value` VARCHAR(256) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL,
 	`int_value` BIGINT NULL,
 	PRIMARY KEY (unit, feed_name),
 	KEY byNameStringValue(feed_name, `value`),
@@ -188,26 +188,26 @@ CREATE TABLE data_feeds (
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE polls (
-	unit CHAR(44) BINARY NOT NULL PRIMARY KEY,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL PRIMARY KEY,
 	message_index TINYINT NOT NULL,
 	question VARCHAR(4096) NOT NULL,
 	FOREIGN KEY (unit) REFERENCES units(unit)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE poll_choices (
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	choice_index TINYINT NOT NULL,
-	choice VARBINARY(256) NOT NULL,
+	choice VARCHAR(256) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
 	PRIMARY KEY (unit, choice_index),
 	UNIQUE KEY (unit, choice),
 	FOREIGN KEY (unit) REFERENCES polls(unit)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE votes (
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	message_index TINYINT NOT NULL,
-	poll_unit CHAR(44) BINARY NOT NULL,
-	choice VARBINARY(256) NOT NULL,
+	poll_unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
+	choice VARCHAR(256) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
 	PRIMARY KEY (unit, message_index),
 	UNIQUE KEY (unit, choice),
 	CONSTRAINT votesByChoice FOREIGN KEY (poll_unit, choice) REFERENCES poll_choices(unit, choice),
@@ -215,7 +215,7 @@ CREATE TABLE votes (
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE attestations (
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	message_index TINYINT NOT NULL,
 	attestor_address CHAR(32) NOT NULL,
 	address CHAR(32) NOT NULL,
@@ -228,7 +228,7 @@ CREATE TABLE attestations (
 
 
 CREATE TABLE assets (
-	unit CHAR(44) BINARY NOT NULL PRIMARY KEY,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL PRIMARY KEY,
 	message_index TINYINT NOT NULL,
 	cap BIGINT NULL,
 	is_private TINYINT NOT NULL,
@@ -244,7 +244,7 @@ CREATE TABLE assets (
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE asset_denominations (
-	asset CHAR(44) BINARY NOT NULL,
+	asset CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	denomination INT NOT NULL,
 	count_coins BIGINT NULL,
 	max_issued_serial_number BIGINT NOT NULL DEFAULT 0,
@@ -253,9 +253,9 @@ CREATE TABLE asset_denominations (
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE asset_attestors (
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	message_index TINYINT NOT NULL,
-	asset CHAR(44) BINARY NOT NULL, -- in the initial attestor list: same as unit
+	asset CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL, -- in the initial attestor list: same as unit
 	attestor_address CHAR(32) NOT NULL,
 	PRIMARY KEY (unit, message_index, attestor_address),
 	UNIQUE KEY byAssetAttestorUnit(asset, attestor_address, unit),
@@ -268,14 +268,14 @@ CREATE TABLE asset_attestors (
 -- Payments
 
 CREATE TABLE inputs (
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	message_index TINYINT NOT NULL,
 	input_index TINYINT NOT NULL,
-	asset CHAR(44) BINARY NULL,
+	asset CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NULL,
 	denomination INT NOT NULL DEFAULT 1,
 	is_unique TINYINT NULL DEFAULT 1,
 	type ENUM('transfer','headers_commission','witnessing','issue') NOT NULL,
-	src_unit CHAR(44) BINARY NULL, -- transfer
+	src_unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NULL, -- transfer
 	src_message_index TINYINT NULL, -- transfer
 	src_output_index TINYINT NULL, -- transfer
 	from_main_chain_index INT NULL, -- witnessing/hc
@@ -297,10 +297,10 @@ CREATE TABLE inputs (
 
 CREATE TABLE outputs (
 	output_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	message_index TINYINT NOT NULL,
 	output_index TINYINT NOT NULL,
-	asset CHAR(44) BINARY NULL,
+	asset CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NULL,
 	denomination INT NOT NULL DEFAULT 1,
 	address CHAR(32) NULL, -- NULL if hidden by output_hash
 	amount BIGINT NOT NULL,
@@ -320,7 +320,7 @@ CREATE TABLE outputs (
 
 -- updated immediately after main chain is updated
 CREATE TABLE headers_commission_contributions (
-	unit CHAR(44) BINARY NOT NULL, -- parent unit that pays commission
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL, -- parent unit that pays commission
 	address CHAR(32) NOT NULL, -- address of the commission receiver: author of child unit or address named in earned_headers_commission_recipients
 	amount BIGINT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -342,7 +342,7 @@ CREATE TABLE headers_commission_outputs (
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE paid_witness_events (
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	address CHAR(32) NOT NULL, -- witness address
 	-- witnessed_in_ball CHAR(44) NOT NULL, -- if expired, MC ball next after expiry. Or NULL?
 	delay TINYINT NULL, -- NULL if expired
@@ -370,22 +370,22 @@ CREATE TABLE witnessing_outputs (
 -- Networking
 
 CREATE TABLE dependencies (
-	unit CHAR(44) BINARY NOT NULL,
-	depends_on_unit CHAR(44) BINARY NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
+	depends_on_unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	UNIQUE KEY (depends_on_unit, unit),
 	KEY byUnit(unit)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE unhandled_joints (
-	unit CHAR(44) BINARY NOT NULL PRIMARY KEY,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL PRIMARY KEY,
 	peer VARCHAR(100) NOT NULL,
 	json LONGTEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE archived_joints (
-	unit CHAR(44) BINARY NOT NULL PRIMARY KEY,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL PRIMARY KEY,
 	reason ENUM('uncovered', 'voided') NOT NULL,
 	-- is_retrievable TINYINT NOT NULL,
 	json LONGTEXT NOT NULL,
@@ -394,21 +394,21 @@ CREATE TABLE archived_joints (
 
 
 CREATE TABLE known_bad_joints (
-	joint CHAR(44) BINARY NULL UNIQUE,
-	unit CHAR(44) BINARY NULL UNIQUE,
+	joint CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NULL UNIQUE,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NULL UNIQUE,
 	json LONGTEXT NOT NULL,
 	error LONGTEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE joints (
-	unit CHAR(44) BINARY NOT NULL PRIMARY KEY,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL PRIMARY KEY,
 	json LONGTEXT NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE unhandled_private_payments (
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	message_index TINYINT NOT NULL,
 	output_index TINYINT NOT NULL,
 	json LONGTEXT NOT NULL,
@@ -423,13 +423,13 @@ CREATE TABLE unhandled_private_payments (
 
 CREATE TABLE hash_tree_balls (
 	ball_index INT NOT NULL PRIMARY KEY AUTO_INCREMENT, -- in increasing level order
-	ball CHAR(44) BINARY NOT NULL UNIQUE,
-	unit CHAR(44) BINARY NOT NULL UNIQUE
+	ball CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL UNIQUE,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL UNIQUE
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE catchup_chain_balls (
 	member_index INT NOT NULL PRIMARY KEY AUTO_INCREMENT, -- in increasing level order
-	ball CHAR(44) BINARY NOT NULL UNIQUE
+	ball CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL UNIQUE
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 
@@ -668,7 +668,7 @@ ALTER TABLE correspondent_devices ADD COLUMN peer_record_pref INTEGER DEFAULT 1;
 
 CREATE TABLE watched_light_units (
 	peer VARCHAR(100) NOT NULL,
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (peer, unit)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
@@ -676,15 +676,15 @@ CREATE INDEX wlabyUnit ON watched_light_units(unit);
 
 CREATE TABLE bots (
 	id INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,
-	rank INTEGER NOT NULL DEFAULT 0,
-	name VARCHAR(100) NOT NULL UNIQUE,
-	pairing_code VARCHAR(200) CHARACTER SET latin1 COLLATE latin1_general_cs NOT NULL,
+	`rank` INTEGER NOT NULL DEFAULT 0,
+	name VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL UNIQUE,
+	pairing_code VARCHAR(200) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	description LONGTEXT NOT NULL
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE asset_metadata (
-	asset CHAR(44) BINARY NOT NULL PRIMARY KEY,
-	metadata_unit CHAR(44) BINARY NOT NULL,
+	asset CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL PRIMARY KEY,
+	metadata_unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	registry_address CHAR(32) NULL,
 	suffix VARCHAR(20) NULL, -- added only if the same name is registered by different registries for different assets, equal to registry name
 	name VARCHAR(20) NULL,
@@ -697,7 +697,7 @@ CREATE TABLE asset_metadata (
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE sent_mnemonics (
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	address CHAR(32) NOT NULL,
 	mnemonic VARCHAR(107) NOT NULL,
 	textAddress VARCHAR(120) NOT NULL,
@@ -708,7 +708,7 @@ CREATE INDEX sentByAddress ON sent_mnemonics(address);
 
 CREATE TABLE private_profiles (
 	private_profile_id INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	payload_hash CHAR(44) NOT NULL,
 	attestor_address CHAR(32) NOT NULL,
 	address CHAR(32) NOT NULL,
@@ -731,7 +731,7 @@ CREATE INDEX ppfByField ON private_profile_fields(`field`);
 
 
 CREATE TABLE attested_fields (
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	message_index TINYINT NOT NULL,
 	attestor_address CHAR(32) NOT NULL,
 	address CHAR(32) NOT NULL,
@@ -747,7 +747,7 @@ CREATE INDEX attestedFieldsByAddressField ON attested_fields(address, `field`);
 
 -- user enters an email address (it is original address) and it is translated to BB address
 CREATE TABLE original_addresses (
-	unit CHAR(44) BINARY NOT NULL,
+	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	address CHAR(32) NOT NULL,
 	original_address VARCHAR(100) NOT NULL, -- email
 	PRIMARY KEY (unit, address),
@@ -832,9 +832,9 @@ CREATE TABLE aa_responses (
 	mci INT NOT NULL, -- mci of the trigger unit
 	trigger_address CHAR(32) NOT NULL, -- trigger address
 	aa_address CHAR(32) NOT NULL,
-	trigger_unit CHAR(44) BINARY NOT NULL,
+	trigger_unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
 	bounced TINYINT NOT NULL,
-	response_unit CHAR(44) BINARY NULL UNIQUE,
+	response_unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NULL UNIQUE,
 	response TEXT NULL, -- json
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	UNIQUE (trigger_unit, aa_address),
@@ -905,7 +905,7 @@ CREATE TABLE IF NOT EXISTS arbiter_disputes (
 	contract_hash CHAR(44) NOT NULL PRIMARY KEY,
 	plaintiff_address CHAR(32) NOT NULL,
 	respondent_address CHAR(32) NOT NULL,
-	plaintiff_is_payer TINYINT(1) NOT NULL,
+	plaintiff_is_payer TINYINT NOT NULL,
 	plaintiff_pairing_code VARCHAR(200) NOT NULL,
 	respondent_pairing_code VARCHAR(200) NOT NULL,
 	contract_content TEXT NOT NULL,
