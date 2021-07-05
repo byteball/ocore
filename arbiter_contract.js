@@ -700,68 +700,87 @@ eventBus.on("new_my_transactions", function(units) {
 
 // arbiter response stabilized
 eventBus.on("my_transactions_became_stable", function(units) {
-	units.forEach(function(unit) {
-		storage.readUnit(unit, function(objUnit) {
-			var address = objUnit.authors[0].address;
-			getAllByArbiterAddress(address, function(contracts) {
-				var count = 0;
-				contracts.forEach(function(objContract) {
-					if (objContract.status !== "dispute_resolved" && objContract.status !== "in_dispute") // we still can be in dispute in case of light wallet stayed offline
-						return;
-					var winner = parseWinnerFromUnit(objContract, objUnit);
-					if (winner === objContract.my_address)
-						eventBus.emit("arbiter_contract_update", objContract, "resolution_unit_stabilized", null, null, winner);
-					if (objContract.status === "in_dispute")
-						count++;
+	db.query(
+		"SELECT DISTINCT unit_authors.unit \n\
+		FROM unit_authors \n\
+		JOIN wallet_arbiter_contracts ON address=arbiter_address \n\
+		WHERE unit_authors.unit IN(" + units.map(db.escape).join(', ') + ")",
+		function (rows) {
+			units = rows.map(row => row.unit);
+			units.forEach(function(unit) {
+				storage.readUnit(unit, function(objUnit) {
+					var address = objUnit.authors[0].address;
+					getAllByArbiterAddress(address, function(contracts) {
+						var count = 0;
+						contracts.forEach(function(objContract) {
+							if (objContract.status !== "dispute_resolved" && objContract.status !== "in_dispute") // we still can be in dispute in case of light wallet stayed offline
+								return;
+							var winner = parseWinnerFromUnit(objContract, objUnit);
+							if (winner === objContract.my_address)
+								eventBus.emit("arbiter_contract_update", objContract, "resolution_unit_stabilized", null, null, winner);
+							if (objContract.status === "in_dispute")
+								count++;
+						});
+						if (count === 0)
+							wallet_general.removeWatchedAddress(address);
+					});
 				});
-				if (count === 0)
-					wallet_general.removeWatchedAddress(address);
 			});
-		});
-	});
+		}
+	);
 });
 
 // unit with peer funds release for private assets became stable
 eventBus.on("my_transactions_became_stable", function(units) {
-	units.forEach(function(unit) {
-		storage.readUnit(unit, function(objUnit) {
-			objUnit.messages.forEach(function(m) {
-				if (m.app !== "data_feed")
-					return;
-				for (var key in m.payload) {
-					var contract_hash_matches = key.match(/CONTRACT_DONE_(.+)/);
-					if (!contract_hash_matches)
-						continue;
-					var contract_hash = contract_hash_matches[1];
-					getByHash(contract_hash, function(objContract) {
-						if (!objContract)
+	db.query(
+		"SELECT DISTINCT unit_authors.unit \n\
+		FROM unit_authors \n\
+		JOIN wallet_arbiter_contracts ON (address=peer_address OR address=my_address) \n\
+		JOIN assets ON asset=assets.unit \n\
+		WHERE unit_authors.unit IN(" + units.map(db.escape).join(', ') + ") AND is_private=1",
+		function (rows) {
+			units = rows.map(row => row.unit);
+			units.forEach(function (unit) {
+				storage.readUnit(unit, function (objUnit) {
+					objUnit.messages.forEach(function (m) {
+						if (m.app !== "data_feed")
 							return;
-						isAssetPrivate(objContract.asset, function(isPrivate) {
-							if (!isPrivate)
-								return;
-							if (m.payload[key] != objContract.my_address)
-								return;
-							if (objContract.status === 'paid') {
-								var status = objContract.me_is_payer ? 'cancelled' : 'completed';
-								setField(contract_hash, 'status', status, function(objContract) {
-									eventBus.emit("arbiter_contract_update", objContract, "status", status, unit, null, true);
-									var count = 0;
-									getAllByPeerAddress(objContract.peer_address, function(contracts) {
-										contracts.forEach(function(objContract) {
-											if (objContract.status === "paid")
-												count++;
+						for (var key in m.payload) {
+							var contract_hash_matches = key.match(/CONTRACT_DONE_(.+)/);
+							if (!contract_hash_matches)
+								continue;
+							var contract_hash = contract_hash_matches[1];
+							getByHash(contract_hash, function (objContract) {
+								if (!objContract)
+									return;
+								isAssetPrivate(objContract.asset, function (isPrivate) {
+									if (!isPrivate)
+										return;
+									if (m.payload[key] != objContract.my_address)
+										return;
+									if (objContract.status === 'paid') {
+										var status = objContract.me_is_payer ? 'cancelled' : 'completed';
+										setField(contract_hash, 'status', status, function (objContract) {
+											eventBus.emit("arbiter_contract_update", objContract, "status", status, unit, null, true);
+											var count = 0;
+											getAllByPeerAddress(objContract.peer_address, function (contracts) {
+												contracts.forEach(function (objContract) {
+													if (objContract.status === "paid")
+														count++;
+												});
+												if (count == 0)
+													wallet_general.removeWatchedAddress(objContract.peer_address);
+											});
 										});
-										if (count == 0)
-											wallet_general.removeWatchedAddress(objContract.peer_address);
-									});
+									}
 								});
-							}
-						});
+							});
+						}
 					});
-				}
+				});
 			});
-		});
-	})
+		}
+	);
 });
 
 exports.createAndSend = createAndSend;
