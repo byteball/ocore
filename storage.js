@@ -927,6 +927,8 @@ function parseStateVar(type_and_value) {
 }
 
 function readAAStateVar(address, var_name, handleResult) {
+	if (!handleResult)
+		return new Promise(resolve => readAAStateVar(address, var_name, resolve));
 	var kvstore = require('./kvstore.js');
 	kvstore.get("st\n" + address + "\n" + var_name, function (type_and_value) {
 		if (type_and_value === undefined)
