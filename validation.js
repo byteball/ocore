@@ -1461,7 +1461,7 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 				var value = payload[feed_name];
 				if (typeof value === 'string'){
 					if (value.length > constants.MAX_DATA_FEED_VALUE_LENGTH)
-						return callback("value "+value+" too long");
+						return callback("data feed value too long: " + value);
 					if (value.indexOf('\n') >=0 )
 						return callback("value "+value+" of feed name "+feed_name+" contains \\n");
 				}
