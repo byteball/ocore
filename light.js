@@ -353,8 +353,10 @@ function processAAResponses(aa_responses, onDone) {
 			"INSERT " + db.getIgnore() + " INTO aa_responses (mci, trigger_address, aa_address, trigger_unit, bounced, response_unit, response, creation_date) VALUES (?, ?,?, ?, ?, ?,?, ?)",
 			[objAAResponse.mci, objAAResponse.trigger_address, objAAResponse.aa_address, objAAResponse.trigger_unit, objAAResponse.bounced, objAAResponse.response_unit, objAAResponse.response, objAAResponse.creation_date],
 			function (res) {
-				if (res.affectedRows === 0) // don't emit events again
+				if (res.affectedRows === 0) { // don't emit events again
+					console.log('will not emit ' + objAAResponse.trigger_unit + ' again');
 					return cb3();
+				}
 				objAAResponse.response = JSON.parse(objAAResponse.response);
 				arrAAResponsesToEmit.push(objAAResponse);
 				return cb3();
