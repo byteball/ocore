@@ -204,7 +204,7 @@ function refreshLightClientHistory(addresses, handle){
 					ifOk: function(bRefreshUI){
 						clearInterval(interval);
 						finish();
-						if (!addresses) {
+						if (!addresses && !bFirstHistoryReceived) {
 							bFirstHistoryReceived = true;
 							console.log('received 1st history');
 							eventBus.emit('first_history_received');
