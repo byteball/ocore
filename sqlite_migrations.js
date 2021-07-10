@@ -371,7 +371,7 @@ function migrateDb(connection, onDone){
 						SELECT address, IFNULL(asset, 'base'), SUM(amount) AS balance \n\
 						FROM aa_addresses \n\
 						CROSS JOIN outputs USING(address) \n\
-						CROSS JOIN units USING(unit) \n\
+						CROSS JOIN units ON outputs.unit=units.unit \n\
 						WHERE is_spent=0 AND ( \n\
 							is_stable=1 \n\
 							OR EXISTS (SELECT 1 FROM unit_authors CROSS JOIN aa_addresses USING(address) WHERE unit_authors.unit=outputs.unit) \n\
