@@ -1546,6 +1546,8 @@ function markMcIndexStable(conn, batch, mci, onDone){
 // returns list of past MC indices for skiplist
 function getSimilarMcis(mci){
 	var arrSimilarMcis = [];
+	if (mci <= 0)
+		return arrSimilarMcis;
 	var divisor = 10;
 	while (true){
 		if (mci % divisor === 0){
