@@ -1052,6 +1052,8 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 						return sortOutputsAndReturn();
 					if (!asset)
 						return cb('not enough funds for ' + target_amount + ' bytes');
+					if (send_all_output && payload.outputs.length === 1) // send-all is the only output - don't issue for it
+						return sortOutputsAndReturn();
 					issueAsset(function (err) {
 						if (err) {
 							console.log("issue failed: " + err);
@@ -1121,7 +1123,8 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 					completePaymentPayload(payload, 0, function (err) {
 						if (err)
 							return cb(err);
-						completeMessage(message);
+						if (payload.outputs.length > 0) // send-all output might get removed while being the only output
+							completeMessage(message);
 						cb();
 					});
 				});
@@ -1129,6 +1132,13 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 			function (err) {
 				if (err)
 					return bounce(err);
+				// remove messages with no outputs again (send-all outputs might get removed if nothing found for them)
+				messages = messages.filter(function (message) { return (message.app !== 'payment' || message.payload.outputs.length > 0); });
+				if (messages.length === 0) {
+					error_message = 'no messages after removing 0-outputs (2nd pass)';
+					console.log(error_message);
+					return handleSuccessfulEmptyResponseUnit(null);
+				}
 				messages = messages.filter(function (message) { return (message.app !== 'payment' || !message.payload.asset || !assetInfos[message.payload.asset].fixed_denominations); });
 				if (messages.length === 0) {
 					error_message = 'no messages after removing fixed denominations';
