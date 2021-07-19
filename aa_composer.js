@@ -1052,7 +1052,8 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 						return sortOutputsAndReturn();
 					if (!asset)
 						return cb('not enough funds for ' + target_amount + ' bytes');
-					if (send_all_output && payload.outputs.length === 1) // send-all is the only output - don't issue for it
+					var bSelfIssueForSendAll = (constants.bTestnet && mci < 2080483);
+					if (!bSelfIssueForSendAll && send_all_output && payload.outputs.length === 1) // send-all is the only output - don't issue for it
 						return sortOutputsAndReturn();
 					issueAsset(function (err) {
 						if (err) {
