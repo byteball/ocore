@@ -1101,10 +1101,12 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 					return cb();
 				}
 				var payload = message.payload;
-				payload.outputs.forEach(function (output) {
-					if (output.address !== address && arrOutputAddresses.indexOf(output.address) === -1)
-						arrOutputAddresses.push(output.address);
-				});
+				var addOutputAddresses = () => {
+					payload.outputs.forEach(function (output) {
+						if (output.address !== address && arrOutputAddresses.indexOf(output.address) === -1)
+							arrOutputAddresses.push(output.address);
+					});
+				};
 				if (payload.asset === 'base')
 					delete payload.asset;
 				var asset = payload.asset || null;
@@ -1112,6 +1114,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 					if (objBasePaymentMessage)
 						return cb("already have base payment");
 					objBasePaymentMessage = message;
+					addOutputAddresses();
 					return cb(); // skip it for now, we can estimate the fees only after all other messages are in place
 				}
 				storage.loadAssetWithListOfAttestedAuthors(conn, asset, mci, [address], true, function (err, objAsset) {
@@ -1123,6 +1126,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 					completePaymentPayload(payload, 0, function (err) {
 						if (err)
 							return cb(err);
+						addOutputAddresses();
 						if (payload.outputs.length > 0) // send-all output might get removed while being the only output
 							completeMessage(message);
 						cb();
