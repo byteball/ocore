@@ -452,9 +452,9 @@ function migrateDb(connection, onDone){
 						arbstore_device_address  CHAR(33) NULL, \n\
 						FOREIGN KEY (my_address) REFERENCES my_addresses(address) \n\
 					)");
-					connection.addQuery(arrQueries, "CREATE INDEX wacStatus ON wallet_arbiter_contracts(status)");
-					connection.addQuery(arrQueries, "CREATE INDEX wacArbiterAddress ON wallet_arbiter_contracts(arbiter_address)");
-					connection.addQuery(arrQueries, "CREATE INDEX wacPeerAddress ON wallet_arbiter_contracts(peer_address)");
+					connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS wacStatus ON wallet_arbiter_contracts(status)");
+					connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS wacArbiterAddress ON wallet_arbiter_contracts(arbiter_address)");
+					connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS wacPeerAddress ON wallet_arbiter_contracts(peer_address)");
 
 					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS arbiter_disputes (\n\
 						contract_hash CHAR(44) NOT NULL PRIMARY KEY,\n\
