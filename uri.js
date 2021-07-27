@@ -209,31 +209,36 @@ function fetchUrl(url, cb) {
 		bDone = true;
 		cb(err);
 	}
-	https.get(url, function (resp) {
-		if (resp.statusCode !== 200)
-			return returnError("non-200 response while trying to fetch " + url);
-		var data = '';
+	try {
+		https.get(url, function (resp) {
+			if (resp.statusCode !== 200)
+				return returnError("non-200 response while trying to fetch " + url);
+			var data = '';
 
-		// A chunk of data has been recieved.
-		resp.on('data', function(chunk) {
-			data += chunk;
-		});
+			// A chunk of data has been recieved.
+			resp.on('data', function(chunk) {
+				data += chunk;
+			});
 
-		// aborted before the whole response has been received
-		resp.on('aborted', function () {
-			returnError("connection aborted while trying to fetch " + url);
-		});
+			// aborted before the whole response has been received
+			resp.on('aborted', function () {
+				returnError("connection aborted while trying to fetch " + url);
+			});
 
-		// The whole response has been received
-		resp.on('end', function () {
-			if (bDone)
-				return;
-			bDone = true;
-			cb(null, data);
+			// The whole response has been received
+			resp.on('end', function () {
+				if (bDone)
+					return;
+				bDone = true;
+				cb(null, data);
+			});
+		}).on("error", function(err) {
+			returnError("non-200 response while trying to fetch " + url + ": " + err.message);
 		});
-	}).on("error", function(err) {
-		returnError("non-200 response while trying to fetch " + url + ": " + err.message);
-	});
+	}
+	catch(err) {
+		returnError(err.message);
+	}
 }
 
 exports.parseQueryString = parseQueryString;
