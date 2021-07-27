@@ -628,9 +628,9 @@ eventBus.on("arbiter_contract_update", function(objContract, field, value) {
 eventBus.on("new_my_transactions", function newtxs(arrNewUnits) {
 	db.query("SELECT hash, outputs.unit FROM wallet_arbiter_contracts\n\
 		JOIN outputs ON outputs.address=wallet_arbiter_contracts.shared_address\n\
-		WHERE outputs.unit IN (?) AND outputs.asset IS wallet_arbiter_contracts.asset AND (wallet_arbiter_contracts.status='signed' OR wallet_arbiter_contracts.status='accepted')\n\
+		WHERE outputs.unit IN (" + arrNewUnits.map(db.escape).join(', ') + ") AND outputs.asset IS wallet_arbiter_contracts.asset AND (wallet_arbiter_contracts.status='signed' OR wallet_arbiter_contracts.status='accepted')\n\
 		GROUP BY outputs.address\n\
-		HAVING SUM(outputs.amount) >= wallet_arbiter_contracts.amount", [arrNewUnits], function(rows) {
+		HAVING SUM(outputs.amount) >= wallet_arbiter_contracts.amount", function(rows) {
 			rows.forEach(function(row) {
 				getByHash(row.hash, function(contract){
 					if (contract.status === 'accepted') { // we received payment already but did not yet receive signature unit message, wait for unit to be received
@@ -661,8 +661,8 @@ eventBus.on("new_my_transactions", function(arrNewUnits) {
 	db.query("SELECT hash, outputs.unit FROM wallet_arbiter_contracts\n\
 		JOIN outputs ON outputs.address=wallet_arbiter_contracts.my_address AND outputs.amount=wallet_arbiter_contracts.amount\n\
 		JOIN inputs ON inputs.address=wallet_arbiter_contracts.shared_address AND inputs.unit=outputs.unit\n\
-		WHERE outputs.unit IN (?) AND outputs.asset IS wallet_arbiter_contracts.asset AND (wallet_arbiter_contracts.status='paid' OR wallet_arbiter_contracts.status='in_dispute')\n\
-		GROUP BY wallet_arbiter_contracts.hash", [arrNewUnits], function(rows) {
+		WHERE outputs.unit IN (" + arrNewUnits.map(db.escape).join(', ') + ") AND outputs.asset IS wallet_arbiter_contracts.asset AND (wallet_arbiter_contracts.status='paid' OR wallet_arbiter_contracts.status='in_dispute')\n\
+		GROUP BY wallet_arbiter_contracts.hash", function(rows) {
 			rows.forEach(function(row) {
 				getByHash(row.hash, function(contract){
 					var status = contract.me_is_payer ? "cancelled" : "completed";
