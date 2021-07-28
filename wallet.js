@@ -1108,24 +1108,41 @@ function readAssetMetadata(arrAssets, handleMetadata){
 		handleMetadata(assocAssetMetadata);
 		// after calling the callback, try to fetch missing data about assets
 		if (!arrAssets || arrAssets.length === 0)
-			return;
+			arrAssets = Object.keys(assocAssetMetadata);
+		arrAssets = arrAssets.filter(a => a !== 'base');
 		var updateAssets = conf.bLight ? network.requestProofsOfJointsIfNewOrUnstable : function(arrAssets, onDone){ onDone(); };
 		updateAssets(arrAssets, function(){ // make sure we have assets themselves
-			arrAssets.forEach(function(asset){
-				if (assocAssetMetadata[asset] && !assocAssetMetadata[asset].is_expired || asset === 'base' || asset === constants.BLACKBYTES_ASSET)
-					return;
-				if ((assocLastFailedAssetMetadataTimestamps[asset] || 0) > Date.now() - ASSET_METADATA_RETRY_PERIOD)
-					return;
+			arrAssets = arrAssets.filter(a => a !== constants.BLACKBYTES_ASSET);
+			arrAssets = arrAssets.filter(a => !assocAssetMetadata[a] || assocAssetMetadata[a].is_expired);
+			arrAssets = arrAssets.filter(a => (assocLastFailedAssetMetadataTimestamps[a] || 0) < Date.now() - ASSET_METADATA_RETRY_PERIOD);
+			var countUpdated = 0;
+			async.eachSeries(arrAssets, function(asset, cb) {
 				fetchAssetMetadata(asset, function(err, objMetadata){
-					if (err)
-						return console.log(err);
+					if (err) {
+						console.log(err);
+						return cb();
+					}
+					var name = objMetadata.suffix ? objMetadata.name + '.' + objMetadata.suffix : objMetadata.name;
+					if (assocAssetMetadata[asset]
+						&& assocAssetMetadata[asset].metadata_unit === objMetadata.metadata_unit
+						&& assocAssetMetadata[asset].decimals === objMetadata.decimals
+						&& assocAssetMetadata[asset].name === name
+					) {
+						console.log('metadata of ' + asset + ' (' + name + ') unchanged');
+						return cb();
+					}
 					assocAssetMetadata[asset] = {
 						metadata_unit: objMetadata.metadata_unit,
 						decimals: objMetadata.decimals,
-						name: objMetadata.suffix ? objMetadata.name+'.'+objMetadata.suffix : objMetadata.name
+						name: name
 					};
-					eventBus.emit('maybe_new_transactions');
+					countUpdated++;
+					cb();
 				});
+			}, function () {
+				console.log('metadata updated for ' + countUpdated + ' assets');
+				if (countUpdated)
+					eventBus.emit('maybe_new_transactions');
 			});
 		});
 	});

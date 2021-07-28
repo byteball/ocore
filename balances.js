@@ -5,6 +5,7 @@ var constants = require('./constants.js');
 var db = require('./db');
 
 function readBalance(walletOrAddress, handleBalance){
+	var start_time = Date.now();
 	var walletIsAddress = typeof walletOrAddress === 'string' && walletOrAddress.length === 32; // ValidationUtils.isValidAddress
 	var join_my_addresses = walletIsAddress ? "" : "JOIN my_addresses USING(address)";
 	var where_condition = walletIsAddress ? "address=?" : "wallet=?";
@@ -56,6 +57,7 @@ function readBalance(walletOrAddress, handleBalance){
 								delete assocBalances[constants.BLACKBYTES_ASSET];
 							for (var asset in assocBalances)
 								assocBalances[asset].total = assocBalances[asset].stable + assocBalances[asset].pending;
+							console.log('reading balances of ' + walletOrAddress + ' took ' + (Date.now() - start_time) + 'ms')
 							handleBalance(assocBalances);
 						}
 					);

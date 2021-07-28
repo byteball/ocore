@@ -371,7 +371,7 @@ function migrateDb(connection, onDone){
 						SELECT address, IFNULL(asset, 'base'), SUM(amount) AS balance \n\
 						FROM aa_addresses \n\
 						CROSS JOIN outputs USING(address) \n\
-						CROSS JOIN units USING(unit) \n\
+						CROSS JOIN units ON outputs.unit=units.unit \n\
 						WHERE is_spent=0 AND ( \n\
 							is_stable=1 \n\
 							OR EXISTS (SELECT 1 FROM unit_authors CROSS JOIN aa_addresses USING(address) WHERE unit_authors.unit=outputs.unit) \n\
@@ -452,9 +452,9 @@ function migrateDb(connection, onDone){
 						arbstore_device_address  CHAR(33) NULL, \n\
 						FOREIGN KEY (my_address) REFERENCES my_addresses(address) \n\
 					)");
-					connection.addQuery(arrQueries, "CREATE INDEX wacStatus ON wallet_arbiter_contracts(status)");
-					connection.addQuery(arrQueries, "CREATE INDEX wacArbiterAddress ON wallet_arbiter_contracts(arbiter_address)");
-					connection.addQuery(arrQueries, "CREATE INDEX wacPeerAddress ON wallet_arbiter_contracts(peer_address)");
+					connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS wacStatus ON wallet_arbiter_contracts(status)");
+					connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS wacArbiterAddress ON wallet_arbiter_contracts(arbiter_address)");
+					connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS wacPeerAddress ON wallet_arbiter_contracts(peer_address)");
 
 					connection.addQuery(arrQueries, "CREATE TABLE IF NOT EXISTS arbiter_disputes (\n\
 						contract_hash CHAR(44) NOT NULL PRIMARY KEY,\n\

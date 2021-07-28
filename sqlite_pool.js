@@ -1,7 +1,7 @@
 /*jslint node: true */
 "use strict";
 var _ = require('lodash');
-var async = require('async');
+var conf = require("./conf.js");
 var sqlite_migrations = require('./sqlite_migrations');
 var EventEmitter = require('events').EventEmitter;
 
@@ -53,6 +53,8 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 					connection.query("PRAGMA journal_mode=WAL", function(){
 						connection.query("PRAGMA synchronous=FULL", function(){
 							connection.query("PRAGMA temp_store=MEMORY", function(){
+								if (!conf.bLight)
+									connection.query("PRAGMA cache_size=-200000", function () { });
 								sqlite_migrations.migrateDb(connection, function(){
 									handleConnection(connection);
 								});

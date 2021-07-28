@@ -25,6 +25,12 @@ function isAnyOfKeysLocked(arrKeys){
 	return false;
 }
 
+function isQueued(arrKeys) {
+	if (typeof arrKeys === 'string')
+		arrKeys = [arrKeys];
+	return !!arrQueuedJobs.find(job => _.isEqual(job.arrKeys, arrKeys));
+}
+
 function release(arrKeys){
 	for (var i=0; i<arrLockedKeyArrays.length; i++){
 		if (_.isEqual(arrKeys, arrLockedKeyArrays[i])){
@@ -119,6 +125,7 @@ exports.lockOrSkip = lockOrSkip;
 exports.isAnyOfKeysLocked = isAnyOfKeysLocked;
 exports.getCountOfQueuedJobs = getCountOfQueuedJobs;
 exports.getCountOfLocks = getCountOfLocks;
+exports.isQueued = isQueued;
 
 /*
 function test(key){

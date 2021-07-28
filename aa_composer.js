@@ -1052,6 +1052,9 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 						return sortOutputsAndReturn();
 					if (!asset)
 						return cb('not enough funds for ' + target_amount + ' bytes');
+					var bSelfIssueForSendAll = (constants.bTestnet && mci < 2080483 || !constants.bTestnet && !constants.bDevnet);
+					if (!bSelfIssueForSendAll && send_all_output && payload.outputs.length === 1) // send-all is the only output - don't issue for it
+						return sortOutputsAndReturn();
 					issueAsset(function (err) {
 						if (err) {
 							console.log("issue failed: " + err);
@@ -1099,10 +1102,12 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 					return cb();
 				}
 				var payload = message.payload;
-				payload.outputs.forEach(function (output) {
-					if (output.address !== address && arrOutputAddresses.indexOf(output.address) === -1)
-						arrOutputAddresses.push(output.address);
-				});
+				var addOutputAddresses = () => {
+					payload.outputs.forEach(function (output) {
+						if (output.address !== address && arrOutputAddresses.indexOf(output.address) === -1)
+							arrOutputAddresses.push(output.address);
+					});
+				};
 				if (payload.asset === 'base')
 					delete payload.asset;
 				var asset = payload.asset || null;
@@ -1110,6 +1115,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 					if (objBasePaymentMessage)
 						return cb("already have base payment");
 					objBasePaymentMessage = message;
+					addOutputAddresses();
 					return cb(); // skip it for now, we can estimate the fees only after all other messages are in place
 				}
 				storage.loadAssetWithListOfAttestedAuthors(conn, asset, mci, [address], true, function (err, objAsset) {
@@ -1121,7 +1127,9 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 					completePaymentPayload(payload, 0, function (err) {
 						if (err)
 							return cb(err);
-						completeMessage(message);
+						addOutputAddresses();
+						if (payload.outputs.length > 0) // send-all output might get removed while being the only output
+							completeMessage(message);
 						cb();
 					});
 				});
@@ -1129,6 +1137,13 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 			function (err) {
 				if (err)
 					return bounce(err);
+				// remove messages with no outputs again (send-all outputs might get removed if nothing found for them)
+				messages = messages.filter(function (message) { return (message.app !== 'payment' || message.payload.outputs.length > 0); });
+				if (messages.length === 0) {
+					error_message = 'no messages after removing 0-outputs (2nd pass)';
+					console.log(error_message);
+					return handleSuccessfulEmptyResponseUnit(null);
+				}
 				messages = messages.filter(function (message) { return (message.app !== 'payment' || !message.payload.asset || !assetInfos[message.payload.asset].fixed_denominations); });
 				if (messages.length === 0) {
 					error_message = 'no messages after removing fixed denominations';
@@ -1652,6 +1667,34 @@ function checkBalances() {
 					conn.release();
 					return unlock();
 				}
+				var sql_create_temp = "CREATE TEMPORARY TABLE aa_outputs_balances ( \n\
+					address CHAR(32) NOT NULL, \n\
+					asset CHAR(44) NOT NULL, \n\
+					calculated_balance BIGINT NOT NULL, \n\
+					PRIMARY KEY (address, asset) \n\
+				)";
+				var sql_fill_temp = "INSERT INTO aa_outputs_balances (address, asset, calculated_balance) \n\
+					SELECT address, IFNULL(asset, 'base'), SUM(amount) \n\
+					FROM aa_addresses \n\
+					CROSS JOIN outputs USING(address) \n\
+					CROSS JOIN units ON outputs.unit=units.unit \n\
+					WHERE is_spent=0 AND ( \n\
+						is_stable=1 \n\
+						OR is_stable=0 AND EXISTS (SELECT 1 FROM unit_authors CROSS JOIN aa_addresses USING(address) WHERE unit_authors.unit=outputs.unit) \n\
+					) \n\
+					GROUP BY address, asset";
+				var sql_balances_to_outputs = "SELECT aa_balances.address, aa_balances.asset, balance, calculated_balance \n\
+				FROM aa_balances \n\
+				LEFT JOIN aa_outputs_balances USING(address, asset) \n\
+				GROUP BY aa_balances.address, aa_balances.asset \n\
+				HAVING balance != calculated_balance";
+				var sql_outputs_to_balances = "SELECT aa_outputs_balances.address, aa_outputs_balances.asset, balance, calculated_balance \n\
+				FROM aa_outputs_balances \n\
+				LEFT JOIN aa_balances USING(address, asset) \n\
+				GROUP BY aa_outputs_balances.address, aa_outputs_balances.asset \n\
+				HAVING balance != calculated_balance";
+				var sql_drop_temp = db.dropTemporaryTable("aa_outputs_balances");
+				
 				var stable_or_from_aa = "( \n\
 					(SELECT is_stable FROM units WHERE units.unit=outputs.unit)=1 \n\
 					OR EXISTS (SELECT 1 FROM unit_authors CROSS JOIN aa_addresses USING(address) WHERE unit_authors.unit=outputs.unit) \n\
@@ -1682,9 +1725,12 @@ function checkBalances() {
 					GROUP BY aa_addresses.address, outputs.asset \n\
 					HAVING balance != calculated_balance";
 				async.eachSeries(
-					[sql_base, sql_assets_balances_to_outputs, sql_assets_outputs_to_balances],
+				//	[sql_base, sql_assets_balances_to_outputs, sql_assets_outputs_to_balances],
+					[sql_create_temp, sql_fill_temp, sql_balances_to_outputs, sql_outputs_to_balances, sql_drop_temp],
 					function (sql, cb) {
 						conn.query(sql, function (rows) {
+							if (!Array.isArray(rows))
+								return cb();
 							// ignore discrepancies that result from limited precision of js numbers
 							rows = rows.filter(row => {
 								if (row.balance <= Number.MAX_SAFE_INTEGER || row.calculated_balance <= Number.MAX_SAFE_INTEGER)
