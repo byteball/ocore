@@ -753,6 +753,8 @@ eventBus.on("my_transactions_became_stable", function(units) {
 							getByHash(contract_hash, function (objContract) {
 								if (!objContract)
 									return;
+								if (objContract.peer_address !== objUnit.authors[0].address)
+									return;
 								isAssetPrivate(objContract.asset, function (isPrivate) {
 									if (!isPrivate)
 										return;
