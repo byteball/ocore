@@ -281,7 +281,7 @@ function readMcUnit(conn, mci, handleUnit) {
 
 function readLastUnit(conn, handleUnit) {
 	conn.query("SELECT unit, main_chain_index FROM units ORDER BY main_chain_index DESC LIMIT 1", function (rows) {
-		if (rows.length !== 1) {
+		if (rows.length !== 1 || !rows[0].main_chain_index) {
 			if (!conf.bLight)
 				throw Error("found " + rows.length + " last units");
 			var objMcUnit = {
@@ -294,8 +294,6 @@ function readLastUnit(conn, handleUnit) {
 			};
 			return handleUnit(objMcUnit);
 		}
-		if (!rows[0].main_chain_index)
-			throw Error("no mci on last unit?");
 		readUnit(conn, rows[0].unit, handleUnit);
 	});
 }
