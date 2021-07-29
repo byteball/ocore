@@ -1414,7 +1414,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 		if (bBouncing && bSecondary) {
 			if (objResponseUnit)
 				throw Error('response_unit with bouncing a secondary AA');
-			return onDone(null, error_message);
+			return onDone(null, address + ': ' + error_message);
 		}
 		fixStateVars();
 		saveStateVars();
