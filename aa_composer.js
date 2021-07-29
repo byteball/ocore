@@ -870,7 +870,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 					return;
 				var asset = message.payload.asset || 'base';
 				message.payload.outputs.forEach(output => {
-					if (arrOutputAddresses.indexOf(output.address) === -1)
+					if (output.amount !== 0 && arrOutputAddresses.indexOf(output.address) === -1)
 						arrOutputAddresses.push(output.address);
 					if (!trigger_opts.assocBalances[address][asset])
 						trigger_opts.assocBalances[address][asset] = 0;
