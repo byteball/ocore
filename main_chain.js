@@ -690,7 +690,7 @@ function determineMaxAltLevel(conn, first_unstable_mc_index, first_unstable_mc_l
 	// Also filter the set S to include only those units that are conformant with the last stable MC unit.
 	if (first_unstable_mc_index >= constants.altBranchByBestParentUpgradeMci){
 		conn.query(
-			"SELECT MAX(units.level) AS max_alt_level \n\
+			"SELECT MAX(bpunits.level) AS max_alt_level \n\
 			FROM units \n\
 			CROSS JOIN units AS bpunits \n\
 				ON units.best_parent_unit=bpunits.unit AND bpunits.witnessed_level < units.witnessed_level \n\
