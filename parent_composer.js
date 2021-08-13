@@ -8,6 +8,7 @@ var storage = require("./storage.js");
 var main_chain = require("./main_chain.js");
 var graph = require('./graph.js');
 
+const bAdvanceLastStableUnit = false;
 
 function pickParentUnits(conn, arrWitnesses, timestamp, onDone){
 	// don't exclude units derived from unwitnessed potentially bad units! It is not their blame and can cause a split.
@@ -203,7 +204,7 @@ function findLastStableMcBall(conn, arrWitnesses, arrParentUnits, onDone) {
 		conn.query(
 			"SELECT ball, unit, main_chain_index FROM units JOIN balls USING(unit) \n\
 			WHERE is_on_main_chain=1 AND is_stable=1 AND +sequence='good' \n\
-				AND main_chain_index>=? \n\
+				AND main_chain_index" + (bAdvanceLastStableUnit ? '>=' : '=') + "? \n\
 				AND main_chain_index<=IFNULL((SELECT MAX(latest_included_mc_index) FROM units WHERE unit IN(?)), 0) \n\
 				AND ( \n\
 					SELECT COUNT(*) \n\
