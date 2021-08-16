@@ -120,6 +120,8 @@ function buildLastMileOfProofChain(mci, unit, arrBalls, onDone){
 				var arrParents = parent_rows.map(function(parent_row){ return parent_row.parent_unit; });
 				if (arrParents.indexOf(unit) >= 0)
 					return addBall(unit);
+				if (arrParents.length === 1) // only one parent, nothing to choose from
+					return addBall(arrParents[0]);
 				async.eachSeries(
 					arrParents,
 					function(parent_unit, cb){
