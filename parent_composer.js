@@ -279,7 +279,7 @@ function trimParentList(conn, arrParentUnits, last_stable_mci, arrWitnesses, han
 		CROSS JOIN unit_authors USING(unit) \n\
 		LEFT JOIN aa_addresses USING(address) \n\
 		WHERE units.unit IN(" + arrParentUnits.map(db.escape).join(', ') + ") \n\
-			AND (aa_addresses.address IS NULL OR latest_included_mc_index>=?) \n\
+			AND (aa_addresses.address IS NULL OR latest_included_mc_index<=?) \n\
 		ORDER BY (unit_authors.address IN(?)) DESC, " + db.getRandom() + " LIMIT ?",
 		[last_stable_mci, arrWitnesses, constants.MAX_PARENTS_PER_UNIT],
 		function (rows) {
