@@ -270,15 +270,20 @@ function adjustLastStableMcBallAndParents(conn, last_stable_mc_ball_unit, arrPar
 	});
 }
 
-function trimParentList(conn, arrParentUnits, arrWitnesses, handleTrimmedList){
-	if (arrParentUnits.length <= constants.MAX_PARENTS_PER_UNIT)
+function trimParentList(conn, arrParentUnits, last_stable_mci, arrWitnesses, handleTrimmedList) {
+	if (arrParentUnits.length === 1)
 		return handleTrimmedList(arrParentUnits);
 	conn.query(
-		"SELECT unit, (SELECT 1 FROM unit_authors WHERE unit_authors.unit=units.unit AND address IN(?) LIMIT 1) AS is_witness \n\
-		FROM units WHERE unit IN("+arrParentUnits.map(db.escape).join(', ')+") ORDER BY is_witness DESC, "+db.getRandom()+" LIMIT ?",
-		[arrWitnesses, constants.MAX_PARENTS_PER_UNIT],
-		function(rows){
-			handleTrimmedList(rows.map(function(row){ return row.unit; }).sort());
+		"SELECT DISTINCT units.unit \n\
+		FROM units \n\
+		CROSS JOIN unit_authors USING(unit) \n\
+		LEFT JOIN aa_addresses USING(address) \n\
+		WHERE units.unit IN(" + arrParentUnits.map(db.escape).join(', ') + ") \n\
+			AND (aa_addresses.address IS NULL OR latest_included_mc_index>=?) \n\
+		ORDER BY (unit_authors.address IN(?)) DESC, " + db.getRandom() + " LIMIT ?",
+		[last_stable_mci, arrWitnesses, constants.MAX_PARENTS_PER_UNIT],
+		function (rows) {
+			handleTrimmedList(rows.map(function (row) { return row.unit; }).sort());
 		}
 	);
 }
@@ -324,7 +329,7 @@ function findLastBallAndAdjust(conn, arrWitnesses, arrParentUnits, onDone){
 		adjustLastStableMcBallAndParents(
 			conn, last_stable_mc_ball_unit, arrParentUnits, arrWitnesses, 
 			function(last_stable_ball, last_stable_unit, last_stable_mci, arrAdjustedParentUnits){
-				trimParentList(conn, arrAdjustedParentUnits, arrWitnesses, function(arrTrimmedParentUnits){
+				trimParentList(conn, arrAdjustedParentUnits, last_stable_mci, arrWitnesses, function(arrTrimmedParentUnits){
 					storage.findWitnessListUnit(conn, arrWitnesses, last_stable_mci, function(witness_list_unit){
 						var objFakeUnit = {parent_units: arrTrimmedParentUnits};
 						if (witness_list_unit)
