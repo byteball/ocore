@@ -1275,6 +1275,7 @@ function markMcIndexStable(conn, batch, mci, onDone){
 		if (arrFinalBadUnits.length === 0)
 			return onPropagated();
 		conn.query("SELECT DISTINCT inputs.unit, main_chain_index FROM inputs LEFT JOIN units USING(unit) WHERE src_unit IN(?)", [arrFinalBadUnits], function(rows){
+			console.log("will propagate final-bad to", rows);
 			if (rows.length === 0)
 				return onPropagated();
 			var arrSpendingUnits = rows.map(function(row){ return row.unit; });
@@ -1291,6 +1292,7 @@ function markMcIndexStable(conn, batch, mci, onDone){
 					else // on a future MCI
 						storage.assocUnstableUnits[unit].sequence = 'final-bad';
 				});
+				console.log("new final-bads on the same mci", arrNewBadUnitsOnSameMci);
 				async.eachSeries(
 					arrNewBadUnitsOnSameMci,
 					setContentHash,
