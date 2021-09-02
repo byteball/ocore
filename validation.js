@@ -1951,6 +1951,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 							}
 							else{ // after this MCI, spending unconfirmed is allowed for public assets too, non-good sequence will be inherited
 								if (src_output.sequence !== 'good'){
+									console.log(objUnit.unit + ": inheriting sequence " + src_output.sequence + " from src output " + input.unit);
 									if (objValidationState.sequence === 'good' || objValidationState.sequence === 'temp-bad')
 										objValidationState.sequence = src_output.sequence;
 								}
