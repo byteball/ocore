@@ -1274,15 +1274,30 @@ function markMcIndexStable(conn, batch, mci, onDone){
 	function propagateFinalBad(arrFinalBadUnits, onPropagated){
 		if (arrFinalBadUnits.length === 0)
 			return onPropagated();
-		conn.query("SELECT DISTINCT unit FROM inputs WHERE src_unit IN(?)", [arrFinalBadUnits], function(rows){
+		conn.query("SELECT DISTINCT inputs.unit, main_chain_index FROM inputs LEFT JOIN units USING(unit) WHERE src_unit IN(?)", [arrFinalBadUnits], function(rows){
 			if (rows.length === 0)
 				return onPropagated();
 			var arrSpendingUnits = rows.map(function(row){ return row.unit; });
 			conn.query("UPDATE units SET sequence='final-bad' WHERE unit IN(?)", [arrSpendingUnits], function(){
-				arrSpendingUnits.forEach(function(unit){
-					storage.assocUnstableUnits[unit].sequence = 'final-bad';
+				var arrNewBadUnitsOnSameMci = [];
+				rows.forEach(function (row) {
+					var unit = row.unit;
+					if (row.main_chain_index === mci) { // on the same MCI that we've just stabilized
+						if (storage.assocStableUnits[unit].sequence !== 'final-bad') {
+							storage.assocStableUnits[unit].sequence = 'final-bad';
+							arrNewBadUnitsOnSameMci.push(unit);
+						}
+					}
+					else // on a future MCI
+						storage.assocUnstableUnits[unit].sequence = 'final-bad';
 				});
-				propagateFinalBad(arrSpendingUnits, onPropagated);
+				async.eachSeries(
+					arrNewBadUnitsOnSameMci,
+					setContentHash,
+					function () {
+						propagateFinalBad(arrSpendingUnits, onPropagated);
+					}
+				);
 			});
 		});
 	}
