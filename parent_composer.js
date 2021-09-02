@@ -8,7 +8,7 @@ var storage = require("./storage.js");
 var main_chain = require("./main_chain.js");
 var graph = require('./graph.js');
 
-const bAdvanceLastStableUnit = false;
+const bAdvanceLastStableUnit = true;
 
 function pickParentUnits(conn, arrWitnesses, timestamp, onDone){
 	// don't exclude units derived from unwitnessed potentially bad units! It is not their blame and can cause a split.
