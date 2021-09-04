@@ -1774,7 +1774,10 @@ function reintroduceBalanceBug(address, row) {
 if (!conf.bLight) {
 	setTimeout(checkStorageSizes, 1000);
 	setInterval(checkStorageSizes, 600 * 1000);
-	setTimeout(checkBalances, 2000);
+	if (typeof window !== 'undefined')
+		eventBus.once('app_ready', checkBalances);
+	else
+		setTimeout(checkBalances, 2000);
 	setInterval(checkBalances, 600 * 1000);
 }
 
