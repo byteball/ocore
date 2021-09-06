@@ -473,12 +473,15 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 		if (trigger_opts.bAir)
 			throw Error("updateFinalAABalances shouldn't be called with bAir");
 		var assocDeltas = {};
+		var arrNewAssets = [];
 		arrConsumedOutputs.forEach(function (output) {
 			if (!assocDeltas[output.asset])
 				assocDeltas[output.asset] = 0;
 			assocDeltas[output.asset] -= output.amount;
+			// this might happen if there is another pending invocation of our AA that created the outputs we are spending now
+			if (!objValidationState.assocBalances[address][output.asset])
+				arrNewAssets.push(output.asset);
 		});
-		var arrNewAssets = [];
 		objUnit.messages.forEach(function (message) {
 			if (message.app !== 'payment')
 				return;
