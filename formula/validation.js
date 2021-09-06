@@ -1309,7 +1309,7 @@ exports.validate = function (opts, callback) {
 			complexity = saved_complexity;
 			count_ops = saved_count_ops;
 			bStateVarAssignmentAllowed = saved_sva;
-			bInFunction = mci < constants.aa3UpgradeMci ? false : saved_infunction;
+			bInFunction = saved_infunction;
 			assignObject(locals, saved_locals);
 
 			if (funcProps.complexity > constants.MAX_COMPLEXITY)
