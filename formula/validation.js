@@ -419,6 +419,11 @@ exports.validate = function (opts, callback) {
 				cb();
 				break;
 
+			case 'trigger.initial_unit':
+			case 'trigger.outputs':
+			case 'previous_aa_responses':
+				if (mci < constants.aa3UpgradeMci)
+					return cb(op + ' not activated yet');
 			case 'trigger.address':
 			case 'trigger.initial_address':
 			case 'trigger.unit':
@@ -917,6 +922,8 @@ exports.validate = function (opts, callback) {
 			case 'delete':
 				if (mci < constants.aa2UpgradeMci)
 					return cb("delete statement not activated yet");
+				if (bGetters && !bInFunction)
+					return cb("top-level delete not allowed in getters");
 				var var_name_expr = arr[1];
 				var selectors = arr[2];
 				var key = arr[3];
@@ -948,6 +955,8 @@ exports.validate = function (opts, callback) {
 			case 'reduce':
 				if (mci < constants.aa2UpgradeMci)
 					return cb(op + " not activated yet");
+				if (bGetters && !bInFunction)
+					return cb("top-level " + op + " not allowed in getters");
 				var expr = arr[1];
 				var count_expr = arr[2];
 				var func_expr = arr[3];
@@ -959,10 +968,12 @@ exports.validate = function (opts, callback) {
 					readFuncProps(func_expr, (err, funcProps) => {
 						if (err)
 							return cb(err);
-						if (op !== 'reduce' && funcProps.count_args !== 1 && funcProps.count_args !== 2)
-							return cb("callback function must have 1 or 2 arguments");
-						if (op === 'reduce' && funcProps.count_args !== 2 && funcProps.count_args !== 3)
-							return cb("callback function must have 2 or 3 arguments");
+						if (funcProps.count_args !== null) {
+							if (op !== 'reduce' && funcProps.count_args !== 1 && funcProps.count_args !== 2)
+								return cb("callback function must have 1 or 2 arguments");
+							if (op === 'reduce' && funcProps.count_args !== 2 && funcProps.count_args !== 3)
+								return cb("callback function must have 2 or 3 arguments");
+						}
 						complexity += (funcProps.complexity === 0) ? 1 : count * funcProps.complexity;
 						count_ops += count * funcProps.count_ops;
 						if (op !== 'reduce')
@@ -1113,21 +1124,30 @@ exports.validate = function (opts, callback) {
 				if (mci < constants.aa2UpgradeMci)
 					return cb("getter funcs not activated yet");
 				var remote_aa = arr[1];
-				var func_name = arr[2];
-				var arrExpressions = arr[3];
+				var max_remote_complexity = arr[2];
+				var func_name = arr[3];
+				var arrExpressions = arr[4];
+				if (max_remote_complexity !== null) {
+					if (mci < constants.aa3UpgradeMci)
+						return cb("max_remote_complexity not enabled yet");
+					var rc_res = parseRemoteComplexity(max_remote_complexity);
+					if (rc_res.error)
+						return cb(rc_res.error);
+					max_remote_complexity = rc_res.remote_complexity;
+				}
 				var res = parseRemoteAA(remote_aa);
-				if (res.error)
+				if (res.error && max_remote_complexity === null)
 					return cb(res.error);
-				remote_aa = res.remote_aa;
-				readGetterProps(remote_aa, func_name, getter => {
-					if (!getter)
-						return cb("no such getter: " + remote_aa + ".$" + func_name + "()");
-					if (typeof getter.complexity !== 'number' || typeof getter.count_ops !== 'number' || (typeof getter.count_args !== 'number' && getter.count_args !== null))
-						throw Error("invalid getter in " + remote_aa + ".$" + func_name + ": " + JSON.stringify(getter));
-					if (getter.count_args !== null && arrExpressions.length > getter.count_args)
-						return cb("getter " + func_name + " expects " + getter.count_args + " args, got " + arrExpressions.length);
-					complexity += getter.complexity + 1;
-					count_ops += getter.count_ops;
+				var evaluated_remote_aa = res.remote_aa;
+				var ultimate_remote_aa;
+				if (evaluated_remote_aa)
+					ultimate_remote_aa = evaluated_remote_aa;
+				else if (typeof max_remote_complexity === 'string')
+					ultimate_remote_aa = max_remote_complexity; // base AA
+
+				evaluate(remote_aa, err => {
+					if (err)
+						return cb(err);
 					async.eachSeries(
 						arrExpressions,
 						function (expr, cb2) {
@@ -1137,7 +1157,29 @@ exports.validate = function (opts, callback) {
 								cb2();
 							});
 						},
-						cb
+						function (err) {
+							if (err)
+								return cb(err);
+							if (!ultimate_remote_aa) {
+								if (typeof max_remote_complexity !== 'number')
+									throw Error('max_remote_complexity is not a number ' + max_remote_complexity);
+								complexity += max_remote_complexity + 1;
+								// add ops proportionally to complexity
+								count_ops += (max_remote_complexity + 1) * Math.ceil(constants.MAX_OPS / constants.MAX_COMPLEXITY);
+								return cb();
+							}
+							readGetterProps(ultimate_remote_aa, func_name, getter => {
+								if (!getter)
+									return cb("no such getter: " + ultimate_remote_aa + ".$" + func_name + "()");
+								if (typeof getter.complexity !== 'number' || typeof getter.count_ops !== 'number' || (typeof getter.count_args !== 'number' && getter.count_args !== null))
+									throw Error("invalid getter in " + ultimate_remote_aa + ".$" + func_name + ": " + JSON.stringify(getter));
+								if (getter.count_args !== null && arrExpressions.length > getter.count_args)
+									return cb("getter " + func_name + " expects " + getter.count_args + " args, got " + arrExpressions.length);
+								complexity += getter.complexity + 1;
+								count_ops += getter.count_ops;
+								cb();
+							});
+						}
 					);
 				});
 				break;
@@ -1156,6 +1198,14 @@ exports.validate = function (opts, callback) {
 						cb
 					);
 				});
+				break;	
+			
+			case 'log':
+				if (mci < constants.aa3UpgradeMci)
+					return cb('log not activated yet');
+				if (arr[1].length === 0)
+					return cb("no arguments of log");
+				async.eachSeries(arr[1], evaluate, cb);
 				break;
 		
 			case 'bounce':
@@ -1164,6 +1214,21 @@ exports.validate = function (opts, callback) {
 					return cb("bounce not allowed at top level in getters");
 				var expr = arr[1];
 				evaluate(expr, cb);
+				break;
+
+			case 'require':
+				if (mci < constants.aa3UpgradeMci)
+					return cb('require not activated yet');
+				// can be used in non-statements-only formulas and non-AAs too
+				if (bGetters && !bInFunction)
+					return cb("require not allowed at top level in getters");
+				var req_expr = arr[1];
+				var msg_expr = arr[2];
+				evaluate(req_expr, err => {
+					if (err)
+						return cb(err);
+					evaluate(msg_expr, cb);
+				});
 				break;
 
 			case 'return':
@@ -1218,9 +1283,12 @@ exports.validate = function (opts, callback) {
 		if (_.intersection(args, scopeVarNames).length > 0)
 			return cb("some args would shadow some local vars");
 		var count_args = args.length;
+		if (_.uniq(args).length !== count_args)
+			return cb("duplicate arguments");
 		var saved_complexity = complexity;
 		var saved_count_ops = count_ops;
 		var saved_sva = bStateVarAssignmentAllowed;
+		var saved_infunction = bInFunction;
 		var saved_locals = _.cloneDeep(locals);
 		complexity = 0;
 		count_ops = 0;
@@ -1241,11 +1309,13 @@ exports.validate = function (opts, callback) {
 			complexity = saved_complexity;
 			count_ops = saved_count_ops;
 			bStateVarAssignmentAllowed = saved_sva;
-			bInFunction = false;
+			bInFunction = mci < constants.aa3UpgradeMci ? false : saved_infunction;
 			assignObject(locals, saved_locals);
 
 			if (funcProps.complexity > constants.MAX_COMPLEXITY)
 				return cb("function exceeds complexity: " + funcProps.complexity);
+			if (funcProps.count_ops > constants.MAX_OPS)
+				return cb("function exceeds max ops: " + funcProps.count_ops);
 			cb(null, funcProps);
 		});
 	}
@@ -1269,18 +1339,45 @@ exports.validate = function (opts, callback) {
 		}
 		else if (func_expr[0] === 'remote_func') {
 			var remote_aa = func_expr[1];
-			var func_name = func_expr[2];
+			var max_remote_complexity = func_expr[2];
+			var func_name = func_expr[3];
+			if (max_remote_complexity !== null) {
+				if (mci < constants.aa3UpgradeMci)
+					return cb("max_remote_complexity not enabled yet");
+				var rc_res = parseRemoteComplexity(max_remote_complexity);
+				if (rc_res.error)
+					return cb(rc_res.error);
+				max_remote_complexity = rc_res.remote_complexity;
+			}
 			var res = parseRemoteAA(remote_aa);
-			if (res.error)
+			if (res.error && max_remote_complexity === null)
 				return cb(res.error);
-			remote_aa = res.remote_aa;
-			readGetterProps(remote_aa, func_name, getter => {
-				if (!getter)
-					return cb("no such getter: " + remote_aa + ".$" + func_name + "()");
-				if (typeof getter.complexity !== 'number' || typeof getter.count_ops !== 'number' || (typeof getter.count_args !== 'number' && getter.count_args !== null))
-					throw Error("invalid getter in " + remote_aa + ".$" + func_name + ": " + JSON.stringify(getter));
-				getter.complexity++; // for remote call
-				cb(null, getter);
+			var evaluated_remote_aa = res.remote_aa;
+			var ultimate_remote_aa;
+			if (evaluated_remote_aa)
+				ultimate_remote_aa = evaluated_remote_aa;
+			else if (typeof max_remote_complexity === 'string')
+				ultimate_remote_aa = max_remote_complexity; // base AA
+			
+			evaluate(remote_aa, err => {
+				if (err)
+					return cb(err);
+				if (!ultimate_remote_aa) {
+					if (typeof max_remote_complexity !== 'number')
+						throw Error('max_remote_complexity is not a number ' + max_remote_complexity);
+					const complexity = max_remote_complexity + 1;
+					// add ops proportionally to complexity
+					const count_ops = complexity * Math.ceil(constants.MAX_OPS / constants.MAX_COMPLEXITY);
+					return cb(null, { complexity, count_ops, count_args: null });
+				}
+				readGetterProps(ultimate_remote_aa, func_name, getter => {
+					if (!getter)
+						return cb("no such getter: " + ultimate_remote_aa + ".$" + func_name + "()");
+					if (typeof getter.complexity !== 'number' || typeof getter.count_ops !== 'number' || (typeof getter.count_args !== 'number' && getter.count_args !== null))
+						throw Error("invalid getter in " + ultimate_remote_aa + ".$" + func_name + ": " + JSON.stringify(getter));
+					getter.complexity++; // for remote call
+					cb(null, getter);
+				});
 			});
 		}
 		else
@@ -1329,6 +1426,27 @@ exports.validate = function (opts, callback) {
 		if (!ValidationUtils.isValidAddress(remote_aa))
 			return { error: "not valid AA address: " + remote_aa };
 		return { remote_aa };
+	}
+
+	function parseRemoteComplexity(remote_complexity) {
+		if (typeof remote_complexity === 'object' && remote_complexity[0] === 'local_var') {
+			var var_name = remote_complexity[1];
+			if (typeof var_name !== 'string')
+				return { error: "remote complexity var name must be literal" };
+			if (!hasOwnProperty(locals, var_name))
+				return { error: "remote complexity var " + var_name + " does not exist" };
+			remote_complexity = locals[var_name].value;
+			if (remote_complexity === undefined)
+				return { error: "remote complexity var " + var_name + " must be a constant" };
+		}
+		if (ValidationUtils.isValidAddress(remote_complexity)) // base AA
+			return { remote_complexity };
+		if (Decimal.isDecimal(remote_complexity)) {
+			remote_complexity = remote_complexity.toNumber();
+			if (remote_complexity < constants.MAX_COMPLEXITY && ValidationUtils.isNonnegativeInteger(remote_complexity))
+				return { remote_complexity };
+		}
+		return { error: "not valid remote complexity: " + remote_complexity };
 	}
 
 	if (parser.results.length === 1 && parser.results[0]) {

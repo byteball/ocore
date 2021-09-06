@@ -388,7 +388,12 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 		mc_unit: objMcUnit.unit,
 		assocBalances: {},
 		number_of_responses: arrResponses.length,
-		arrPreviousResponseUnits: arrResponses.map(objAAResponse => objAAResponse.objResponseUnit)
+		arrPreviousAAResponses: arrResponses.map(objAAResponse => ({
+			unit_obj: objAAResponse.objResponseUnit || false,
+			trigger_unit: objAAResponse.trigger_unit,
+			trigger_address: objAAResponse.trigger_address,
+			aa_address: objAAResponse.aa_address,
+		})),
 	};
 	var bWithKeys = (mci >= constants.includeKeySizesUpgradeMci);
 	var FULL_TRANSFER_INPUT_SIZE = TRANSFER_INPUT_SIZE + (bWithKeys ? TRANSFER_INPUT_KEYS_SIZE : 0);
@@ -447,7 +452,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 					conn.addQuery(arrQueries, "INSERT INTO aa_balances (address, asset, balance) VALUES "+arrValues.join(', '));
 				}
 				byte_balance = objValidationState.assocBalances[address].base;
-				if (trigger.outputs.base === undefined) // bug-compatible
+				if (trigger.outputs.base === undefined && mci < constants.aa3UpgradeMci) // bug-compatible
 					byte_balance = undefined;
 				if (!bSecondary)
 					conn.addQuery(arrQueries, "SAVEPOINT initial_balances");
@@ -1050,7 +1055,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 						return sortOutputsAndReturn();
 					if (!asset)
 						return cb('not enough funds for ' + target_amount + ' bytes');
-					var bSelfIssueForSendAll = (constants.bTestnet && mci < 2080483 || !constants.bTestnet && !constants.bDevnet);
+					var bSelfIssueForSendAll = mci < (constants.bTestnet ? 2080483 : constants.aa3UpgradeMci);
 					if (!bSelfIssueForSendAll && send_all_output && payload.outputs.length === 1) // send-all is the only output - don't issue for it
 						return sortOutputsAndReturn();
 					issueAsset(function (err) {

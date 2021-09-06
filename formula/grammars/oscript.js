@@ -38,7 +38,9 @@ function id(x) { return x[0]; }
 		trigger_address: /\btrigger\.address\b/,
 		trigger_initial_address: /\btrigger\.initial_address\b/,
 		trigger_unit: /\btrigger\.unit\b/,
+		trigger_initial_unit: /\btrigger\.initial_unit\b/,
 		trigger_data: /\btrigger\.data\b/,
+		trigger_outputs: /\btrigger\.outputs\b/,
 		trigger_output: /\btrigger\.output\b/,
 		dotSelector: /\.\w+/,
 		local_var_name: /\$[a-zA-Z_]\w*\b/,
@@ -46,13 +48,14 @@ function id(x) { return x[0]; }
 		semi: ';',
 		comma: ',',
 		dot: '.',
+		number_sign: '#',
 		IDEN: {
 			match: /\b[a-zA-Z_]\w*\b/,
 			type: moo.keywords({
 				keyword: [
 					'min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round', 'abs', 'hypot', 'is_valid_signed_package', 'is_valid_sig', 'vrf_verify', 'sha256', 'chash160', 'json_parse', 'json_stringify', 'number_from_seed', 'length', 'is_valid_address', 'starts_with', 'ends_with', 'contains', 'substring', 'timestamp_to_string', 'parse_date', 'is_aa', 'is_integer', 'is_valid_amount', 'is_array', 'is_assoc', 'array_length', 'index_of', 'to_upper', 'to_lower', 'exists', 'number_of_responses', 'is_valid_merkle_proof', 'replace', 'typeof', 'delete', 'freeze', 'keys', 'foreach', 'map', 'filter', 'reduce', 'reverse', 'split', 'join', 'has_only',
 
-					'timestamp', 'storage_size', 'mci', 'this_address', 'response_unit', 'mc_unit', 'params',
+					'timestamp', 'storage_size', 'mci', 'this_address', 'response_unit', 'mc_unit', 'params', 'previous_aa_responses',
 
 					'type', 'ifseveral', 'ifnone', 'attestors', 'address',
 					'oracles', 'feed_name', 'min_mci', 'feed_value', 'what',
@@ -66,8 +69,8 @@ function id(x) { return x[0]; }
 					'not', 'NOT',
 					'otherwise', 'OTHERWISE',
 					'asset',
-					'var', 'response',
-					'if', 'else', 'return', 'bounce',
+					'var', 'response', 'log',
+					'if', 'else', 'return', 'bounce', 'require',
 					'unit', 'definition', 'balance',
 					'attestation', 'data_feed', 'in_data_feed', 'input', 'output',
 				],
@@ -103,8 +106,10 @@ var grammar = {
     {"name": "statement", "symbols": ["state_var_assignment"], "postprocess": id},
     {"name": "statement", "symbols": ["response_var_assignment"], "postprocess": id},
     {"name": "statement", "symbols": ["bounce_statement"], "postprocess": id},
+    {"name": "statement", "symbols": ["require_statement"], "postprocess": id},
     {"name": "statement", "symbols": ["return_statement"], "postprocess": id},
     {"name": "statement", "symbols": ["empty_return_statement"], "postprocess": id},
+    {"name": "statement", "symbols": ["log_statement"], "postprocess": id},
     {"name": "statement", "symbols": ["func_call", {"literal":";"}], "postprocess": id},
     {"name": "statement", "symbols": ["remote_func_call", {"literal":";"}], "postprocess": id},
     {"name": "statement$ebnf$1", "symbols": []},
@@ -140,8 +145,10 @@ var grammar = {
     {"name": "block", "symbols": ["statement"], "postprocess": id},
     {"name": "bounce_expr", "symbols": [{"literal":"bounce"}, {"literal":"("}, "expr", {"literal":")"}], "postprocess": function(d) { return ['bounce', d[2]]; }},
     {"name": "bounce_statement", "symbols": ["bounce_expr", {"literal":";"}], "postprocess": function(d) { return d[0]; }},
+    {"name": "require_statement", "symbols": [{"literal":"require"}, {"literal":"("}, "expr", {"literal":","}, "expr", {"literal":")"}, {"literal":";"}], "postprocess": function(d) { return ['require', d[2], d[4]]; }},
     {"name": "return_statement", "symbols": [{"literal":"return"}, "expr", {"literal":";"}], "postprocess": function(d) { return ['return', d[1]]; }},
     {"name": "empty_return_statement", "symbols": [{"literal":"return"}, {"literal":";"}], "postprocess": function(d) { return ['return', null]; }},
+    {"name": "log_statement", "symbols": [{"literal":"log"}, {"literal":"("}, "expr_list", {"literal":")"}, {"literal":";"}], "postprocess": function(d) {return ['log', d[2]]; }},
     {"name": "otherwise_expr$subexpression$1", "symbols": [{"literal":"otherwise"}]},
     {"name": "otherwise_expr$subexpression$1", "symbols": [{"literal":"OTHERWISE"}]},
     {"name": "otherwise_expr", "symbols": ["expr", "otherwise_expr$subexpression$1", "ternary_expr"], "postprocess": function(d) { return ['otherwise', d[0], d[2]]; }},
@@ -253,7 +260,7 @@ var grammar = {
         } },
     {"name": "func_call", "symbols": [(lexer.has("local_var_name") ? {type: "local_var_name"} : local_var_name), {"literal":"("}, "expr_list", {"literal":")"}], "postprocess": function(d) {return ['func_call', d[0].value.substr(1), d[2]]; }},
     {"name": "remote_func_call", "symbols": ["remote_func", {"literal":"("}, "expr_list", {"literal":")"}], "postprocess":  function(d) {
-        	return ['remote_func_call', d[0][1], d[0][2], d[2]]; 
+        	return ['remote_func_call', d[0][1], d[0][2], d[0][3], d[2]]; 
         } },
     {"name": "remote_func$subexpression$1", "symbols": [(lexer.has("addressValue") ? {type: "addressValue"} : addressValue)]},
     {"name": "remote_func$subexpression$1", "symbols": ["local_var"]},
@@ -261,17 +268,33 @@ var grammar = {
         	var remote_aa = d[0][0];
         	if (remote_aa.type === 'addressValue')
         		remote_aa = remote_aa.value;
-        	return ['remote_func', remote_aa, d[2].value.substr(1)]; 
+        	return ['remote_func', remote_aa, null, d[2].value.substr(1)]; 
         } },
+    {"name": "remote_func$subexpression$2", "symbols": [(lexer.has("number") ? {type: "number"} : number)]},
+    {"name": "remote_func$subexpression$2", "symbols": [(lexer.has("addressValue") ? {type: "addressValue"} : addressValue)]},
+    {"name": "remote_func$subexpression$2", "symbols": ["local_var"]},
+    {"name": "remote_func", "symbols": ["P", {"literal":"#"}, "remote_func$subexpression$2", {"literal":"."}, (lexer.has("local_var_name") ? {type: "local_var_name"} : local_var_name)], "postprocess":  function(d) {
+        	var remote_aa = d[0];
+        	var max_remote_complexity = d[2][0];
+        	if (max_remote_complexity.type === 'number')
+        		max_remote_complexity = new Decimal(max_remote_complexity.value).times(1);
+        	else if (max_remote_complexity.type === 'addressValue')
+        		max_remote_complexity = max_remote_complexity.value;
+        	return ['remote_func', remote_aa, max_remote_complexity, d[4].value.substr(1)]; 
+        } },
+    {"name": "trigger_outputs", "symbols": [{"literal":"trigger.outputs"}], "postprocess": function(d) {return ['trigger.outputs']; }},
     {"name": "trigger_data", "symbols": [{"literal":"trigger.data"}], "postprocess": function(d) {return ['trigger.data']; }},
     {"name": "params", "symbols": [{"literal":"params"}], "postprocess": function(d) {return ['params']; }},
+    {"name": "previous_aa_responses", "symbols": [{"literal":"previous_aa_responses"}], "postprocess": function(d) {return ['previous_aa_responses']; }},
     {"name": "unit", "symbols": [{"literal":"unit"}, {"literal":"["}, "expr", {"literal":"]"}], "postprocess": function(d) { return ['unit', d[2]]; }},
     {"name": "definition", "symbols": [{"literal":"definition"}, {"literal":"["}, "expr", {"literal":"]"}], "postprocess": function(d) { return ['definition', d[2]]; }},
     {"name": "with_selectors$subexpression$1", "symbols": ["func_call"]},
     {"name": "with_selectors$subexpression$1", "symbols": ["remote_func_call"]},
     {"name": "with_selectors$subexpression$1", "symbols": ["local_var"]},
+    {"name": "with_selectors$subexpression$1", "symbols": ["trigger_outputs"]},
     {"name": "with_selectors$subexpression$1", "symbols": ["trigger_data"]},
     {"name": "with_selectors$subexpression$1", "symbols": ["params"]},
+    {"name": "with_selectors$subexpression$1", "symbols": ["previous_aa_responses"]},
     {"name": "with_selectors$subexpression$1", "symbols": ["unit"]},
     {"name": "with_selectors$subexpression$1", "symbols": ["definition"]},
     {"name": "with_selectors$ebnf$1$subexpression$1", "symbols": [(lexer.has("dotSelector") ? {type: "dotSelector"} : dotSelector)]},
@@ -399,8 +422,10 @@ var grammar = {
     {"name": "N", "symbols": ["local_var"], "postprocess": id},
     {"name": "N", "symbols": ["func_call"], "postprocess": id},
     {"name": "N", "symbols": ["remote_func_call"], "postprocess": id},
+    {"name": "N", "symbols": ["trigger_outputs"], "postprocess": id},
     {"name": "N", "symbols": ["trigger_data"], "postprocess": id},
     {"name": "N", "symbols": ["params"], "postprocess": id},
+    {"name": "N", "symbols": ["previous_aa_responses"], "postprocess": id},
     {"name": "N", "symbols": ["unit"], "postprocess": id},
     {"name": "N", "symbols": ["definition"], "postprocess": id},
     {"name": "N", "symbols": ["with_selectors"], "postprocess": id},
@@ -560,6 +585,7 @@ var grammar = {
     {"name": "N", "symbols": [{"literal":"trigger.address"}], "postprocess": function(d) {return ['trigger.address']; }},
     {"name": "N", "symbols": [{"literal":"trigger.initial_address"}], "postprocess": function(d) {return ['trigger.initial_address']; }},
     {"name": "N", "symbols": [{"literal":"trigger.unit"}], "postprocess": function(d) {return ['trigger.unit']; }},
+    {"name": "N", "symbols": [{"literal":"trigger.initial_unit"}], "postprocess": function(d) {return ['trigger.initial_unit']; }},
     {"name": "N$subexpression$12", "symbols": [{"literal":"["}, {"literal":"["}]},
     {"name": "N$subexpression$13", "symbols": ["expr"]},
     {"name": "N$subexpression$13", "symbols": [{"literal":"base"}]},

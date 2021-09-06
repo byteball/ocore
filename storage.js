@@ -70,14 +70,14 @@ function readJoint(conn, unit, callbacks, bSql) {
 		// light wallets don't have last_ball, don't verify their hashes
 		if (!conf.bLight && !isCorrectHash(objJoint.unit, unit))
 			throw Error("wrong hash of unit "+unit);
-		conn.query("SELECT main_chain_index, "+conn.getUnixTimestamp("creation_date")+" AS timestamp FROM units WHERE unit=?", [unit], function(rows){
+		conn.query("SELECT main_chain_index, "+conn.getUnixTimestamp("creation_date")+" AS timestamp, sequence FROM units WHERE unit=?", [unit], function(rows){
 			if (rows.length === 0)
 				throw Error("unit found in kv but not in sql: "+unit);
 			var row = rows[0];
 			if (objJoint.unit.version === constants.versionWithoutTimestamp)
 				objJoint.unit.timestamp = parseInt(row.timestamp);
 			objJoint.unit.main_chain_index = row.main_chain_index;
-			callbacks.ifFound(objJoint);
+			callbacks.ifFound(objJoint, row.sequence);
 		});
 	});
 	/*
@@ -911,11 +911,12 @@ function readAABalances(conn, address, handleBalances) {
 }
 
 function parseStateVar(type_and_value) {
-	var arrParts = type_and_value.split("\n", 2);
-	if (arrParts.length !== 2)
+	if (typeof type_and_value !== 'string')
+		throw Error("bad type of value " + type_and_value + ": " + (typeof type_and_value));
+	if (type_and_value[1] !== "\n")
 		throw Error("bad value: " + type_and_value);
-	var type = arrParts[0];
-	var value = arrParts[1];
+	var type = type_and_value[0];
+	var value = type_and_value.substr(2);
 	if (type === 's')
 		return value;
 	else if (type === 'n')

@@ -71,6 +71,9 @@ exports.evaluate = function (opts, callback) {
 	var address = opts.address;
 	var objResponseUnit = opts.objResponseUnit;
 	var mci = objValidationState.last_ball_mci;
+	if (!objValidationState.logs)
+		objValidationState.logs = [];
+	var logs = objValidationState.logs || [];
 
 	if (!ValidationUtils.isPositiveInteger(objValidationState.last_ball_timestamp))
 		throw Error('last_ball_timestamp is not a number: ' + objValidationState.last_ball_timestamp);
@@ -1008,12 +1011,24 @@ exports.evaluate = function (opts, callback) {
 				cb(trigger.unit);
 				break;
 
+			case 'trigger.initial_unit':
+				cb(trigger.initial_unit);
+				break;
+
 			case 'trigger.data':
 			case 'params':
 				var value = (op === 'params') ? aa_params : trigger.data;
 				if (!value || Object.keys(value).length === 0)
 					return cb(false);
 				cb(new wrappedObject(value));
+				break;
+
+			case 'previous_aa_responses':
+				cb(new wrappedObject(objValidationState.arrPreviousAAResponses));
+				break;
+
+			case 'trigger.outputs':
+				cb(new wrappedObject(trigger.outputs));
 				break;
 
 			case 'trigger.output':
@@ -1422,8 +1437,9 @@ exports.evaluate = function (opts, callback) {
 							return cb(false);
 						if (typeof field !== 'string' || !objBaseAssetInfo.hasOwnProperty(field))
 							return setFatalError("bad field in asset[]: " + field, cb, false);
+						var convertValue = (value) => (typeof value === 'number' && mci >= constants.aa3UpgradeMci) ? new Decimal(value) : value;
 						if (asset === 'base')
-							return cb(objBaseAssetInfo[field]);
+							return cb(convertValue(objBaseAssetInfo[field]));
 						if (!ValidationUtils.isValidBase64(asset, constants.HASH_LENGTH)) {
 							if (field === 'exists')
 								return cb(false);
@@ -1435,7 +1451,7 @@ exports.evaluate = function (opts, callback) {
 							if (objAsset.sequence !== "good")
 								return cb(false);
 							if (field === 'cap') // can be null
-								return cb(objAsset.cap || 0);
+								return cb(convertValue(objAsset.cap || 0));
 							if (field === 'definer_address')
 								return cb(objAsset.definer_address);
 							if (field === 'exists')
@@ -1463,8 +1479,8 @@ exports.evaluate = function (opts, callback) {
 						if (objResponseUnit && objResponseUnit.unit === unit)
 							return cb(new wrappedObject(objResponseUnit));
 						// 2. check previous response units from the same primary trigger, they are not in the db yet
-						for (var i = 0; i < objValidationState.arrPreviousResponseUnits.length; i++) {
-							var objPreviousResponseUnit = objValidationState.arrPreviousResponseUnits[i];
+						for (var i = 0; i < objValidationState.arrPreviousAAResponses.length; i++) {
+							var objPreviousResponseUnit = objValidationState.arrPreviousAAResponses[i].unit_obj;
 							if (objPreviousResponseUnit && objPreviousResponseUnit.unit === unit)
 								return cb(new wrappedObject(objPreviousResponseUnit));
 						}
@@ -1475,9 +1491,13 @@ exports.evaluate = function (opts, callback) {
 						ifNotFound: function () {
 							cb(false);
 						},
-						ifFound: function (objJoint) {
+						ifFound: function (objJoint, sequence) {
 							console.log('---- found', unit);
+							if (sequence !== 'good') // bad units don't exist for us
+								return cb(false);
 							var objUnit = objJoint.unit;
+							if (objUnit.version === constants.versionWithoutTimestamp)
+								objUnit.timestamp = 0;
 							var unit_mci = objUnit.main_chain_index;
 							// ignore non-AA units that are not stable or created at a later mci
 							if (unit_mci === null || unit_mci > mci) {
@@ -2379,8 +2399,9 @@ exports.evaluate = function (opts, callback) {
 
 			case 'remote_func_call':
 				var remote_aa_expr = arr[1];
-				var func_name = arr[2];
-				var arrExpressions = arr[3];
+				var max_remote_complexity = arr[2];
+				var func_name = arr[3];
+				var arrExpressions = arr[4];
 				var args = [];
 				async.eachSeries(
 					arrExpressions,
@@ -2402,10 +2423,16 @@ exports.evaluate = function (opts, callback) {
 								return setFatalError(fatal_error, cb, false);
 							if (!ValidationUtils.isValidAddress(remote_aa))
 								return setFatalError("not valid remote AA: " + remote_aa, cb, false);
-							callGetter(conn, remote_aa, func_name, args, stateVars, objValidationState, (err, res) => {
+							checkMaxRemoteComplexity(remote_aa, func_name, max_remote_complexity, (err) => {
+								if (fatal_error)
+									return cb(false);
 								if (err)
 									return setFatalError(err, cb, false);
-								cb(res);
+								callGetter(conn, remote_aa, func_name, args, stateVars, objValidationState, (err, res) => {
+									if (err)
+										return setFatalError(err, cb, false);
+									cb(res);
+								});
 							});
 						});
 					}
@@ -2424,6 +2451,27 @@ exports.evaluate = function (opts, callback) {
 				});
 				break;
 	
+			case 'log':
+				var entries = [];
+				async.eachSeries(
+					arr[1],
+					function (expr, cb2) {
+						evaluate(expr, res => {
+							if (fatal_error)
+								return cb2(fatal_error);
+							entries.push(res);
+							cb2();
+						});
+					},
+					function (err) {
+						if (fatal_error)
+							return cb(false);
+						logs.push(entries);
+						cb(true);
+					}
+				);
+				break;
+
 			case 'bounce':
 				var error_description = arr[1];
 				evaluate(error_description, function (evaluated_error_description) {
@@ -2431,6 +2479,29 @@ exports.evaluate = function (opts, callback) {
 						return cb(false);
 					console.log('bounce called: ', evaluated_error_description);
 					setFatalError({ bounce_message: evaluated_error_description }, cb, false);
+				});
+				break;
+
+			case 'require':
+				var req_expr = arr[1];
+				var error_description = arr[2];
+				evaluate(req_expr, evaluated_req => {
+					if (fatal_error)
+						return cb(false);
+					if (evaluated_req instanceof wrappedObject)
+						evaluated_req = true;
+					if (!isValidValue(evaluated_req))
+						return setFatalError("bad value in require: " + evaluated_req, cb, false);
+					if (Decimal.isDecimal(evaluated_req) && evaluated_req.toNumber() === 0)
+						evaluated_req = 0;
+					if (evaluated_req)
+						return cb(true);
+					evaluate(error_description, function (evaluated_error_description) {
+						if (fatal_error)
+							return cb(false);
+						console.log('require not met:', evaluated_error_description);
+						setFatalError({ bounce_message: evaluated_error_description }, cb, false);
+					});
 				});
 				break;
 
@@ -2807,16 +2878,56 @@ exports.evaluate = function (opts, callback) {
 		}
 		else if (func_expr[0] === 'remote_func') {
 			var remote_aa_expr = func_expr[1];
-			var func_name = func_expr[2];
+			var max_remote_complexity = func_expr[2];
+			var func_name = func_expr[3];
 			evaluate(remote_aa_expr, remote_aa => {
 				if (fatal_error)
 					return cb(false);
-				cb({ remote: { remote_aa, func_name } });
+				checkMaxRemoteComplexity(remote_aa, func_name, max_remote_complexity, (err) => {
+					if (fatal_error)
+						return cb(false);
+					if (err)
+						return setFatalError(err, cb, false);
+					cb({ remote: { remote_aa, func_name } });
+				});
 			});
 		}
 		else
 			throw Error("unrecognized function argument: " + func_expr);
 
+	}
+
+	function checkMaxRemoteComplexity(remote_aa, func_name, max_remote_complexity, cb) {
+		if (max_remote_complexity === null)
+			return cb();
+		evaluate(max_remote_complexity, max_remote_complexity => {
+			if (fatal_error)
+				return cb(fatal_error);
+			if (typeof max_remote_complexity === 'string') {
+				storage.readAADefinition(conn, remote_aa, arrDefinition => {
+					if (!arrDefinition)
+						return cb("no such remote AA: " + remote_aa);
+					const base_aa = arrDefinition[1].base_aa;
+					if (max_remote_complexity !== base_aa)
+						return cb(max_remote_complexity + " is not base AA for remote AA " + remote_aa);
+					cb();
+				});
+			}
+			else if (Decimal.isDecimal(max_remote_complexity)) {
+				max_remote_complexity = max_remote_complexity.toNumber();
+				storage.readAAGetterProps(conn, remote_aa, func_name, props => {
+					if (!props)
+						return cb("no such getter: " + remote_aa + "." + func_name);
+					if (typeof props.complexity !== 'number')
+						throw Error("bad complexity of " + remote_aa + "." + func_name + ": " + props.complexity);
+					if (props.complexity > max_remote_complexity)
+						return cb("getter " + remote_aa + "." + func_name + " has complexity " + props.complexity + " while called with max remote complexity " + max_remote_complexity);
+					cb();
+				});
+			}
+			else
+				throw Error("unknown type of max_remote_complexity: " + max_remote_complexity);
+		});
 	}
 
 	function readAssetInfoPossiblyDefinedByAA(asset, handleAssetInfo) {
@@ -3015,7 +3126,7 @@ function executeGetterInState(conn, aa_address, getter, args, stateVars, assocBa
 			mc_unit: props.unit, // must not be used
 			assocBalances: assocBalances,
 			number_of_responses: 0, // must not be used
-			arrPreviousResponseUnits: [],
+			arrPreviousAAResponses: [],
 		};
 		args = args.map(toOscriptType);
 		callGetter(conn, aa_address, getter, args, stateVars, objValidationState, (err, res) => {

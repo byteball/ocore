@@ -34,7 +34,9 @@
 		trigger_address: /\btrigger\.address\b/,
 		trigger_initial_address: /\btrigger\.initial_address\b/,
 		trigger_unit: /\btrigger\.unit\b/,
+		trigger_initial_unit: /\btrigger\.initial_unit\b/,
 		trigger_data: /\btrigger\.data\b/,
+		trigger_outputs: /\btrigger\.outputs\b/,
 		trigger_output: /\btrigger\.output\b/,
 		dotSelector: /\.\w+/,
 		local_var_name: /\$[a-zA-Z_]\w*\b/,
@@ -42,13 +44,14 @@
 		semi: ';',
 		comma: ',',
 		dot: '.',
+		number_sign: '#',
 		IDEN: {
 			match: /\b[a-zA-Z_]\w*\b/,
 			type: moo.keywords({
 				keyword: [
 					'min', 'max', 'pi', 'e', 'sqrt', 'ln', 'ceil', 'floor', 'round', 'abs', 'hypot', 'is_valid_signed_package', 'is_valid_sig', 'vrf_verify', 'sha256', 'chash160', 'json_parse', 'json_stringify', 'number_from_seed', 'length', 'is_valid_address', 'starts_with', 'ends_with', 'contains', 'substring', 'timestamp_to_string', 'parse_date', 'is_aa', 'is_integer', 'is_valid_amount', 'is_array', 'is_assoc', 'array_length', 'index_of', 'to_upper', 'to_lower', 'exists', 'number_of_responses', 'is_valid_merkle_proof', 'replace', 'typeof', 'delete', 'freeze', 'keys', 'foreach', 'map', 'filter', 'reduce', 'reverse', 'split', 'join', 'has_only',
 
-					'timestamp', 'storage_size', 'mci', 'this_address', 'response_unit', 'mc_unit', 'params',
+					'timestamp', 'storage_size', 'mci', 'this_address', 'response_unit', 'mc_unit', 'params', 'previous_aa_responses',
 
 					'type', 'ifseveral', 'ifnone', 'attestors', 'address',
 					'oracles', 'feed_name', 'min_mci', 'feed_value', 'what',
@@ -62,8 +65,8 @@
 					'not', 'NOT',
 					'otherwise', 'OTHERWISE',
 					'asset',
-					'var', 'response',
-					'if', 'else', 'return', 'bounce',
+					'var', 'response', 'log',
+					'if', 'else', 'return', 'bounce', 'require',
 					'unit', 'definition', 'balance',
 					'attestation', 'data_feed', 'in_data_feed', 'input', 'output',
 				],
@@ -97,8 +100,10 @@ statement -> local_var_assignment {% id %}
 	| state_var_assignment {% id %}
 	| response_var_assignment {% id %}
 	| bounce_statement {% id %}
+	| require_statement {% id %}
 	| return_statement {% id %}
 	| empty_return_statement {% id %}
+	| log_statement {% id %}
 	| func_call ";" {% id %}
 	| remote_func_call ";" {% id %}
     | "delete" "(" local_var (%dotSelector|"[" expr "]"):* "," expr ")" ";"   {% function(d) {
@@ -125,9 +130,13 @@ bounce_expr -> "bounce" "(" expr ")"    {% function(d) { return ['bounce', d[2]]
 
 bounce_statement -> bounce_expr ";"  {% function(d) { return d[0]; } %}
 
+require_statement -> "require" "(" expr "," expr ")" ";"   {% function(d) { return ['require', d[2], d[4]]; } %}
+
 return_statement -> "return" expr ";"  {% function(d) { return ['return', d[1]]; } %}
 
 empty_return_statement -> "return" ";"  {% function(d) { return ['return', null]; } %}
+
+log_statement -> "log" "(" expr_list ")" ";" {% function(d) {return ['log', d[2]]; }  %}
 
 otherwise_expr -> expr ("otherwise"|"OTHERWISE") ternary_expr  {% function(d) { return ['otherwise', d[0], d[2]]; } %}
 	| ternary_expr {% id %}
@@ -208,24 +217,38 @@ func_declaration -> ("(" arguments_list ")" | arguments_list) "=>" (expr | "{" m
 
 func_call -> %local_var_name "(" expr_list ")"    {% function(d) {return ['func_call', d[0].value.substr(1), d[2]]; } %}
 remote_func_call -> remote_func "(" expr_list ")"  {% function(d) {
-	return ['remote_func_call', d[0][1], d[0][2], d[2]]; 
+	return ['remote_func_call', d[0][1], d[0][2], d[0][3], d[2]]; 
 } %}
-remote_func -> (%addressValue|local_var) "." %local_var_name  {% function(d) {
-	var remote_aa = d[0][0];
-	if (remote_aa.type === 'addressValue')
-		remote_aa = remote_aa.value;
-	return ['remote_func', remote_aa, d[2].value.substr(1)]; 
-} %}
+remote_func 
+	-> (%addressValue|local_var) "." %local_var_name  
+	{% function(d) {
+		var remote_aa = d[0][0];
+		if (remote_aa.type === 'addressValue')
+			remote_aa = remote_aa.value;
+		return ['remote_func', remote_aa, null, d[2].value.substr(1)]; 
+	} %}
+	| P "#" (%number|%addressValue|local_var) "." %local_var_name  
+	{% function(d) {
+		var remote_aa = d[0];
+		var max_remote_complexity = d[2][0];
+		if (max_remote_complexity.type === 'number')
+			max_remote_complexity = new Decimal(max_remote_complexity.value).times(1);
+		else if (max_remote_complexity.type === 'addressValue')
+			max_remote_complexity = max_remote_complexity.value;
+		return ['remote_func', remote_aa, max_remote_complexity, d[4].value.substr(1)]; 
+	} %}
 
 
+trigger_outputs -> "trigger.outputs"  {% function(d) {return ['trigger.outputs']; }  %}
 trigger_data -> "trigger.data"  {% function(d) {return ['trigger.data']; }  %}
 params -> "params"  {% function(d) {return ['params']; }  %}
+previous_aa_responses -> "previous_aa_responses"  {% function(d) {return ['previous_aa_responses']; }  %}
 
 unit -> "unit" "[" expr "]"   {% function(d) { return ['unit', d[2]]; } %}
 definition -> "definition" "[" expr "]"   {% function(d) { return ['definition', d[2]]; } %}
 
 
-with_selectors -> (func_call|remote_func_call|local_var|trigger_data|params|unit|definition) (%dotSelector|"[" "[" search_param_list "]" "]"|"[" expr "]"):+  {% function(d) {
+with_selectors -> (func_call|remote_func_call|local_var|trigger_outputs|trigger_data|params|previous_aa_responses|unit|definition) (%dotSelector|"[" "[" search_param_list "]" "]"|"[" expr "]"):+  {% function(d) {
 	var v = d[0][0];
 	var selectors = d[1].map(function(item){
 		if (item[0].type === 'dotSelector')
@@ -308,8 +331,10 @@ N -> float          {% id %}
 	| local_var     {% id %}
 	| func_call     {% id %}
 	| remote_func_call     {% id %}
+	| trigger_outputs     {% id %}
 	| trigger_data     {% id %}
 	| params     {% id %}
+	| previous_aa_responses     {% id %}
 	| unit     {% id %}
 	| definition     {% id %}
 	| with_selectors     {% id %}
@@ -425,6 +450,7 @@ N -> float          {% id %}
 	| "trigger.address"  {% function(d) {return ['trigger.address']; }  %}
 	| "trigger.initial_address"  {% function(d) {return ['trigger.initial_address']; }  %}
 	| "trigger.unit"  {% function(d) {return ['trigger.unit']; }  %}
+	| "trigger.initial_unit"  {% function(d) {return ['trigger.initial_unit']; }  %}
 	| "trigger.output" ("[" "[") "asset" comparisonOperator (expr|"base") ("]" "]") %dotSelector:?  {% function(d) {
 		var value = d[4][0];
 		var field = d[6] ? d[6].value.substr(1) : 'amount';

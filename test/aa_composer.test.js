@@ -164,7 +164,7 @@ test.cb.serial('chain of AAs', t => {
 				payload: {
 					asset: 'base',
 					outputs: [
-						{address: "{trigger.initial_address}", amount: "{trigger.output[[asset=base]] - 1000}"}
+						{address: "{trigger.initial_address}", amount: "{trigger.output[[asset=base]] - 2000}"}
 					]
 				}
 			},
@@ -173,8 +173,12 @@ test.cb.serial('chain of AAs', t => {
 				state: `{
 					var['who'] = trigger.address || timestamp;
 					var['initial'] = trigger.initial_address || timestamp;
+					var['initial_unit'] = trigger.initial_unit;
 					var['large_num2'] = var[trigger.address]['large_num'] + 1;
 					var['long_num2'] = var[trigger.address]['long_num'] + 1;
+					var['number_of_responses'] = number_of_responses;
+					var['previous_aa_responses_trigger_address'] = previous_aa_responses[0].trigger_address;
+					var['previous_aa_responses_unit'] = previous_aa_responses[0].unit_obj.unit;
 				}`
 			}
 		]
@@ -223,6 +227,10 @@ test.cb.serial('chain of AAs', t => {
 		t.deepEqual(arrResponses[0].updatedStateVars[secondary_address], {
 			who: { value: primary_address + arrResponses[1].objResponseUnit.timestamp },
 			initial: { value: trigger_address + arrResponses[1].objResponseUnit.timestamp },
+			initial_unit: { value: arrResponses[0].trigger_unit },
+			number_of_responses: { value: 1 },
+			previous_aa_responses_trigger_address: { value: trigger_address },
+			previous_aa_responses_unit: { value: arrResponses[0].response_unit },
 			large_num2: { value: 1e15 }, // the same due to loss of precision
 			long_num2: { value: 1.00067890123457 }, // rounded to 15 significant digits (but uses cached vars)
 		});
@@ -230,7 +238,7 @@ test.cb.serial('chain of AAs', t => {
 		t.deepEqual(arrResponses[1].aa_address, secondary_address);
 		t.deepEqual(arrResponses[1].bounced, false);
 		t.deepEqual(arrResponses[1].response.error, undefined);
-		t.deepEqual(arrResponses[1].objResponseUnit.messages.find(function (message) { return (message.app === 'payment'); }).payload.outputs.find(function (output) { return (output.address === trigger_address); }).amount, 38000);
+		t.deepEqual(arrResponses[1].objResponseUnit.messages.find(function (message) { return (message.app === 'payment'); }).payload.outputs.find(function (output) { return (output.address === trigger_address); }).amount, 37000);
 		t.deepEqual(arrResponses[1].updatedStateVars, undefined);
 		
 		t.deepEqual(storage.assocUnstableUnits, old_cache.assocUnstableUnits);
@@ -819,11 +827,22 @@ test.cb.serial('AA with messages composed of objects', t => {
 					outputs: [$output]
 				}
 			};
+			$profile = {
+				first_name: "William",
+				born: 1564
+			};
 		}`,
 		messages: [
 			{
 				app: 'payment',
 				payload: `{$getPayload(1000)}`
+			},
+			{
+				app: 'attestation',
+				payload: {
+					address: `{trigger.address}`,
+					profile: `{$profile}`
+				}
 			},
 		]
 	}];
@@ -838,6 +857,7 @@ test.cb.serial('AA with messages composed of objects', t => {
 			t.deepEqual(arrResponses.length, 1);
 			t.deepEqual(arrResponses[0].bounced, false);
 			t.deepEqual(arrResponses[0].objResponseUnit.messages.find(function (message) { return (message.app === 'payment'); }).payload.outputs.find(function (output) { return (output.address === trigger_address); }).amount, 9000);
+			t.deepEqual(arrResponses[0].objResponseUnit.messages.find(function (message) { return (message.app === 'attestation'); }).payload.profile.first_name, 'William');
 			fixCache();
 			t.deepEqual(storage.assocUnstableUnits, old_cache.assocUnstableUnits);
 			t.deepEqual(storage.assocStableUnits, old_cache.assocStableUnits);
@@ -1104,7 +1124,6 @@ test.cb.serial('calling a remote function', t => {
 
 test.cb.serial('calling a remote function in a parameterized AA', t => {
 	var trigger_address = "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT";
-	var trigger = { outputs: { base: 10000 }, data: { x: 5 }, address: trigger_address };
 
 	var remote_base_aa = ['autonomous agent', {
 		bounce_fees: { base: 10000 },
@@ -1124,6 +1143,7 @@ test.cb.serial('calling a remote function in a parameterized AA', t => {
 					a: $a,
 				}
 			};
+			$g = $x => $x*2;
 		}`,
 		messages: [
 			{
@@ -1149,16 +1169,24 @@ test.cb.serial('calling a remote function in a parameterized AA', t => {
 	}];
 	var remote_aa_address = objectHash.getChash160(remote_aa);
 	
+	var trigger = { outputs: { base: 10000 }, data: { x: 5, aa: remote_aa_address }, address: trigger_address };
+
 	var aa = ['autonomous agent', {
 		init: `{
 			$remote_aa = '${remote_aa_address}';
-			$ret = $remote_aa.$f(trigger.data.x);
+			$remote_base_aa_address = '${remote_base_aa_address}';
+			$ret = $remote_aa.$f(trigger.data.x);  // complexity: 3
+			$ret2 = ($remote_aa || '')#${remote_base_aa_address}.$f(trigger.data.x); // complexity: 3
+			$ret3 = 1 + trigger.data.aa#$remote_base_aa_address.$g(trigger.data.x);  // complexity: 1
 		}`,
 		messages: [
 			{
 				app: 'state',
+				// complexity: 11
 				state: `{
 					var['sq'] = $ret.sq;
+					var['sq2'] = $ret2.sq;
+					var['ret3'] = $ret3;
 					var['this'] = $ret.this;
 					var['bal'] = $ret.bal;
 					var['fee'] = $ret.fee;
@@ -1183,14 +1211,17 @@ test.cb.serial('calling a remote function in a parameterized AA', t => {
 			await db.query("UPDATE aa_addresses SET storage_size=100 WHERE address=?", [remote_aa_address]);
 			var objLastStableMcUnitProps = await storage.readLastStableMcUnitProps(db);
 
-			validateAA(aa, async err => {
+			validateAA(aa, async (err, res) => {
 				t.deepEqual(err, null);
+				t.deepEqual(res.complexity, 18);
 				await asyncAddAA(aa);
 				
 				aa_composer.dryRunPrimaryAATrigger(trigger, aa_address, aa, (arrResponses) => {
 					t.deepEqual(arrResponses.length, 1);
 					t.deepEqual(arrResponses[0].bounced, false);
 					t.deepEqual(arrResponses[0].updatedStateVars[aa_address].sq.value, 25);
+					t.deepEqual(arrResponses[0].updatedStateVars[aa_address].sq2.value, 25);
+					t.deepEqual(arrResponses[0].updatedStateVars[aa_address].ret3.value, 11);
 					t.deepEqual(arrResponses[0].updatedStateVars[aa_address].this.value, remote_aa_address);
 					t.deepEqual(arrResponses[0].updatedStateVars[aa_address].bal.value, 0);
 					t.deepEqual(arrResponses[0].updatedStateVars[aa_address].fee.value, 0.02);
@@ -1205,6 +1236,108 @@ test.cb.serial('calling a remote function in a parameterized AA', t => {
 					t.deepEqual(storage.assocUnstableMessages, old_cache.assocUnstableMessages);
 					t.deepEqual(storage.assocBestChildren, old_cache.assocBestChildren);
 					t.deepEqual(storage.assocStableUnitsByMci, old_cache.assocStableUnitsByMci);
+					t.end();
+				});
+			});
+		});
+	});
+});
+
+test.cb.serial('calling a remote function in a parameterized AA with unknown base AA', t => {	
+	
+	var aa = ['autonomous agent', {
+		init: `{
+			$ret = trigger.data.aa#I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT.$g(trigger.data.x);
+		}`,
+		messages: [
+			{
+				app: 'state',
+				state: `{
+				}`
+			}
+		]
+	}];
+
+	validateAA(aa, async (err, res) => {
+		t.regex(err, /no such getter: I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT\.\$g\(\)/);
+		t.end();
+	});
+});
+
+test.cb.serial('calling a remote function in a parameterized AA with unmatching base AA', t => {
+	var trigger_address = "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT";
+
+	var remote_base_aa = ['autonomous agent', {
+		getters: `{
+			$g = $x => $x*2;
+		}`,
+		messages: [
+			{
+				app: 'state',
+				state: `{
+				}`
+			}
+		]
+	}];
+	var remote_base_aa_address = objectHash.getChash160(remote_base_aa);
+	
+	var remote_base_aa2 = ['autonomous agent', {
+		getters: `{
+			$g = $x => $x*4;
+		}`,
+		messages: [
+			{
+				app: 'state',
+				state: `{
+				}`
+			}
+		]
+	}];
+	var remote_base_aa2_address = objectHash.getChash160(remote_base_aa2);
+	
+	var remote_aa = ['autonomous agent', {
+		base_aa: remote_base_aa_address,
+		params: {
+			vvv: "fff",
+			fee: 0.02,
+		}
+	}];
+	var remote_aa_address = objectHash.getChash160(remote_aa);
+	
+	var trigger = { outputs: { base: 10000 }, data: { x: 5, aa: remote_aa_address }, address: trigger_address };
+
+	var aa = ['autonomous agent', {
+		init: `{
+			$ret = trigger.data.aa#${remote_base_aa2_address}.$g(trigger.data.x);
+		}`,
+		messages: [
+			{
+				app: 'state',
+				state: `{
+				}`
+			}
+		]
+	}];
+	var aa_address = objectHash.getChash160(aa);
+
+	validateAA(remote_base_aa, async err => {
+		t.deepEqual(err, null);
+		await asyncAddAA(remote_base_aa);
+		await asyncAddAA(remote_base_aa2);
+
+		validateAA(remote_aa, async err => {
+			t.deepEqual(err, null);
+			await asyncAddAA(remote_aa);
+			await db.query("UPDATE aa_addresses SET storage_size=100 WHERE address=?", [remote_aa_address]);
+
+			validateAA(aa, async (err, res) => {
+				t.deepEqual(err, null);
+				await asyncAddAA(aa);
+				
+				aa_composer.dryRunPrimaryAATrigger(trigger, aa_address, aa, (arrResponses) => {
+					t.deepEqual(arrResponses.length, 1);
+					t.deepEqual(arrResponses[0].bounced, true);
+					t.regex(arrResponses[0].response.error, /is not base AA for remote AA/);
 					t.end();
 				});
 			});
@@ -1252,7 +1385,8 @@ test.cb.serial('calling a chain of remote functions', t => {
 				3*$x
 			};
 			$g = ($x) => {
-				$ret = $origin_aa.$f($x);
+				$origin_aa2 = '${remote_aa_address}' || '';
+				$ret = $origin_aa2#3.$f($x); // actual complexity: 2
 				$ret.origin_aa = $origin_aa;
 				{
 					origin: $ret,
@@ -1288,7 +1422,7 @@ test.cb.serial('calling a chain of remote functions', t => {
 			$a = 30;
 			$f = 6;
 			$h = 7;
-			$ret = $remote_aa.$g(trigger.data.x);
+			$ret = $remote_aa.$g(trigger.data.x); // 6
 		}`,
 		messages: [
 			{
@@ -1320,8 +1454,9 @@ test.cb.serial('calling a chain of remote functions', t => {
 		t.deepEqual(err, null);
 		await asyncAddAA(remote_aa);
 
-		validateAA(remote_intermediary_aa, async err => {
+		validateAA(remote_intermediary_aa, async (err, res) => {
 			t.deepEqual(err, null);
+			t.deepEqual(res.complexity, 1);
 			await asyncAddAA(remote_intermediary_aa);
 
 			await db.query("UPDATE aa_addresses SET storage_size=100 WHERE address=?", [remote_aa_address]);
@@ -1330,8 +1465,9 @@ test.cb.serial('calling a chain of remote functions', t => {
 			var ts = objLastStableMcUnitProps.timestamp;
 			var mci = objLastStableMcUnitProps.main_chain_index;
 
-			validateAA(aa, async err => {
+			validateAA(aa, async (err, res) => {
 				t.deepEqual(err, null);
+				t.deepEqual(res.complexity, 24);
 				await asyncAddAA(aa);
 				
 				aa_composer.dryRunPrimaryAATrigger(trigger, aa_address, aa, (arrResponses) => {
@@ -1397,13 +1533,15 @@ test.cb.serial('map/reduce with a remote function', t => {
 	var aa = ['autonomous agent', {
 		init: `{
 			$remote_aa = '${remote_aa_address}';
+			$remote_aa2 = '' || '${remote_aa_address}';
+			$c = 0;
 			$ar = [3, 5, 7];
 			$o = {c: 2, a: 5, b: 9};
-			$ar2 = map($ar, 3, $remote_aa.$f);
-			$ar3 = map($ar, 3, $remote_aa.$g);
-			$o2 = map($o, 3, $remote_aa.$f);
-			$o3 = map($o, 3, $remote_aa.$h);
-			$acc = reduce($o, 3, $remote_aa.$r, 0);
+			$ar2 = map($ar, 3, $remote_aa.$f); // 6
+			$ar3 = map($ar, 3, ($remote_aa || '')#0.$g); // 3
+			$o2 = map($o, 3, $remote_aa.$f); // 6
+			$o3 = map($o, 3, $remote_aa.$h); // 3
+			$acc = reduce($o, 3, $remote_aa2#$c.$r, 0); // 3
 		}`,
 		messages: [
 			{
@@ -1432,8 +1570,9 @@ test.cb.serial('map/reduce with a remote function', t => {
 		console.log('--- val remote', err);
 		await asyncAddAA(remote_aa);
 
-		validateAA(aa, async err => {
+		validateAA(aa, async (err, res) => {
 			t.deepEqual(err, null);
+			t.deepEqual(res.complexity, 34);
 			console.log('--- val', err);
 
 			var aa_address = objectHash.getChash160(aa);

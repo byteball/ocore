@@ -341,8 +341,8 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 				case 'attestation':
 					if (hasFieldsExcept(payload, ["address", "profile", "init"]))
 						return cb2("unknown fields in AA attestation");
-					if (!isNonemptyObject(payload.profile))
-						return cb2('bad attested profile' + payload.profile);
+					if (!isNonemptyObject(payload.profile) && (getFormula(payload.profile) === null || mci < constants.aa3UpgradeMci))
+						return cb2('bad attested profile ' + payload.profile);
 					if (!isNonemptyString(payload.address))
 						return cb2("bad attested address: " + payload.address);
 					var address_formula = getFormula(payload.address);

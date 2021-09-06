@@ -5,6 +5,7 @@ var Mnemonic = require('bitcore-mnemonic');
 
 var constants = require("../constants.js");
 constants.aa2UpgradeMci = 0;
+constants.aa3UpgradeMci = 0;
 
 var objectHash = require("../object_hash.js");
 var chash = require("../chash.js");
@@ -29,8 +30,11 @@ var readGetterProps = function (aa_address, func_name, cb) {
 	storage.readAAGetterProps(db, aa_address, func_name, cb);
 };
 
-function validateFormula(formula, complexity, cb) {
-	formulaParser.validate({ formula: formula, complexity: complexity, mci: Number.MAX_SAFE_INTEGER, readGetterProps, locals: {}}, cb);
+function validateFormula(formula, _opts, cb) {
+	var opts = { formula, complexity: 0, mci: Number.MAX_SAFE_INTEGER, readGetterProps, locals: {} };
+	if (_opts)
+		Object.assign(opts, _opts);
+	formulaParser.validate(opts, cb);
 }
 
 function evalFormula(conn, formula, messages, objValidationState, address, callback){
@@ -49,7 +53,7 @@ function evalFormula(conn, formula, messages, objValidationState, address, callb
 		};
 		formulaParser.evaluate(opts, function (err, eval_res) {
 			if (err)
-				console.log("evaluation error: " + err);
+				console.log("evaluation error: ", err);
 			callback(eval_res);
 		});
 	});
@@ -74,7 +78,7 @@ function evalAAFormula(conn, formula, trigger, objValidationState, address, call
 		};
 		formulaParser.evaluate(opts, function (err, eval_res) {
 			if (err)
-				console.log("evaluation error: " + err);
+				console.log("evaluation error: ", err);
 			callback(eval_res, validation_res.complexity, validation_res.count_ops);
 		});
 	});
@@ -107,7 +111,7 @@ function evalFormulaWithVars(opts, callback) {
 		}
 		formulaParser.evaluate(opts, function (err, eval_res) {
 			if (err)
-				console.log("evaluation error: " + err);
+				console.log("evaluation error: ", err);
 			callback(eval_res, validation_res.complexity, validation_res.count_ops, val_locals);
 		});
 	});
@@ -120,7 +124,7 @@ var objValidationState = {
 	storage_size: 200,
 	assocBalances: {},
 	number_of_responses: 0,
-	arrPreviousResponseUnits: [],
+	arrPreviousAAResponses: [],
 	arrAugmentedMessages: [{
 		"app": "payment",
 		"payload_location": "inline",
@@ -1154,6 +1158,13 @@ test('trigger with missing key', t => {
 	})
 });
 
+test('trigger outputs', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { key1: "val1", ando: {oracles: { key3: "val3", amount: 444 } }}, outputs: { base: 555, "s7GXNHSjRVIS6ohoDclYF/LbCnrRdBP429qLbBGWGMo=": 777 } };
+	evalAAFormula(0, "trigger.outputs['s7GXNHSjRVIS6ohoD'||'clYF/LbCnrRdBP429qLbBGWGMo='] - trigger.outputs.base + trigger.outputs.nonexistent", trigger, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
+		t.deepEqual(res, 222);
+	})
+});
+
 test('trigger object converted to boolean', t => {
 	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { key1: "val1", ando: {oracles: { key3: "val3", amount: 444 } }}, outputs: { base: 555, "s7GXNHSjRVIS6ohoDclYF/LbCnrRdBP429qLbBGWGMo=": 777 } };
 	evalAAFormula(0, " trigger.data", trigger, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
@@ -1888,6 +1899,41 @@ test('bounce statement false', t => {
 	})
 });
 
+test('require met', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { key1: "val1", key2: { key3: "val3", key4: 444 } }, outputs: { base: 555 } };
+	evalAAFormula(0, "require(trigger.data.key1 == 'val1', 'error '||'message'); 7", trigger, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
+		t.deepEqual(res, 7);
+	})
+});
+
+test('required condition not met', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { key1: "val1", key2: { key3: "val3", key4: 444 } }, outputs: { base: 555 } };
+	evalAAFormula(0, "require(trigger.data.key11, 'no '||'key11'); 7", trigger, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('required condition not met with 0', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { key1: 0, key2: { key3: "val3", key4: 444 } }, outputs: { base: 555 } };
+	evalAAFormula(0, "require(trigger.data.key1, 'no key1'); 7", trigger, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('required condition not met with calc and 0', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { key1: 10, key2: { key3: "val3", key4: 444 } }, outputs: { base: 555 } };
+	evalAAFormula(0, "require(trigger.data.key1 - 10, 'no key1'); 7", trigger, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('log', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { key1: 10, key2: { key3: "val3", key4: 444 } }, outputs: { base: 555 } };
+	evalAAFormula(0, "log(trigger.data.key1, 'msg', trigger.data.key2); log('address', trigger.address); bounce('bounced')", trigger, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
+		t.deepEqual(res, null);
+	})
+});
+
 test('return expr', t => {
 	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { key1: "val1", key2: { key3: "val3", key4: 444 } }, outputs: { base: 555 } };
 	evalAAFormula(0, "if (1==1) return 'aaa'; 3", trigger, objValidationState, 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', res => {
@@ -2024,8 +2070,8 @@ test('long var name assignment', t => {
 test('asset base', t => {
 	var trigger = {  };
 	var stateVars = {  };
-	evalFormulaWithVars({ formula: "asset['base'].cap", trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity) => {
-		t.deepEqual(res, 1e15);
+	evalFormulaWithVars({ formula: "asset['base'].cap - 1", trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity) => {
+		t.deepEqual(res, 1e15 - 1);
 	})
 });
 
@@ -2041,8 +2087,8 @@ test.cb('asset non-base cap', t => {
 	var db = require("../db");
 	var trigger = {  };
 	var stateVars = {  };
-	evalFormulaWithVars({ conn: db, formula: "asset['oXGOcA9TQx8Tl5Syjp1d5+mB4xicsRk3kbcE82YQAS0='].cap", trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity) => {
-		t.deepEqual(res, 6000);
+	evalFormulaWithVars({ conn: db, formula: "asset['oXGOcA9TQx8Tl5Syjp1d5+mB4xicsRk3kbcE82YQAS0='].cap - 2", trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity) => {
+		t.deepEqual(res, 6000 - 2);
 		t.deepEqual(complexity, 2);
 		t.end();
 	})
@@ -2715,6 +2761,17 @@ test.cb('unit', t => {
 	})
 });
 
+test.cb('unit timestamp', t => {
+	var db = require("../db");
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: db, formula: `unit['oXGOcA9TQx8Tl5Syjp1d5+mB4xicsRk3kbcE82YQAS0='].timestamp`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 0);
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});
+
 test.cb('unit and var', t => {
 	var db = require("../db");
 	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
@@ -2865,6 +2922,24 @@ test('number_of_responses', t => {
 	var stateVars = {};
 	evalFormulaWithVars({ conn: null, formula: `number_of_responses`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
 		t.deepEqual(res, 0);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('length of previous_aa_responses', t => {
+	var trigger = { };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `length(previous_aa_responses)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 0);
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('element of previous_aa_responses', t => {
+	var trigger = { };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `previous_aa_responses[0]`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, false);
 		t.deepEqual(complexity, 1);
 	})
 });
@@ -3031,6 +3106,14 @@ test('function never called', t => {
 	evalFormulaWithVars({ conn: null, formula: `$x=2; $f = ($a) => {$y=$a^$x; 2*$y}; $x`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
 		t.deepEqual(res, 2);
 		t.deepEqual(complexity, 1);
+	})
+});
+
+test('function with identical arguments', t => {
+	var trigger = { data: {  } };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `$x=2; $f = ($a, $a) => $a; $f($x)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
 	})
 });
 
@@ -5055,6 +5138,48 @@ test('getter with constant top-level local vars', t => {
 	})
 });
 
+test('getters block with top-level delete', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = 5;
+		delete($x, 1);
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStatementsOnly: true, bGetters: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('getters block with top-level foreach', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		foreach([6, 8], 3, $x => {$x^2});
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStatementsOnly: true, bGetters: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+	})
+});
+
+test('getter function with foreach and if', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($arr) => {
+			foreach($arr, 3, $x => {});
+			if (1) {
+
+			}
+		};
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStatementsOnly: true, bGetters: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, true);
+	})
+});
+
 test('remote call with invalid address', t => {
 	var trigger = { data: { q: { a: 6 } } };
 	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
@@ -5120,6 +5245,63 @@ test('remote call with calculated var', t => {
 	})
 });
 
+test('remote call with max complexity as number', t => {
+	var formula = `
+		$remote_aa = 'MXMEKGN37H5QO2AWHT7XRG6LHJVV'||'TAWU';
+		$b = 1 || $remote_aa#7.$f(3);
+	`;
+	validateFormula(formula, { bAA: true, bStatementsOnly: true }, res => {
+		t.deepEqual(res.error, false);
+		t.deepEqual(res.complexity, 8);
+	})
+});
+
+test('remote call with max complexity as fractional number', t => {
+	var formula = `
+		$remote_aa = 'MXMEKGN37H5QO2AWHT7XRG6LHJVV'||'TAWU';
+		$b = $remote_aa#7.5.$f(3);
+	`;
+	validateFormula(formula, { bAA: true, bStatementsOnly: true }, res => {
+		t.regex(res.error, /not valid remote complexity: 7\.5/);
+	})
+});
+
+test('remote call with max complexity in a constant', t => {
+	var formula = `
+		$comp = 4;
+		$b = 1 || ('MXMEKGN37H5QO2AWHT7XRG6LHJVV'||'TAWU')#$comp.$f(3);
+	`;
+	validateFormula(formula, { bAA: true, bStatementsOnly: true }, res => {
+		t.deepEqual(res.error, false);
+		t.deepEqual(res.complexity, 5);
+	})
+});
+
+test('remote call with max complexity in a non-constant', t => {
+	var formula = `
+		$remote_aa = 'MXMEKGN37H5QO2AWHT7XRG6LHJVV'||'TAWU';
+		$comp = 1+4;
+		$b = 1 || $remote_aa#$comp.$f(3);
+	`;
+	validateFormula(formula, { bAA: true, bStatementsOnly: true }, res => {
+		t.regex(res.error, /remote complexity var comp must be a constant/);
+	})
+});
+
+test('remote call with max complexity', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$remote_aa = 'MXMEKGN37H5QO2AWHT7XRG6LHJVV'||'TAWU';
+		$comp = 1+4;
+		$b = 1 || $remote_aa#$comp.$f(3);
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStatementsOnly: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
+	})
+});
+
 test('foreach', t => {
 	var trigger = { data: { q: { a: 6 } } };
 	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
@@ -5133,6 +5315,22 @@ test('foreach', t => {
 	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops, val_locals) => {
 		t.deepEqual(res, [4, 25, 81]);
 		t.deepEqual(complexity, 4);
+	})
+});
+
+test('foreach that shadows vars', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$ar = [2, 5, 9];
+		$x = 4;
+		$ar2 = [];
+		foreach($ar, 3, ($x) => {$ar2[] = $x^2;});
+		$ar2
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, null);
 	})
 });
 

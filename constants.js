@@ -65,7 +65,7 @@ exports.MAX_RESPONSES_PER_PRIMARY_TRIGGER = process.env.MAX_RESPONSES_PER_PRIMAR
 exports.MIN_BYTES_BOUNCE_FEE = process.env.MIN_BYTES_BOUNCE_FEE || 10000;
 
 exports.minCoreVersion = exports.bTestnet ? '0.3.12' : '0.3.12';
-exports.minCoreVersionForFullNodes = exports.bTestnet ? '0.3.12' : '0.3.12';
+exports.minCoreVersionForFullNodes = exports.bTestnet ? '0.4.0' : '0.4.0';
 exports.minCoreVersionToSharePeers = exports.bTestnet ? '0.3.9' : '0.3.9';
 
 exports.lastBallStableInParentsUpgradeMci =  exports.bTestnet ? 0 : 1300000;
@@ -84,6 +84,7 @@ exports.aaStorageSizeUpgradeMci = exports.bTestnet ? 1034000 : 5210000;
 exports.aa2UpgradeMci = exports.bTestnet ? 1358300 : 5494000;
 exports.unstableInitialDefinitionUpgradeMci = exports.bTestnet ? 1358300 : 5494000;
 exports.includeKeySizesUpgradeMci = exports.bTestnet ? 1383500 : 5530000;
+exports.aa3UpgradeMci = exports.bTestnet ? 2291500 : 7810000;
 
 
 if (process.env.devnet) {
@@ -119,6 +120,7 @@ if (process.env.devnet || process.env.GENESIS_UNIT) {
 	exports.aa2UpgradeMci = 0;
 	exports.unstableInitialDefinitionUpgradeMci = 0;
 	exports.includeKeySizesUpgradeMci = 0;
+	exports.aa3UpgradeMci = 0;
 }
 
 // textcoins
