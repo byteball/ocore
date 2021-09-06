@@ -4,7 +4,7 @@ var eventBus = require('./event_bus.js');
 var constants = require("./constants.js");
 var conf = require("./conf.js");
 
-var VERSION = 43;
+var VERSION = 44;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -490,6 +490,17 @@ function migrateDb(connection, onDone){
 						FOREIGN KEY (metadata_unit) REFERENCES units(unit) \n\
 					)");
 				}
+				if (version < 44 && !conf.bLight && constants.bTestnet)
+					connection.addQuery(arrQueries, "REPLACE INTO aa_balances (address, asset, balance) \n\
+						SELECT address, IFNULL(asset, 'base'), SUM(amount) AS balance \n\
+						FROM aa_addresses \n\
+						CROSS JOIN outputs USING(address) \n\
+						CROSS JOIN units ON outputs.unit=units.unit \n\
+						WHERE is_spent=0 AND address='SLBA27JAT5UJBMQGDQLAT3FQ467XDOGF' AND ( \n\
+							is_stable=1 \n\
+							OR EXISTS (SELECT 1 FROM unit_authors CROSS JOIN aa_addresses USING(address) WHERE unit_authors.unit=outputs.unit) \n\
+						) \n\
+						GROUP BY address, asset");
 				cb();
 			},
 		],
