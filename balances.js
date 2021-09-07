@@ -37,28 +37,29 @@ function readBalance(walletOrAddress, handleBalance){
 					if(rows.length){
 						assocBalances["base"]["stable"] += rows[0].total;
 					}
+					if (assocBalances[constants.BLACKBYTES_ASSET].stable === 0 && assocBalances[constants.BLACKBYTES_ASSET].pending === 0)
+						delete assocBalances[constants.BLACKBYTES_ASSET];
+					for (var asset in assocBalances)
+						assocBalances[asset].total = assocBalances[asset].stable + assocBalances[asset].pending;
 					// add 0-balance assets
 					db.query(
-						"SELECT DISTINCT outputs.asset, is_private \n\
-						FROM outputs "+join_my_addresses+" \n\
-						CROSS JOIN units USING(unit) \n\
-						LEFT JOIN assets ON outputs.asset=assets.unit \n\
-						WHERE "+where_condition+" AND sequence='good'",
+						"SELECT DISTINCT asset FROM outputs " + join_my_addresses + " WHERE " + where_condition,
 						[walletOrAddress],
-						function(rows){
-							for (var i=0; i<rows.length; i++){
-								var row = rows[i];
-								var asset = row.asset || "base";
+						function (rows) {
+							var assets = rows.map(function (row) { return row.asset; }).filter(function (asset) { return (asset && asset !== constants.BLACKBYTES_ASSET) });
+							if (assets.length === 0)
+								return handleBalance(assocBalances);
+							for (var i = 0; i < assets.length; i++) {
+								var asset = assets[i];
 								if (!assocBalances[asset])
-									assocBalances[asset] = {stable: 0, pending: 0};
-								assocBalances[asset].is_private = row.is_private;
+									assocBalances[asset] = { stable: 0, pending: 0, total: 0 };
 							}
-							if (assocBalances[constants.BLACKBYTES_ASSET].stable === 0 && assocBalances[constants.BLACKBYTES_ASSET].pending === 0)
-								delete assocBalances[constants.BLACKBYTES_ASSET];
-							for (var asset in assocBalances)
-								assocBalances[asset].total = assocBalances[asset].stable + assocBalances[asset].pending;
-							console.log('reading balances of ' + walletOrAddress + ' took ' + (Date.now() - start_time) + 'ms')
-							handleBalance(assocBalances);
+							db.query("SELECT unit FROM assets WHERE unit IN(" + assets.map(db.escape).join(', ') + ") AND is_private=1", function (asset_rows) {
+								for (var i = 0; i < asset_rows.length; i++)
+									assocBalances[asset_rows[i].unit].is_private = 1;
+								console.log('reading balances of ' + walletOrAddress + ' took ' + (Date.now() - start_time) + 'ms')
+								handleBalance(assocBalances);
+							});
 						}
 					);
 				}
