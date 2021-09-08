@@ -1617,6 +1617,10 @@ eventBus.on('aa_response', function (objAAResponse) {
 	db.query("SELECT peer, address FROM watched_light_aas WHERE aa=?", [objAAResponse.aa_address], function (rows) {
 		if (rows.length === 0)
 			return;
+		if (objAAResponse.logs) { // do not send the logs over the wire
+			objAAResponse = _.clone(objAAResponse);
+			delete objAAResponse.logs;
+		}
 		rows.forEach(function (row) {
 			if (!row.address || aaResponseAffectsAddress(objAAResponse, row.address)) {
 				var ws = getPeerWebSocket(row.peer);
