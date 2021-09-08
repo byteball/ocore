@@ -1374,6 +1374,8 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 			response: response,
 			balances: objValidationState.assocBalances[address],
 		};
+		if (objValidationState.logs)
+			objAAResponse.logs = objValidationState.logs;
 		arrResponses.push(objAAResponse);
 		if (trigger_opts.bAir)
 			return cb();
@@ -1494,6 +1496,16 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 			return bounce(err);
 		if (!trigger_opts.bAir)
 			revertResponsesInCaches(arrResponses);
+		
+		// copy all logs
+		var logs = [];
+		arrResponses.forEach(objAAResponse => {
+			if (objAAResponse.logs)
+				logs = logs.concat(objAAResponse.logs);
+		});
+		if (logs.length > 0)
+			objValidationState.logs = logs;
+		
 		arrResponses.splice(0, arrResponses.length); // start over
 		if (trigger_opts.bAir)
 			return bounce(err);
