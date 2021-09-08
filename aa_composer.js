@@ -1503,6 +1503,8 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 			if (objAAResponse.logs)
 				logs = logs.concat(objAAResponse.logs);
 		});
+		if (objValidationState.logs)
+			logs = logs.concat(objValidationState.logs);
 		if (logs.length > 0)
 			objValidationState.logs = logs;
 		
