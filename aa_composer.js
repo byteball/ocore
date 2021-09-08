@@ -1349,6 +1349,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 		});
 	}
 
+	var bAddedResponse = false;
 	function addResponse(objResponseUnit, cb) {
 		var response_unit = objResponseUnit ? objResponseUnit.unit : null;
 		var response = {};
@@ -1377,6 +1378,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 		if (objValidationState.logs)
 			objAAResponse.logs = objValidationState.logs;
 		arrResponses.push(objAAResponse);
+		bAddedResponse = true;
 		if (trigger_opts.bAir)
 			return cb();
 		conn.query(
@@ -1424,6 +1426,8 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 		if (bBouncing && bSecondary) {
 			if (objResponseUnit)
 				throw Error('response_unit with bouncing a secondary AA');
+			if (!bAddedResponse && objValidationState.logs) // add the logs from the final bouncing unit
+				arrResponses.push({ logs: objValidationState.logs });
 			return onDone(null, address + ': ' + error_message);
 		}
 		fixStateVars();
@@ -1503,8 +1507,6 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 			if (objAAResponse.logs)
 				logs = logs.concat(objAAResponse.logs);
 		});
-		if (objValidationState.logs)
-			logs = logs.concat(objValidationState.logs);
 		if (logs.length > 0)
 			objValidationState.logs = logs;
 		
