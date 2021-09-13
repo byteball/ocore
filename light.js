@@ -384,7 +384,7 @@ function enrichAAResponses(rows, onDone) {
 				row.response = JSON.parse(row.response);
 			if (!row.response_unit) {
 				if (count++ % 100 === 0) // interrupt the call stack
-					return setImmediate(cb);
+					return (typeof setImmediate === 'function') ? setImmediate(cb) : setTimeout(cb);
 				return cb();
 			}
 			storage.readJoint(db, row.response_unit, {
