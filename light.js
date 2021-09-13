@@ -392,6 +392,7 @@ function enrichAAResponses(rows, onDone) {
 					if (!conf.bLight) {
 						throw Error("response unit " + row.response_unit + " not found");
 					}
+					cb();
 				},
 				ifFound: function (objJoint) {
 					row.objResponseUnit = objJoint.unit;
