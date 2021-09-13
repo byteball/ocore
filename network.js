@@ -3471,7 +3471,7 @@ function handleRequest(ws, tag, command, params){
 				WHERE aa_address IN(?) ORDER BY aa_response_id DESC LIMIT 30",
 				[aas],
 				function (rows) {
-					enrichAAResponses(rows, () => {
+					light.enrichAAResponses(rows, () => {
 						sendResponse(ws, tag, rows);
 					});
 				}
@@ -3507,7 +3507,7 @@ function handleRequest(ws, tag, command, params){
 			addAAResponse(trigger_unit, () => {
 				if (all_rows.length === 0)
 					return sendErrorResponse(ws, tag, "no such trigger unit in light/get_aa_response_chain");
-				enrichAAResponses(all_rows, () => {
+				light.enrichAAResponses(all_rows, () => {
 					sendResponse(ws, tag, all_rows);
 				});
 			});
@@ -3570,27 +3570,6 @@ function handleRequest(ws, tag, command, params){
 			eventBus.emit('custom_request', ws, params,tag);
 		break;
 	}
-}
-
-function enrichAAResponses(rows, onDone) {
-	async.eachSeries(
-		rows,
-		function (row, cb) {
-			row.response = JSON.parse(row.response);
-			if (!row.response_unit)
-				return cb();
-			storage.readJoint(db, row.response_unit, {
-				ifNotFound: function () {
-					throw Error("response unit " + row.response_unit + " not found");
-				},
-				ifFound: function (objJoint) {
-					row.objResponseUnit = objJoint.unit;
-					cb();
-				}
-			});
-		},
-		onDone
-	);
 }
 
 function satisfiesSearchCriteria(this_param_value, searched_param_value) {

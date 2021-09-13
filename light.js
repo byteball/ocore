@@ -363,14 +363,45 @@ function processAAResponses(aa_responses, onDone) {
 			}
 		);
 	}, function () {
-		arrAAResponsesToEmit.forEach(function (objAAResponse) {
-			eventBus.emit('aa_response', objAAResponse);
-			eventBus.emit('aa_response_to_unit-'+objAAResponse.trigger_unit, objAAResponse);
-			eventBus.emit('aa_response_to_address-'+objAAResponse.trigger_address, objAAResponse);
-			eventBus.emit('aa_response_from_aa-'+objAAResponse.aa_address, objAAResponse);
+		enrichAAResponses(arrAAResponsesToEmit, () => {
+			arrAAResponsesToEmit.forEach(function (objAAResponse) {
+				eventBus.emit('aa_response', objAAResponse);
+				eventBus.emit('aa_response_to_unit-'+objAAResponse.trigger_unit, objAAResponse);
+				eventBus.emit('aa_response_to_address-'+objAAResponse.trigger_address, objAAResponse);
+				eventBus.emit('aa_response_from_aa-'+objAAResponse.aa_address, objAAResponse);
+			});
+			onDone();
 		});
-		onDone();
 	});
+}
+
+function enrichAAResponses(rows, onDone) {
+	var count = 0;
+	async.eachSeries(
+		rows,
+		function (row, cb) {
+			if (typeof row.response === 'string')
+				row.response = JSON.parse(row.response);
+			if (!row.response_unit) {
+				if (count++ % 100 === 0) // interrupt the call stack
+					return (typeof setImmediate === 'function') ? setImmediate(cb) : setTimeout(cb);
+				return cb();
+			}
+			storage.readJoint(db, row.response_unit, {
+				ifNotFound: function () {
+					if (!conf.bLight) {
+						throw Error("response unit " + row.response_unit + " not found");
+					}
+					cb();
+				},
+				ifFound: function (objJoint) {
+					row.objResponseUnit = objJoint.unit;
+					cb();
+				}
+			});
+		},
+		onDone
+	);
 }
 
 // fixes is_spent in case units were received out of order
@@ -749,4 +780,4 @@ exports.processLinkProofs = processLinkProofs;
 exports.determineIfHaveUnstableJoints = determineIfHaveUnstableJoints;
 exports.prepareParentsAndLastBallAndWitnessListUnit = prepareParentsAndLastBallAndWitnessListUnit;
 exports.updateAndEmitBadSequenceUnits = updateAndEmitBadSequenceUnits;
-
+exports.enrichAAResponses = enrichAAResponses;
