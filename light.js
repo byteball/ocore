@@ -324,7 +324,7 @@ function processHistory(objResponse, arrWitnesses, callbacks){
 								unlock();
 								return callbacks.ifError(err);
 							}
-							fixIsSpentFlagAndInputAddress(function(){
+							fixIsSpentFlagAndInputAddress(arrNewUnits, function(){
 								if (arrNewUnits.length > 0)
 									emitNewMyTransactions(arrNewUnits);
 								processProvenUnits(function (bHaveUpdates) {
@@ -405,12 +405,14 @@ function enrichAAResponses(rows, onDone) {
 }
 
 // fixes is_spent in case units were received out of order
-function fixIsSpentFlag(onDone){
+function fixIsSpentFlag(arrNewUnits, onDone) {
+	if (arrNewUnits.length === 0)
+		return onDone();
 	db.query(
 		"SELECT outputs.unit, outputs.message_index, outputs.output_index \n\
 		FROM outputs \n\
 		CROSS JOIN inputs ON outputs.unit=inputs.src_unit AND outputs.message_index=inputs.src_message_index AND outputs.output_index=inputs.src_output_index \n\
-		WHERE is_spent=0 AND type='transfer'",
+		WHERE is_spent=0 AND type='transfer' AND outputs.unit IN(" + arrNewUnits.map(db.escape).join(', ') + ")",
 		function(rows){
 			console.log(rows.length+" previous outputs appear to be spent");
 			if (rows.length === 0)
@@ -448,8 +450,8 @@ function fixInputAddress(onDone){
 	);
 }
 
-function fixIsSpentFlagAndInputAddress(onDone){
-	fixIsSpentFlag(function(){
+function fixIsSpentFlagAndInputAddress(arrNewUnits, onDone){
+	fixIsSpentFlag(arrNewUnits, function(){
 		fixInputAddress(onDone);
 	});
 }
