@@ -421,7 +421,7 @@ function connectToPeer(url, onOpen) {
 			// after this, new connection attempts will be allowed to the wire, but this one can still succeed.  See the check for duplicates below.
 		}
 	}, 5000);
-	ws.setMaxListeners(20); // avoid warning
+	ws.setMaxListeners(40); // avoid warning
 	ws.once('open', function onWsOpen() {
 		breadcrumbs.add('connected to '+url);
 		delete assocConnectingOutboundWebsockets[url];
