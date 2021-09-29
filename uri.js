@@ -157,6 +157,13 @@ function parseUri(uri, callbacks){
 		}
 		if (!objRequest.asset && objRequest.amount) // when amount is set, asset must be also set
 			objRequest.asset = 'base';
+		if (objRequest.amount && objRequest.asset) {
+			var res = parseAdditionalAssets(objRequest.asset, assocParams);
+			if (res.error)
+				return callbacks.ifError(res.error);
+			if (res.additional_assets)
+				objRequest.additional_assets = res.additional_assets;
+		}
 		if (assocParams.device_address) {
 			objRequest.device_address = assocParams.device_address;
 			if (!ValidationUtils.isValidDeviceAddress(objRequest.device_address))
@@ -181,6 +188,26 @@ function parseUri(uri, callbacks){
 		}
 	}
 	callbacks.ifOk(objRequest);
+}
+
+function parseAdditionalAssets(main_asset, assocParams) {
+	var additional_assets = {};
+	var assets = [main_asset];
+	for (var i = 2; assocParams['amount' + i]; i++){
+		var additional_amount = parseInt(assocParams['amount' + i]);
+		if (additional_amount + '' !== assocParams['amount' + i])
+			return { error: "invalid additional amount: " + assocParams['amount' + i] };
+		if (!ValidationUtils.isPositiveInteger(additional_amount))
+			return { error: "nonpositive additional amount: " + additional_amount };
+		var additional_asset = assocParams['asset' + i] || 'base';
+		if (additional_asset !== 'base' && !ValidationUtils.isValidBase64(additional_asset, constants.HASH_LENGTH)) // invalid asset
+			return { error: 'invalid additional asset: ' + additional_asset };
+		if (assets.indexOf(additional_asset) >= 0)
+			return { error: 'asset ' + additional_asset + ' already used' };
+		assets.push(additional_asset);
+		additional_assets[additional_asset] = additional_amount;
+	}
+	return Object.keys(additional_assets).length > 0 ? { additional_assets: additional_assets } : {};
 }
 
 function parseQueryString(str, delimiter){
@@ -242,5 +269,6 @@ function fetchUrl(url, cb) {
 }
 
 exports.parseQueryString = parseQueryString;
+exports.parseAdditionalAssets = parseAdditionalAssets;
 exports.parseUri = parseUri;
 exports.fetchUrl = fetchUrl;
