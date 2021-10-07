@@ -32,7 +32,7 @@
     "bitcore-mnemonic": "~1.0.0",
     "dotenv": "5.0.1",
     "jszip": "^3.1.3",
-    "level-rocksdb": "^3.0.1",
+    "level-rocksdb": "^5",
     "lodash": "^4.6.1",
     "moo": "^0.5.0",
     "mysql": "^2.10.2",
