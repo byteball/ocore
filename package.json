@@ -40,7 +40,7 @@
     "node4mailer": "git+https://github.com/edemaine/node4mailer.git",
     "secp256k1": "^4",
     "socks": "1.1.10",
-    "sqlite3": "^4.0.0",
+    "sqlite3": "^5",
     "thirty-two": "^1.0.1",
     "ws": "^1.0.1"
   },
