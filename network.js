@@ -2672,6 +2672,15 @@ function handleJustsaying(ws, subject, body){
 			);
 			break;
 			
+		// I'm a hub, the peer wants to get the challenge again
+		case 'hub/repeat_challenge':
+			if (!conf.bServeAsHub)
+				return sendError(ws, "I'm not a hub");
+			if (!ws.challenge)
+				return sendError(ws, "No challenge yet");
+			sendJustsaying(ws, 'hub/challenge', ws.challenge);
+			break;
+		
 		// I'm connected to a hub
 		case 'hub/challenge':
 		case 'hub/message':
