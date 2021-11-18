@@ -6,7 +6,7 @@ var crypto = require('crypto');
 
 function sign(hash, priv_key){
 	var res = ecdsa.ecdsaSign(hash, priv_key);
-	return res.signature.toString("base64");
+	return Buffer.from(res.signature).toString("base64");
 };
 
 function verify(hash, b64_sig, b64_pub_key){

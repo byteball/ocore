@@ -50,7 +50,7 @@ function setDevicePrivateKey(priv_key){
 	var bChanged = (!objMyPermanentDeviceKey || priv_key !== objMyPermanentDeviceKey.priv);
 	objMyPermanentDeviceKey = {
 		priv: priv_key,
-		pub_b64: ecdsa.publicKeyCreate(priv_key, true).toString('base64')
+		pub_b64: Buffer.from(ecdsa.publicKeyCreate(priv_key, true)).toString('base64')
 	};
 	var new_my_device_address = objectHash.getDeviceAddress(objMyPermanentDeviceKey.pub_b64);
 	if (my_device_address && my_device_address !== new_my_device_address){
@@ -81,12 +81,12 @@ function setTempKeys(temp_priv_key, prev_temp_priv_key, fnSaveTempKeys){
 	objMyTempDeviceKey = {
 		use_count: null, // unknown
 		priv: temp_priv_key,
-		pub_b64: ecdsa.publicKeyCreate(temp_priv_key, true).toString('base64')
+		pub_b64: Buffer.from(ecdsa.publicKeyCreate(temp_priv_key, true)).toString('base64')
 	};
 	if (prev_temp_priv_key) // may be null
 		objMyPrevTempDeviceKey = {
 			priv: prev_temp_priv_key,
-			pub_b64: ecdsa.publicKeyCreate(prev_temp_priv_key, true).toString('base64')
+			pub_b64: Buffer.from(ecdsa.publicKeyCreate(prev_temp_priv_key, true)).toString('base64')
 		};
 	saveTempKeys = fnSaveTempKeys;
 	loginToHub();
@@ -343,7 +343,7 @@ function rotateTempDeviceKey(){
 		var objNewMyTempDeviceKey = {
 			use_count: 0,
 			priv: new_priv_key,
-			pub_b64: ecdsa.publicKeyCreate(new_priv_key, true).toString('base64')
+			pub_b64: Buffer.from(ecdsa.publicKeyCreate(new_priv_key, true)).toString('base64')
 		};
 		saveTempKeys(new_priv_key, objMyTempDeviceKey.priv, function(err){
 			if (err){
@@ -381,7 +381,7 @@ function scheduleTempDeviceKeyRotation(){
 
 function deriveSharedSecret(peer_b64_pubkey, privKey){
 	var pubkey = new Buffer(peer_b64_pubkey, 'base64');
-	var shared_secret_src = new Buffer(ecdsa.ecdh(pubkey, privKey));
+	var shared_secret_src = Buffer.from(ecdsa.ecdh(pubkey, privKey));
 	var shared_secret = crypto.createHash("sha256").update(shared_secret_src).digest().slice(0, 16);
 	return shared_secret;
 }
