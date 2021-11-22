@@ -381,7 +381,7 @@ function scheduleTempDeviceKeyRotation(){
 
 function deriveSharedSecret(peer_b64_pubkey, privKey){
 	var pubkey = new Buffer(peer_b64_pubkey, 'base64');
-	var shared_secret_src = Buffer.from(ecdsa.ecdh(pubkey, privKey));
+	var shared_secret_src = Buffer.from(ecdsa.ecdh(pubkey, privKey, {hashfn: (x, y) => x}, Buffer.alloc(32)));
 	var shared_secret = crypto.createHash("sha256").update(shared_secret_src).digest().slice(0, 16);
 	return shared_secret;
 }
