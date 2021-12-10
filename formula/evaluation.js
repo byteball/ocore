@@ -2466,7 +2466,8 @@ exports.evaluate = function (opts, callback) {
 					function (err) {
 						if (fatal_error)
 							return cb(false);
-						logs.push(entries);
+						console.log('log', entries);
+						logs.push(_.cloneDeep(entries));
 						cb(true);
 					}
 				);
