@@ -5,7 +5,7 @@ var path = require('path'); // make browserify skip it
 
 function getAppsDataDir(){
 	switch(process.platform){
-		case 'win32': return process.env.LOCALAPPDATA;
+		case 'win32': return process.env.APPDATA;
 		case 'linux': return process.env.HOME + '/.config';
 		case 'darwin': return process.env.HOME + '/Library/Application Support';
 		default: throw Error("unknown platform "+process.platform);
