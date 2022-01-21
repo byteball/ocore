@@ -88,7 +88,7 @@ if (typeof process === 'object' && typeof process.versions === 'object' && typeo
 	// merge conf from other modules that include us as lib.  The other module must place its custom conf.js into its root directory
 	var appRootDir = desktopApp.getAppRootDir();
 	var appPackageJson = require(appRootDir + '/package.json');
-	exports.program = appPackageJson.name;
+	exports.program = "obyte"; // appPackageJson.name; // commented due to package.name rename to 'obyte-gui-wallet'
 	exports.program_version = appPackageJson.version;
 	if (appRootDir !== __dirname){
 		try{
