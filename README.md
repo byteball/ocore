@@ -134,4 +134,4 @@ For example `--max-old-space-size=4096`, if your server has at least 4GB availab
 
 We accept donations through [Kivach](https://kivach.org) and forward a portion of the donations to other open-source projects that made Obyte possible.
 
-[![Kivach](https://kivach.org/api/banner?repo=byteball/ocore)](https://kivach.org/repo/byteball/obyte-gui-wallet)
+[![Kivach](https://kivach.org/api/banner?repo=byteball/ocore)](https://kivach.org/repo/byteball/ocore)
