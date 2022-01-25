@@ -3574,6 +3574,9 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "arbstore is not known");
 			sendResponse(ws, tag, conf.arbstores[params]);
 			break;
+		case 'hub/get_exchange_rates':
+			sendResponse(ws, tag, exchangeRates);
+			break;
 
 		case 'custom':
 			eventBus.emit('custom_request', ws, params,tag);
@@ -3831,6 +3834,10 @@ if (!conf.explicitStart) {
 	start();
 }
 
+function setExchangeRates(rates) {
+	exchangeRates = rates;
+}
+
 exports.start = start;
 exports.startAcceptingConnections = startAcceptingConnections;
 exports.startPeerExchange = startPeerExchange;
@@ -3876,6 +3883,7 @@ exports.waitTillSyncIdle = waitTillSyncIdle;
 exports.requestHistoryFor = requestHistoryFor;
 exports.requestHistoryAfterMCI = requestHistoryAfterMCI;
 exports.exchangeRates = exchangeRates;
+exports.setExchangeRates = setExchangeRates;
 exports.knownWitnesses = knownWitnesses;
 exports.getInboundDeviceWebSocket = getInboundDeviceWebSocket;
 exports.deletePendingRequest = deletePendingRequest;
