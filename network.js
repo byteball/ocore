@@ -3853,7 +3853,8 @@ exports.sendRequest = sendRequest;
 exports.sendResponse = sendResponse;
 exports.findOutboundPeerOrConnect = findOutboundPeerOrConnect;
 exports.handleOnlineJoint = handleOnlineJoint;
-exports.handleUpgradeConnection = handleUpgradeConnection
+exports.handleUpgradeConnection = handleUpgradeConnection;
+exports.handleRequest = handleRequest;
 
 exports.handleOnlinePrivatePayment = handleOnlinePrivatePayment;
 exports.requestUnfinishedPastUnitsOfPrivateChains = requestUnfinishedPastUnitsOfPrivateChains;
