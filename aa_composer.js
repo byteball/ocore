@@ -131,7 +131,7 @@ function estimatePrimaryAATrigger(objUnit, address, stateVars, assocBalances, on
 					throw Error("AA not found: " + address)
 				readLastUnit(conn, function (objMcUnit) {
 					// rewrite timestamp in case our last unit is old (light or unsynced full)
-					objMcUnit.timestamp = Math.round(Date.now() / 1000);
+					objMcUnit.timestamp = objUnit.timestamp || Math.round(Date.now() / 1000);
 					var mci = objMcUnit.main_chain_index;
 					var arrResponses = [];
 					var trigger = getTrigger(objUnit, address);
