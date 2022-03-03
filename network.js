@@ -1,7 +1,7 @@
 /*jslint node: true */
 "use strict";
-var WebSocket = process.browser ? global.WebSocket : require('ws');
-var socks = process.browser ? null : require('socks');
+var WebSocket = typeof window !== "undefined" ? global.WebSocket : require('ws');
+var socks = typeof window !== "undefined" ? null : require('socks');
 var WebSocketServer = WebSocket.Server;
 var crypto = require('crypto');
 var _ = require('lodash');
@@ -59,7 +59,7 @@ var knownWitnesses = {};
 var bWatchingForLight = false;
 var prev_bugreport_hash = '';
 
-if (process.browser){ // browser
+if (typeof window !== "undefined"){ // browser
 	console.log("defining .on() on ws");
 	WebSocket.prototype.on = function(event, callback) {
 		var self = this;
@@ -3739,7 +3739,7 @@ function startPeerExchange() {
 }
 
 function startRelay(){
-	if (process.browser || !conf.port) // no listener on mobile
+	if (typeof window !== "undefined" || !conf.port) // no listener on mobile
 		wss = {clients: []};
 	else
 		startAcceptingConnections();
