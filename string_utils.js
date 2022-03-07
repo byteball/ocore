@@ -18,8 +18,8 @@ function getSourceString(obj) {
 				arrComponents.push("s", variable);
 				break;
 			case "number":
-				if (!isFinite(value))
-					throw Error("invalid number: " + value);
+				if (!isFinite(variable))
+					throw Error("invalid number: " + variable);
 				arrComponents.push("n", variable.toString());
 				break;
 			case "boolean":
@@ -195,8 +195,8 @@ function getJsonSourceString(obj, bAllowEmpty) {
 			case "string":
 				return toWellFormedJsonStringify(variable);
 			case "number":
-				if (!isFinite(value))
-					throw Error("invalid number: " + value);
+				if (!isFinite(variable))
+					throw Error("invalid number: " + variable);
 			case "boolean":
 				return variable.toString();
 			case "object":
