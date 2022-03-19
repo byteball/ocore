@@ -703,6 +703,8 @@ function handleHeartbeatResponse(ws, request, response){
 }
 
 function requestFromLightVendor(command, params, responseHandler){
+	if (!responseHandler)
+		return new Promise((resolve, reject) => requestFromLightVendor(command, params, (ws, request, response) => response.error ? reject(response.error) : resolve(response)));
 	if (!exports.light_vendor_url){
 		console.log("light_vendor_url not set yet");
 		return setTimeout(function(){
