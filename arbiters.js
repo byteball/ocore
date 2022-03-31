@@ -15,7 +15,7 @@ function getInfo(address, cb) {
 					console.error(err);
 					return cb();
 				}
-				requestInfoFromArbStore(address, url, function(err, info){
+				requestInfoFromArbStore(url+'/api/arbiter/'+address, function(err, info){
 					if (err) {
 						console.error(err);
 						return cb();
@@ -27,8 +27,8 @@ function getInfo(address, cb) {
 	});
 }
 
-function requestInfoFromArbStore(address, url, cb){
-	http.get(url+'/api/arbiter/'+address, function(resp){
+function requestInfoFromArbStore(url, cb){
+	http.get(url, function(resp){
 		var data = '';
 		resp.on('data', function(chunk){
 			data += chunk;
@@ -39,4 +39,20 @@ function requestInfoFromArbStore(address, url, cb){
 	}).on("error", cb);
 }
 
+function getArbstoreAddress(arbiter_address, cb) {
+	if (!cb)
+		return new Promise(resolve => getArbstoreAddress(arbiter_address, resolve));
+	device.requestFromHub("hub/get_arbstore_url", arbiter_address, function(err, url){
+		if (err) {
+			return cb();
+		}
+		requestInfoFromArbStore(url+'/api/get_address', function(err, address){
+			if (err)
+				return cb();
+			cb(address);
+		});
+	});
+}
+
 exports.getInfo = getInfo;
+exports.getArbstoreAddress = getArbstoreAddress;
