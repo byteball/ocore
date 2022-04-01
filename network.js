@@ -50,6 +50,7 @@ var bWaitingForCatchupChain = false;
 var coming_online_time = Date.now();
 var assocReroutedConnectionsByTag = {};
 var arrWatchedAddresses = []; // does not include my addresses, therefore always empty
+var arrTempWatchedAddresses = [];
 var last_hearbeat_wake_ts = Date.now();
 var peer_events_buffer = [];
 var assocKnownPeers = {};
@@ -1670,6 +1671,12 @@ function addLightWatchedAddress(address, handle){
 	sendJustsayingToLightVendor('light/new_address_to_watch', address, handle);
 }
 
+function addTempLightWatchedAddress(address, handle) {
+	if (!arrTempWatchedAddresses.includes(address))
+		arrTempWatchedAddresses.push(address);
+	addLightWatchedAddress(address, handle);
+}
+
 function addLightWatchedAa(aa, address, handle){
 	var params = { aa: aa };
 	if (address)
@@ -2480,6 +2487,13 @@ function handleJustsaying(ws, subject, body){
 					return sendError(ws, "this unit is already known and archived");
 				if (objectLength.getRatio(objJoint.unit) > 3)
 					return sendError(ws, "the total size of keys is too large");
+				if (conf.bLight && objJoint.unit.authors && arrTempWatchedAddresses.length > 0) {
+					var author_addresses = objJoint.unit.authors.map(a => a.address);
+					if (_.intersection(author_addresses, arrTempWatchedAddresses)) {
+						console.log('new joint from a temporarily watched address', author_addresses);
+						return eventBus.emit('new_joint', objJoint);
+					}
+				}
 				// light clients accept the joint without proof, it'll be saved as unconfirmed (non-stable)
 				return conf.bLight ? handleLightOnlineJoint(ws, objJoint) : handleOnlineJoint(ws, objJoint);
 			});
@@ -3873,6 +3887,7 @@ exports.setMyDeviceProps = setMyDeviceProps;
 exports.setWatchedAddresses = setWatchedAddresses;
 exports.addWatchedAddress = addWatchedAddress;
 exports.addLightWatchedAddress = addLightWatchedAddress;
+exports.addTempLightWatchedAddress = addTempLightWatchedAddress;
 exports.addLightWatchedAa = addLightWatchedAa;
 
 exports.getConnectionStatus = getConnectionStatus;
