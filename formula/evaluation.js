@@ -2603,11 +2603,11 @@ exports.evaluate = function (opts, callback) {
 		if (!stateVars[param_address])
 			stateVars[param_address] = {};
 		if (hasOwnProperty(stateVars[param_address], var_name)) {
-			console.log('using cache for var '+var_name);
+		//	console.log('using cache for var '+var_name);
 			return cb2(stateVars[param_address][var_name].value);
 		}
 		storage.readAAStateVar(param_address, var_name, function (value) {
-			console.log(var_name+'='+(typeof value === 'object' ? JSON.stringify(value) : value));
+		//	console.log(var_name+'='+(typeof value === 'object' ? JSON.stringify(value) : value));
 			if (value === undefined) {
 				assignField(stateVars[param_address], var_name, { value: false });
 				return cb2(false);
