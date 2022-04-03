@@ -2489,7 +2489,7 @@ function handleJustsaying(ws, subject, body){
 					return sendError(ws, "the total size of keys is too large");
 				if (conf.bLight && objJoint.unit.authors && arrTempWatchedAddresses.length > 0) {
 					var author_addresses = objJoint.unit.authors.map(a => a.address);
-					if (_.intersection(author_addresses, arrTempWatchedAddresses)) {
+					if (_.intersection(author_addresses, arrTempWatchedAddresses).length > 0) {
 						console.log('new joint from a temporarily watched address', author_addresses);
 						return eventBus.emit('new_joint', objJoint);
 					}
