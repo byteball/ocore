@@ -1238,20 +1238,17 @@ function updateMinRetrievableMciAfterStabilizingMci(conn, batch, last_stable_mci
 
 function initializeMinRetrievableMci(conn, onDone){
 	var conn = conn || db;
-	conn.query(
-		"SELECT MAX(lb_units.main_chain_index) AS min_retrievable_mci \n\
-		FROM units JOIN units AS lb_units ON units.last_ball_unit=lb_units.unit \n\
-		WHERE units.is_on_main_chain=1 AND units.is_stable=1", 
-		function(rows){
-			if (rows.length !== 1)
-				throw Error("MAX() no rows?");
-			min_retrievable_mci = rows[0].min_retrievable_mci;
-			if (min_retrievable_mci === null)
-				min_retrievable_mci = 0;
+	readLastStableMcIndex(conn, last_stable_mci => {
+		if (last_stable_mci === 0) {
+			min_retrievable_mci = 0;
+			return onDone ? onDone() : null;
+		}
+		findLastBallMciOfMci(conn, last_stable_mci, last_ball_mci => {
+			min_retrievable_mci = last_ball_mci;
 			if (onDone)
 				onDone();
-		}
-	);
+		});
+	});
 }
 
 
