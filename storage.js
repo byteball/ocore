@@ -1110,7 +1110,7 @@ function readLastStableMcUnitProps(conn, handleLastStableMcUnitProps){
 			if (rows.length === 0)
 				return handleLastStableMcUnitProps(null); // empty database
 				//throw "readLastStableMcUnitProps: no units on stable MC?";
-			if (!rows[0].ball)
+			if (!rows[0].ball && !conf.bLight)
 				throw Error("no ball for last stable unit "+rows[0].unit);
 			handleLastStableMcUnitProps(rows[0]);
 		}
