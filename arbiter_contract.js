@@ -15,7 +15,6 @@ var eventBus = require('./event_bus.js');
 
 var status_PENDING = "pending";
 exports.CHARGE_AMOUNT = 4000;
-exports.ArbStoreCut = 0.0075;
 
 function createAndSend(objContract, cb) {
 	objContract = _.cloneDeep(objContract);
@@ -23,7 +22,6 @@ function createAndSend(objContract, cb) {
 	objContract.hash = getHash(objContract);
 	device.getOrGeneratePermanentPairingInfo(pairingInfo => {
 		objContract.my_pairing_code = pairingInfo.device_pubkey + "@" + pairingInfo.hub + "#" + pairingInfo.pairing_secret;
-
 		db.query("INSERT INTO wallet_arbiter_contracts (hash, peer_address, peer_device_address, my_address, arbiter_address, me_is_payer, amount, asset, is_incoming, creation_date, ttl, status, title, text, my_contact_info, cosigners) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [objContract.hash, objContract.peer_address, objContract.peer_device_address, objContract.my_address, objContract.arbiter_address, objContract.me_is_payer ? 1 : 0, objContract.amount, objContract.asset, 0, objContract.creation_date, objContract.ttl, status_PENDING, objContract.title, objContract.text, objContract.my_contact_info, JSON.stringify(objContract.cosigners)], function() {
 				var objContractForPeer = _.cloneDeep(objContract);
 				delete objContractForPeer.cosigners;
@@ -394,10 +392,10 @@ function getAllMyCosigners(hash, cb) {
 // walletInstance should have "sendMultiPayment" function with appropriate signer inside
 function createSharedAddressAndPostUnit(hash, walletInstance, cb) {
 	getByHash(hash, function(contract) {
-		arbiters.getArbstoreAddress(contract.arbiter_address, function(arbstoreAddress) {
-			if (!arbstoreAddress)
-				return cb("can't get ArbStore address");
-			db.query("SELECT is_private, fixed_denominations FROM assets WHERE unit IN(?) LIMIT 1", [contract.asset], function(rows){
+		arbiters.getArbstoreInfo(contract.arbiter_address, function(arbstoreInfo) {
+			if (!arbstoreInfo)
+				return cb("can't get ArbStore info");
+			storage.readAssetInfo(db, contract.asset, function(assetInfo) {
 			    var arrDefinition =
 				["or", [
 					["and", [
@@ -415,8 +413,8 @@ function createSharedAddressAndPostUnit(hash, walletInstance, cb) {
 				        ["in data feed", [[contract.arbiter_address], "CONTRACT_" + contract.hash, "=", contract.peer_address]]
 				    ]]
 				]];
-				var isPrivate = rows.length > 0 && rows[0].is_private;
-				var isFixedDen = rows.length > 0 && rows[0].fixed_denominations;
+				var isPrivate = assetInfo && assetInfo.is_private;
+				var isFixedDen = assetInfo && assetInfo.fixed_denominations;
 				if (isPrivate) { // private asset
 					arrDefinition[1][1] = ["and", [
 				        ["address", contract.my_address],
@@ -432,7 +430,7 @@ function createSharedAddressAndPostUnit(hash, walletInstance, cb) {
 				        ["has", {
 				            what: "output",
 				            asset: contract.asset || "base", 
-				            amount: contract.me_is_payer && !isFixedDen ? Math.round(contract.amount * (1-exports.ArbStoreCut)) : contract.amount,
+				            amount: contract.me_is_payer && !isFixedDen ? Math.round(contract.amount * (1-arbstoreInfo.cut)) : contract.amount,
 				            address: contract.peer_address
 				        }]
 				    ]];
@@ -441,7 +439,7 @@ function createSharedAddressAndPostUnit(hash, walletInstance, cb) {
 				        ["has", {
 				            what: "output",
 				            asset: contract.asset || "base", 
-				            amount: contract.me_is_payer || isFixedDen ? contract.amount : Math.round(contract.amount * (1-exports.ArbStoreCut)),
+				            amount: contract.me_is_payer || isFixedDen ? contract.amount : Math.round(contract.amount * (1-arbstoreInfo.cut)),
 				            address: contract.my_address
 				        }]
 				    ]];
@@ -450,8 +448,8 @@ function createSharedAddressAndPostUnit(hash, walletInstance, cb) {
 					        ["has", {
 					            what: "output",
 					            asset: contract.asset || "base", 
-					            amount: contract.amount - Math.round(contract.amount * (1-exports.ArbStoreCut)),
-					            address: arbstoreAddress
+					            amount: contract.amount - Math.round(contract.amount * (1-arbstoreInfo.cut)),
+					            address: arbstoreInfo.address
 					        }]
 					    );
 				    }
@@ -534,12 +532,6 @@ function createSharedAddressAndPostUnit(hash, walletInstance, cb) {
 	});
 }
 
-function isAssetPrivate(asset, cb) {
-	db.query("SELECT is_private, fixed_denominations FROM assets WHERE unit IN(?) LIMIT 1", [asset], function(rows){
-		return cb(rows.length && rows[0].is_private, rows.length && rows[0].fixed_denominations);
-	});
-}
-
 function pay(hash, walletInstance, arrSigningDeviceAddresses, cb) {
 	getByHash(hash, function(objContract) {
 		if (!objContract.shared_address || objContract.status !== "signed" || !objContract.me_is_payer)
@@ -559,8 +551,8 @@ function pay(hash, walletInstance, arrSigningDeviceAddresses, cb) {
 				cb(null, objContract, unit);
 			});
 			// listen for peer announce to withdraw funds
-			isAssetPrivate(objContract.asset, function(isPrivate) {
-				if (isPrivate)
+			storage.readAssetInfo(db, objContract.asset, function(assetInfo) {
+				if (assetInfo && assetInfo.is_private)
 					db.query("INSERT "+db.getIgnore()+" INTO my_watched_addresses (address) VALUES (?)", [objContract.peer_address]);
 			});
 		});
@@ -571,10 +563,10 @@ function complete(hash, walletInstance, arrSigningDeviceAddresses, cb) {
 	getByHash(hash, function(objContract) {
 		if (objContract.status !== "paid" && objContract.status !== "in_dispute")
 			return cb("contract can't be completed");
-		isAssetPrivate(objContract.asset, function(isPrivate, isFixedDen) {
+		storage.readAssetInfo(db, objContract.asset, function(assetInfo) {
 			var opts;
 			new Promise(resolve => {
-				if (isPrivate) {
+				if (assetInfo && assetInfo.is_private) {
 					var value = {};
 					value["CONTRACT_DONE_" + objContract.hash] = objContract.peer_address;
 					opts = {
@@ -595,13 +587,13 @@ function complete(hash, walletInstance, arrSigningDeviceAddresses, cb) {
 						change_address: objContract.shared_address,
 						asset: objContract.asset
 					};
-					if (objContract.me_is_payer && !isFixedDen) { // complete
-						arbiters.getArbstoreAddress(objContract.arbiter_address, function(arbstoreAddress) {
-							if (!arbstoreAddress)
-								return cb("can't get ArbStore address");
+					if (objContract.me_is_payer && !(assetInfo && assetInfo.fixed_denominations)) { // complete
+						arbiters.getArbstoreInfo(objContract.arbiter_address, function(arbstoreInfo) {
+							if (!arbstoreInfo)
+								return cb("can't get ArbStore info");
 							opts[objContract.asset && objContract.asset != "base" ? "asset_outputs" : "base_outputs"] = [
-								{ address: objContract.peer_address, amount: Math.round(objContract.amount * (1-exports.ArbStoreCut))},
-								{ address: arbstoreAddress, amount: Math.round(objContract.amount * exports.ArbStoreCut)},
+								{ address: objContract.peer_address, amount: Math.round(objContract.amount * (1-arbstoreInfo.cut))},
+								{ address: arbstoreInfo.address, amount:  1- Math.round(objContract.amount * (1-arbstoreInfo.cut))},
 							];
 							resolve();
 						});
@@ -645,6 +637,7 @@ function parseWinnerFromUnit(contract, objUnit) {
 	return winner;
 }
 
+
 /* ==== LISTENERS ==== */
 
 eventBus.on("arbiter_contract_update", function(objContract, field, value) {
@@ -675,8 +668,8 @@ eventBus.on("new_my_transactions", function newtxs(arrNewUnits) {
 					setField(contract.hash, "status", "paid", function(objContract) {
 						eventBus.emit("arbiter_contract_update", objContract, "status", "paid", row.unit);
 						// listen for peer announce to withdraw funds
-						isAssetPrivate(contract.asset, function(isPrivate) {
-							if (isPrivate)
+						storage.readAssetInfo(db, contract.asset, function(assetInfo) {
+							if (assetInfo && assetInfo.is_private)
 								db.query("INSERT "+db.getIgnore()+" INTO my_watched_addresses (address) VALUES (?)", [objContract.peer_address]);
 
 						});
@@ -785,8 +778,8 @@ eventBus.on("my_transactions_became_stable", function(units) {
 									return;
 								if (objContract.peer_address !== objUnit.authors[0].address)
 									return;
-								isAssetPrivate(objContract.asset, function (isPrivate) {
-									if (!isPrivate)
+								storage.readAssetInfo(db, objContract.asset, function(assetInfo) {
+									if (!assetInfo || !assetInfo.is_private)
 										return;
 									if (m.payload[key] != objContract.my_address)
 										return;

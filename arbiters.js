@@ -4,6 +4,8 @@ var db = require('./db.js');
 var device = require('./device.js');
 var http = require('https');
 
+var arbStoreInfos = {}; // map arbiter_address => arbstoreInfo {address: ..., cut: ...}
+
 function getInfo(address, cb) {
 	var cb = cb || function() {};
 	db.query("SELECT device_pub_key, real_name FROM wallet_arbiters WHERE arbiter_address=?", [address], function(rows){
@@ -39,20 +41,22 @@ function requestInfoFromArbStore(url, cb){
 	}).on("error", cb);
 }
 
-function getArbstoreAddress(arbiter_address, cb) {
+function getArbstoreInfo(arbiter_address, cb) {
 	if (!cb)
-		return new Promise(resolve => getArbstoreAddress(arbiter_address, resolve));
+		return new Promise(resolve => getArbstoreInfo(arbiter_address, resolve));
+	if (arbStoreInfos[arbiter_address]) return cb(arbStoreInfos[arbiter_address]);
 	device.requestFromHub("hub/get_arbstore_url", arbiter_address, function(err, url){
 		if (err) {
 			return cb();
 		}
-		requestInfoFromArbStore(url+'/api/get_address', function(err, address){
+		requestInfoFromArbStore(url+'/api/get_address_and_cut', function(err, info){
 			if (err)
 				return cb();
-			cb(address);
+			arbStoreInfos[arbiter_address] = info;
+			cb(info);
 		});
 	});
 }
 
 exports.getInfo = getInfo;
-exports.getArbstoreAddress = getArbstoreAddress;
+exports.getArbstoreInfo = getArbstoreInfo;
