@@ -591,9 +591,10 @@ function complete(hash, walletInstance, arrSigningDeviceAddresses, cb) {
 						arbiters.getArbstoreInfo(objContract.arbiter_address, function(arbstoreInfo) {
 							if (!arbstoreInfo)
 								return cb("can't get ArbStore info");
+							var peer_amount = Math.round(objContract.amount * (1-arbstoreInfo.cut));
 							opts[objContract.asset && objContract.asset != "base" ? "asset_outputs" : "base_outputs"] = [
-								{ address: objContract.peer_address, amount: Math.round(objContract.amount * (1-arbstoreInfo.cut))},
-								{ address: arbstoreInfo.address, amount:  1- Math.round(objContract.amount * (1-arbstoreInfo.cut))},
+								{ address: objContract.peer_address, amount: peer_amount},
+								{ address: arbstoreInfo.address, amount: objContract.amount-peer_amount},
 							];
 							resolve();
 						});
