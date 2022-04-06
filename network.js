@@ -1675,6 +1675,7 @@ function addTempLightWatchedAddress(address, handle) {
 	if (!arrTempWatchedAddresses.includes(address))
 		arrTempWatchedAddresses.push(address);
 	addLightWatchedAddress(address, handle);
+	eventBus.on('connected', () => addLightWatchedAddress(address));
 }
 
 function addLightWatchedAa(aa, address, handle){
