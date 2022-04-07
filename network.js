@@ -3494,7 +3494,7 @@ function handleRequest(ws, tag, command, params){
 			db.query(
 				"SELECT mci, trigger_address, aa_address, trigger_unit, bounced, response_unit, response, timestamp \n\
 				FROM aa_responses CROSS JOIN units ON trigger_unit=unit \n\
-				WHERE aa_address IN(?) ORDER BY aa_response_id DESC LIMIT 30",
+				WHERE aa_address IN(?) ORDER BY mci DESC, aa_response_id DESC LIMIT 30",
 				[aas],
 				function (rows) {
 					light.enrichAAResponses(rows, () => {
