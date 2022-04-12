@@ -132,6 +132,8 @@ function estimatePrimaryAATrigger(objUnit, address, stateVars, assocBalances, on
 				readLastUnit(conn, function (objMcUnit) {
 					// rewrite timestamp in case our last unit is old (light or unsynced full)
 					objMcUnit.timestamp = objUnit.timestamp || Math.round(Date.now() / 1000);
+					if (objUnit.main_chain_index)
+						objMcUnit.main_chain_index = objUnit.main_chain_index;
 					var mci = objMcUnit.main_chain_index;
 					var arrResponses = [];
 					var trigger = getTrigger(objUnit, address);
