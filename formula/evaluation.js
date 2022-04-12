@@ -585,7 +585,7 @@ exports.evaluate = function (opts, callback) {
 					}
 					if (params.ifnone && !isValidValue(params.ifnone.value))
 						return cb("bad ifnone: "+params.ifnone.value);
-					dataFeeds.readDataFeedValue(arrAddresses, feed_name, value, min_mci, mci, bAA, ifseveral, function(objResult){
+					dataFeeds.readDataFeedValue(arrAddresses, feed_name, value, min_mci, mci, bAA, ifseveral, objValidationState.last_ball_timestamp, function(objResult){
 					//	console.log(arrAddresses, feed_name, value, min_mci, ifseveral);
 					//	console.log('---- objResult', objResult);
 						if (objResult.bAbortedBecauseOfSeveral)
