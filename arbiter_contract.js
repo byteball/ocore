@@ -205,9 +205,9 @@ function openDispute(hash, cb) {
 		device.requestFromHub("hub/get_arbstore_url", objContract.arbiter_address, function(err, url){
 			if (err)
 				return cb(err);
-			arbiters.getInfo(objContract.arbiter_address, function(objArbiter) {
-				if (!objArbiter)
-					return cb("can't get arbiter info from ArbStore");
+			arbiters.getInfo(objContract.arbiter_address, function(err, objArbiter) {
+				if (err)
+					return cb(err);
 				device.getOrGeneratePermanentPairingInfo(function(pairingInfo){
 					var my_pairing_code = pairingInfo.device_pubkey + "@" + pairingInfo.hub + "#" + pairingInfo.pairing_secret;
 					var data = {
@@ -392,9 +392,9 @@ function getAllMyCosigners(hash, cb) {
 // walletInstance should have "sendMultiPayment" function with appropriate signer inside
 function createSharedAddressAndPostUnit(hash, walletInstance, cb) {
 	getByHash(hash, function(contract) {
-		arbiters.getArbstoreInfo(contract.arbiter_address, function(arbstoreInfo) {
-			if (!arbstoreInfo)
-				return cb("can't get ArbStore info");
+		arbiters.getArbstoreInfo(contract.arbiter_address, function(err, arbstoreInfo) {
+			if (err)
+				return cb(err);
 			storage.readAssetInfo(db, contract.asset, function(assetInfo) {
 			    var arrDefinition =
 				["or", [
@@ -430,7 +430,7 @@ function createSharedAddressAndPostUnit(hash, walletInstance, cb) {
 				        ["has", {
 				            what: "output",
 				            asset: contract.asset || "base", 
-				            amount: contract.me_is_payer && !isFixedDen ? Math.round(contract.amount * (1-arbstoreInfo.cut)) : contract.amount,
+				            amount: contract.me_is_payer && !isFixedDen ? Math.floor(contract.amount * (1-arbstoreInfo.cut)) : contract.amount,
 				            address: contract.peer_address
 				        }]
 				    ]];
@@ -439,7 +439,7 @@ function createSharedAddressAndPostUnit(hash, walletInstance, cb) {
 				        ["has", {
 				            what: "output",
 				            asset: contract.asset || "base", 
-				            amount: contract.me_is_payer || isFixedDen ? contract.amount : Math.round(contract.amount * (1-arbstoreInfo.cut)),
+				            amount: contract.me_is_payer || isFixedDen ? contract.amount : Math.floor(contract.amount * (1-arbstoreInfo.cut)),
 				            address: contract.my_address
 				        }]
 				    ]];
@@ -448,7 +448,7 @@ function createSharedAddressAndPostUnit(hash, walletInstance, cb) {
 					        ["has", {
 					            what: "output",
 					            asset: contract.asset || "base", 
-					            amount: contract.amount - Math.round(contract.amount * (1-arbstoreInfo.cut)),
+					            amount: contract.amount - Math.floor(contract.amount * (1-arbstoreInfo.cut)),
 					            address: arbstoreInfo.address
 					        }]
 					    );
@@ -588,10 +588,10 @@ function complete(hash, walletInstance, arrSigningDeviceAddresses, cb) {
 						asset: objContract.asset
 					};
 					if (objContract.me_is_payer && !(assetInfo && assetInfo.fixed_denominations)) { // complete
-						arbiters.getArbstoreInfo(objContract.arbiter_address, function(arbstoreInfo) {
-							if (!arbstoreInfo)
-								return cb("can't get ArbStore info");
-							var peer_amount = Math.round(objContract.amount * (1-arbstoreInfo.cut));
+						arbiters.getArbstoreInfo(objContract.arbiter_address, function(err, arbstoreInfo) {
+							if (err)
+								return cb(err);
+							var peer_amount = Math.floor(objContract.amount * (1-arbstoreInfo.cut));
 							opts[objContract.asset && objContract.asset != "base" ? "asset_outputs" : "base_outputs"] = [
 								{ address: objContract.peer_address, amount: peer_amount},
 								{ address: arbstoreInfo.address, amount: objContract.amount-peer_amount},
