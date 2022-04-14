@@ -1052,7 +1052,7 @@ exports.evaluate = function (opts, callback) {
 						}
 					}
 					if (!output) {
-						console.log("output not found: asset"+comparison_operator+asset);
+					//	console.log("output not found: asset"+comparison_operator+asset);
 						output = { asset: 'none', amount: 0 };
 					}
 					if (output.asset === 'ambiguous' && field === 'amount')
@@ -1515,7 +1515,7 @@ exports.evaluate = function (opts, callback) {
 			case 'definition':
 				var address_expr = arr[1];
 				evaluate(address_expr, function (addr) {
-					console.log('---- definition', addr);
+				//	console.log('---- definition', addr);
 					if (fatal_error)
 						return cb(false);
 					if (!ValidationUtils.isValidAddress(addr))
