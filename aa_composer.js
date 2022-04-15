@@ -839,8 +839,9 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 			assignObject(stateVars, originalStateVars); // restore state vars
 			assignObject(trigger_opts.assocBalances, originalBalances); // restore balances
 			if (!bSecondary) {
-				for (let a of bounce_fees)
-					trigger_opts.assocBalances[address][a] = (trigger_opts.assocBalances[address][a] || 0) + bounce_fees[a];
+				for (let a in trigger.outputs)
+					if (bounce_fees[a])
+						trigger_opts.assocBalances[address][a] = (trigger_opts.assocBalances[address][a] || 0) + bounce_fees[a];
 			}
 		}
 		if (bBouncing)
