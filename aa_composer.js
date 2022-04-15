@@ -838,6 +838,8 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 		if (trigger_opts.bAir) {
 			assignObject(stateVars, originalStateVars); // restore state vars
 			assignObject(trigger_opts.assocBalances, originalBalances); // restore balances
+			if (!bSecondary)
+				trigger_opts.assocBalances[address].base -= bounce_fees.base;
 		}
 		if (bBouncing)
 			return finish(null);
