@@ -413,12 +413,12 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 		if (trigger_opts.assocBalances) {
 			if (!trigger_opts.assocBalances[address])
 				trigger_opts.assocBalances[address] = {};
+			originalBalances = _.cloneDeep(trigger_opts.assocBalances);
 			for (var asset in trigger.outputs)
 				trigger_opts.assocBalances[address][asset] = (trigger_opts.assocBalances[address][asset] || 0) + trigger.outputs[asset];
 			objValidationState.assocBalances = trigger_opts.assocBalances;
 			byte_balance = trigger_opts.assocBalances[address].base || 0;
 			storage_size = 0;
-			originalBalances = _.cloneDeep(trigger_opts.assocBalances);
 			return cb();
 		}
 		objValidationState.assocBalances[address] = {};
@@ -838,8 +838,10 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 		if (trigger_opts.bAir) {
 			assignObject(stateVars, originalStateVars); // restore state vars
 			assignObject(trigger_opts.assocBalances, originalBalances); // restore balances
-			if (!bSecondary)
-				trigger_opts.assocBalances[address].base -= bounce_fees.base;
+			if (!bSecondary) {
+				for (let a of bounce_fees)
+					trigger_opts.assocBalances[address][a] = (trigger_opts.assocBalances[address][a] || 0) + bounce_fees[a];
+			}
 		}
 		if (bBouncing)
 			return finish(null);
