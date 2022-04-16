@@ -95,10 +95,18 @@ function handlePrimaryAATrigger(mci, unit, address, arrDefinition, arrPostedUnit
 									throw Error("AA composer: batch write failed: "+err);
 								conn.query("COMMIT", function () {
 									conn.release();
-									// copy updatedStateVars to all responses
-									if (arrResponses.length > 1 && arrResponses[0].updatedStateVars)
-										for (var i = 1; i < arrResponses.length; i++)
-											arrResponses[i].updatedStateVars = arrResponses[0].updatedStateVars;
+									if (arrResponses.length > 1) {
+										// copy updatedStateVars to all responses
+										if (arrResponses[0].updatedStateVars)
+											for (var i = 1; i < arrResponses.length; i++)
+												arrResponses[i].updatedStateVars = arrResponses[0].updatedStateVars;
+										// merge all changes of balances if the same AA was called more than once
+										let assocBalances = {};
+										for (let { aa_address, balances } of arrResponses)
+											assocBalances[aa_address] = balances; // overwrite if repeated
+										for (let r of arrResponses)
+											r.balances = assocBalances[r.aa_address];
+									}
 									arrResponses.forEach(function (objAAResponse) {
 										if (objAAResponse.objResponseUnit)
 											arrPostedUnits.push(objAAResponse.objResponseUnit);
