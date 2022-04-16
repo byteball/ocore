@@ -9,6 +9,7 @@ var mutex = require('./mutex.js');
 var validation = require('./validation.js');
 var witnessProof = require('./witness_proof.js');
 var proofChain = require('./proof_chain.js');
+var ValidationUtils = require("./validation_utils.js");
 
 var MAX_CATCHUP_CHAIN_LENGTH = 1000000; // how many MCIs long
 
@@ -26,7 +27,7 @@ function prepareCatchupChain(catchupRequest, callbacks){
 		return callbacks.ifError("no last_known_mci");
 	if (last_stable_mci >= last_known_mci && (last_known_mci > 0 || last_stable_mci > 0))
 		return callbacks.ifError("last_stable_mci >= last_known_mci");
-	if (!Array.isArray(arrWitnesses))
+	if (!ValidationUtils.isNonemptyArray(arrWitnesses))
 		return callbacks.ifError("no witnesses");
 
 	mutex.lock(['prepareCatchupChain'], function(unlock){
