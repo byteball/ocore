@@ -585,7 +585,7 @@ exports.evaluate = function (opts, callback) {
 					}
 					if (params.ifnone && !isValidValue(params.ifnone.value))
 						return cb("bad ifnone: "+params.ifnone.value);
-					dataFeeds.readDataFeedValue(arrAddresses, feed_name, value, min_mci, mci, bAA, ifseveral, function(objResult){
+					dataFeeds.readDataFeedValue(arrAddresses, feed_name, value, min_mci, mci, bAA, ifseveral, objValidationState.last_ball_timestamp, function(objResult){
 					//	console.log(arrAddresses, feed_name, value, min_mci, ifseveral);
 					//	console.log('---- objResult', objResult);
 						if (objResult.bAbortedBecauseOfSeveral)
@@ -2466,7 +2466,8 @@ exports.evaluate = function (opts, callback) {
 					function (err) {
 						if (fatal_error)
 							return cb(false);
-						logs.push(entries);
+						console.log('log', entries);
+						logs.push(_.cloneDeep(entries));
 						cb(true);
 					}
 				);
@@ -2602,11 +2603,11 @@ exports.evaluate = function (opts, callback) {
 		if (!stateVars[param_address])
 			stateVars[param_address] = {};
 		if (hasOwnProperty(stateVars[param_address], var_name)) {
-			console.log('using cache for var '+var_name);
+		//	console.log('using cache for var '+var_name);
 			return cb2(stateVars[param_address][var_name].value);
 		}
 		storage.readAAStateVar(param_address, var_name, function (value) {
-			console.log(var_name+'='+(typeof value === 'object' ? JSON.stringify(value) : value));
+		//	console.log(var_name+'='+(typeof value === 'object' ? JSON.stringify(value) : value));
 			if (value === undefined) {
 				assignField(stateVars[param_address], var_name, { value: false });
 				return cb2(false);
@@ -3122,7 +3123,7 @@ function executeGetterInState(conn, aa_address, getter, args, stateVars, assocBa
 		}
 		objValidationState = {
 			last_ball_mci: props.main_chain_index,
-			last_ball_timestamp: Math.floor(Date.now() / 1000),
+			last_ball_timestamp: Math.round(Date.now() / 1000),
 			mc_unit: props.unit, // must not be used
 			assocBalances: assocBalances,
 			number_of_responses: 0, // must not be used

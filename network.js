@@ -50,6 +50,7 @@ var bWaitingForCatchupChain = false;
 var coming_online_time = Date.now();
 var assocReroutedConnectionsByTag = {};
 var arrWatchedAddresses = []; // does not include my addresses, therefore always empty
+var arrTempWatchedAddresses = [];
 var last_hearbeat_wake_ts = Date.now();
 var peer_events_buffer = [];
 var assocKnownPeers = {};
@@ -421,7 +422,7 @@ function connectToPeer(url, onOpen) {
 			// after this, new connection attempts will be allowed to the wire, but this one can still succeed.  See the check for duplicates below.
 		}
 	}, 5000);
-	ws.setMaxListeners(20); // avoid warning
+	ws.setMaxListeners(40); // avoid warning
 	ws.once('open', function onWsOpen() {
 		breadcrumbs.add('connected to '+url);
 		delete assocConnectingOutboundWebsockets[url];
@@ -703,6 +704,8 @@ function handleHeartbeatResponse(ws, request, response){
 }
 
 function requestFromLightVendor(command, params, responseHandler){
+	if (!responseHandler)
+		return new Promise((resolve, reject) => requestFromLightVendor(command, params, (ws, request, response) => response.error ? reject(response.error) : resolve(response)));
 	if (!exports.light_vendor_url){
 		console.log("light_vendor_url not set yet");
 		return setTimeout(function(){
@@ -1668,6 +1671,13 @@ function addLightWatchedAddress(address, handle){
 	sendJustsayingToLightVendor('light/new_address_to_watch', address, handle);
 }
 
+function addTempLightWatchedAddress(address, handle) {
+	if (!arrTempWatchedAddresses.includes(address))
+		arrTempWatchedAddresses.push(address);
+	addLightWatchedAddress(address, handle);
+	eventBus.on('connected', () => addLightWatchedAddress(address));
+}
+
 function addLightWatchedAa(aa, address, handle){
 	var params = { aa: aa };
 	if (address)
@@ -2478,6 +2488,13 @@ function handleJustsaying(ws, subject, body){
 					return sendError(ws, "this unit is already known and archived");
 				if (objectLength.getRatio(objJoint.unit) > 3)
 					return sendError(ws, "the total size of keys is too large");
+				if (conf.bLight && objJoint.unit.authors && arrTempWatchedAddresses.length > 0) {
+					var author_addresses = objJoint.unit.authors.map(a => a.address);
+					if (_.intersection(author_addresses, arrTempWatchedAddresses).length > 0) {
+						console.log('new joint from a temporarily watched address', author_addresses);
+						return eventBus.emit('new_joint', objJoint);
+					}
+				}
 				// light clients accept the joint without proof, it'll be saved as unconfirmed (non-stable)
 				return conf.bLight ? handleLightOnlineJoint(ws, objJoint) : handleOnlineJoint(ws, objJoint);
 			});
@@ -2672,6 +2689,15 @@ function handleJustsaying(ws, subject, body){
 			);
 			break;
 			
+		// I'm a hub, the peer wants to get the challenge again
+		case 'hub/repeat_challenge':
+			if (!conf.bServeAsHub)
+				return sendError(ws, "I'm not a hub");
+			if (!ws.challenge)
+				return sendError(ws, "No challenge yet");
+			sendJustsaying(ws, 'hub/challenge', ws.challenge);
+			break;
+		
 		// I'm connected to a hub
 		case 'hub/challenge':
 		case 'hub/message':
@@ -3468,7 +3494,7 @@ function handleRequest(ws, tag, command, params){
 			db.query(
 				"SELECT mci, trigger_address, aa_address, trigger_unit, bounced, response_unit, response, timestamp \n\
 				FROM aa_responses CROSS JOIN units ON trigger_unit=unit \n\
-				WHERE aa_address IN(?) ORDER BY aa_response_id DESC LIMIT 30",
+				WHERE aa_address IN(?) ORDER BY mci DESC, aa_response_id DESC LIMIT 30",
 				[aas],
 				function (rows) {
 					light.enrichAAResponses(rows, () => {
@@ -3564,6 +3590,9 @@ function handleRequest(ws, tag, command, params){
 			if (!conf.arbstores[params])
 				return sendErrorResponse(ws, tag, "arbstore is not known");
 			sendResponse(ws, tag, conf.arbstores[params]);
+			break;
+		case 'hub/get_exchange_rates':
+			sendResponse(ws, tag, exchangeRates);
 			break;
 
 		case 'custom':
@@ -3822,6 +3851,10 @@ if (!conf.explicitStart) {
 	start();
 }
 
+function setExchangeRates(rates) {
+	exchangeRates = rates;
+}
+
 exports.start = start;
 exports.startAcceptingConnections = startAcceptingConnections;
 exports.startPeerExchange = startPeerExchange;
@@ -3837,7 +3870,8 @@ exports.sendRequest = sendRequest;
 exports.sendResponse = sendResponse;
 exports.findOutboundPeerOrConnect = findOutboundPeerOrConnect;
 exports.handleOnlineJoint = handleOnlineJoint;
-exports.handleUpgradeConnection = handleUpgradeConnection
+exports.handleUpgradeConnection = handleUpgradeConnection;
+exports.handleRequest = handleRequest;
 
 exports.handleOnlinePrivatePayment = handleOnlinePrivatePayment;
 exports.requestUnfinishedPastUnitsOfPrivateChains = requestUnfinishedPastUnitsOfPrivateChains;
@@ -3854,6 +3888,7 @@ exports.setMyDeviceProps = setMyDeviceProps;
 exports.setWatchedAddresses = setWatchedAddresses;
 exports.addWatchedAddress = addWatchedAddress;
 exports.addLightWatchedAddress = addLightWatchedAddress;
+exports.addTempLightWatchedAddress = addTempLightWatchedAddress;
 exports.addLightWatchedAa = addLightWatchedAa;
 
 exports.getConnectionStatus = getConnectionStatus;
@@ -3867,6 +3902,7 @@ exports.waitTillSyncIdle = waitTillSyncIdle;
 exports.requestHistoryFor = requestHistoryFor;
 exports.requestHistoryAfterMCI = requestHistoryAfterMCI;
 exports.exchangeRates = exchangeRates;
+exports.setExchangeRates = setExchangeRates;
 exports.knownWitnesses = knownWitnesses;
 exports.getInboundDeviceWebSocket = getInboundDeviceWebSocket;
 exports.deletePendingRequest = deletePendingRequest;

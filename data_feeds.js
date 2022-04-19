@@ -185,8 +185,8 @@ function dataFeedByAddressExists(address, feed_name, relation, value, min_mci, m
 	});
 }
 
-
-function readDataFeedValue(arrAddresses, feed_name, value, min_mci, max_mci, unstable_opts, ifseveral, handleResult){
+// timestamp is for light only
+function readDataFeedValue(arrAddresses, feed_name, value, min_mci, max_mci, unstable_opts, ifseveral, timestamp, handleResult){
 	var bLimitedPrecision = (max_mci < constants.aa2UpgradeMci);
 	var start_time = Date.now();
 	var objResult = { bAbortedBecauseOfSeveral: false, value: undefined, unit: undefined, mci: undefined };
@@ -364,7 +364,7 @@ function readDataFeedValueByParams(params, max_mci, unstable_opts, cb) {
 	}
 	if ('ifnone' in params && !isValidValue(params.ifnone))
 		return cb("bad ifnone: " + params.ifnone);
-	readDataFeedValue(oracles, feed_name, value, min_mci, max_mci, unstable_opts, ifseveral, function (objResult) {
+	readDataFeedValue(oracles, feed_name, value, min_mci, max_mci, unstable_opts, ifseveral, Math.round(Date.now() / 1000), function (objResult) {
 		if (objResult.bAbortedBecauseOfSeveral)
 			return cb("several values found");
 		if (objResult.value !== undefined) {

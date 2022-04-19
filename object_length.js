@@ -13,6 +13,8 @@ function getLength(value, bWithKeys) {
 		case "string": 
 			return value.length;
 		case "number": 
+			if (!isFinite(value))
+				throw Error("invalid number: " + value);
 			return 8;
 			//return value.toString().length;
 		case "object":

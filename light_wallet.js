@@ -164,7 +164,7 @@ function refreshLightClientHistory(addresses, handle){
 				ws.bRefreshingHistory = false;
 			if (handle)
 				handle(err);
-			if (!addresses)
+			if (!addresses && !err)
 				eventBus.emit('refresh_light_done');
 		};
 		if (err)

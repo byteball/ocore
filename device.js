@@ -888,6 +888,8 @@ function getWitnessesFromHub(cb){
 
 // responseHandler(error, response) callback
 function requestFromHub(command, params, responseHandler){
+	if (!responseHandler)
+		return new Promise((resolve, reject) => requestFromHub(command, params, (err, resp) => err ? reject(err) : resolve(resp)));
 	if (!my_device_hub)
 		return setTimeout(function(){ requestFromHub(command, params, responseHandler); }, 2000);
 	network.findOutboundPeerOrConnect(conf.WS_PROTOCOL+my_device_hub, function(err, ws){
