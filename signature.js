@@ -5,14 +5,14 @@ var ValidationUtils = require('./validation_utils.js');
 var crypto = require('crypto');
 
 function sign(hash, priv_key){
-	var res = ecdsa.sign(hash, priv_key);
-	return res.signature.toString("base64");
+	var res = ecdsa.ecdsaSign(hash, priv_key);
+	return Buffer.from(res.signature).toString("base64");
 };
 
 function verify(hash, b64_sig, b64_pub_key){
 	try{
 		var signature = Buffer.from(b64_sig, "base64"); // 64 bytes (32+32)
-		return ecdsa.verify(hash, signature, Buffer.from(b64_pub_key, "base64"));
+		return ecdsa.ecdsaVerify(signature, hash, Buffer.from(b64_pub_key, "base64"));
 	}
 	catch(e){
 		console.log('signature verification exception: '+e.toString());

@@ -7,7 +7,11 @@ var Mnemonic = require('bitcore-mnemonic');
 
 
 function parseUri(uri, callbacks){
-	var protocol = conf.program || 'byteball';
+	var protocol = 'byteball';
+	if (process.env.testnet)
+		protocol += '-tn';
+	if (process.env.devnet)
+		protocol += '-dn';
 	var re = new RegExp('^'+protocol+':(.+)$', 'i');
 	var arrMatches = uri.match(re);
 	if (!arrMatches){ // try with obyte
