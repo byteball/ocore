@@ -1085,7 +1085,7 @@ function readBalancesOnAddresses(walletId, handleBalancesOnAddresses) {
 	});
 }
 
-function readAssetMetadata(arrAssets, handleMetadata){
+function readAssetMetadata(arrAssets, handleMetadata, metadataUpdatedCb){
 	var sql = "SELECT asset, metadata_unit, name, suffix, decimals, registry_address, " + db.getUnixTimestamp("creation_date") + " AS timestamp FROM asset_metadata";
 	if (arrAssets && arrAssets.length)
 		sql += " WHERE asset IN ("+arrAssets.map(db.escape).join(', ')+")";
@@ -1143,6 +1143,8 @@ function readAssetMetadata(arrAssets, handleMetadata){
 				console.log('metadata updated for ' + countUpdated + ' assets');
 				if (countUpdated)
 					eventBus.emit('maybe_new_transactions');
+				if (metadataUpdatedCb)
+					metadataUpdatedCb(countUpdated > 0);
 			});
 		});
 	});
