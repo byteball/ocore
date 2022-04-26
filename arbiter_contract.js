@@ -592,11 +592,16 @@ function complete(hash, walletInstance, arrSigningDeviceAddresses, cb) {
 						arbiters.getArbstoreInfo(objContract.arbiter_address, function(err, arbstoreInfo) {
 							if (err)
 								return cb(err);
-							var peer_amount = Math.floor(objContract.amount * (1-arbstoreInfo.cut));
-							opts[objContract.asset && objContract.asset != "base" ? "asset_outputs" : "base_outputs"] = [
-								{ address: objContract.peer_address, amount: peer_amount},
-								{ address: arbstoreInfo.address, amount: objContract.amount-peer_amount},
-							];
+							if (parseFloat(arbstoreInfo.cut) == 0) {
+								opts.to_address = objContract.peer_address;
+								opts.amount = objContract.amount;
+							} else {
+								var peer_amount = Math.floor(objContract.amount * (1-arbstoreInfo.cut));
+								opts[objContract.asset && objContract.asset != "base" ? "asset_outputs" : "base_outputs"] = [
+									{ address: objContract.peer_address, amount: peer_amount},
+									{ address: arbstoreInfo.address, amount: objContract.amount-peer_amount},
+								];
+							}
 							resolve();
 						});
 					} else { // refund
