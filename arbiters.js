@@ -3,6 +3,7 @@
 var db = require('./db.js');
 var device = require('./device.js');
 var http = require('https');
+var validationUtils = require('ocore/validation_utils.js');
 
 var arbStoreInfos = {}; // map arbiter_address => arbstoreInfo {address: ..., cut: ...}
 
@@ -54,7 +55,7 @@ function getArbstoreInfo(arbiter_address, cb) {
 		requestInfoFromArbStore(url+'/api/get_info', function(err, info){
 			if (err)
 				return cb(err);
-			if (!info.address || !info.cut) {
+			if (!info.address || !validationUtils.isValidAddress(info.address) || parseFloat(info.cut) === NaN || parseFloat(info.cut) < 0 || parseFloat(info.cut) >= 1) {
 				cb("mailformed info received from ArbStore");
 			}
 			arbStoreInfos[arbiter_address] = info;

@@ -415,6 +415,7 @@ function createSharedAddressAndPostUnit(hash, walletInstance, cb) {
 				]];
 				var isPrivate = assetInfo && assetInfo.is_private;
 				var isFixedDen = assetInfo && assetInfo.fixed_denominations;
+				var hasArbStoreCut = arbstoreInfo.cut > 0;
 				if (isPrivate) { // private asset
 					arrDefinition[1][1] = ["and", [
 				        ["address", contract.my_address],
@@ -430,7 +431,7 @@ function createSharedAddressAndPostUnit(hash, walletInstance, cb) {
 				        ["has", {
 				            what: "output",
 				            asset: contract.asset || "base", 
-				            amount: contract.me_is_payer && !isFixedDen ? Math.floor(contract.amount * (1-arbstoreInfo.cut)) : contract.amount,
+				            amount: contract.me_is_payer && !isFixedDen && hasArbStoreCut ? Math.floor(contract.amount * (1-arbstoreInfo.cut)) : contract.amount,
 				            address: contract.peer_address
 				        }]
 				    ]];
@@ -439,11 +440,11 @@ function createSharedAddressAndPostUnit(hash, walletInstance, cb) {
 				        ["has", {
 				            what: "output",
 				            asset: contract.asset || "base", 
-				            amount: contract.me_is_payer || isFixedDen ? contract.amount : Math.floor(contract.amount * (1-arbstoreInfo.cut)),
+				            amount: contract.me_is_payer || isFixedDen || !hasArbStoreCut ? contract.amount : Math.floor(contract.amount * (1-arbstoreInfo.cut)),
 				            address: contract.my_address
 				        }]
 				    ]];
-				    if (!isFixedDen) {
+				    if (!isFixedDen && hasArbStoreCut) {
 				    	arrDefinition[1][contract.me_is_payer ? 1 : 2][1].push(
 					        ["has", {
 					            what: "output",
