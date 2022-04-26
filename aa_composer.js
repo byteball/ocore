@@ -95,10 +95,18 @@ function handlePrimaryAATrigger(mci, unit, address, arrDefinition, arrPostedUnit
 									throw Error("AA composer: batch write failed: "+err);
 								conn.query("COMMIT", function () {
 									conn.release();
-									// copy updatedStateVars to all responses
-									if (arrResponses.length > 1 && arrResponses[0].updatedStateVars)
-										for (var i = 1; i < arrResponses.length; i++)
-											arrResponses[i].updatedStateVars = arrResponses[0].updatedStateVars;
+									if (arrResponses.length > 1) {
+										// copy updatedStateVars to all responses
+										if (arrResponses[0].updatedStateVars)
+											for (var i = 1; i < arrResponses.length; i++)
+												arrResponses[i].updatedStateVars = arrResponses[0].updatedStateVars;
+										// merge all changes of balances if the same AA was called more than once
+										let assocBalances = {};
+										for (let { aa_address, balances } of arrResponses)
+											assocBalances[aa_address] = balances; // overwrite if repeated
+										for (let r of arrResponses)
+											r.balances = assocBalances[r.aa_address];
+									}
 									arrResponses.forEach(function (objAAResponse) {
 										if (objAAResponse.objResponseUnit)
 											arrPostedUnits.push(objAAResponse.objResponseUnit);
@@ -132,6 +140,8 @@ function estimatePrimaryAATrigger(objUnit, address, stateVars, assocBalances, on
 				readLastUnit(conn, function (objMcUnit) {
 					// rewrite timestamp in case our last unit is old (light or unsynced full)
 					objMcUnit.timestamp = objUnit.timestamp || Math.round(Date.now() / 1000);
+					if (objUnit.main_chain_index)
+						objMcUnit.main_chain_index = objUnit.main_chain_index;
 					var mci = objMcUnit.main_chain_index;
 					var arrResponses = [];
 					var trigger = getTrigger(objUnit, address);
@@ -411,12 +421,12 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 		if (trigger_opts.assocBalances) {
 			if (!trigger_opts.assocBalances[address])
 				trigger_opts.assocBalances[address] = {};
+			originalBalances = _.cloneDeep(trigger_opts.assocBalances);
 			for (var asset in trigger.outputs)
 				trigger_opts.assocBalances[address][asset] = (trigger_opts.assocBalances[address][asset] || 0) + trigger.outputs[asset];
 			objValidationState.assocBalances = trigger_opts.assocBalances;
 			byte_balance = trigger_opts.assocBalances[address].base || 0;
 			storage_size = 0;
-			originalBalances = _.cloneDeep(trigger_opts.assocBalances);
 			return cb();
 		}
 		objValidationState.assocBalances[address] = {};
@@ -836,6 +846,11 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 		if (trigger_opts.bAir) {
 			assignObject(stateVars, originalStateVars); // restore state vars
 			assignObject(trigger_opts.assocBalances, originalBalances); // restore balances
+			if (!bSecondary) {
+				for (let a in trigger.outputs)
+					if (bounce_fees[a])
+						trigger_opts.assocBalances[address][a] = (trigger_opts.assocBalances[address][a] || 0) + bounce_fees[a];
+			}
 		}
 		if (bBouncing)
 			return finish(null);

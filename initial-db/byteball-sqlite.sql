@@ -867,6 +867,7 @@ CREATE TABLE aa_responses (
 );
 CREATE INDEX aaResponsesByTriggerAddress ON aa_responses(trigger_address);
 CREATE INDEX aaResponsesByAAAddress ON aa_responses(aa_address);
+-- CREATE INDEX aaResponsesByAAAddressMci ON aa_responses(aa_address, mci); -- hub only
 CREATE INDEX aaResponsesByMci ON aa_responses(mci);
 
 CREATE TABLE watched_light_aas (

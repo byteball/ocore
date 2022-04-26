@@ -585,7 +585,7 @@ exports.evaluate = function (opts, callback) {
 					}
 					if (params.ifnone && !isValidValue(params.ifnone.value))
 						return cb("bad ifnone: "+params.ifnone.value);
-					dataFeeds.readDataFeedValue(arrAddresses, feed_name, value, min_mci, mci, bAA, ifseveral, function(objResult){
+					dataFeeds.readDataFeedValue(arrAddresses, feed_name, value, min_mci, mci, bAA, ifseveral, objValidationState.last_ball_timestamp, function(objResult){
 					//	console.log(arrAddresses, feed_name, value, min_mci, ifseveral);
 					//	console.log('---- objResult', objResult);
 						if (objResult.bAbortedBecauseOfSeveral)
@@ -1052,7 +1052,7 @@ exports.evaluate = function (opts, callback) {
 						}
 					}
 					if (!output) {
-						console.log("output not found: asset"+comparison_operator+asset);
+					//	console.log("output not found: asset"+comparison_operator+asset);
 						output = { asset: 'none', amount: 0 };
 					}
 					if (output.asset === 'ambiguous' && field === 'amount')
@@ -1515,7 +1515,7 @@ exports.evaluate = function (opts, callback) {
 			case 'definition':
 				var address_expr = arr[1];
 				evaluate(address_expr, function (addr) {
-					console.log('---- definition', addr);
+				//	console.log('---- definition', addr);
 					if (fatal_error)
 						return cb(false);
 					if (!ValidationUtils.isValidAddress(addr))

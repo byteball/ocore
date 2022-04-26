@@ -50,7 +50,7 @@ function setDevicePrivateKey(priv_key){
 	var bChanged = (!objMyPermanentDeviceKey || priv_key !== objMyPermanentDeviceKey.priv);
 	objMyPermanentDeviceKey = {
 		priv: priv_key,
-		pub_b64: ecdsa.publicKeyCreate(priv_key, true).toString('base64')
+		pub_b64: Buffer.from(ecdsa.publicKeyCreate(priv_key, true)).toString('base64')
 	};
 	var new_my_device_address = objectHash.getDeviceAddress(objMyPermanentDeviceKey.pub_b64);
 	if (my_device_address && my_device_address !== new_my_device_address){
@@ -81,12 +81,12 @@ function setTempKeys(temp_priv_key, prev_temp_priv_key, fnSaveTempKeys){
 	objMyTempDeviceKey = {
 		use_count: null, // unknown
 		priv: temp_priv_key,
-		pub_b64: ecdsa.publicKeyCreate(temp_priv_key, true).toString('base64')
+		pub_b64: Buffer.from(ecdsa.publicKeyCreate(temp_priv_key, true)).toString('base64')
 	};
 	if (prev_temp_priv_key) // may be null
 		objMyPrevTempDeviceKey = {
 			priv: prev_temp_priv_key,
-			pub_b64: ecdsa.publicKeyCreate(prev_temp_priv_key, true).toString('base64')
+			pub_b64: Buffer.from(ecdsa.publicKeyCreate(prev_temp_priv_key, true)).toString('base64')
 		};
 	saveTempKeys = fnSaveTempKeys;
 	loginToHub();
@@ -343,7 +343,7 @@ function rotateTempDeviceKey(){
 		var objNewMyTempDeviceKey = {
 			use_count: 0,
 			priv: new_priv_key,
-			pub_b64: ecdsa.publicKeyCreate(new_priv_key, true).toString('base64')
+			pub_b64: Buffer.from(ecdsa.publicKeyCreate(new_priv_key, true)).toString('base64')
 		};
 		saveTempKeys(new_priv_key, objMyTempDeviceKey.priv, function(err){
 			if (err){
@@ -379,8 +379,9 @@ function scheduleTempDeviceKeyRotation(){
 // ---------------------------
 // sending/receiving messages
 
-function deriveSharedSecret(ecdh, peer_b64_pubkey){
-	var shared_secret_src = ecdh.computeSecret(peer_b64_pubkey, "base64");
+function deriveSharedSecret(peer_b64_pubkey, privKey){
+	var pubkey = new Buffer(peer_b64_pubkey, 'base64');
+	var shared_secret_src = Buffer.from(ecdsa.ecdh(pubkey, privKey, {hashfn: (x, y) => x}, Buffer.alloc(32)));
 	var shared_secret = crypto.createHash("sha256").update(shared_secret_src).digest().slice(0, 16);
 	return shared_secret;
 }
@@ -417,11 +418,11 @@ function decryptPackage(objEncryptedPackage){
 		return null;
 	}
 	
-	var ecdh = crypto.createECDH('secp256k1');
-	if (process.browser) // workaround bug in crypto-browserify https://github.com/crypto-browserify/createECDH/issues/9
-		ecdh.generateKeys("base64", "compressed");
-	ecdh.setPrivateKey(priv_key);
-	var shared_secret = deriveSharedSecret(ecdh, objEncryptedPackage.dh.sender_ephemeral_pubkey);
+	//var ecdh = crypto.createECDH('secp256k1');
+	//if (process.browser) // workaround bug in crypto-browserify https://github.com/crypto-browserify/createECDH/issues/9
+		//ecdh.generateKeys("base64", "compressed");
+	//ecdh.setPrivateKey(priv_key);
+	var shared_secret = deriveSharedSecret(objEncryptedPackage.dh.sender_ephemeral_pubkey, priv_key);
 	var iv = Buffer.from(objEncryptedPackage.iv, 'base64');
 	var decipher = crypto.createDecipheriv('aes-128-gcm', shared_secret, iv);
 	var authtag = Buffer.from(objEncryptedPackage.authtag, 'base64');
@@ -609,9 +610,13 @@ function sendPreparedMessageToConnectedHub(ws, recipient_device_pubkey, message_
 function createEncryptedPackage(json, recipient_device_pubkey){
 	var text = JSON.stringify(json);
 //	console.log("will encrypt and send: "+text);
-	var ecdh = crypto.createECDH('secp256k1');
-	var sender_ephemeral_pubkey = ecdh.generateKeys("base64", "compressed");
-	var shared_secret = deriveSharedSecret(ecdh, recipient_device_pubkey); // Buffer
+	//var ecdh = crypto.createECDH('secp256k1');
+	var privKey;
+	do {
+		privKey = crypto.randomBytes(32)
+	} while (!ecdsa.privateKeyVerify(privKey));
+	var sender_ephemeral_pubkey = Buffer.from(ecdsa.publicKeyCreate(privKey)).toString('base64');
+	var shared_secret = deriveSharedSecret(recipient_device_pubkey, privKey); // Buffer
 	console.log(shared_secret.length);
 	// we could also derive iv from the unused bits of ecdh.computeSecret() and save some bandwidth
 	var iv = crypto.randomBytes(12); // 128 bits (16 bytes) total, we take 12 bytes for random iv and leave 4 bytes for the counter

@@ -1,7 +1,7 @@
 /*jslint node: true */
 "use strict";
-var WebSocket = process.browser ? global.WebSocket : require('ws');
-var socks = process.browser ? null : require('socks');
+var WebSocket = typeof window !== "undefined" ? global.WebSocket : require('ws');
+var socks = typeof window !== "undefined" ? null : require('socks');
 var WebSocketServer = WebSocket.Server;
 var crypto = require('crypto');
 var _ = require('lodash');
@@ -60,7 +60,7 @@ var knownWitnesses = {};
 var bWatchingForLight = false;
 var prev_bugreport_hash = '';
 
-if (process.browser){ // browser
+if (typeof window !== "undefined"){ // browser
 	console.log("defining .on() on ws");
 	WebSocket.prototype.on = function(event, callback) {
 		var self = this;
@@ -1675,6 +1675,7 @@ function addTempLightWatchedAddress(address, handle) {
 	if (!arrTempWatchedAddresses.includes(address))
 		arrTempWatchedAddresses.push(address);
 	addLightWatchedAddress(address, handle);
+	eventBus.on('connected', () => addLightWatchedAddress(address));
 }
 
 function addLightWatchedAa(aa, address, handle){
@@ -3493,7 +3494,7 @@ function handleRequest(ws, tag, command, params){
 			db.query(
 				"SELECT mci, trigger_address, aa_address, trigger_unit, bounced, response_unit, response, timestamp \n\
 				FROM aa_responses CROSS JOIN units ON trigger_unit=unit \n\
-				WHERE aa_address IN(?) ORDER BY aa_response_id DESC LIMIT 30",
+				WHERE aa_address IN(?) ORDER BY mci DESC, aa_response_id DESC LIMIT 30",
 				[aas],
 				function (rows) {
 					light.enrichAAResponses(rows, () => {
@@ -3767,7 +3768,7 @@ function startPeerExchange() {
 }
 
 function startRelay(){
-	if (process.browser || !conf.port) // no listener on mobile
+	if (typeof window !== "undefined" || !conf.port) // no listener on mobile
 		wss = {clients: []};
 	else
 		startAcceptingConnections();

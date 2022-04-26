@@ -76,9 +76,9 @@ function prepareWitnessProof(arrWitnesses, last_stable_mci, handleResult){
 				// 2. address_definition_changes
 				// 3. revealing changed definitions
 				"SELECT unit, `level` \n\
-				FROM unit_authors "+db.forceIndex('unitAuthorsIndexByAddressDefinitionChash')+" \n\
+				FROM unit_authors "+db.forceIndex('byDefinitionChash')+" \n\
 				CROSS JOIN units USING(unit) \n\
-				WHERE address IN(?) AND definition_chash=address AND "+after_last_stable_mci_cond+" AND is_stable=1 AND sequence='good' \n\
+				WHERE definition_chash IN(?) AND definition_chash=address AND "+after_last_stable_mci_cond+" AND is_stable=1 AND sequence='good' \n\
 				UNION \n\
 				SELECT unit, `level` \n\
 				FROM address_definition_changes \n\
