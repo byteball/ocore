@@ -22,7 +22,6 @@ function createAndSend(objContract, cb) {
 	objContract.hash = getHash(objContract);
 	device.getOrGeneratePermanentPairingInfo(pairingInfo => {
 		objContract.my_pairing_code = pairingInfo.device_pubkey + "@" + pairingInfo.hub + "#" + pairingInfo.pairing_secret;
-
 		db.query("INSERT INTO wallet_arbiter_contracts (hash, peer_address, peer_device_address, my_address, arbiter_address, me_is_payer, amount, asset, is_incoming, creation_date, ttl, status, title, text, my_contact_info, cosigners) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [objContract.hash, objContract.peer_address, objContract.peer_device_address, objContract.my_address, objContract.arbiter_address, objContract.me_is_payer ? 1 : 0, objContract.amount, objContract.asset, 0, objContract.creation_date, objContract.ttl, status_PENDING, objContract.title, objContract.text, objContract.my_contact_info, JSON.stringify(objContract.cosigners)], function() {
 				var objContractForPeer = _.cloneDeep(objContract);
 				delete objContractForPeer.cosigners;
@@ -206,9 +205,9 @@ function openDispute(hash, cb) {
 		device.requestFromHub("hub/get_arbstore_url", objContract.arbiter_address, function(err, url){
 			if (err)
 				return cb(err);
-			arbiters.getInfo(objContract.arbiter_address, function(objArbiter) {
-				if (!objArbiter)
-					return cb("can't get arbiter info from ArbStore");
+			arbiters.getInfo(objContract.arbiter_address, function(err, objArbiter) {
+				if (err)
+					return cb(err);
 				device.getOrGeneratePermanentPairingInfo(function(pairingInfo){
 					var my_pairing_code = pairingInfo.device_pubkey + "@" + pairingInfo.hub + "#" + pairingInfo.pairing_secret;
 					var data = {
@@ -393,137 +392,144 @@ function getAllMyCosigners(hash, cb) {
 // walletInstance should have "sendMultiPayment" function with appropriate signer inside
 function createSharedAddressAndPostUnit(hash, walletInstance, cb) {
 	getByHash(hash, function(contract) {
-		db.query("SELECT 1 FROM assets WHERE unit IN(?) AND is_private=1 LIMIT 1", [contract.asset], function(rows){
-		    var arrDefinition =
-			["or", [
-				["and", [
-					["address", contract.my_address],
-					["address", contract.peer_address]
-				]],
-				[], // placeholders [1][1]
-				[],	// placeholders [1][2]
-				["and", [
-			        ["address", contract.my_address],
-			        ["in data feed", [[contract.arbiter_address], "CONTRACT_" + contract.hash, "=", contract.my_address]]
-			    ]],
-			    ["and", [
-			        ["address", contract.peer_address],
-			        ["in data feed", [[contract.arbiter_address], "CONTRACT_" + contract.hash, "=", contract.peer_address]]
-			    ]]
-			]];
-			var isPrivate = rows.length > 0;
-			if (isPrivate) { // private asset
-				arrDefinition[1][1] = ["and", [
-			        ["address", contract.my_address],
-			        ["in data feed", [[contract.peer_address], "CONTRACT_DONE_" + contract.hash, "=", contract.my_address]]
-			    ]];
-			    arrDefinition[1][2] = ["and", [
-			        ["address", contract.peer_address],
-			        ["in data feed", [[contract.my_address], "CONTRACT_DONE_" + contract.hash, "=", contract.peer_address]]
-			    ]];
-			} else {
-				arrDefinition[1][1] = ["and", [
-			        ["address", contract.my_address],
-			        ["has", {
-			            what: "output",
-			            asset: contract.asset || "base", 
-			            amount: contract.amount, 
-			            address: contract.peer_address
-			        }]
-			    ]];
-			    arrDefinition[1][2] = ["and", [
-			        ["address", contract.peer_address],
-			        ["has", {
-			            what: "output",
-			            asset: contract.asset || "base", 
-			            amount: contract.amount, 
-			            address: contract.my_address
-			        }]
-			    ]];
-			}
-			var assocSignersByPath = {
-				"r.0.0": {
-					address: contract.my_address,
-					member_signing_path: "r",
-					device_address: device.getMyDeviceAddress()
-				},
-				"r.0.1": {
-					address: contract.peer_address,
-					member_signing_path: "r",
-					device_address: contract.peer_device_address
-				},
-				"r.1.0": {
-					address: contract.my_address,
-					member_signing_path: "r",
-					device_address: device.getMyDeviceAddress()
-				},
-				"r.2.0": {
-					address: contract.peer_address,
-					member_signing_path: "r",
-					device_address: contract.peer_device_address
-				},
-				"r.3.0": {
-					address: contract.my_address,
-					member_signing_path: "r",
-					device_address: device.getMyDeviceAddress()
-				},
-				"r.4.0": {
-					address: contract.peer_address,
-					member_signing_path: "r",
-					device_address: contract.peer_device_address
-				},
-			};
-			require("ocore/wallet_defined_by_addresses.js").createNewSharedAddress(arrDefinition, assocSignersByPath, {
-				ifError: function(err){
-					cb(err);
-				},
-				ifOk: function(shared_address){
-					setField(contract.hash, "shared_address", shared_address, function(contract) {
-						// share this contract to my cosigners for them to show proper ask dialog
-						shareContractToCosigners(contract.hash);
-						shareUpdateToPeer(contract.hash, "shared_address");
+		arbiters.getArbstoreInfo(contract.arbiter_address, function(err, arbstoreInfo) {
+			if (err)
+				return cb(err);
+			storage.readAssetInfo(db, contract.asset, function(assetInfo) {
+			    var arrDefinition =
+				["or", [
+					["and", [
+						["address", contract.my_address],
+						["address", contract.peer_address]
+					]],
+					[], // placeholders [1][1]
+					[],	// placeholders [1][2]
+					["and", [
+				        ["address", contract.my_address],
+				        ["in data feed", [[contract.arbiter_address], "CONTRACT_" + contract.hash, "=", contract.my_address]]
+				    ]],
+				    ["and", [
+				        ["address", contract.peer_address],
+				        ["in data feed", [[contract.arbiter_address], "CONTRACT_" + contract.hash, "=", contract.peer_address]]
+				    ]]
+				]];
+				var isPrivate = assetInfo && assetInfo.is_private;
+				var isFixedDen = assetInfo && assetInfo.fixed_denominations;
+				var hasArbStoreCut = arbstoreInfo.cut > 0;
+				if (isPrivate) { // private asset
+					arrDefinition[1][1] = ["and", [
+				        ["address", contract.my_address],
+				        ["in data feed", [[contract.peer_address], "CONTRACT_DONE_" + contract.hash, "=", contract.my_address]]
+				    ]];
+				    arrDefinition[1][2] = ["and", [
+				        ["address", contract.peer_address],
+				        ["in data feed", [[contract.my_address], "CONTRACT_DONE_" + contract.hash, "=", contract.peer_address]]
+				    ]];
+				} else {
+					arrDefinition[1][1] = ["and", [
+				        ["address", contract.my_address],
+				        ["has", {
+				            what: "output",
+				            asset: contract.asset || "base", 
+				            amount: contract.me_is_payer && !isFixedDen && hasArbStoreCut ? Math.floor(contract.amount * (1-arbstoreInfo.cut)) : contract.amount,
+				            address: contract.peer_address
+				        }]
+				    ]];
+				    arrDefinition[1][2] = ["and", [
+				        ["address", contract.peer_address],
+				        ["has", {
+				            what: "output",
+				            asset: contract.asset || "base", 
+				            amount: contract.me_is_payer || isFixedDen || !hasArbStoreCut ? contract.amount : Math.floor(contract.amount * (1-arbstoreInfo.cut)),
+				            address: contract.my_address
+				        }]
+				    ]];
+				    if (!isFixedDen && hasArbStoreCut) {
+				    	arrDefinition[1][contract.me_is_payer ? 1 : 2][1].push(
+					        ["has", {
+					            what: "output",
+					            asset: contract.asset || "base", 
+					            amount: contract.amount - Math.floor(contract.amount * (1-arbstoreInfo.cut)),
+					            address: arbstoreInfo.address
+					        }]
+					    );
+				    }
+				}
+				var assocSignersByPath = {
+					"r.0.0": {
+						address: contract.my_address,
+						member_signing_path: "r",
+						device_address: device.getMyDeviceAddress()
+					},
+					"r.0.1": {
+						address: contract.peer_address,
+						member_signing_path: "r",
+						device_address: contract.peer_device_address
+					},
+					"r.1.0": {
+						address: contract.my_address,
+						member_signing_path: "r",
+						device_address: device.getMyDeviceAddress()
+					},
+					"r.2.0": {
+						address: contract.peer_address,
+						member_signing_path: "r",
+						device_address: contract.peer_device_address
+					},
+					"r.3.0": {
+						address: contract.my_address,
+						member_signing_path: "r",
+						device_address: device.getMyDeviceAddress()
+					},
+					"r.4.0": {
+						address: contract.peer_address,
+						member_signing_path: "r",
+						device_address: contract.peer_device_address
+					},
+				};
+				require("ocore/wallet_defined_by_addresses.js").createNewSharedAddress(arrDefinition, assocSignersByPath, {
+					ifError: function(err){
+						cb(err);
+					},
+					ifOk: function(shared_address){
+						setField(contract.hash, "shared_address", shared_address, function(contract) {
+							// share this contract to my cosigners for them to show proper ask dialog
+							shareContractToCosigners(contract.hash);
+							shareUpdateToPeer(contract.hash, "shared_address");
 
-						// post a unit with contract text hash and send it for signing to correspondent
-						var value = {"contract_text_hash": contract.hash, "arbiter": contract.arbiter_address};
-						var objContractMessage = {
-							app: "data",
-							payload_location: "inline",
-							payload_hash: objectHash.getBase64Hash(value, storage.getMinRetrievableMci() >= constants.timestampUpgradeMci),
-							payload: value
-						};
+							// post a unit with contract text hash and send it for signing to correspondent
+							var value = {"contract_text_hash": contract.hash, "arbiter": contract.arbiter_address};
+							var objContractMessage = {
+								app: "data",
+								payload_location: "inline",
+								payload_hash: objectHash.getBase64Hash(value, storage.getMinRetrievableMci() >= constants.timestampUpgradeMci),
+								payload: value
+							};
 
-						walletInstance.sendMultiPayment({
-							asset: "base",
-							to_address: shared_address,
-							amount: exports.CHARGE_AMOUNT,
-							arrSigningDeviceAddresses: contract.cosigners.length ? contract.cosigners.concat([contract.peer_device_address, device.getMyDeviceAddress()]) : [],
-							signing_addresses: [shared_address],
-							messages: [objContractMessage]
-						}, function(err, unit) { // can take long if multisig
-							if (err)
-								return cb(err);
+							walletInstance.sendMultiPayment({
+								asset: "base",
+								to_address: shared_address,
+								amount: exports.CHARGE_AMOUNT,
+								arrSigningDeviceAddresses: contract.cosigners.length ? contract.cosigners.concat([contract.peer_device_address, device.getMyDeviceAddress()]) : [],
+								signing_addresses: [shared_address],
+								messages: [objContractMessage]
+							}, function(err, unit) { // can take long if multisig
+								if (err)
+									return cb(err);
 
-							// set contract's unit field
-							setField(contract.hash, "unit", unit, function(contract) {
-								shareUpdateToPeer(contract.hash, "unit");
-								setField(contract.hash, "status", "signed", function(contract) {
-									cb(null, contract);
+								// set contract's unit field
+								setField(contract.hash, "unit", unit, function(contract) {
+									shareUpdateToPeer(contract.hash, "unit");
+									setField(contract.hash, "status", "signed", function(contract) {
+										cb(null, contract);
+									});
 								});
 							});
 						});
-					});
-				}
+					}
+				});
 			});
 		});
-	});
-}
-
-function isAssetPrivate(asset, cb) {
-	db.query("SELECT 1 FROM assets WHERE unit IN(?) AND is_private=1 LIMIT 1", [asset], function(rows){
-		if (rows.length > 0) {
-			return cb(true);
-		}
-		cb(false);
 	});
 }
 
@@ -546,8 +552,8 @@ function pay(hash, walletInstance, arrSigningDeviceAddresses, cb) {
 				cb(null, objContract, unit);
 			});
 			// listen for peer announce to withdraw funds
-			isAssetPrivate(objContract.asset, function(isPrivate) {
-				if (isPrivate)
+			storage.readAssetInfo(db, objContract.asset, function(assetInfo) {
+				if (assetInfo && assetInfo.is_private)
 					db.query("INSERT "+db.getIgnore()+" INTO my_watched_addresses (address) VALUES (?)", [objContract.peer_address]);
 			});
 		});
@@ -558,39 +564,62 @@ function complete(hash, walletInstance, arrSigningDeviceAddresses, cb) {
 	getByHash(hash, function(objContract) {
 		if (objContract.status !== "paid" && objContract.status !== "in_dispute")
 			return cb("contract can't be completed");
-		isAssetPrivate(objContract.asset, function(isPrivate) {
+		storage.readAssetInfo(db, objContract.asset, function(assetInfo) {
 			var opts;
-			if (isPrivate) {
-				var value = {};
-				value["CONTRACT_DONE_" + objContract.hash] = objContract.peer_address;
-				opts = {
-					paying_addresses: [objContract.my_address],
-					signing_addresses: [objContract.my_address],
-					change_address: objContract.my_address,
-					messages: [{
-						app: 'data_feed',
-						payload_location: "inline",
-						payload_hash: objectHash.getBase64Hash(value, storage.getMinRetrievableMci() >= constants.timestampUpgradeMci),
-						payload: value
-					}]
-				};
-			} else {
-				opts = {
-					paying_addresses: [objContract.shared_address],
-					change_address: objContract.shared_address,
-					asset: objContract.asset,
-					to_address: objContract.peer_address,
-					amount: objContract.amount
-				};
-			}
-			if (arrSigningDeviceAddresses.length)
-				opts.arrSigningDeviceAddresses = arrSigningDeviceAddresses;
-			walletInstance.sendMultiPayment(opts, function(err, unit){
-				if (err)
-					return cb(err);
-				var status = objContract.me_is_payer ? "completed" : "cancelled";
-				setField(objContract.hash, "status", status, function(objContract){
-					cb(null, objContract, unit);
+			new Promise(resolve => {
+				if (assetInfo && assetInfo.is_private) {
+					var value = {};
+					value["CONTRACT_DONE_" + objContract.hash] = objContract.peer_address;
+					opts = {
+						paying_addresses: [objContract.my_address],
+						signing_addresses: [objContract.my_address],
+						change_address: objContract.my_address,
+						messages: [{
+							app: 'data_feed',
+							payload_location: "inline",
+							payload_hash: objectHash.getBase64Hash(value, storage.getMinRetrievableMci() >= constants.timestampUpgradeMci),
+							payload: value
+						}]
+					};
+					resolve();
+				} else {
+					opts = {
+						paying_addresses: [objContract.shared_address],
+						change_address: objContract.shared_address,
+						asset: objContract.asset
+					};
+					if (objContract.me_is_payer && !(assetInfo && assetInfo.fixed_denominations)) { // complete
+						arbiters.getArbstoreInfo(objContract.arbiter_address, function(err, arbstoreInfo) {
+							if (err)
+								return cb(err);
+							if (parseFloat(arbstoreInfo.cut) == 0) {
+								opts.to_address = objContract.peer_address;
+								opts.amount = objContract.amount;
+							} else {
+								var peer_amount = Math.floor(objContract.amount * (1-arbstoreInfo.cut));
+								opts[objContract.asset && objContract.asset != "base" ? "asset_outputs" : "base_outputs"] = [
+									{ address: objContract.peer_address, amount: peer_amount},
+									{ address: arbstoreInfo.address, amount: objContract.amount-peer_amount},
+								];
+							}
+							resolve();
+						});
+					} else { // refund
+						opts.to_address = objContract.peer_address;
+						opts.amount = objContract.amount;
+						resolve();
+					}
+				}
+			}).then(() => {
+				if (arrSigningDeviceAddresses.length)
+					opts.arrSigningDeviceAddresses = arrSigningDeviceAddresses;
+				walletInstance.sendMultiPayment(opts, function(err, unit){
+					if (err)
+						return cb(err);
+					var status = objContract.me_is_payer ? "completed" : "cancelled";
+					setField(objContract.hash, "status", status, function(objContract){
+						cb(null, objContract, unit);
+					});
 				});
 			});
 		});
@@ -614,6 +643,7 @@ function parseWinnerFromUnit(contract, objUnit) {
 	}
 	return winner;
 }
+
 
 /* ==== LISTENERS ==== */
 
@@ -645,8 +675,8 @@ eventBus.on("new_my_transactions", function newtxs(arrNewUnits) {
 					setField(contract.hash, "status", "paid", function(objContract) {
 						eventBus.emit("arbiter_contract_update", objContract, "status", "paid", row.unit);
 						// listen for peer announce to withdraw funds
-						isAssetPrivate(contract.asset, function(isPrivate) {
-							if (isPrivate)
+						storage.readAssetInfo(db, contract.asset, function(assetInfo) {
+							if (assetInfo && assetInfo.is_private)
 								db.query("INSERT "+db.getIgnore()+" INTO my_watched_addresses (address) VALUES (?)", [objContract.peer_address]);
 
 						});
@@ -659,7 +689,7 @@ eventBus.on("new_my_transactions", function newtxs(arrNewUnits) {
 // contract completion (public asset)
 eventBus.on("new_my_transactions", function(arrNewUnits) {
 	db.query("SELECT hash, outputs.unit FROM wallet_arbiter_contracts\n\
-		JOIN outputs ON outputs.address=wallet_arbiter_contracts.my_address AND outputs.amount=wallet_arbiter_contracts.amount\n\
+		JOIN outputs ON outputs.address=wallet_arbiter_contracts.my_address\n\
 		JOIN inputs ON inputs.address=wallet_arbiter_contracts.shared_address AND inputs.unit=outputs.unit\n\
 		WHERE outputs.unit IN (" + arrNewUnits.map(db.escape).join(', ') + ") AND outputs.asset IS wallet_arbiter_contracts.asset AND (wallet_arbiter_contracts.status='paid' OR wallet_arbiter_contracts.status='in_dispute')\n\
 		GROUP BY wallet_arbiter_contracts.hash", function(rows) {
@@ -755,8 +785,8 @@ eventBus.on("my_transactions_became_stable", function(units) {
 									return;
 								if (objContract.peer_address !== objUnit.authors[0].address)
 									return;
-								isAssetPrivate(objContract.asset, function (isPrivate) {
-									if (!isPrivate)
+								storage.readAssetInfo(db, objContract.asset, function(assetInfo) {
+									if (!assetInfo || !assetInfo.is_private)
 										return;
 									if (m.payload[key] != objContract.my_address)
 										return;
