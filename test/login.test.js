@@ -25,7 +25,7 @@ test('private key is valid', t => {
 
 test('public key is valid', t => {
   t.true(Device.isValidPubKey(pubkey));
-  t.is(pubkey, ecdsa.publicKeyCreate(priv).toString('base64'));
+  t.is(pubkey, Buffer.from(ecdsa.publicKeyCreate(priv, true)).toString('base64'));
 });
 
 test('message hash is correct', t => {
