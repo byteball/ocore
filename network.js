@@ -3571,6 +3571,8 @@ function handleRequest(ws, tag, command, params){
 			break;
 
 		case 'hub/get_arbstore_url':
+			if (!conf.arbstores)
+				return sendErrorResponse(ws, tag, "arbstores not defined");
 			var arbiter_address = params;
 			db.query("SELECT arbstore_address FROM arbiter_locations WHERE arbiter_address=?", [arbiter_address], function(rows){
 				if (!rows.length)
@@ -3578,6 +3580,7 @@ function handleRequest(ws, tag, command, params){
 				sendResponse(ws, tag, conf.arbstores[rows[0].arbstore_address]);
 			});
 			break;
+		
 		case 'hub/get_arbstore_address':
 			var arbiter_address = params;
 			db.query("SELECT arbstore_address FROM arbiter_locations WHERE arbiter_address=?", [arbiter_address], function(rows){
@@ -3586,11 +3589,14 @@ function handleRequest(ws, tag, command, params){
 				sendResponse(ws, tag, rows[0].arbstore_address);
 			});
 			break;
+		
 		case 'hub/get_arbstore_url_by_address':
-			if (!conf.arbstores[params])
+			var arbstore_address = params;
+			if (!conf.arbstores || !conf.arbstores[arbstore_address])
 				return sendErrorResponse(ws, tag, "arbstore is not known");
-			sendResponse(ws, tag, conf.arbstores[params]);
+			sendResponse(ws, tag, conf.arbstores[arbstore_address]);
 			break;
+		
 		case 'hub/get_exchange_rates':
 			sendResponse(ws, tag, exchangeRates);
 			break;
