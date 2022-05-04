@@ -1324,6 +1324,8 @@ function archiveJointAndDescendants(from_unit){
 // Assets
 
 function readAssetInfo(conn, asset, handleAssetInfo){
+	if (!handleAssetInfo)
+		return new Promise(resolve => readAssetInfo(conn, asset, resolve));
 	var objAsset = assocCachedAssetInfos[asset];
 	if (objAsset)
 		return handleAssetInfo(objAsset);
