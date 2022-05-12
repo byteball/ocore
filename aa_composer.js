@@ -109,6 +109,8 @@ function handlePrimaryAATrigger(mci, unit, address, arrDefinition, arrPostedUnit
 											r.allBalances = assocBalances;
 										}
 									}
+									else
+										arrResponses[0].allBalances = { [address]: arrResponses[0].balances };
 									arrResponses.forEach(function (objAAResponse) {
 										if (objAAResponse.objResponseUnit)
 											arrPostedUnits.push(objAAResponse.objResponseUnit);
