@@ -104,8 +104,10 @@ function handlePrimaryAATrigger(mci, unit, address, arrDefinition, arrPostedUnit
 										let assocBalances = {};
 										for (let { aa_address, balances } of arrResponses)
 											assocBalances[aa_address] = balances; // overwrite if repeated
-										for (let r of arrResponses)
+										for (let r of arrResponses) {
 											r.balances = assocBalances[r.aa_address];
+											r.allBalances = assocBalances;
+										}
 									}
 									arrResponses.forEach(function (objAAResponse) {
 										if (objAAResponse.objResponseUnit)
