@@ -909,10 +909,32 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 			});
 			if (arrOutputAddresses.length === 0)
 				return finish(objUnit);
-			fixStateVars();
-			addResponse(objUnit, function () {
-				handleSecondaryTriggers(objUnit, arrOutputAddresses);
-			});
+			if (trigger_opts.assocBalances[address].base < 0)
+				return bounce("not enough balance in base");
+			let arrAssetsWithNegativeBalances = [];
+			for (let asset in trigger_opts.assocBalances[address])
+				if (asset !== 'base' && trigger_opts.assocBalances[address][asset] < 0)
+					arrAssetsWithNegativeBalances.push(asset);
+			async.eachSeries(
+				arrAssetsWithNegativeBalances,
+				function (asset, cb) {
+					storage.loadAssetWithListOfAttestedAuthors(conn, asset, mci, [address], true, function (err, objAsset) {
+						if (err)
+							return cb(err);
+						if (objAsset.issued_by_definer_only && address !== objAsset.definer_address)
+							return cb("not enough balance in " + asset); // and we are not the issuer
+						cb();
+					});
+				},
+				function (err) {
+					if (err)
+						return bounce(err);
+					fixStateVars();
+					addResponse(objUnit, function () {
+						handleSecondaryTriggers(objUnit, arrOutputAddresses);
+					});
+				}
+			);
 		});
 	}
 
