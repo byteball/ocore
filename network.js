@@ -1,7 +1,8 @@
 /*jslint node: true */
 "use strict";
-var WebSocket = typeof window !== "undefined" ? global.WebSocket : require('ws');
-var socks = typeof window !== "undefined" ? null : require('socks');
+var bCordova = (typeof window === 'object' && window && window.cordova);
+var WebSocket = bCordova ? global.WebSocket : require('ws');
+var socks = bCordova ? null : require('socks');
 var WebSocketServer = WebSocket.Server;
 var crypto = require('crypto');
 var _ = require('lodash');
@@ -60,7 +61,7 @@ var knownWitnesses = {};
 var bWatchingForLight = false;
 var prev_bugreport_hash = '';
 
-if (typeof window !== "undefined"){ // browser
+if (bCordova){ // browser
 	console.log("defining .on() on ws");
 	WebSocket.prototype.on = function(event, callback) {
 		var self = this;
@@ -106,7 +107,7 @@ function sendMessage(ws, type, content) {
 	if (ws.readyState !== ws.OPEN)
 		return console.log("readyState="+ws.readyState+' on peer '+ws.peer+', will not send '+message);
 	console.log("SENDING "+message+" to "+ws.peer);
-	if (typeof window !== 'undefined' && window && window.cordova) {
+	if (bCordova) {
 		ws.send(message);
 	} else {
 		ws.send(message, function(err){
@@ -676,7 +677,7 @@ function handleNewPeers(ws, request, arrPeerUrls){
 
 function heartbeat(){
 	// just resumed after sleeping
-	var bJustResumed = (typeof window !== 'undefined' && window && window.cordova && Date.now() - last_hearbeat_wake_ts > HEARTBEAT_PAUSE_TIMEOUT);
+	var bJustResumed = (bCordova && Date.now() - last_hearbeat_wake_ts > HEARTBEAT_PAUSE_TIMEOUT);
 	last_hearbeat_wake_ts = Date.now();
 	wss.clients.concat(arrOutboundPeers).forEach(function(ws){
 		if (ws.bSleeping || ws.readyState !== ws.OPEN)
@@ -2832,7 +2833,7 @@ function handleRequest(ws, tag, command, params){
 			// true if our timers were paused
 			// Happens only on android, which suspends timers when the app becomes paused but still keeps network connections
 			// Handling 'pause' event would've been more straightforward but with preference KeepRunning=false, the event is delayed till resume
-			var bPaused = (typeof window !== 'undefined' && window && window.cordova && Date.now() - last_hearbeat_wake_ts > HEARTBEAT_PAUSE_TIMEOUT);
+			var bPaused = (bCordova && Date.now() - last_hearbeat_wake_ts > HEARTBEAT_PAUSE_TIMEOUT);
 			if (bPaused)
 				return sendResponse(ws, tag, 'sleep'); // opt out of receiving heartbeats and move the connection into a sleeping state
 			sendResponse(ws, tag);
@@ -3774,7 +3775,7 @@ function startPeerExchange() {
 }
 
 function startRelay(){
-	if (typeof window !== "undefined" || !conf.port) // no listener on mobile
+	if (bCordova || !conf.port) // no listener on mobile
 		wss = {clients: []};
 	else
 		startAcceptingConnections();

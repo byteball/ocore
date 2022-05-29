@@ -59,9 +59,11 @@ exports.bWantNewPeers = true;
 // true, when removed_paired_device commands received from peers are to be ignored. Default is false.
 exports.bIgnoreUnpairRequests = false;
 
+var bCordova = (typeof window === 'object' && window && window.cordova);
+
 // storage engine: mysql or sqlite
 exports.storage = 'sqlite';
-if (typeof window !== "undefined"){
+if (bCordova) {
 	exports.storage = 'sqlite';
 	exports.bLight = true;
 }
