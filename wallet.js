@@ -1294,7 +1294,9 @@ function readTransactionHistory(opts, handleHistory){
 						db.query(
 							"SELECT DISTINCT address FROM inputs WHERE unit=? AND "+asset_condition+" ORDER BY address", 
 							[unit], 
-							function(address_rows){
+							async function (address_rows) {
+								if (address_rows.length === 0 && conf.bLight) // pull from authors then
+									address_rows = await db.query("SELECT address FROM unit_authors WHERE unit=? ORDER BY address", [unit]);
 								var arrPayerAddresses = address_rows.map(function(address_row){ return address_row.address; });
 								var arrTransactionsOnUnit = [];
 								movement.arrMyRecipients.forEach(function(objRecipient){
