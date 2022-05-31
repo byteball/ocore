@@ -1144,7 +1144,7 @@ function readAssetMetadata(arrAssets, handleMetadata, metadataUpdatedCb){
 				if (countUpdated)
 					eventBus.emit('maybe_new_transactions');
 				if (metadataUpdatedCb)
-					metadataUpdatedCb(countUpdated > 0);
+					metadataUpdatedCb(countUpdated > 0, assocAssetMetadata);
 			});
 		});
 	});
