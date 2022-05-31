@@ -41,6 +41,8 @@ var TRANSFER_INPUT_KEYS_SIZE = "unit".length + "message_index".length + "output_
 var OUTPUT_SIZE = 32 + 8; // address + amount
 var OUTPUT_KEYS_SIZE = "address".length + "amount".length;
 
+const CHECK_BALANCES_INTERVAL = conf.CHECK_BALANCES_INTERVAL || 600 * 1000;
+
 eventBus.on('new_aa_triggers', function () {
 	mutex.lock(["write"], function (unlock) {
 		unlock(); // we don't need to block writes, we requested the lock just to wait that the current write completes
@@ -1843,7 +1845,7 @@ if (!conf.bLight) {
 		eventBus.once('app_ready', checkBalances);
 	else
 		setTimeout(checkBalances, 2000);
-	setInterval(checkBalances, 600 * 1000);
+	setInterval(checkBalances, CHECK_BALANCES_INTERVAL);
 }
 
 exports.getTrigger = getTrigger;
