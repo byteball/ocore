@@ -799,6 +799,7 @@ CREATE TABLE aa_addresses (
 	storage_size INT NOT NULL DEFAULT 0,
 	base_aa CHAR(32) NULL,
 	definition TEXT NOT NULL,
+	getters TEXT NULL,
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT aaAddressesByBaseAA FOREIGN KEY (base_aa) REFERENCES aa_addresses(address)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
