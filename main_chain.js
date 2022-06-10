@@ -1523,7 +1523,7 @@ function markMcIndexStable(conn, batch, mci, onDone){
 		// a single unit can send to several AA addresses
 		// a single unit can have multiple outputs to the same AA address, even in the same asset
 		conn.query(
-			"SELECT DISTINCT address, definition, units.unit \n\
+			"SELECT DISTINCT address, definition, units.unit, units.level \n\
 			FROM units \n\
 			CROSS JOIN outputs USING(unit) \n\
 			CROSS JOIN aa_addresses USING(address) \n\
