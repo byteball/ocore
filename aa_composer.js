@@ -1737,7 +1737,7 @@ function checkBalances() {
 					asset CHAR(44) NOT NULL, \n\
 					calculated_balance BIGINT NOT NULL, \n\
 					PRIMARY KEY (address, asset) \n\
-				)";
+				)" + (conf.storage === 'mysql' ? " ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci" : "");
 				var sql_fill_temp = "INSERT INTO aa_outputs_balances (address, asset, calculated_balance) \n\
 					SELECT address, IFNULL(asset, 'base'), SUM(amount) \n\
 					FROM aa_addresses \n\
