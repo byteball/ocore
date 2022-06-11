@@ -118,7 +118,7 @@ if (typeof process === 'object' && typeof process.versions === 'object' && typeo
 
 // after merging the custom confs, set defaults if they are still not set
 if (exports.storage === 'mysql'){
-	exports.database.max_connections = exports.database.max_connections || 30;
+	exports.database.max_connections = exports.database.max_connections || 1;
 	exports.database.host = exports.database.host || 'localhost';
 	exports.database.name = exports.database.name || 'byteball';
 	exports.database.user = exports.database.user || 'byteball';
