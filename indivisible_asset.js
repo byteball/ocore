@@ -719,7 +719,7 @@ function composeIndivisibleAssetPaymentJoint(params){
 		signing_addresses: params.signing_addresses,
 		minimal: params.minimal,
 		outputs: arrBaseOutputs,
-		spend_unconfirmed: params.spend_unconfirmed || 'own',
+		spend_unconfirmed: params.spend_unconfirmed || conf.spend_unconfirmed || 'own',
 		
 		// function that creates additional messages to be added to the joint
 		retrieveMessages: function createAdditionalMessages(conn, last_ball_mci, bMultiAuthored, arrPayingAddresses, onDone){
@@ -742,7 +742,7 @@ function composeIndivisibleAssetPaymentJoint(params){
 					conn, objAsset, arrAssetPayingAddresses, last_ball_mci, 
 					to_address, params.change_address,
 					target_amount, params.tolerance_plus || 0, params.tolerance_minus || 0, 
-					bMultiAuthored, params.spend_unconfirmed || 'own',
+					bMultiAuthored, params.spend_unconfirmed || conf.spend_unconfirmed || 'own',
 					function(err, arrPayloadsWithProofs){
 						if (!arrPayloadsWithProofs)
 							return onDone({
@@ -1108,7 +1108,7 @@ function composeMinimalIndivisibleAssetPaymentJoint(params){
 	if (!target_amount)
 		throw Error("no target amount");
 	readFundedAddresses(
-		params.asset, target_amount, params.available_paying_addresses, params.available_fee_paying_addresses, params.spend_unconfirmed || 'own',
+		params.asset, target_amount, params.available_paying_addresses, params.available_fee_paying_addresses, params.spend_unconfirmed || conf.spend_unconfirmed || 'own',
 		function(arrFundedPayingAddresses, arrFundedFeePayingAddresses){
 			if (arrFundedPayingAddresses.length === 0)
 				return params.callbacks.ifNotEnoughFunds("either the amount you entered can't be composed using available denominations or all paying addresses are unfunded in asset, make sure all your funds are confirmed");

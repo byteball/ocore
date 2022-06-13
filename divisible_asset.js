@@ -208,7 +208,7 @@ function composeDivisibleAssetPaymentJoint(params){
 		minimal: params.minimal,
 		outputs: arrBaseOutputs,
 		messages:params.messages,
-		spend_unconfirmed: params.spend_unconfirmed || 'own',
+		spend_unconfirmed: params.spend_unconfirmed || conf.spend_unconfirmed || 'own',
 		// function that creates additional messages to be added to the joint
 		retrieveMessages: function(conn, last_ball_mci, bMultiAuthored, arrPayingAddresses, onDone){
 			var arrAssetPayingAddresses = _.intersection(arrPayingAddresses, params.paying_addresses);
@@ -232,7 +232,7 @@ function composeDivisibleAssetPaymentJoint(params){
 						
 						var target_amount = payment.outputs.reduce(function(accumulator, output){ return accumulator + output.amount; }, 0);
 						inputs.pickDivisibleCoinsForAmount(
-							conn, objAsset, arrAssetPayingAddresses, last_ball_mci, target_amount, bMultiAuthored, params.spend_unconfirmed || 'own',
+							conn, objAsset, arrAssetPayingAddresses, last_ball_mci, target_amount, bMultiAuthored, params.spend_unconfirmed || conf.spend_unconfirmed || 'own',
 							function(arrInputsWithProofs, total_input){
 								console.log("pick coins callback "+JSON.stringify(arrInputsWithProofs));
 								if (!arrInputsWithProofs)
@@ -397,7 +397,7 @@ function composeMinimalDivisibleAssetPaymentJoint(params){
 		throw Error('no available_paying_addresses');
 	if (!ValidationUtils.isNonemptyArray(params.available_fee_paying_addresses))
 		throw Error('no available_fee_paying_addresses');
-	composer.readSortedFundedAddresses(params.asset, params.available_paying_addresses, params.amount, params.spend_unconfirmed || 'own', function(arrFundedPayingAddresses){
+	composer.readSortedFundedAddresses(params.asset, params.available_paying_addresses, params.amount, params.spend_unconfirmed || conf.spend_unconfirmed || 'own', function(arrFundedPayingAddresses){
 		if (arrFundedPayingAddresses.length === 0){
 			 // special case for issuing uncapped asset.  If it is not issuing, not-enough-funds will pop anyway
 			if (params.available_paying_addresses.length === 1)

@@ -435,7 +435,7 @@ function composeJoint(params){
 			// all inputs must appear before last_ball
 			var target_amount = params.send_all ? Infinity : (total_amount + objUnit.headers_commission + naked_payload_commission);
 			inputs.pickDivisibleCoinsForAmount(
-				conn, null, arrPayingAddresses, last_ball_mci, target_amount, bMultiAuthored, params.spend_unconfirmed || 'own',
+				conn, null, arrPayingAddresses, last_ball_mci, target_amount, bMultiAuthored, params.spend_unconfirmed || conf.spend_unconfirmed || 'own',
 				function(arrInputsWithProofs, _total_input){
 					if (!arrInputsWithProofs)
 						return cb({ 
@@ -592,7 +592,7 @@ function readSortedFundedAddresses(asset, arrAvailableAddresses, estimated_amoun
 // note: it doesn't select addresses that have _only_ witnessing or headers commissions outputs
 function composeMinimalJoint(params){
 	var estimated_amount = (params.send_all || params.retrieveMessages) ? 0 : params.outputs.reduce(function(acc, output){ return acc+output.amount; }, 0) + TYPICAL_FEE;
-	readSortedFundedAddresses(null, params.available_paying_addresses, estimated_amount, params.spend_unconfirmed || 'own', function(arrFundedPayingAddresses){
+	readSortedFundedAddresses(null, params.available_paying_addresses, estimated_amount, params.spend_unconfirmed || conf.spend_unconfirmed || 'own', function(arrFundedPayingAddresses){
 		if (arrFundedPayingAddresses.length === 0)
 			return params.callbacks.ifNotEnoughFunds("all paying addresses are unfunded");
 		var minimal_params = _.clone(params);

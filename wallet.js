@@ -1919,7 +1919,7 @@ function sendMultiPayment(opts, handleResult)
 	}
 	
 	readFundedAndSigningAddresses(
-		wallet || arrPayingAddresses, arrPayments, opts.spend_unconfirmed || 'own', fee_paying_wallet,
+		wallet || arrPayingAddresses, arrPayments, opts.spend_unconfirmed || conf.spend_unconfirmed || 'own', fee_paying_wallet,
 		arrSigningAddresses, arrSigningDeviceAddresses,
 		function(arrFundedAddresses, arrBaseFundedAddresses, arrAllSigningAddresses){
 		
@@ -1971,7 +1971,7 @@ function sendMultiPayment(opts, handleResult)
 			var params = {
 				available_paying_addresses: arrFundedAddresses, // forces 'minimal' for payments from shared addresses too, it doesn't hurt
 				signing_addresses: arrAllSigningAddresses,
-				spend_unconfirmed: opts.spend_unconfirmed || 'own',
+				spend_unconfirmed: opts.spend_unconfirmed || conf.spend_unconfirmed || 'own',
 				messages: messages, 
 				signer: signer, 
 				callbacks: {
