@@ -92,7 +92,7 @@ function prepareHistory(historyRequest, callbacks){
 		if (rows.length === 0)
 			return callbacks.ifOk(objResponse);
 		if (rows.length > MAX_HISTORY_ITEMS)
-			return callbacks.ifError("your history is too large, consider switching to a full client");
+			return callbacks.ifError(constants.lightHistoryTooLargeErrorMessage);
 
 		mutex.lock(['prepareHistory'], function(unlock){
 			var start_ts = Date.now();

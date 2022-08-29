@@ -61,6 +61,7 @@ var knownWitnesses = {};
 var bWatchingForLight = false;
 var prev_bugreport_hash = '';
 let definitions = {}; // cache
+let largeHistoryTags = {};
 
 if (bCordova){ // browser
 	console.log("defining .on() on ws");
@@ -3086,11 +3087,15 @@ function handleRequest(ws, tag, command, params){
 			break;
 			
 		case 'light/get_history':
+			if (largeHistoryTags[tag])
+				return sendErrorResponse(ws, tag, constants.lightHistoryTooLargeErrorMessage);
 			mutex.lock(['get_history_request'], function(unlock){
 				if (!ws || ws.readyState !== ws.OPEN) // may be already gone when we receive the lock
 					return process.nextTick(unlock);
 				light.prepareHistory(params, {
 					ifError: function(err){
+						if (err === constants.lightHistoryTooLargeErrorMessage)
+							largeHistoryTags[tag] = true;
 						sendErrorResponse(ws, tag, err);
 						unlock();
 					},

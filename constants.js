@@ -130,3 +130,6 @@ exports.TEXTCOIN_ASSET_CLAIM_MESSAGE_FEE = 201 + 98;
 exports.TEXTCOIN_ASSET_CLAIM_BASE_MSG_FEE = 157 + 101 + 1; // 1 for base output
 exports.TEXTCOIN_ASSET_CLAIM_FEE = exports.TEXTCOIN_ASSET_CLAIM_HEADER_FEE + exports.TEXTCOIN_ASSET_CLAIM_MESSAGE_FEE + exports.TEXTCOIN_ASSET_CLAIM_BASE_MSG_FEE;
 exports.TEXTCOIN_PRIVATE_ASSET_CLAIM_MESSAGE_FEE = 153;
+
+
+exports.lightHistoryTooLargeErrorMessage = "your history is too large, consider switching to a full client";
