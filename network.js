@@ -60,6 +60,7 @@ var exchangeRates = {};
 var knownWitnesses = {};
 var bWatchingForLight = false;
 var prev_bugreport_hash = '';
+let definitions = {}; // cache
 
 if (bCordova){ // browser
 	console.log("defining .on() on ws");
@@ -3257,10 +3258,14 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "no params in light/get_definition");
 			if (!ValidationUtils.isValidAddress(params))
 				return sendErrorResponse(ws, tag, "address not valid");
+			if (definitions[params])
+				return sendResponse(ws, tag, definitions[params]);
 			db.query("SELECT definition FROM definitions WHERE definition_chash=? UNION SELECT definition FROM aa_addresses WHERE address=? LIMIT 1", [params, params], function(rows){
 				var arrDefinition = rows[0]
 					? JSON.parse(rows[0].definition)
 					: storage.getUnconfirmedAADefinition(params);
+				if (arrDefinition) // save in cache
+					definitions[params] = arrDefinition;
 				sendResponse(ws, tag, arrDefinition);
 			});
 			break;
