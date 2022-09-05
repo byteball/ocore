@@ -1632,7 +1632,7 @@ test('51% attack game', t => {
 						{ // create a new team; any excess amount is sent back
 							if: `{trigger.data.create_team AND !$bFinished}`,
 							init: `{
-					if (var['team_' || trigger.address || '_amount'])
+					if (var['team_' || trigger.address || '_asset'])
 						bounce('you already have a team');
 					if (trigger.output[[asset=base]] < $team_creation_fee)
 						bounce('not enough to pay for team creation');
