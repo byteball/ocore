@@ -670,6 +670,8 @@ function sendMessageToHub(ws, recipient_device_pubkey, subject, body, callbacks,
 }
 
 function sendMessageToDevice(device_address, subject, body, callbacks, conn){
+	if (!device_address)
+		throw Error("empty device address");
 	conn = conn || db;
 	conn.query("SELECT hub, pubkey, is_blackhole FROM correspondent_devices WHERE device_address=?", [device_address], function(rows){
 		if (rows.length !== 1 && !conf.bIgnoreMissingCorrespondents)
