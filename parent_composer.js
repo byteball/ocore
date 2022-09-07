@@ -152,7 +152,7 @@ function pickDeepParentUnits(conn, arrWitnesses, timestamp, max_wl, onDone){
 				FROM unit_witnesses \n\
 				WHERE unit_witnesses.unit IN(units.unit, units.witness_list_unit) AND address IN(?) \n\
 			)>=? \n\
-		ORDER BY main_chain_index DESC LIMIT 1", 
+		ORDER BY latest_included_mc_index DESC LIMIT 1", 
 		[arrWitnesses, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS], 
 		function(rows){
 			if (rows.length === 0)
