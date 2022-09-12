@@ -100,7 +100,7 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 					new_args.push(arguments[i]);
 				if (count_arguments_without_callback === 1) // no params
 					new_args.push([]);
-				if (!bHasCallback && !bCordova)
+				if (!bHasCallback)
 					return new Promise(function(resolve){
 						new_args.push(resolve);
 						self.query.apply(self, new_args);
@@ -252,7 +252,7 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 
 		for (var i=0; i<count_arguments_without_callback; i++) // except callback
 			new_args.push(args[i]);
-		if (!bHasCallback && !bCordova)
+		if (!bHasCallback)
 			return new Promise(function(resolve){
 				new_args.push(resolve);
 				self.query.apply(self, new_args);
