@@ -3,6 +3,7 @@
 var bCordova = (typeof window === 'object' && window && window.cordova);
 var WebSocket = bCordova ? global.WebSocket : require('ws');
 var socks = bCordova ? null : require('socks');
+var HttpsProxyAgent = bCordova ? null : require('https-proxy-agent');
 var WebSocketServer = WebSocket.Server;
 var crypto = require('crypto');
 var _ = require('lodash');
@@ -415,7 +416,11 @@ function connectToPeer(url, onOpen) {
 		console.log('Using socksPort: ' + conf.socksPort);
 		console.log('Using socksUsername: ' + typeof conf.socksUsername === 'undefined' ? "dummy" : conf.socksUsername);
 		console.log('Using socksPassword: ' + typeof conf.socksPassword === 'undefined' ? "dummy" : conf.socksPassword);
+	} else if (HttpsProxyAgent && conf.httpsProxy) {
+		options.agent = new HttpsProxyAgent(conf.httpsProxy);
+		console.log('Using httpsProxy: ' + conf.httpsProxy);
 	}
+
 	var ws = options.agent ? new WebSocket(url,options) : new WebSocket(url);
 	assocConnectingOutboundWebsockets[url] = ws;
 	setTimeout(function(){

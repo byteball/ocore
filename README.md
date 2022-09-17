@@ -68,6 +68,10 @@ Whether your node wants to learn about new peers from its current peers (`true`,
 
 Settings for connecting through optional SOCKS5 proxy.  Use them to connect through TOR and hide your IP address from peers even when making outgoing connections.  This is useful and highly recommended when you are running an online wallet on your server and want to make it harder for potential attackers to learn the IP address of the target to attack.  Set `socksLocalDNS` to `false` to route DNS queries through TOR as well.
 
+#### conf.httpsProxy
+
+Setting for connecting through an optional HTTPS proxy. Use it when your local network can only access the Internet via an http proxy server. When both socks5 and http proxy are set, socks5 takes precedence. The configuration value is the full URL to the proxy server, eg. `http://proxy:3128`
+
 #### conf.smtpTransport, conf.smtpRelay, conf.smtpPort, conf.smtpUser, and conf.smtpPassword
 
 Settings for sending email. They are used e.g. if your node needs to send notifications. `smtpTransport` can take one of three values:
