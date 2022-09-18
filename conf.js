@@ -46,6 +46,9 @@ exports.port = null;
 // For better security you should not use local DNS with socks proxy
 // exports.socksLocalDNS = false;
 
+// Connects through an http proxy server
+// exports.httpsProxy = 'http://proxy:3128'
+
 // WebSocket protocol prefixed to all hosts.  Must be wss:// on livenet, ws:// is allowed on testnet
 exports.WS_PROTOCOL = process.env.devnet ? "ws://" : "wss://";
 
