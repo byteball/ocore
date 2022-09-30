@@ -192,7 +192,9 @@ function checkWitnessedLevelNotRetreatingAndLookLower(conn, arrWitnesses, timest
 		if (child_witnessed_level >= max_parent_wl && best_parent_unit)
 			return onDone(null, arrParentUnits, max_parent_wl);
 		var msg = best_parent_unit ? "witness level would retreat from "+max_parent_wl+" to "+child_witnessed_level : "no best parent";
-		console.log(msg + " if parents = "+arrParentUnits.join(', ')+", will look for older parents");
+		console.log(msg + " if parents = " + arrParentUnits.join(', ') + ", will look for older parents");
+		if (conf.bServeAsHub) // picking parents for someone else, give up early
+			return onDone("failed to find parents: " + msg);
 		bRetryDeeper
 			? pickDeepParentUnits(conn, arrWitnesses, timestamp, max_parent_wl, onDone)
 			: pickParentUnitsUnderWitnessedLevel(conn, arrWitnesses, timestamp, max_parent_wl, onDone);
