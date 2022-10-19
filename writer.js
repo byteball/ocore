@@ -628,7 +628,7 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 							batch.put('j\n'+objUnit.unit, JSON.stringify(objJoint));
 							if (bInLargerTx)
 								return cb();
-							batch.write(function(err){
+							batch.write({ sync: true }, function(err){
 								console.log("batch write took "+(Date.now()-batch_start_time)+'ms');
 								if (err)
 									throw Error("writer: batch write failed: "+err);

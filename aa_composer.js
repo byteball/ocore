@@ -91,7 +91,7 @@ function handlePrimaryAATrigger(mci, unit, address, arrDefinition, arrPostedUnit
 					handleTrigger(conn, batch, trigger, {}, {}, arrDefinition, address, mci, objMcUnit, false, arrResponses, function(){
 						conn.query("DELETE FROM aa_triggers WHERE mci=? AND unit=? AND address=?", [mci, unit, address], function(){
 							var batch_start_time = Date.now();
-							batch.write(function(err){
+							batch.write({ sync: true }, function(err){
 								console.log("AA batch write took "+(Date.now()-batch_start_time)+'ms');
 								if (err)
 									throw Error("AA composer: batch write failed: "+err);

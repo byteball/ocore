@@ -1158,7 +1158,7 @@ function determineIfStableInLaterUnitsAndUpdateStableMcFlag(conn, earlier_unit, 
 						if (mci <= new_last_stable_mci)
 							markMcIndexStable(conn, batch, mci, advanceLastStableMcUnitAndStepForward);
 						else{
-							batch.write(function(err){
+							batch.write({ sync: true }, function(err){
 								if (err)
 									throw Error("determineIfStableInLaterUnitsAndUpdateStableMcFlag: batch write failed: "+err);
 								unlock();
