@@ -3714,7 +3714,7 @@ function startAcceptingConnections(){
 			ws.terminate();
 			return;
 		}
-		if (ws.upgradeReq.headers['x-real-ip'] && (ip === '127.0.0.1' || ip.match(/^192\.168\./))) // we are behind a proxy
+		if (ws.upgradeReq.headers['x-real-ip'] && (ip === '127.0.0.1' || ip.match(/^192\.168\./) || ip.match(/^10\./))) // we are behind a proxy
 			ip = ws.upgradeReq.headers['x-real-ip'];
 		ws.peer = ip + ":" + ws.upgradeReq.connection.remotePort;
 		ws.host = ip;
