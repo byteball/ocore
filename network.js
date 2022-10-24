@@ -2742,6 +2742,7 @@ function handleJustsaying(ws, subject, body){
 			db.query("INSERT "+db.getIgnore()+" INTO watched_light_addresses (peer, address) VALUES (?,?)", [ws.peer, address], function(){
 				sendInfo(ws, "now watching "+address);
 				// check if we already have something on this address
+				/*
 				db.query(
 					"SELECT unit, is_stable FROM unit_authors JOIN units USING(unit) WHERE address=? \n\
 					UNION \n\
@@ -2767,6 +2768,7 @@ function handleJustsaying(ws, subject, body){
 						});
 					}
 				);
+				*/
 			});            
 			break;
 			
