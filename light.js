@@ -72,18 +72,18 @@ function prepareHistory(historyRequest, callbacks){
 		// we don't filter sequence='good' after the unit is stable, so the client will see final doublespends too
 		var strAddressList = arrAddresses.map(db.escape).join(', ');
 		var mciCond = minMci ? " AND (main_chain_index >= " + minMci + " OR main_chain_index IS NULL) " : "";
-		arrSelects = ["SELECT DISTINCT unit, main_chain_index, level FROM outputs JOIN units USING(unit) \n\
+		arrSelects = ["SELECT DISTINCT unit, main_chain_index, level, is_stable FROM outputs JOIN units USING(unit) \n\
 			WHERE address IN("+strAddressList+") AND (+sequence='good' OR is_stable=1)"+mciCond+"\n\
 			UNION \n\
-			SELECT DISTINCT unit, main_chain_index, level FROM unit_authors JOIN units USING(unit) \n\
+			SELECT DISTINCT unit, main_chain_index, level, is_stable FROM unit_authors JOIN units USING(unit) \n\
 			WHERE address IN(" + strAddressList + ") AND (+sequence='good' OR is_stable=1)"+mciCond+" \n\
 			UNION \n\
-			SELECT DISTINCT unit, main_chain_index, level FROM aa_responses JOIN units ON trigger_unit=unit \n\
+			SELECT DISTINCT unit, main_chain_index, level, is_stable FROM aa_responses JOIN units ON trigger_unit=unit \n\
 			WHERE aa_address IN(" + strAddressList + ")"+mciCond];
 	}
 	if (arrRequestedJoints){
 		var strUnitList = arrRequestedJoints.map(db.escape).join(', ');
-		arrSelects.push("SELECT unit, main_chain_index, level FROM units WHERE unit IN("+strUnitList+") AND (+sequence='good' OR is_stable=1) \n");
+		arrSelects.push("SELECT unit, main_chain_index, level, is_stable FROM units WHERE unit IN("+strUnitList+") AND (+sequence='good' OR is_stable=1) \n");
 	}
 	var sql = arrSelects.join("UNION \n") + "ORDER BY main_chain_index DESC, level DESC";
 	db.query(sql, function(rows){
@@ -110,6 +110,7 @@ function prepareHistory(historyRequest, callbacks){
 					// add my joints and proofchain to those joints
 					objResponse.joints = [];
 					objResponse.proofchain_balls = [];
+					var arrStableUnits = [];
 					var later_mci = last_ball_mci+1; // +1 so that last ball itself is included in the chain
 					async.eachSeries(
 						rows,
@@ -120,6 +121,8 @@ function prepareHistory(historyRequest, callbacks){
 								},
 								ifFound: function(objJoint){
 									objResponse.joints.push(objJoint);
+									if (row.is_stable)
+										arrStableUnits.push(row.unit);
 									if (row.main_chain_index > last_ball_mci || row.main_chain_index === null) // unconfirmed, no proofchain
 										return cb2();
 									proofChain.buildProofChain(later_mci, row.main_chain_index, row.unit, objResponse.proofchain_balls, function(){
@@ -134,8 +137,9 @@ function prepareHistory(historyRequest, callbacks){
 							//    throw "no proofs";
 							if (objResponse.proofchain_balls.length === 0)
 								delete objResponse.proofchain_balls;
-							var arrUnits = objResponse.joints.map(function (objJoint) { return objJoint.unit.unit; });
-							db.query("SELECT mci, trigger_address, aa_address, trigger_unit, bounced, response_unit, response, timestamp, aa_responses.creation_date FROM aa_responses LEFT JOIN units ON mci=main_chain_index AND +is_on_main_chain=1 WHERE trigger_unit IN(" + arrUnits.map(db.escape).join(', ') + ") ORDER BY " + (conf.storage === 'sqlite' ? 'aa_responses.rowid' : 'mci'), function (aa_rows) {
+							// more triggers might get stabilized and executed while we were building the proofchain. We use the units that were stable when we began building history to make sure their responses are included in objResponse.joints
+						//	var arrUnits = objResponse.joints.map(function (objJoint) { return objJoint.unit.unit; });
+							db.query("SELECT mci, trigger_address, aa_address, trigger_unit, bounced, response_unit, response, timestamp, aa_responses.creation_date FROM aa_responses LEFT JOIN units ON mci=main_chain_index AND +is_on_main_chain=1 WHERE trigger_unit IN(" + arrStableUnits.map(db.escape).join(', ') + ") ORDER BY " + (conf.storage === 'sqlite' ? 'aa_responses.rowid' : 'mci'), function (aa_rows) {
 								// there is nothing to prove that responses are authentic
 								if (aa_rows.length > 0)
 									objResponse.aa_responses = aa_rows.map(function (aa_row) {
