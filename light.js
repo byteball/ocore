@@ -93,6 +93,7 @@ function prepareHistory(historyRequest, callbacks){
 			return callbacks.ifOk(objResponse);
 		if (rows.length > MAX_HISTORY_ITEMS)
 			return callbacks.ifError(constants.lightHistoryTooLargeErrorMessage);
+		const last_aa_response_id = storage.last_aa_response_id;
 
 		mutex.lock(['prepareHistory'], function(unlock){
 			var start_ts = Date.now();
@@ -110,7 +111,7 @@ function prepareHistory(historyRequest, callbacks){
 					// add my joints and proofchain to those joints
 					objResponse.joints = [];
 					objResponse.proofchain_balls = [];
-					var arrStableUnits = [];
+				//	var arrStableUnits = [];
 					var later_mci = last_ball_mci+1; // +1 so that last ball itself is included in the chain
 					async.eachSeries(
 						rows,
@@ -121,8 +122,8 @@ function prepareHistory(historyRequest, callbacks){
 								},
 								ifFound: function(objJoint){
 									objResponse.joints.push(objJoint);
-									if (row.is_stable)
-										arrStableUnits.push(row.unit);
+								//	if (row.is_stable)
+								//		arrStableUnits.push(row.unit);
 									if (row.main_chain_index > last_ball_mci || row.main_chain_index === null) // unconfirmed, no proofchain
 										return cb2();
 									proofChain.buildProofChain(later_mci, row.main_chain_index, row.unit, objResponse.proofchain_balls, function(){
@@ -138,8 +139,9 @@ function prepareHistory(historyRequest, callbacks){
 							if (objResponse.proofchain_balls.length === 0)
 								delete objResponse.proofchain_balls;
 							// more triggers might get stabilized and executed while we were building the proofchain. We use the units that were stable when we began building history to make sure their responses are included in objResponse.joints
-						//	var arrUnits = objResponse.joints.map(function (objJoint) { return objJoint.unit.unit; });
-							db.query("SELECT mci, trigger_address, aa_address, trigger_unit, bounced, response_unit, response, timestamp, aa_responses.creation_date FROM aa_responses LEFT JOIN units ON mci=main_chain_index AND +is_on_main_chain=1 WHERE trigger_unit IN(" + arrStableUnits.map(db.escape).join(', ') + ") ORDER BY " + (conf.storage === 'sqlite' ? 'aa_responses.rowid' : 'mci'), function (aa_rows) {
+							// new: we include only the responses that were there before last_aa_response_id
+							var arrUnits = objResponse.joints.map(function (objJoint) { return objJoint.unit.unit; });
+							db.query("SELECT mci, trigger_address, aa_address, trigger_unit, bounced, response_unit, response, timestamp, aa_responses.creation_date FROM aa_responses LEFT JOIN units ON mci=main_chain_index AND +is_on_main_chain=1 WHERE trigger_unit IN(" + arrUnits.map(db.escape).join(', ') + ") AND +aa_response_id<=? ORDER BY aa_response_id", [last_aa_response_id], function (aa_rows) {
 								// there is nothing to prove that responses are authentic
 								if (aa_rows.length > 0)
 									objResponse.aa_responses = aa_rows.map(function (aa_row) {

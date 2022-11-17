@@ -1428,7 +1428,8 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 			"INSERT INTO aa_responses (mci, trigger_address, aa_address, trigger_unit, bounced, response_unit, response) \n\
 			VALUES (?, ?,?,?, ?,?,?)",
 			[mci, trigger.address, address, trigger.unit, bBouncing ? 1 : 0, response_unit, JSON.stringify(response)],
-			function () {
+			function (res) {
+				storage.last_aa_response_id = res.insertId;
 				cb();
 			}
 		);

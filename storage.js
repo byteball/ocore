@@ -38,6 +38,9 @@ var assocUnstableMessages = {};
 var min_retrievable_mci = null;
 initializeMinRetrievableMci();
 
+let last_aa_response_id = null;
+initializeLastAAResponseId();
+
 function readUnit(unit, cb) {
 	if (!cb)
 		return new Promise(resolve => readUnit(unit, resolve));
@@ -1248,6 +1251,14 @@ function initializeMinRetrievableMci(conn, onDone){
 			if (onDone)
 				onDone();
 		});
+	});
+}
+
+function initializeLastAAResponseId() {
+	if (conf.bLight)
+		return;
+	db.query("SELECT aa_response_id FROM aa_responses ORDER BY aa_response_id DESC LIMIT 1", rows => {
+		last_aa_response_id = rows.length ? rows[0].aa_response_id : 0;
 	});
 }
 
