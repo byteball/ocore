@@ -3451,8 +3451,15 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "address not valid");
 			if (!ValidationUtils.isNonemptyString(params.getter))
 				return sendErrorResponse(ws, tag, "no getter");
-			if ('args' in params && !Array.isArray(params.args))
-				return sendErrorResponse(ws, tag, "args must be array");
+			if ('args' in params) {
+				if (!Array.isArray(params.args))
+					return sendErrorResponse(ws, tag, "args must be array");
+				// remove the trailing null as this type doesn't exist in oscript
+				while (params.args.length && params.args[params.args.length - 1] === null)
+					params.args.length--;
+				if (params.args.some(a => a === null))
+					return sendErrorResponse(ws, tag, "args cannot include null");
+			}
 			formulaEvaluation.executeGetter(db, params.address, params.getter, params.args || [], function (err, res) {
 				if (err)
 					return sendErrorResponse(ws, tag, err);

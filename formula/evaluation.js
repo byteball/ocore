@@ -2995,7 +2995,7 @@ function toOscriptType(x) {
 		return createDecimal(x);
 	if (Decimal.isDecimal(x))
 		return toDoubleRange(x);
-	if (typeof x === 'object')
+	if (typeof x === 'object' && x !== null)
 		return new wrappedObject(x);
 	throw Error("unknown type in toOscriptType:" + x);
 }
@@ -3005,7 +3005,7 @@ function toJsType(x) {
 		return x.obj;
 	if (Decimal.isDecimal(x))
 		return x.toNumber();
-	if (typeof x === 'string' || typeof x === 'boolean' || typeof x === 'number' || typeof x === 'object')
+	if (typeof x === 'string' || typeof x === 'boolean' || typeof x === 'number' || (typeof x === 'object' && x !== null))
 		return x;
 	throw Error("unknown type in toJsType:" + x);
 }
@@ -3129,6 +3129,9 @@ function executeGetterInState(conn, aa_address, getter, args, stateVars, assocBa
 			number_of_responses: 0, // must not be used
 			arrPreviousAAResponses: [],
 		};
+		// remove the trailing null/undefined as these types don't exist in oscript
+		while (args.length && (args[args.length - 1] === null || args[args.length - 1] === undefined))
+			args.length--;
 		args = args.map(toOscriptType);
 		callGetter(conn, aa_address, getter, args, stateVars, objValidationState, (err, res) => {
 			if (err)
