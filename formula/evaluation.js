@@ -426,7 +426,7 @@ exports.evaluate = function (opts, callback) {
 							return cb(_.isEqual(val1, val2));
 						if (operator === '!=')
 							return cb(!_.isEqual(val1, val2));
-						return setFatalError("not allowed comparision for objects: " + operator, cb, false);
+						return setFatalError("not allowed comparison for objects: " + operator, cb, false);
 					}
 					if (val1 instanceof wrappedObject || val2 instanceof wrappedObject)
 						return setFatalError("objects cannot be compared with other types", cb, false);
@@ -445,7 +445,7 @@ exports.evaluate = function (opts, callback) {
 							case '<':
 								return cb(val1 < val2);
 							default:
-								throw Error("unknown comparision: " + operator);
+								throw Error("unknown comparison: " + operator);
 						}
 					}
 					if (typeof val1 === 'boolean' || typeof val2 === 'boolean')
@@ -467,7 +467,7 @@ exports.evaluate = function (opts, callback) {
 							case '<':
 								return cb(val1.lt(val2));
 							default:
-								throw Error("unknown comparision: " + operator);
+								throw Error("unknown comparison: " + operator);
 						}
 					}
 					if (typeof val1 === 'string' || typeof val2 === 'string') {
@@ -481,7 +481,7 @@ exports.evaluate = function (opts, callback) {
 							case '!=':
 								return cb(val1 !== val2);
 							default:
-								return setFatalError("not allowed comparision for string-casts: " + operator, cb, false);
+								return setFatalError("not allowed comparison for string-casts: " + operator, cb, false);
 						}
 					}
 					return setFatalError('unrecognized combination of types in '+op, cb, false);
