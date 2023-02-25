@@ -565,7 +565,7 @@ function sendPreparedMessageToHub(ws, recipient_device_pubkey, message_hash, jso
 				return callbacks.ifError(err);
 			}
 			sendPreparedMessageToConnectedHub(ws, recipient_device_pubkey, message_hash, json, callbacks);
-		});
+		}, true);
 	}
 	else
 		sendPreparedMessageToConnectedHub(ws, recipient_device_pubkey, message_hash, json, callbacks);

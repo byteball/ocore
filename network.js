@@ -397,8 +397,9 @@ function checkIfHaveEnoughOutboundPeersAndAdd(){
 	);
 }
 
-function connectToPeer(url, onOpen) {
-	addPeer(url);
+function connectToPeer(url, onOpen, dontAddPeer) {
+	if (!dontAddPeer)
+		addPeer(url);
 	var options = {};
 	if (socks && conf.socksHost && conf.socksPort) {
 		options.agent = new socks.Agent({
@@ -576,7 +577,7 @@ function getInboundDeviceWebSocket(device_address){
 
 
 
-function findOutboundPeerOrConnect(url, onOpen){
+function findOutboundPeerOrConnect(url, onOpen, dontAddPeer){
 	if (!url)
 		throw Error('no url');
 	if (!onOpen)
@@ -606,7 +607,7 @@ function findOutboundPeerOrConnect(url, onOpen){
 		});
 	}
 	console.log("will connect to "+url);
-	connectToPeer(url, onOpen);
+	connectToPeer(url, onOpen, dontAddPeer);
 }
 
 function purgePeerEvents(){
@@ -2033,7 +2034,7 @@ function sendPrivatePayment(peer, arrChains){
 	findOutboundPeerOrConnect(peer, function(err, ws){
 		if (!err)
 			sendPrivatePaymentToWs(ws, arrChains);
-	});
+	}, true);
 }
 
 // handles one private payload and its chain
@@ -2563,7 +2564,7 @@ function handleJustsaying(ws, subject, body){
 				findOutboundPeerOrConnect(url, function(err, reverse_ws){
 					if (!err)
 						sendJustsaying(reverse_ws, 'want_echo', ws.sent_echo_string);
-				});
+				}, true);
 			});
 			break;
 			
