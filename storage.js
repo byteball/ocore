@@ -872,6 +872,8 @@ function insertAADefinitions(conn, arrPayloads, unit, mci, bForAAsOnly, onDone) 
 						bAlreadyPostedByUnconfirmedAA = true;
 						console.log("will recalc balances after repeated definition of AA " + address + " in unit " + unit);
 					}
+					if (conf.bLight)
+						return cb();
 					var verb = bAlreadyPostedByUnconfirmedAA ? "REPLACE" : "INSERT";
 					var or_sent_by_aa = bAlreadyPostedByUnconfirmedAA ? "OR EXISTS (SELECT 1 FROM unit_authors CROSS JOIN aa_addresses USING(address) WHERE unit_authors.unit=outputs.unit)" : "";
 					conn.query(

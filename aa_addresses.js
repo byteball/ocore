@@ -7,6 +7,7 @@ var constants = require('./constants.js');
 var conf = require("./conf.js");
 var network = require("./network.js");
 var db = require("./db.js");
+var storage = require("./storage.js");
 
 var cacheOfNewAddresses = {};
 
@@ -87,7 +88,8 @@ function readAADefinitions(arrAddresses, handleRows) {
 							if (bAA) {
 								var base_aa = arrDefinition[1].base_aa;
 								rows.push({ address: address, definition: strDefinition, base_aa: base_aa });
-								db.query("INSERT " + db.getIgnore() + " INTO aa_addresses (address, definition, unit, mci, base_aa) VALUES(?, ?, ?, ?, ?)", [address, strDefinition, constants.GENESIS_UNIT, 0, base_aa], insert_cb);
+								storage.insertAADefinitions(db, [{ address, definition: arrDefinition }], constants.GENESIS_UNIT, 0, false, insert_cb);
+							//	db.query("INSERT " + db.getIgnore() + " INTO aa_addresses (address, definition, unit, mci, base_aa) VALUES(?, ?, ?, ?, ?)", [address, strDefinition, constants.GENESIS_UNIT, 0, base_aa], insert_cb);
 							}
 							else
 								db.query("INSERT " + db.getIgnore() + " INTO definitions (definition_chash, definition, has_references) VALUES (?,?,?)", [address, strDefinition, Definition.hasReferences(arrDefinition) ? 1 : 0], insert_cb);
