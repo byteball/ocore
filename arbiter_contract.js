@@ -507,6 +507,7 @@ function createSharedAddressAndPostUnit(hash, walletInstance, cb) {
 							};
 
 							walletInstance.sendMultiPayment({
+								spend_unconfirmed: walletInstance.spendUnconfirmed ? 'all' : 'own',
 								asset: "base",
 								to_address: shared_address,
 								amount: exports.CHARGE_AMOUNT,
@@ -571,6 +572,7 @@ function complete(hash, walletInstance, arrSigningDeviceAddresses, cb) {
 					var value = {};
 					value["CONTRACT_DONE_" + objContract.hash] = objContract.peer_address;
 					opts = {
+						spend_unconfirmed: walletInstance.spendUnconfirmed ? 'all' : 'own',
 						paying_addresses: [objContract.my_address],
 						signing_addresses: [objContract.my_address],
 						change_address: objContract.my_address,
@@ -584,6 +586,7 @@ function complete(hash, walletInstance, arrSigningDeviceAddresses, cb) {
 					resolve();
 				} else {
 					opts = {
+						spend_unconfirmed: walletInstance.spendUnconfirmed ? 'all' : 'own',
 						paying_addresses: [objContract.shared_address],
 						change_address: objContract.shared_address,
 						asset: objContract.asset
