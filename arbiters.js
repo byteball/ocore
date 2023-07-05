@@ -10,7 +10,7 @@ var arbStoreInfos = {}; // map arbiter_address => arbstoreInfo {address: ..., cu
 function getInfo(address, cb) {
 	var cb = cb || function() {};
 	db.query("SELECT device_pub_key, real_name FROM wallet_arbiters WHERE arbiter_address=?", [address], function(rows){
-		if (rows.length) {
+		if (rows.length && rows[0].real_name) { // request again if no real name
 			cb(null, rows[0]);
 		} else {
 			device.requestFromHub("hub/get_arbstore_url", address, function(err, url){
@@ -21,7 +21,7 @@ function getInfo(address, cb) {
 					if (err) {
 						return cb(err);
 					}
-					db.query("INSERT INTO wallet_arbiters (arbiter_address, device_pub_key, real_name) VALUES (?, ?, ?)", [address, info.device_pub_key, info.real_name], function() {cb(null, info);});
+					db.query("REPLACE INTO wallet_arbiters (arbiter_address, device_pub_key, real_name) VALUES (?, ?, ?)", [address, info.device_pub_key, info.real_name], function() {cb(null, info);});
 				});
 			});
 		}
