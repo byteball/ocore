@@ -58,6 +58,7 @@ function getArbstoreInfo(arbiter_address, cb) {
 			if (!info.address || !validationUtils.isValidAddress(info.address) || parseFloat(info.cut) === NaN || parseFloat(info.cut) < 0 || parseFloat(info.cut) >= 1) {
 				cb("mailformed info received from ArbStore");
 			}
+			info.url = url;
 			arbStoreInfos[arbiter_address] = info;
 			cb(null, info);
 		});
