@@ -1050,6 +1050,8 @@ function findAddress(address, signing_path, callbacks, fallback_remote_device_ad
 }
 
 function readSharedBalance(wallet, handleBalance){
+	if (!handleBalance)
+		return new Promise(resolve => readSharedBalance(wallet, resolve));
 	balances.readSharedBalance(wallet, function(assocBalances) {
 		if (conf.bLight){ // make sure we have all asset definitions available
 			var arrAssets = Object.keys(assocBalances).filter(function(asset){ return (asset !== 'base'); });
@@ -1063,7 +1065,9 @@ function readSharedBalance(wallet, handleBalance){
 }
 
 function readBalance(wallet, handleBalance){
-	balances.readBalance(wallet, function(assocBalances) {
+	if (!handleBalance)
+		return new Promise(resolve => readBalance(wallet, resolve));
+	balances.readBalance(wallet, function (assocBalances) {
 		if (conf.bLight){ // make sure we have all asset definitions available
 			var arrAssets = Object.keys(assocBalances).filter(function(asset){ return (asset !== 'base'); });
 			if (arrAssets.length === 0)
@@ -1086,6 +1090,8 @@ function readBalancesOnAddresses(walletId, handleBalancesOnAddresses) {
 }
 
 function readAssetMetadata(arrAssets, handleMetadata, metadataUpdatedCb){
+	if (!handleMetadata && !metadataUpdatedCb)
+		return new Promise(resolve => readAssetMetadata(arrAssets, () => { }, (bUpdated, metadata) => resolve(metadata)));
 	var sql = "SELECT asset, metadata_unit, name, suffix, decimals, registry_address, " + db.getUnixTimestamp("creation_date") + " AS timestamp FROM asset_metadata";
 	if (arrAssets && arrAssets.length)
 		sql += " WHERE asset IN ("+arrAssets.map(db.escape).join(', ')+")";
