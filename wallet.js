@@ -535,9 +535,14 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				var my_address = body.peer_address;
 				body.peer_address = body.my_address;
 				body.my_address = my_address;
+				var my_party_name = body.peer_party_name;
+				body.peer_party_name = body.my_party_name;
+				body.my_party_name = my_party_name;
 				body.peer_pairing_code = body.my_pairing_code; body.my_pairing_code = null;
 				body.peer_contact_info = body.my_contact_info; body.my_contact_info = null;
 				body.me_is_payer = !body.me_is_payer;
+				if (body.hash !== arbiter_contract.getHash(body))
+					throw Error("wrong contract hash after swapping me and peer");
 				db.query("SELECT 1 FROM my_addresses WHERE address=?", [body.my_address], function(rows) {
 					if (!rows.length)
 						return callbacks.ifError("contract does not contain my address");
@@ -652,8 +657,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					var chat_message = "(arbiter-dispute:" + Buffer.from(JSON.stringify(objDispute), 'utf8').toString('base64') + ")";
 					eventBus.emit("text", from_address, chat_message, ++message_counter);
 					callbacks.ifOk();
-					}
-				);
+				});
 				break;
 
 			// sent by peer

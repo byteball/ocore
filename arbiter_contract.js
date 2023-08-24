@@ -22,7 +22,7 @@ function createAndSend(objContract, cb) {
 	objContract.hash = getHash(objContract);
 	device.getOrGeneratePermanentPairingInfo(pairingInfo => {
 		objContract.my_pairing_code = pairingInfo.device_pubkey + "@" + pairingInfo.hub + "#" + pairingInfo.pairing_secret;
-		db.query("INSERT INTO wallet_arbiter_contracts (hash, peer_address, peer_device_address, my_address, arbiter_address, me_is_payer, amount, asset, is_incoming, creation_date, ttl, status, title, text, my_contact_info, cosigners) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [objContract.hash, objContract.peer_address, objContract.peer_device_address, objContract.my_address, objContract.arbiter_address, objContract.me_is_payer ? 1 : 0, objContract.amount, objContract.asset, 0, objContract.creation_date, objContract.ttl, status_PENDING, objContract.title, objContract.text, objContract.my_contact_info, JSON.stringify(objContract.cosigners)], function() {
+		db.query("INSERT INTO wallet_arbiter_contracts (hash, peer_address, peer_device_address, my_address, arbiter_address, me_is_payer, my_party_name, peer_party_name, amount, asset, is_incoming, creation_date, ttl, status, title, text, my_contact_info, cosigners) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [objContract.hash, objContract.peer_address, objContract.peer_device_address, objContract.my_address, objContract.arbiter_address, objContract.me_is_payer ? 1 : 0, objContract.my_party_name, objContract.peer_party_name, objContract.amount, objContract.asset, 0, objContract.creation_date, objContract.ttl, status_PENDING, objContract.title, objContract.text, objContract.my_contact_info, JSON.stringify(objContract.cosigners)], function() {
 				var objContractForPeer = _.cloneDeep(objContract);
 				delete objContractForPeer.cosigners;
 				device.sendMessageToDevice(objContract.peer_device_address, "arbiter_contract_offer", objContractForPeer);
@@ -87,9 +87,9 @@ function setField(hash, field, value, cb, skipSharing) {
 }
 
 function store(objContract, cb) {
-	var fields = "(hash, peer_address, peer_device_address, my_address, arbiter_address, me_is_payer, amount, asset, is_incoming, creation_date, ttl, status, title, text, peer_pairing_code, peer_contact_info, me_is_cosigner";
-	var placeholders = "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?";
-	var values = [objContract.hash, objContract.peer_address, objContract.peer_device_address, objContract.my_address, objContract.arbiter_address, objContract.me_is_payer ? 1 : 0, objContract.amount, objContract.asset, 1, objContract.creation_date, objContract.ttl, objContract.status || status_PENDING, objContract.title, objContract.text, objContract.peer_pairing_code, objContract.peer_contact_info, objContract.me_is_cosigner ? 1 : 0];
+	var fields = "(hash, peer_address, peer_device_address, my_address, arbiter_address, me_is_payer, my_party_name, peer_party_name, amount, asset, is_incoming, creation_date, ttl, status, title, text, peer_pairing_code, peer_contact_info, me_is_cosigner";
+	var placeholders = "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?";
+	var values = [objContract.hash, objContract.peer_address, objContract.peer_device_address, objContract.my_address, objContract.arbiter_address, objContract.me_is_payer ? 1 : 0, objContract.my_party_name, objContract.peer_party_name, objContract.amount, objContract.asset, 1, objContract.creation_date, objContract.ttl, objContract.status || status_PENDING, objContract.title, objContract.text, objContract.peer_pairing_code, objContract.peer_contact_info, objContract.me_is_cosigner ? 1 : 0];
 	if (objContract.shared_address) {
 		fields += ", shared_address";
 		placeholders += ", ?";
@@ -185,7 +185,9 @@ function shareUpdateToPeer(hash, field) {
 }
 
 function getHash(contract) {
-	return crypto.createHash("sha256").update(contract.title + contract.text + contract.creation_date + contract.arbiter_address + contract.amount + contract.asset, "utf8").digest("base64");
+	const payer_name = contract.me_is_payer ? contract.my_party_name : contract.peer_party_name;
+	const payee_name = contract.me_is_payer ? contract.peer_party_name : contract.my_party_name;
+	return crypto.createHash("sha256").update(contract.title + contract.text + contract.creation_date + (payer_name || '') + contract.arbiter_address + (payee_name || '') + contract.amount + contract.asset, "utf8").digest("base64");
 }
 
 function decodeRow(row) {
@@ -218,7 +220,7 @@ function openDispute(hash, cb) {
 						me_is_payer: objContract.me_is_payer,
 						my_pairing_code: my_pairing_code,
 						peer_pairing_code: objContract.peer_pairing_code,
-						encrypted_contract: device.createEncryptedPackage({title: objContract.title, text: objContract.text, creation_date: objContract.creation_date}, objArbiter.device_pub_key),
+						encrypted_contract: device.createEncryptedPackage({title: objContract.title, text: objContract.text, creation_date: objContract.creation_date, plaintiff_party_name: objContract.my_party_name, respondent_party_name: objContract.peer_party_name}, objArbiter.device_pub_key),
 						my_contact_info: objContract.my_contact_info,
 						peer_contact_info: objContract.peer_contact_info
 					};

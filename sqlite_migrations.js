@@ -4,7 +4,7 @@ var eventBus = require('./event_bus.js');
 var constants = require("./constants.js");
 var conf = require("./conf.js");
 
-var VERSION = 44;
+var VERSION = 45;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -501,6 +501,10 @@ function migrateDb(connection, onDone){
 							OR EXISTS (SELECT 1 FROM unit_authors CROSS JOIN aa_addresses USING(address) WHERE unit_authors.unit=outputs.unit) \n\
 						) \n\
 						GROUP BY address, asset");
+				if (version < 45) {
+					connection.addQuery(arrQueries, "ALTER TABLE wallet_arbiter_contracts ADD COLUMN my_party_name VARCHAR(100) NULL");
+					connection.addQuery(arrQueries, "ALTER TABLE wallet_arbiter_contracts ADD COLUMN peer_party_name VARCHAR(100) NULL");
+				}
 				cb();
 			},
 		],

@@ -886,6 +886,8 @@ CREATE TABLE IF NOT EXISTS wallet_arbiter_contracts (
 	my_address  CHAR(32) NOT NULL,
 	arbiter_address CHAR(32) NOT NULL,
 	me_is_payer TINYINT NOT NULL,
+	my_party_name VARCHAR(100) NULL,
+	peer_party_name VARCHAR(100) NULL,
 	amount BIGINT NULL,
 	asset CHAR(44) NULL,
 	is_incoming TINYINT NOT NULL,
@@ -931,4 +933,4 @@ CREATE TABLE IF NOT EXISTS arbiter_disputes (
 	FOREIGN KEY (arbstore_device_address) REFERENCES correspondent_devices(device_address)
 );
 
-PRAGMA user_version=43;
+PRAGMA user_version=45;
