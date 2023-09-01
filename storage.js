@@ -854,6 +854,8 @@ function insertAADefinitions(conn, arrPayloads, unit, mci, bForAAsOnly, onDone) 
 			var base_aa = payload.definition[1].base_aa;
 			var bAlreadyPostedByUnconfirmedAA = false;
 			var readGetterProps = function (aa_address, func_name, cb) {
+				if (conf.bLight)
+					return cb({ complexity: 0, count_ops: 0, count_args: null });
 				readAAGetterProps(conn, aa_address, func_name, cb);
 			};
 			aa_validation.determineGetterProps(payload.definition, readGetterProps, function (getters) {
