@@ -219,14 +219,14 @@ function calcHeadersCommissions(conn, onDone){
 		function(cb){
 			conn.query(
 				"INSERT INTO headers_commission_outputs (main_chain_index, address, amount) \n\
-				SELECT main_chain_index, address, SUM(amount) FROM headers_commission_contributions JOIN units USING(unit) \n\
+				SELECT main_chain_index, address, SUM(amount) FROM units CROSS JOIN headers_commission_contributions USING(unit) \n\
 				WHERE main_chain_index>? \n\
 				GROUP BY main_chain_index, address",
 				[since_mc_index],
 				function(){
 					if (conf.bFaster)
 						return cb();
-					conn.query("SELECT DISTINCT main_chain_index FROM headers_commission_contributions JOIN units USING(unit) WHERE main_chain_index>?", [since_mc_index], function(contrib_rows){
+					conn.query("SELECT DISTINCT main_chain_index FROM units CROSS JOIN headers_commission_contributions USING(unit) WHERE main_chain_index>?", [since_mc_index], function(contrib_rows){
 						if (contrib_rows.length === 1 && contrib_rows[0].main_chain_index === since_mc_index+1 || since_mc_index === 0)
 							return cb();
 						throwError("since_mc_index="+since_mc_index+" but contributions have mcis "+contrib_rows.map(function(r){ return r.main_chain_index}).join(', '));
