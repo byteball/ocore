@@ -1,10 +1,10 @@
 /*jslint node: true */
 "use strict";
 var bCordova = (typeof window === 'object' && window && window.cordova);
-var WebSocket = bCordova ? global.WebSocket : require('ws');
+var WSclient = require('ws');
 var socks = bCordova ? null : require('socks');
 var HttpsProxyAgent = bCordova ? null : require('https-proxy-agent');
-var WebSocketServer = WebSocket.Server;
+var WebSocketServer = WSclient.Server;
 var crypto = require('crypto');
 var _ = require('lodash');
 var async = require('async');
@@ -422,7 +422,7 @@ function connectToPeer(url, onOpen, dontAddPeer) {
 		console.log('Using httpsProxy: ' + conf.httpsProxy);
 	}
 
-	var ws = options.agent ? new WebSocket(url,options) : new WebSocket(url);
+	var ws = new WSclient(url);
 	assocConnectingOutboundWebsockets[url] = ws;
 	setTimeout(function(){
 		if (assocConnectingOutboundWebsockets[url]){
@@ -432,7 +432,10 @@ function connectToPeer(url, onOpen, dontAddPeer) {
 		}
 	}, 5000);
 	ws.setMaxListeners(40); // avoid warning
-	ws.once('open', function onWsOpen() {
+	ws.on('open', function onWsOpen() {
+		if (ws.inited) {
+			return;
+		}
 		breadcrumbs.add('connected to '+url);
 		delete assocConnectingOutboundWebsockets[url];
 		ws.assocPendingRequests = {};
@@ -453,6 +456,7 @@ function connectToPeer(url, onOpen, dontAddPeer) {
 		ws.host = getHostByPeer(ws.peer);
 		ws.bOutbound = true;
 		ws.last_ts = Date.now();
+		ws.inited = true;
 		console.log('connected to '+url+", host "+ws.host);
 		arrOutboundPeers.push(ws);
 		sendVersion(ws);
@@ -3658,8 +3662,8 @@ function onWebsocketMessage(message) {
 	
 	if (ws.readyState !== ws.OPEN)
 		return console.log("received a message on socket with ready state "+ws.readyState);
-	
-	console.log('RECEIVED '+(message.length > 1000 ? message.substr(0,1000)+'... ('+message.length+' chars)' : message)+' from '+ws.peer);
+	message = message.toString();
+	console.log('RECEIVED '+(message.length > 1000 ? message.substring(0,1000)+'... ('+message.length+' chars)' : message)+' from '+ws.peer);
 	ws.last_ts = Date.now();
 	
 	try{

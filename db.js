@@ -18,8 +18,11 @@ if (conf.storage === 'mysql'){
 	module.exports = mysql_pool_constructor(pool);
 }
 else if (conf.storage === 'sqlite'){
-	var sqlitePool = require('./sqlite_pool.js');
-	module.exports = sqlitePool(conf.database.filename, conf.database.max_connections, conf.database.bReadOnly);
+	// var sqlitePool = require('./sqlite_pool.js');
+	// module.exports = sqlitePool(conf.database.filename, conf.database.max_connections, conf.database.bReadOnly);
+} else if(conf.storage === 'better') {
+	const betterPool = require('./better_sqlite_pool.js');
+	module.exports = betterPool(conf.database.filename, conf.database.max_connections, conf.database.bReadOnly);
 }
 
 function executeInTransaction(doWork, onDone){
