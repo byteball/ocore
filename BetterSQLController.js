@@ -1,72 +1,43 @@
-const path = require('path');
-const worker = new Worker(path.resolve(__dirname, 'betterSQL_worker.js'));
+const { Database } = require("bun:sqlite");
+let db;
 
-
-
-const assocTagToResolve = {};
-let cbR = (data) => {
-};
-worker.onmessage = event => {
-	const {tag, data} = event.data;
-	if (!assocTagToResolve[tag]) {
-		throw new Error('??');
-	}
-	assocTagToResolve[tag](data);
-	delete assocTagToResolve[tag];
-};
-
-function defaultCB() {
-	
-}
-
-function runTask(params, name) {
-	return new Promise((resolve) => {
-		const tag = Math.random()
-			.toString(36)
-			.substring(7);
-		worker.postMessage({ params, name, tag });
-		assocTagToResolve[tag] = resolve;
-	});
-}
-
-async function awaitToCB(params, name, cb) {
-	if (!cb && params.args) {
-		cb = params.args;
-		params = { query: params.query };
-	}
-	if (!cb && !params.args) {
-		cb = defaultCB;
-	}
-	
-	if (name === 'pragma') {
-		cb = cb.bind({ changes: 0, lastID: 0 });
-	}
-	
-	try {
-		const result = await runTask(params, name);
-		if (name === 'run') {
-			cb = cb.bind(result);
-		}
-		cb(false, result);
-	} catch (err) {
-		cb(err);
-	}
-}
+const defaultCB = () => {};
 
 class BetterSQL {
 	constructor(path, cb) {
-		awaitToCB(path, 'init', cb);
+		db = new Database(path);
+		setImmediate(cb);
 	}
 	
 	run(query, args, cb) {
-		awaitToCB({ query, args }, 'run', cb);
+		if (!cb && args) {
+			cb = args;
+			args = [];
+		}
+		if (!cb && !args) {
+			cb = defaultCB;
+		}
+		
+		const result = db.prepare(query).get(...args);
+		cb = cb.bind(result);
+		return cb(false, result);
 	}
 	
 	all(query, args, cb) {
-		awaitToCB({ query, args }, 'all', cb);
+		if (!cb && args) {
+			cb = args;
+			args = [];
+		}
+		if (!cb && !args) {
+			cb = defaultCB;
+		}
+		
+		const result = db.prepare(query).all(...args);
+		return cb(false, result);
 	}
 	
 	close(cb) {
+		db.close();
 		cb();
 	}
 }
