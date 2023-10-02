@@ -65,7 +65,6 @@ exports.bIgnoreUnpairRequests = false;
 var bCordova = (typeof window === 'object' && window && window.cordova);
 
 // storage engine: mysql or sqlite
-exports.storage = 'sqlite';
 if (bCordova) {
 	exports.storage = 'sqlite';
 	exports.bLight = true;
@@ -120,13 +119,14 @@ if (typeof process === 'object' && typeof process.versions === 'object' && typeo
 }
 
 // after merging the custom confs, set defaults if they are still not set
+exports.storage = 'better';
 if (exports.storage === 'mysql'){
 	exports.database.max_connections = exports.database.max_connections || 1;
 	exports.database.host = exports.database.host || 'localhost';
 	exports.database.name = exports.database.name || 'byteball';
 	exports.database.user = exports.database.user || 'byteball';
 }
-else if (exports.storage === 'sqlite'){
+else if (exports.storage === 'sqlite' || exports.storage === 'better'){
 	exports.database.max_connections = exports.database.max_connections || 1;
 	exports.database.filename = exports.database.filename || (exports.bLight ? 'byteball-light.sqlite' : 'byteball.sqlite');
 }
