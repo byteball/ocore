@@ -39,6 +39,7 @@
     "mysql": "^2.10.2",
     "nearley": "2.16.0",
     "nodemailer": "^6.7.0",
+    "piscina": "^4.2.1",
     "secp256k1": "^4",
     "socks": "1.1.10",
     "sqlite3": "^5",

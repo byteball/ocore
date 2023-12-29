@@ -18,6 +18,16 @@ var mutex = require('./mutex.js');
 var writer = require('./writer.js');
 var conf = require('./conf.js');
 
+const Piscina = require('piscina');
+const pathToDb = require('./desktop_app.js').getAppDataDir() + '/';
+const { resolve } = require("path");
+const wForAAComposer = new Piscina({
+	filename: resolve(__dirname, './workers/wForAAComposer.js'),
+	minThreads: 1,
+	maxThreads: 1,
+	workerData: pathToDb,
+});
+
 var getFormula = require('./formula/common.js').getFormula;
 var hasCases = require('./formula/common.js').hasCases;
 var assignField = require('./formula/common.js').assignField;
@@ -1724,102 +1734,15 @@ function checkStorageSizes() {
 	});
 }
 
-function checkBalances() {
-	mutex.lockOrSkip(['checkBalances'], function (unlock) {
-		db.takeConnectionFromPool(function (conn) { // block conection for the entire duration of the check
-			conn.query("SELECT 1 FROM aa_triggers", function (rows) {
-				if (rows.length > 0) {
-					console.log("skipping checkBalances because there are unhandled triggers");
-					conn.release();
-					return unlock();
-				}
-				var sql_create_temp = "CREATE TEMPORARY TABLE aa_outputs_balances ( \n\
-					address CHAR(32) NOT NULL, \n\
-					asset CHAR(44) NOT NULL, \n\
-					calculated_balance BIGINT NOT NULL, \n\
-					PRIMARY KEY (address, asset) \n\
-				)" + (conf.storage === 'mysql' ? " ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci" : "");
-				var sql_fill_temp = "INSERT INTO aa_outputs_balances (address, asset, calculated_balance) \n\
-					SELECT address, IFNULL(asset, 'base'), SUM(amount) \n\
-					FROM aa_addresses \n\
-					CROSS JOIN outputs USING(address) \n\
-					CROSS JOIN units ON outputs.unit=units.unit \n\
-					WHERE is_spent=0 AND ( \n\
-						is_stable=1 \n\
-						OR is_stable=0 AND EXISTS (SELECT 1 FROM unit_authors CROSS JOIN aa_addresses USING(address) WHERE unit_authors.unit=outputs.unit) \n\
-					) \n\
-					GROUP BY address, asset";
-				var sql_balances_to_outputs = "SELECT aa_balances.address, aa_balances.asset, balance, calculated_balance \n\
-				FROM aa_balances \n\
-				LEFT JOIN aa_outputs_balances USING(address, asset) \n\
-				GROUP BY aa_balances.address, aa_balances.asset \n\
-				HAVING balance != calculated_balance";
-				var sql_outputs_to_balances = "SELECT aa_outputs_balances.address, aa_outputs_balances.asset, balance, calculated_balance \n\
-				FROM aa_outputs_balances \n\
-				LEFT JOIN aa_balances USING(address, asset) \n\
-				GROUP BY aa_outputs_balances.address, aa_outputs_balances.asset \n\
-				HAVING balance != calculated_balance";
-				var sql_drop_temp = db.dropTemporaryTable("aa_outputs_balances");
-				
-				var stable_or_from_aa = "( \n\
-					(SELECT is_stable FROM units WHERE units.unit=outputs.unit)=1 \n\
-					OR EXISTS (SELECT 1 FROM unit_authors CROSS JOIN aa_addresses USING(address) WHERE unit_authors.unit=outputs.unit) \n\
-				)";
-				var sql_base = "SELECT aa_addresses.address, balance, SUM(amount) AS calculated_balance \n\
-					FROM aa_addresses \n\
-					LEFT JOIN aa_balances ON aa_addresses.address = aa_balances.address AND aa_balances.asset = 'base' \n\
-					LEFT JOIN outputs \n\
-						ON aa_addresses.address = outputs.address AND is_spent = 0 AND outputs.asset IS NULL \n\
-						AND " + stable_or_from_aa + " \n\
-					GROUP BY aa_addresses.address \n\
-					HAVING balance != calculated_balance";
-				var sql_assets_balances_to_outputs = "SELECT aa_balances.address, aa_balances.asset, balance, SUM(amount) AS calculated_balance \n\
-					FROM aa_balances \n\
-					LEFT JOIN outputs " + db.forceIndex('outputsByAddressSpent') + " \n\
-						ON aa_balances.address=outputs.address AND is_spent=0 AND outputs.asset=aa_balances.asset \n\
-						AND " + stable_or_from_aa + " \n\
-					WHERE aa_balances.asset!='base' \n\
-					GROUP BY aa_balances.address, aa_balances.asset \n\
-					HAVING balance != calculated_balance";
-				var sql_assets_outputs_to_balances = "SELECT aa_addresses.address, outputs.asset, balance, SUM(amount) AS calculated_balance \n\
-					FROM aa_addresses \n\
-					CROSS JOIN outputs \n\
-						ON aa_addresses.address=outputs.address AND is_spent=0 \n\
-						AND " + stable_or_from_aa + " \n\
-					LEFT JOIN aa_balances ON aa_addresses.address=aa_balances.address AND aa_balances.asset=outputs.asset \n\
-					WHERE outputs.asset IS NOT NULL \n\
-					GROUP BY aa_addresses.address, outputs.asset \n\
-					HAVING balance != calculated_balance";
-				async.eachSeries(
-				//	[sql_base, sql_assets_balances_to_outputs, sql_assets_outputs_to_balances],
-					[sql_create_temp, sql_fill_temp, sql_balances_to_outputs, sql_outputs_to_balances, sql_drop_temp],
-					function (sql, cb) {
-						conn.query(sql, function (rows) {
-							if (!Array.isArray(rows))
-								return cb();
-							// ignore discrepancies that result from limited precision of js numbers
-							rows = rows.filter(row => {
-								if (row.balance <= Number.MAX_SAFE_INTEGER || row.calculated_balance <= Number.MAX_SAFE_INTEGER)
-									return true;
-								var diff = Math.abs(row.balance - row.calculated_balance);
-								if (diff > row.balance * 1e-5) // large relative difference cannot result from precision loss
-									return true;
-								console.log("ignoring balance difference in", row);
-								return false;
-							});
-							if (rows.length > 0)
-								throw Error("checkBalances failed: sql:\n" + sql + "\n\nrows:\n" + JSON.stringify(rows, null, '\t'));
-							cb();
-						});
-					},
-					function () {
-						conn.release();
-						unlock();
-					}
-				);
-			});
-		});
-	});
+async function checkBalances() {
+	const unlock = await mutex.lockOrSkip(['checkBalances']);
+	if (!unlock) return;
+	
+	const result = await wForAAComposer.run({}, {name: 'checkBalances'});
+	if (result.error) {
+		throw new Error(result.error);
+	}
+	unlock();
 }
 
 function reintroduceBalanceBug(address, row) {
