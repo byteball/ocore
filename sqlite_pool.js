@@ -222,6 +222,30 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 		arrQueue.push(handleConnection);
 	}
 	
+	function takeConnectionForLongQueries(handleConnection){
+		if (!handleConnection)
+			return new Promise(resolve => takeConnectionFromPool(resolve));
+		
+		if (!bReady){
+			console.log("takeConnectionFromPool will wait for ready");
+			eventEmitter.once('ready', function(){
+				console.log("db is now ready");
+				takeConnectionFromPool(handleConnection);
+			});
+			return;
+		}
+		
+		connect((connection) => {
+			handleConnection({
+				conn: connection,
+				close: () => {
+					console.log('qqqqqqq', connection.db);
+					connection.db.close();
+				}
+			})
+		});
+	}
+	
 	function onDbReady(){
 		if (bCordova && !cordovaSqlite)
 			cordovaSqlite = window.cordova.require('cordova-sqlite-plugin.SQLite');
@@ -328,6 +352,7 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 	pool.query = query;
 	pool.addQuery = addQuery;
 	pool.takeConnectionFromPool = takeConnectionFromPool;
+	pool.takeConnectionForLongQueries = takeConnectionForLongQueries;
 	pool.getCountUsedConnections = getCountUsedConnections;
 	pool.close = close;
 	pool.escape = escape;

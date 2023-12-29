@@ -1726,11 +1726,11 @@ function checkStorageSizes() {
 
 function checkBalances() {
 	mutex.lockOrSkip(['checkBalances'], function (unlock) {
-		db.takeConnectionFromPool(function (conn) { // block conection for the entire duration of the check
+		db.takeConnectionForLongQueries(function ({ conn, close }) { // block conection for the entire duration of the check
 			conn.query("SELECT 1 FROM aa_triggers", function (rows) {
 				if (rows.length > 0) {
 					console.log("skipping checkBalances because there are unhandled triggers");
-					conn.release();
+					close();
 					return unlock();
 				}
 				var sql_create_temp = "CREATE TEMPORARY TABLE aa_outputs_balances ( \n\
@@ -1813,7 +1813,7 @@ function checkBalances() {
 						});
 					},
 					function () {
-						conn.release();
+						close();
 						unlock();
 					}
 				);
