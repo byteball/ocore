@@ -338,17 +338,6 @@ CREATE TABLE headers_commission_outputs (
 CREATE UNIQUE INDEX hcobyAddressMci ON headers_commission_outputs(address, main_chain_index);
 CREATE UNIQUE INDEX hcobyAddressSpentMci ON headers_commission_outputs(address, is_spent, main_chain_index);
 
-CREATE TABLE paid_witness_events (
-	unit CHAR(44) NOT NULL,
-	address CHAR(32) NOT NULL, -- witness address
---    witnessed_in_ball CHAR(44) NOT NULL, -- if expired, MC ball next after expiry. Or NULL?
-	delay TINYINT NULL, -- NULL if expired
-	PRIMARY KEY (unit, address),
-	FOREIGN KEY (unit) REFERENCES units(unit),
-	FOREIGN KEY (address) REFERENCES addresses(address)
-);
-CREATE INDEX pweIndexByAddress ON paid_witness_events(address);
-
 
 CREATE TABLE witnessing_outputs (
 	main_chain_index INT NOT NULL,
@@ -647,7 +636,6 @@ CREATE INDEX wlabyAddress ON watched_light_addresses(address);
 
 CREATE INDEX "bySequence" ON "units" ("sequence");
 
-DROP TABLE IF EXISTS paid_witness_events;
 
 CREATE TABLE IF NOT EXISTS push_registrations (
     registrationId TEXT, 

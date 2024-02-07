@@ -316,14 +316,6 @@ CREATE TABLE headers_commission_outputs (
 	-- KEY byAddressSpent(address, is_spent)
 ) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
-CREATE TABLE paid_witness_events (
-	unit CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
-	address CHAR(32) BINARY NOT NULL, -- witness address
-	-- witnessed_in_ball CHAR(44) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL, -- if expired, MC ball next after expiry. Or NULL?
-	delay TINYINT NULL, -- NULL if expired
-	PRIMARY KEY (unit, address),
-	KEY (address)
-) ENGINE=RocksDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 CREATE TABLE witnessing_outputs (
 	main_chain_index INT NOT NULL,
@@ -612,7 +604,6 @@ CREATE TABLE watched_light_addresses (
 
 ALTER TABLE `units` ADD INDEX `bySequence` (`sequence`);
 
-DROP TABLE IF EXISTS paid_witness_events;
 
 CREATE TABLE IF NOT EXISTS push_registrations (
 	registrationId VARCHAR(200) BINARY,
