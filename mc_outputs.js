@@ -59,63 +59,57 @@ function findMcIndexIntervalToTargetAmount(conn, type, address, max_mci, target_
 	readNextSpendableMcIndex(conn, type, address, null, function(from_mci){
 		if (from_mci > max_mci)
 			return callbacks.ifNothing();
-		readMaxSpendableMcIndex(conn, type, function(max_spendable_mci){
-			if (max_spendable_mci <= 0)
-				return callbacks.ifNothing();
-			if (max_spendable_mci > max_mci)
-				max_spendable_mci = max_mci;
-			if (target_amount === Infinity)
-				target_amount = 1e15;
-			if (conf.storage === 'mysql'){
-				conn.query(
-					"SELECT main_chain_index, accumulated, has_sufficient \n\
-					FROM ( \n\
-						SELECT main_chain_index, @sum:=@sum+amount AS accumulated, @has_sufficient:=(@sum>?) AS has_sufficient  \n\
-						FROM "+table+", (SELECT @sum:=0, @has_sufficient:=0) AS unused \n\
-						WHERE is_spent=0 AND address=? AND main_chain_index>=? AND main_chain_index<=? \n\
-						ORDER BY main_chain_index \n\
-					) AS t \n\
-					WHERE IF(@has_sufficient, has_sufficient, 1) \n\
-					ORDER BY IF(@has_sufficient, accumulated, -accumulated) LIMIT 1",
-					[target_amount, address, from_mci, max_spendable_mci],
-					function(rows){
-						if (rows.length === 0)
-							return callbacks.ifNothing();
-						var bHasSufficient = rows[0].has_sufficient;
-						var accumulated = rows[0].accumulated;
-						var to_mci = rows[0].main_chain_index;
-						callbacks.ifFound(from_mci, to_mci, accumulated, bHasSufficient);
-					}
-				);
-			}
-			else{
-				var MIN_MC_OUTPUT = (type === 'witnessing') ? 10 : 344;
-				var max_count_outputs = Math.ceil(target_amount/MIN_MC_OUTPUT) + 1;
-				conn.query(
-					"SELECT main_chain_index, amount \n\
-					FROM "+table+" \n\
+		if (target_amount === Infinity)
+			target_amount = 1e15;
+		if (conf.storage === 'mysql'){
+			conn.query(
+				"SELECT main_chain_index, accumulated, has_sufficient \n\
+				FROM ( \n\
+					SELECT main_chain_index, @sum:=@sum+amount AS accumulated, @has_sufficient:=(@sum>?) AS has_sufficient  \n\
+					FROM "+table+", (SELECT @sum:=0, @has_sufficient:=0) AS unused \n\
 					WHERE is_spent=0 AND address=? AND main_chain_index>=? AND main_chain_index<=? \n\
-					ORDER BY main_chain_index LIMIT ?",
-					[address, from_mci, max_spendable_mci, max_count_outputs],
-					function(rows){
-						if (rows.length === 0)
-							return callbacks.ifNothing();
-						var accumulated = 0;
-						var to_mci;
-						var bHasSufficient = false;
-						for (var i=0; i<rows.length; i++){
-							accumulated += rows[i].amount;
-							to_mci = rows[i].main_chain_index;
-							if (accumulated > target_amount){
-								bHasSufficient = true;
-								break;
-							}
+					ORDER BY main_chain_index \n\
+				) AS t \n\
+				WHERE IF(@has_sufficient, has_sufficient, 1) \n\
+				ORDER BY IF(@has_sufficient, accumulated, -accumulated) LIMIT 1",
+				[target_amount, address, from_mci, max_mci],
+				function(rows){
+					if (rows.length === 0)
+						return callbacks.ifNothing();
+					var bHasSufficient = rows[0].has_sufficient;
+					var accumulated = rows[0].accumulated;
+					var to_mci = rows[0].main_chain_index;
+					callbacks.ifFound(from_mci, to_mci, accumulated, bHasSufficient);
+				}
+			);
+		}
+		else{
+			var MIN_MC_OUTPUT = (type === 'witnessing') ? 10 : 344;
+			var max_count_outputs = Math.ceil(target_amount/MIN_MC_OUTPUT) + 1;
+			conn.query(
+				"SELECT main_chain_index, amount \n\
+				FROM "+table+" \n\
+				WHERE is_spent=0 AND address=? AND main_chain_index>=? AND main_chain_index<=? \n\
+				ORDER BY main_chain_index LIMIT ?",
+				[address, from_mci, max_mci, max_count_outputs],
+				function(rows){
+					if (rows.length === 0)
+						return callbacks.ifNothing();
+					var accumulated = 0;
+					var to_mci;
+					var bHasSufficient = false;
+					for (var i=0; i<rows.length; i++){
+						accumulated += rows[i].amount;
+						to_mci = rows[i].main_chain_index;
+						if (accumulated > target_amount){
+							bHasSufficient = true;
+							break;
 						}
-						callbacks.ifFound(from_mci, to_mci, accumulated, bHasSufficient);
 					}
-				);
-			}
-		});
+					callbacks.ifFound(from_mci, to_mci, accumulated, bHasSufficient);
+				}
+			);
+		}
 	});
 }
 
@@ -139,7 +133,6 @@ function calcEarnings(conn, type, from_main_chain_index, to_main_chain_index, ad
 
 
 exports.readNextSpendableMcIndex = readNextSpendableMcIndex;
-exports.readMaxSpendableMcIndex = readMaxSpendableMcIndex;
 exports.findMcIndexIntervalToTargetAmount = findMcIndexIntervalToTargetAmount;
 exports.calcEarnings = calcEarnings;
 
