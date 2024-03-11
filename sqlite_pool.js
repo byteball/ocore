@@ -39,7 +39,7 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 	var arrConnections = [];
 	var arrQueue = [];
 
-	function connect(handleConnection){
+	function connect(handleConnection, forLongQuery){
 		console.log("opening new db connection");
 		var db = openDb(function(err){
 			if (err)
@@ -72,6 +72,10 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 			start_ts: 0,
 			
 			release: function(){
+				if (forLongQuery) {
+					console.error('Please use close from arguments. Release not supported in long query!')
+					return;
+				}
 				//console.log("released connection");
 				this.bInUse = false;
 				if (arrQueue.length === 0)
@@ -166,8 +170,11 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 			dropTemporaryTable: dropTemporaryTable
 			
 		};
-		setInterval(connection.printLongQuery.bind(connection), 60 * 1000);
-		arrConnections.push(connection);
+		
+		if (!forLongQuery) {
+			setInterval(connection.printLongQuery.bind(connection), 60 * 1000);
+			arrConnections.push(connection);
+		}
 	}
 
 	// accumulate array of functions for async.series()
@@ -220,6 +227,29 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 		// third, queue it
 		//console.log("queuing");
 		arrQueue.push(handleConnection);
+	}
+	
+	function takeConnectionForLongQueries(handleConnection){
+		if (!handleConnection)
+			return new Promise(resolve => takeConnectionForLongQueries(resolve));
+		
+		if (!bReady){
+			console.log("takeConnectionForLongQueries will wait for ready");
+			eventEmitter.once('ready', function(){
+				console.log("db is now ready");
+				takeConnectionForLongQueries(handleConnection);
+			});
+			return;
+		}
+		
+		connect((connection) => {
+			handleConnection({
+				conn: connection,
+				close: () => {
+					connection.db.close();
+				}
+			})
+		}, true);
 	}
 	
 	function onDbReady(){
@@ -328,6 +358,7 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 	pool.query = query;
 	pool.addQuery = addQuery;
 	pool.takeConnectionFromPool = takeConnectionFromPool;
+	pool.takeConnectionForLongQueries = takeConnectionForLongQueries;
 	pool.getCountUsedConnections = getCountUsedConnections;
 	pool.close = close;
 	pool.escape = escape;
