@@ -32,6 +32,8 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStability
 	
 	var arrAllParents = [];
 	var arrNewMcUnits = [];
+	let bStabilizedAATriggers = false;
+	let arrStabilizedMcis = [];
 	
 	// if unit === null, read free balls
 	function findNextUpMainChainUnit(unit, handleUnit){
@@ -479,10 +481,11 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStability
 		readLastStableMcUnit(function(last_stable_mc_unit){
 			console.log("last stable mc unit "+last_stable_mc_unit);
 			storage.readWitnesses(conn, last_stable_mc_unit, function(arrWitnesses){
+				console.log(`witnesses on ${last_stable_mc_unit}`, arrWitnesses)
 				conn.query("SELECT unit, is_on_main_chain, main_chain_index, level FROM units WHERE best_parent_unit=?", [last_stable_mc_unit], function(rows){
 					if (rows.length === 0){
-						//if (isGenesisUnit(last_stable_mc_unit))
-						//    return finish();
+						if (storage.isGenesisUnit(last_added_unit))
+						    return markMcIndexStable(conn, batch, 0, finish);
 						throw Error("no best children of last stable MC unit "+last_stable_mc_unit+"?");
 					}
 					var arrMcRows  = rows.filter(function(row){ return (row.is_on_main_chain === 1); }); // only one element
@@ -491,12 +494,18 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStability
 						throw Error("not a single MC child?");
 					var first_unstable_mc_unit = arrMcRows[0].unit;
 					var first_unstable_mc_index = arrMcRows[0].main_chain_index;
+					console.log({first_unstable_mc_index})
 					var first_unstable_mc_level = arrMcRows[0].level;
 					var arrAltBranchRootUnits = arrAltRows.map(function(row){ return row.unit; });
 					
 					function advanceLastStableMcUnitAndTryNext(){
 						profiler.stop('mc-stableFlag');
-						markMcIndexStable(conn, batch, first_unstable_mc_index, updateStableMcFlag);
+						markMcIndexStable(conn, batch, first_unstable_mc_index, (count_aa_triggers) => {
+							arrStabilizedMcis.push(first_unstable_mc_index);
+							if (count_aa_triggers)
+								bStabilizedAATriggers = true;
+							updateStableMcFlag();
+						});
 					}
 
 					if (first_unstable_mc_index > constants.lastBallStableInParentsUpgradeMci) {
@@ -504,6 +513,7 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStability
 						for (var unit in storage.assocUnstableUnits)
 							if (storage.assocUnstableUnits[unit].is_free === 1)
 								arrFreeUnits.push(unit);
+						console.log(`will call determineIfStableInLaterUnits`, first_unstable_mc_unit, arrFreeUnits)
 						determineIfStableInLaterUnits(conn, first_unstable_mc_unit, arrFreeUnits, function (bStable) {
 							console.log(first_unstable_mc_unit + ' stable in free units ' + arrFreeUnits.join(', ') + ' ? ' + bStable);
 							bStable ? advanceLastStableMcUnitAndTryNext() : finish();
@@ -599,11 +609,13 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStability
 
 
 	
-	function finish(){
+	async function finish(){
 		profiler.stop('mc-stableFlag');
+		if (!bStabilizedAATriggers && arrStabilizedMcis.length > 0)
+			await storage.updateTpsFees(conn, arrStabilizedMcis);
 		console.log("done updating MC\n");
 		if (onDone)
-			onDone();
+			onDone(arrStabilizedMcis, bStabilizedAATriggers);
 	}
 	
 	
@@ -728,6 +740,8 @@ function determineMaxAltLevel(conn, first_unstable_mc_index, first_unstable_mc_l
 
 
 function determineIfStableInLaterUnitsWithMaxLastBallMciFastPath(conn, earlier_unit, arrLaterUnits, handleResult) {
+	if (!handleResult)
+		return new Promise(resolve => determineIfStableInLaterUnitsWithMaxLastBallMciFastPath(conn, earlier_unit, arrLaterUnits, resolve));
 	if (storage.isGenesisUnit(earlier_unit))
 		return handleResult(true);
 	storage.readUnitProps(conn, earlier_unit, function (objEarlierUnitProps) {
@@ -1142,13 +1156,22 @@ function determineIfStableInLaterUnitsAndUpdateStableMcFlag(conn, earlier_unit, 
 		if (bStable && bStableInDb)
 			return handleResult(bStable);
 		breadcrumbs.add('stable in parents, will wait for write lock');
-		mutex.lock(["write"], function(unlock){
+		handleResult(bStable, true);
+
+		// result callback already called, we leave here to move the stability point forward.
+		// To avoid deadlocks, we always first obtain a "write" lock, then a db connection
+		mutex.lock(["write"], async function(unlock){
 			breadcrumbs.add('stable in parents, got write lock');
+			// take a new connection
+			let conn = await db.takeConnectionFromPool();
+			await conn.query("BEGIN");
 			storage.readLastStableMcIndex(conn, function(last_stable_mci){
+				if (last_stable_mci >= constants.v4UpgradeMci)
+					throwError(`${earlier_unit} not stable in db but stable in later units ${arrLaterUnits.join(', ')} in v4`);
 				storage.readUnitProps(conn, earlier_unit, function(objEarlierUnitProps){
 					var new_last_stable_mci = objEarlierUnitProps.main_chain_index;
 					if (new_last_stable_mci <= last_stable_mci) // fix: it could've been changed by parallel tasks - No, our SQL transaction doesn't see the changes
-						throw Error("new last stable mci expected to be higher than existing");
+						return throwError("new last stable mci expected to be higher than existing");
 					var mci = last_stable_mci;
 					var batch = kvstore.batch();
 					advanceLastStableMcUnitAndStepForward();
@@ -1158,11 +1181,13 @@ function determineIfStableInLaterUnitsAndUpdateStableMcFlag(conn, earlier_unit, 
 						if (mci <= new_last_stable_mci)
 							markMcIndexStable(conn, batch, mci, advanceLastStableMcUnitAndStepForward);
 						else{
-							batch.write({ sync: true }, function(err){
+							batch.write({ sync: true }, async function(err){
 								if (err)
 									throw Error("determineIfStableInLaterUnitsAndUpdateStableMcFlag: batch write failed: "+err);
+								await conn.query("COMMIT");
+								conn.release();
 								unlock();
-								handleResult(bStable, true);
+							//	handleResult(bStable, true);
 							});
 						}
 					}            
@@ -1186,8 +1211,10 @@ function readBestParentAndItsWitnesses(conn, unit, handleBestParentAndItsWitness
 
 function markMcIndexStable(conn, batch, mci, onDone){
 	profiler.start();
+	let count_aa_triggers;
 	var arrStabilizedUnits = [];
-	storage.assocStableUnitsByMci[mci] = [];
+	if (mci > 0)
+		storage.assocStableUnitsByMci[mci] = [];
 	for (var unit in storage.assocUnstableUnits){
 		var o = storage.assocUnstableUnits[unit];
 		if (o.main_chain_index === mci && o.is_stable === 0){
@@ -1211,6 +1238,7 @@ function markMcIndexStable(conn, batch, mci, onDone){
 
 
 	function handleNonserialUnits(){
+	//	console.log('handleNonserialUnits')
 		conn.query(
 			"SELECT * FROM units WHERE main_chain_index=? AND sequence!='good' ORDER BY unit", [mci], 
 			function(rows){
@@ -1357,10 +1385,11 @@ function markMcIndexStable(conn, batch, mci, onDone){
 	function addBalls(){
 		conn.query(
 			"SELECT units.*, ball FROM units LEFT JOIN balls USING(unit) \n\
-			WHERE main_chain_index=? ORDER BY level", [mci], 
+			WHERE main_chain_index=? ORDER BY level, unit", [mci], 
 			function(unit_rows){
 				if (unit_rows.length === 0)
 					throw Error("no units on mci "+mci);
+				let voteCountSubjects = [];
 				async.eachSeries(
 					unit_rows,
 					function(objUnitProps, cb){
@@ -1432,28 +1461,36 @@ function markMcIndexStable(conn, batch, mci, onDone){
 									});
 								}
 
-								function saveUnstablePayloads() {
-									if (!storage.assocUnstableMessages[unit])
+								async function saveUnstablePayloads() {
+									let arrUnstableMessages = storage.assocUnstableMessages[unit];
+									if (!arrUnstableMessages)
 										return cb();
 									if (objUnitProps.sequence === 'final-bad'){
 										delete storage.assocUnstableMessages[unit];
 										return cb();
 									}
-									var arrAADefinitionPayloads = [];
-									storage.assocUnstableMessages[unit].forEach(function (message) {
-										if (message.app === 'data_feed')
-											addDataFeeds(message.payload);
-										else if (message.app === 'definition') {
-											arrAADefinitionPayloads.push(message.payload);
-										//	batch.put('d\n' + address, json);
+									for (let message of arrUnstableMessages) {
+										const { app, payload } = message;
+										switch (app) {
+											case 'data_feed':
+												addDataFeeds(payload);
+												break;
+											case 'definition':
+												await storage.insertAADefinitions(conn, [payload], unit, mci, false);
+												break;
+											case 'system_vote':
+												await saveSystemVote(payload);
+												break;
+											case 'system_vote_count': // will be processed later, when we finish this mci
+												if (!voteCountSubjects.includes(payload))
+													voteCountSubjects.push(payload);
+												break;
+											default:
+												throw Error("unrecognized app in unstable message: " + app);
 										}
-										else
-											throw Error("unrecognized app in unstable message: " + message.app);
-									});
-									storage.insertAADefinitions(conn, arrAADefinitionPayloads, unit, mci, false, function () {
-										delete storage.assocUnstableMessages[unit];
-										cb();
-									});
+									}
+									delete storage.assocUnstableMessages[unit];
+									cb();
 								}
 								
 								function addDataFeeds(payload){
@@ -1487,10 +1524,48 @@ function markMcIndexStable(conn, batch, mci, onDone){
 										});
 									}
 								}
+
+								async function saveSystemVote(payload) {
+									console.log('saveSystemVote', payload);
+									const { subject, value } = payload;
+									const objStableUnit = storage.assocStableUnits[unit];
+									if (!objStableUnit)
+										throw Error("no stable unit " + unit);
+									const { author_addresses, timestamp } = objStableUnit;
+									const strValue = subject === "op_list" ? JSON.stringify(value) : value;
+									for (let address of author_addresses)
+										await conn.query("INSERT INTO system_votes (unit, address, subject, value, timestamp) VALUES (?,?,?,?,?)", [unit, address, subject, strValue, timestamp]);
+									let sqlValues = [];
+									switch (subject) {
+										case "op_list":
+											const arrOPs = value;
+											await conn.query("DELETE FROM op_votes WHERE address IN (?)", [author_addresses]);
+											for (let address of author_addresses)
+												sqlValues = sqlValues.concat(arrOPs.map(op_address => `(${db.escape(unit)}, ${db.escape(address)}, ${db.escape(op_address)}, ${timestamp})`));
+											await conn.query("INSERT INTO op_votes (unit, address, op_address, timestamp) VALUES " + sqlValues.join(', '));
+											break;
+										case "threshold_size":
+										case "base_tps_fee":
+										case "tps_interval":
+										case "tps_fee_multiplier":
+											await conn.query("DELETE FROM numerical_votes WHERE subject=? AND address IN (?)", [subject, author_addresses]);
+											for (let address of author_addresses)
+												sqlValues.push(`(${db.escape(unit)}, ${db.escape(address)}, ${db.escape(subject)}, ${value}, ${timestamp})`);
+											await conn.query("INSERT INTO numerical_votes (unit, address, subject, value, timestamp) VALUES " + sqlValues.join(', '));
+											break;
+										default:
+											throw Error("unknown subject after stability: " + subject);
+									}
+								}
+
+
 							}
 						);
 					},
-					function(){
+					async function() {
+						// vote count must be processed last, after all system_votes, and once for the entire mci
+						for (let subject of voteCountSubjects)
+							await countVotes(conn, mci, subject);
 						// next op
 						updateRetrievable();
 					}
@@ -1507,6 +1582,8 @@ function markMcIndexStable(conn, batch, mci, onDone){
 	}
 	
 	function calcCommissions(){
+		if (mci === 0)
+			return handleAATriggers();
 		async.series([
 			function(cb){
 				profiler.start();
@@ -1535,6 +1612,7 @@ function markMcIndexStable(conn, batch, mci, onDone){
 			ORDER BY units.level, units.unit, address", // deterministic order
 			[mci, mci],
 			function (rows) {
+				count_aa_triggers = rows.length;
 				if (rows.length === 0)
 					return finishMarkMcIndexStable();
 				var arrValues = rows.map(function (row) {
@@ -1542,26 +1620,220 @@ function markMcIndexStable(conn, batch, mci, onDone){
 				});
 				conn.query("INSERT INTO aa_triggers (mci, unit, address) VALUES " + arrValues.join(', '), function () {
 					finishMarkMcIndexStable();
-					process.nextTick(function(){ // don't call it synchronously with event emitter
-						eventBus.emit("new_aa_triggers"); // they'll be handled after the current write finishes
-					});
+					// now calling handleAATriggers() from write.js
+				//	process.nextTick(function(){ // don't call it synchronously with event emitter
+				//		eventBus.emit("new_aa_triggers"); // they'll be handled after the current write finishes
+				//	});
 				});
 			}
 		);
 	}
 
-	
+
 	function finishMarkMcIndexStable() {
 			process.nextTick(function(){ // don't call it synchronously with event emitter
 				eventBus.emit("mci_became_stable", mci);
 			});
-			onDone();
+			onDone(count_aa_triggers);
 	}
 
 }
 
+
+
+async function countVotes(conn, mci, subject, is_emergency = 0, emergency_count_command_timestamp = 0) {
+	console.log('countVotes', mci, subject, is_emergency, emergency_count_command_timestamp);
+	if (is_emergency && subject !== "op_list")
+		throw Error("emergency vote count supported for op_list only, got " + subject);
+	const address_rows = await conn.query("SELECT DISTINCT address FROM system_votes WHERE subject=?", [subject]);
+	const addresses = address_rows.map(r => r.address);
+	const strAddresses = addresses.map(db.escape).join(', ');
+	let balances = {};
+	const bal_rows = await conn.query(`SELECT address, SUM(amount) AS balance 
+		FROM outputs
+		LEFT JOIN units USING(unit)
+		WHERE address IN(${strAddresses}) AND is_spent=0 AND asset IS NULL AND is_stable=1 AND sequence='good' 
+		GROUP BY address`);
+	console.log('bal rows', bal_rows)
+	for (let { address, balance } of bal_rows) {
+		balances[address] = balance;
+	}
+	const spent_rows = await conn.query(`SELECT inputs.address, SUM(outputs.amount) AS spent_balance
+		FROM units
+		CROSS JOIN inputs USING(unit)
+		CROSS JOIN outputs ON src_unit=outputs.unit AND src_message_index=outputs.message_index AND src_output_index=outputs.output_index
+		CROSS JOIN units AS output_units ON outputs.unit=output_units.unit
+		WHERE units.is_stable=0 AND +units.sequence='good'
+			AND +output_units.is_stable=1 AND +output_units.sequence='good'
+			AND inputs.address IN(${strAddresses}) AND type='transfer' AND inputs.asset IS NULL
+		GROUP BY inputs.address`);
+	console.log('spent rows', spent_rows)
+	for (let { address, spent_balance } of spent_rows) {
+		if (balances[address])
+			balances[address] += spent_balance;
+		else
+			balances[address] = spent_balance;
+	}
+	let values = [];
+	for (let address in balances)
+		values.push(`(${db.escape(address)}, ${balances[address]})`);
+	if (values.length === 0)
+		return console.log(`no voters for ${subject}, skipping vote count`);
+
+	const [mc_row] = await conn.query("SELECT timestamp FROM units WHERE main_chain_index=? AND is_on_main_chain=1", [mci]);
+	if (!mc_row)
+		throw Error(`no MC unit on just stabilized MCI ` + mci);
+	const mc_timestamp = mc_row.timestamp;
+	
+	const [activation_row] = await conn.query("SELECT timestamp FROM units WHERE main_chain_index=? AND is_on_main_chain=1", [0/*constants.v4UpgradeMci*/]);
+	if (!activation_row)
+		throw Error(`no MC unit on OP vote activation MCI ` + constants.v4UpgradeMci);
+	const activation_timestamp = activation_row.timestamp;
+
+	await conn.query(`CREATE TEMPORARY TABLE voter_balances (
+		address CHAR(32) NOT NULL PRIMARY KEY,
+		balance INT NOT NULL
+	)`);
+	await conn.query(`INSERT INTO voter_balances (address, balance) VALUES ` + values.join(', '));
+
+	// Vote timeframe. If too small share has voted in the previous year, expand the period to 2 years. If still small, expand to 3 years, and so on.
+	let since_timestamp = mc_timestamp;
+	while (true) {
+		since_timestamp -= 365 * 24 * 3600;
+		if (since_timestamp <= activation_timestamp)
+			break;
+		const [{ total_balance }] = await conn.query(`SELECT SUM(balance) AS total_balance 
+			FROM voter_balances
+			WHERE address IN (
+				SELECT DISTINCT address FROM system_votes WHERE subject=? AND timestamp>=?
+			)`,
+			[subject, since_timestamp]);
+		if (total_balance >= constants.SYSTEM_VOTE_MIN_SHARE * constants.TOTAL_WHITEBYTES)
+			break;
+	}
+
+	let value;
+	switch (subject) {
+		case 'op_list':
+			const votes_table = is_emergency ? 'op_votes_tmp' : 'op_votes';
+			if (is_emergency) { // add unstable votes for OPs
+				await conn.query(`CREATE TEMPORARY TABLE ${votes_table} AS SELECT address, op_address, timestamp FROM op_votes`);
+				// the order of iteration is undefined, so we'll first collect the messages and then sort them. The order matters only when the same address sends multiple unstable votes
+				let votes = [];
+				for (let unit in storage.assocUnstableMessages) {
+					for (let m of storage.assocUnstableMessages[unit]) {
+						if (m.app === 'system_vote' && m.payload.subject === 'op_list') {
+							const { timestamp, author_addresses, sequence, level } = storage.assocUnstableUnits[unit];
+							if (sequence !== 'good')
+								continue;
+							if (emergency_count_command_timestamp - timestamp < constants.EMERGENCY_COUNT_MIN_VOTE_AGE) {
+								console.log('unstable vote from', author_addresses, 'is too young');
+								continue;
+							}
+							const arrOPs = m.payload.value;
+							votes.push({ timestamp, level, author_addresses, arrOPs });
+						}
+					}
+				}
+				console.log('unsorted unstable votes', votes);
+				votes.sort((v1, v2) => {
+					const dt = v1.timestamp - v2.timestamp;
+					if (dt !== 0)
+						return dt;
+					return v1.level - v2.level;
+				});
+				console.log('sorted unstable votes', votes);
+				for (let { timestamp, author_addresses, arrOPs } of votes) {
+					// apply each vote separately as a new unstable vote from the same user would override the previous one
+					await conn.query(`DELETE FROM ${votes_table} WHERE address IN (?)`, [author_addresses]);
+					let values = [];
+					for (let address of author_addresses)
+						for (let op_address of arrOPs)
+							values.push(`(${db.escape(address)}, ${db.escape(op_address)}, ${timestamp})`);
+					console.log('unstable votes', values);
+					await conn.query(`INSERT INTO ${votes_table} (address, op_address, timestamp) VALUES ` + values.join(', '));
+				}
+			}
+			const op_rows = await conn.query(`SELECT op_address, SUM(balance) AS total_balance
+				FROM ${votes_table}
+				CROSS JOIN voter_balances USING(address)
+				WHERE timestamp>=?
+				GROUP BY op_address
+				ORDER BY total_balance DESC, op_address
+				LIMIT ?`,
+				[since_timestamp, constants.COUNT_WITNESSES]
+			);
+			console.log(`total votes for OPs`, op_rows);
+			const ops = op_rows.map(r => r.op_address);
+			if (ops.length !== constants.COUNT_WITNESSES)
+				throw Error(`wrong number of voted OPs: ` + ops.length);
+			ops.sort();
+			if (mci === 0) {
+				storage.resetWitnessCache();
+				storage.systemVars.op_list = []; // reset
+			}
+			storage.systemVars.op_list.unshift({ vote_count_mci: mci === 0 ? -1 : mci, value: ops, is_emergency });
+			value = JSON.stringify(ops);
+			if (is_emergency) {
+				storage.resetWitnessCache();
+				await conn.query(conn.dropTemporaryTable(votes_table));
+			}
+			break;
+		
+		case "threshold_size":
+		case "base_tps_fee":
+		case "tps_interval":
+		case "tps_fee_multiplier":
+			const rows = await conn.query(`SELECT value, SUM(balance) AS total_balance
+				FROM numerical_votes
+				CROSS JOIN voter_balances USING(address)
+				WHERE timestamp>=? AND subject=?
+				GROUP BY value
+				ORDER BY value`,
+				[since_timestamp, subject]
+			);
+			console.log(`total votes for`, subject, rows);
+			const total_voted_balance = rows.reduce((acc, row) => acc + row.total_balance, 0);
+			let accumulated = 0;
+			for (let { value: v, total_balance } of rows) {
+				accumulated += total_balance;
+				if (accumulated >= total_voted_balance / 2) {
+					value = v;
+					break;
+				}
+			}
+			if (value === undefined)
+				throw Error(`no median value for ` + subject);
+			storage.systemVars[subject].unshift({ vote_count_mci: mci, value, is_emergency });
+			break;
+		
+		default:
+			throw Error("unknown subject in countVotes: " + subject);
+	}
+	console.log(`new`, subject, value);
+	// a repeated emergency vote on the same mci would overwrite the previous one
+	await conn.query(`${is_emergency || mci === 0 ? 'REPLACE' : 'INSERT'} INTO system_vars (subject, value, vote_count_mci, is_emergency) VALUES (?, ?, ?, ?)`, [subject, value, mci === 0 ? -1 : mci, is_emergency]);
+	await conn.query(conn.dropTemporaryTable('voter_balances'));
+}
+
+
+async function applyEmergencyOpListChange(conn, emergency_count_command_timestamp, cb) {
+	// last stable unit
+	const [{ timestamp, main_chain_index }] = await conn.query("SELECT timestamp, main_chain_index FROM units WHERE is_stable=1 ORDER BY main_chain_index DESC LIMIT 1");
+	if (emergency_count_command_timestamp < timestamp + constants.EMERGENCY_OP_LIST_CHANGE_TIMEOUT) {
+		console.log(`too early to apply emergency OP list change yet`);
+		return cb();
+	}
+	console.log(`applying emergency vote count after being stuck at mci ${main_chain_index}`);
+	await countVotes(conn, main_chain_index - 1, 'op_list', 1, emergency_count_command_timestamp);
+	cb();
+}
+
+
 // returns list of past MC indices for skiplist
 function getSimilarMcis(mci){
+	if (mci === 0)
+		return [];
 	var arrSimilarMcis = [];
 	var divisor = 10;
 	while (true){
@@ -1587,6 +1859,7 @@ exports.updateMainChain = updateMainChain;
 exports.determineIfStableInLaterUnitsAndUpdateStableMcFlag = determineIfStableInLaterUnitsAndUpdateStableMcFlag;
 exports.determineIfStableInLaterUnits = determineIfStableInLaterUnits;
 exports.determineIfStableInLaterUnitsWithMaxLastBallMciFastPath = determineIfStableInLaterUnitsWithMaxLastBallMciFastPath;
+exports.applyEmergencyOpListChange = applyEmergencyOpListChange;
 
 /*
 determineIfStableInLaterUnits(db, "oeS2p87yO9DFkpjj+z+mo+RNoieaTN/8vOPGn/cUHhM=", [ '8vh0/buS3NaknEjBF/+vyLS3X5T0t5imA2mg8juVmJQ=', 'oO/INGsFr8By+ggALCdVkiT8GIPzB2k3PQ3TxPWq8Ac='], function(bStable){

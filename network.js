@@ -169,7 +169,7 @@ function sendErrorResult(ws, unit, error) {
 
 function sendVersion(ws){
 	sendJustsaying(ws, 'version', {
-		protocol_version: constants.version, 
+		protocol_version: constants.version3, 
 		alt: constants.alt, 
 		library: libraryPackageJson.name, 
 		library_version: libraryPackageJson.version, 
@@ -1002,7 +1002,8 @@ function handleJoint(ws, objJoint, bSaved, bPosted, callbacks){
 				ifUnitError: function(error){
 					console.log(objJoint.unit.unit+" validation failed: "+error);
 					callbacks.ifUnitError(error);
-				//	throw Error(error);
+					if (constants.bDevnet)
+						throw Error(error);
 					unlock();
 					purgeJointAndDependenciesAndNotifyPeers(objJoint, error, function(){
 						delete assocUnitsInWork[unit];
@@ -1027,13 +1028,15 @@ function handleJoint(ws, objJoint, bSaved, bPosted, callbacks){
 				ifTransientError: function(error){
 				//	throw Error(error);
 					console.log("############################## transient error "+error);
-					callbacks.ifUnitError(error);
+					callbacks.ifTransientError ? callbacks.ifTransientError(error) : callbacks.ifUnitError(error);
 					process.nextTick(unlock);
 					joint_storage.removeUnhandledJointAndDependencies(unit, function(){
 					//	if (objJoint.ball)
 					//		db.query("DELETE FROM hash_tree_balls WHERE ball=? AND unit=?", [objJoint.ball, objJoint.unit.unit]);
 						delete assocUnitsInWork[unit];
 					});
+					if (error.includes("last ball just advanced"))
+						setTimeout(rerequestLostJoints, 10 * 1000, true);
 				},
 				ifNeedHashTree: function(){
 					console.log('need hash tree for unit '+unit);
@@ -1168,6 +1171,12 @@ function handleOnlineJoint(ws, objJoint, onDone){
 		ifUnitError: function(error){
 			sendErrorResult(ws, unit, error);
 			onDone();
+		},
+		ifTransientError: function(error) {
+			sendErrorResult(ws, unit, error);
+			onDone();
+			if (error.includes("tps fee"))
+				setTimeout(handleOnlineJoint, 10 * 1000, ws, objJoint);
 		},
 		ifJointError: function(error){
 			sendErrorResult(ws, unit, error);
@@ -3165,10 +3174,10 @@ function handleRequest(ws, tag, command, params){
 				}
 			}
 			if (params.witnesses)
-				light.prepareParentsAndLastBallAndWitnessListUnit(params.witnesses, callbacks);
+				light.prepareParentsAndLastBallAndWitnessListUnit(params.witnesses, params.from_addresses, params.output_addresses, params.max_aa_responses||0, callbacks);
 			else
 				myWitnesses.readMyWitnesses(function(arrWitnesses){
-					light.prepareParentsAndLastBallAndWitnessListUnit(arrWitnesses, callbacks);
+					light.prepareParentsAndLastBallAndWitnessListUnit(arrWitnesses, params.from_addresses, params.output_addresses, params.max_aa_responses||0, callbacks);
 				});
 			break;
 
@@ -3247,7 +3256,8 @@ function handleRequest(ws, tag, command, params){
 				if (err)
 					return sendErrorResponse(ws, tag, err);
 				var bMultiAuthored = (params.addresses.length > 1);
-				inputs.pickDivisibleCoinsForAmount(db, objAsset, params.addresses, params.last_ball_mci, params.amount, bMultiAuthored, params.spend_unconfirmed || 'own', function(arrInputsWithProofs, total_amount) {
+				let size = 2000;
+				inputs.pickDivisibleCoinsForAmount(db, objAsset, params.addresses, params.last_ball_mci, params.amount + size, size, 0, bMultiAuthored, params.spend_unconfirmed || 'own', function(arrInputsWithProofs, total_amount) {
 					var objResponse = {inputs_with_proofs: arrInputsWithProofs || [], total_amount: total_amount || 0};
 					sendResponse(ws, tag, objResponse);
 				});
@@ -3799,13 +3809,13 @@ function startPeerExchange() {
 	}
 }
 
-function startRelay(){
+async function startRelay(){
 	if (bCordova || !conf.port) // no listener on mobile
 		wss = {clients: []};
 	else
 		startAcceptingConnections();
 	
-	storage.initCaches();
+	await storage.initCaches();
 	joint_storage.initUnhandledAndKnownBad();
 	checkCatchupLeftovers();
 
@@ -3825,7 +3835,8 @@ function startRelay(){
 	joint_storage.readDependentJointsThatAreReady(null, handleSavedJoint);
 
 	eventBus.on('new_aa_unit', onNewAA);
-	aa_composer.handleAATriggers(); // in case anything's left from the previous run
+	await aa_composer.handleAATriggers(); // in case anything's left from the previous run
+	await storage.updateMissingTpsFees();
 }
 
 function startLightClient(){

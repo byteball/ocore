@@ -76,6 +76,7 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 			switch (message.app) {
 				case 'profile':
 				case 'data':
+				case 'temp_data':
 					if (!isNonemptyObject(payload))
 						return cb2('payload of app=' + message.app + ' must be non-empty object or formula: ' + payload);
 					cb2();

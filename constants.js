@@ -15,16 +15,20 @@ exports.MAX_WITNESS_LIST_MUTATIONS = 1;
 exports.TOTAL_WHITEBYTES = process.env.TOTAL_WHITEBYTES || 1e15;
 exports.MAJORITY_OF_WITNESSES = (exports.COUNT_WITNESSES%2===0) ? (exports.COUNT_WITNESSES/2+1) : Math.ceil(exports.COUNT_WITNESSES/2);
 exports.COUNT_MC_BALLS_FOR_PAID_WITNESSING = process.env.COUNT_MC_BALLS_FOR_PAID_WITNESSING || 100;
+exports.EMERGENCY_OP_LIST_CHANGE_TIMEOUT = 3 * 24 * 3600;
+exports.EMERGENCY_COUNT_MIN_VOTE_AGE = 3600;
 
 exports.bTestnet = !!process.env.testnet;
 console.log('===== testnet = ' + exports.bTestnet);
 
-exports.version = exports.bTestnet ? '3.0t' : '3.0';
+exports.version = exports.bTestnet ? '4.0t' : '4.0';
 exports.alt = exports.bTestnet ? '2' : '1';
 
-exports.supported_versions = exports.bTestnet ? ['1.0t', '2.0t', '3.0t'] : ['1.0', '2.0', '3.0'];
+exports.supported_versions = exports.bTestnet ? ['1.0t', '2.0t', '3.0t', '4.0t'] : ['1.0', '2.0', '3.0', '4.0'];
 exports.versionWithoutTimestamp = exports.bTestnet ? '1.0t' : '1.0';
 exports.versionWithoutKeySizes = exports.bTestnet ? '2.0t' : '2.0';
+exports.version3 = exports.bTestnet ? '3.0t' : '3.0';
+exports.fVersion4 = 4;
 
 //exports.bTestnet = (exports.alt === '2' && exports.version === '1.0t');
 
@@ -63,6 +67,10 @@ exports.MAX_OPS = process.env.MAX_OPS || 2000;
 exports.MAX_RESPONSES_PER_PRIMARY_TRIGGER = process.env.MAX_RESPONSES_PER_PRIMARY_TRIGGER || 10;
 
 exports.MIN_BYTES_BOUNCE_FEE = process.env.MIN_BYTES_BOUNCE_FEE || 10000;
+exports.SYSTEM_VOTE_COUNT_FEE = 1e9;
+exports.SYSTEM_VOTE_MIN_SHARE = 0.1;
+exports.TEMP_DATA_PURGE_TIMEOUT = 24 * 3600;
+exports.TEMP_DATA_PRICE = 0.5; // bytes per byte
 
 exports.minCoreVersion = exports.bTestnet ? '0.3.12' : '0.3.12';
 exports.minCoreVersionForFullNodes = exports.bTestnet ? '0.4.0' : '0.4.0';
@@ -85,17 +93,19 @@ exports.aa2UpgradeMci = exports.bTestnet ? 1358300 : 5494000;
 exports.unstableInitialDefinitionUpgradeMci = exports.bTestnet ? 1358300 : 5494000;
 exports.includeKeySizesUpgradeMci = exports.bTestnet ? 1383500 : 5530000;
 exports.aa3UpgradeMci = exports.bTestnet ? 2291500 : 7810000;
+exports.v4UpgradeMci = exports.bTestnet ? 0 : 0; // fix
 
 
 if (process.env.devnet) {
 	console.log('===== devnet');
 	exports.bDevnet = true;
-	exports.version = '3.0dev';
+	exports.version = '4.0dev';
 	exports.alt = '3';
-	exports.supported_versions = ['1.0dev', '2.0dev', '3.0dev'];
+	exports.supported_versions = ['1.0dev', '2.0dev', '3.0dev', '4.0dev'];
 	exports.versionWithoutTimestamp = '1.0dev';
 	exports.versionWithoutKeySizes = '2.0dev';
-	exports.GENESIS_UNIT = '7SdqwEe7auaGWhBO/tQuIUm9egyqDyPiYRK9x6Ej9+A='; // THIS CHANGES WITH EVERY UNIT VERSION / ALT CHANGE!!!
+	exports.version3 = '3.0dev';
+	exports.GENESIS_UNIT = 'OaUcH6sSxnn49wqTAQyyxYk4WLQfpBeW7dQ1o2MvGC8='; // THIS CHANGES WITH EVERY UNIT VERSION / ALT CHANGE!!!
 	exports.BLACKBYTES_ASSET = 'ilSnUeVTEK6ElgY9k1tZmV/w4gsLCAIEgUbytS6KfAQ='; // THIS CHANGES WITH EVERY UNIT VERSION / ALT CHANGE!!!
 
 	exports.COUNT_WITNESSES = 1;
@@ -121,6 +131,7 @@ if (process.env.devnet || process.env.GENESIS_UNIT) {
 	exports.unstableInitialDefinitionUpgradeMci = 0;
 	exports.includeKeySizesUpgradeMci = 0;
 	exports.aa3UpgradeMci = 0;
+	exports.v4UpgradeMci = 0;
 }
 
 // textcoins

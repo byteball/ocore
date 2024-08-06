@@ -115,7 +115,7 @@ function parseUri(uri, callbacks){
 		objRequest = assocParams;
 		objRequest.type = 'data';
 		var app = assocParams.app;
-		if (app !== 'data' && app !== 'data_feed' && app !== 'attestation' && app !== 'profile' && app !== 'poll' && app !== 'vote' && app !== 'definition' && app !== 'text')
+		if (!['data', 'temp_data', 'data_feed', 'attestation', 'profile', 'poll', 'vote', 'definition', 'text', 'system_vote', 'system_vote_count'].includes(app))
 			return callbacks.ifError("invalid app: " + app);
 		if (app === 'attestation' && !ValidationUtils.isValidAddress(assocParams.address))
 			return callbacks.ifError("invalid attested address: "+assocParams.address);
@@ -132,6 +132,24 @@ function parseUri(uri, callbacks){
 					assocParams.definition = response;
 					callbacks.ifOk(objRequest);
 				});
+			}
+		}
+		if (app === 'system_vote' || app === 'system_vote_count') {
+			const { subject, value } = assocParams;
+			if (!["op_list", "threshold_size", "base_tps_fee", "tps_interval", "tps_fee_multiplier"].includes(subject))
+				return callbacks.ifError("invalid subject: " + subject);
+			if (app === 'system_vote') {
+				if (!value)
+					return callbacks.ifError(`no value in system_vote`);
+				if (subject === 'op_list') {
+					const arrOPs = value.split('\n');
+					if (arrOPs.length !== constants.COUNT_WITNESSES)
+						return callbacks.ifError(`wrong number of OPs in ` + value);
+					if (arrOPs.every(ValidationUtils.isValidAddress))
+						return callbacks.ifError(`some OP addresses are invalid in ` + value);
+				}
+				else if (!value.match(/^\d+$/))
+					return callbacks.ifError(`${subject} must be a number, found ` + value);
 			}
 		}
 		return callbacks.ifOk(objRequest);

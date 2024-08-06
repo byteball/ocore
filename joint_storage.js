@@ -240,17 +240,17 @@ function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 		function(rows){
 			if (rows.length === 0)
 				return onDone();
-			db.takeConnectionFromPool(function (conn) {
-				async.eachSeries(
-					rows,
-					function (row, cb) {
-						breadcrumbs.add("--------------- archiving uncovered unit " + row.unit);
-						storage.readJoint(conn, row.unit, {
-							ifNotFound: function () {
-								throw Error("nonserial unit not found?");
-							},
-							ifFound: function (objJoint) {
-								mutex.lock(["write"], function(unlock){
+			mutex.lock(["write"], function(unlock) {
+				db.takeConnectionFromPool(function (conn) {
+					async.eachSeries(
+						rows,
+						function (row, cb) {
+							breadcrumbs.add("--------------- archiving uncovered unit " + row.unit);
+							storage.readJoint(conn, row.unit, {
+								ifNotFound: function () {
+									throw Error("nonserial unit not found?");
+								},
+								ifFound: function (objJoint) {
 									var arrQueries = [];
 									conn.addQuery(arrQueries, "BEGIN");
 									archiving.generateQueriesToArchiveJoint(conn, objJoint, 'uncovered', arrQueries, function(){
@@ -262,28 +262,28 @@ function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 												var parent_units = storage.assocUnstableUnits[row.unit].parent_units;
 												storage.forgetUnit(row.unit);
 												storage.fixIsFreeAfterForgettingUnit(parent_units);
-												unlock();
 												cb();
 											});
 										});
 									});
-								});
-							}
-						});
-					},
-					function () {
-						conn.query(
-							"UPDATE units SET is_free=1 WHERE is_free=0 AND is_stable=0 \n\
-							AND (SELECT 1 FROM parenthoods WHERE parent_unit=unit LIMIT 1) IS NULL",
-							function () {
-								conn.release();
-								if (rows.length > 0)
-									return purgeUncoveredNonserialJoints(false, onDone); // to clean chains of bad units
-								onDone();
-							}
-						);
-					}
-				);
+								}
+							});
+						},
+						function () {
+							conn.query(
+								"UPDATE units SET is_free=1 WHERE is_free=0 AND is_stable=0 \n\
+								AND (SELECT 1 FROM parenthoods WHERE parent_unit=unit LIMIT 1) IS NULL",
+								function () {
+									conn.release();
+									unlock();
+									if (rows.length > 0)
+										return purgeUncoveredNonserialJoints(false, onDone); // to clean chains of bad units
+									onDone();
+								}
+							);
+						}
+					);
+				});
 			});
 		}
 	);

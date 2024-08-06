@@ -43,14 +43,17 @@ var OUTPUT_KEYS_SIZE = "address".length + "amount".length;
 
 const CHECK_BALANCES_INTERVAL = conf.CHECK_BALANCES_INTERVAL || 600 * 1000;
 
+/*
 eventBus.on('new_aa_triggers', function () {
 	mutex.lock(["write"], function (unlock) {
 		unlock(); // we don't need to block writes, we requested the lock just to wait that the current write completes
 		handleAATriggers();
 	});
-});
+});*/
 
-function handleAATriggers() {
+function handleAATriggers(onDone) {
+	if (!onDone)
+		return new Promise(resolve => handleAATriggers(resolve));
 	mutex.lock(['aa_triggers'], function (unlock) {
 		db.query(
 			"SELECT aa_triggers.mci, aa_triggers.unit, address, definition \n\
@@ -63,6 +66,7 @@ function handleAATriggers() {
 				async.eachSeries(
 					rows,
 					function (row, cb) {
+						console.log('handleAATriggers', row.unit, row.mci, row.address);
 						var arrDefinition = JSON.parse(row.definition);
 						handlePrimaryAATrigger(row.mci, row.unit, row.address, arrDefinition, arrPostedUnits, cb);
 					},
@@ -71,6 +75,7 @@ function handleAATriggers() {
 							eventBus.emit('new_aa_unit', objUnit);
 						});
 						unlock();
+						onDone();
 					}
 				);
 			}
@@ -89,7 +94,14 @@ function handlePrimaryAATrigger(mci, unit, address, arrDefinition, arrPostedUnit
 					trigger.initial_address = trigger.address;
 					trigger.initial_unit = trigger.unit;
 					handleTrigger(conn, batch, trigger, {}, {}, arrDefinition, address, mci, objMcUnit, false, arrResponses, function(){
-						conn.query("DELETE FROM aa_triggers WHERE mci=? AND unit=? AND address=?", [mci, unit, address], function(){
+						conn.query("DELETE FROM aa_triggers WHERE mci=? AND unit=? AND address=?", [mci, unit, address], async function(){
+							await conn.query("UPDATE units SET count_aa_responses=IFNULL(count_aa_responses, 0)+? WHERE unit=?", [arrResponses.length, unit]);
+							let objUnitProps = storage.assocStableUnits[unit];
+							if (!objUnitProps)
+								throw Error(`handlePrimaryAATrigger: unit ${unit} not found in cache`);
+							if (!objUnitProps.count_aa_responses)
+								objUnitProps.count_aa_responses = 0;
+							objUnitProps.count_aa_responses += arrResponses.length;
 							var batch_start_time = Date.now();
 							batch.write({ sync: true }, function(err){
 								console.log("AA batch write took "+(Date.now()-batch_start_time)+'ms');
@@ -327,8 +339,10 @@ function readUnit(conn, unit, handleUnit) {
 
 function getTrigger(objUnit, receiving_address) {
 	var trigger = { address: objUnit.authors[0].address, unit: objUnit.unit, outputs: {} };
+	if ("max_aa_responses" in objUnit)
+		trigger.max_aa_responses = objUnit.max_aa_responses;
 	objUnit.messages.forEach(function (message) {
-		if (message.app === 'data' && !trigger.data) // use the first data mesage, ignore the subsequent ones
+		if (message.app === 'data' && !trigger.data) // use the first data message, ignore the subsequent ones
 			trigger.data = message.payload;
 		else if (message.app === 'payment') {
 			var payload = message.payload;
@@ -952,11 +966,11 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 			message.payload_hash = objectHash.getBase64Hash(message.payload, true);
 		}
 
-		function completePaymentPayload(payload, additional_amount, cb) {
+		function completePaymentPayload(payload, size, cb) {
 			var asset = payload.asset || null;
 			var is_base = (asset === null) ? 1 : 0;
 			if (!payload.inputs && bWithKeys && is_base)
-				additional_amount += "inputs".length;
+				size += "inputs".length;
 			payload.inputs = [];
 			var total_amount = 0;
 
@@ -967,15 +981,21 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 			// send-all output looks like {address: "BASE32"}, its size is 32 since it has no amount.
 			// remove the send-all output from size calculation, it might be added later
 			if (send_all_output && is_base){
-				additional_amount -= 32 + (bWithKeys ? "address".length : 0);
+				size -= 32 + (bWithKeys ? "address".length : 0);
 				// we add a change output to AA to keep balance above storage_size
 				if (storage_size > FULL_TRANSFER_INPUT_SIZE && mci >= constants.aaStorageSizeUpgradeMci){
-					additional_amount += OUTPUT_SIZE + (bWithKeys ? OUTPUT_KEYS_SIZE : 0);
+					size += OUTPUT_SIZE + (bWithKeys ? OUTPUT_KEYS_SIZE : 0);
 					payload.outputs.push({ address: address, amount: storage_size });
 				}
 			}
-			var target_amount = payload.outputs.reduce(function (acc, output) { return acc + (output.amount || 0); }, additional_amount);
+			const paid_temp_data_fee = objectLength.getPaidTempDataFee({ messages });
+			var net_target_amount = payload.outputs.reduce(function (acc, output) { return acc + (output.amount || 0); }, size);
+			let target_amount = net_target_amount + getOversizeFee(size);
 			var bFound = false;
+
+			function getOversizeFee(s) {
+				return (mci >= constants.v4UpgradeMci && is_base) ? storage.getOversizeFee(s - paid_temp_data_fee, mci) : 0;
+			}
 
 			function iterateUnspentOutputs(rows) {
 				for (var i = 0; i < rows.length; i++){
@@ -985,8 +1005,11 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 					arrConsumedOutputs.push({asset: asset || 'base', amount: row.amount});
 					payload.inputs.push(input);
 					total_amount += row.amount;
-					if (is_base)
-						target_amount += FULL_TRANSFER_INPUT_SIZE;
+					if (is_base) {
+						net_target_amount += FULL_TRANSFER_INPUT_SIZE;
+						size += FULL_TRANSFER_INPUT_SIZE;
+						target_amount = net_target_amount + getOversizeFee(size);
+					}
 					if (total_amount < target_amount)
 						continue;
 					if (total_amount === target_amount && payload.outputs.length > 0) {
@@ -997,7 +1020,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 							break;
 					}
 					var additional_output_size = is_base ? OUTPUT_SIZE + (bWithKeys ? OUTPUT_KEYS_SIZE : 0) : 0; // the same for send-all
-					var change_amount = total_amount - (target_amount + additional_output_size);
+					var change_amount = total_amount - (net_target_amount + additional_output_size + getOversizeFee(size + additional_output_size));
 					if (change_amount > 0) {
 						bFound = true;
 						if (send_all_output) {
@@ -1207,15 +1230,18 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 				objBasePaymentMessage.payload_location = 'inline';
 				objBasePaymentMessage.payload_hash = '-'.repeat(44);
 				var objUnit = {
-					version: bWithKeys ? constants.version : constants.versionWithoutKeySizes, 
+					version: mci >= constants.v4UpgradeMci ? constants.version : (bWithKeys ? constants.version3 : constants.versionWithoutKeySizes), // we should actually use last_ball_mci
 					alt: constants.alt,
 					timestamp: objMcUnit.timestamp,
 					messages: messages,
 					authors: [{ address: address }],
 					last_ball_unit: objMcUnit.last_ball_unit,
 					last_ball: objMcUnit.last_ball,
-					witness_list_unit: objMcUnit.witnesses ? objMcUnit.unit : objMcUnit.witness_list_unit
 				};
+				if (mci < constants.v4UpgradeMci)
+					objUnit.witness_list_unit = objMcUnit.witnesses ? objMcUnit.unit : objMcUnit.witness_list_unit;
+			//	else
+			//		objUnit.tps_fee = 0;
 				pickParents(function (parent_units) {
 					objUnit.parent_units = parent_units;
 					objUnit.headers_commission = objectLength.getHeadersSize(objUnit);
@@ -1228,6 +1254,9 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 							return bounce(err);
 						completeMessage(objBasePaymentMessage); // fixes payload_hash
 						objUnit.payload_commission = objectLength.getTotalPayloadSize(objUnit);
+						const oversize_fee = (mci >= constants.v4UpgradeMci) ? storage.getOversizeFee(objUnit, mci) : 0;
+						if (oversize_fee)
+							objUnit.oversize_fee = oversize_fee;
 						objUnit.unit = objectHash.getUnitHash(objUnit);
 						console.log('unit', JSON.stringify(objUnit, null, '\t'))
 						executeStateUpdateFormula(objUnit, function (err) {
@@ -1605,6 +1634,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 				if (objAAValidationState.sequence !== 'good')
 					throw Error("nonserial AA");
 				validation_unlock();
+				objAAValidationState.bUnderWriteLock = true;
 				objAAValidationState.conn = conn;
 				objAAValidationState.batch = batch;
 				objAAValidationState.initial_trigger_mci = mci;
@@ -1623,6 +1653,8 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 		// these errors must be thrown after updating the balances
 		if (arrResponses.length >= constants.MAX_RESPONSES_PER_PRIMARY_TRIGGER) // max number of responses per primary trigger, over all branches stemming from the primary trigger
 			return bounce("max number of responses per trigger exceeded");
+		if ("max_aa_responses" in trigger && arrResponses.length >= trigger.max_aa_responses)
+			return bounce(`max_aa_responses ${trigger.max_aa_responses} exceeded`);
 		// being able to pay for bounce fees is not required for secondary triggers as they never actually send any bounce response or change state when bounced
 		if (!bSecondary) {
 			if ((trigger.outputs.base || 0) < bounce_fees.base) {

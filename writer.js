@@ -20,7 +20,7 @@ var bCordova = (typeof window === 'object' && window.cordova);
 var count_writes = 0;
 var count_units_in_prev_analyze = 0;
 
-function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
+async function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 	var objUnit = objJoint.unit;
 	console.log("\nsaving unit "+objUnit.unit);
 	var arrQueries = [];
@@ -28,6 +28,10 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 	if (objValidationState.conn && !objValidationState.batch)
 		throw Error("conn but not batch");
 	var bInLargerTx = (objValidationState.conn && objValidationState.batch);
+	const bCommonOpList = objValidationState.last_ball_mci >= constants.v4UpgradeMci;
+
+	const unlock = objValidationState.bUnderWriteLock ? () => { } : await mutex.lock(["write"]);
+	console.log("got lock to write " + objUnit.unit);
 
 	function initConnection(handleConnection) {
 		if (bInLargerTx) {
@@ -72,10 +76,10 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 			conn.addQuery(arrQueries, "INSERT INTO joints (unit, json) VALUES (?,?)", [objUnit.unit, JSON.stringify(objJoint)]);
 
 		var timestamp = (objUnit.version === constants.versionWithoutTimestamp) ? 0 : objUnit.timestamp;
-		var fields = "unit, version, alt, witness_list_unit, last_ball_unit, headers_commission, payload_commission, sequence, content_hash, timestamp";
-		var values = "?,?,?,?,?,?,?,?,?,?";
+		var fields = "unit, version, alt, witness_list_unit, last_ball_unit, headers_commission, payload_commission, oversize_fee, tps_fee, burn_fee, max_aa_responses, count_primary_aa_triggers, is_aa_response, sequence, content_hash, timestamp";
+		var values = "?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?";
 		var params = [objUnit.unit, objUnit.version, objUnit.alt, objUnit.witness_list_unit, objUnit.last_ball_unit,
-			objUnit.headers_commission || 0, objUnit.payload_commission || 0, objValidationState.sequence, objUnit.content_hash,
+			objUnit.headers_commission || 0, objUnit.payload_commission || 0, objUnit.oversize_fee, objUnit.tps_fee, objUnit.burn_fee, objUnit.max_aa_responses, objValidationState.count_primary_aa_triggers, objValidationState.bAA ? 1 : null, objValidationState.sequence, objUnit.content_hash,
 			timestamp];
 		if (conf.bLight){
 			fields += ", main_chain_index, creation_date";
@@ -402,24 +406,29 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 		}
 				
 		function updateBestParent(cb){
+			if (bGenesis)
+				return cb();
 			// choose best parent among compatible parents only
+			const compatibilityCondition = bCommonOpList ? '' : `AND (witness_list_unit=? OR (
+				SELECT COUNT(*)
+				FROM unit_witnesses
+				JOIN unit_witnesses AS parent_witnesses USING(address)
+				WHERE parent_witnesses.unit IN(parent_units.unit, parent_units.witness_list_unit)
+					AND unit_witnesses.unit IN(?, ?)
+			)>=?)`;
+			let params = [objUnit.parent_units];
+			if (!bCommonOpList)
+				params.push(objUnit.witness_list_unit,
+					objUnit.unit, objUnit.witness_list_unit, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS);
 			conn.query(
-				"SELECT unit \n\
-				FROM units AS parent_units \n\
-				WHERE unit IN(?) \n\
-					AND (witness_list_unit=? OR ( \n\
-						SELECT COUNT(*) \n\
-						FROM unit_witnesses \n\
-						JOIN unit_witnesses AS parent_witnesses USING(address) \n\
-						WHERE parent_witnesses.unit IN(parent_units.unit, parent_units.witness_list_unit) \n\
-							AND unit_witnesses.unit IN(?, ?) \n\
-					)>=?) \n\
-				ORDER BY witnessed_level DESC, \n\
-					level-witnessed_level ASC, \n\
-					unit ASC \n\
-				LIMIT 1", 
-				[objUnit.parent_units, objUnit.witness_list_unit, 
-				objUnit.unit, objUnit.witness_list_unit, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS], 
+				`SELECT unit
+				FROM units AS parent_units
+				WHERE unit IN(?) ${compatibilityCondition}
+				ORDER BY witnessed_level DESC,
+					level-witnessed_level ASC,
+					unit ASC
+				LIMIT 1`, 
+				params, 
 				function(rows){
 					if (rows.length !== 1)
 						throw Error("zero or more than one best parent unit?");
@@ -449,6 +458,8 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 		}
 		
 		function updateLevel(cb){
+			if (bGenesis)
+				return cb();
 			conn.cquery("SELECT MAX(level) AS max_level FROM units WHERE unit IN(?)", [objUnit.parent_units], function(rows){
 				if (!conf.bFaster && rows.length !== 1)
 					throw Error("not a single max level?");
@@ -467,8 +478,12 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 		
 		
 		function updateWitnessedLevel(cb){
+			if (bGenesis)
+				return cb();
 			profiler.start();
-			if (objUnit.witnesses)
+			if (bCommonOpList)
+				updateWitnessedLevelByWitnesslist(storage.getOpList(objValidationState.last_ball_mci), cb);
+			else if (objUnit.witnesses)
 				updateWitnessedLevelByWitnesslist(objUnit.witnesses, cb);
 			else
 				storage.readWitnessList(conn, objUnit.witness_list_unit, function(arrWitnesses){
@@ -529,8 +544,13 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 		
 		var objNewUnitProps = {
 			bAA: objValidationState.bAA,
+			count_primary_aa_triggers: objValidationState.count_primary_aa_triggers || 0,
+			max_aa_responses: ("max_aa_responses" in objUnit) ? objUnit.max_aa_responses : null,
+			count_aa_responses: null,
 			unit: objUnit.unit,
 			timestamp: timestamp,
+			last_ball_unit: objUnit.last_ball_unit,
+			best_parent_unit: my_best_parent_unit,
 			level: bGenesis ? 0 : null,
 			latest_included_mc_index: null,
 			main_chain_index: bGenesis ? 0 : null,
@@ -540,10 +560,12 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 			witnessed_level: bGenesis ? 0 : (conf.bFaster ? objValidationState.witnessed_level : null),
 			headers_commission: objUnit.headers_commission || 0,
 			payload_commission: objUnit.payload_commission || 0,
+			tps_fee: objUnit.tps_fee || 0,
 			sequence: objValidationState.sequence,
 			author_addresses: arrAuthorAddresses,
-			witness_list_unit: (objUnit.witness_list_unit || objUnit.unit)
 		};
+		if (!bCommonOpList)
+			objNewUnitProps.witness_list_unit = objUnit.witness_list_unit || objUnit.unit;
 		if (!bGenesis)
 			objNewUnitProps.parent_units = objUnit.parent_units;
 		if ("earned_headers_commission_recipients" in objUnit) {
@@ -554,12 +576,14 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 		}
 		
 		// without this locking, we get frequent deadlocks from mysql
-		mutex.lock(["write"], function(unlock){
-			console.log("got lock to write "+objUnit.unit);
+	//	mutex.lock(["write"], function(unlock){
+	//		console.log("got lock to write "+objUnit.unit);
+			let arrStabilizedMcis, bStabilizedAATriggers;
 			var batch = bCordova ? null : (bInLargerTx ? objValidationState.batch : kvstore.batch());
 			if (bGenesis){
 				storage.assocStableUnits[objUnit.unit] = objNewUnitProps;
 				storage.assocStableUnitsByMci[0] = [objNewUnitProps];
+				console.log('storage.assocStableUnitsByMci', storage.assocStableUnitsByMci)
 			}
 			else
 				storage.assocUnstableUnits[objUnit.unit] = objNewUnitProps;
@@ -568,11 +592,20 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 					storage.assocBestChildren[my_best_parent_unit] = [];
 				storage.assocBestChildren[my_best_parent_unit].push(objNewUnitProps);
 			}
+			if (objUnit.messages) {
+				objUnit.messages.forEach(function(message) {
+					if (['data_feed', 'definition', 'system_vote', 'system_vote_count'].includes(message.app)) {
+						if (!storage.assocUnstableMessages[objUnit.unit])
+							storage.assocUnstableMessages[objUnit.unit] = [];
+						storage.assocUnstableMessages[objUnit.unit].push(message);
+					}
+				});
+			}
 			addInlinePaymentQueries(function(){
 				async.series(arrQueries, function(){
 					profiler.stop('write-raw');
 					var arrOps = [];
-					if (objUnit.parent_units){
+					if (1 || objUnit.parent_units){ // genesis too
 						if (!conf.bLight){
 							if (objValidationState.bAA) {
 								if (!objValidationState.initial_trigger_mci)
@@ -590,9 +623,22 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 							arrOps.push(updateLevel);
 							if (!conf.bFaster)
 								arrOps.push(updateWitnessedLevel);
+							if (!objValidationState.last_ball_timestamp && objValidationState.last_ball_mci >= constants.timestampUpgradeMci && !bGenesis)
+								throw Error("no last_ball_timestamp");
+							if (objValidationState.bHasSystemVoteCount && objValidationState.sequence === 'good') {
+								const m = objUnit.messages.find(m => m.app === 'system_vote_count');
+								if (!m)
+									throw Error(`system_vote_count message not found`);
+								if (m.payload === 'op_list')
+									arrOps.push(cb => main_chain.applyEmergencyOpListChange(conn, objUnit.timestamp, cb));
+							}
 							arrOps.push(function(cb){
 								console.log("updating MC after adding "+objUnit.unit);
-								main_chain.updateMainChain(conn, batch, null, objUnit.unit, objValidationState.bAA, cb);
+								main_chain.updateMainChain(conn, batch, null, objUnit.unit, objValidationState.bAA, (_arrStabilizedMcis, _bStabilizedAATriggers) => {
+									arrStabilizedMcis = _arrStabilizedMcis;
+									bStabilizedAATriggers = _bStabilizedAATriggers;
+									cb();
+								});
 							});
 						}
 						if (preCommitCallback)
@@ -609,15 +655,16 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 								throw Error("error on externally supplied db connection: "+err);
 							if (err)
 								return cb();
-							if (objUnit.messages){
+							// moved up
+							/*if (objUnit.messages){
 								objUnit.messages.forEach(function(message){
-									if (message.app === 'data_feed' || message.app === 'definition') {
+									if (['data_feed', 'definition', 'system_vote', 'system_vote_count'].includes(message.app)) {
 										if (!storage.assocUnstableMessages[objUnit.unit])
 											storage.assocUnstableMessages[objUnit.unit] = [];
 										storage.assocUnstableMessages[objUnit.unit].push(message);
 									}
 								});
-							}
+							}*/
 							if (!conf.bLight){
 							//	delete objUnit.timestamp;
 								delete objUnit.main_chain_index;
@@ -639,7 +686,7 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 						saveToKvStore(function(){
 							profiler.stop('write-batch-write');
 							profiler.start();
-							commit_fn(err ? "ROLLBACK" : "COMMIT", function(){
+							commit_fn(err ? "ROLLBACK" : "COMMIT", async function(){
 								var consumed_time = Date.now()-start_time;
 								profiler.add_result('write', consumed_time);
 								console.log((err ? (err+", therefore rolled back unit ") : "committed unit ")+objUnit.unit+", write took "+consumed_time+"ms");
@@ -648,32 +695,40 @@ function saveJoint(objJoint, objValidationState, preCommitCallback, onDone) {
 								if (err) {
 									var headers_commission = require("./headers_commission.js");
 									headers_commission.resetMaxSpendableMci();
-									storage.resetMemory(conn, function(){
-										unlock();
-										if (!bInLargerTx)
-											conn.release();
-									});
+									delete storage.assocUnstableMessages[objUnit.unit];
+									await storage.resetMemory(conn);
 								}
-								else{
-									unlock();
-									if (!bInLargerTx)
-										conn.release();
-								}
+								if (!bInLargerTx)
+									conn.release();
 								if (!err){
 									eventBus.emit('saved_unit-'+objUnit.unit, objJoint);
 									eventBus.emit('saved_unit', objJoint);
+								}
+								if (bStabilizedAATriggers) {
+									if (bInLargerTx || objValidationState.bUnderWriteLock)
+										throw Error(`saveJoint stabilized AA triggers while in larger tx or under write lock`);
+									const aa_composer = require("./aa_composer.js");
+									await aa_composer.handleAATriggers();
+
+									// get a new connection to write tps fees
+									const conn = await db.takeConnectionFromPool();
+									await conn.query("BEGIN");
+									await storage.updateTpsFees(conn, arrStabilizedMcis);
+									await conn.query("COMMIT");
+									conn.release();
 								}
 								if (onDone)
 									onDone(err);
 								count_writes++;
 								if (conf.storage === 'sqlite')
 									updateSqliteStats(objUnit.unit);
+								unlock();
 							});
 						});
 					});
 				});
 			});
-		});
+	//	});
 		
 	});
 }

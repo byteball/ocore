@@ -5,12 +5,14 @@ var _ = require('lodash');
 var db = require('./db.js');
 var conf = require('./conf.js');
 var objectHash = require("./object_hash.js");
+const objectLength = require("./object_length.js");
 var constants = require("./constants.js");
 var mutex = require('./mutex.js');
 var archiving = require('./archiving.js');
 var eventBus = require('./event_bus.js');
 var profiler = require('./profiler.js');
 var ValidationUtils = require("./validation_utils.js");
+const kvstore = require('./kvstore.js');
 
 var testnetAssetsDefinedByAAsAreVisibleImmediatelyUpgradeMci = 1167000;
 
@@ -35,6 +37,17 @@ var assocBestChildren = {};
 var assocHashTreeUnitsByBall = {};
 var assocUnstableMessages = {};
 
+const elapsedTimeWhenZero = constants.bDevnet ? 1 : 1;
+
+let systemVars = {
+	op_list: [],
+	threshold_size: [],
+	base_tps_fee: [],
+	tps_interval: [],
+	tps_fee_multiplier: [],
+};
+
+let last_stable_mci = null;
 var min_retrievable_mci = null;
 initializeMinRetrievableMci();
 
@@ -63,9 +76,13 @@ function readJointJsonFromStorage(conn, unit, cb) {
 	});
 }
 
+let last_ts = Date.now();
+
 function readJoint(conn, unit, callbacks, bSql) {
 	if (bSql)
 		return readJointDirectly(conn, unit, callbacks);
+	if (!callbacks)
+		return new Promise((resolve, reject) => readJoint(conn, unit, { ifFound: resolve, ifNotFound: () => reject(`readJoint: unit ${unit} not found`) }));
 	readJointJsonFromStorage(conn, unit, function(strJoint){
 		if (!strJoint)
 			return callbacks.ifNotFound();
@@ -81,6 +98,13 @@ function readJoint(conn, unit, callbacks, bSql) {
 				objJoint.unit.timestamp = parseInt(row.timestamp);
 			objJoint.unit.main_chain_index = row.main_chain_index;
 			callbacks.ifFound(objJoint, row.sequence);
+			if (constants.bDevnet) {
+				if (Date.now() - last_ts >= 600e3) {
+					console.log(`time leap detected`);
+					process.nextTick(purgeTempData);
+				}
+				last_ts = Date.now();
+			}
 		});
 	});
 	/*
@@ -111,7 +135,7 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 	//profiler.start();
 	conn.query(
 		"SELECT units.unit, version, alt, witness_list_unit, last_ball_unit, balls.ball AS last_ball, is_stable, \n\
-			content_hash, headers_commission, payload_commission, main_chain_index, timestamp, "+conn.getUnixTimestamp("units.creation_date")+" AS received_timestamp \n\
+			content_hash, headers_commission, payload_commission, oversize_fee, tps_fee, burn_fee, max_aa_responses, main_chain_index, timestamp, "+conn.getUnixTimestamp("units.creation_date")+" AS received_timestamp \n\
 		FROM units LEFT JOIN balls ON last_ball_unit=balls.unit WHERE units.unit=?", 
 		[unit], 
 		function(unit_rows){
@@ -145,6 +169,10 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 				//delete objUnit.last_ball_unit;
 				delete objUnit.headers_commission;
 				delete objUnit.payload_commission;
+				delete objUnit.oversize_fee;
+				delete objUnit.tps_fee;
+				delete objUnit.burn_fee;
+				delete objUnit.max_aa_responses;
 			}
 			else
 				delete objUnit.content_hash;
@@ -617,15 +645,26 @@ function readWitnesses(conn, unit, handleWitnessList){
 	var arrWitnesses = assocCachedUnitWitnesses[unit];
 	if (arrWitnesses)
 		return handleWitnessList(arrWitnesses);
-	conn.query("SELECT witness_list_unit FROM units WHERE unit=?", [unit], function(rows){
+	conn.query("SELECT witness_list_unit, main_chain_index FROM units WHERE unit=?", [unit], function(rows){
 		if (rows.length === 0)
 			throw Error("unit "+unit+" not found");
-		var witness_list_unit = rows[0].witness_list_unit;
+		const { witness_list_unit, main_chain_index } = rows[0];
+		if (main_chain_index >= constants.v4UpgradeMci) {
+			const op_list = getOpList(main_chain_index);
+			assocCachedUnitWitnesses[unit] = op_list;
+			return handleWitnessList(op_list);
+		}
 		readWitnessList(conn, witness_list_unit ? witness_list_unit : unit, function(arrWitnesses){
 			assocCachedUnitWitnesses[unit] = arrWitnesses;
 			handleWitnessList(arrWitnesses);
 		});
 	});
+}
+
+function resetWitnessCache() {
+	const units = Object.keys(assocCachedUnitWitnesses);
+	for (let unit of units)
+		delete assocCachedUnitWitnesses[unit];
 }
 
 function determineIfWitnessAddressDefinitionsHaveReferences(conn, arrWitnesses, handleResult){
@@ -642,7 +681,9 @@ function determineIfWitnessAddressDefinitionsHaveReferences(conn, arrWitnesses, 
 	);
 }
 
-function determineWitnessedLevelAndBestParent(conn, arrParentUnits, arrWitnesses, handleWitnessedLevelAndBestParent){
+function determineWitnessedLevelAndBestParent(conn, arrParentUnits, arrWitnesses, version, handleWitnessedLevelAndBestParent){
+	if (!handleWitnessedLevelAndBestParent)
+		return new Promise(resolve => determineWitnessedLevelAndBestParent(conn, arrParentUnits, arrWitnesses, version, (witnessed_level, best_parent_unit) => resolve({ witnessed_level, best_parent_unit })));
 	var arrCollectedWitnesses = [];
 	var my_best_parent_unit;
 	var count = 0;
@@ -652,6 +693,7 @@ function determineWitnessedLevelAndBestParent(conn, arrParentUnits, arrWitnesses
 		if (count % 100 === 0)
 			return setImmediate(addWitnessesAndGoUp, start_unit);
 		readStaticUnitProps(conn, start_unit, function (props) {
+		//	console.log('props', props)
 			var best_parent_unit = props.best_parent_unit;
 			var level = props.level;
 			if (level === null)
@@ -670,11 +712,12 @@ function determineWitnessedLevelAndBestParent(conn, arrParentUnits, arrWitnesses
 		});
 	}
 
-	determineBestParent(conn, {parent_units: arrParentUnits, witness_list_unit: 'none'}, arrWitnesses, function(best_parent_unit){
+	determineBestParent(conn, {version, parent_units: arrParentUnits, witness_list_unit: 'none'}, arrWitnesses, function(best_parent_unit){
 		if (!best_parent_unit)
 			return handleWitnessedLevelAndBestParent();
 		//	throw Error("no best parent of "+arrParentUnits.join(', ')+", witnesses "+arrWitnesses.join(', '));
 		my_best_parent_unit = best_parent_unit;
+	//	console.log({best_parent_unit})
 		addWitnessesAndGoUp(best_parent_unit);
 	});
 }
@@ -1001,18 +1044,411 @@ function isGenesisBall(ball){
 }
 
 
+async function purgeTempData() {
+	console.log('purgeTempData');
+	let count = 0;
+	const [row] = await db.query("SELECT value FROM node_vars WHERE name='last_temp_data_purge_mci'");
+	if (!row)
+		throw Error(`no last_temp_data_purge_mci var`);
+	const last_temp_data_purge_mci = +row.value;
+	let last_mci = last_temp_data_purge_mci;
+	const max_ts = Math.floor(Date.now() / 1000) - constants.TEMP_DATA_PURGE_TIMEOUT;
+	const rows = await db.query(
+		`SELECT DISTINCT main_chain_index, units.unit, app
+		FROM units
+		JOIN balls USING(unit)
+		LEFT JOIN messages ON units.unit=messages.unit AND app='temp_data'
+		WHERE main_chain_index>? AND balls.creation_date<${db.getFromUnixTime('?')} 
+		ORDER BY main_chain_index`,
+		[last_temp_data_purge_mci, max_ts]
+	);
+	if (rows.length === 0)
+		return console.log(`purgeTempData no new units since the previous purge`);
+	for (let { unit, main_chain_index, app } of rows) {
+		last_mci = main_chain_index;
+		if (!app) // not a temp_data
+			continue;
+		const objJoint = await readJoint(db, unit);
+		let bPurged = false;
+		for (let m of objJoint.unit.messages) {
+			if (m.app === "temp_data") {
+				delete m.payload.data;
+				bPurged = true;
+			}
+		}
+		if (bPurged) {
+			kvstore.put('j\n' + unit, JSON.stringify(objJoint), () => { }); // overwriting
+			console.log(`purged temp data in`, unit);
+			count++;
+		}
+	}
+	await db.query(`UPDATE node_vars SET value=?, last_update=${db.getNow()} WHERE name='last_temp_data_purge_mci'`, [last_mci]);
+	console.log(`purgeTempData done, ${count} units purged, new last_temp_data_purge_mci=${last_mci}`);
+}
 
 
+function getSystemVar(subject, mci) {
+	for (let { vote_count_mci, value } of systemVars[subject])
+		if (mci > vote_count_mci)
+			return value;
+	throw Error(subject + ` not found for mci ` + mci);
+}
 
+function getOpList(mci) {
+	return getSystemVar('op_list', mci);
+}
+
+
+function getOversizeFee(objUnitOrSize, mci) {
+	let size;
+	if (typeof objUnitOrSize === "number")
+		size = objUnitOrSize; // must be already without temp data fee
+	else if (typeof objUnitOrSize === "object") {
+		if (!objUnitOrSize.headers_commission || !objUnitOrSize.payload_commission)
+			throw Error("no headers or payload commission in unit");
+		size = objUnitOrSize.headers_commission + objUnitOrSize.payload_commission - objectLength.getPaidTempDataFee(objUnitOrSize);
+	}
+	else
+		throw Error("unrecognized 1st arg in getOversizeFee");
+	const threshold_size = getSystemVar('threshold_size', mci);
+	if (size <= threshold_size)
+		return 0;
+	return Math.ceil(size * (Math.exp(size / threshold_size - 1) - 1));
+}
+
+
+function getMcUnitProps(mci) {
+	const objMcUnits = assocStableUnitsByMci[mci].filter(o => o.is_on_main_chain);
+	if (objMcUnits.length !== 1)
+		throw Error(`found ${objMcUnits.length} MC units on mci ${mci}`);
+	return objMcUnits[0];
+}
+
+function getFinalTps(objUnitProps) {
+	const unit = objUnitProps.unit;
+	const mci = objUnitProps.main_chain_index;
+	console.log('getFinalTps', unit, mci);
+	const objMcUnitProps = getMcUnitProps(mci);
+	const objLastBallUnitProps = assocStableUnits[objMcUnitProps.last_ball_unit];
+	if (!objLastBallUnitProps)
+		throw Error(`no last ball of MC unit ${objMcUnitProps.unit} found in cache`);
+	const elapsed = (objMcUnitProps.timestamp - objLastBallUnitProps.timestamp) || elapsedTimeWhenZero;
+	const last_ball_mci = objLastBallUnitProps.main_chain_index;
+	let count = 1 + (objMcUnitProps.count_aa_responses || 0);
+	let visited = {};
+	let arrProps = [objMcUnitProps];
+	visited[objMcUnitProps.unit] = 1 + (objMcUnitProps.count_aa_responses || 0);
+
+	while (true) {
+		let arrParentProps = [];
+		for (let props of arrProps) {
+			if (!props.best_parent_unit)
+				throw Error(`no best parent in props of ${props.unit}`);
+			const parent_units = props.unit === unit ? [props.best_parent_unit] : props.parent_units;
+			for (let parent_unit of parent_units) {
+				if (visited[parent_unit])
+					continue;
+				const parentProps = assocStableUnits[parent_unit];
+				if (!parentProps) // removed from cache, so its mci is definitely before last ball
+					continue;
+				if (parentProps.main_chain_index <= last_ball_mci)
+					continue;
+				if (parentProps.bAA) // counted elsewhere in count_aa_responses
+					continue;
+				count++;
+				if (parentProps.count_aa_responses)
+					count += parentProps.count_aa_responses;
+				visited[parent_unit] = 1 + (parentProps.count_aa_responses || 0);
+				arrParentProps.push(parentProps);
+			}
+		}
+		if (arrParentProps.length === 0)
+			break;
+		arrProps = arrParentProps;
+	}
+	let countAll = 0;
+	let vAll = {};
+	for (let i = mci; i > last_ball_mci; i--) {
+		for (let u of assocStableUnitsByMci[i]) {
+			if (u.bAA)
+				continue;
+			if (assocStableUnits[u.unit] !== u)
+				throw Error(`different objects for unit ${u.unit}`);
+			countAll += 1 + (u.count_aa_responses || 0);
+			vAll[u.unit] = 1 + (u.count_aa_responses || 0);
+		}
+	}
+	if (countAll < count)
+		throw Error(`getFinalTps ${unit} countAll=${countAll} < count=${count}, count consists of \n${JSON.stringify(visited)}\n, countAll consists of\n${JSON.stringify(vAll)}`);
+	if (objUnitProps.parent_units.length === 1 && countAll !== count)
+		throw Error(`getFinalTps ${unit} single parent countAll=${countAll} != count=${count}, count consists of \n${JSON.stringify(visited)}\n, countAll consists of\n${JSON.stringify(vAll)}`);
+	return count / elapsed;
+}
+
+function getFinalTpsFee(objUnitProps) {
+	const mci = objUnitProps.main_chain_index;
+	const base_tps_fee = getSystemVar('base_tps_fee', mci); // not at last_ball_mci
+	const tps_interval = getSystemVar('tps_interval', mci);
+	const tps = getFinalTps(objUnitProps);
+	console.log(`final tps at ${objUnitProps.unit} ${tps}`);
+	return Math.round(base_tps_fee * (Math.exp(tps / tps_interval) - 1));
+}
+
+async function updateTpsFees(conn, arrMcis) {
+	console.log('updateTpsFees', arrMcis);
+	for (let mci of arrMcis) {
+		if (mci < constants.v4UpgradeMci) // not last_ball_mci
+			continue;
+		for (let objUnitProps of assocStableUnitsByMci[mci]) {
+			if (objUnitProps.bAA)
+				continue;
+			const tps_fee = getFinalTpsFee(objUnitProps) * (1 + (objUnitProps.count_aa_responses || 0));
+			await conn.query("UPDATE units SET actual_tps_fee=? WHERE unit=?", [tps_fee, objUnitProps.unit]);
+			const total_tps_fees_delta = (objUnitProps.tps_fee || 0) - tps_fee; // can be negative
+			//	if (total_tps_fees_delta === 0)
+			//		continue;
+			/*	const recipients = (objUnitProps.earned_headers_commission_recipients && total_tps_fees_delta < 0)
+					? storage.getTpsFeeRecipients(objUnitProps.earned_headers_commission_recipients, objUnitProps.author_addresses)
+					: (objUnitProps.earned_headers_commission_recipients || { [objUnitProps.author_addresses[0]]: 100 });*/
+			const recipients = getTpsFeeRecipients(objUnitProps.earned_headers_commission_recipients, objUnitProps.author_addresses);
+			for (let address in recipients) {
+				const share = recipients[address];
+				const tps_fees_delta = Math.floor(total_tps_fees_delta * share / 100);
+				const [row] = await conn.query("SELECT tps_fees_balance FROM tps_fees_balances WHERE address=? AND mci<=? ORDER BY mci DESC LIMIT 1", [address, mci]);
+				const tps_fees_balance = row ? row.tps_fees_balance : 0;
+				await conn.query("REPLACE INTO tps_fees_balances (address, mci, tps_fees_balance) VALUES(?,?,?)", [address, mci, tps_fees_balance + tps_fees_delta]);
+			}
+		}
+	}
+}
+
+async function updateMissingTpsFees() {
+	const conn = await db.takeConnectionFromPool();
+	const props = await readLastStableMcUnitProps(conn);
+	if (props) {
+		const last_stable_mci = props.main_chain_index;
+		const [row] = await conn.query(`SELECT mci FROM tps_fees_balances ORDER BY ${conf.storage === 'sqlite' ? 'rowid' : 'creation_date'} DESC LIMIT 1`);
+		const last_tps_fees_mci = row ? row.mci : 0;
+		if (last_tps_fees_mci > last_stable_mci)
+			throw Error(`last tps fee mci ${last_tps_fees_mci} > last stable mci ${last_stable_mci}`);
+		if (last_tps_fees_mci < last_stable_mci) {
+			let arrMcis = [];
+			for (let mci = last_tps_fees_mci + 1; mci <= last_stable_mci; mci++)
+				arrMcis.push(mci);
+			await conn.query("BEGIN");
+			await updateTpsFees(conn, arrMcis);
+			await conn.query("COMMIT");
+		}
+	}
+	conn.release();
+}
+
+
+async function getLocalTps(conn, objUnitProps, count_units = 1) {
+	const unit = objUnitProps.unit;
+	const objLastBallUnitProps = await readUnitProps(conn, objUnitProps.last_ball_unit);
+	const elapsed = (objUnitProps.timestamp - objLastBallUnitProps.timestamp) || elapsedTimeWhenZero;
+	const last_ball_mci = objLastBallUnitProps.main_chain_index;
+	let count = count_units;
+	let visited = {};
+	let arrProps = [objUnitProps];
+
+	while (true) {
+		let arrParentProps = [];
+		for (let props of arrProps) {
+			if (!props.best_parent_unit)
+				throw Error(`no best parent in props of ${props.unit}`);
+			const parent_units = props.unit === unit ? [props.best_parent_unit] : props.parent_units;
+			for (let parent_unit of parent_units) {
+				if (visited[parent_unit])
+					continue;
+				const parentProps = await readUnitPropsWithParents(conn, parent_unit);
+				if (parentProps.main_chain_index <= last_ball_mci && parentProps.main_chain_index !== null)
+					continue;
+				if (parentProps.bAA) // counted elsewhere in max_aa_responses, and its trigger must be on or before last_ball_mci
+					continue;
+				count += getCountUnitsPayingTpsFee(parentProps);
+				visited[parent_unit] = true;
+				arrParentProps.push(parentProps);
+			}
+		}
+		if (arrParentProps.length === 0)
+			break;
+		arrProps = arrParentProps;
+	}
+	if (count === count_units && last_ball_mci > 0 && constants.COUNT_WITNESSES > 1)
+		throw Error(`getLocalTps count=${count}, elapsed=${elapsed}, ${JSON.stringify(objUnitProps)}`);
+	return count / elapsed;
+}
+
+async function getLocalTpsFee(conn, objUnitProps, count_units = 1) {
+	const objLastBallUnitProps = await readUnitProps(conn, objUnitProps.last_ball_unit);
+	const last_ball_mci = objLastBallUnitProps.main_chain_index;
+	const base_tps_fee = getSystemVar('base_tps_fee', last_ball_mci); // unit's mci is not known yet
+	const tps_interval = getSystemVar('tps_interval', last_ball_mci);
+	const tps_fee_multiplier = getSystemVar('tps_fee_multiplier', last_ball_mci);
+	const tps = await getLocalTps(conn, objUnitProps, count_units);
+	console.log(`local tps at ${objUnitProps.unit} ${tps}`);
+	const tps_fee_per_unit = Math.round(tps_fee_multiplier * base_tps_fee * (Math.exp(tps / tps_interval) - 1));
+	return count_units * tps_fee_per_unit;
+}
+
+function getCountUnitsPayingTpsFee(objUnitProps) {
+	let count_units = 1;
+	if (objUnitProps.count_primary_aa_triggers) {
+		const max_aa_responses = (typeof objUnitProps.max_aa_responses === "number") ? objUnitProps.max_aa_responses : constants.MAX_RESPONSES_PER_PRIMARY_TRIGGER;
+		count_units += objUnitProps.count_primary_aa_triggers * max_aa_responses;
+	}
+	return count_units;
+}
+
+// current tps based on units with mci greater than last_stable_mci + shift
+function getCurrentTps(shift = 0) {
+	if (last_stable_mci === null)
+		throw Error(`getCurrentTps: last_stable_mci not set yet`);
+	const since_mci = last_stable_mci + shift;
+	let count = 0;
+	let since_timestamp = 0;
+	for (let unit in assocUnstableUnits) {
+		const objUnitProps = assocUnstableUnits[unit];
+		if (objUnitProps.main_chain_index > since_mci || objUnitProps.main_chain_index === null)
+			count += getCountUnitsPayingTpsFee(objUnitProps);
+		else if (shift > 0 && objUnitProps.main_chain_index === since_mci) {
+			if (objUnitProps.timestamp > since_timestamp)
+				since_timestamp = objUnitProps.timestamp;
+		}
+	}
+	if (count === 0)
+		return 0;
+	//	throw Error(`getCurrentTps: no unstable units`);
+	if (shift === 0) {
+		const arrLastStableUnitProps = assocStableUnitsByMci[last_stable_mci];
+		if (!arrLastStableUnitProps)
+			throw Error(`getCurrentTps: no stable units at last stable mci ${last_stable_mci}`);
+		for (let { timestamp } of arrLastStableUnitProps) {
+			if (timestamp > since_timestamp)
+				since_timestamp = timestamp;
+		}
+	}
+	if (since_timestamp === 0)
+		throw Error(`since_timestamp = 0, shift=${shift}, last_stable_mci=${last_stable_mci}`)
+	const elapsed = (Math.round(Date.now() / 1000) - since_timestamp) || elapsedTimeWhenZero;
+	console.log(`getCurrentTps shift=${shift}, date ${new Date()}, diff ${Math.round(Date.now() / 1000) - since_timestamp} ${count}/${elapsed}`);
+	return count / elapsed;
+}
+
+function getCurrentTpsFee(shift = 0) {
+	const tps = getCurrentTps(shift);
+	console.log(`current tps with shift ${shift} ${tps}`);
+	const base_tps_fee = getSystemVar('base_tps_fee', last_stable_mci);
+	const tps_interval = getSystemVar('tps_interval', last_stable_mci);
+	return Math.round(base_tps_fee * (Math.exp(tps / tps_interval) - 1));
+}
+
+function getCurrentTpsFeeToPay(shift = 0) {
+	const tps_fee_multiplier = getSystemVar('tps_fee_multiplier', last_stable_mci);
+	return Math.round(tps_fee_multiplier * getCurrentTpsFee(shift));
+}
+
+
+async function getPaidTpsFee(conn, unit) {
+	if (unit === constants.GENESIS_UNIT)
+		return 0;
+	let objUnitProps = assocUnstableUnits[unit] || assocStableUnits[unit];
+	if (!objUnitProps) {
+		const objJoint = await readJoint(conn, unit);
+		const objUnit = objJoint.unit;
+		objUnitProps = {
+			unit,
+			author_addresses: objUnit.authors.map(a => a.address),
+			earned_headers_commission_recipients: objUnit.earned_headers_commission_recipients,
+			tps_fee: objUnit.tps_fee || 0,
+			last_ball_unit: objUnit.last_ball_unit,
+		};
+	}
+	if (!("tps_fee" in objUnitProps))
+		throw Error(`no tps_fee in props`);
+	const objLastBallUnitProps = await readUnitProps(conn, objUnitProps.last_ball_unit);
+	const last_ball_mci = objLastBallUnitProps.main_chain_index;
+	const recipients = getTpsFeeRecipients(objUnitProps.earned_headers_commission_recipients, objUnitProps.author_addresses);
+	let min_tps_fee = Infinity;
+	for (let address in recipients) {
+		const share = recipients[address] / 100;
+		const [row] = await conn.query("SELECT tps_fees_balance FROM tps_fees_balances WHERE address=? AND mci<=? ORDER BY mci DESC LIMIT 1", [address, last_ball_mci]);
+		const tps_fees_balance = row ? row.tps_fees_balance : 0;
+		const tps_fee = tps_fees_balance / share + objUnitProps.tps_fee;
+		if (tps_fee < min_tps_fee)
+			min_tps_fee = tps_fee;
+	}
+	return min_tps_fee;
+}
+
+
+let last_recent_tps_ts = 0;
+let last_recent_tps;
+function getRecentTps(bForceRecalc = false) {
+	const period = 60; // seconds
+	const ts = Math.round(Date.now() / 1000);
+	if (ts - last_recent_tps_ts < period && !bForceRecalc)
+		return last_recent_tps;
+	let count = 0;
+	for (let unit in assocUnstableUnits) {
+		const objUnitProps = assocUnstableUnits[unit];
+		if (ts - objUnitProps.timestamp <= period)
+			count += getCountUnitsPayingTpsFee(objUnitProps);
+	}
+	last_recent_tps = count / period;
+	last_recent_tps_ts = ts;
+	return last_recent_tps;
+}
+
+function getMinAcceptableTpsFeeMultiplier() {
+	const tps = getRecentTps();
+	if (tps > 15) // increase under large load
+		return 5;
+	return conf.min_acceptable_tps_fee_multiplier || 1.5;
+}
+
+
+function getTpsFeeRecipients(earned_headers_commission_recipients, author_addresses) {
+	let recipients = earned_headers_commission_recipients || { [author_addresses[0]]: 100 };
+	if (earned_headers_commission_recipients) {
+		let bHasExternalRecipients = false;
+		for (let address in recipients) {
+			if (!author_addresses.includes(address))
+				bHasExternalRecipients = true;
+		}
+		if (bHasExternalRecipients) // override, non-authors won't pay for our tps fee
+			recipients = { [author_addresses[0]]: 100 };
+	}
+	return recipients;
+}
+
+
+async function readParents(conn, unit) {
+	const rows = await conn.query("SELECT parent_unit FROM parenthoods WHERE child_unit=? ORDER BY parent_unit", [unit]);
+	return rows.map(r => r.parent_unit);
+}
+
+async function readUnitPropsWithParents(conn, unit) {
+	let props = await readUnitProps(conn, unit);
+	if (!props.parent_units)
+		props.parent_units = await readParents(conn, unit);
+	return props;
+}
 
 function readUnitProps(conn, unit, handleProps){
+	if (!unit)
+		throw Error(`readUnitProps bad unit ` + unit);
+	if (!handleProps)
+		return new Promise(resolve => readUnitProps(conn, unit, resolve));
 	if (assocStableUnits[unit])
 		return handleProps(assocStableUnits[unit]);
 	if (conf.bFaster && assocUnstableUnits[unit])
 		return handleProps(assocUnstableUnits[unit]);
 	var stack = new Error().stack;
 	conn.query(
-		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, timestamp, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit\n\
+		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, timestamp, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit, best_parent_unit, last_ball_unit, tps_fee, max_aa_responses, count_aa_responses, count_primary_aa_triggers, is_aa_response, version\n\
 			FROM units \n\
 			JOIN unit_authors USING(unit) \n\
 			WHERE unit=? \n\
@@ -1023,6 +1459,13 @@ function readUnitProps(conn, unit, handleProps){
 				throw Error("not 1 row, unit "+unit);
 			var props = rows[0];
 			props.author_addresses = props.author_addresses.split(',');
+			props.count_primary_aa_triggers = props.count_primary_aa_triggers || 0;
+			props.bAA = !!props.is_aa_response;
+			delete props.is_aa_response;
+			props.tps_fee = props.tps_fee || 0;
+			if (parseFloat(props.version) >= constants.fVersion4)
+				delete props.witness_list_unit;
+			delete props.version;
 			if (props.is_stable) {
 				if (props.sequence === 'good') // we don't cache final-bads as they can be voided later
 					assocStableUnits[unit] = props;
@@ -1034,7 +1477,7 @@ function readUnitProps(conn, unit, handleProps){
 				var props2 = _.cloneDeep(assocUnstableUnits[unit]);
 				delete props2.parent_units;
 				delete props2.earned_headers_commission_recipients;
-				delete props2.bAA;
+			//	delete props2.bAA;
 				if (!_.isEqual(props, props2)) {
 					debugger;
 					throw Error("different props of "+unit+", mem: "+JSON.stringify(props2)+", db: "+JSON.stringify(props)+", stack "+stack);
@@ -1083,6 +1526,12 @@ function readPropsOfUnits(conn, earlier_unit, arrLaterUnits, handleProps){
 					delete props.sequence;
 					delete props.witness_list_unit;
 					delete props.bAA;
+					delete props.tps_fee;
+					delete props.best_parent_unit;
+					delete props.last_ball_unit;
+					delete props.count_primary_aa_triggers;
+					delete props.max_aa_responses;
+					delete props.count_aa_responses;
 				});
 				if (!_.isEqual(objEarlierUnitProps, objEarlierUnitProps2cmp))
 					throwError("different earlier, db "+JSON.stringify(objEarlierUnitProps)+", mem "+JSON.stringify(objEarlierUnitProps2cmp));
@@ -1175,8 +1624,11 @@ function getMinRetrievableMci(){
 	return min_retrievable_mci;
 }
 
-function updateMinRetrievableMciAfterStabilizingMci(conn, batch, last_stable_mci, handleMinRetrievableMci){
+function updateMinRetrievableMciAfterStabilizingMci(conn, batch, _last_stable_mci, handleMinRetrievableMci) {
+	last_stable_mci = _last_stable_mci;
 	console.log("updateMinRetrievableMciAfterStabilizingMci "+last_stable_mci);
+	if (last_stable_mci === 0)
+		return handleMinRetrievableMci(min_retrievable_mci);
 	findLastBallMciOfMci(conn, last_stable_mci, function(last_ball_mci){
 		if (last_ball_mci <= min_retrievable_mci) // nothing new
 			return handleMinRetrievableMci(min_retrievable_mci);
@@ -1216,7 +1668,7 @@ function updateMinRetrievableMciAfterStabilizingMci(conn, batch, last_stable_mci
 								};
 								if (objUnit.witness_list_unit)
 									objStrippedUnit.witness_list_unit = objUnit.witness_list_unit;
-								else
+								else if (objUnit.witnesses)
 									objStrippedUnit.witnesses = objUnit.witnesses;
 								if (objUnit.version !== constants.versionWithoutTimestamp)
 									objStrippedUnit.timestamp = objUnit.timestamp;
@@ -1245,7 +1697,8 @@ function updateMinRetrievableMciAfterStabilizingMci(conn, batch, last_stable_mci
 
 function initializeMinRetrievableMci(conn, onDone){
 	var conn = conn || db;
-	readLastStableMcIndex(conn, last_stable_mci => {
+	readLastStableMcIndex(conn, _last_stable_mci => {
+		last_stable_mci = _last_stable_mci;
 		if (last_stable_mci === 0) {
 			min_retrievable_mci = 0;
 			return onDone ? onDone() : null;
@@ -1507,22 +1960,25 @@ function filterNewOrUnstableUnits(arrUnits, handleFilteredUnits){
 
 // for unit that is not saved to the db yet
 function determineBestParent(conn, objUnit, arrWitnesses, handleBestParent){
+	const fVersion = parseFloat(objUnit.version);
 	// choose best parent among compatible parents only
+	const compatibilityCondition = fVersion >= constants.fVersion4 ? '' : `AND (witness_list_unit=? OR (
+		SELECT COUNT(*)
+		FROM unit_witnesses AS parent_witnesses
+		WHERE parent_witnesses.unit IN(parent_units.unit, parent_units.witness_list_unit) AND address IN(?)
+	)>=?)`;
+	let params = [objUnit.parent_units];
+	if (fVersion < constants.fVersion4)
+		params.push(objUnit.witness_list_unit, arrWitnesses, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS);
 	conn.query(
-		"SELECT unit \n\
-		FROM units AS parent_units \n\
-		WHERE unit IN(?) \n\
-			AND (witness_list_unit=? OR ( \n\
-				SELECT COUNT(*) \n\
-				FROM unit_witnesses AS parent_witnesses \n\
-				WHERE parent_witnesses.unit IN(parent_units.unit, parent_units.witness_list_unit) AND address IN(?) \n\
-			)>=?) \n\
-		ORDER BY witnessed_level DESC, \n\
-			level-witnessed_level ASC, \n\
-			unit ASC \n\
-		LIMIT 1", 
-		[objUnit.parent_units, objUnit.witness_list_unit, 
-		arrWitnesses, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS], 
+		`SELECT unit
+		FROM units AS parent_units
+		WHERE unit IN(?) ${compatibilityCondition}
+		ORDER BY witnessed_level DESC,
+			level-witnessed_level ASC,
+			unit ASC
+		LIMIT 1`, 
+		params, 
 		function(rows){
 			if (rows.length !== 1)
 				return handleBestParent(null);
@@ -1534,6 +1990,8 @@ function determineBestParent(conn, objUnit, arrWitnesses, handleBestParent){
 
 function determineIfHasWitnessListMutationsAlongMc(conn, objUnit, last_ball_unit, arrWitnesses, handleResult){
 	if (!objUnit.parent_units) // genesis
+		return handleResult();
+	if (parseFloat(objUnit.version) >= constants.v4UpgradeMci) // no mutations any more
 		return handleResult();
 	buildListOfMcUnitsWithPotentiallyDifferentWitnesslists(conn, objUnit, last_ball_unit, arrWitnesses, function(bHasBestParent, arrMcUnits){
 		if (!bHasBestParent)
@@ -1681,7 +2139,8 @@ function shrinkCache(){
 	var arrUnits = _.union(arrPropsUnits, arrAuthorsUnits, arrWitnessesUnits, arrKnownUnits, arrStableUnits);
 	console.log('will shrink cache, total units: '+arrUnits.length);
 	readLastStableMcIndex(db, function(last_stable_mci){
-		for (var mci = last_stable_mci-constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING-10-1; true; mci--){
+		const top_mci = Math.min(min_retrievable_mci, last_stable_mci - constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING - 10);
+		for (var mci = top_mci-1; true; mci--){
 			if (assocStableUnitsByMci[mci])
 				delete assocStableUnitsByMci[mci];
 			else
@@ -1692,7 +2151,7 @@ function shrinkCache(){
 			// filter units that became stable more than 100 MC indexes ago
 			db.query(
 				"SELECT unit FROM units WHERE unit IN(?) AND main_chain_index<? AND main_chain_index!=0", 
-				[arrUnits.slice(offset, offset+CHUNK_SIZE), last_stable_mci-constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING-10], 
+				[arrUnits.slice(offset, offset+CHUNK_SIZE), top_mci], 
 				function(rows){
 					console.log('will remove '+rows.length+' units from cache');
 					rows.forEach(function(row){
@@ -1713,9 +2172,11 @@ setInterval(shrinkCache, 300*1000);
 
 
 function initUnstableUnits(conn, onDone){
+	if (!onDone)
+		return new Promise(resolve => initUnstableUnits(conn, resolve));
 	var conn = conn || db;
 	conn.query(
-		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, timestamp, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit, best_parent_unit \n\
+		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, timestamp, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit, best_parent_unit, last_ball_unit, tps_fee, max_aa_responses, count_aa_responses, count_primary_aa_triggers, is_aa_response \n\
 			FROM units \n\
 			JOIN unit_authors USING(unit) \n\
 			WHERE is_stable=0 \n\
@@ -1725,7 +2186,11 @@ function initUnstableUnits(conn, onDone){
 		//	assocUnstableUnits = {};
 			rows.forEach(function(row){
 				var best_parent_unit = row.best_parent_unit;
-				delete row.best_parent_unit;
+			//	delete row.best_parent_unit;
+				row.count_primary_aa_triggers = row.count_primary_aa_triggers || 0;
+				row.bAA = !!row.is_aa_response;
+				delete row.is_aa_response;
+				row.tps_fee = row.tps_fee || 0;
 				row.author_addresses = row.author_addresses.split(',');
 				assocUnstableUnits[row.unit] = row;
 				if (assocUnstableUnits[best_parent_unit]){
@@ -1743,17 +2208,25 @@ function initUnstableUnits(conn, onDone){
 }
 
 function initStableUnits(conn, onDone){
+	if (!onDone)
+		return new Promise(resolve => initStableUnits(conn, resolve));
 	var conn = conn || db;
-	readLastStableMcIndex(conn, function(last_stable_mci){
+	readLastStableMcIndex(conn, function (_last_stable_mci) {
+		last_stable_mci = _last_stable_mci;
+		const top_mci = Math.min(min_retrievable_mci, last_stable_mci - constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING - 10);
 		conn.query(
-			"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, timestamp, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit \n\
+			"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, timestamp, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit, best_parent_unit, last_ball_unit, tps_fee, max_aa_responses, count_aa_responses, count_primary_aa_triggers, is_aa_response \n\
 			FROM units \n\
 			JOIN unit_authors USING(unit) \n\
 			WHERE is_stable=1 AND main_chain_index>=? \n\
 			GROUP BY +unit \n\
-			ORDER BY +level", [last_stable_mci-constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING-10],
+			ORDER BY +level", [top_mci],
 			function(rows){
 				rows.forEach(function(row){
+					row.count_primary_aa_triggers = row.count_primary_aa_triggers || 0;
+					row.bAA = !!row.is_aa_response;
+					delete row.is_aa_response;
+					row.tps_fee = row.tps_fee || 0;
 					row.author_addresses = row.author_addresses.split(',');
 					assocStableUnits[row.unit] = row;
 					if (!assocStableUnitsByMci[row.main_chain_index])
@@ -1805,6 +2278,8 @@ function initParenthoodAndHeadersComissionShareForUnits(conn, assocUnits, onDone
 }
 
 function initHashTreeBalls(conn, onDone){
+	if (!onDone)
+		return new Promise(resolve => initHashTreeBalls(conn, resolve));
 	var conn = conn || db;
 	conn.query("SELECT * FROM hash_tree_balls", function(rows){
 		rows.forEach(function(row){
@@ -1817,8 +2292,10 @@ function initHashTreeBalls(conn, onDone){
 }
 
 function initUnstableMessages(conn, onDone){
+	if (!onDone)
+		return new Promise(resolve => initUnstableMessages(conn, resolve));
 	var conn = conn || db;
-	conn.query("SELECT unit FROM units CROSS JOIN messages USING(unit) WHERE is_stable=0 AND app IN('data_feed', 'definition')", function(rows){
+	conn.query("SELECT DISTINCT unit FROM units CROSS JOIN messages USING(unit) WHERE is_stable=0 AND app IN('data_feed', 'definition', 'system_vote', 'system_vote_count')", function(rows){
 		async.eachSeries(
 			rows,
 			function(row, cb){
@@ -1828,18 +2305,20 @@ function initUnstableMessages(conn, onDone){
 					},
 					ifFound: function(objJoint){
 						objJoint.unit.messages.forEach(function(message){
-							if (message.app === 'data_feed' || message.app === 'definition') {
+							if (['data_feed', 'definition', 'system_vote', 'system_vote_count'].includes(message.app)) {
 								if (!assocUnstableMessages[row.unit])
 									assocUnstableMessages[row.unit] = [];
 								assocUnstableMessages[row.unit].push(message);
 							}
 						});
+						/*
 						// set bAA flag
 						if (!assocUnstableUnits[row.unit])
 							throw Error("no unstable unit " + row.unit);
 						var authors = objJoint.unit.authors;
 						if (authors.length === 1 && !authors[0].authentifiers)
 							assocUnstableUnits[row.unit].bAA = true;
+						*/
 						cb();
 					}
 				});
@@ -1851,6 +2330,17 @@ function initUnstableMessages(conn, onDone){
 			}
 		);
 	});
+}
+
+async function initSystemVars(conn) {
+	const rows = await conn.query("SELECT subject, value, vote_count_mci, is_emergency FROM system_vars ORDER BY vote_count_mci DESC");
+	if (rows.length === 0)
+		throw Error("no system vars");
+	for (let { subject, value, vote_count_mci, is_emergency } of rows)
+		systemVars[subject].push({ vote_count_mci, value: subject === 'op_list' ? JSON.parse(value) : value, is_emergency });
+	for (let subject in systemVars)
+		if (systemVars[subject].length === 0)
+			throw Error(`no ${subject} system vars`);
 }
 
 /*
@@ -1878,6 +2368,7 @@ function resetUnstableUnits(conn, onDone){
 }
 
 function resetStableUnits(conn, onDone){
+	console.log('resetStableUnits');
 	Object.keys(assocStableUnits).forEach(function(unit){
 		delete assocStableUnits[unit];
 	});
@@ -1888,6 +2379,8 @@ function resetStableUnits(conn, onDone){
 }
 
 function resetMemory(conn, onDone){
+	if (!onDone)
+		return new Promise(resolve => resetMemory(conn, resolve));
 	resetUnstableUnits(conn, function(){
 		resetStableUnits(conn, function(){
 			min_retrievable_mci = null;
@@ -1896,20 +2389,24 @@ function resetMemory(conn, onDone){
 	});
 }
 
-function initCaches(){
+async function initCaches() {
 	console.log('initCaches');
-	db.executeInTransaction(function(conn, onDone){
-		mutex.lock(['write'], function(unlock) {
-			initUnstableUnits(conn, initStableUnits.bind(this, conn, initUnstableMessages.bind(this, conn, initHashTreeBalls.bind(this, conn, function(){
-				console.log('initCaches done');
-				if (!conf.bLight && constants.bTestnet)
-					archiveJointAndDescendantsIfExists('K6OAWrAQkKkkTgfvBb/4GIeN99+6WSHtfVUd30sen1M=');
-				unlock();
-				onDone();
-				eventBus.emit('caches_ready');
-			}))));
-		});
-	});
+	const unlock = await mutex.lock(["write"]);
+	const conn = await db.takeConnectionFromPool();
+	await conn.query("BEGIN");
+	await initSystemVars(conn);
+	await initUnstableUnits(conn);
+	await initStableUnits(conn);
+	await initUnstableMessages(conn);
+	await initHashTreeBalls(conn);
+	console.log('initCaches done');
+	if (!conf.bLight && constants.bTestnet)
+		archiveJointAndDescendantsIfExists('K6OAWrAQkKkkTgfvBb/4GIeN99+6WSHtfVUd30sen1M=');
+	await conn.query("COMMIT");
+	conn.release();
+	unlock();
+	setInterval(purgeTempData, 3600 * 1000);
+	eventBus.emit('caches_ready');
 }
 
 
@@ -1984,6 +2481,22 @@ exports.assocStableUnitsByMci = assocStableUnitsByMci;
 exports.assocBestChildren = assocBestChildren;
 exports.assocHashTreeUnitsByBall = assocHashTreeUnitsByBall;
 exports.assocUnstableMessages = assocUnstableMessages;
+exports.systemVars = systemVars;
+
+exports.getSystemVar = getSystemVar;
+exports.getOpList = getOpList;
+exports.getOversizeFee = getOversizeFee;
+exports.getFinalTpsFee = getFinalTpsFee;
+exports.updateTpsFees = updateTpsFees;
+exports.updateMissingTpsFees = updateMissingTpsFees;
+exports.getLocalTpsFee = getLocalTpsFee;
+exports.getCountUnitsPayingTpsFee = getCountUnitsPayingTpsFee;
+exports.getCurrentTpsFee = getCurrentTpsFee;
+exports.getCurrentTpsFeeToPay = getCurrentTpsFeeToPay;
+exports.getPaidTpsFee = getPaidTpsFee;
+exports.getMinAcceptableTpsFeeMultiplier = getMinAcceptableTpsFeeMultiplier;
+exports.getTpsFeeRecipients = getTpsFeeRecipients;
+exports.resetWitnessCache = resetWitnessCache;
 exports.initCaches = initCaches;
 exports.resetMemory = resetMemory;
 exports.initializeMinRetrievableMci = initializeMinRetrievableMci;

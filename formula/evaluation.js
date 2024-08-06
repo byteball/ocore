@@ -1506,6 +1506,9 @@ exports.evaluate = function (opts, callback) {
 								if (!bAA)
 									return cb(false);
 							}
+							for (let m of objUnit.messages)
+								if (m.app === "temp_data")
+									delete m.payload.data; // delete temp data if it is not purged yet
 							cb(new wrappedObject(objUnit));
 						}
 					});

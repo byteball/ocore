@@ -6,6 +6,7 @@ var constants = require("./constants.js");
 var paid_witnessing = require("./paid_witnessing.js");
 var headers_commission = require("./headers_commission.js");
 var mc_outputs = require("./mc_outputs.js");
+const storage = require("./storage.js");
 
 var TRANSFER_INPUT_SIZE = 0 // type: "transfer" omitted
 	+ 44 // unit
@@ -29,7 +30,12 @@ var ADDRESS_KEY_SIZE = "address".length;
 // bMultiAuthored includes all addresses, not just those that pay
 // arrAddresses is paying addresses
 // spend_unconfirmed is one of: none, all, own
-function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci, amount, bMultiAuthored, spend_unconfirmed, onDone){
+function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci, amount, size, paid_temp_data_fee, bMultiAuthored, spend_unconfirmed, onDone) {
+	function getOversizeFee(s) {
+		return (last_ball_mci >= constants.v4UpgradeMci && !objAsset) ? storage.getOversizeFee(s - paid_temp_data_fee, last_ball_mci) : 0;
+	}
+	if (!objAsset && !size)
+		throw Error(`no size for base pickDivisibleCoinsForAmount`);
 	var asset = objAsset ? objAsset.asset : null;
 	console.log("pick coins in "+asset+" for amount "+amount+" with spend_unconfirmed "+spend_unconfirmed);
 	var is_base = objAsset ? 0 : 1;
@@ -38,6 +44,7 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 	var arrInputsWithProofs = [];
 	var total_amount = 0;
 	var required_amount = amount;
+	let net_required_amount = required_amount - getOversizeFee(size);
 	
 	if (!(typeof last_ball_mci === 'number' && last_ball_mci >= 0))
 		throw Error("invalid last_ball_mci: "+last_ball_mci);
@@ -95,7 +102,7 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 			WHERE address IN(?) AND asset"+(asset ? "="+conn.escape(asset) : " IS NULL")+" AND is_spent=0 AND amount "+more+" ? \n\
 				AND sequence='good' "+confirmation_condition+" \n\
 			ORDER BY is_stable DESC, amount LIMIT 1",
-			[arrSpendableAddresses, amount+transfer_input_size],
+			[arrSpendableAddresses, net_required_amount + transfer_input_size + getOversizeFee(size + transfer_input_size)],
 			function(rows){
 				if (rows.length === 1){
 					var input = rows[0];
@@ -125,7 +132,9 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 					function(row, cb){
 						var input = row;
 						objectHash.cleanNulls(input);
-						required_amount += transfer_input_size;
+						net_required_amount += transfer_input_size;
+						size += transfer_input_size;
+						required_amount = net_required_amount + getOversizeFee(size);
 						addInput(input);
 						// if we allow equality, we might get 0 amount for change which is invalid
 						var bFound = is_base ? (total_amount > required_amount) : (total_amount >= required_amount);
@@ -159,7 +168,7 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 		async.eachSeries(
 			arrAddresses,
 			function(address, cb){
-				var target_amount = required_amount + full_input_size - total_amount;
+				var target_amount = net_required_amount - total_amount + full_input_size + getOversizeFee(size + full_input_size);
 				mc_outputs.findMcIndexIntervalToTargetAmount(conn, type, address, max_mci, target_amount, {
 					ifNothing: cb,
 					ifFound: function(from_mc_index, to_mc_index, earnings, bSufficient){
@@ -176,7 +185,9 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 							input.address = address;
 						arrInputsWithProofs.push({input: input});
 						total_amount += earnings;
-						required_amount += full_input_size;
+						net_required_amount += full_input_size;
+						size += full_input_size;
+						required_amount = net_required_amount + getOversizeFee(size);
 						(total_amount > required_amount)
 							? cb("found") // break eachSeries
 							: cb(); // try next address

@@ -554,19 +554,26 @@ function updateAndEmitBadSequenceUnits(arrBadSequenceUnits, retryDelay){
 }
 
 
-function prepareParentsAndLastBallAndWitnessListUnit(arrWitnesses, callbacks){
+function prepareParentsAndLastBallAndWitnessListUnit(arrWitnesses, arrFromAddresses, arrOutputAddresses, max_aa_responses, callbacks){
 	if (!ValidationUtils.isArrayOfLength(arrWitnesses, constants.COUNT_WITNESSES))
 		return callbacks.ifError("wrong number of witnesses");
+	if (!arrWitnesses.every(ValidationUtils.isValidAddress))
+		return callbacks.ifError("bad witness addresses");
+	if (!ValidationUtils.isNonnegativeInteger(max_aa_responses))
+		return callbacks.ifError("bad max_aa_responses");
+	if (arrOutputAddresses && (!ValidationUtils.isNonemptyArray(arrOutputAddresses) || !arrOutputAddresses.every(ValidationUtils.isValidAddress)))
+		return callbacks.ifError("bad output addresses");
 	storage.determineIfWitnessAddressDefinitionsHaveReferences(db, arrWitnesses, function(bWithReferences){
 		if (bWithReferences)
 			return callbacks.ifError("some witnesses have references in their addresses");
-		db.takeConnectionFromPool(function(conn){
+		db.takeConnectionFromPool(async function(conn){
 			var timestamp = Math.round(Date.now() / 1000);
 			parentComposer.pickParentUnitsAndLastBall(
 				conn,
 				arrWitnesses,
 				timestamp,
-				function(err, arrParentUnits, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
+				arrFromAddresses,
+				async function(err, arrParentUnits, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci, tps_fee){
 					conn.release();
 					if (err)
 						return callbacks.ifError("unable to find parents: "+err);
@@ -577,6 +584,22 @@ function prepareParentsAndLastBallAndWitnessListUnit(arrWitnesses, callbacks){
 						last_stable_mc_ball_unit: last_stable_mc_ball_unit,
 						last_stable_mc_ball_mci: last_stable_mc_ball_mci
 					};
+					if (last_stable_mc_ball_mci >= constants.v4UpgradeMci) {
+						if (!ValidationUtils.isNonemptyArray(arrFromAddresses))
+							return callbacks.ifError("no from_addresses");
+						if (!arrFromAddresses.every(ValidationUtils.isValidAddress))
+							return callbacks.ifError("bad from addresses");
+						if (!arrOutputAddresses)
+							return callbacks.ifError("no output addresses");
+						const rows = await db.query("SELECT 1 FROM aa_addresses WHERE address IN (?)", [arrOutputAddresses]);
+						const count_primary_aa_triggers = rows.length;
+						const tps_fee = await parentComposer.getTpsFee(db, arrParentUnits, last_stable_mc_ball_unit, timestamp, 1 + count_primary_aa_triggers * max_aa_responses);
+						// in this implementation, tps fees are paid by the 1st address only
+						const [row] = await db.query("SELECT tps_fees_balance FROM tps_fees_balances WHERE address=? AND mci<=? ORDER BY mci DESC LIMIT 1", [arrFromAddresses[0], last_stable_mc_ball_mci]);
+						const tps_fees_balance = row ? row.tps_fees_balance : 0;
+						objResponse.tps_fee = Math.max(tps_fee - tps_fees_balance, 0);
+						return callbacks.ifOk(objResponse);
+					}
 					storage.findWitnessListUnit(db, arrWitnesses, last_stable_mc_ball_mci, function(witness_list_unit){
 						if (witness_list_unit)
 							objResponse.witness_list_unit = witness_list_unit;

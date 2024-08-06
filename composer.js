@@ -70,9 +70,9 @@ function composeContentJoint(from_address, app, payload, signer, callbacks){
 	var objMessage = {
 		app: app,
 		payload_location: "inline",
-		payload_hash: objectHash.getBase64Hash(payload, storage.getMinRetrievableMci() >= constants.timestampUpgradeMci),
 		payload: payload
 	};
+	objMessage.payload_hash = objectHash.getBase64Hash(getPayloadForHash(objMessage), storage.getMinRetrievableMci() >= constants.timestampUpgradeMci);
 	composeJoint({
 		paying_addresses: [from_address], 
 		outputs: [{address: from_address, amount: 0}], 
@@ -130,13 +130,17 @@ function composeAssetAttestorsJoint(from_address, asset, arrNewAttestors, signer
 */
 function composeJoint(params){
 	
-	var arrWitnesses = params.witnesses;
-	if (!arrWitnesses){
-		myWitnesses.readMyWitnesses(function(_arrWitnesses){
-			params.witnesses = _arrWitnesses;
-			composeJoint(params);
-		});
-		return;
+	if (storage.getMinRetrievableMci() >= constants.v4UpgradeMci)
+		var arrWitnesses = null; // storage.getOpList(Infinity);
+	else {
+		var arrWitnesses = params.witnesses;
+		if (!arrWitnesses) {
+			myWitnesses.readMyWitnesses(function (_arrWitnesses) {
+				params.witnesses = _arrWitnesses;
+				composeJoint(params);
+			});
+			return;
+		}
 	}
 	
 	/*if (conf.bLight && !params.lightProps){
@@ -189,6 +193,7 @@ function composeJoint(params){
 	var assocPrivatePayloads = params.private_payloads || {}; // those that correspond to a subset of params.messages
 	var fnRetrieveMessages = params.retrieveMessages;
 //	var lightProps = params.lightProps;
+	const max_aa_responses = (typeof params.max_aa_responses === "number") ? params.max_aa_responses : constants.MAX_RESPONSES_PER_PRIMARY_TRIGGER;
 	var signer = params.signer;
 	var callbacks = params.callbacks;
 	
@@ -199,6 +204,7 @@ function composeJoint(params){
 	//profiler.start();
 	var arrChangeOutputs = arrOutputs.filter(function(output) { return (output.amount === 0); });
 	var arrExternalOutputs = arrOutputs.filter(function(output) { return (output.amount > 0); });
+	const arrOutputAddresses = arrOutputs.map(o => o.address);
 	if (arrChangeOutputs.length > 1)
 		throw Error("more than one change output");
 	if (arrChangeOutputs.length === 0)
@@ -242,9 +248,24 @@ function composeJoint(params){
 		});
 	else if (bMultiAuthored) // by default, the entire earned hc goes to the change address
 		objUnit.earned_headers_commission_recipients = [{address: arrChangeOutputs[0].address, earned_headers_commission_share: 100}];
+	if (params.burn_fee)
+		objUnit.burn_fee = params.burn_fee;
+	if (bGenesis && params.witnesses /*&& constants.v4UpgradeMci === 0*/) {
+		arrMessages.push({
+			app: 'system_vote',
+			payload: {
+				subject: 'op_list',
+				value: params.witnesses.sort()
+			}
+		}, {
+			app: 'system_vote_count',
+			payload: 'op_list'
+		});
+	}
 	
 	var total_input;
 	var last_ball_mci;
+	let vote_count_fee = 0;
 	var unlock_callback;
 	var conn;
 	var lightProps;
@@ -273,7 +294,7 @@ function composeJoint(params){
 			var network = require('./network.js');
 			network.requestFromLightVendor(
 				'light/get_parents_and_last_ball_and_witness_list_unit', 
-				{witnesses: arrWitnesses}, 
+				{witnesses: arrWitnesses, from_addresses: arrFromAddresses, output_addresses: arrOutputAddresses, max_aa_responses}, 
 				function(ws, request, response){
 					if (response.error)
 						return handleError(response.error); // cb is not called
@@ -294,7 +315,7 @@ function composeJoint(params){
 			if (bGenesis) {
 				last_ball_mci = 0;
 				if (constants.timestampUpgradeMci === 0)
-					objUnit.timestamp = 1561049490; // Jun 20 2019 16:51:30 UTC
+					objUnit.timestamp = (params.witnesses && constants.v4UpgradeMci === 0) ? Math.round(Date.now() / 1000) : 1561049490; // Jun 20 2019 16:51:30 UTC
 				return cb();	
 			}
 			
@@ -325,6 +346,8 @@ function composeJoint(params){
 				objUnit.last_ball_unit = lightProps.last_stable_mc_ball_unit;
 				last_ball_mci = lightProps.last_stable_mc_ball_mci;
 				objUnit.timestamp = lightProps.timestamp || Math.round(Date.now() / 1000);
+				if (last_ball_mci >= constants.v4UpgradeMci)
+					objUnit.tps_fee = lightProps.tps_fee;
 				return checkForUnstablePredecessors();
 			}
 			objUnit.timestamp = Math.round(Date.now() / 1000);
@@ -332,13 +355,32 @@ function composeJoint(params){
 				conn, 
 				arrWitnesses, 
 				objUnit.timestamp,
-				function(err, arrParentUnits, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
+				arrFromAddresses,
+				async function(err, arrParentUnits, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci) {
 					if (err)
 						return cb("unable to find parents: "+err);
+					console.log(`pickParentUnitsAndLastBall returned`, {last_stable_mc_ball_mci})
 					objUnit.parent_units = arrParentUnits;
 					objUnit.last_ball = last_stable_mc_ball;
 					objUnit.last_ball_unit = last_stable_mc_ball_unit;
 					last_ball_mci = last_stable_mc_ball_mci;
+					if (last_ball_mci >= constants.v4UpgradeMci) {
+						const rows = await conn.query("SELECT 1 FROM aa_addresses WHERE address IN (?)", [arrOutputAddresses]);
+						const count_primary_aa_triggers = rows.length;
+						const tps_fee = await parentComposer.getTpsFee(conn, arrParentUnits, last_stable_mc_ball_unit, objUnit.timestamp, 1 + count_primary_aa_triggers * max_aa_responses);
+						const recipients = storage.getTpsFeeRecipients(objUnit.earned_headers_commission_recipients, arrFromAddresses);
+						let paid_tps_fee = 0;
+						for (let address in recipients) {
+							const share = recipients[address] / 100;
+							const [row] = await conn.query("SELECT tps_fees_balance FROM tps_fees_balances WHERE address=? AND mci<=? ORDER BY mci DESC LIMIT 1", [address, last_ball_mci]);
+							const tps_fees_balance = row ? row.tps_fees_balance : 0;
+							console.log('composer', {address, tps_fees_balance, tps_fee})
+							const addr_tps_fee = Math.ceil(tps_fee - tps_fees_balance / share);
+							if (addr_tps_fee > paid_tps_fee)
+								paid_tps_fee = addr_tps_fee;
+						}
+						objUnit.tps_fee = paid_tps_fee;
+					}
 					checkForUnstablePredecessors();
 				}
 			);
@@ -349,6 +391,10 @@ function composeJoint(params){
 				objUnit.version = constants.versionWithoutTimestamp;
 			else if (last_ball_mci < constants.includeKeySizesUpgradeMci)
 				objUnit.version = constants.versionWithoutKeySizes;
+			else if (last_ball_mci < constants.v4UpgradeMci)
+				objUnit.version = constants.version3;
+			if (last_ball_mci >= constants.v4UpgradeMci && typeof objUnit.tps_fee !== "number" && !bGenesis)
+				throw Error(`wrong tps_fee field in the composed unit: ${objUnit.tps_fee}`);
 			// calc or fix payload_hash of non-payment messages
 			objUnit.messages.forEach(function (message) {
 				if (message.app === 'payment')
@@ -356,7 +402,7 @@ function composeJoint(params){
 				if (!message.payload_location && message.payload)
 					message.payload_location = 'inline';
 				if (message.payload_location === 'inline')
-					message.payload_hash = objectHash.getBase64Hash(message.payload, bVersion2);
+					message.payload_hash = objectHash.getBase64Hash(getPayloadForHash(message), bVersion2);
 			});
 			cb();
 		},
@@ -369,6 +415,8 @@ function composeJoint(params){
 			});
 		},
 		function(cb){ // witnesses
+			if (last_ball_mci >= constants.v4UpgradeMci)
+				return cb();
 			if (bGenesis){
 				objUnit.witnesses = arrWitnesses;
 				return cb();
@@ -412,11 +460,12 @@ function composeJoint(params){
 		function(cb){ // input coins
 			objUnit.headers_commission = objectLength.getHeadersSize(objUnit);
 			var naked_payload_commission = objectLength.getTotalPayloadSize(objUnit); // without input coins
+			vote_count_fee = objUnit.messages.find(m => m.app === 'system_vote_count') ? constants.SYSTEM_VOTE_COUNT_FEE : 0;
 
 			if (bGenesis){
 				var issueInput = {type: "issue", serial_number: 1, amount: constants.TOTAL_WHITEBYTES};
 				if (objUnit.authors.length > 1) {
-					issueInput.address = arrWitnesses[0];
+					issueInput.address = constants.v4UpgradeMci === 0 ? params.witnesses[0] : arrWitnesses[0];
 				}
 				objPaymentMessage.payload.inputs = [issueInput];
 				objUnit.payload_commission = objectLength.getTotalPayloadSize(objUnit);
@@ -429,13 +478,19 @@ function composeJoint(params){
 				total_input = params.input_amount;
 				objPaymentMessage.payload.inputs = params.inputs;
 				objUnit.payload_commission = objectLength.getTotalPayloadSize(objUnit);
+				const oversize_fee = (last_ball_mci >= constants.v4UpgradeMci) ? storage.getOversizeFee(objUnit, last_ball_mci) : 0;
+				if (oversize_fee)
+					objUnit.oversize_fee = oversize_fee;
 				return cb();
 			}
 			
 			// all inputs must appear before last_ball
-			var target_amount = params.send_all ? Infinity : (total_amount + objUnit.headers_commission + naked_payload_commission);
+			const naked_size = objUnit.headers_commission + naked_payload_commission;
+			const paid_temp_data_fee = objectLength.getPaidTempDataFee(objUnit);
+			const oversize_fee = (last_ball_mci >= constants.v4UpgradeMci) ? storage.getOversizeFee(naked_size - paid_temp_data_fee, last_ball_mci) : 0;
+			var target_amount = params.send_all ? Infinity : (total_amount + naked_size + oversize_fee + (objUnit.tps_fee||0) + (objUnit.burn_fee||0) + vote_count_fee);
 			inputs.pickDivisibleCoinsForAmount(
-				conn, null, arrPayingAddresses, last_ball_mci, target_amount, bMultiAuthored, params.spend_unconfirmed || conf.spend_unconfirmed || 'own',
+				conn, null, arrPayingAddresses, last_ball_mci, target_amount, naked_size, paid_temp_data_fee, bMultiAuthored, params.spend_unconfirmed || conf.spend_unconfirmed || 'own',
 				function(arrInputsWithProofs, _total_input){
 					if (!arrInputsWithProofs)
 						return cb({ 
@@ -446,6 +501,9 @@ function composeJoint(params){
 					objPaymentMessage.payload.inputs = arrInputsWithProofs.map(function(objInputWithProof){ return objInputWithProof.input; });
 					objUnit.payload_commission = objectLength.getTotalPayloadSize(objUnit);
 					console.log("inputs increased payload by", objUnit.payload_commission - naked_payload_commission);
+					const oversize_fee = (last_ball_mci >= constants.v4UpgradeMci) ? storage.getOversizeFee(objUnit, last_ball_mci) : 0;
+					if (oversize_fee)
+						objUnit.oversize_fee = oversize_fee;
 					cb();
 				}
 			);
@@ -459,7 +517,7 @@ function composeJoint(params){
 				return handleError(err);
 			
 			// change, payload hash, signature, and unit hash
-			var change = total_input - total_amount - objUnit.headers_commission - objUnit.payload_commission;
+			var change = total_input - total_amount - objUnit.headers_commission - objUnit.payload_commission - (objUnit.oversize_fee||0) - (objUnit.tps_fee||0) - (objUnit.burn_fee||0) - vote_count_fee;
 			if (change <= 0){
 				if (!params.send_all)
 					throw Error("change="+change+", params="+JSON.stringify(params));
@@ -520,6 +578,14 @@ function composeJoint(params){
 			);
 		});
 	});
+}
+
+function getPayloadForHash(objMessage) {
+	if (objMessage.app !== "temp_data")
+		return objMessage.payload;
+	let p = _.clone(objMessage.payload);
+	delete p.data;
+	return p;
 }
 
 
@@ -613,12 +679,17 @@ function getSavingCallbacks(callbacks){
 	return {
 		ifError: callbacks.ifError,
 		ifNotEnoughFunds: callbacks.ifNotEnoughFunds,
-		ifOk: function(objJoint, assocPrivatePayloads, composer_unlock){
+		ifOk: async function(objJoint, assocPrivatePayloads, composer_unlock){
 			var objUnit = objJoint.unit;
 			var unit = objUnit.unit;
+			const validate_and_save_unlock = await mutex.lock('handleJoint');
+			const combined_unlock = () => {
+				validate_and_save_unlock();
+				composer_unlock();
+			};
 			validation.validate(objJoint, {
 				ifUnitError: function(err){
-					composer_unlock();
+					combined_unlock();
 					callbacks.ifError("Validation error: "+err);
 				//	throw Error("unexpected validation error: "+err);
 				},
@@ -638,7 +709,7 @@ function getSavingCallbacks(callbacks){
 					console.log("base asset OK "+objValidationState.sequence);
 					if (objValidationState.sequence !== 'good'){
 						validation_unlock();
-						composer_unlock();
+						combined_unlock();
 						return callbacks.ifError("Bad sequence "+objValidationState.sequence);
 					}
 					postJointToLightVendorIfNecessaryAndSave(
@@ -649,7 +720,7 @@ function getSavingCallbacks(callbacks){
 							if (err.match(/signature/))
 								eventBus.emit('nonfatal_error', "failed to post unit "+unit+": "+err+"; "+JSON.stringify(objUnit), new Error());
 							validation_unlock();
-							composer_unlock();
+							combined_unlock();
 							callbacks.ifError(err);
 						},
 						function save(){
@@ -663,7 +734,7 @@ function getSavingCallbacks(callbacks){
 								},
 								function onDone(err){
 									validation_unlock();
-									composer_unlock();
+									combined_unlock();
 									if (err)
 										return callbacks.ifError(err);
 									console.log("composer saved unit "+unit);
@@ -710,6 +781,8 @@ function generateBlinding(){
 
 function composeAuthorsAndMciForAddresses(conn, arrFromAddresses, signer, cb) {
 	myWitnesses.readMyWitnesses(function(arrWitnesses){
+		if (storage.getMinRetrievableMci() >= constants.v4UpgradeMci)
+			arrWitnesses = storage.getOpList(Infinity);
 		if (conf.bLight)
 			require('./network.js').requestFromLightVendor(
 				'light/get_parents_and_last_ball_and_witness_list_unit', 
@@ -726,7 +799,8 @@ function composeAuthorsAndMciForAddresses(conn, arrFromAddresses, signer, cb) {
 			parentComposer.pickParentUnitsAndLastBall(
 				conn,
 				arrWitnesses,
-				Math.round(Date.now()/1000),
+				Math.round(Date.now() / 1000),
+				arrFromAddresses,
 				function(err, arrParentUnits, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
 					if (err)
 						return cb("unable to find parents: "+err);

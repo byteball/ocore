@@ -165,7 +165,7 @@ function pickDeepParentUnits(conn, arrWitnesses, timestamp, max_wl, onDone){
 }
 
 function determineWitnessedLevels(conn, arrWitnesses, arrParentUnits, handleResult){
-	storage.determineWitnessedLevelAndBestParent(conn, arrParentUnits, arrWitnesses, function(witnessed_level, best_parent_unit){
+	storage.determineWitnessedLevelAndBestParent(conn, arrParentUnits, arrWitnesses, constants.version3, function(witnessed_level, best_parent_unit){
 		conn.query(
 			"SELECT unit, witnessed_level FROM units WHERE unit IN(?) ORDER BY witnessed_level DESC LIMIT 1",
 			[arrParentUnits],
@@ -290,7 +290,7 @@ function trimParentList(conn, arrParentUnits, last_stable_mci, arrWitnesses, han
 	);
 }
 
-function pickParentUnitsAndLastBall(conn, arrWitnesses, timestamp, onDone){
+function pickParentUnitsAndLastBallBeforeOpVote(conn, arrWitnesses, timestamp, onDone){
 
 	var depth = 0;
 	pickParentUnits(conn, arrWitnesses, timestamp, function(err, arrParentUnits, max_parent_wl){
@@ -333,7 +333,7 @@ function findLastBallAndAdjust(conn, arrWitnesses, arrParentUnits, onDone){
 			function(last_stable_ball, last_stable_unit, last_stable_mci, arrAdjustedParentUnits){
 				trimParentList(conn, arrAdjustedParentUnits, last_stable_mci, arrWitnesses, function(arrTrimmedParentUnits){
 					storage.findWitnessListUnit(conn, arrWitnesses, last_stable_mci, function(witness_list_unit){
-						var objFakeUnit = {parent_units: arrTrimmedParentUnits};
+						var objFakeUnit = {parent_units: arrTrimmedParentUnits, version: constants.version3};
 						if (witness_list_unit)
 							objFakeUnit.witness_list_unit = witness_list_unit;
 						console.log('determineIfHasWitnessListMutationsAlongMc last_stable_unit '+last_stable_unit+', parents '+arrParentUnits.join(', '));
@@ -350,6 +350,254 @@ function findLastBallAndAdjust(conn, arrWitnesses, arrParentUnits, onDone){
 
 }
 
+function pickParentUnitsAndLastBall(conn, arrWitnesses, timestamp, arrFromAddresses, onDone) {
+	conn.query(
+		`SELECT units.unit, units.version, units.alt, units.witnessed_level, units.level, units.is_aa_response, lb_units.main_chain_index AS last_ball_mci
+		FROM units ${conf.storage === 'sqlite' ? "INDEXED BY byFree" : ""}
+		LEFT JOIN archived_joints USING(unit)
+		LEFT JOIN units AS lb_units ON units.last_ball_unit=lb_units.unit
+		WHERE +units.sequence='good' AND units.is_free=1 AND archived_joints.unit IS NULL AND units.timestamp<=?
+		ORDER BY last_ball_mci DESC
+		LIMIT ?`,
+		// exclude potential parents that were archived and then received again
+		[timestamp, constants.MAX_PARENTS_PER_UNIT],
+		async function (prows) {
+			if (prows.some(row => constants.supported_versions.indexOf(row.version) == -1 || row.alt !== constants.alt))
+				throw Error('wrong network');
+			if (prows.length === 0)
+				return onDone(`no usable free units`);
+			const max_parent_last_ball_mci = Math.max.apply(null, prows.map(row => row.last_ball_mci));
+			if (max_parent_last_ball_mci < constants.v4UpgradeMci)
+				return pickParentUnitsAndLastBallBeforeOpVote(conn, arrWitnesses, timestamp, onDone);
+			prows = await filterParentsByTpsFeeAndReplace(conn, prows, arrFromAddresses);
+			let arrParentUnits = prows.map(row => row.unit);
+			console.log('parents', prows)
+			let lb = await getLastBallInfo(conn, prows);
+			if (lb)
+				return onDone(null, arrParentUnits.sort(), lb.ball, lb.unit, lb.main_chain_index);
+			console.log(`failed to find parents that satisfy all requirements, will try a subset with the most recent OP list`);
+			let uniform_prows = []; // parents having the same and new OP list at their last ball mci
+			const top_ops = storage.getOpList(prows[0].last_ball_mci).join(',');
+			for (let prow of prows) {
+				const ops = storage.getOpList(prow.last_ball_mci).join(',');
+				if (ops === top_ops)
+					uniform_prows.push(prow);
+				else
+					break;
+			}
+			if (uniform_prows.length === 0)
+				throw Error(`no uniform prows`);
+			if (uniform_prows.length < prows.length) {
+				arrParentUnits = uniform_prows.map(row => row.unit);
+				lb = await getLastBallInfo(conn, uniform_prows);
+				if (lb)
+					return onDone(null, arrParentUnits.sort(), lb.ball, lb.unit, lb.main_chain_index);
+				console.log(`failed to find parents even when looking for parents with the new OP list`);
+			}
+			else
+				console.log("failed to find last stable ball, OP lists of all candidates are the same");
+			const prev_ops = storage.getOpList(prows[0].last_ball_mci - 1).join(',');
+			if (prev_ops === top_ops)
+				return onDone(`failed to find parents, OP list didn't change`);
+			console.log("will drop the parents with the new OP list and pick deeper parents");
+			prows = await filterParentsWithOlderOpListAndReplace(conn, prows, top_ops, arrFromAddresses);
+			console.log('parents with older OP lists', prows)
+			arrParentUnits = prows.map(row => row.unit);
+			lb = await getLastBallInfo(conn, prows);
+			if (lb)
+				return onDone(null, arrParentUnits.sort(), lb.ball, lb.unit, lb.main_chain_index);
+			onDone(`failed to find parents even when looking for parents with the older OP list`);
+		}
+	);
+}
 
+async function filterParentsByTpsFeeAndReplace(conn, prows, arrFromAddresses) {
+	const current_tps_fee = storage.getCurrentTpsFee();
+	const min_parentable_tps_fee_multiplier = conf.min_parentable_tps_fee_multiplier || 3;
+	const min_parentable_tps_fee = current_tps_fee * min_parentable_tps_fee_multiplier;
+	let filtered_prows = [];
+	let excluded_parents = [];
+	for (let prow of prows) {
+		const { unit, is_aa_response } = prow;
+		if (is_aa_response) {
+			filtered_prows.push(prow);
+			continue;			
+		}
+		const paid_tps_fee = await storage.getPaidTpsFee(conn, unit);
+		const objUnitProps = await storage.readUnitProps(conn, unit);
+		const count_units = storage.getCountUnitsPayingTpsFee(objUnitProps);
+		const paid_tps_fee_per_unit = paid_tps_fee / count_units;
+		if (paid_tps_fee_per_unit >= min_parentable_tps_fee)
+			filtered_prows.push(prow);
+		else {
+			if (_.intersection(objUnitProps.author_addresses, arrFromAddresses).length > 0) {
+				console.log(`cannot skip potential parent ${unit} whose paid tps fee per unit ${paid_tps_fee_per_unit} < min parentable tps fee ${min_parentable_tps_fee} because it is authored by one of our from addresses`);
+				filtered_prows.push(prow);
+				continue;
+			}
+			console.log(`skipping potential parent ${unit} as its paid tps fee per unit ${paid_tps_fee_per_unit} < min parentable tps fee ${min_parentable_tps_fee}`);
+			excluded_parents.push(unit);
+		}
+	}
+	if (excluded_parents.length > 0) {
+		// filtered_prows is modified in place
+		const bAddedNewParents = await replaceParents(conn, filtered_prows, excluded_parents);
+		if (bAddedNewParents) // check the new parents for tps fee
+			return await filterParentsByTpsFeeAndReplace(conn, filtered_prows, arrFromAddresses);
+	}
+	if (filtered_prows.length === 0)
+		throw Error(`all potential parents underpay the tps fee`);
+	return filtered_prows;
+}
+
+// finds parents with an older OP list
+async function filterParentsWithOlderOpListAndReplace(conn, prows, top_ops, arrFromAddresses) {
+	let filtered_prows = [];
+	let excluded_parents = [];
+	for (let prow of prows) {
+		const { unit, is_aa_response } = prow;
+		if (is_aa_response) {
+			// we might end up choosing an older last ball unit, so the trigger would not be stable yet
+			continue;			
+		}
+		const ops = storage.getOpList(prow.last_ball_mci).join(',');
+		if (ops !== top_ops)
+			filtered_prows.push(prow);
+		else {
+			const objUnitProps = await storage.readUnitProps(conn, unit);
+			if (_.intersection(objUnitProps.author_addresses, arrFromAddresses).length > 0) {
+				console.log(`cannot skip potential parent ${unit} whose OP list ${ops} = top OP list ${top_ops} because it is authored by one of our from addresses`);
+				filtered_prows.push(prow);
+				continue;
+			}
+			console.log(`skipping potential parent ${unit} as its OP list ${ops} = top OP list ${top_ops}`);
+			excluded_parents.push(unit);
+		}
+	}
+	if (excluded_parents.length > 0) {
+		// filtered_prows is modified in place
+		const bAddedNewParents = await replaceParents(conn, filtered_prows, excluded_parents);
+		if (bAddedNewParents) // check the new parents for OP list
+			return await filterParentsWithOlderOpListAndReplace(conn, filtered_prows, top_ops, arrFromAddresses);
+	}
+	if (filtered_prows.length === 0)
+		throw Error(`all potential parents have the top OP list`);
+	return filtered_prows;
+}
+
+async function replaceParents(conn, filtered_prows, excluded_parents) {
+	const max_parent_limci = filtered_prows.length > 0 ? Math.max.apply(null, filtered_prows.map(row => row.latest_included_mc_index)) : -1;
+	const replacement_rows = await conn.query(`SELECT DISTINCT parent_unit 
+		FROM parenthoods
+		LEFT JOIN units ON parent_unit=unit
+		WHERE child_unit IN(?) AND (main_chain_index IS NULL OR main_chain_index > ?)`,
+		[excluded_parents, max_parent_limci]
+	);
+	const replacement_parents = replacement_rows.map(r => r.parent_unit);
+	let bAddedNewParents = false;
+	for (let unit of replacement_parents) {
+		const remaining_replacement_parents = replacement_parents.filter(p => p !== unit);
+		const other_parents = filtered_prows.map(r => r.unit).concat(remaining_replacement_parents);
+		if (other_parents.length > 0) {
+			const bIncluded = await graph.determineIfIncludedOrEqual(conn, unit, other_parents);
+			if (bIncluded) {
+				console.log(`potential replacement parent ${unit} would be included in other parents, skipping`);
+				continue;
+			}
+		}
+		const [props] = await conn.query(
+			`SELECT units.unit, units.version, units.alt, units.witnessed_level, units.level, units.is_aa_response, lb_units.main_chain_index AS last_ball_mci
+			FROM units
+			LEFT JOIN units AS lb_units ON units.last_ball_unit=lb_units.unit
+			WHERE units.unit=?`,
+			[unit]
+		);
+		filtered_prows.push(props);
+		bAddedNewParents = true;
+	}
+	return bAddedNewParents;
+}
+
+async function getTpsFee(conn, parent_units, last_ball_unit, timestamp, count_units = 1) {
+	return Math.max(
+		await getLocalTpsFee(conn, parent_units, last_ball_unit, timestamp, count_units),
+		storage.getCurrentTpsFeeToPay() * count_units,
+		storage.getCurrentTpsFeeToPay(1) * count_units
+	);
+}
+
+async function getLocalTpsFee(conn, parent_units, last_ball_unit, timestamp, count_units = 1) {
+	const objUnitProps = await createUnitProps(conn, parent_units, last_ball_unit, timestamp);
+	console.log('getLocalTpsFee', objUnitProps)
+	return await storage.getLocalTpsFee(conn, objUnitProps, count_units);
+}
+
+async function createUnitProps(conn, parent_units, last_ball_unit, timestamp) {
+	return {
+		unit: 'new-unit',
+		timestamp,
+		last_ball_unit,
+		parent_units,
+		best_parent_unit: await getBestParentUnit(conn, parent_units),
+		// count_primary_aa_triggers and max_aa_responses are not used for the tip unit
+	};
+}
+
+async function getBestParentUnit(conn, parent_units) {
+	if (parent_units.length === 1)
+		return parent_units[0];
+	const prows = await conn.query("SELECT unit, level, witnessed_level FROM units WHERE unit IN(?)", [parent_units]);
+	let best_parent_prow = prows[0];
+	for (let i = 1; i < prows.length; i++){
+		const prow = prows[i];
+		if (prow.witnessed_level < best_parent_prow.witnessed_level)
+			continue;
+		if (prow.witnessed_level === best_parent_prow.witnessed_level) {
+			if (prow.level > best_parent_prow.level)
+				continue;
+			if (prow.level === best_parent_prow.level) {
+				if (prow.unit > best_parent_prow.unit)
+					continue;
+			}
+		}
+		best_parent_prow = prow;
+	}
+	return best_parent_prow.unit;
+}
+
+async function getLastBallInfo(conn, prows) {
+	const arrParentUnits = prows.map(row => row.unit);
+	const max_parent_wl = Math.max.apply(null, prows.map(row => row.witnessed_level));
+	const max_parent_last_ball_mci = Math.max.apply(null, prows.map(row => row.last_ball_mci));
+	const rows = await conn.query(
+		`SELECT ball, unit, main_chain_index
+		FROM units
+		JOIN balls USING(unit)
+		WHERE is_on_main_chain=1 AND is_stable=1 AND +sequence='good'
+			AND main_chain_index ${bAdvanceLastStableUnit ? '>=' : '='}?
+			AND main_chain_index<=IFNULL((SELECT MAX(latest_included_mc_index) FROM units WHERE unit IN(?)), 0)
+		ORDER BY main_chain_index DESC`,
+		[max_parent_last_ball_mci, arrParentUnits]
+	);
+	if (rows.length === 0) {
+		console.log(`no last stable ball candidates`);
+		return null;
+	}
+	for (let row of rows) {
+		console.log('trying last stable unit: ' + row.unit);
+		const bStable = await main_chain.determineIfStableInLaterUnitsWithMaxLastBallMciFastPath(conn, row.unit, arrParentUnits);
+		if (!bStable) {
+			console.log(`unit ${row.unit} not stable in potential parents`, arrParentUnits);
+			continue;
+		}
+		const arrWitnesses = storage.getOpList(row.main_chain_index);
+		const { witnessed_level } = await storage.determineWitnessedLevelAndBestParent(conn, arrParentUnits, arrWitnesses, constants.version);
+		if (witnessed_level >= max_parent_wl)
+			return row;
+	}
+	console.log(`no candidate last ball fits: is stable in parents and witness level does not retreat`);
+	return null;
+}
 
 exports.pickParentUnitsAndLastBall = pickParentUnitsAndLastBall;
+exports.getTpsFee = getTpsFee;

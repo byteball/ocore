@@ -70,6 +70,8 @@ function validate(objJoint, callbacks, external_conn) {
 		return callbacks.ifJointError("failed to calc unit hash: "+e);
 	}
 
+	const bGenesis = storage.isGenesisUnit(objUnit.unit);
+
 	var bAA = false;
 	if (objJoint.aa) {
 		bAA = true;
@@ -110,24 +112,32 @@ function validate(objJoint, callbacks, external_conn) {
 			return callbacks.ifJointError("content_hash allowed only in finished ball");
 	}
 	else{ // serial
-		if (hasFieldsExcept(objUnit, ["unit", "version", "alt", "timestamp", "authors", "messages", "witness_list_unit", "witnesses", "earned_headers_commission_recipients", "last_ball", "last_ball_unit", "parent_units", "headers_commission", "payload_commission"]))
+		if (hasFieldsExcept(objUnit, ["unit", "version", "alt", "timestamp", "authors", "messages", "witness_list_unit", "witnesses", "earned_headers_commission_recipients", "last_ball", "last_ball_unit", "parent_units", "headers_commission", "payload_commission", "oversize_fee", "tps_fee", "burn_fee", "max_aa_responses"]))
 			return callbacks.ifUnitError("unknown fields in unit");
 
 		if (typeof objUnit.headers_commission !== "number")
 			return callbacks.ifJointError("no headers_commission");
 		if (typeof objUnit.payload_commission !== "number")
 			return callbacks.ifJointError("no payload_commission");
+		if ("oversize_fee" in objUnit && !isPositiveInteger(objUnit.oversize_fee))
+			return callbacks.ifJointError("bad oversize_fee");
+		if ("tps_fee" in objUnit && !isNonnegativeInteger(objUnit.tps_fee))
+			return callbacks.ifUnitError("bad tps_fee");
+		if ("burn_fee" in objUnit && !isPositiveInteger(objUnit.burn_fee))
+			return callbacks.ifUnitError("bad burn_fee");
+		if ("max_aa_responses" in objUnit && !isNonnegativeInteger(objUnit.max_aa_responses))
+			return callbacks.ifUnitError("bad max_aa_responses");
 		
 		if (!isNonemptyArray(objUnit.messages))
 			return callbacks.ifUnitError("missing or empty messages array");
-		if (objUnit.messages.length > constants.MAX_MESSAGES_PER_UNIT && !storage.isGenesisUnit(objUnit.unit))
+		if (objUnit.messages.length > constants.MAX_MESSAGES_PER_UNIT && !bGenesis)
 			return callbacks.ifUnitError("too many messages");
 
 		if (objectLength.getHeadersSize(objUnit) !== objUnit.headers_commission)
 			return callbacks.ifJointError("wrong headers commission, expected "+objectLength.getHeadersSize(objUnit));
 		if (objectLength.getTotalPayloadSize(objUnit) !== objUnit.payload_commission)
 			return callbacks.ifJointError("wrong payload commission, unit "+objUnit.unit+", calculated "+objectLength.getTotalPayloadSize(objUnit)+", expected "+objUnit.payload_commission);
-		if (objUnit.headers_commission + objUnit.payload_commission > constants.MAX_UNIT_LENGTH && !storage.isGenesisUnit(objUnit.unit))
+		if (objUnit.headers_commission + objUnit.payload_commission > constants.MAX_UNIT_LENGTH && !bGenesis)
 			return callbacks.ifUnitError("unit too large");
 	}
 	
@@ -149,7 +159,24 @@ function validate(objJoint, callbacks, external_conn) {
 			return callbacks.ifTransientError("timestamp is too far into the future");
 	}
 
-	if (!storage.isGenesisUnit(objUnit.unit)){
+
+	if (bGenesis) {
+		if ("oversize_fee" in objUnit)
+			return callbacks.ifUnitError("oversize_fee in genesis");
+		if ("tps_fee" in objUnit)
+			return callbacks.ifUnitError("tps_fee in genesis");
+		if ("burn_fee" in objUnit)
+			return callbacks.ifUnitError("burn_fee in genesis");
+		if ("max_aa_responses" in objUnit)
+			return callbacks.ifUnitError("max_aa_responses in genesis");
+		if ("parent_units" in objUnit)
+			return callbacks.ifUnitError("parent_units in genesis");
+		if ("last_ball" in objUnit)
+			return callbacks.ifUnitError("last_ball in genesis");
+		if ("last_ball_unit" in objUnit)
+			return callbacks.ifUnitError("last_ball_unit in genesis");
+	}
+	else {
 		if (!isNonemptyArray(objUnit.parent_units))
 			return callbacks.ifUnitError("missing or empty parent units array");
 		
@@ -170,10 +197,14 @@ function validate(objJoint, callbacks, external_conn) {
 		arrDoubleSpendInputs: [],
 		arrInputKeys: []
 	};
+	if (bGenesis) {
+		objValidationState.last_ball_mci = 0;
+		objValidationState.bGenesis = true;
+	}
 	if (objJoint.unsigned)
 		objValidationState.bUnsigned = true;
-	if (bAA)
-		objValidationState.bAA = true;
+//	if (bAA)
+		objValidationState.bAA = bAA;
 	
 	if (conf.bLight){
 		if (!isPositiveInteger(objUnit.timestamp) && !objJoint.unsigned)
@@ -260,6 +291,12 @@ function validate(objJoint, callbacks, external_conn) {
 				function(cb){
 					profiler.stop('validation-skiplist');
 					validateWitnesses(conn, objUnit, objValidationState, cb);
+				},
+				function (cb) {
+					validateAATrigger(conn, objUnit, objValidationState, cb);
+				},
+				function (cb) {
+					validateTpsFee(conn, objJoint, objValidationState, cb);
 				},
 				function(cb){
 					profiler.start();
@@ -574,6 +611,40 @@ function validateParents(conn, objJoint, objValidationState, callback){
 					var bWithKeysVersion = (objUnit.version !== constants.versionWithoutTimestamp && objUnit.version !== constants.versionWithoutKeySizes);
 					if (bWithKeys !== bWithKeysVersion)
 						return callback("wrong version, with keys mci = " + bWithKeys + ", with keys version = " + bWithKeysVersion);
+
+					const bCommonOpList = (objValidationState.last_ball_mci >= constants.v4UpgradeMci);
+					const fVersion = parseFloat(objUnit.version);
+					if (fVersion >= constants.fVersion4) {
+						if (!bCommonOpList)
+							return callback("version 4.0+ should be used only since mci " + constants.v4UpgradeMci);
+						if ("witnesses" in objUnit)
+							return callback("should have no per-unit witnesses since version 4.0");
+						if ("witness_list_unit" in objUnit)
+							return callback("should have no witness_list_unit since version 4.0");
+						const oversize_fee = storage.getOversizeFee(objUnit, objValidationState.last_ball_mci);
+						if (oversize_fee) {
+							if (objUnit.oversize_fee !== oversize_fee)
+								return callback(createJointError(`oversize_fee mismatch: expected ${oversize_fee}, found ${objUnit.oversize_fee}`));
+						}
+						else {
+							if ("oversize_fee" in objUnit)
+								return callback("zero oversize fee should be omitted");
+						}
+						if (!("tps_fee" in objUnit) && !objValidationState.bAA)
+							return callback("no tps_fee field");
+					}
+					else { // < 4.0
+						if (bCommonOpList)
+							return callback("version 4.0 should be used since mci " + constants.v4UpgradeMci);
+						if (!("witnesses" in objUnit) && !("witness_list_unit" in objUnit))
+							return callback("should have either witnesses or witness_list_unit");
+						if ("oversize_fee" in objUnit)
+							return callback("oversize_fee not charged before version 4.0");
+						if ("tps_fee" in objUnit)
+							return callback("tps_fee not charged before version 4.0");
+						if ("burn_fee" in objUnit)
+							return callback("burn_fee not paid before version 4.0");
+					}
 					
 					readMaxParentLastBallMci(function(max_parent_last_ball_mci){
 						if (objLastBallUnitProps.is_stable === 1){
@@ -592,6 +663,8 @@ function validateParents(conn, objJoint, objValidationState, callback){
 							}
 							else */if (!bStable)
 								return callback(objUnit.unit+": last ball unit "+last_ball_unit+" is not stable in view of your parents "+objUnit.parent_units);
+							if (bAdvancedLastStableMci)
+								return callback(createTransientError("last ball just advanced, try again"));
 							if (!bAdvancedLastStableMci)
 								return checkNoSameAddressInDifferentParents();
 							conn.query("SELECT ball FROM balls WHERE unit=?", [last_ball_unit], function(ball_rows){
@@ -612,6 +685,60 @@ function validateParents(conn, objJoint, objValidationState, callback){
 	);
 }
 
+
+	
+function checkNoReferencesInWitnessAddressDefinitions(conn, objValidationState, arrWitnesses, cb){
+	profiler.start();
+	var cross = (conf.storage === 'sqlite') ? 'CROSS' : ''; // correct the query planner
+	conn.query(
+		"SELECT 1 \n\
+		FROM address_definition_changes \n\
+		JOIN definitions USING(definition_chash) \n\
+		JOIN units AS change_units USING(unit)   -- units where the change was declared \n\
+		JOIN unit_authors USING(definition_chash) \n\
+		JOIN units AS definition_units ON unit_authors.unit=definition_units.unit   -- units where the definition was disclosed \n\
+		WHERE address_definition_changes.address IN(?) AND has_references=1 \n\
+			AND change_units.is_stable=1 AND change_units.main_chain_index<=? AND +change_units.sequence='good' \n\
+			AND definition_units.is_stable=1 AND definition_units.main_chain_index<=? AND +definition_units.sequence='good' \n\
+		UNION \n\
+		SELECT 1 \n\
+		FROM definitions \n\
+		"+cross+" JOIN unit_authors USING(definition_chash) \n\
+		JOIN units AS definition_units ON unit_authors.unit=definition_units.unit   -- units where the definition was disclosed \n\
+		WHERE definition_chash IN(?) AND has_references=1 \n\
+			AND definition_units.is_stable=1 AND definition_units.main_chain_index<=? AND +definition_units.sequence='good' \n\
+		LIMIT 1",
+		[arrWitnesses, objValidationState.last_ball_mci, objValidationState.last_ball_mci, arrWitnesses, objValidationState.last_ball_mci],
+		function(rows){
+			profiler.stop('validation-witnesses-no-refs');
+			(rows.length > 0) ? cb("some witnesses have references in their addresses") : cb();
+		}
+	);
+}
+
+function checkWitnessesKnownAndGood(conn, objValidationState, arrWitnesses, cb) {
+	if (objValidationState.bGenesis)
+		return cb();
+	profiler.start();
+	// check that all witnesses are already known and their units are good and stable
+	conn.query(
+		// address=definition_chash is true in the first appearence of the address
+		// (not just in first appearence: it can return to its initial definition_chash sometime later)
+		"SELECT COUNT(DISTINCT address) AS count_stable_good_witnesses \n\
+		FROM unit_authors " + db.forceIndex(conf.storage === 'sqlite' ? 'byDefinitionChash' : 'unitAuthorsIndexByAddressDefinitionChash') + " \n\
+		CROSS JOIN units USING(unit) \n\
+		WHERE address=definition_chash AND +sequence='good' AND is_stable=1 AND main_chain_index<=? AND definition_chash IN(?)",
+		[objValidationState.last_ball_mci, arrWitnesses],
+		function(rows){
+			profiler.stop('validation-witnesses-stable');
+			if (rows[0].count_stable_good_witnesses !== constants.COUNT_WITNESSES)
+				return cb("some witnesses are not stable, not serial, or don't come before last ball");
+			cb();
+		}
+	);
+}
+
+
 function validateWitnesses(conn, objUnit, objValidationState, callback){
 
 	function validateWitnessListMutations(arrWitnesses){
@@ -620,41 +747,18 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 		storage.determineIfHasWitnessListMutationsAlongMc(conn, objUnit, last_ball_unit, arrWitnesses, function(err){
 			if (err && objValidationState.last_ball_mci >= 512000) // do not enforce before the || bug was fixed
 				return callback(err);
-			checkNoReferencesInWitnessAddressDefinitions(arrWitnesses);
+			checkNoReferencesInWitnessAddressDefinitions(conn, objValidationState, arrWitnesses, err => {
+				if (err)
+					return callback(err);
+				checkWitnessedLevelDidNotRetreat(arrWitnesses);
+			});
 		});
-	}
-	
-	function checkNoReferencesInWitnessAddressDefinitions(arrWitnesses){
-		profiler.start();
-		var cross = (conf.storage === 'sqlite') ? 'CROSS' : ''; // correct the query planner
-		conn.query(
-			"SELECT 1 \n\
-			FROM address_definition_changes \n\
-			JOIN definitions USING(definition_chash) \n\
-			JOIN units AS change_units USING(unit)   -- units where the change was declared \n\
-			JOIN unit_authors USING(definition_chash) \n\
-			JOIN units AS definition_units ON unit_authors.unit=definition_units.unit   -- units where the definition was disclosed \n\
-			WHERE address_definition_changes.address IN(?) AND has_references=1 \n\
-				AND change_units.is_stable=1 AND change_units.main_chain_index<=? AND +change_units.sequence='good' \n\
-				AND definition_units.is_stable=1 AND definition_units.main_chain_index<=? AND +definition_units.sequence='good' \n\
-			UNION \n\
-			SELECT 1 \n\
-			FROM definitions \n\
-			"+cross+" JOIN unit_authors USING(definition_chash) \n\
-			JOIN units AS definition_units ON unit_authors.unit=definition_units.unit   -- units where the definition was disclosed \n\
-			WHERE definition_chash IN(?) AND has_references=1 \n\
-				AND definition_units.is_stable=1 AND definition_units.main_chain_index<=? AND +definition_units.sequence='good' \n\
-			LIMIT 1",
-			[arrWitnesses, objValidationState.last_ball_mci, objValidationState.last_ball_mci, arrWitnesses, objValidationState.last_ball_mci],
-			function(rows){
-				profiler.stop('validation-witnesses-no-refs');
-				(rows.length > 0) ? callback("some witnesses have references in their addresses") : checkWitnessedLevelDidNotRetreat(arrWitnesses);
-			}
-		);
 	}
 
 	function checkWitnessedLevelDidNotRetreat(arrWitnesses){
-		storage.determineWitnessedLevelAndBestParent(conn, objUnit.parent_units, arrWitnesses, function(witnessed_level, best_parent_unit){
+		if (!objUnit.parent_units) // genesis
+			return callback();
+		storage.determineWitnessedLevelAndBestParent(conn, objUnit.parent_units, arrWitnesses, objUnit.version, function(witnessed_level, best_parent_unit){
 			if (!best_parent_unit)
 				return callback("no best parent");
 			objValidationState.witnessed_level = witnessed_level;
@@ -673,6 +777,9 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 		});
 	}
 	
+	if (objValidationState.last_ball_mci >= constants.v4UpgradeMci)
+		return checkWitnessedLevelDidNotRetreat(storage.getOpList(objValidationState.last_ball_mci));
+
 	var last_ball_unit = objUnit.last_ball_unit;
 	if (typeof objUnit.witness_list_unit === "string"){
 		profiler.start();
@@ -718,27 +825,100 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 			validateWitnessListMutations(objUnit.witnesses);
 			return;
 		}
-		profiler.start();
-		// check that all witnesses are already known and their units are good and stable
-		conn.query(
-			// address=definition_chash is true in the first appearence of the address
-			// (not just in first appearence: it can return to its initial definition_chash sometime later)
-			"SELECT COUNT(DISTINCT address) AS count_stable_good_witnesses \n\
-			FROM unit_authors " + db.forceIndex(conf.storage === 'sqlite' ? 'byDefinitionChash' : 'unitAuthorsIndexByAddressDefinitionChash') + " \n\
-			CROSS JOIN units USING(unit) \n\
-			WHERE address=definition_chash AND +sequence='good' AND is_stable=1 AND main_chain_index<=? AND definition_chash IN(?)",
-			[objValidationState.last_ball_mci, objUnit.witnesses],
-			function(rows){
-				profiler.stop('validation-witnesses-stable');
-				if (rows[0].count_stable_good_witnesses !== constants.COUNT_WITNESSES)
-					return callback("some witnesses are not stable, not serial, or don't come before last ball");
-				validateWitnessListMutations(objUnit.witnesses);
-			}
-		);
+		checkWitnessesKnownAndGood(conn, objValidationState, objUnit.witnesses, err => {
+			if (err)
+				return callback(err);
+			validateWitnessListMutations(objUnit.witnesses);
+		});
 	}
 	else
 		return callback("no witnesses or not enough witnesses");
 }
+
+
+async function validateAATrigger(conn, objUnit, objValidationState, callback) {
+	if (objValidationState.last_ball_mci < constants.v4UpgradeMci || objValidationState.bAA || !objValidationState.last_ball_mci) {
+		if ("max_aa_responses" in objUnit)
+			return callback(`max_aa_responses should not be there`);
+		if (objValidationState.bAA || !objValidationState.last_ball_mci)
+			return callback();
+	}
+	let arrOutputAddresses = [];
+	for (let m of objUnit.messages) {
+		if (m.app === 'payment' && m.payload) {
+			for (let o of m.payload.outputs)
+				if (!arrOutputAddresses.includes(o.address))
+					arrOutputAddresses.push(o.address);
+		}
+	}
+
+	// Look for AA triggers
+	// There might be actually more triggers due to AAs defined between last_ball_mci and our unit, so our validation of tps fee might require a smaller fee than the fee actually charged when the trigger executes
+	const rows = await conn.query("SELECT 1 FROM aa_addresses WHERE address IN (?) AND mci<=?", [arrOutputAddresses, objValidationState.last_ball_mci]);
+	if (rows.length === 0) {
+		if ("max_aa_responses" in objUnit)
+			return callback(`no outputs to AAs, max_aa_responses should not be there`);
+		return callback();
+	}
+	objValidationState.count_primary_aa_triggers = rows.length;
+	callback();
+}
+
+
+function isFromOP(author_addresses, mci) {
+	const ops = storage.getOpList(mci);
+	for (let a of author_addresses)
+		if (ops.includes(a))
+			return true;
+	return false;
+}
+
+async function validateTpsFee(conn, objJoint, objValidationState, callback) {
+	if (objValidationState.last_ball_mci < constants.v4UpgradeMci || !objValidationState.last_ball_mci)
+		return callback();
+	const objUnit = objJoint.unit;
+	if (objValidationState.bAA) {
+		if ("tps_fee" in objUnit)
+			return callback("tps_fee in AA response");
+		return callback();
+	}
+	const objUnitProps = {
+		unit: objUnit.unit,
+		parent_units: objUnit.parent_units,
+		best_parent_unit: objValidationState.best_parent_unit,
+		last_ball_unit: objUnit.last_ball_unit,
+		timestamp: objUnit.timestamp,
+		count_primary_aa_triggers: objValidationState.count_primary_aa_triggers,
+		max_aa_responses: objUnit.max_aa_responses,
+	};
+	const count_units = storage.getCountUnitsPayingTpsFee(objUnitProps);
+	const min_tps_fee = await storage.getLocalTpsFee(conn, objUnitProps, count_units);
+	console.log('validation', {min_tps_fee}, objUnitProps)
+	
+	// compare against the current tps fee or soft-reject
+	const current_tps_fee = objJoint.ball ? 0 : storage.getCurrentTpsFee(); // very low while catching up
+	const min_acceptable_tps_fee_multiplier = objJoint.ball ? 0 : storage.getMinAcceptableTpsFeeMultiplier();
+	const min_acceptable_tps_fee = current_tps_fee * min_acceptable_tps_fee_multiplier * count_units;
+
+	const author_addresses = objUnit.authors.map(a => a.address);
+	const bFromOP = isFromOP(author_addresses, objValidationState.last_ball_mci);
+	const recipients = storage.getTpsFeeRecipients(objUnit.earned_headers_commission_recipients, author_addresses);
+	for (let address in recipients) {
+		const share = recipients[address] / 100;
+		const [row] = await conn.query("SELECT tps_fees_balance FROM tps_fees_balances WHERE address=? AND mci<=? ORDER BY mci DESC LIMIT 1", [address, objValidationState.last_ball_mci]);
+		const tps_fees_balance = row ? row.tps_fees_balance : 0;
+		if (tps_fees_balance + objUnit.tps_fee * share < min_tps_fee * share)
+			return callback(`tps_fee ${objUnit.tps_fee} + tps fees balance ${tps_fees_balance} less than required ${min_tps_fee} for address ${address} whose share is ${share}`);
+		const tps_fee = tps_fees_balance / share + objUnit.tps_fee;
+		if (tps_fee < min_acceptable_tps_fee) {
+			if (!bFromOP)
+				return callback(createTransientError(`tps fee on address ${address} must be at least ${min_acceptable_tps_fee}, found ${tps_fee}`));
+			console.log(`unit from OP, hence accepting despite low tps fee on address ${address} which must be at least ${min_acceptable_tps_fee} but found ${tps_fee}`);
+		}
+	}
+	callback();
+}
+
 
 function validateHeadersCommissionRecipients(objUnit, cb){
 	if (objUnit.authors.length > 1 && typeof objUnit.earned_headers_commission_recipients !== "object")
@@ -1232,7 +1412,7 @@ function validateMessage(conn, objMessage, message_index, objUnit, objValidation
 			return callback("private payment must come with spend proof(s)");
 	}
 	
-	var arrInlineOnlyApps = ["address_definition_change", "data_feed", "definition_template", "asset", "asset_attestors", "attestation", "poll", "vote", "definition"];
+	var arrInlineOnlyApps = ["address_definition_change", "data_feed", "definition_template", "asset", "asset_attestors", "attestation", "poll", "vote", "definition", "system_vote", "system_vote_count", "temp_data"];
 	if (arrInlineOnlyApps.indexOf(objMessage.app) >= 0 && objMessage.payload_location !== "inline")
 		return callback(objMessage.app+" must be inline");
 
@@ -1320,8 +1500,17 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 	var payload = objMessage.payload;
 	if (typeof payload === "undefined")
 		return callback("no inline payload");
+	
+	function getPayloadForHash() {
+		if (objMessage.app !== "temp_data")
+			return payload;
+		let p = _.cloneDeep(payload);
+		delete p.data;
+		return p;
+	}
+	
 	try{
-		var expected_payload_hash = objectHash.getBase64Hash(payload, objUnit.version !== constants.versionWithoutTimestamp);
+		var expected_payload_hash = objectHash.getBase64Hash(getPayloadForHash(), objUnit.version !== constants.versionWithoutTimestamp);
 		if (expected_payload_hash !== objMessage.payload_hash)
 			return callback("wrong payload hash: expected "+expected_payload_hash+", got "+objMessage.payload_hash);
 	}
@@ -1447,6 +1636,73 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 			);
 			break;
 
+		case "system_vote":
+			if (objValidationState.last_ball_mci < constants.v4UpgradeMci && !constants.bDevnet)
+				return callback("cannot vote for system params yet");
+			if (objValidationState.bAA)
+				return callback("AA cannot cast system vote");
+			if (objValidationState.bHasSystemVote)
+				return callback("can be only one system vote");
+			objValidationState.bHasSystemVote = true;
+			if (hasFieldsExcept(payload, ["subject", "value"]))
+				return callback("unknown fields in " + objMessage.app);
+			if (typeof payload.subject !== "string")
+				return callback("subject must be string");
+			if (!payload.value)
+				return callback("no value in " + objMessage.app);
+			switch (payload.subject) {
+				case "op_list":
+					const arrOPs = payload.value;
+					if (!ValidationUtils.isArrayOfLength(arrOPs, constants.COUNT_WITNESSES))
+						return callback("OP list must be an array of " + constants.COUNT_WITNESSES);
+					if (!arrOPs.every(isValidAddress))
+						return callback("all OPs must be valid addresses");
+					let prev_op = arrOPs[0];
+					for (let i = 1; i < arrOPs.length; i++){
+						const op = arrOPs[i];
+						if (op <= prev_op)
+							return callback("OP list must be sorted and unique");
+						prev_op = op;
+					}
+					checkNotAAs(conn, arrOPs, err => {
+						if (err)
+							return callback(err);
+						checkWitnessesKnownAndGood(conn, objValidationState, arrOPs, err => {
+							if (err)
+								return callback(err);
+							checkNoReferencesInWitnessAddressDefinitions(conn, objValidationState, arrOPs, callback);
+						});
+					});
+					break;
+				case "threshold_size":
+					if (!isPositiveInteger(payload.value))
+						return callback(payload.subject + " must be a positive integer");
+					callback();
+					break;
+				case "base_tps_fee":
+				case "tps_interval":
+				case "tps_fee_multiplier":
+					if (!(typeof payload.value === 'number' && isFinite(payload.value) && payload.value > 0))
+						return callback(payload.subject + " must be a positive number");
+					callback();
+					break;
+				default:
+					return callback("unknown subject: " + payload.subject);
+			}
+			break;
+
+		case "system_vote_count":
+			if (objValidationState.last_ball_mci < constants.v4UpgradeMci && !constants.bDevnet)
+				return callback("cannot count votes for system params yet");
+			if (objValidationState.bAA)
+				return callback("AA cannot trigger system vote count");
+			if (objValidationState.bHasSystemVoteCount)
+				return callback("can be only one system vote count");
+			objValidationState.bHasSystemVoteCount = true;
+			if (!["op_list", "threshold_size", "base_tps_fee", "tps_interval", "tps_fee_multiplier"].includes(payload))
+				return callback("unknown subject in vote count: " + payload);
+			return callback();
+
 		case "data_feed":
 			if (objValidationState.bHasDataFeed)
 				return callback("can be only one data feed");
@@ -1484,6 +1740,35 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 		case "data":
 			if (typeof payload !== "object" || payload === null)
 				return callback(objMessage.app+" payload must be object");
+			return callback();
+
+		case "temp_data":
+			if (objValidationState.last_ball_mci < constants.v4UpgradeMci)
+				return callback("cannot use temp_data yet");
+			if (typeof payload !== "object" || payload === null)
+				return callback("temp_data payload must be an object");
+			if (Array.isArray(payload))
+				return callback("temp_data payload must not be an array");
+			if (hasFieldsExcept(payload, ["data_length", "data_hash", "data"]))
+				return callback("unknown fields in " + objMessage.app);
+			if (!isPositiveInteger(payload.data_length))
+				return callback("bad data_length");
+			if (!isValidBase64(payload.data_hash))
+				return callback("bad data_hash");
+			if ("data" in payload) {
+				if (payload.data === null)
+					return callback("null data");
+				const len = objectLength.getLength(payload.data, true);
+				if (len !== payload.data_length)
+					return callback(`data_length mismatch, expected ${payload.data_length}, got ${len}`);
+				const hash = objectHash.getBase64Hash(payload.data, true);
+				if (hash !== payload.data_hash)
+					return callback(`data_hash mismatch, expected ${payload.data_hash}, got ${hash}`);
+			}
+			else {
+				if (Math.round(Date.now()/1000) - objUnit.timestamp < constants.TEMP_DATA_PURGE_TIMEOUT)
+					return callback(createTransientError("data not found in temp_data"))
+			}
 			return callback();
 
 		case "definition_template":
@@ -1530,6 +1815,12 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 		default:
 			return callback("unknown app: "+objMessage.app);
 	}
+}
+
+function checkNotAAs(conn, arrOPs, cb) {
+	conn.query("SELECT address FROM aa_addresses WHERE address IN (?)", [arrOPs], rows => {
+		rows.length ? cb("some OPs are AAs: " + rows.map(r => r.address).join(', ')) : cb();
+	});
 }
 
 // used for both public and private payments
@@ -2119,8 +2410,12 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 				], callback);
 			}
 			else{ // base asset
-				if (total_input !== total_output + objUnit.headers_commission + objUnit.payload_commission)
-					return callback("inputs and outputs do not balance: "+total_input+" !== "+total_output+" + "+objUnit.headers_commission+" + "+objUnit.payload_commission);
+				const vote_count_fee = objUnit.messages.find(m => m.app === 'system_vote_count') ? constants.SYSTEM_VOTE_COUNT_FEE : 0;
+				const oversize_fee = objUnit.oversize_fee || 0;
+				const tps_fee = objUnit.tps_fee || 0;
+				const burn_fee = objUnit.burn_fee || 0;
+				if (total_input !== total_output + objUnit.headers_commission + objUnit.payload_commission + oversize_fee + tps_fee + burn_fee + vote_count_fee)
+					return callback("inputs and outputs do not balance: "+total_input+" !== "+total_output+" + "+objUnit.headers_commission+" + "+objUnit.payload_commission+" + "+oversize_fee+" + "+tps_fee+" + "+burn_fee+" + "+vote_count_fee);
 				callback();
 			}
 		//	console.log("validatePaymentInputsAndOutputs done");

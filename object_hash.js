@@ -31,6 +31,9 @@ function getNakedUnit(objUnit){
 	delete objNakedUnit.unit;
 	delete objNakedUnit.headers_commission;
 	delete objNakedUnit.payload_commission;
+	delete objNakedUnit.oversize_fee;
+//	delete objNakedUnit.tps_fee; // cannot be calculated from unit's content and environment, users might pay more than required
+	delete objNakedUnit.actual_tps_fee;
 	delete objNakedUnit.main_chain_index;
 	if (objUnit.version === constants.versionWithoutTimestamp)
 		delete objNakedUnit.timestamp;
@@ -67,7 +70,7 @@ function getStrippedUnit(objUnit) {
 	};
 	if (objUnit.witness_list_unit)
 		objStrippedUnit.witness_list_unit = objUnit.witness_list_unit;
-	else
+	else if (objUnit.witnesses)
 		objStrippedUnit.witnesses = objUnit.witnesses;
 	if (objUnit.parent_units){
 		objStrippedUnit.parent_units = objUnit.parent_units;

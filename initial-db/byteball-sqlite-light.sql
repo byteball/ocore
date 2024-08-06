@@ -9,6 +9,14 @@ CREATE TABLE units (
 	content_hash CHAR(44) NULL,
 	headers_commission INT NOT NULL,
 	payload_commission INT NOT NULL,
+	oversize_fee INT NULL,
+	tps_fee INT NULL,
+	actual_tps_fee INT NULL,
+	burn_fee INT NULL,
+	max_aa_responses INT NULL,
+	count_aa_responses INT NULL, -- includes responses without a response unit
+	is_aa_response TINYINT NULL,
+	count_primary_aa_triggers TINYINT NULL,
 	is_free TINYINT NOT NULL DEFAULT 1,
 	is_on_main_chain TINYINT NOT NULL DEFAULT 0,
 	main_chain_index INT NULL, -- when it first appears
@@ -921,4 +929,4 @@ CREATE TABLE IF NOT EXISTS arbiter_disputes (
 	FOREIGN KEY (arbstore_device_address) REFERENCES correspondent_devices(device_address)
 );
 
-PRAGMA user_version=45;
+PRAGMA user_version=46;

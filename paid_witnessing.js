@@ -203,6 +203,8 @@ function buildPaidWitnessesForMainChainIndex(conn, main_chain_index, cb){
 
 
 function readMcUnitWitnesses(conn, main_chain_index, handleWitnesses){
+	if (main_chain_index >= constants.v4UpgradeMci)
+		return handleWitnesses(storage.getOpList(main_chain_index));
 	var witness_list_unitRAM = storage.assocStableUnitsByMci[main_chain_index].find(function(props){return props.is_on_main_chain}).witness_list_unit;
 	if (conf.bFaster)
 		return storage.readWitnessList(conn, witness_list_unitRAM, handleWitnesses);

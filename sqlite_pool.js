@@ -151,7 +151,7 @@ module.exports = function(db_name, MAX_CONNECTIONS, bReadOnly){
 			printLongQuery: function () {
 				if (!this.start_ts || this.start_ts > Date.now() - 60 * 1000)
 					return;
-				console.log("in long query", this.currentQuery);
+				console.log(`in long query for ${Date.now() - this.start_ts}ms`, this.currentQuery);
 			},
 			
 			addQuery: addQuery,
@@ -362,7 +362,7 @@ function expandArrayPlaceholders(args){
 		return;
 	var arrParts = sql.split('?');
 	if (arrParts.length - 1 !== params.length)
-		throw Error("wrong parameter count");
+		throw Error("wrong parameter count in " + sql + ", params " + params.join(', '));
 	var expanded_sql = "";
 	for (var i=0; i<arrParts.length; i++){
 		expanded_sql += arrParts[i];

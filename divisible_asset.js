@@ -232,7 +232,7 @@ function composeDivisibleAssetPaymentJoint(params){
 						
 						var target_amount = payment.outputs.reduce(function(accumulator, output){ return accumulator + output.amount; }, 0);
 						inputs.pickDivisibleCoinsForAmount(
-							conn, objAsset, arrAssetPayingAddresses, last_ball_mci, target_amount, bMultiAuthored, params.spend_unconfirmed || conf.spend_unconfirmed || 'own',
+							conn, objAsset, arrAssetPayingAddresses, last_ball_mci, target_amount, 0, 0, bMultiAuthored, params.spend_unconfirmed || conf.spend_unconfirmed || 'own',
 							function(arrInputsWithProofs, total_input){
 								console.log("pick coins callback "+JSON.stringify(arrInputsWithProofs));
 								if (!arrInputsWithProofs)

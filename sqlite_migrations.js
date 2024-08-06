@@ -4,7 +4,7 @@ var eventBus = require('./event_bus.js');
 var constants = require("./constants.js");
 var conf = require("./conf.js");
 
-var VERSION = 45;
+var VERSION = 46;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -504,6 +504,121 @@ function migrateDb(connection, onDone){
 				if (version < 45) {
 					connection.addQuery(arrQueries, "ALTER TABLE wallet_arbiter_contracts ADD COLUMN my_party_name VARCHAR(100) NULL");
 					connection.addQuery(arrQueries, "ALTER TABLE wallet_arbiter_contracts ADD COLUMN peer_party_name VARCHAR(100) NULL");
+				}
+				if (version < 46 && !conf.bLight) {
+					connection.addQuery(arrQueries, `CREATE TABLE IF NOT EXISTS system_votes (
+						unit CHAR(44) NOT NULL,
+						address CHAR(32) NOT NULL,
+						subject VARCHAR(50) NOT NULL,
+						value TEXT NOT NULL,
+						timestamp INT NOT NULL,
+						creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+						PRIMARY KEY (unit, address, subject)
+					--	FOREIGN KEY (unit) REFERENCES units(unit)
+					)`);
+					connection.addQuery(arrQueries, `CREATE INDEX IF NOT EXISTS bySysVotesAddress ON system_votes(address)`);
+					connection.addQuery(arrQueries, `CREATE INDEX IF NOT EXISTS bySysVotesSubjectAddress ON system_votes(subject, address)`);
+					connection.addQuery(arrQueries, `CREATE INDEX IF NOT EXISTS bySysVotesSubjectTimestamp ON system_votes(subject, timestamp)`);
+					connection.addQuery(arrQueries, `CREATE TABLE IF NOT EXISTS op_votes (
+						unit CHAR(44) NOT NULL,
+						address CHAR(32) NOT NULL,
+						op_address CHAR(32) NOT NULL,
+						timestamp INT NOT NULL,
+						creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+						PRIMARY KEY (address, op_address)
+					--	FOREIGN KEY (unit) REFERENCES units(unit)
+					)`);
+					connection.addQuery(arrQueries, `CREATE INDEX IF NOT EXISTS byOpVotesTs ON op_votes(timestamp)`);
+					connection.addQuery(arrQueries, `CREATE TABLE IF NOT EXISTS numerical_votes (
+						unit CHAR(44) NOT NULL,
+						address CHAR(32) NOT NULL,
+						subject VARCHAR(50) NOT NULL,
+						value DOUBLE NOT NULL,
+						timestamp INT NOT NULL,
+						creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+						PRIMARY KEY (address, subject)
+					--	FOREIGN KEY (unit) REFERENCES units(unit)
+					)`);
+					connection.addQuery(arrQueries, `CREATE INDEX IF NOT EXISTS byNumericalVotesSubjectTs ON numerical_votes(subject, timestamp)`);
+					connection.addQuery(arrQueries, `CREATE TABLE IF NOT EXISTS system_vars (
+						subject VARCHAR(50) NOT NULL,
+						value TEXT NOT NULL,
+						vote_count_mci INT NOT NULL, -- applies since the next mci
+						is_emergency TINYINT NOT NULL DEFAULT 0,
+						creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+						PRIMARY KEY (subject, vote_count_mci DESC)
+					)`);
+					const timestamp = 1708387200; // 20 Feb 2024
+					const threshold_size = 10000;
+					const base_tps_fee = 10;
+					const tps_interval = constants.bDevnet ? 2 : 1;
+					const tps_fee_multiplier = 10;
+					const arrOPs = constants.bDevnet
+						? ["ZQFHJXFWT2OCEBXF26GFXJU4MPASWPJT"]
+						: (constants.bTestnet
+							? ["2FF7PSL7FYXVU5UIQHCVDTTPUOOG75GX", "2GPBEZTAXKWEXMWCTGZALIZDNWS5B3V7", "4H2AMKF6YO2IWJ5MYWJS3N7Y2YU2T4Z5", "DFVODTYGTS3ILVOQ5MFKJIERH6LGKELP", "ERMF7V2RLCPABMX5AMNGUQBAH4CD5TK4", "F4KHJUCLJKY4JV7M5F754LAJX4EB7M4N", "IOF6PTBDTLSTBS5NWHUSD7I2NHK3BQ2T", "O4K4QILG6VPGTYLRAI2RGYRFJZ7N2Q2O", "OPNUXBRSSQQGHKQNEPD2GLWQYEUY5XLD", "PA4QK46276MJJD5DBOLIBMYKNNXMUVDP", "RJDYXC4YQ4AZKFYTJVCR5GQJF5J6KPRI", "WELOXP3EOA75JWNO6S5ZJHOO3EYFKPIR"]
+							: ["2TO6NYBGX3NF5QS24MQLFR7KXYAMCIE5", "4GDZSXHEFVFMHCUCSHZVXBVF5T2LJHMU", "APABTE2IBKOIHLS2UNK6SAR4T5WRGH2J", "DXYWHSZ72ZDNDZ7WYZXKWBBH425C6WZN", "FAB6TH7IRAVHDLK2AAWY5YBE6CEBUACF", "FOPUBEUPBC6YLIQDLKL6EW775BMV7YOH", "GFK3RDAPQLLNCMQEVGGD2KCPZTLSG3HN", "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", "JMFXY26FN76GWJJG7N36UI2LNONOGZJV", "JPQKPRI5FMTQRJF4ZZMYZYDQVRD55OTC", "TKT4UESIKTTRALRRLWS4SENSTJX6ODCW", "UE25S4GRWZOLNXZKY4VWFHNJZWUSYCQC"]
+						);
+					const strOPs = JSON.stringify(arrOPs);
+					const arrPreloadedVoters = constants.bDevnet
+						? [require('./chash.js').getChash160('')]
+						: (constants.bTestnet
+							? ['EJC4A7WQGHEZEKW6RLO7F26SAR4LAQBU']
+							: ['3Y24IXW57546PQAPQ2SXYEPEDNX4KC6Y']
+						);
+					for (let address of arrPreloadedVoters) {
+						connection.addQuery(arrQueries,
+							`INSERT OR IGNORE INTO system_votes (unit, address, subject, value, timestamp) VALUES
+							('', '${address}', 'op_list', '${strOPs}', ${timestamp}),
+							('', '${address}', 'threshold_size', ${threshold_size}, ${timestamp}),
+							('', '${address}', 'base_tps_fee', ${base_tps_fee}, ${timestamp}),
+							('', '${address}', 'tps_interval', ${tps_interval}, ${timestamp}),
+							('', '${address}', 'tps_fee_multiplier', ${tps_fee_multiplier}, ${timestamp})
+						`);
+						const values = arrOPs.map(op => `('', '${address}', '${op}', ${timestamp})`);
+						connection.addQuery(arrQueries, `INSERT OR IGNORE INTO op_votes (unit, address, op_address, timestamp) VALUES ` + values.join(', '));
+						connection.addQuery(arrQueries,
+							`INSERT OR IGNORE INTO numerical_votes (unit, address, subject, value, timestamp) VALUES
+							('', '${address}', 'threshold_size', ${threshold_size}, ${timestamp}),
+							('', '${address}', 'base_tps_fee', ${base_tps_fee}, ${timestamp}),
+							('', '${address}', 'tps_interval', ${tps_interval}, ${timestamp}),
+							('', '${address}', 'tps_fee_multiplier', ${tps_fee_multiplier}, ${timestamp})
+						`);
+					}
+					connection.addQuery(arrQueries,
+						`INSERT OR IGNORE INTO system_vars (subject, value, vote_count_mci) VALUES 
+						('op_list', '${strOPs}', -1),
+						('threshold_size', ${threshold_size}, -1),
+						('base_tps_fee', ${base_tps_fee}, -1),
+						('tps_interval', ${tps_interval}, -1),
+						('tps_fee_multiplier', ${tps_fee_multiplier}, -1)
+					`);
+					connection.addQuery(arrQueries, "ALTER TABLE units ADD COLUMN oversize_fee INT NULL");
+					connection.addQuery(arrQueries, "ALTER TABLE units ADD COLUMN tps_fee INT NULL");
+					connection.addQuery(arrQueries, "ALTER TABLE units ADD COLUMN actual_tps_fee INT NULL");
+					connection.addQuery(arrQueries, "ALTER TABLE units ADD COLUMN burn_fee INT NULL");
+					connection.addQuery(arrQueries, "ALTER TABLE units ADD COLUMN max_aa_responses INT NULL");
+					connection.addQuery(arrQueries, "ALTER TABLE units ADD COLUMN count_aa_responses INT NULL");
+					connection.addQuery(arrQueries, "ALTER TABLE units ADD COLUMN is_aa_response TINYINT NULL");
+					connection.addQuery(arrQueries, "ALTER TABLE units ADD COLUMN count_primary_aa_triggers TINYINT NULL");
+					connection.addQuery(arrQueries, `CREATE TABLE IF NOT EXISTS tps_fees_balances (
+						address CHAR(32) NOT NULL,
+						mci INT NOT NULL,
+						tps_fees_balance INT NOT NULL DEFAULT 0, -- can be negative
+						creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+						PRIMARY KEY (address, mci DESC)
+					)`);
+					connection.addQuery(arrQueries, `UPDATE units SET is_aa_response=1 WHERE unit IN (SELECT response_unit FROM aa_responses)`);
+					connection.addQuery(arrQueries, `UPDATE units 
+						SET count_primary_aa_triggers=(SELECT COUNT(*) FROM aa_responses WHERE trigger_unit=unit)
+						WHERE is_aa_response!=1 AND unit IN (SELECT trigger_unit FROM aa_responses)
+					`);
+					connection.addQuery(arrQueries, `CREATE TABLE IF NOT EXISTS node_vars (
+						name VARCHAR(30) NOT NULL PRIMARY KEY,
+						value TEXT NOT NULL,
+						last_update TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+					)`);
+					connection.addQuery(arrQueries, `INSERT INTO node_vars (name, value) VALUES ('last_temp_data_purge_mci', ?)`, [constants.v4UpgradeMci]);
 				}
 				cb();
 			},
