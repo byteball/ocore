@@ -719,7 +719,7 @@ function buildPath(objLaterJoint, objEarlierJoint, arrChain, onDone){
 					},
 					function(unit){
 						if (!unit)
-							throw Error("none of the parents includes earlier unit");
+							throw Error(`none of the parents includes earlier unit ${objEarlierJoint.unit.unit}, later unit ${objJoint.unit.unit}`);
 						addJoint(unit, buildPathToEarlierUnit);
 					}
 				);
