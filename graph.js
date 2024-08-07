@@ -132,6 +132,8 @@ function determineIfIncluded(conn, earlier_unit, arrLaterUnits, handleResult){
 //	console.log('determineIfIncluded', earlier_unit, arrLaterUnits, new Error().stack);
 	if (!earlier_unit)
 		throw Error("no earlier_unit");
+	if (!handleResult)
+		return new Promise(resolve => determineIfIncluded(conn, earlier_unit, arrLaterUnits, resolve));
 	if (storage.isGenesisUnit(earlier_unit))
 		return handleResult(true);
 	storage.readPropsOfUnits(conn, earlier_unit, arrLaterUnits, function(objEarlierUnitProps, arrLaterUnitProps){
@@ -245,6 +247,8 @@ function determineIfIncluded(conn, earlier_unit, arrLaterUnits, handleResult){
 }
 
 function determineIfIncludedOrEqual(conn, earlier_unit, arrLaterUnits, handleResult){
+	if (!handleResult)
+		return new Promise(resolve => determineIfIncludedOrEqual(conn, earlier_unit, arrLaterUnits, resolve));
 	if (arrLaterUnits.indexOf(earlier_unit) >= 0)
 		return handleResult(true);
 	determineIfIncluded(conn, earlier_unit, arrLaterUnits, handleResult);

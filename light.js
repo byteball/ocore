@@ -678,12 +678,15 @@ function buildPath(objLaterJoint, objEarlierJoint, arrChain, onDone){
 			"SELECT parent.unit, parent.main_chain_index FROM units AS child JOIN units AS parent ON child.best_parent_unit=parent.unit \n\
 			WHERE child.unit=?", 
 			[objChildJoint.unit.unit],
-			function(rows){
+			async function(rows){
 				if (rows.length !== 1)
 					throw Error("goUp not 1 parent");
 				if (rows[0].unit === objEarlierJoint.unit.unit)
 					return onDone();
 				if (rows[0].main_chain_index < objEarlierJoint.unit.main_chain_index && rows[0].main_chain_index !== null) // jumped over the target
+					return buildPathToEarlierUnit(objChildJoint);
+				const bIncluded = await graph.determineIfIncluded(db, objEarlierJoint.unit.unit, [rows[0].unit]);
+				if (!bIncluded) // jumped over the target
 					return buildPathToEarlierUnit(objChildJoint);
 				addJoint(rows[0].unit, function(objJoint){
 					(objJoint.unit.main_chain_index === objEarlierJoint.unit.main_chain_index) ? buildPathToEarlierUnit(objJoint) : goUp(objJoint);
