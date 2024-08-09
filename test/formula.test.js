@@ -6,6 +6,7 @@ var Mnemonic = require('bitcore-mnemonic');
 var constants = require("../constants.js");
 constants.aa2UpgradeMci = 0;
 constants.aa3UpgradeMci = 0;
+constants.v4UpgradeMci = 0;
 
 var objectHash = require("../object_hash.js");
 var chash = require("../chash.js");

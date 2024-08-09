@@ -8,6 +8,7 @@ var Mnemonic = require('bitcore-mnemonic');
 var constants = require("../constants.js");
 constants.aa2UpgradeMci = 0;
 constants.aa3UpgradeMci = 0;
+constants.v4UpgradeMci = 0;
 
 var objectHash = require("../object_hash.js");
 var ecdsaSig = require('../signature.js');
@@ -31,6 +32,10 @@ require('./_init_datafeeds.js');
 var db = require("../db");
 var storage = require("../storage");
 var parseOjson = require('../formula/parse_ojson').parse
+var network = require('../network.js'); // to initialize caches
+
+
+process.on('unhandledRejection', up => { throw up; });
 
 var readGetterProps = function (aa_address, func_name, cb) {
 	storage.readAAGetterProps(db, aa_address, func_name, cb);
@@ -906,9 +911,9 @@ test.cb.serial('no messages', t => {
 			conn.query('ROLLBACK', () => {
 				conn.release();
 			});
-			t.deepEqual(objResponseUnit.unit, 'XKxmIIccP1UR3Pem2jex0Lrzllc6w+WQ9ASqDehjUm4=');
+			t.deepEqual(objResponseUnit.unit, 'I34YKQAb6oKUWppHEwaQseiUVvoX6lLFKHXndylpSNg=');
 			t.deepEqual(bounce_message, 'no messages');
-			t.deepEqual(objUnit.unit, 'XKxmIIccP1UR3Pem2jex0Lrzllc6w+WQ9ASqDehjUm4=');
+			t.deepEqual(objUnit.unit, 'I34YKQAb6oKUWppHEwaQseiUVvoX6lLFKHXndylpSNg=');
 			t.deepEqual(objUnit.messages.find(function (message) { return (message.app === 'payment'); }).payload.outputs.find(function (output) { return (output.address === trigger.address); }).amount, 30000);
 			t.end();
 		});
