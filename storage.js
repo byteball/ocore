@@ -2337,10 +2337,11 @@ async function initSystemVars(conn) {
 	if (rows.length === 0)
 		throw Error("no system vars");
 	for (let { subject, value, vote_count_mci, is_emergency } of rows)
-		systemVars[subject].push({ vote_count_mci, value: subject === 'op_list' ? JSON.parse(value) : value, is_emergency });
+		systemVars[subject].push({ vote_count_mci, value: subject === 'op_list' ? JSON.parse(value) : +value, is_emergency });
 	for (let subject in systemVars)
 		if (systemVars[subject].length === 0)
 			throw Error(`no ${subject} system vars`);
+	console.log('system vars', systemVars);
 }
 
 /*
