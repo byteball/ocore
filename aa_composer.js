@@ -1286,8 +1286,14 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 	}
 
 	function executeStateUpdateFormula(objResponseUnit, cb) {
-		if (!objStateUpdate || bBouncing)
+		if (bBouncing)
 			return cb();
+		if (!objStateUpdate) {
+			const rv_len = getResponseVarsLength();
+			if (rv_len > constants.MAX_RESPONSE_VARS_LENGTH)
+				return cb(`response vars too long: ${rv_len}`);
+			return cb();
+		}
 		var opts = {
 			conn: conn,
 			formula: objStateUpdate.formula,
@@ -1306,8 +1312,18 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 		//	console.log('--- state update formula', objStateUpdate.formula, '=', res);
 			if (res === null)
 				return cb(err.bounce_message || "formula " + objStateUpdate.formula + " failed: "+err);
+			const rv_len = getResponseVarsLength();
+			if (rv_len > constants.MAX_RESPONSE_VARS_LENGTH)
+				return cb(`response vars too long: ${rv_len}`);
 			cb();
 		});
+	}
+
+	function getResponseVarsLength() {
+		if (mci < constants.v4UpgradeMci)
+			return 0;
+		const serializedResponseVars = JSON.stringify(responseVars);
+		return serializedResponseVars.length;
 	}
 
 	function fixStateVars() {
