@@ -509,6 +509,13 @@ function composeJoint(params){
 			);
 		}
 	], function(err){
+		if (!err && last_ball_mci >= constants.v4UpgradeMci) {
+			const size_fees = objUnit.headers_commission + objUnit.payload_commission;
+			const additional_fees = (objUnit.oversize_fee || 0) + objUnit.tps_fee;
+			const max_ratio = params.max_fee_ratio || conf.max_fee_ratio || 100;
+			if (additional_fees > max_ratio * size_fees)
+				err = `additional fees ${additional_fees} (oversize fee ${objUnit.oversize_fee || 0} + tps fee ${objUnit.tps_fee}) would be more than ${max_ratio} times the regular fees ${size_fees}`;
+		}
 		// we close the transaction and release the connection before signing as multisig signing may take very very long
 		// however we still keep c-ADDRESS lock to avoid creating accidental doublespends
 		conn.query(err ? "ROLLBACK" : "COMMIT", function(){

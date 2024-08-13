@@ -1982,6 +1982,7 @@ function sendMultiPayment(opts, handleResult)
 				available_paying_addresses: arrFundedAddresses, // forces 'minimal' for payments from shared addresses too, it doesn't hurt
 				signing_addresses: arrAllSigningAddresses,
 				spend_unconfirmed: opts.spend_unconfirmed || conf.spend_unconfirmed || 'own',
+				max_fee_ratio: opts.max_fee_ratio,
 				messages: messages, 
 				signer: signer, 
 				callbacks: {
