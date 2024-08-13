@@ -497,7 +497,7 @@ async function replaceParents(conn, filtered_prows, excluded_parents) {
 	let bAddedNewParents = false;
 	for (let unit of replacement_parents) {
 		const remaining_replacement_parents = replacement_parents.filter(p => p !== unit);
-		const other_parents = filtered_prows.map(r => r.unit).concat(remaining_replacement_parents);
+		const other_parents = _.uniq(filtered_prows.map(r => r.unit).concat(remaining_replacement_parents));
 		if (other_parents.length > 0) {
 			const bIncluded = await graph.determineIfIncludedOrEqual(conn, unit, other_parents);
 			if (bIncluded) {
