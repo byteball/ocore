@@ -13,6 +13,7 @@ var ValidationUtils = require("./validation_utils.js");
 var writer = require('./writer.js');
 var graph = require('./graph.js');
 var profiler = require('./profiler.js');
+var mutex = require('./mutex.js');
 
 var NOT_ENOUGH_FUNDS_ERROR_MESSAGE = "not enough indivisible asset coins that fit the desired amount within the specified tolerances, make sure all your funds are confirmed";
 
@@ -808,12 +809,17 @@ function getSavingCallbacks(to_address, callbacks){
 	return {
 		ifError: callbacks.ifError,
 		ifNotEnoughFunds: callbacks.ifNotEnoughFunds,
-		ifOk: function(objJoint, assocPrivatePayloads, composer_unlock){
+		ifOk: async function(objJoint, assocPrivatePayloads, composer_unlock){
 			var objUnit = objJoint.unit;
 			var unit = objUnit.unit;
+			const validate_and_save_unlock = await mutex.lock('handleJoint');
+			const combined_unlock = () => {
+				validate_and_save_unlock();
+				composer_unlock();
+			};
 			validation.validate(objJoint, {
 				ifUnitError: function(err){
-					composer_unlock();
+					combined_unlock();
 					callbacks.ifError("Validation error: "+err);
 				//	throw Error("unexpected validation error: "+err);
 				},
@@ -833,7 +839,7 @@ function getSavingCallbacks(to_address, callbacks){
 					console.log("Private OK "+objValidationState.sequence);
 					if (objValidationState.sequence !== 'good'){
 						validation_unlock();
-						composer_unlock();
+						combined_unlock();
 						return callbacks.ifError("Indivisible asset bad sequence "+objValidationState.sequence);
 					}
 					var bPrivate = !!assocPrivatePayloads;
@@ -927,7 +933,7 @@ function getSavingCallbacks(to_address, callbacks){
 							function onDone(err){
 								console.log("saved unit "+unit+", err="+err);
 								validation_unlock();
-								composer_unlock();
+								combined_unlock();
 								if (bPreCommitCallbackFailed)
 									callbacks.ifError("precommit callback failed: "+err);
 								else
@@ -946,7 +952,7 @@ function getSavingCallbacks(to_address, callbacks){
 						function onLightError(err){ // light only
 							console.log("failed to post indivisible payment "+unit);
 							validation_unlock();
-							composer_unlock();
+							combined_unlock();
 							callbacks.ifError(err);
 						},
 						saveAndUnlock

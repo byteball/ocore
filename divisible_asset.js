@@ -12,6 +12,7 @@ var validation = require('./validation.js');
 var writer = require('./writer.js');
 var inputs = require('./inputs.js');
 var conf = require('./conf.js');
+var mutex = require('./mutex.js');
 
 function validateAndSavePrivatePaymentChain(conn, arrPrivateElements, callbacks){
 	// we always have only one element
@@ -296,12 +297,17 @@ function getSavingCallbacks(callbacks){
 	return {
 		ifError: callbacks.ifError,
 		ifNotEnoughFunds: callbacks.ifNotEnoughFunds,
-		ifOk: function(objJoint, private_payload, composer_unlock){
+		ifOk: async function(objJoint, private_payload, composer_unlock){
 			var objUnit = objJoint.unit;
 			var unit = objUnit.unit;
+			const validate_and_save_unlock = await mutex.lock('handleJoint');
+			const combined_unlock = () => {
+				validate_and_save_unlock();
+				composer_unlock();
+			};
 			validation.validate(objJoint, {
 				ifUnitError: function(err){
-					composer_unlock();
+					combined_unlock();
 					callbacks.ifError("Validation error: "+err);
 				//	throw Error("unexpected validation error: "+err);
 				},
@@ -321,7 +327,7 @@ function getSavingCallbacks(callbacks){
 					console.log("divisible asset OK "+objValidationState.sequence);
 					if (objValidationState.sequence !== 'good'){
 						validation_unlock();
-						composer_unlock();
+						combined_unlock();
 						return callbacks.ifError("Divisible asset bad sequence "+objValidationState.sequence);
 					}
 					var bPrivate = !!private_payload;
@@ -359,7 +365,7 @@ function getSavingCallbacks(callbacks){
 						function onLightError(err){ // light only
 							console.log("failed to post divisible payment "+unit);
 							validation_unlock();
-							composer_unlock();
+							combined_unlock();
 							callbacks.ifError(err);
 						},
 						function save(){
@@ -369,7 +375,7 @@ function getSavingCallbacks(callbacks){
 								function onDone(err){
 									console.log("saved unit "+unit+", err="+err, objPrivateElement);
 									validation_unlock();
-									composer_unlock();
+									combined_unlock();
 									var arrChains = objPrivateElement ? [[objPrivateElement]] : null; // only one chain that consists of one element
 									callbacks.ifOk(objJoint, arrChains, arrChains);
 								}
