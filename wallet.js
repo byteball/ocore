@@ -1979,6 +1979,7 @@ function sendMultiPayment(opts, handleResult)
 			if (asset_outputs) generateNewMnemonicIfNoAddress(asset, asset_outputs);
 
 			var params = {
+				compose_only: opts.compose_only,
 				available_paying_addresses: arrFundedAddresses, // forces 'minimal' for payments from shared addresses too, it doesn't hurt
 				signing_addresses: arrAllSigningAddresses,
 				spend_unconfirmed: opts.spend_unconfirmed || conf.spend_unconfirmed || 'own',
@@ -2009,6 +2010,8 @@ function sendMultiPayment(opts, handleResult)
 					// for asset payments, 2nd argument is array of chains of private elements
 					// for base asset, 2nd argument is assocPrivatePayloads which is null
 					ifOk: function(objJoint, arrChainsOfRecipientPrivateElements, arrChainsOfCosignerPrivateElements){
+						if (opts.compose_only)
+							return handleResult(null, objJoint.unit.unit, assocMnemonics, objJoint.unit);
 						network.broadcastJoint(objJoint);
 						if (!arrChainsOfRecipientPrivateElements){ // send notification about public payment
 							if (recipient_device_address)
@@ -2025,10 +2028,10 @@ function sendMultiPayment(opts, handleResult)
 								var objPayment = assocPaymentsByEmail[email];
 								sendTextcoinEmail(email, opts.email_subject, objPayment.amount, objPayment.asset, objPayment.mnemonic);
 								if (++sent == Object.keys(assocPaymentsByEmail).length)
-									handleResult(null, objJoint.unit.unit, assocMnemonics);
+									handleResult(null, objJoint.unit.unit, assocMnemonics, objJoint.unit);
 							}
 						} else {
-							handleResult(null, objJoint.unit.unit, assocMnemonics);
+							handleResult(null, objJoint.unit.unit, assocMnemonics, objJoint.unit);
 						}
 					}
 				}

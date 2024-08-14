@@ -1047,7 +1047,7 @@ function restorePrivateChains(asset, unit, to_address, handleChains){
 // {asset: asset, paying_addresses: arrPayingAddresses, fee_paying_addresses: arrFeePayingAddresses, to_address: to_address, change_address: change_address, amount: amount, tolerance_plus: tolerance_plus, tolerance_minus: tolerance_minus, signer: signer, callbacks: callbacks}
 function composeAndSaveIndivisibleAssetPaymentJoint(params){
 	var params_with_save = _.clone(params);
-	params_with_save.callbacks = getSavingCallbacks(getToAddress(params), params.callbacks);
+	params_with_save.callbacks = params.compose_only ? composer.getNonsavingCallbacks(params.callbacks) : getSavingCallbacks(getToAddress(params), params.callbacks);
 	composeIndivisibleAssetPaymentJoint(params_with_save);
 }
 

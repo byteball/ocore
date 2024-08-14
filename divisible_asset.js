@@ -391,7 +391,7 @@ function getSavingCallbacks(callbacks){
 // {asset: asset, paying_addresses: arrPayingAddresses, fee_paying_addresses: arrFeePayingAddresses, change_address: change_address, to_address: to_address, amount: amount, signer: signer, callbacks: callbacks}
 function composeAndSaveDivisibleAssetPaymentJoint(params){
 	var params_with_save = _.clone(params);
-	params_with_save.callbacks = getSavingCallbacks(params.callbacks);
+	params_with_save.callbacks = params.compose_only ? composer.getNonsavingCallbacks(params.callbacks) : getSavingCallbacks(params.callbacks);
 	composeDivisibleAssetPaymentJoint(params_with_save);
 }
 

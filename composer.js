@@ -678,7 +678,7 @@ function composeMinimalJoint(params){
 
 function composeAndSaveMinimalJoint(params){
 	var params_with_save = _.clone(params);
-	params_with_save.callbacks = getSavingCallbacks(params.callbacks);
+	params_with_save.callbacks = params.compose_only ? getNonsavingCallbacks(params.callbacks) : getSavingCallbacks(params.callbacks);
 	composeMinimalJoint(params_with_save);
 }
 
@@ -752,6 +752,17 @@ function getSavingCallbacks(callbacks){
 					);
 				} // ifOk validation
 			}); // validate
+		}
+	};
+}
+
+function getNonsavingCallbacks(callbacks) {
+	return {
+		ifError: callbacks.ifError,
+		ifNotEnoughFunds: callbacks.ifNotEnoughFunds,
+		ifOk: function (objJoint, assocPrivatePayloads, composer_unlock) {
+			composer_unlock();
+			callbacks.ifOk(objJoint, assocPrivatePayloads);
 		}
 	};
 }
@@ -892,6 +903,7 @@ exports.composeAndSaveMinimalJoint = composeAndSaveMinimalJoint;
 
 exports.sortOutputs = sortOutputs;
 exports.getSavingCallbacks = getSavingCallbacks;
+exports.getNonsavingCallbacks = getNonsavingCallbacks;
 exports.postJointToLightVendorIfNecessaryAndSave = postJointToLightVendorIfNecessaryAndSave;
 exports.composeAndSavePaymentJoint = composeAndSavePaymentJoint;
 
