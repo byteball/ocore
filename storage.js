@@ -1228,7 +1228,7 @@ async function updateMissingTpsFees() {
 	if (props) {
 		const last_stable_mci = props.main_chain_index;
 		const [row] = await conn.query(`SELECT mci FROM tps_fees_balances ORDER BY ${conf.storage === 'sqlite' ? 'rowid' : 'creation_date'} DESC LIMIT 1`);
-		const last_tps_fees_mci = row ? row.mci : 0;
+		const last_tps_fees_mci = row ? row.mci : constants.v4UpgradeMci;
 		if (last_tps_fees_mci > last_stable_mci)
 			throw Error(`last tps fee mci ${last_tps_fees_mci} > last stable mci ${last_stable_mci}`);
 		if (last_tps_fees_mci < last_stable_mci) {
