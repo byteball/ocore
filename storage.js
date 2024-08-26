@@ -1706,12 +1706,14 @@ async function initializeMinRetrievableMci(conn, onDone){
 	}
 	readLastStableMcIndex(conn, _last_stable_mci => {
 		last_stable_mci = _last_stable_mci;
+		console.log('last_stable_mci', last_stable_mci);
 		if (last_stable_mci === 0) {
 			min_retrievable_mci = 0;
 			return onDone();
 		}
 		findLastBallMciOfMci(conn, last_stable_mci, last_ball_mci => {
 			min_retrievable_mci = last_ball_mci;
+			console.log('initialized min_retrievable_mci', min_retrievable_mci);
 			onDone();
 		});
 	});
