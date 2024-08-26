@@ -94,7 +94,7 @@ exports.aa2UpgradeMci = exports.bTestnet ? 1358300 : 5494000;
 exports.unstableInitialDefinitionUpgradeMci = exports.bTestnet ? 1358300 : 5494000;
 exports.includeKeySizesUpgradeMci = exports.bTestnet ? 1383500 : 5530000;
 exports.aa3UpgradeMci = exports.bTestnet ? 2291500 : 7810000;
-exports.v4UpgradeMci = exports.bTestnet ? 3521500 : 0; // fix
+exports.v4UpgradeMci = exports.bTestnet ? 3522600 : 0; // fix
 
 
 if (process.env.devnet) {
