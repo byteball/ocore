@@ -1695,18 +1695,24 @@ function updateMinRetrievableMciAfterStabilizingMci(conn, batch, _last_stable_mc
 	});
 }
 
-function initializeMinRetrievableMci(conn, onDone){
-	var conn = conn || db;
+async function initializeMinRetrievableMci(conn, onDone){
+	if (!onDone)
+		return new Promise(resolve => initializeMinRetrievableMci(conn, resolve));
+	if (!conn || conn === db) {
+		const c = await db.takeConnectionFromPool();
+		await initializeMinRetrievableMci(c);
+		c.release();
+		return onDone();
+	}
 	readLastStableMcIndex(conn, _last_stable_mci => {
 		last_stable_mci = _last_stable_mci;
 		if (last_stable_mci === 0) {
 			min_retrievable_mci = 0;
-			return onDone ? onDone() : null;
+			return onDone();
 		}
 		findLastBallMciOfMci(conn, last_stable_mci, last_ball_mci => {
 			min_retrievable_mci = last_ball_mci;
-			if (onDone)
-				onDone();
+			onDone();
 		});
 	});
 }
@@ -2138,6 +2144,8 @@ function shrinkCache(){
 		return console.log('cache is small, will not shrink');
 	var arrUnits = _.union(arrPropsUnits, arrAuthorsUnits, arrWitnessesUnits, arrKnownUnits, arrStableUnits);
 	console.log('will shrink cache, total units: '+arrUnits.length);
+	if (min_retrievable_mci === null)
+		throw Error(`min_retrievable_mci no initialized yet`);
 	readLastStableMcIndex(db, function(last_stable_mci){
 		const top_mci = Math.min(min_retrievable_mci, last_stable_mci - constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING - 10);
 		for (var mci = top_mci-1; true; mci--){
@@ -2210,6 +2218,8 @@ function initUnstableUnits(conn, onDone){
 function initStableUnits(conn, onDone){
 	if (!onDone)
 		return new Promise(resolve => initStableUnits(conn, resolve));
+	if (min_retrievable_mci === null)
+		throw Error(`min_retrievable_mci no initialized yet`);
 	var conn = conn || db;
 	readLastStableMcIndex(conn, function (_last_stable_mci) {
 		last_stable_mci = _last_stable_mci;
