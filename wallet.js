@@ -742,9 +742,11 @@ function handlePrivatePaymentChains(ws, body, from_address, callbacks){
 	if (!ValidationUtils.isNonemptyArray(arrChains))
 		return callbacks.ifError("no chains found");
 	var cache_key = objectHash.getBase64Hash(arrChains);
-	if (handledChainsCache[cache_key])
+	if (handledChainsCache[cache_key]) {
+		eventBus.emit('all_private_payments_handled', from_address);
+		eventBus.emit('all_private_payments_handled-' + arrChains[0][0].unit);
 		return callbacks.ifOk();
-	handledChainsCache[cache_key] = true;
+	}
 	profiler.increment();
 	
 	if (conf.bLight)
@@ -828,6 +830,7 @@ function handlePrivatePaymentChains(ws, body, from_address, callbacks){
 				return callbacks.ifError(err);
 			}
 			checkIfAllValidated();
+			handledChainsCache[cache_key] = true;
 			callbacks.ifOk();
 			// forward the chains to other members of output addresses
 			if (!body.forwarded)

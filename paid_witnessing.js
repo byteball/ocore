@@ -245,7 +245,7 @@ function buildPaidWitnesses(conn, objUnitProps, arrWitnesses, onDone){
 			"SELECT address \n\
 			FROM units \n\
 			LEFT JOIN unit_authors "+ force_index +" USING(unit) \n\
-			WHERE unit IN("+strUnitsList+") AND address IN(?) AND +sequence='good' \n\
+			WHERE unit IN("+strUnitsList+") AND +address IN(?) AND +sequence='good' \n\
 			GROUP BY address",
 			[arrWitnesses],
 			function(rows){
