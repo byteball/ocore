@@ -549,7 +549,7 @@ function migrateDb(connection, onDone){
 							creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 							PRIMARY KEY (subject, vote_count_mci DESC)
 						)`);
-						const timestamp = 1708387200; // 20 Feb 2024
+						const timestamp = 1724716800; // 27 Aug 2024
 						const threshold_size = 10000;
 						const base_tps_fee = 10;
 						const tps_interval = constants.bDevnet ? 2 : 1;
