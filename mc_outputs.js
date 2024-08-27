@@ -118,7 +118,7 @@ function calcEarnings(conn, type, from_main_chain_index, to_main_chain_index, ad
 	conn.query(
 		"SELECT SUM(amount) AS total \n\
 		FROM "+table+" \n\
-		WHERE main_chain_index>=? AND main_chain_index<=? AND address=?",
+		WHERE main_chain_index>=? AND main_chain_index<=? AND +address=?",
 		[from_main_chain_index, to_main_chain_index, address],
 		function(rows){
 			var total = rows[0].total;

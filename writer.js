@@ -379,7 +379,7 @@ async function saveJoint(objJoint, objValidationState, preCommitCallback, onDone
 									case "witnessing":
 										var table = type + "_outputs";
 										conn.addQuery(arrQueries, "UPDATE "+table+" SET is_spent=1 \n\
-											WHERE main_chain_index>=? AND main_chain_index<=? AND address=?", 
+											WHERE main_chain_index>=? AND main_chain_index<=? AND +address=?", 
 											[from_main_chain_index, to_main_chain_index, address]);
 										break;
 								}
