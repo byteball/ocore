@@ -2186,7 +2186,7 @@ function initUnstableUnits(conn, onDone){
 		return new Promise(resolve => initUnstableUnits(conn, resolve));
 	var conn = conn || db;
 	conn.query(
-		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, timestamp, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit, best_parent_unit, last_ball_unit, tps_fee, max_aa_responses, count_aa_responses, count_primary_aa_triggers, is_aa_response \n\
+		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, timestamp, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit, best_parent_unit, last_ball_unit, tps_fee, max_aa_responses, count_aa_responses, count_primary_aa_triggers, is_aa_response, version \n\
 			FROM units \n\
 			JOIN unit_authors USING(unit) \n\
 			WHERE is_stable=0 \n\
@@ -2201,6 +2201,9 @@ function initUnstableUnits(conn, onDone){
 				row.bAA = !!row.is_aa_response;
 				delete row.is_aa_response;
 				row.tps_fee = row.tps_fee || 0;
+				if (parseFloat(row.version) >= constants.fVersion4)
+					delete row.witness_list_unit;
+				delete row.version;
 				row.author_addresses = row.author_addresses.split(',');
 				assocUnstableUnits[row.unit] = row;
 				if (assocUnstableUnits[best_parent_unit]){
@@ -2227,7 +2230,7 @@ function initStableUnits(conn, onDone){
 		last_stable_mci = _last_stable_mci;
 		const top_mci = Math.min(min_retrievable_mci, last_stable_mci - constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING - 10);
 		conn.query(
-			"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, timestamp, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit, best_parent_unit, last_ball_unit, tps_fee, max_aa_responses, count_aa_responses, count_primary_aa_triggers, is_aa_response \n\
+			"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, timestamp, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit, best_parent_unit, last_ball_unit, tps_fee, max_aa_responses, count_aa_responses, count_primary_aa_triggers, is_aa_response, version \n\
 			FROM units \n\
 			JOIN unit_authors USING(unit) \n\
 			WHERE is_stable=1 AND main_chain_index>=? \n\
@@ -2239,6 +2242,9 @@ function initStableUnits(conn, onDone){
 					row.bAA = !!row.is_aa_response;
 					delete row.is_aa_response;
 					row.tps_fee = row.tps_fee || 0;
+					if (parseFloat(row.version) >= constants.fVersion4)
+						delete row.witness_list_unit;
+					delete row.version;
 					row.author_addresses = row.author_addresses.split(',');
 					assocStableUnits[row.unit] = row;
 					if (!assocStableUnitsByMci[row.main_chain_index])
