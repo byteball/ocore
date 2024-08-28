@@ -1814,6 +1814,7 @@ async function countVotes(conn, mci, subject, is_emergency = 0, emergency_count_
 	// a repeated emergency vote on the same mci would overwrite the previous one
 	await conn.query(`${is_emergency || mci === 0 ? 'REPLACE' : 'INSERT'} INTO system_vars (subject, value, vote_count_mci, is_emergency) VALUES (?, ?, ?, ?)`, [subject, value, mci === 0 ? -1 : mci, is_emergency]);
 	await conn.query(conn.dropTemporaryTable('voter_balances'));
+	eventBus.emit('system_vars_updated');
 }
 
 

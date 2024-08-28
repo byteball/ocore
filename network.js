@@ -151,6 +151,13 @@ function sendAllInboundJustsaying(subject, body){
 	});
 }
 
+function sendUpdatedSysVarsToAllLight() {
+	wss.clients.forEach(function (ws) {
+		if (ws.bSentSysVars)
+			sendJustsaying(ws, 'system_vars', storage.systemVars);
+	});
+}
+
 function sendError(ws, error) {
 	sendJustsaying(ws, 'error', error);
 }
@@ -2820,6 +2827,12 @@ function handleJustsaying(ws, subject, body){
 			eventBus.emit('known_witnesses_updated');
 			break;
 			
+		case 'system_vars':
+			if (!ws.bLoggingIn && !ws.bLoggedIn || !conf.bLight) // accept from hub only and only if light
+				return;
+			_.assign(storage.systemVars, body);
+			break;
+			
 		case 'upgrade_required':
 			if (!ws.bLoggingIn && !ws.bLoggedIn) // accept from hub only
 				return;
@@ -2997,6 +3010,10 @@ function handleRequest(ws, tag, command, params){
 			});
 			break;
 			
+		case 'get_system_vars':
+			sendResponse(ws, tag, storage.systemVars);
+			break;
+			
 		// I'm a hub, the peer wants to deliver a message to one of my clients
 		case 'hub/deliver':
 			var objDeviceMessage = params;
@@ -3106,6 +3123,10 @@ function handleRequest(ws, tag, command, params){
 		case 'light/get_history':
 			if (largeHistoryTags[tag])
 				return sendErrorResponse(ws, tag, constants.lightHistoryTooLargeErrorMessage);
+			if (!ws.bSentSysVars) {
+				ws.bSentSysVars = true;
+				sendJustsaying(ws, 'system_vars', storage.systemVars);
+			}
 			mutex.lock(['get_history_request'], function(unlock){
 				if (!ws || ws.readyState !== ws.OPEN) // may be already gone when we receive the lock
 					return process.nextTick(unlock);
@@ -3835,6 +3856,7 @@ async function startRelay(){
 	joint_storage.readDependentJointsThatAreReady(null, handleSavedJoint);
 
 	eventBus.on('new_aa_unit', onNewAA);
+	eventBus.on('system_vars_updated', sendUpdatedSysVarsToAllLight);
 	await aa_composer.handleAATriggers(); // in case anything's left from the previous run
 	await storage.updateMissingTpsFees();
 }
