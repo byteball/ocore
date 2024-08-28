@@ -130,8 +130,11 @@ function composeAssetAttestorsJoint(from_address, asset, arrNewAttestors, signer
 */
 function composeJoint(params){
 	
-	if (storage.getMinRetrievableMci() >= constants.v4UpgradeMci)
+	if (storage.getMinRetrievableMci() >= constants.v4UpgradeMci) {
 		var arrWitnesses = null; // storage.getOpList(Infinity);
+		if (storage.systemVars.threshold_size.length === 0)
+			return params.callbacks.ifError("sys vars not initialized yet");
+	}
 	else {
 		var arrWitnesses = params.witnesses;
 		if (!arrWitnesses) {
