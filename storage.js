@@ -2313,7 +2313,7 @@ function initUnstableMessages(conn, onDone){
 	if (!onDone)
 		return new Promise(resolve => initUnstableMessages(conn, resolve));
 	var conn = conn || db;
-	conn.query("SELECT DISTINCT unit FROM units CROSS JOIN messages USING(unit) WHERE is_stable=0 AND app IN('data_feed', 'definition', 'system_vote', 'system_vote_count')", function(rows){
+	conn.query(`SELECT DISTINCT unit FROM units ${conf.storage === 'sqlite' ? db.forceIndex('byStableMci') : ''} CROSS JOIN messages USING(unit) WHERE is_stable=0 AND app IN('data_feed', 'definition', 'system_vote', 'system_vote_count')`, function(rows){
 		async.eachSeries(
 			rows,
 			function(row, cb){
