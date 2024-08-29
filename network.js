@@ -3014,6 +3014,51 @@ function handleRequest(ws, tag, command, params){
 			sendResponse(ws, tag, storage.systemVars);
 			break;
 			
+		case 'get_system_var_votes':
+			let votes = {
+				op_list: [],
+				threshold_size: [],
+				base_tps_fee: [],
+				tps_interval: [],
+				tps_fee_multiplier: [],			
+			};
+			let assocAddresses = {}
+			db.query("SELECT * FROM op_votes ORDER BY address, op_address", op_rows => {
+				let prev_address, vote;
+				for (let { address, op_address, unit, timestamp } of op_rows) {
+					if (address !== prev_address) {
+						vote = { address, unit, timestamp, ops: [] };
+						votes.op_list.push(vote);
+						assocAddresses[address] = true;
+						prev_address = address;
+					}
+					vote.ops.push(op_address);
+				}
+				db.query("SELECT * FROM numerical_votes", n_rows => {
+					for (let { subject, address, unit, value, timestamp } of n_rows) {
+						votes[subject].push({ address, unit, timestamp, value });
+						assocAddresses[address] = true;
+					}
+					// read the balances of all voting addresses
+					let balances = {};
+					const arrAddresses = Object.keys(assocAddresses);
+					const strAddresses = arrAddresses.map(db.escape).join(', ');
+					db.query(`SELECT address, SUM(amount) AS balance 
+						FROM outputs
+						LEFT JOIN units USING(unit)
+						WHERE address IN(${strAddresses}) AND is_spent=0 AND asset IS NULL AND is_stable=1 AND sequence='good' 
+						GROUP BY address`,
+						bal_rows => {
+							for (let { address, balance } of bal_rows) {
+								balances[address] = balance;
+							}
+							sendResponse(ws, tag, { votes, balances });
+						}
+					);
+				});
+			});
+			break;
+			
 		// I'm a hub, the peer wants to deliver a message to one of my clients
 		case 'hub/deliver':
 			var objDeviceMessage = params;
