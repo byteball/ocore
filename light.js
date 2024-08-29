@@ -573,7 +573,7 @@ function prepareParentsAndLastBallAndWitnessListUnit(arrWitnesses, arrFromAddres
 				arrWitnesses,
 				timestamp,
 				arrFromAddresses,
-				async function(err, arrParentUnits, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci, tps_fee){
+				async function(err, arrParentUnits, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci){
 					conn.release();
 					if (err)
 						return callbacks.ifError("unable to find parents: "+err);

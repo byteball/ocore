@@ -590,6 +590,35 @@ function composeJoint(params){
 	});
 }
 
+async function estimateTpsFee(arrFromAddresses, arrOutputAddresses) {
+	if (storage.getMinRetrievableMci() < constants.v4UpgradeMci)
+		return 0;
+	const max_aa_responses = constants.MAX_RESPONSES_PER_PRIMARY_TRIGGER;
+	const arrWitnesses = storage.getOpList(Infinity);
+	if (conf.bLight) {
+		const network = require('./network.js');
+		const response = await network.requestFromLightVendor('light/get_parents_and_last_ball_and_witness_list_unit', {
+			witnesses: arrWitnesses,
+			from_addresses: arrFromAddresses,
+			output_addresses: arrOutputAddresses,
+			max_aa_responses,
+		});
+		return (response.last_stable_mc_ball_mci >= constants.v4UpgradeMci) ? response.tps_fee : 0;
+	}
+	const timestamp = Math.round(Date.now() / 1000);
+	const { arrParentUnits, last_stable_mc_ball_unit, last_stable_mc_ball_mci } =
+		await parentComposer.pickParentUnitsAndLastBall(db, arrWitnesses, timestamp, arrFromAddresses);
+	if (last_stable_mc_ball_mci < constants.v4UpgradeMci)
+		return 0;
+	const rows = await db.query("SELECT 1 FROM aa_addresses WHERE address IN (?)", [arrOutputAddresses]);
+	const count_primary_aa_triggers = rows.length;
+	const tps_fee = await parentComposer.getTpsFee(db, arrParentUnits, last_stable_mc_ball_unit, timestamp, 1 + count_primary_aa_triggers * max_aa_responses);
+	// in this implementation, tps fees are paid by the 1st address only
+	const [row] = await db.query("SELECT tps_fees_balance FROM tps_fees_balances WHERE address=? AND mci<=? ORDER BY mci DESC LIMIT 1", [arrFromAddresses[0], last_stable_mc_ball_mci]);
+	const tps_fees_balance = row ? row.tps_fees_balance : 0;
+	return Math.max(tps_fee - tps_fees_balance, 0);
+}
+
 function getPayloadForHash(objMessage) {
 	if (objMessage.app !== "temp_data")
 		return objMessage.payload;
@@ -899,6 +928,8 @@ exports.composeAssetDefinitionJoint = composeAssetDefinitionJoint;
 exports.composeAssetAttestorsJoint = composeAssetAttestorsJoint;
 
 exports.composeJoint = composeJoint;
+
+exports.estimateTpsFee = estimateTpsFee;
 
 exports.filterMostFundedAddresses = filterMostFundedAddresses;
 exports.readSortedFundedAddresses = readSortedFundedAddresses;

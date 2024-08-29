@@ -351,6 +351,15 @@ function findLastBallAndAdjust(conn, arrWitnesses, arrParentUnits, onDone){
 }
 
 function pickParentUnitsAndLastBall(conn, arrWitnesses, timestamp, arrFromAddresses, onDone) {
+	if (!onDone)
+		return new Promise((resolve, reject) => pickParentUnitsAndLastBall(
+			conn, arrWitnesses, timestamp, arrFromAddresses,
+			(err, arrParentUnits, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci) => {
+				if (err)
+					return reject(err)
+				resolve({ arrParentUnits, last_stable_mc_ball, last_stable_mc_ball_unit, last_stable_mc_ball_mci });
+			}
+		));
 	conn.query(
 		`SELECT units.unit, units.version, units.alt, units.witnessed_level, units.level, units.is_aa_response, lb_units.main_chain_index AS last_ball_mci
 		FROM units ${conf.storage === 'sqlite' ? "INDEXED BY byFree" : ""}
