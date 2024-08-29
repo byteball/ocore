@@ -3046,7 +3046,7 @@ function handleRequest(ws, tag, command, params){
 					db.query(`SELECT address, SUM(amount) AS balance 
 						FROM outputs
 						LEFT JOIN units USING(unit)
-						WHERE address IN(${strAddresses}) AND is_spent=0 AND asset IS NULL AND is_stable=1 AND sequence='good' 
+						WHERE address IN(${strAddresses}) AND is_spent=0 AND asset IS NULL AND sequence='good' 
 						GROUP BY address`,
 						bal_rows => {
 							for (let { address, balance } of bal_rows) {
