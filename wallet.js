@@ -1,5 +1,6 @@
 /*jslint node: true */
 "use strict";
+const util = require('util');
 var async = require('async');
 var _ = require('lodash');
 var db = require('./db.js');
@@ -2210,9 +2211,9 @@ function sendMultiPayment(opts, handleResult)
 							}
 							indivisibleAsset.composeMinimalIndivisibleAssetPaymentJoint(params);
 						},
-						async function(cb) { // add fees
-							await addFeesToParams(objAsset);
-							cb();
+						function(cb) { // add fees
+							const addFeesToParamsCb = util.callbackify(addFeesToParams);
+							addFeesToParamsCb(objAsset, cb);
 						},
 						function(cb) { // send payment
 							if (objAsset.fixed_denominations){ // indivisible
@@ -2387,23 +2388,37 @@ function expandMnemonic(mnemonic) {
 	return addrInfo;
 }
 
-function receiveTextCoin(mnemonic, addressTo, cb) {
+function receiveTextCoin(mnemonic, addressTo, signWithLocalPrivateKey, cb) {
+	if (arguments.length === 3) {
+		cb = signWithLocalPrivateKey;
+		signWithLocalPrivateKey = null;
+	}
 	try {
 		var addrInfo = expandMnemonic(mnemonic);
 	} catch (e) {
 		cb(e.message);
 		return;
 	}
+
+	// used to pay for the fees from my own address
+	const localSigner = signWithLocalPrivateKey ? getSigner({}, [device.getMyDeviceAddress()], signWithLocalPrivateKey) : null;
+	
 	var signer = {
 		readSigningPaths: function(conn, address, handleLengthsBySigningPaths){ // returns assoc array signing_path => length
+			if (address !== addrInfo.address)
+				return localSigner.readSigningPaths(conn, address, handleLengthsBySigningPaths);
 			var assocLengthsBySigningPaths = {};
 			assocLengthsBySigningPaths["r"] = constants.SIG_LENGTH;
 			handleLengthsBySigningPaths(assocLengthsBySigningPaths);
 		},
 		readDefinition: function(conn, address, handleDefinition){
+			if (address !== addrInfo.address)
+				return localSigner.readDefinition(conn, address, handleDefinition);
 			handleDefinition(null, addrInfo.definition);
 		},
 		sign: function(objUnsignedUnit, assocPrivatePayloads, address, signing_path, handleSignature){
+			if (address !== addrInfo.address)
+				return localSigner.sign(objUnsignedUnit, assocPrivatePayloads, address, signing_path, handleSignature);
 			handleSignature(null, ecdsaSig.sign(objectHash.getUnitHashToSign(objUnsignedUnit), addrInfo.xPrivKey.privateKey.bn.toBuffer({size:32})));
 		}
 	};
@@ -2415,6 +2430,17 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 
 	opts.callbacks = {
 		ifNotEnoughFunds: function(err){
+			if (opts.fee_paying_addresses.length === 1) {
+				if (opts._private)
+					console.log(`not enough funds on the textcoin ${addrInfo.address}, will not retry with fees paid from my own address because the payment is private`);
+				else if (!signWithLocalPrivateKey)
+					console.log(`not enough funds on the textcoin ${addrInfo.address}, will not retry with fees paid from my own address because a local signer has not been provided`);
+				else {
+					console.log(`not enough funds on the textcoin ${addrInfo.address}, will add my own address to fee_paying_addresses`);
+					opts.fee_paying_addresses.push(addressTo);
+					return checkStability();
+				}
+			}
 			cb("Not enough funds on the textcoin " + addrInfo.address);
 		},
 		ifError: function(err){
@@ -2474,8 +2500,10 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 						opts.asset = asset;
 						opts.amount = row.amount;
 						opts.to_address = addressTo;
+						opts._private = true; // to prevent retries with fees paid by the recipient
 					}
-					opts.fee_paying_addresses = [addrInfo.address];
+					if (!opts.fee_paying_addresses)
+						opts.fee_paying_addresses = [addrInfo.address];
 					if (objAsset.fixed_denominations) { // indivisible
 						opts.tolerance_plus = 0;
 						opts.tolerance_minus = 0;
