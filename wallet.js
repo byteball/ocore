@@ -1934,7 +1934,7 @@ function sendMultiPayment(opts, handleResult)
 	readFundedAndSigningAddresses(
 		wallet || arrPayingAddresses, arrPayments, opts.spend_unconfirmed || conf.spend_unconfirmed || 'own', fee_paying_wallet,
 		arrSigningAddresses, arrSigningDeviceAddresses,
-		function(arrFundedAddresses, arrBaseFundedAddresses, arrAllSigningAddresses){
+		async function(arrFundedAddresses, arrBaseFundedAddresses, arrAllSigningAddresses){
 		
 			if (arrFundedAddresses.length === 0)
 				return handleResult("There are no funded addresses");
@@ -2042,12 +2042,15 @@ function sendMultiPayment(opts, handleResult)
 
 			// textcoin claim fees are paid by the sender
 			var indivisibleAssetFeesByAddress = [];
-			var addFeesToParams = function(objAsset) {
+			var addFeesToParams = async function (objAsset) {
 				// iterate over all generated textcoin addresses
 				for (var orig_address in assocAddresses) {
 					var new_address = assocAddresses[orig_address];
+					const tps_fee = 2 * (await composer.estimateTpsFee([new_address], [new_address]));
+					console.log(`will add tps fee ${tps_fee} to the textcoin`);
 					var _addAssetFees = function() {
 						var asset_fees = objAsset && objAsset.fixed_denominations ? indivisibleAssetFeesByAddress[new_address] : constants.TEXTCOIN_ASSET_CLAIM_FEE;
+						asset_fees += tps_fee;
 						if (!params.base_outputs) params.base_outputs = [];
 						var base_output = _.find(params.base_outputs, function(output) {return output.address == new_address});
 						if (base_output)
@@ -2059,13 +2062,13 @@ function sendMultiPayment(opts, handleResult)
 					// first calculate fees for textcoins in (bytes) outputs 
 					var output = _.find(params.outputs, function(output) {return output.address == new_address});
 					if (output) {
-						output.amount += constants.TEXTCOIN_CLAIM_FEE;
+						output.amount += constants.TEXTCOIN_CLAIM_FEE + tps_fee;
 					}
 
 					// second calculate fees for textcoins in base_outputs 
 					output = _.find(params.base_outputs, function(output) {return output.address == new_address});
 					if (output) {
-						output.amount += constants.TEXTCOIN_CLAIM_FEE;
+						output.amount += constants.TEXTCOIN_CLAIM_FEE + tps_fee;
 					}
 
 					// then check for textcoins in asset_outputs
@@ -2082,7 +2085,7 @@ function sendMultiPayment(opts, handleResult)
 							params.asset_outputs = [{address: new_address, amount: amount}];
 							_addAssetFees();
 						} else {
-							params.amount += constants.TEXTCOIN_CLAIM_FEE;
+							params.amount += constants.TEXTCOIN_CLAIM_FEE + tps_fee;
 						}
 					}
 				}
@@ -2207,8 +2210,8 @@ function sendMultiPayment(opts, handleResult)
 							}
 							indivisibleAsset.composeMinimalIndivisibleAssetPaymentJoint(params);
 						},
-						function(cb) { // add fees
-							addFeesToParams(objAsset);
+						async function(cb) { // add fees
+							await addFeesToParams(objAsset);
 							cb();
 						},
 						function(cb) { // send payment
@@ -2238,7 +2241,7 @@ function sendMultiPayment(opts, handleResult)
 					else
 						params.outputs = base_outputs || [];
 					params.outputs.push({address: change_address, amount: 0});
-					addFeesToParams();
+					await addFeesToParams();
 				}
 				composer.composeAndSaveMinimalJoint(params);
 			}

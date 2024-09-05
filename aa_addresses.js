@@ -8,6 +8,7 @@ var conf = require("./conf.js");
 var network = require("./network.js");
 var db = require("./db.js");
 var storage = require("./storage.js");
+const { isValidAddress } = require('./validation_utils.js');
 
 var cacheOfNewAddresses = {};
 
@@ -33,6 +34,9 @@ function MissingBounceFeesErrorMessage(obj) {
 function readAADefinitions(arrAddresses, handleRows) {
 	if (!handleRows)
 		return new Promise(resolve => readAADefinitions(arrAddresses, resolve));
+	arrAddresses = arrAddresses.filter(isValidAddress);
+	if (arrAddresses.length === 0)
+		return handleRows([]);
 	db.query("SELECT definition, address, base_aa FROM aa_addresses WHERE address IN (" + arrAddresses.map(db.escape).join(', ') + ")", function (rows) {
 		if (!conf.bLight || arrAddresses.length === rows.length)
 			return handleRows(rows);
