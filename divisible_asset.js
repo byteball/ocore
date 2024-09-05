@@ -189,7 +189,12 @@ function composeDivisibleAssetPaymentJoint(params){
 	if (!ValidationUtils.isNonemptyArray(params.fee_paying_addresses))
 		throw Error('no fee_paying_addresses');
 	var private_payload;
-	var arrBaseOutputs = [{address: params.fee_paying_addresses[0], amount: 0}]; // public outputs: the change only
+	let bAlreadyHaveChange = false;
+	if (params.base_outputs && params.base_outputs.find(o => o.amount === 0))
+		bAlreadyHaveChange = true;
+	if (params.outputs_by_asset && params.outputs_by_asset.base && params.outputs_by_asset.base.find(o => o.amount === 0))
+		bAlreadyHaveChange = true;
+	var arrBaseOutputs = bAlreadyHaveChange ? [] : [{address: params.fee_paying_addresses[0], amount: 0}]; // public outputs: the change only
 	if (params.base_outputs)
 		arrBaseOutputs = arrBaseOutputs.concat(params.base_outputs);
 	if (params.outputs_by_asset && params.outputs_by_asset.base)

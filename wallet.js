@@ -2412,7 +2412,7 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 
 	opts.callbacks = {
 		ifNotEnoughFunds: function(err){
-			cb("This textcoin was already claimed");
+			cb("Not enough funds on the textcoin " + addrInfo.address);
 		},
 		ifError: function(err){
 			if (err.indexOf("some definition changes") == 0)
@@ -2446,33 +2446,41 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 	function checkStability() {
 		db.query(
 			"SELECT is_stable, asset, SUM(amount) AS `amount` \n\
-			FROM outputs JOIN units USING(unit) WHERE address=? AND sequence='good' AND is_spent=0 GROUP BY asset ORDER BY asset DESC LIMIT 1", 
+			FROM outputs JOIN units USING(unit) WHERE address=? AND sequence='good' AND is_spent=0 GROUP BY asset ORDER BY asset DESC", 
 			[addrInfo.address],
-			function(rows){
+			async function(rows) {
 				if (rows.length === 0)
-					return cb("This textcoin either was already claimed or never existed in the network");
+					return cb(`This textcoin either was already claimed or never existed in the network (address ${addrInfo.address})`);
 				var row = rows[0];
 				if (row.asset) { // claiming asset
-					opts.asset = row.asset;
-					opts.amount = row.amount;
-					opts.fee_paying_addresses = [addrInfo.address];
-					storage.readAsset(db, row.asset, null, function(err, objAsset){
-						if (err && err.indexOf("not found") !== -1) {
-							if (!conf.bLight) // full wallets must have this asset
-								throw Error("textcoin asset "+row.asset+" not found");
-							return network.requestHistoryFor([opts.asset], [], checkStability);
-						}
-						asset = opts.asset;
+					const assets = rows.map(row => row.asset).filter(a => a);
+					const { unknown_assets, asset_infos } = await getAssetInfos(assets);
+					if (unknown_assets.length > 0 && conf.bLight)
+						return network.requestHistoryFor(unknown_assets, [], checkStability);
+					asset = assets[0];
+					const objAsset = asset_infos[0]; // assuming all other assets have the same privacy and divisibility
+					if (!objAsset.is_private) { // otherwise the change goes back to the fee paying address as we don't want to publish the recipient address
+						let outputs_by_asset = { };
+						for (let { asset, amount } of rows)
+							if (asset)
+								outputs_by_asset[asset] = [{ amount, address: addressTo }];
+						outputs_by_asset.base = [{ amount: 0, address: addressTo }]; // the change goes to our wallet, not being left on the textcoin
+						opts.outputs_by_asset = outputs_by_asset;
+					}
+					else { // claim only the 1st asset
+						opts.asset = asset;
+						opts.amount = row.amount;
 						opts.to_address = addressTo;
-						if (objAsset.fixed_denominations){ // indivisible
-							opts.tolerance_plus = 0;
-							opts.tolerance_minus = 0;
-							indivisibleAsset.composeAndSaveIndivisibleAssetPaymentJoint(opts);
-						}
-						else{ // divisible
-							divisibleAsset.composeAndSaveDivisibleAssetPaymentJoint(opts);
-						}
-					});
+					}
+					opts.fee_paying_addresses = [addrInfo.address];
+					if (objAsset.fixed_denominations) { // indivisible
+						opts.tolerance_plus = 0;
+						opts.tolerance_minus = 0;
+						indivisibleAsset.composeAndSaveIndivisibleAssetPaymentJoint(opts);
+					}
+					else { // divisible
+						divisibleAsset.composeAndSaveDivisibleAssetPaymentJoint(opts);
+					}
 				} else {// claiming bytes
 					opts.send_all = true;
 					opts.outputs = [{address: addressTo, amount: 0}];
@@ -2481,6 +2489,31 @@ function receiveTextCoin(mnemonic, addressTo, cb) {
 				}
 			}
 		);		
+	}
+
+	function getAssetInfos(assets, cb) {
+		if (!cb)
+			return new Promise(resolve => getAssetInfos(assets, resolve));
+		let unknown_assets = [];
+		let asset_infos = [];
+		async.eachSeries(
+			assets,
+			function (asset, cb) {
+				storage.readAsset(db, asset, null, function (err, objAsset) {
+					if (err && err.indexOf("not found") !== -1) {
+						if (!conf.bLight) // full wallets must have this asset
+							throw Error("textcoin asset " + asset + " not found");
+						unknown_assets.push(asset);
+					}
+					if (objAsset)
+						asset_infos.push(objAsset);
+					cb();
+				});
+			},
+			function () {
+				cb({ unknown_assets, asset_infos });
+			}
+		)
 	}
 }
 
