@@ -145,10 +145,10 @@ function parseUri(uri, callbacks){
 					const arrOPs = value.split('\n');
 					if (arrOPs.length !== constants.COUNT_WITNESSES)
 						return callbacks.ifError(`wrong number of OPs in ` + value);
-					if (arrOPs.every(ValidationUtils.isValidAddress))
+					if (!arrOPs.every(ValidationUtils.isValidAddress))
 						return callbacks.ifError(`some OP addresses are invalid in ` + value);
 				}
-				else if (!value.match(/^\d+$/))
+				else if (!value.match(/^[\d.]+$/))
 					return callbacks.ifError(`${subject} must be a number, found ` + value);
 			}
 		}
