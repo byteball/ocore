@@ -623,8 +623,9 @@ async function saveJoint(objJoint, objValidationState, preCommitCallback, onDone
 							arrOps.push(updateLevel);
 							if (!conf.bFaster)
 								arrOps.push(updateWitnessedLevel);
-							if (!objValidationState.last_ball_timestamp && objValidationState.last_ball_mci >= constants.timestampUpgradeMci && !bGenesis)
-								throw Error("no last_ball_timestamp");
+							// will throw just after the upgrade
+						//	if (!objValidationState.last_ball_timestamp && objValidationState.last_ball_mci >= constants.timestampUpgradeMci && !bGenesis)
+						//		throw Error("no last_ball_timestamp");
 							if (objValidationState.bHasSystemVoteCount && objValidationState.sequence === 'good') {
 								const m = objUnit.messages.find(m => m.app === 'system_vote_count');
 								if (!m)
