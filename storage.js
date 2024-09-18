@@ -1174,7 +1174,7 @@ function getFinalTps(objUnitProps) {
 			if (u.bAA)
 				continue;
 			if (assocStableUnits[u.unit] !== u)
-				throw Error(`different objects for unit ${u.unit}`);
+				throw Error(`different objects for unit ${u.unit}: assocStableUnitsByMci[${i}][n] = ${JSON.stringify(u)}, assocStableUnits[${u.unit}] = ${JSON.stringify(assocStableUnits[u.unit])}`);
 			countAll += 1 + (u.count_aa_responses || 0);
 			vAll[u.unit] = 1 + (u.count_aa_responses || 0);
 		}
