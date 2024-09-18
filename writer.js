@@ -669,6 +669,7 @@ async function saveJoint(objJoint, objValidationState, preCommitCallback, onDone
 							if (!conf.bLight){
 							//	delete objUnit.timestamp;
 								delete objUnit.main_chain_index;
+								delete objUnit.actual_tps_fee;
 							}
 							if (bCordova) // already written to joints table
 								return cb();

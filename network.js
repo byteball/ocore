@@ -1120,6 +1120,7 @@ function handlePostedJoint(ws, objJoint, onDone){
 	
 	var unit = objJoint.unit.unit;
 	delete objJoint.unit.main_chain_index;
+	delete objJoint.unit.actual_tps_fee;
 	
 	handleJoint(ws, objJoint, false, true, {
 		ifUnitInWork: function(){
@@ -1172,6 +1173,7 @@ function handleOnlineJoint(ws, objJoint, onDone){
 		onDone = function(){};
 	var unit = objJoint.unit.unit;
 	delete objJoint.unit.main_chain_index;
+	delete objJoint.unit.actual_tps_fee;
 	
 	handleJoint(ws, objJoint, false, false, {
 		ifUnitInWork: onDone,
