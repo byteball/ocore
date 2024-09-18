@@ -82,9 +82,9 @@ async function saveJoint(objJoint, objValidationState, preCommitCallback, onDone
 			objUnit.headers_commission || 0, objUnit.payload_commission || 0, objUnit.oversize_fee, objUnit.tps_fee, objUnit.burn_fee, objUnit.max_aa_responses, objValidationState.count_primary_aa_triggers, objValidationState.bAA ? 1 : null, objValidationState.sequence, objUnit.content_hash,
 			timestamp];
 		if (conf.bLight){
-			fields += ", main_chain_index, creation_date";
-			values += ",?,"+conn.getFromUnixTime("?");
-			params.push(objUnit.main_chain_index, objUnit.timestamp);
+			fields += ", main_chain_index, creation_date, actual_tps_fee";
+			values += ",?,"+conn.getFromUnixTime("?")+",?";
+			params.push(objUnit.main_chain_index, objUnit.timestamp, objUnit.actual_tps_fee);
 		}
 		if (conf.bFaster){
 			my_best_parent_unit = objValidationState.best_parent_unit;

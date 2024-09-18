@@ -303,8 +303,8 @@ function processHistory(objResponse, arrWitnesses, callbacks){
 								//if (!ValidationUtils.isNonnegativeInteger(objUnit.main_chain_index))
 								//    return cb2("bad main_chain_index in proven unit");
 								db.query(
-									"UPDATE units SET main_chain_index=?, sequence=? WHERE unit=?", 
-									[objUnit.main_chain_index, sequence, unit], 
+									"UPDATE units SET main_chain_index=?, sequence=?, actual_tps_fee=? WHERE unit=?", 
+									[objUnit.main_chain_index, sequence, objUnit.actual_tps_fee, unit], 
 									function(){
 										if (sequence === 'good')
 											return cb2();

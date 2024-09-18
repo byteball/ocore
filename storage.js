@@ -90,13 +90,14 @@ function readJoint(conn, unit, callbacks, bSql) {
 		// light wallets don't have last_ball, don't verify their hashes
 		if (!conf.bLight && !isCorrectHash(objJoint.unit, unit))
 			throw Error("wrong hash of unit "+unit);
-		conn.query("SELECT main_chain_index, "+conn.getUnixTimestamp("creation_date")+" AS timestamp, sequence FROM units WHERE unit=?", [unit], function(rows){
+		conn.query("SELECT main_chain_index, "+conn.getUnixTimestamp("creation_date")+" AS timestamp, sequence, actual_tps_fee FROM units WHERE unit=?", [unit], function(rows){
 			if (rows.length === 0)
 				throw Error("unit found in kv but not in sql: "+unit);
 			var row = rows[0];
 			if (objJoint.unit.version === constants.versionWithoutTimestamp)
 				objJoint.unit.timestamp = parseInt(row.timestamp);
 			objJoint.unit.main_chain_index = row.main_chain_index;
+			objJoint.unit.actual_tps_fee = row.actual_tps_fee;
 			callbacks.ifFound(objJoint, row.sequence);
 			if (constants.bDevnet) {
 				if (Date.now() - last_ts >= 600e3) {
