@@ -1865,6 +1865,30 @@ function onNewAA(objUnit) {
 	notifyWatchers({ unit: objUnit, new_aa: true }, true);
 }
 
+function onSystemVarUpdated(subject, value) {
+	sendUpdatedSysVarsToAllLight();
+	// update my witnesses with the new OP list unless catching up
+	if (subject === 'op_list' && !bCatchingUp) {
+		const arrOPs = JSON.parse(value);
+		myWitnesses.readMyWitnesses(arrWitnesses => {
+			const diff1 = _.difference(arrWitnesses, arrOPs);
+			if (diff1.length === 0)
+				return;
+			const diff2 = _.difference(arrOPs, arrWitnesses);
+			if (diff2.length !== diff1.length)
+				throw Error(`different lengths of diffs: ${JSON.stringify(diff1)} vs ${JSON.stringify(diff2)}`);
+			for (let i = 0; i < diff1.length; i++) {
+				const old_witness = diff1[i];
+				const new_witness = diff2[i];
+				myWitnesses.replaceWitness(old_witness, new_witness, err => {
+					if (err)
+						throw Error(`failed to replace witness ${old_witness} with ${new_witness}: ${err}`);
+				});
+			}
+		});
+	}
+}
+
 
 // catchup
 
@@ -3903,7 +3927,7 @@ async function startRelay(){
 	joint_storage.readDependentJointsThatAreReady(null, handleSavedJoint);
 
 	eventBus.on('new_aa_unit', onNewAA);
-	eventBus.on('system_vars_updated', sendUpdatedSysVarsToAllLight);
+	eventBus.on('system_vars_updated', onSystemVarUpdated);
 	await aa_composer.handleAATriggers(); // in case anything's left from the previous run
 	await storage.updateMissingTpsFees();
 }
