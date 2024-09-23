@@ -97,7 +97,8 @@ function readJoint(conn, unit, callbacks, bSql) {
 			if (objJoint.unit.version === constants.versionWithoutTimestamp)
 				objJoint.unit.timestamp = parseInt(row.timestamp);
 			objJoint.unit.main_chain_index = row.main_chain_index;
-			objJoint.unit.actual_tps_fee = row.actual_tps_fee;
+			if (parseFloat(objJoint.unit.version) >= constants.fVersion4)
+				objJoint.unit.actual_tps_fee = row.actual_tps_fee;
 			callbacks.ifFound(objJoint, row.sequence);
 			if (constants.bDevnet) {
 				if (Date.now() - last_ts >= 600e3) {
