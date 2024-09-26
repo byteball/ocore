@@ -1866,26 +1866,30 @@ function onNewAA(objUnit) {
 }
 
 function onSystemVarUpdated(subject, value) {
+	console.log('onSystemVarUpdated', subject, value);
 	sendUpdatedSysVarsToAllLight();
 	// update my witnesses with the new OP list unless catching up
 	if (subject === 'op_list' && !bCatchingUp) {
 		const arrOPs = JSON.parse(value);
 		myWitnesses.readMyWitnesses(arrWitnesses => {
+			if (arrWitnesses.length === 0)
+				return console.log('no witnesses yet');
 			const diff1 = _.difference(arrWitnesses, arrOPs);
 			if (diff1.length === 0)
-				return;
+				return console.log("witnesses didn't change");
 			const diff2 = _.difference(arrOPs, arrWitnesses);
 			if (diff2.length !== diff1.length)
 				throw Error(`different lengths of diffs: ${JSON.stringify(diff1)} vs ${JSON.stringify(diff2)}`);
 			for (let i = 0; i < diff1.length; i++) {
 				const old_witness = diff1[i];
 				const new_witness = diff2[i];
+				console.log(`replacing witness ${old_witness} with ${new_witness}`);
 				myWitnesses.replaceWitness(old_witness, new_witness, err => {
 					if (err)
 						throw Error(`failed to replace witness ${old_witness} with ${new_witness}: ${err}`);
 				});
 			}
-		});
+		}, 'ignore');
 	}
 }
 
