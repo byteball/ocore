@@ -2041,6 +2041,9 @@ function sendMultiPayment(opts, handleResult)
 				}
 			};
 
+			if (opts.burn_fee)
+				params.burn_fee = opts.burn_fee;
+
 			// textcoin claim fees are paid by the sender
 			var indivisibleAssetFeesByAddress = [];
 			var addFeesToParams = async function (objAsset) {
