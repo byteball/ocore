@@ -1555,7 +1555,8 @@ function readFundedAddresses(asset, wallet, estimated_amount, spend_unconfirmed,
 		db.query(
 			"SELECT * FROM ( \n\
 				SELECT address, SUM(amount) AS total \n\
-				FROM outputs JOIN my_addresses USING(address) \n\
+				FROM my_addresses \n\
+				CROSS JOIN outputs USING(address) \n\
 				CROSS JOIN units USING(unit) \n\
 				WHERE wallet=? "+inputs.getConfirmationConditionSql(spend_unconfirmed)+" AND sequence='good' \n\
 					AND is_spent=0 AND "+(asset ? "asset=?" : "asset IS NULL")+" \n\
