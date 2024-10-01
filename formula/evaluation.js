@@ -1499,13 +1499,9 @@ exports.evaluate = function (opts, callback) {
 							if (objUnit.version === constants.versionWithoutTimestamp)
 								objUnit.timestamp = 0;
 							var unit_mci = objUnit.main_chain_index;
-							// ignore non-AA units that are not stable or created at a later mci
-							if (unit_mci === null || unit_mci > mci) {
-								if (bAA && objUnit.authors[0].authentifiers) // non-AA unit
-									return cb(false);
-								if (!bAA)
-									return cb(false);
-							}
+							// ignore units that are not stable or created at a later mci
+							if (unit_mci === null || unit_mci > mci)
+								return cb(false);
 							for (let m of objUnit.messages)
 								if (m.app === "temp_data")
 									delete m.payload.data; // delete temp data if it is not purged yet
