@@ -153,8 +153,15 @@ function sendAllInboundJustsaying(subject, body){
 
 function sendUpdatedSysVarsToAllLight() {
 	wss.clients.forEach(function (ws) {
-		if (ws.bSentSysVars)
+		if (ws.bSentSysVars || ws.bWatchingSystemVars)
 			sendJustsaying(ws, 'system_vars', storage.systemVars);
+	});
+}
+
+function sendSysVarVoteToAllWatchers(subject, value, author_addresses, unit, is_stable) {
+	wss.clients.forEach(function (ws) {
+		if (ws.bWatchingSystemVars)
+			sendJustsaying(ws, 'system_var_vote', { subject, value, author_addresses, unit, is_stable });
 	});
 }
 
@@ -2843,6 +2850,11 @@ function handleJustsaying(ws, subject, body){
 			});
 			break;
 			
+		case 'watch_system_vars':
+			ws.bWatchingSystemVars = true;
+			sendJustsaying(ws, 'system_vars', storage.systemVars);
+			break;
+			
 		case 'exchange_rates':
 			if (!ws.bLoggingIn && !ws.bLoggedIn) // accept from hub only
 				return;
@@ -3053,21 +3065,49 @@ function handleRequest(ws, tag, command, params){
 				tps_fee_multiplier: [],			
 			};
 			let assocAddresses = {}
+			let is_stable = 1;
 			db.query("SELECT * FROM op_votes ORDER BY address, op_address", op_rows => {
 				let prev_address, vote;
 				for (let { address, op_address, unit, timestamp } of op_rows) {
 					if (address !== prev_address) {
-						vote = { address, unit, timestamp, ops: [] };
+						vote = { address, unit, timestamp, value: [], is_stable };
 						votes.op_list.push(vote);
 						assocAddresses[address] = true;
 						prev_address = address;
 					}
-					vote.ops.push(op_address);
+					vote.value.push(op_address);
 				}
 				db.query("SELECT * FROM numerical_votes", n_rows => {
 					for (let { subject, address, unit, value, timestamp } of n_rows) {
-						votes[subject].push({ address, unit, timestamp, value });
+						votes[subject].push({ address, unit, timestamp, value, is_stable });
 						assocAddresses[address] = true;
+					}
+					
+					// unconfirmed votes
+					is_stable = 0;
+					for (let unit in storage.assocUnstableMessages) { // undefined order of iteration, we might handle unstable votes from the same address in the wrong order
+						const arrUnstableMessages = storage.assocUnstableMessages[unit];
+						for (let message of arrUnstableMessages) {
+							if (message.app !== 'system_vote')
+								continue;
+							const { subject, value } = message.payload;
+							const { author_addresses, timestamp, sequence } = storage.assocUnstableUnits[unit];
+							if (sequence !== 'good')
+								continue;
+							for (let address of author_addresses) {
+								const prev_vote = votes[subject].find(vote => vote.address === address);
+								if (prev_vote) {
+									prev_vote.value = value;
+									prev_vote.timestamp = timestamp;
+									prev_vote.unit = unit;
+									prev_vote.is_stable = 0;
+								}
+								else {
+									votes[subject].push({ address, unit, timestamp, value, is_stable });
+									assocAddresses[address] = true;
+								}
+							}
+						}
 					}
 					// read the balances of all voting addresses
 					let balances = {};
@@ -3932,6 +3972,7 @@ async function startRelay(){
 
 	eventBus.on('new_aa_unit', onNewAA);
 	eventBus.on('system_vars_updated', onSystemVarUpdated);
+	eventBus.on('system_var_vote', sendSysVarVoteToAllWatchers);
 	await aa_composer.handleAATriggers(); // in case anything's left from the previous run
 	await storage.updateMissingTpsFees();
 }

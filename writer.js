@@ -598,6 +598,8 @@ async function saveJoint(objJoint, objValidationState, preCommitCallback, onDone
 						if (!storage.assocUnstableMessages[objUnit.unit])
 							storage.assocUnstableMessages[objUnit.unit] = [];
 						storage.assocUnstableMessages[objUnit.unit].push(message);
+						if (message.app === 'system_vote')
+							eventBus.emit('system_var_vote', message.payload.subject, message.payload.value, arrAuthorAddresses, objUnit.unit, 0);
 					}
 				});
 			}

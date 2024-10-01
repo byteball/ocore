@@ -1556,6 +1556,7 @@ function markMcIndexStable(conn, batch, mci, onDone){
 										default:
 											throw Error("unknown subject after stability: " + subject);
 									}
+									eventBus.emit('system_var_vote', subject, value, author_addresses, unit, 1);
 								}
 
 
