@@ -2776,6 +2776,7 @@ function handleJustsaying(ws, subject, body){
 		case 'light/aa_definition':
 		case 'light/aa_response':
 		case 'light/aa_definition_saved':
+		case 'system_var_vote':
 			if (!conf.bLight)
 				return sendError(ws, "I'm not light");
 			if (!ws.bLightVendor)
@@ -2873,6 +2874,7 @@ function handleJustsaying(ws, subject, body){
 			if (!ws.bLoggingIn && !ws.bLoggedIn || !conf.bLight) // accept from hub only and only if light
 				return;
 			_.assign(storage.systemVars, body);
+			eventBus.emit("message_for_light", ws, subject, body);
 			break;
 			
 		case 'upgrade_required':
@@ -3082,7 +3084,7 @@ function handleRequest(ws, tag, command, params){
 						votes[subject].push({ address, unit, timestamp, value, is_stable });
 						assocAddresses[address] = true;
 					}
-					
+
 					// unconfirmed votes
 					is_stable = 0;
 					for (let unit in storage.assocUnstableMessages) { // undefined order of iteration, we might handle unstable votes from the same address in the wrong order
