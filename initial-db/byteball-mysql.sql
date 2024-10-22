@@ -922,3 +922,75 @@ CREATE TABLE IF NOT EXISTS arbiter_disputes (
 	respondent_contact_info TEXT NULL,
 	FOREIGN KEY (arbstore_device_address) REFERENCES correspondent_devices(device_address)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
+
+
+
+-- System votes
+
+-- just a log of all votes, including overridden ones
+CREATE TABLE system_votes (
+	unit CHAR(44) NOT NULL,
+	address CHAR(32) NOT NULL,
+	subject VARCHAR(50) NOT NULL,
+	value TEXT NOT NULL,
+	timestamp INT NOT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	PRIMARY KEY (unit, address, subject)
+--	FOREIGN KEY (unit) REFERENCES units(unit)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
+CREATE INDEX bySysVotesAddress ON system_votes(address);
+CREATE INDEX bySysVotesSubjectAddress ON system_votes(subject, address);
+CREATE INDEX bySysVotesSubjectTimestamp ON system_votes(subject, timestamp);
+
+-- latest OP vote
+CREATE TABLE op_votes (
+	unit CHAR(44) NOT NULL,
+	address CHAR(32) NOT NULL,
+	op_address CHAR(32) NOT NULL,
+	timestamp INT NOT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	PRIMARY KEY (address, op_address)
+--	FOREIGN KEY (unit) REFERENCES units(unit)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
+CREATE INDEX byOpVotesTs ON op_votes(timestamp);
+
+-- latest vote for a numerical value
+CREATE TABLE numerical_votes (
+	unit CHAR(44) NOT NULL,
+	address CHAR(32) NOT NULL,
+	subject VARCHAR(50) NOT NULL,
+	value REAL NOT NULL,
+	timestamp INT NOT NULL,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	PRIMARY KEY (address, subject)
+--	FOREIGN KEY (unit) REFERENCES units(unit)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
+CREATE INDEX byNumericalVotesSubjectTs ON numerical_votes(subject, timestamp);
+
+-- new record added after system_vote_count. Votes are counted after the MCI is completed, therefore counted only once per MCI even if there are two system_vote_count commands on this MCI. All votes and balance updates up to and including this MCI are taken into account, even if they happen after system_vote_count on its MCI.
+CREATE TABLE system_vars (
+	subject VARCHAR(50) NOT NULL,
+	value TEXT NOT NULL,
+	vote_count_mci INT NOT NULL, -- applies since the next mci
+	is_emergency TINYINT NOT NULL DEFAULT 0,
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	PRIMARY KEY (subject, vote_count_mci DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
+
+
+CREATE TABLE tps_fees_balances (
+	address CHAR(32) NOT NULL,
+	mci INT NOT NULL,
+	tps_fees_balance INT NOT NULL DEFAULT 0, -- can be negative
+	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	PRIMARY KEY (address, mci DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
+
+
+-- node's state variables
+CREATE TABLE node_vars (
+	name VARCHAR(30) NOT NULL PRIMARY KEY,
+	value TEXT NOT NULL,
+	last_update TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
+INSERT INTO node_vars (name, value) VALUES ('last_temp_data_purge_mci', 0);
