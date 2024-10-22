@@ -37,3 +37,8 @@ function executeInTransaction(doWork, onDone){
 }
 
 module.exports.executeInTransaction = executeInTransaction;
+
+if (!conf.bLight) {
+	const initial_votes = require('./initial_votes.js');
+	initial_votes.initSystemVarVotes(module.exports);
+}
