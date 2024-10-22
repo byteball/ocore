@@ -565,7 +565,7 @@ function migrateDb(connection, onDone){
 							? [require('./chash.js').getChash160('')]
 							: (constants.bTestnet
 								? ['EJC4A7WQGHEZEKW6RLO7F26SAR4LAQBU']
-								: ['3Y24IXW57546PQAPQ2SXYEPEDNX4KC6Y']
+								: ['3Y24IXW57546PQAPQ2SXYEPEDNX4KC6Y', 'G4E66WLVL4YMNFLBKWPRCVNBTPB64NOE', 'Q5OGEL2QFKQ4TKQTG4X3SSLU57OBMMBY', 'BQCVIU7Y7LHARKJVZKWL7SL3PEH7UHVM']
 							);
 						for (let address of arrPreloadedVoters) {
 							connection.addQuery(arrQueries,
