@@ -56,6 +56,7 @@ async function initSystemVarVotes(db) {
 		('tps_fee_multiplier', ${tps_fee_multiplier}, -1)
 	`);
 	await conn.query("COMMIT");
+	console.log("initialized system vars");
 	conn.release();
 }
 
