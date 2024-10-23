@@ -1677,6 +1677,10 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 				case "threshold_size":
 					if (!isPositiveInteger(payload.value))
 						return callback(payload.subject + " must be a positive integer");
+					if (!process.env.testnet || objValidationState.last_ball_mci > 3543000) {
+						if (payload.value < 1000)
+							return callback(payload.subject + " must be at least 1000");
+					}
 					callback();
 					break;
 				case "base_tps_fee":
