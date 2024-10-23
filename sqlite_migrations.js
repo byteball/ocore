@@ -561,7 +561,7 @@ function migrateDb(connection, onDone){
 							value TEXT NOT NULL,
 							last_update TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 						)`);
-						connection.addQuery(arrQueries, `INSERT INTO node_vars (name, value) VALUES ('last_temp_data_purge_mci', ?)`, [constants.v4UpgradeMci]);
+						connection.addQuery(arrQueries, `INSERT OR IGNORE INTO node_vars (name, value) VALUES ('last_temp_data_purge_mci', ?)`, [constants.v4UpgradeMci]);
 					}
 					connection.addQuery(arrQueries, "ALTER TABLE units ADD COLUMN oversize_fee INT NULL");
 					connection.addQuery(arrQueries, "ALTER TABLE units ADD COLUMN tps_fee INT NULL");
