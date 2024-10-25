@@ -2691,11 +2691,15 @@ function handlePrivatePaymentFile(fullPath, content, cb) {
 		fs.readFile(decodeURIComponent(fullPath.replace('file://', '')), unzip);
 	} else {
 		window.requestFileSystem(LocalFileSystem.TEMPORARY, 0, function(fs) {
+			console.log('requestFileSystem done');
 			if (fullPath.indexOf('://') == -1) fullPath = 'file://' + fullPath;
 			window.resolveLocalFileSystemURL(fullPath, function(fileEntry) {
+				console.log('resolveLocalFileSystemURL done', fileEntry);
 				fileEntry.file(function(file) {
+					console.log('fileEntry.file done', file);
 					var reader = new FileReader();
 					reader.onloadend = function() {
+						console.log('onloadend', this.result);
 						if (this.result == null) {
 							var permissions = cordova.plugins.permissions;
 							permissions.requestPermission(permissions.READ_EXTERNAL_STORAGE, function(status){
@@ -2707,6 +2711,7 @@ function handlePrivatePaymentFile(fullPath, content, cb) {
 							}, function(){cb("request for file permissions failed")});
 							return;
 						}
+						console.log('reading file');
 						var fileBuffer = Buffer.from(new Uint8Array(this.result));
 						unzip(null, fileBuffer);
 					};
