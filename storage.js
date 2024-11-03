@@ -647,13 +647,14 @@ function readWitnesses(conn, unit, handleWitnessList){
 	var arrWitnesses = assocCachedUnitWitnesses[unit];
 	if (arrWitnesses)
 		return handleWitnessList(arrWitnesses);
-	conn.query("SELECT witness_list_unit, main_chain_index FROM units WHERE unit=?", [unit], function(rows){
+	conn.query("SELECT witness_list_unit, main_chain_index, is_stable FROM units WHERE unit=?", [unit], function(rows){
 		if (rows.length === 0)
 			throw Error("unit "+unit+" not found");
-		const { witness_list_unit, main_chain_index } = rows[0];
+		const { witness_list_unit, main_chain_index, is_stable } = rows[0];
 		if (main_chain_index >= constants.v4UpgradeMci) {
 			const op_list = getOpList(main_chain_index);
-			assocCachedUnitWitnesses[unit] = op_list;
+			if (is_stable)
+				assocCachedUnitWitnesses[unit] = op_list;
 			return handleWitnessList(op_list);
 		}
 		readWitnessList(conn, witness_list_unit ? witness_list_unit : unit, function(arrWitnesses){
