@@ -12,7 +12,6 @@ var archiving = require('./archiving.js');
 var eventBus = require('./event_bus.js');
 var profiler = require('./profiler.js');
 var ValidationUtils = require("./validation_utils.js");
-const kvstore = require('./kvstore.js');
 
 var testnetAssetsDefinedByAAsAreVisibleImmediatelyUpgradeMci = 1167000;
 
@@ -1067,6 +1066,7 @@ async function purgeTempData() {
 	);
 	if (rows.length === 0)
 		return console.log(`purgeTempData no new units since the previous purge`);
+	const kvstore = require('./kvstore.js');
 	for (let { unit, main_chain_index, app } of rows) {
 		last_mci = main_chain_index;
 		if (!app) // not a temp_data
