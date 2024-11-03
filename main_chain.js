@@ -1686,7 +1686,7 @@ async function countVotes(conn, mci, subject, is_emergency = 0, emergency_count_
 		throw Error(`no MC unit on just stabilized MCI ` + mci);
 	const mc_timestamp = mc_row.timestamp;
 	
-	const [activation_row] = await conn.query("SELECT timestamp FROM units WHERE main_chain_index=? AND is_on_main_chain=1", [0/*constants.v4UpgradeMci*/]);
+	const [activation_row] = await conn.query("SELECT timestamp FROM units WHERE main_chain_index=? AND is_on_main_chain=1", [constants.v4UpgradeMci]);
 	if (!activation_row)
 		throw Error(`no MC unit on OP vote activation MCI ` + constants.v4UpgradeMci);
 	const activation_timestamp = activation_row.timestamp;
