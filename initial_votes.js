@@ -5,7 +5,7 @@ var constants = require("./constants.js");
 async function initSystemVarVotes(db) {
 	const conn = await db.takeConnectionFromPool();
 	const rows = await conn.query("SELECT 1 FROM system_vars LIMIT 1");
-	if (rows.length > 1) {
+	if (rows.length > 0) {
 		conn.release();
 		return console.log("system vars already initialized");
 	}
