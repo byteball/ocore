@@ -6,6 +6,27 @@ async function initSystemVarVotes(db) {
 	const conn = await db.takeConnectionFromPool();
 	const rows = await conn.query("SELECT 1 FROM system_vars LIMIT 1");
 	if (rows.length > 0) {
+		if (constants.bTestnet) { // fix a previous bug
+			const vote_rows = await conn.query("SELECT op_address, unit FROM op_votes WHERE address='EJC4A7WQGHEZEKW6RLO7F26SAR4LAQBU'");
+			if (vote_rows.length === 13) {
+				const vote_row = vote_rows.find(row => row.op_address === '2FF7PSL7FYXVU5UIQHCVDTTPUOOG75GX');
+				if (!vote_row)
+					throw Error("13 OPs but 2FF7PSL7FYXVU5UIQHCVDTTPUOOG75GX is not among them");
+				if (vote_row.unit)
+					throw Error("13th OP has unit " + vote_row.unit);
+				console.log("deleting the 13th vote");
+				await conn.query("DELETE FROM op_votes WHERE address='EJC4A7WQGHEZEKW6RLO7F26SAR4LAQBU' AND op_address='2FF7PSL7FYXVU5UIQHCVDTTPUOOG75GX'");
+			}
+			// change the OP list on those nodes that were not affected by the bug (the minority)
+			const [op_list_row] = await conn.query("SELECT value, vote_count_mci FROM system_vars WHERE subject='op_list' ORDER BY mci DESC LIMIT 1");
+			if (!op_list_row)
+				throw Error("no last op list");
+			const { value, vote_count_mci } = op_list_row;
+			if (vote_count_mci === 3547796 && value === '["2GPBEZTAXKWEXMWCTGZALIZDNWS5B3V7","4H2AMKF6YO2IWJ5MYWJS3N7Y2YU2T4Z5","DFVODTYGTS3ILVOQ5MFKJIERH6LGKELP","ERMF7V2RLCPABMX5AMNGUQBAH4CD5TK4","F4KHJUCLJKY4JV7M5F754LAJX4EB7M4N","IOF6PTBDTLSTBS5NWHUSD7I2NHK3BQ2T","O4K4QILG6VPGTYLRAI2RGYRFJZ7N2Q2O","OPNUXBRSSQQGHKQNEPD2GLWQYEUY5XLD","PA4QK46276MJJD5DBOLIBMYKNNXMUVDP","RJDYXC4YQ4AZKFYTJVCR5GQJF5J6KPRI","WELOXP3EOA75JWNO6S5ZJHOO3EYFKPIR","WMFLGI2GLAB2MDF2KQAH37VNRRMK7A5N"]') {
+				console.log("changing the OP list to the buggy one");
+				await conn.query(`UPDATE system_vars SET value='["2FF7PSL7FYXVU5UIQHCVDTTPUOOG75GX","2GPBEZTAXKWEXMWCTGZALIZDNWS5B3V7","4H2AMKF6YO2IWJ5MYWJS3N7Y2YU2T4Z5","DFVODTYGTS3ILVOQ5MFKJIERH6LGKELP","ERMF7V2RLCPABMX5AMNGUQBAH4CD5TK4","F4KHJUCLJKY4JV7M5F754LAJX4EB7M4N","IOF6PTBDTLSTBS5NWHUSD7I2NHK3BQ2T","O4K4QILG6VPGTYLRAI2RGYRFJZ7N2Q2O","OPNUXBRSSQQGHKQNEPD2GLWQYEUY5XLD","PA4QK46276MJJD5DBOLIBMYKNNXMUVDP","RJDYXC4YQ4AZKFYTJVCR5GQJF5J6KPRI","WMFLGI2GLAB2MDF2KQAH37VNRRMK7A5N"]' WHERE subject='op_list' AND vote_count_mci=3547796`);
+			}
+		}
 		conn.release();
 		return console.log("system vars already initialized");
 	}
