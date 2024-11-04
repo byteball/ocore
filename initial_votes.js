@@ -18,7 +18,7 @@ async function initSystemVarVotes(db) {
 				await conn.query("DELETE FROM op_votes WHERE address='EJC4A7WQGHEZEKW6RLO7F26SAR4LAQBU' AND op_address='2FF7PSL7FYXVU5UIQHCVDTTPUOOG75GX'");
 			}
 			// change the OP list on those nodes that were not affected by the bug (the minority)
-			const [op_list_row] = await conn.query("SELECT value, vote_count_mci FROM system_vars WHERE subject='op_list' ORDER BY mci DESC LIMIT 1");
+			const [op_list_row] = await conn.query("SELECT value, vote_count_mci FROM system_vars WHERE subject='op_list' ORDER BY vote_count_mci DESC LIMIT 1");
 			if (!op_list_row)
 				throw Error("no last op list");
 			const { value, vote_count_mci } = op_list_row;
