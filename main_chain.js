@@ -1166,7 +1166,7 @@ function determineIfStableInLaterUnitsAndUpdateStableMcFlag(conn, earlier_unit, 
 			let conn = await db.takeConnectionFromPool();
 			await conn.query("BEGIN");
 			storage.readLastStableMcIndex(conn, function(last_stable_mci){
-				if (last_stable_mci >= constants.v4UpgradeMci)
+				if (last_stable_mci >= constants.v4UpgradeMci && !(constants.bTestnet && last_stable_mci === 3547801))
 					throwError(`${earlier_unit} not stable in db but stable in later units ${arrLaterUnits.join(', ')} in v4`);
 				storage.readUnitProps(conn, earlier_unit, function(objEarlierUnitProps){
 					var new_last_stable_mci = objEarlierUnitProps.main_chain_index;
