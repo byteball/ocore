@@ -72,20 +72,25 @@ function prepareHistory(historyRequest, callbacks){
 		// we don't filter sequence='good' after the unit is stable, so the client will see final doublespends too
 		var strAddressList = arrAddresses.map(db.escape).join(', ');
 		var mciCond = minMci ? " AND (main_chain_index >= " + minMci + " OR main_chain_index IS NULL) " : "";
-		arrSelects = ["SELECT DISTINCT unit, main_chain_index, level, is_stable FROM outputs JOIN units USING(unit) \n\
-			WHERE address IN("+strAddressList+") AND (+sequence='good' OR is_stable=1)"+mciCond+"\n\
-			UNION \n\
-			SELECT DISTINCT unit, main_chain_index, level, is_stable FROM unit_authors JOIN units USING(unit) \n\
-			WHERE address IN(" + strAddressList + ") AND (+sequence='good' OR is_stable=1)"+mciCond+" \n\
-			UNION \n\
-			SELECT DISTINCT unit, main_chain_index, level, is_stable FROM aa_responses JOIN units ON trigger_unit=unit \n\
-			WHERE aa_address IN(" + strAddressList + ")"+mciCond];
+		arrSelects.push("SELECT DISTINCT unit, main_chain_index, level, is_stable FROM outputs JOIN units USING(unit) \n\
+			WHERE address IN("+ strAddressList + ") AND (+sequence='good' OR is_stable=1)" + mciCond);
+		if (minMci) {
+			arrSelects.push("SELECT DISTINCT unit, main_chain_index, level, is_stable FROM unit_authors CROSS JOIN units USING(unit) \n\
+			WHERE address IN(" + strAddressList + ") AND (+sequence='good' OR is_stable=1) AND _mci>=" + minMci);
+			arrSelects.push("SELECT DISTINCT unit, main_chain_index, level, is_stable FROM unit_authors CROSS JOIN units USING(unit) \n\
+			WHERE address IN(" + strAddressList + ") AND (+sequence='good' OR is_stable=1) AND _mci IS NULL");
+		}
+		else
+			arrSelects.push("SELECT DISTINCT unit, main_chain_index, level, is_stable FROM unit_authors JOIN units USING(unit) \n\
+			WHERE address IN(" + strAddressList + ") AND (+sequence='good' OR is_stable=1)");
+		arrSelects.push("SELECT DISTINCT unit, main_chain_index, level, is_stable FROM aa_responses JOIN units ON trigger_unit=unit \n\
+			WHERE aa_address IN(" + strAddressList + ")" + mciCond);
 	}
 	if (arrRequestedJoints){
 		var strUnitList = arrRequestedJoints.map(db.escape).join(', ');
 		arrSelects.push("SELECT unit, main_chain_index, level, is_stable FROM units WHERE unit IN("+strUnitList+") AND (+sequence='good' OR is_stable=1) \n");
 	}
-	var sql = arrSelects.join("UNION \n") + "ORDER BY main_chain_index DESC, level DESC";
+	var sql = arrSelects.join("\nUNION \n") + "ORDER BY main_chain_index DESC, level DESC";
 	db.query(sql, function(rows){
 		// if no matching units, don't build witness proofs
 		rows = rows.filter(function(row){ return !assocKnownStableUnits[row.unit]; });
@@ -149,7 +154,7 @@ function prepareHistory(historyRequest, callbacks){
 										return aa_row;
 									});
 								callbacks.ifOk(objResponse);
-								console.log("prepareHistory for addresses "+(arrAddresses || []).join(', ')+" and joints "+(arrRequestedJoints || []).join(', ')+" took "+(Date.now()-start_ts)+'ms');
+								console.log("prepareHistory (without main search) for addresses "+(arrAddresses || []).join(', ')+" and joints "+(arrRequestedJoints || []).join(', ')+" took "+(Date.now()-start_ts)+'ms');
 								unlock();
 							});
 						}
