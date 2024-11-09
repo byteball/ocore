@@ -504,6 +504,7 @@ function migrateDb(connection, onDone){
 				if (version < 45) {
 					connection.addQuery(arrQueries, "ALTER TABLE wallet_arbiter_contracts ADD COLUMN my_party_name VARCHAR(100) NULL");
 					connection.addQuery(arrQueries, "ALTER TABLE wallet_arbiter_contracts ADD COLUMN peer_party_name VARCHAR(100) NULL");
+					connection.addQuery(arrQueries, "PRAGMA user_version=45");
 				}
 				if (version < 46) {
 					if (!conf.bLight) {
