@@ -73,7 +73,7 @@ exports.SYSTEM_VOTE_MIN_SHARE = 0.1;
 exports.TEMP_DATA_PURGE_TIMEOUT = 24 * 3600;
 exports.TEMP_DATA_PRICE = 0.5; // bytes per byte
 
-exports.minCoreVersion = exports.bTestnet ? '0.3.12' : '0.3.12';
+exports.minCoreVersion = exports.bTestnet ? '0.4.0' : '0.4.0';
 exports.minCoreVersionForFullNodes = exports.bTestnet ? '0.4.2' : '0.4.2';
 exports.minCoreVersionToSharePeers = exports.bTestnet ? '0.3.9' : '0.3.9';
 
