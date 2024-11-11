@@ -2680,6 +2680,11 @@ function handleJustsaying(ws, subject, body){
 			ws.max_message_length = objLogin.max_message_length;
 			ws.max_message_count = objLogin.max_message_count;
 			// after this point the device is authenticated and can send further commands
+
+			// temp fix for password-protected light clients: send sys vars (again) as they were ignored in the history response
+			if (!ws.bSubscribed)
+				sendJustsaying(ws, 'system_vars', storage.systemVars);
+
 			var finishLogin = function(){
 				ws.bLoginComplete = true;
 				if (ws.onLoginComplete){
