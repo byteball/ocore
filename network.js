@@ -2470,16 +2470,6 @@ function handleJustsaying(ws, subject, body){
 		case 'version':
 			if (!body)
 				return;
-			if (constants.supported_versions.indexOf(body.protocol_version) === -1){
-				sendError(ws, 'Incompatible versions, I support '+constants.supported_versions.join(', ')+', yours '+body.protocol_version);
-				ws.close(1000, 'incompatible versions');
-				return;
-			}
-			if (body.alt !== constants.alt){
-				sendError(ws, 'Incompatible alts, mine '+constants.alt+', yours '+body.alt);
-				ws.close(1000, 'incompatible alts');
-				return;
-			}
 			ws.library_version = body.library_version;
 			if (typeof ws.library_version !== 'string') {
 				sendError(ws, "invalid library_version: " + ws.library_version);
@@ -2500,6 +2490,16 @@ function handleJustsaying(ws, subject, body){
 					sendJustsaying(ws, "old core (full)");
 					return ws.close(1000, "old core (full)");
 				}
+			}
+			if (constants.supported_versions.indexOf(body.protocol_version) === -1){
+				sendError(ws, 'Incompatible versions, I support '+constants.supported_versions.join(', ')+', yours '+body.protocol_version);
+				ws.close(1000, 'incompatible versions');
+				return;
+			}
+			if (body.alt !== constants.alt){
+				sendError(ws, 'Incompatible alts, mine '+constants.alt+', yours '+body.alt);
+				ws.close(1000, 'incompatible alts');
+				return;
 			}
 			if (version2int(ws.library_version) < version2int(constants.minCoreVersionToSharePeers)){
 				ws.dontSharePeers = true;
