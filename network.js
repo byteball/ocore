@@ -2871,7 +2871,7 @@ function handleJustsaying(ws, subject, body){
 			break;
 			
 		case 'system_vars':
-			if (!ws.bLoggingIn && !ws.bLoggedIn || !conf.bLight) // accept from hub only and only if light
+			if (!ws.bLoggingIn && !ws.bLoggedIn && !ws.bLightVendor || !conf.bLight) // accept from hub or light vendor only and only if light
 				return;
 			_.assign(storage.systemVars, body);
 			eventBus.emit("message_for_light", ws, subject, body);

@@ -185,13 +185,13 @@ function refreshLightClientHistory(addresses, handle){
 		prepareRequestForHistory(addresses, function(objRequest){
 			if (!objRequest)
 				return finish();
+			ws.bLightVendor = true;
 			network.sendRequest(ws, 'light/get_history', objRequest, false, function(ws, request, response){
 				if (response.error){
 					if (response.error.indexOf('your history is too large') >= 0)
 						throw Error(response.error);
 					return finish(response.error);
 				}
-				ws.bLightVendor = true;
 				var interval = setInterval(function(){ // refresh UI periodically while we are processing history
 				//	eventBus.emit('maybe_new_transactions');
 				}, 10*1000);
