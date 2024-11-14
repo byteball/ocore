@@ -886,6 +886,8 @@ async function validateTpsFee(conn, objJoint, objValidationState, callback) {
 			return callback("tps_fee in AA response");
 		return callback();
 	}
+	if ("content_hash" in objUnit) // tps_fee and other unit fields have been already stripped
+		return callback();
 	const objUnitProps = {
 		unit: objUnit.unit,
 		parent_units: objUnit.parent_units,
