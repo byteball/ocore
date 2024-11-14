@@ -58,12 +58,14 @@ function vrfGenerate(seed, privkey){
 
 
 function signMessageWithRsaPemPrivKey(message, encoding, pem_key) {
-	//we fix pem key formatting
-	var contentAloneB64 = pem_key.replace("-----BEGIN RSA PRIVATE KEY-----", "").replace("-----END RSA PRIVATE KEY-----", ""); 
-	contentAloneB64 = contentAloneB64.replace(/\s/g, "");
-	pem_key =	"-----BEGIN RSA PRIVATE KEY-----" + "\n";
-	pem_key += contentAloneB64+"\n";
-	pem_key += "-----END RSA PRIVATE KEY-----";
+	if (pem_key.includes("-----BEGIN RSA PRIVATE KEY-----")) {
+		//we fix pem key formatting
+		var contentAloneB64 = pem_key.replace("-----BEGIN RSA PRIVATE KEY-----", "").replace("-----END RSA PRIVATE KEY-----", "");
+		contentAloneB64 = contentAloneB64.replace(/\s/g, "");
+		pem_key = "-----BEGIN RSA PRIVATE KEY-----" + "\n";
+		pem_key += contentAloneB64 + "\n";
+		pem_key += "-----END RSA PRIVATE KEY-----";
+	}
 	return signMessage(message, encoding, pem_key);
 }
 
