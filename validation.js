@@ -843,6 +843,10 @@ async function validateAATrigger(conn, objUnit, objValidationState, callback) {
 		if (objValidationState.bAA || !objValidationState.last_ball_mci)
 			return callback();
 	}
+	if ("content_hash" in objUnit) { // messages already stripped off
+		objValidationState.count_primary_aa_triggers = 0;
+		return callback();
+	}
 	let arrOutputAddresses = [];
 	for (let m of objUnit.messages) {
 		if (m.app === 'payment' && m.payload) {
