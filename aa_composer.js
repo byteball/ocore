@@ -1143,6 +1143,10 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 			if (message.app !== 'payment')
 				continue;
 			var payload = message.payload;
+			if (!isNonemptyObject(payload))
+				return bounce("payload must be nonempty object");
+			if (!Array.isArray(payload.outputs))
+				return bounce("outputs must be array"); // empty array is okay
 			// negative or fractional
 			if (!payload.outputs.every(function (output) { return (isNonnegativeInteger(output.amount) || output.amount === undefined); }))
 				return bounce("negative or fractional amounts");
