@@ -836,7 +836,7 @@ function composeAuthorsAndMciForAddresses(conn, arrFromAddresses, signer, cb) {
 		if (conf.bLight)
 			require('./network.js').requestFromLightVendor(
 				'light/get_parents_and_last_ball_and_witness_list_unit', 
-				{witnesses: arrWitnesses}, 
+				{witnesses: arrWitnesses, from_addresses: arrFromAddresses, output_addresses: arrFromAddresses}, 
 				function(ws, request, response){
 					if (response.error)
 						return cb(response.error);
