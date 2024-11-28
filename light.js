@@ -590,6 +590,10 @@ function prepareParentsAndLastBallAndWitnessListUnit(arrWitnesses, arrFromAddres
 						last_stable_mc_ball_mci: last_stable_mc_ball_mci
 					};
 					if (last_stable_mc_ball_mci >= constants.v4UpgradeMci) {
+						if (!arrFromAddresses && !arrOutputAddresses) { // temp workaround for buggy composeAuthorsAndMciForAddresses in v5.0.0 light
+							objResponse.tps_fee = 0;
+							return callbacks.ifOk(objResponse);
+						}
 						if (!ValidationUtils.isNonemptyArray(arrFromAddresses))
 							return callbacks.ifError("no from_addresses");
 						if (!arrFromAddresses.every(ValidationUtils.isValidAddress))
