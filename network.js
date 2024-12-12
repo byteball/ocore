@@ -3522,9 +3522,11 @@ function handleRequest(ws, tag, command, params){
 			break;
 
 		case 'light/get_data_feed':
-			if (!params)
+			if (!ValidationUtils.isNonemptyObject(params))
 				return sendErrorResponse(ws, tag, "no params in light/get_data_feed");
-			dataFeeds.readDataFeedValueByParams(params, 1e15, 'all_unstable', function (err, value) {
+			if ("max_mci" in params && !ValidationUtils.isPositiveInteger(params.max_mci))
+				return sendErrorResponse(ws, tag, "max_mci must be positive integer");
+			dataFeeds.readDataFeedValueByParams(params, params.max_mci || 1e15, 'all_unstable', function (err, value) {
 				if (err)
 					return sendErrorResponse(ws, tag, err);
 				sendResponse(ws, tag, value);

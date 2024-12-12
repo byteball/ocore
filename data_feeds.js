@@ -322,7 +322,7 @@ function readDataFeedByAddress(address, feed_name, value, min_mci, max_mci, ifse
 function readDataFeedValueByParams(params, max_mci, unstable_opts, cb) {
 	var oracles = params.oracles;
 	if (!oracles)
-		return cb("no params in light/get_profiles_units");
+		return cb("no oracles in readDataFeedValueByParams");
 	if (!ValidationUtils.isNonemptyArray(oracles))
 		return cb("oracles must be non-empty array");
 	if (!oracles.every(ValidationUtils.isValidAddress))
