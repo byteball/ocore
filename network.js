@@ -3672,11 +3672,24 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "too many aas in light/get_aa_responses, max 20");
 			if (!aas.every(ValidationUtils.isValidAddress))
 				return sendErrorResponse(ws, tag, "aa address not valid");
+			if ("max_mci" in params && !ValidationUtils.isPositiveInteger(params.max_mci))
+				return sendErrorResponse(ws, tag, "max_mci must be positive integer");
+			const max_mci = params.max_mci || 1e15;
+			if ("min_mci" in params && !ValidationUtils.isPositiveInteger(params.min_mci))
+				return sendErrorResponse(ws, tag, "min_mci must be positive integer");
+			const min_mci = params.min_mci || 0;
+			const order = params.order || 'DESC';
+			if (!['ASC', 'DESC'].includes(order))
+				return sendErrorResponse(ws, tag, "bad order");
+			// for pagination, note the mci of the last response and use it as max_mci or min_mci (depending on order) in the next request. You'll receive duplicates, filter them out.
 			db.query(
-				"SELECT mci, trigger_address, aa_address, trigger_unit, bounced, response_unit, response, timestamp \n\
-				FROM aa_responses CROSS JOIN units ON trigger_unit=unit \n\
-				WHERE aa_address IN(?) ORDER BY aa_response_id DESC LIMIT 30",
-				[aas],
+				`SELECT mci, trigger_address, aa_address, trigger_unit, bounced, response_unit, response, timestamp
+				FROM aa_responses
+				CROSS JOIN units ON trigger_unit=unit
+				WHERE aa_address IN(?) AND mci>=? AND mci<=?
+				ORDER BY mci ${order}, aa_response_id ${order}
+				LIMIT 100`,
+				[aas, min_mci, max_mci],
 				function (rows) {
 					light.enrichAAResponses(rows, () => {
 						sendResponse(ws, tag, rows);
