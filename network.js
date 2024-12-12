@@ -3678,7 +3678,7 @@ function handleRequest(ws, tag, command, params){
 			if ("min_mci" in params && !ValidationUtils.isPositiveInteger(params.min_mci))
 				return sendErrorResponse(ws, tag, "min_mci must be positive integer");
 			const min_mci = params.min_mci || 0;
-			const order = params.order || 'DESC';
+			var order = params.order || 'DESC';
 			if (!['ASC', 'DESC'].includes(order))
 				return sendErrorResponse(ws, tag, "bad order");
 			// for pagination, note the mci of the last response and use it as max_mci or min_mci (depending on order) in the next request. You'll receive duplicates, filter them out.
