@@ -599,6 +599,8 @@ function findOutboundPeerOrConnect(url, onOpen, dontAddPeer){
 	if (!bStarted)
 		return onOpen("[internal] network not started yet");
 	url = url.toLowerCase();
+	if (url.startsWith('wss://byteball.org'))
+		url = url.replace(/^wss:\/\/byteball\.org/, 'wss://obyte.org');
 	var ws = getOutboundPeerWsByUrl(url);
 	if (ws)
 		return onOpen(null, ws);
@@ -1755,6 +1757,7 @@ function flushEvents(forceFlushing) {
 function writeEvent(event, host){
 	if (conf.bLight)
 		return;
+	if (host === 'byteball.org') host = 'obyte.org';
 	if (event === 'invalid' || event === 'nonserial'){
 		var column = "count_"+event+"_joints";
 		db.query("UPDATE peer_hosts SET "+column+"="+column+"+1 WHERE peer_host=?", [host]);
