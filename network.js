@@ -1814,7 +1814,14 @@ function comeOnline(){
 
 function isIdle(){
 	//console.log(db._freeConnections.length +"/"+ db._allConnections.length+" connections are free, "+mutex.getCountOfQueuedJobs()+" jobs queued, "+mutex.getCountOfLocks()+" locks held, "+Object.keys(assocUnitsInWork).length+" units in work");
-	return (db.getCountUsedConnections() === 0 && mutex.getCountOfQueuedJobs() === 0 && mutex.getCountOfLocks() === 0 && Object.keys(assocUnitsInWork).length === 0);
+	const db_conns = db.getCountUsedConnections();
+	const queued = mutex.getCountOfQueuedJobs();
+	const locks = mutex.getCountOfLocks();
+	const units_in_work = Object.keys(assocUnitsInWork).length;
+	const is_idle = (db_conns === 0 && queued === 0 && locks === 0 && units_in_work === 0);
+	if (!is_idle)
+		console.log({ db_conns, queued, locks, units_in_work }, units_in_work <= 3 ? assocUnitsInWork : undefined);
+	return is_idle;
 }
 
 function _waitTillIdle(onIdle){
