@@ -30,7 +30,14 @@ function migrateDb(connection, onDone){
 			console.log(message);
 		}
 		var arrQueries = [];
+		let units_sql;
 		async.series([
+			function (cb) {
+				connection.query("SELECT sql from sqlite_master WHERE type='table' AND name='units'", ([{ sql }]) => {
+					units_sql = sql;
+					cb();
+				});
+			},
 			function(cb){
 				if (version < 1){
 					connection.addQuery(arrQueries, "CREATE INDEX IF NOT EXISTS unitAuthorsIndexByAddressDefinitionChash ON unit_authors(address, definition_chash)");
@@ -564,14 +571,19 @@ function migrateDb(connection, onDone){
 						)`);
 						connection.addQuery(arrQueries, `INSERT OR IGNORE INTO node_vars (name, value) VALUES ('last_temp_data_purge_mci', ?)`, [constants.v4UpgradeMci]);
 					}
-					connection.addQuery(arrQueries, "ALTER TABLE units ADD COLUMN oversize_fee INT NULL");
-					connection.addQuery(arrQueries, "ALTER TABLE units ADD COLUMN tps_fee INT NULL");
-					connection.addQuery(arrQueries, "ALTER TABLE units ADD COLUMN actual_tps_fee INT NULL");
-					connection.addQuery(arrQueries, "ALTER TABLE units ADD COLUMN burn_fee INT NULL");
-					connection.addQuery(arrQueries, "ALTER TABLE units ADD COLUMN max_aa_responses INT NULL");
-					connection.addQuery(arrQueries, "ALTER TABLE units ADD COLUMN count_aa_responses INT NULL");
-					connection.addQuery(arrQueries, "ALTER TABLE units ADD COLUMN is_aa_response TINYINT NULL");
-					connection.addQuery(arrQueries, "ALTER TABLE units ADD COLUMN count_primary_aa_triggers TINYINT NULL");
+					if (!units_sql.includes('oversize_fee')) {
+						console.log('no oversize_fee column yet');
+						connection.addQuery(arrQueries, "ALTER TABLE units ADD COLUMN oversize_fee INT NULL");
+						connection.addQuery(arrQueries, "ALTER TABLE units ADD COLUMN tps_fee INT NULL");
+						connection.addQuery(arrQueries, "ALTER TABLE units ADD COLUMN actual_tps_fee INT NULL");
+						connection.addQuery(arrQueries, "ALTER TABLE units ADD COLUMN burn_fee INT NULL");
+						connection.addQuery(arrQueries, "ALTER TABLE units ADD COLUMN max_aa_responses INT NULL");
+						connection.addQuery(arrQueries, "ALTER TABLE units ADD COLUMN count_aa_responses INT NULL");
+						connection.addQuery(arrQueries, "ALTER TABLE units ADD COLUMN is_aa_response TINYINT NULL");
+						connection.addQuery(arrQueries, "ALTER TABLE units ADD COLUMN count_primary_aa_triggers TINYINT NULL");
+					}
+					else
+						console.log('already have oversize_fee column');
 					connection.addQuery(arrQueries, `UPDATE units SET is_aa_response=1 WHERE unit IN (SELECT response_unit FROM aa_responses)`);
 					connection.addQuery(arrQueries, `UPDATE units 
 						SET count_primary_aa_triggers=(SELECT COUNT(*) FROM aa_responses WHERE trigger_unit=unit)
