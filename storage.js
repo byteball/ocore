@@ -124,6 +124,7 @@ function readJoint(conn, unit, callbacks, bSql) {
 	*/
 }
 
+// used only for old units, before v4
 function readJointDirectly(conn, unit, callbacks, bRetrying) {
 //	console.log("\nreading unit "+unit);
 	if (min_retrievable_mci === null){
@@ -136,7 +137,7 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 	//profiler.start();
 	conn.query(
 		"SELECT units.unit, version, alt, witness_list_unit, last_ball_unit, balls.ball AS last_ball, is_stable, \n\
-			content_hash, headers_commission, payload_commission, oversize_fee, tps_fee, burn_fee, max_aa_responses, main_chain_index, timestamp, "+conn.getUnixTimestamp("units.creation_date")+" AS received_timestamp \n\
+			content_hash, headers_commission, payload_commission, /* oversize_fee, tps_fee, burn_fee, max_aa_responses, */ main_chain_index, timestamp, "+conn.getUnixTimestamp("units.creation_date")+" AS received_timestamp \n\
 		FROM units LEFT JOIN balls ON last_ball_unit=balls.unit WHERE units.unit=?", 
 		[unit], 
 		function(unit_rows){
