@@ -2434,7 +2434,7 @@ function receiveTextCoin(mnemonic, addressTo, signWithLocalPrivateKey, cb) {
 
 	opts.callbacks = {
 		ifNotEnoughFunds: function(err){
-			if (opts.fee_paying_addresses.length === 1) {
+			if (opts.fee_paying_addresses && opts.fee_paying_addresses.length === 1) {
 				if (opts._private)
 					console.log(`not enough funds on the textcoin ${addrInfo.address}, will not retry with fees paid from my own address because the payment is private`);
 				else if (!signWithLocalPrivateKey)
