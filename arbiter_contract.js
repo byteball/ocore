@@ -504,7 +504,7 @@ function createSharedAddressAndPostUnit(hash, walletInstance, cb) {
 							var objContractMessage = {
 								app: "data",
 								payload_location: "inline",
-								payload_hash: objectHash.getBase64Hash(value, storage.getMinRetrievableMci() >= constants.timestampUpgradeMci),
+								payload_hash: objectHash.getBase64Hash(value, true),
 								payload: value
 							};
 
@@ -581,7 +581,7 @@ function complete(hash, walletInstance, arrSigningDeviceAddresses, cb) {
 						messages: [{
 							app: 'data_feed',
 							payload_location: "inline",
-							payload_hash: objectHash.getBase64Hash(value, storage.getMinRetrievableMci() >= constants.timestampUpgradeMci),
+							payload_hash: objectHash.getBase64Hash(value, true),
 							payload: value
 						}]
 					};
