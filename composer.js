@@ -130,7 +130,7 @@ function composeAssetAttestorsJoint(from_address, asset, arrNewAttestors, signer
 */
 function composeJoint(params){
 	
-	if (storage.getMinRetrievableMci() >= constants.v4UpgradeMci) {
+	if (storage.getMinRetrievableMci() >= constants.v4UpgradeMci || conf.bLight) {
 		var arrWitnesses = null; // storage.getOpList(Infinity);
 		if (storage.systemVars.threshold_size.length === 0)
 			return params.callbacks.ifError("sys vars not initialized yet");
@@ -591,8 +591,8 @@ function composeJoint(params){
 }
 
 async function estimateTpsFee(arrFromAddresses, arrOutputAddresses) {
-	if (storage.getMinRetrievableMci() < constants.v4UpgradeMci)
-		return 0;
+//	if (storage.getMinRetrievableMci() < constants.v4UpgradeMci)
+//		return 0;
 	const max_aa_responses = constants.MAX_RESPONSES_PER_PRIMARY_TRIGGER;
 	const arrWitnesses = storage.getOpList(Infinity);
 	if (conf.bLight) {
@@ -831,7 +831,7 @@ function generateBlinding(){
 
 function composeAuthorsAndMciForAddresses(conn, arrFromAddresses, signer, cb) {
 	myWitnesses.readMyWitnesses(function(arrWitnesses){
-		if (storage.getMinRetrievableMci() >= constants.v4UpgradeMci)
+	//	if (storage.getMinRetrievableMci() >= constants.v4UpgradeMci)
 			arrWitnesses = storage.getOpList(Infinity);
 		if (conf.bLight)
 			require('./network.js').requestFromLightVendor(
