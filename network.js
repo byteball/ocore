@@ -151,10 +151,18 @@ function sendAllInboundJustsaying(subject, body){
 	});
 }
 
+function sendSysVars(ws) {
+	if (storage.systemVars.threshold_size.length === 0) {
+		console.log(`sys vars not initialized yet, will send later`);
+		return setTimeout(sendSysVars, 100, ws);
+	}
+	sendJustsaying(ws, 'system_vars', storage.systemVars);
+}
+
 function sendUpdatedSysVarsToAllLight() {
 	wss.clients.forEach(function (ws) {
 		if (ws.bSentSysVars || ws.bWatchingSystemVars)
-			sendJustsaying(ws, 'system_vars', storage.systemVars);
+			sendSysVars(ws);
 	});
 }
 
@@ -2693,7 +2701,7 @@ function handleJustsaying(ws, subject, body){
 
 			// temp fix for password-protected light clients: send sys vars (again) as they were ignored in the history response
 			if (!ws.bSubscribed)
-				sendJustsaying(ws, 'system_vars', storage.systemVars);
+				sendSysVars(ws);
 
 			var finishLogin = function(){
 				ws.bLoginComplete = true;
@@ -2868,7 +2876,7 @@ function handleJustsaying(ws, subject, body){
 			
 		case 'watch_system_vars':
 			ws.bWatchingSystemVars = true;
-			sendJustsaying(ws, 'system_vars', storage.systemVars);
+			sendSysVars(ws);
 			break;
 			
 		case 'exchange_rates':
@@ -3257,7 +3265,7 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, constants.lightHistoryTooLargeErrorMessage);
 			if (!ws.bSentSysVars) {
 				ws.bSentSysVars = true;
-				sendJustsaying(ws, 'system_vars', storage.systemVars);
+				sendSysVars(ws);
 			}
 			mutex.lock(['get_history_request'], function(unlock){
 				if (!ws || ws.readyState !== ws.OPEN) // may be already gone when we receive the lock
