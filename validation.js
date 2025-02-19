@@ -2063,7 +2063,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 						});
 					}, 
 					function onDone(err){
-						if (err && objAsset && objAsset.is_private)
+						if (err && objAsset && objAsset.is_private && !conf.bLight)
 							throw Error("spend proof didn't help: "+err);
 					//	if (objAsset)
 					//		profiler2.stop('checkInputDoubleSpend');
