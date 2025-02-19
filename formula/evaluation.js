@@ -1559,8 +1559,14 @@ exports.evaluate = function (opts, callback) {
 						signedPackage = signedPackage.obj;
 						if (ValidationUtils.hasFieldsExcept(signedPackage, ['signed_message', 'last_ball_unit', 'authors', 'version']))
 							return cb(false);
-						if (signedPackage.version === constants.versionWithoutTimestamp)
-							return cb(false);
+						if (signedPackage.version) {
+							if (signedPackage.version === constants.versionWithoutTimestamp)
+								return cb(false);
+							const fVersion = parseFloat(signedPackage.version);
+							const maxVersion = 4; // depends on mci in the future updates
+							if (fVersion > maxVersion)
+								return cb(false);
+						}
 						signed_message.validateSignedMessage(conn, signedPackage, evaluated_address, function (err, last_ball_mci) {
 							if (err)
 								return cb(false);
