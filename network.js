@@ -2301,7 +2301,19 @@ function requestUnfinishedPastUnitsOfPrivateChains(arrChains, onDone){
 			if (arrUnits.length === 0)
 				return finish();
 			breadcrumbs.add(arrUnits.length+" unfinished past units of private chains");
-			requestHistoryFor(arrUnits, [], finish);
+			requestHistoryFor(arrUnits, [], err => {
+				if (err) {
+					console.log(`error getting history for unfinished units of private payments`, err);
+					return finish();
+				}
+				// get units that are still new or unstable after refreshing the history
+				storage.filterNewOrUnstableUnits(arrUnits, async arrMissingUnits => {
+					if (arrMissingUnits.length === 0) return finish();
+					console.log(`will delete unhandled private payments whose units are not known after 1 day`, arrMissingUnits);
+					await db.query(`DELETE FROM unhandled_private_payments WHERE unit IN(${arrMissingUnits.map(db.escape).join(', ')}) AND creation_date < ${db.addTime('-1 DAY')}`);
+					finish();
+				});
+			});
 		});
 	});
 }
