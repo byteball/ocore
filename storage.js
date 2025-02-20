@@ -2520,6 +2520,7 @@ exports.getPaidTpsFee = getPaidTpsFee;
 exports.getMinAcceptableTpsFeeMultiplier = getMinAcceptableTpsFeeMultiplier;
 exports.getTpsFeeRecipients = getTpsFeeRecipients;
 exports.resetWitnessCache = resetWitnessCache;
+exports.initUnstableUnits = initUnstableUnits;
 exports.initCaches = initCaches;
 exports.resetMemory = resetMemory;
 exports.initializeMinRetrievableMci = initializeMinRetrievableMci;

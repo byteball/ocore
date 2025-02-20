@@ -4017,8 +4017,9 @@ async function startRelay(){
 	await storage.updateMissingTpsFees();
 }
 
-function startLightClient(){
+async function startLightClient(){
 	wss = {clients: []};
+	await storage.initUnstableUnits(); // necessary for archiveJointAndDescendants()
 	rerequestLostJointsOfPrivatePayments();
 	setInterval(rerequestLostJointsOfPrivatePayments, 5*1000);
 	setInterval(handleSavedPrivatePayments, 5*1000);
@@ -4030,7 +4031,7 @@ async function start(){
 		return console.log("network already started");
 	bStarted = true;
 	console.log("starting network");
-	conf.bLight ? startLightClient() : await startRelay();
+	conf.bLight ? await startLightClient() : await startRelay();
 	setInterval(printConnectionStatus, 6*1000);
 	// if we have exactly same intervals on two clints, they might send heartbeats to each other at the same time
 	setInterval(heartbeat, 3*1000 + getRandomInt(0, 1000));
