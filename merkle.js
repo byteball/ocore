@@ -20,7 +20,7 @@ function getMerkleRoot(arrElements){
 }
 
 function getMerkleProof(arrElements, element_index){
-	if (index < 0 || index >= arrElements.length)
+	if (element_index < 0 || element_index >= arrElements.length)
 		throw Error("invalid index");
 	var arrHashes = arrElements.map(hash);
 	var index = element_index;
