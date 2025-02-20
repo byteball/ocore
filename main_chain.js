@@ -671,14 +671,14 @@ function readBestChildrenProps(conn, arrUnits, handleResult){
 		});
 		return handleResult(arrProps);
 	}
-	conn.query("SELECT unit, is_on_main_chain, main_chain_index, level, is_free FROM units WHERE best_parent_unit IN(?)", [arrUnits], function(rows){
+	conn.query("SELECT unit, is_on_main_chain, main_chain_index, latest_included_mc_index, level, witnessed_level, is_free FROM units WHERE best_parent_unit IN(?)", [arrUnits], function(rows){
 		if (arrUnits.every(function(unit){ return !!storage.assocUnstableUnits[unit]; })){
 			var arrProps = [];
 			arrUnits.forEach(function(unit){
 				if (storage.assocBestChildren[unit])
 					arrProps = arrProps.concat(storage.assocBestChildren[unit]);
 			});
-			if (!arraysEqual(_.sortBy(rows, 'unit'), _.sortBy(arrProps, 'unit'), ['unit', 'is_on_main_chain', 'main_chain_index', 'level', 'is_free']))
+			if (!arraysEqual(_.sortBy(rows, 'unit'), _.sortBy(arrProps, 'unit'), ['unit', 'is_on_main_chain', 'main_chain_index', 'latest_included_mc_index', 'level', 'witnessed_level', 'is_free']))
 				throwError("different best children of "+arrUnits.join(', ')+": db "+JSON.stringify(rows)+", mem "+JSON.stringify(arrProps));
 		}
 		handleResult(rows);
