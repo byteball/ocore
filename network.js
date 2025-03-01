@@ -2553,8 +2553,10 @@ function handleJustsaying(ws, subject, body){
 			break;
 		
 		case 'bugreport':
-			if (!body)
-				return;
+			if (!conf.bug_sink_email)
+				return console.log("no bug_sink_email, not accepting bugreport");
+			if (!body || !body.exception || !ValidationUtils.isNonemptyString(body.message))
+				return console.log("invalid bugreport");
 			var arrParts = body.exception.toString().split("Breadcrumbs", 2);
 			var text = body.message + ' ' + arrParts[0];
 			var matches = body.message.match(/message encrypted to unknown key, device (0\w{32})/);
