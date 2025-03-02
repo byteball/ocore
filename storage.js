@@ -1231,8 +1231,7 @@ async function updateMissingTpsFees() {
 	const props = await readLastStableMcUnitProps(conn);
 	if (props) {
 		const last_stable_mci = props.main_chain_index;
-		const [row] = await conn.query(`SELECT mci FROM tps_fees_balances ORDER BY ${conf.storage === 'sqlite' ? 'rowid' : 'creation_date'} DESC LIMIT 1`);
-		const last_tps_fees_mci = row ? row.mci : constants.v4UpgradeMci;
+		const last_tps_fees_mci = await getLastTpsFeesMci(conn);
 		if (last_tps_fees_mci > last_stable_mci && last_tps_fees_mci !== constants.v4UpgradeMci)
 			throw Error(`last tps fee mci ${last_tps_fees_mci} > last stable mci ${last_stable_mci}`);
 		if (last_tps_fees_mci < last_stable_mci) {
@@ -1245,6 +1244,11 @@ async function updateMissingTpsFees() {
 		}
 	}
 	conn.release();
+}
+
+async function getLastTpsFeesMci(conn) {
+	const [row] = await conn.query(`SELECT mci FROM tps_fees_balances ORDER BY ${conf.storage === 'sqlite' ? 'rowid' : 'creation_date'} DESC LIMIT 1`);
+	return row ? row.mci : constants.v4UpgradeMci;
 }
 
 
@@ -1597,6 +1601,8 @@ function readLastMainChainIndex(handleLastMcIndex){
 function findLastBallMciOfMci(conn, mci, handleLastBallMci){
 	if (mci === 0)
 		throw Error("findLastBallMciOfMci called with mci=0");
+	if (!handleLastBallMci)
+		return new Promise(resolve => findLastBallMciOfMci(conn, mci, resolve));
 	conn.query(
 		"SELECT lb_units.main_chain_index, lb_units.is_on_main_chain \n\
 		FROM units JOIN units AS lb_units ON units.last_ball_unit=lb_units.unit \n\
@@ -2230,9 +2236,11 @@ function initStableUnits(conn, onDone){
 	if (min_retrievable_mci === null)
 		throw Error(`min_retrievable_mci no initialized yet`);
 	var conn = conn || db;
-	readLastStableMcIndex(conn, function (_last_stable_mci) {
+	readLastStableMcIndex(conn, async function (_last_stable_mci) {
 		last_stable_mci = _last_stable_mci;
-		const top_mci = Math.min(min_retrievable_mci, last_stable_mci - constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING - 10);
+		const last_tps_fees_mci = await getLastTpsFeesMci(conn);
+		const last_ball_mci_of_last_tps_fees_mci = await findLastBallMciOfMci(conn, last_tps_fees_mci);
+		const top_mci = Math.min(min_retrievable_mci, last_ball_mci_of_last_tps_fees_mci, last_stable_mci - constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING - 10);
 		conn.query(
 			"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, timestamp, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit, best_parent_unit, last_ball_unit, tps_fee, max_aa_responses, count_aa_responses, count_primary_aa_triggers, is_aa_response, version \n\
 			FROM units \n\
