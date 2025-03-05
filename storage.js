@@ -2238,9 +2238,12 @@ function initStableUnits(conn, onDone){
 	var conn = conn || db;
 	readLastStableMcIndex(conn, async function (_last_stable_mci) {
 		last_stable_mci = _last_stable_mci;
+		let top_mci = Math.min(min_retrievable_mci, last_stable_mci - constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING - 10);
 		const last_tps_fees_mci = await getLastTpsFeesMci(conn);
-		const last_ball_mci_of_last_tps_fees_mci = last_tps_fees_mci ? await findLastBallMciOfMci(conn, last_tps_fees_mci) : 0;
-		const top_mci = Math.min(min_retrievable_mci, last_ball_mci_of_last_tps_fees_mci, last_stable_mci - constants.COUNT_MC_BALLS_FOR_PAID_WITNESSING - 10);
+		if (last_tps_fees_mci < last_stable_mci) {
+			const last_ball_mci_of_last_tps_fees_mci = last_tps_fees_mci ? await findLastBallMciOfMci(conn, last_tps_fees_mci) : 0;
+			top_mci = Math.min(top_mci, last_ball_mci_of_last_tps_fees_mci)
+		}
 		conn.query(
 			"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, timestamp, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit, best_parent_unit, last_ball_unit, tps_fee, max_aa_responses, count_aa_responses, count_primary_aa_triggers, is_aa_response, version \n\
 			FROM units \n\
