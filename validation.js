@@ -2127,10 +2127,10 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 					objValidationState.arrInputKeys.push(input_key);
 					doubleSpendWhere = "type='issue'";
 					doubleSpendVars = [];
-					if (objAsset && objAsset.fixed_denominations){
+				//	if (objAsset && objAsset.fixed_denominations){
 						doubleSpendWhere += " AND denomination=?";
 						doubleSpendVars.push(denomination);
-					}
+				//	}
 					if (objAsset){
 						doubleSpendWhere += " AND serial_number=?";
 						doubleSpendVars.push(input.serial_number);
