@@ -503,14 +503,21 @@ function resendStalledMessages(delay){
 							return cb();
 						}
 						//	throw Error("no hub in resendStalledMessages: "+JSON.stringify(row));
-						var send = function(message){
+						var send = async function(message) {
 							if (!message) // the message is already gone
 								return cb();
 							var objDeviceMessage = JSON.parse(message);
 							//if (objDeviceMessage.to !== row.to)
 							//    throw "to mismatch";
 							console.log('sending stalled '+row.message_hash);
-							sendPreparedMessageToHub(row.hub, row.pubkey, row.message_hash, objDeviceMessage, {ifOk: cb, ifError: function(err){ cb(); }});
+							try {
+								const err = await asyncCallWithTimeout(sendPreparedMessageToHub(row.hub, row.pubkey, row.message_hash, objDeviceMessage), 60e3);
+								console.log('sending stalled ' + row.message_hash, 'err =', err);
+							}
+							catch (e) {
+								console.log(`sending stalled ${row.message_hash} failed`, e);
+							}
+							cb();
 						};
 						bCordova ? readMessageInChunksFromOutbox(row.message_hash, row.len, send) : send(row.message);
 					},
@@ -522,6 +529,24 @@ function resendStalledMessages(delay){
 }
 
 setInterval(function(){ resendStalledMessages(1); }, SEND_RETRY_PERIOD);
+
+
+async function asyncCallWithTimeout(asyncPromise, timeLimit = 60000) {
+	let timeoutHandle;
+
+	const timeoutPromise = new Promise((_resolve, reject) => {
+		timeoutHandle = setTimeout(
+			() => reject(new Error(`async call timeout limit ${timeLimit} reached`)),
+			timeLimit
+		);
+	});
+
+	return Promise.race([asyncPromise, timeoutPromise]).then(result => {
+		clearTimeout(timeoutHandle);
+		return result;
+	});
+}
+
 
 // reliable delivery
 // first param is either WebSocket or hostname of the hub
@@ -556,7 +581,7 @@ function reliablySendPreparedMessageToHub(ws, recipient_device_pubkey, json, cal
 // first param is either WebSocket or hostname of the hub
 function sendPreparedMessageToHub(ws, recipient_device_pubkey, message_hash, json, callbacks){
 	if (!callbacks)
-		callbacks = {ifOk: function(){}, ifError: function(){}};
+		return new Promise((resolve) => sendPreparedMessageToHub(ws, recipient_device_pubkey, message_hash, json, { ifOk: resolve, ifError: resolve }));
 	if (typeof ws === "string"){
 		var hub_host = ws;
 		network.findOutboundPeerOrConnect(conf.WS_PROTOCOL+hub_host, function onLocatedHubForSend(err, ws){
