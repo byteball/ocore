@@ -375,6 +375,8 @@ function pickParentUnitsAndLastBall(conn, arrWitnesses, timestamp, arrFromAddres
 				throw Error('wrong network');
 			if (prows.length === 0)
 				return onDone(`no usable free units`);
+			if (prows.every(row => row.is_aa_response))
+				return onDone(`no usable non-AA free units`);
 			const max_parent_last_ball_mci = Math.max.apply(null, prows.map(row => row.last_ball_mci));
 			if (max_parent_last_ball_mci < constants.v4UpgradeMci)
 				return pickParentUnitsAndLastBallBeforeOpVote(conn, arrWitnesses, timestamp, onDone);
