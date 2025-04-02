@@ -4317,6 +4317,25 @@ test('original object not mutated', t => {
 	})
 });
 
+test('object mutated by function', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = ($o) => {
+			$o.b = 'bb';
+			$o.a = $o.a + 2;
+		};
+		$x = {a:5};
+		$f($x);
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, { a: 7, b: 'bb' });
+		t.deepEqual(complexity, 1);
+	})
+});
+
 test('deleting from object', t => {
 	var trigger = { data: { q: { a: 6 } } };
 	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
