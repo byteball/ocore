@@ -3829,6 +3829,7 @@ function handleRequest(ws, tag, command, params){
 
 		case 'custom':
 			eventBus.emit('custom_request', ws, params,tag);
+			delete ws.assocCommandsInPreparingResponse[tag];
 		break;
 	}
 }
