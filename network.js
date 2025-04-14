@@ -2930,6 +2930,10 @@ function handleJustsaying(ws, subject, body){
 function handleRequest(ws, tag, command, params){
 	if (!command)
 		return sendErrorResponse(ws, tag, "no command");
+	if (!ValidationUtils.isNonemptyString(tag))
+		return sendErrorResponse(ws, tag, "invalid tag"); // can be even an object
+	if (tag.length > constants.HASH_LENGTH)
+		return sendErrorResponse(ws, tag, "tag too long");
 	if (ws.assocCommandsInPreparingResponse[tag]) // ignore repeated request while still preparing response to a previous identical request
 		return console.log("ignoring identical "+command+" request");
 	ws.assocCommandsInPreparingResponse[tag] = command;
