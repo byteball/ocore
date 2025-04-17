@@ -3809,6 +3809,8 @@ function handleRequest(ws, tag, command, params){
 			if (!conf.arbstores)
 				return sendErrorResponse(ws, tag, "arbstores not defined");
 			var arbiter_address = params;
+			if (!ValidationUtils.isValidAddress(arbiter_address))
+				return sendErrorResponse(ws, tag, "invalid arbiter address");
 			db.query("SELECT arbstore_address FROM arbiter_locations WHERE arbiter_address=?", [arbiter_address], function(rows){
 				if (!rows.length)
 					return sendErrorResponse(ws, tag, "arbiter is not known");
@@ -3818,6 +3820,8 @@ function handleRequest(ws, tag, command, params){
 		
 		case 'hub/get_arbstore_address':
 			var arbiter_address = params;
+			if (!ValidationUtils.isValidAddress(arbiter_address))
+				return sendErrorResponse(ws, tag, "invalid arbiter address");
 			db.query("SELECT arbstore_address FROM arbiter_locations WHERE arbiter_address=?", [arbiter_address], function(rows){
 				if (!rows.length)
 					return sendErrorResponse(ws, tag, "arbiter is not known");
