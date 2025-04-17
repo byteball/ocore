@@ -2180,6 +2180,7 @@ function handleOnlinePrivatePayment(ws, arrPrivateElements, bViaHub, callbacks){
 function handleSavedPrivatePayments(unit){
 	//if (unit && assocUnitsInWork[unit])
 	//    return;
+	if (!my_device_address) return; // skip if we don't have a wallet
 	if (!unit && mutex.isAnyOfKeysLocked(["private_chains"])) // we are still downloading the history (light)
 		return console.log("skipping handleSavedPrivatePayments because history download is still under way");
 	var lock = unit ? mutex.lock : mutex.lockOrSkip;
