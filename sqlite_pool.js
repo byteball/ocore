@@ -354,8 +354,8 @@ function expandArrayPlaceholders(args){
 	var assocLengthsOfArrayParams = {};
 	for (var i=0; i<params.length; i++)
 		if (Array.isArray(params[i])){
-			if (params[i].length === 0)
-				throw Error("empty array in query params");
+		//	if (params[i].length === 0)
+		//		throw Error("empty array in query params");
 			assocLengthsOfArrayParams[i] = params[i].length;
 		}
 	if (Object.keys(assocLengthsOfArrayParams).length === 0)
@@ -369,8 +369,10 @@ function expandArrayPlaceholders(args){
 		if (i === arrParts.length-1) // last part
 			break;
 		var len = assocLengthsOfArrayParams[i];
-		if (len) // array
+		if (len > 0) // array
 			expanded_sql += _.fill(Array(len), "?").join(",");
+		else if (len === 0)
+			expanded_sql += "NULL"; // _.flatten() will remove the empty array
 		else
 			expanded_sql += "?";
 	}
