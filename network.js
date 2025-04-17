@@ -2944,6 +2944,10 @@ function handleRequest(ws, tag, command, params){
 		if (ws.bOutbound)
 			return sendErrorResponse(ws, tag, "light clients have to be inbound");
 	}
+	else if (command.startsWith('hub/')) {
+		if (!conf.bServeAsHub)
+			return sendErrorResponse(ws, tag, "I'm not a hub, can't serve hub/ requests");
+	}
 	switch (command){
 		case 'heartbeat':
 			ws.bSleeping = false; // the peer is sending heartbeats, therefore he is awake
