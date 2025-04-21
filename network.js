@@ -3946,6 +3946,10 @@ function startAcceptingConnections(){
 		ws.bInbound = true;
 		ws.last_ts = Date.now();
 		console.log('got connection from '+ws.peer+", host "+ws.host);
+		ws.on('error', function (e) {
+			console.log("error on client " + ws.peer + ": " + e);
+			ws.close(1000, "received error");
+		});
 		if (wss.clients.length >= conf.MAX_INBOUND_CONNECTIONS){
 			console.log("inbound connections maxed out, rejecting new client "+ip);
 			ws.close(1000, "inbound connections maxed out"); // 1001 doesn't work in cordova
@@ -3992,10 +3996,6 @@ function startAcceptingConnections(){
 			}
 			console.log("client "+ws.peer+" disconnected");
 			cancelRequestsOnClosedConnection(ws);
-		});
-		ws.on('error', function(e){
-			console.log("error on client "+ws.peer+": "+e);
-			ws.close(1000, "received error");
 		});
 		addPeerHost(ws.host);
 	});
