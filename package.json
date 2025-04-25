@@ -43,7 +43,7 @@
     "socks": "1.1.10",
     "sqlite3": "^5",
     "thirty-two": "^1.0.1",
-    "ws": "^1.0.1"
+    "ws": "^8.18.1"
   },
   "scripts": {
     "test": "yarn ava --timeout=60s --concurrency=1 --fail-fast --verbose",
