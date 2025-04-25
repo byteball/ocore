@@ -3932,16 +3932,16 @@ function startAcceptingConnections(){
 	initBlockedPeers();
 	// listen for new connections
 	wss = new WebSocketServer(conf.portReuse ? { noServer: true } : { port: conf.port });
-	wss.on('connection', function(ws) {
-		var ip = ws.upgradeReq.connection.remoteAddress;
+	wss.on('connection', function(ws, req) {
+		var ip = req.socket.remoteAddress;
 		if (!ip){
 			console.log("no ip in accepted connection");
 			ws.terminate();
 			return;
 		}
-		if (ws.upgradeReq.headers['x-real-ip'] && (ip === '127.0.0.1' || ip.match(/^192\.168\./) || ip.match(/^10\./))) // we are behind a proxy
-			ip = ws.upgradeReq.headers['x-real-ip'];
-		ws.peer = ip + ":" + ws.upgradeReq.connection.remotePort;
+		if (req.headers['x-real-ip'] && (ip === '127.0.0.1' || ip.match(/^192\.168\./) || ip.match(/^10\./))) // we are behind a proxy
+			ip = req.headers['x-real-ip'];
+		ws.peer = ip + ":" + req.socket.remotePort;
 		ws.host = ip;
 		ws.assocPendingRequests = {};
 		ws.assocCommandsInPreparingResponse = {};
