@@ -3933,7 +3933,7 @@ function startAcceptingConnections(){
 	// listen for new connections
 	wss = new WebSocketServer(conf.portReuse ? { noServer: true } : { port: conf.port });
 	wss.on('connection', function(ws, req) {
-		var ip = req.socket.remoteAddress;
+		var ip = req.socket.remoteAddress.replace(/^::ffff:/, '');
 		if (!ip){
 			console.log("no ip in accepted connection");
 			ws.terminate();
