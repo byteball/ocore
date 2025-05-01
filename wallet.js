@@ -233,6 +233,8 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				var objUnit = body.unsigned_unit;
 				if (typeof objUnit !== "object")
 					return callbacks.ifError("no unsigned unit");
+				if (!ValidationUtils.isNonemptyArray(objUnit.authors))
+					return callbacks.ifError("no authors array");
 				var bJsonBased = (objUnit.version !== constants.versionWithoutTimestamp);
 				// replace all existing signatures with placeholders so that signing requests sent to us on different stages of signing become identical,
 				// hence the hashes of such unsigned units are also identical
@@ -253,7 +255,12 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 								delete o.address;
 								delete o.blinding;
 							});
-						var calculated_payload_hash = objectHash.getBase64Hash(hidden_payload, bJsonBased);
+						try {
+							var calculated_payload_hash = objectHash.getBase64Hash(hidden_payload, bJsonBased);
+						}
+						catch (e) {
+							return callbacks.ifError("hidden payload hash failed: " + e.toString());
+						}
 						if (payload_hash !== calculated_payload_hash)
 							return callbacks.ifError("private payload hash does not match");
 						if (!ValidationUtils.isNonemptyArray(objUnit.messages))
@@ -269,7 +276,12 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					for (var i=0; i<arrMessages.length; i++){
 						if (arrMessages[i].payload === undefined)
 							continue;
-						var calculated_payload_hash = objectHash.getBase64Hash(arrMessages[i].payload, bJsonBased);
+						try {
+							var calculated_payload_hash = objectHash.getBase64Hash(arrMessages[i].payload, bJsonBased);
+						}
+						catch (e) {
+							return callbacks.ifError("payload hash failed: " + e.toString());
+						}
 						if (arrMessages[i].payload_hash !== calculated_payload_hash)
 							return callbacks.ifError("payload hash does not match");
 					}
@@ -289,10 +301,22 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 						//        return callbacks.ifError("sender is not cosigner of this address");
 							callbacks.ifOk();
 							if (objUnit.signed_message && !ValidationUtils.hasFieldsExcept(objUnit, ["signed_message", "authors", "version"])){
-								objUnit.unit = objectHash.getBase64Hash(objUnit); // exact value doesn't matter, it just needs to be there
+								try {
+									objUnit.unit = objectHash.getBase64Hash(objUnit); // exact value doesn't matter, it just needs to be there
+								}
+								catch (e) {
+									console.log("signed message hash failed", e);
+									objUnit.unit = "failedunit";
+								}
 								return eventBus.emit("signing_request", objAddress, body.address, objUnit, assocPrivatePayloads, from_address, body.signing_path);
 							}
-							objUnit.unit = objectHash.getUnitHash(objUnit);
+							try {
+								objUnit.unit = objectHash.getUnitHash(objUnit);
+							}
+							catch (e) {
+								console.log("to-be-signed unit hash failed", e);
+								return;
+							}
 							var objJoint = {unit: objUnit, unsigned: true};
 							eventBus.once("validated-"+objUnit.unit, function(bValid){
 								if (!bValid){
@@ -315,7 +339,12 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 							callbacks.ifError("looping signing request for address "+body.address+", path "+body.signing_path);
 							throw Error("looping signing request for address "+body.address+", path "+body.signing_path);
 						}
-						var text_to_sign = objectHash.getUnitHashToSign(body.unsigned_unit).toString("base64");
+						try {
+							var text_to_sign = objectHash.getUnitHashToSign(body.unsigned_unit).toString("base64");
+						}
+						catch (e) {
+							return callbacks.ifError("unit hash failed: " + e.toString());
+						}
 						// I'm a proxy, wait for response from the actual signer and forward to the requestor
 						eventBus.once("signature-"+device_address+"-"+body.address+"-"+body.signing_path+"-"+text_to_sign, function(sig){
 							sendSignature(from_address, text_to_sign, sig, body.signing_path, body.address);
@@ -742,7 +771,12 @@ function handlePrivatePaymentChains(ws, body, from_address, callbacks){
 	var arrChains = body.chains;
 	if (!ValidationUtils.isNonemptyArray(arrChains))
 		return callbacks.ifError("no chains found");
-	var cache_key = objectHash.getBase64Hash(arrChains);
+	try {
+		var cache_key = objectHash.getBase64Hash(arrChains);
+	}
+	catch (e) {
+		return callbacks.ifError("chains hash failed: " + e.toString());		
+	}
 	if (handledChainsCache[cache_key]) {
 		eventBus.emit('all_private_payments_handled', from_address);
 		eventBus.emit('all_private_payments_handled-' + arrChains[0][0].unit);
@@ -791,7 +825,12 @@ function handlePrivatePaymentChains(ws, body, from_address, callbacks){
 			if (!!objHeadPrivateElement.payload.denomination !== ValidationUtils.isNonnegativeInteger(objHeadPrivateElement.output_index))
 				return cb("divisibility doesn't match presence of output_index");
 			var output_index = objHeadPrivateElement.payload.denomination ? objHeadPrivateElement.output_index : -1;
-			var json_payload_hash = objectHash.getBase64Hash(objHeadPrivateElement.payload, true);
+			try {
+				var json_payload_hash = objectHash.getBase64Hash(objHeadPrivateElement.payload, true);
+			}
+			catch (e) {
+				return cb("head priv element hash failed " + e.toString());
+			}
 			var key = 'private_payment_validated-'+objHeadPrivateElement.unit+'-'+json_payload_hash+'-'+output_index;
 			assocValidatedByKey[key] = false;
 			network.handleOnlinePrivatePayment(ws, arrPrivateElements, true, {

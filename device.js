@@ -150,10 +150,10 @@ function handleJustsaying(ws, subject, body){
 				return network.sendError(ws, "missing fields");
 			if (objDeviceMessage.to !== getMyDeviceAddress())
 				return network.sendError(ws, "not mine");
-			var bOldHashIsCorrect = (message_hash === objectHash.getBase64Hash(objDeviceMessage));
-			if (!bOldHashIsCorrect && message_hash !== objectHash.getBase64Hash(objDeviceMessage, true))
-				return network.sendError(ws, "wrong hash");
-			try{
+			try {
+				const bOldHashIsCorrect = (message_hash === objectHash.getBase64Hash(objDeviceMessage));
+				if (!bOldHashIsCorrect && message_hash !== objectHash.getBase64Hash(objDeviceMessage, true))
+					return network.sendError(ws, "wrong hash");
 				if (!ecdsaSig.verify(objectHash.getDeviceMessageHashToSign(objDeviceMessage), objDeviceMessage.signature, objDeviceMessage.pubkey))
 					return respondWithError("wrong message signature");
 			}
@@ -610,8 +610,13 @@ function sendPreparedMessageToConnectedHub(ws, recipient_device_pubkey, message_
 			return handleError("missing fields in hub response");
 		if (objTempPubkey.pubkey !== recipient_device_pubkey)
 			return handleError("temp pubkey signed by wrong permanent pubkey");
-		if (!ecdsaSig.verify(objectHash.getDeviceMessageHashToSign(objTempPubkey), objTempPubkey.signature, objTempPubkey.pubkey))
-			return handleError("wrong sig under temp pubkey");
+		try {
+			if (!ecdsaSig.verify(objectHash.getDeviceMessageHashToSign(objTempPubkey), objTempPubkey.signature, objTempPubkey.pubkey))
+				return handleError("wrong sig under temp pubkey");
+		}
+		catch (e) {
+			return handleError("temp pub key hash failed: " + e.toString());
+		}
 		var objEncryptedPackage = createEncryptedPackage(json, objTempPubkey.temp_pubkey);
 		var recipient_device_address = objectHash.getDeviceAddress(recipient_device_pubkey);
 		var objDeviceMessage = {

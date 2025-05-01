@@ -2202,7 +2202,15 @@ function handleSavedPrivatePayments(unit){
 					
 					var validateAndSave = function(){
 						var objHeadPrivateElement = arrPrivateElements[0];
-						var json_payload_hash = objectHash.getBase64Hash(objHeadPrivateElement.payload, true);
+						try {
+							var json_payload_hash = objectHash.getBase64Hash(objHeadPrivateElement.payload, true);
+						}
+						catch (e) {
+							console.log("getBase64Hash failed for private element", objHeadPrivateElement.payload, e);
+							if (ws)
+								sendResult(ws, {private_payment_in_unit: row.unit, result: 'error', error: e.toString()});
+							deleteHandledPrivateChain(row.unit, row.message_index, row.output_index, cb);
+						}
 						var key = 'private_payment_validated-'+objHeadPrivateElement.unit+'-'+json_payload_hash+'-'+row.output_index;
 						privatePayment.validateAndSavePrivatePaymentChain(arrPrivateElements, {
 							ifOk: function(){
@@ -2708,8 +2716,13 @@ function handleJustsaying(ws, subject, body){
 				return sendError(ws, "max_message_length must be an integer");
 			if (objLogin.max_message_count && (!ValidationUtils.isPositiveInteger(objLogin.max_message_count) || objLogin.max_message_count > 100))
 				return sendError(ws, "max_message_count must be an integer > 0 and <= 100");
-			if (!ecdsaSig.verify(objectHash.getDeviceMessageHashToSign(objLogin), objLogin.signature, objLogin.pubkey))
-				return sendError(ws, "wrong signature");
+			try {
+				if (!ecdsaSig.verify(objectHash.getDeviceMessageHashToSign(objLogin), objLogin.signature, objLogin.pubkey))
+					return sendError(ws, "wrong signature");
+			}
+			catch (e) {
+				return sendError(ws, "message hash failed: " + e.toString());
+			}
 			ws.device_address = objectHash.getDeviceAddress(objLogin.pubkey);
 			ws.max_message_length = objLogin.max_message_length;
 			ws.max_message_count = objLogin.max_message_count;
@@ -3190,8 +3203,13 @@ function handleRequest(ws, tag, command, params){
 			var bToMe = (my_device_address && my_device_address === objDeviceMessage.to);
 			if (!conf.bServeAsHub && !bToMe)
 				return sendErrorResponse(ws, tag, "I'm not a hub");
-			if (!ecdsaSig.verify(objectHash.getDeviceMessageHashToSign(objDeviceMessage), objDeviceMessage.signature, objDeviceMessage.pubkey))
-				return sendErrorResponse(ws, tag, "wrong message signature");
+			try {
+				if (!ecdsaSig.verify(objectHash.getDeviceMessageHashToSign(objDeviceMessage), objDeviceMessage.signature, objDeviceMessage.pubkey))
+					return sendErrorResponse(ws, tag, "wrong message signature");
+			}
+			catch (e) {
+				return sendErrorResponse(ws, tag, "message hash failed: " + e.toString());
+			}
 			
 			// if i'm always online and i'm my own hub
 			if (bToMe){
@@ -3269,8 +3287,13 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "wrong temp_pubkey length");
 			if (objectHash.getDeviceAddress(objTempPubkey.pubkey) !== ws.device_address)
 				return sendErrorResponse(ws, tag, "signed by another pubkey");
-			if (!ecdsaSig.verify(objectHash.getDeviceMessageHashToSign(objTempPubkey), objTempPubkey.signature, objTempPubkey.pubkey))
-				return sendErrorResponse(ws, tag, "wrong signature");
+			try {
+				if (!ecdsaSig.verify(objectHash.getDeviceMessageHashToSign(objTempPubkey), objTempPubkey.signature, objTempPubkey.pubkey))
+					return sendErrorResponse(ws, tag, "wrong signature");
+			}
+			catch (e) {
+				return sendErrorResponse(ws, tag, "message hash failed: " + e.toString());
+			}
 			var fnUpdate = function(onDone){
 				db.query("UPDATE devices SET temp_pubkey_package=? WHERE device_address=?", [JSON.stringify(objTempPubkey), ws.device_address], function(){
 					if (onDone)
