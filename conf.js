@@ -43,8 +43,7 @@ exports.port = null;
 // exports.socksPort = 9050;
 // exports.socksUsername = 'dummy';
 // exports.socksPassword = 'dummy';
-// For better security you should not use local DNS with socks proxy
-// exports.socksLocalDNS = false;
+// DNS queries are always routed through the socks proxy if it is enabled
 
 // Connects through an http proxy server
 // exports.httpsProxy = 'http://proxy:3128'

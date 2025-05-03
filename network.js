@@ -2,8 +2,8 @@
 "use strict";
 var bCordova = (typeof window === 'object' && window && window.cordova);
 var WebSocket = bCordova ? global.WebSocket : require('ws');
-var socks = bCordova ? null : require('socks');
-var HttpsProxyAgent = bCordova ? null : require('https-proxy-agent');
+const { SocksProxyAgent } = bCordova ? {} : require('socks-proxy-agent');
+const { HttpsProxyAgent } = bCordova ? {} : require('https-proxy-agent');
 var WebSocketServer = WebSocket.Server;
 var crypto = require('crypto');
 var _ = require('lodash');
@@ -423,22 +423,13 @@ function connectToPeer(url, onOpen, dontAddPeer) {
 	if (!dontAddPeer)
 		addPeer(url);
 	var options = {};
-	if (socks && conf.socksHost && conf.socksPort) {
-		options.agent = new socks.Agent({
-			proxy: {
-				ipaddress: conf.socksHost,
-				port: conf.socksPort,
-				type: 5,
-				authentication: {
-					username: typeof conf.socksUsername === 'undefined' ? "dummy" : conf.socksUsername,
-					password: typeof conf.socksPassword === 'undefined' ? "dummy" : conf.socksPassword
-				}
-			}
-		}, /^wss/i.test(url));
-		console.log('Using socksHost: ' + conf.socksHost);
-		console.log('Using socksPort: ' + conf.socksPort);
-		console.log('Using socksUsername: ' + typeof conf.socksUsername === 'undefined' ? "dummy" : conf.socksUsername);
-		console.log('Using socksPassword: ' + typeof conf.socksPassword === 'undefined' ? "dummy" : conf.socksPassword);
+	if (SocksProxyAgent && conf.socksHost && conf.socksPort) {
+		let socksUrl = 'socks5h://';
+		if (conf.socksUsername && conf.socksPassword)
+			socksUrl += conf.socksUsername + ':' + conf.socksPassword + '@';
+		socksUrl += conf.socksHost + ':' + conf.socksPort;
+		console.log('Using socks proxy: ' + socksUrl);
+		options.agent = new SocksProxyAgent(socksUrl);
 	} else if (HttpsProxyAgent && conf.httpsProxy) {
 		options.agent = new HttpsProxyAgent(conf.httpsProxy);
 		console.log('Using httpsProxy: ' + conf.httpsProxy);
