@@ -41,7 +41,6 @@
     "nearley": "2.16.0",
     "nodemailer": "^6.7.0",
     "secp256k1": "^4",
-    "socks": "1.1.10",
     "sqlite3": "^5",
     "thirty-two": "^1.0.1",
     "ws": "^8.18.1"
