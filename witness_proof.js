@@ -7,12 +7,15 @@ var objectHash = require("./object_hash.js");
 var db = require('./db.js');
 var constants = require("./constants.js");
 var validation = require('./validation.js');
+var ValidationUtils = require("./validation_utils.js");
 
 
 
 function prepareWitnessProof(arrWitnesses, last_stable_mci, handleResult){
 	if (typeof last_stable_mci !== 'number')
 		throw Error('bad last_stable_mci: ' + last_stable_mci);
+	if (!arrWitnesses.every(ValidationUtils.isValidAddress))
+		return handleResult("invalid witness addresses");
 	var arrWitnessChangeAndDefinitionJoints = [];
 	var arrUnstableMcJoints = [];
 	
