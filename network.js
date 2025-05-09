@@ -3027,6 +3027,8 @@ function handleRequest(ws, tag, command, params){
 			
 		case 'post_joint': // only light clients use this command to post joints they created
 			var objJoint = params;
+			if (!objJoint || !objJoint.unit || !objJoint.unit.unit)
+				return sendErrorResponse(ws, tag, 'no unit');
 			if (objectLength.getRatio(objJoint.unit) > 3)
 				return sendErrorResponse(ws, tag, "the total size of keys is too large");
 			handlePostedJoint(ws, objJoint, function(error){
