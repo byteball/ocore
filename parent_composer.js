@@ -365,7 +365,7 @@ function pickParentUnitsAndLastBall(conn, arrWitnesses, timestamp, arrFromAddres
 		FROM units ${conf.storage === 'sqlite' ? "INDEXED BY byFree" : ""}
 		LEFT JOIN archived_joints USING(unit)
 		LEFT JOIN units AS lb_units ON units.last_ball_unit=lb_units.unit
-		WHERE +units.sequence='good' AND units.is_free=1 AND archived_joints.unit IS NULL AND units.timestamp<=?
+		WHERE +units.sequence='good' AND units.is_free=1 AND archived_joints.unit IS NULL AND units.timestamp<=? AND (units.is_aa_response IS NULL OR units.creation_date<${db.addTime('-30 SECOND')})
 		ORDER BY last_ball_mci DESC
 		LIMIT ?`,
 		// exclude potential parents that were archived and then received again
