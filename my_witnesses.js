@@ -48,9 +48,10 @@ function replaceWitness(old_witness, new_witness, handleResult){
 				handleResult();
 			});
 		};
-		if (conf.bLight) // absent the full database, there is nothing else to check
+	//	if (conf.bLight) // absent the full database, there is nothing else to check
 			return doReplace();
-		db.query(
+		// these checks are no longer required in v4
+	/*	db.query(
 			"SELECT 1 FROM unit_authors CROSS JOIN units USING(unit) WHERE address=? AND sequence='good' AND is_stable=1 LIMIT 1", 
 			[new_witness], 
 			function(rows){
@@ -62,7 +63,7 @@ function replaceWitness(old_witness, new_witness, handleResult){
 					doReplace();
 				});
 			}
-		);
+		);*/
 	});
 }
 
