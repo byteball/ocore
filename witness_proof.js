@@ -6,6 +6,7 @@ var myWitnesses = require('./my_witnesses.js');
 var objectHash = require("./object_hash.js");
 var db = require('./db.js');
 var constants = require("./constants.js");
+var conf = require("./conf.js");
 var validation = require('./validation.js');
 var ValidationUtils = require("./validation_utils.js");
 
