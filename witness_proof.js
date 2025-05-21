@@ -16,6 +16,38 @@ function prepareWitnessProof(arrWitnesses, last_stable_mci, handleResult){
 		throw Error('bad last_stable_mci: ' + last_stable_mci);
 	if (!arrWitnesses.every(ValidationUtils.isValidAddress))
 		return handleResult("invalid witness addresses");
+
+	function findUnstableJointsAndLastBallUnits(start_mci, end_mci, handleRes) {
+		let arrFoundWitnesses = [];
+		let arrUnstableMcJoints = [];
+		let arrLastBallUnits = []; // last ball units referenced from MC-majority-witnessed unstable MC units
+		const and_end_mci = end_mci ? "AND main_chain_index<=" + end_mci : "";
+		db.query(
+			`SELECT unit FROM units WHERE +is_on_main_chain=1 AND main_chain_index>? ${and_end_mci} ORDER BY main_chain_index DESC`,
+			[start_mci],
+			function(rows) {
+				async.eachSeries(rows, function(row, cb2) {
+					storage.readJointWithBall(db, row.unit, function(objJoint){
+						delete objJoint.ball; // the unit might get stabilized while we were reading other units
+						arrUnstableMcJoints.push(objJoint);
+						for (let i = 0; i < objJoint.unit.authors.length; i++) {
+							const address = objJoint.unit.authors[i].address;
+							if (arrWitnesses.indexOf(address) >= 0 && arrFoundWitnesses.indexOf(address) === -1)
+								arrFoundWitnesses.push(address);
+						}
+						// collect last balls of majority witnessed units
+						// (genesis lacks last_ball_unit)
+						if (objJoint.unit.last_ball_unit && arrFoundWitnesses.length >= constants.MAJORITY_OF_WITNESSES && arrLastBallUnits.indexOf(objJoint.unit.last_ball_unit) === -1)
+							arrLastBallUnits.push(objJoint.unit.last_ball_unit);
+						cb2();
+					});
+				}, () => {
+					handleRes(arrUnstableMcJoints, arrLastBallUnits);
+				});
+			}
+		);
+	}
+
 	var arrWitnessChangeAndDefinitionJoints = [];
 	var arrUnstableMcJoints = [];
 	
@@ -30,33 +62,39 @@ function prepareWitnessProof(arrWitnesses, last_stable_mci, handleResult){
 			});
 		},
 		function(cb){ // collect all unstable MC units
-			var arrFoundWitnesses = [];
-			db.query(
-				"SELECT unit FROM units WHERE +is_on_main_chain=1 AND main_chain_index>? ORDER BY main_chain_index DESC",
-				[storage.getMinRetrievableMci()],
-				function(rows){
-					async.eachSeries(rows, function(row, cb2){
-						storage.readJointWithBall(db, row.unit, function(objJoint){
-							delete objJoint.ball; // the unit might get stabilized while we were reading other units
-							arrUnstableMcJoints.push(objJoint);
-							for (var i=0; i<objJoint.unit.authors.length; i++){
-								var address = objJoint.unit.authors[i].address;
-								if (arrWitnesses.indexOf(address) >= 0 && arrFoundWitnesses.indexOf(address) === -1)
-									arrFoundWitnesses.push(address);
-							}
-							// collect last balls of majority witnessed units
-							// (genesis lacks last_ball_unit)
-							if (objJoint.unit.last_ball_unit && arrFoundWitnesses.length >= constants.MAJORITY_OF_WITNESSES && arrLastBallUnits.indexOf(objJoint.unit.last_ball_unit) === -1)
-								arrLastBallUnits.push(objJoint.unit.last_ball_unit);
-							cb2();
-						});
-					}, cb);
+			findUnstableJointsAndLastBallUnits(storage.getMinRetrievableMci(), null, (_arrUnstableMcJoints, _arrLastBallUnits) => {
+				if (_arrLastBallUnits.length > 0) {
+					arrUnstableMcJoints = _arrUnstableMcJoints;
+					arrLastBallUnits = _arrLastBallUnits;
 				}
-			);
+				cb();
+			});
+		},
+		function(cb) { // check if we need to look into an older part of the DAG
+			if (arrLastBallUnits.length > 0)
+				return cb();
+			if (last_stable_mci === 0)
+				return cb("your witness list might be too much off, too few witness authored units");
+			storage.findWitnessListUnit(db, arrWitnesses, 2 ** 31 - 1, async witness_list_unit => {
+				if (!witness_list_unit)
+					return cb("your witness list might be too much off, too few witness authored units and no witness list unit");
+				const [row] = await db.query(`SELECT main_chain_index FROM units WHERE witness_list_unit=? AND is_on_main_chain=1 ORDER BY ${conf.storage === 'sqlite' ? 'rowid' : 'creation_date'} DESC LIMIT 1`, [witness_list_unit]);
+				if (!row)
+					return cb("your witness list might be too much off, too few witness authored units and witness list unit not on MC");
+				const { main_chain_index } = row;
+				const start_mci = await storage.findLastBallMciOfMci(db, await storage.findLastBallMciOfMci(db, main_chain_index));
+				findUnstableJointsAndLastBallUnits(start_mci, main_chain_index, (_arrUnstableMcJoints, _arrLastBallUnits) => {
+					if (_arrLastBallUnits.length > 0) {
+						arrUnstableMcJoints = _arrUnstableMcJoints;
+						arrLastBallUnits = _arrLastBallUnits;
+					}
+					cb();
+				});
+			});
 		},
 		function(cb){ // select the newest last ball unit
 			if (arrLastBallUnits.length === 0)
-				return cb("your witness list might be too much off, too few witness authored units");
+				return cb("your witness list might be too much off, too few witness authored units even after trying an old part of the DAG");
 			db.query("SELECT unit, main_chain_index FROM units WHERE unit IN(?) ORDER BY main_chain_index DESC LIMIT 1", [arrLastBallUnits], function(rows){
 				last_ball_unit = rows[0].unit;
 				last_ball_mci = rows[0].main_chain_index;
