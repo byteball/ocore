@@ -2230,7 +2230,7 @@ function sendMultiPayment(opts, handleResult)
 										var asset_messages_to_address = _.filter(objJoint.unit.messages, function(m){
 											return m.app === "payment" && _.get(m, 'payload.asset') === asset && (_.get(m, 'payload.outputs[0].address') === new_address || _.get(m, 'payload.outputs[1].address') === new_address);
 										});
-										indivisibleAssetFeesByAddress[new_address] = constants.TEXTCOIN_ASSET_CLAIM_HEADER_FEE + asset_messages_to_address.length * constants.TEXTCOIN_ASSET_CLAIM_MESSAGE_FEE + Object.keys(assocPrivatePayloads).length * constants.TEXTCOIN_PRIVATE_ASSET_CLAIM_MESSAGE_FEE + constants.TEXTCOIN_ASSET_CLAIM_BASE_MSG_FEE;
+										indivisibleAssetFeesByAddress[new_address] = constants.TEXTCOIN_ASSET_CLAIM_HEADER_FEE + asset_messages_to_address.length * constants.TEXTCOIN_ASSET_CLAIM_MESSAGE_FEE + Object.keys(assocPrivatePayloads).length * (constants.TEXTCOIN_PRIVATE_ASSET_CLAIM_MESSAGE_FEE + storage.getOversizeFee(objJoint.unit, Infinity)) + constants.TEXTCOIN_ASSET_CLAIM_BASE_MSG_FEE;
 									}
 									// inject into ifOk an assert to check for correct number of payloads picked
 									_.assign(params.callbacks, old_callbacks, {
