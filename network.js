@@ -551,14 +551,14 @@ function addPeerHost(host, onDone){
 	});
 }
 
-function addPeer(peer){
+function addPeer(peer, learnt_from_peer_host){
 	if (assocKnownPeers[peer])
 		return;
 	assocKnownPeers[peer] = true;
 	var host = getHostByPeer(peer);
 	addPeerHost(host, function(){
 		console.log("will insert peer "+peer);
-		db.query("INSERT "+db.getIgnore()+" INTO peers (peer_host, peer) VALUES (?,?)", [host, peer]);
+		db.query("INSERT "+db.getIgnore()+" INTO peers (peer_host, peer, learnt_from_peer_host) VALUES (?,?,?)", [host, peer, learnt_from_peer_host || null]);
 	});
 }
 
@@ -674,12 +674,11 @@ function requestPeers(ws){
 	sendRequest(ws, 'get_peers', null, false, handleNewPeers);
 }
 
-function handleNewPeers(ws, request, arrPeerUrls){
+async function handleNewPeers(ws, request, arrPeerUrls){
 	if (arrPeerUrls.error)
 		return console.log('get_peers failed: '+arrPeerUrls.error);
 	if (!Array.isArray(arrPeerUrls))
 		return sendError(ws, "peer urls is not an array");
-	var arrQueries = [];
 	for (var i=0; i<arrPeerUrls.length; i++){
 		var url = arrPeerUrls[i];
 		if (conf.myUrl && conf.myUrl.toLowerCase() === url.toLowerCase())
@@ -692,10 +691,22 @@ function handleNewPeers(ws, request, arrPeerUrls){
 		var host = getHostByPeer(url);
 		if (host === 'byteball.org')
 			continue;
-		db.addQuery(arrQueries, "INSERT "+db.getIgnore()+" INTO peer_hosts (peer_host) VALUES (?)", [host]);
-		db.addQuery(arrQueries, "INSERT "+db.getIgnore()+" INTO peers (peer_host, peer, learnt_from_peer_host) VALUES(?,?,?)", [host, url, ws.host]);
+		const peer_ws = getPeerWebSocket(url);
+		if (peer_ws) {
+			console.log(`already connected to peer ${url} shared by ${ws.host}`);
+			continue;
+		}
+		const [row] = await db.query("SELECT 1 FROM peers WHERE peer=?", [url]);
+		if (row) {
+			console.log(`peer ${url} shared by ${ws.host} is already known`);
+			continue;
+		}
+		console.log(`will try to connect to peer ${url} shared by ${ws.host}`);
+		connectToPeer(url, err => {
+			if (!err) // add only if successfully connected
+				addPeer(url, ws.host);
+		}, true);
 	}
-	async.series(arrQueries);
 }
 
 function heartbeat(){
@@ -4028,6 +4039,7 @@ function startPeerExchange() {
 		// retry lost and failed connections every 1 minute
 		setInterval(addOutboundPeers, 60*1000);
 		setTimeout(checkIfHaveEnoughOutboundPeersAndAdd, 30*1000);
+		setInterval(checkIfHaveEnoughOutboundPeersAndAdd, 3600 * 1000);
 		setInterval(purgeDeadPeers, 30*60*1000);
 	}
 }
