@@ -101,6 +101,7 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 			CROSS JOIN units USING(unit) \n\
 			WHERE address IN(?) AND asset"+(asset ? "="+conn.escape(asset) : " IS NULL")+" AND is_spent=0 AND amount "+more+" ? \n\
 				AND sequence='good' "+confirmation_condition+" \n\
+				" + (constants.bDevnet ? "" : "AND (units.is_aa_response IS NULL OR units.creation_date<" + conn.addTime('-30 SECOND') + ") ") + " \n\
 			ORDER BY is_stable DESC, amount LIMIT 1",
 			[arrSpendableAddresses, net_required_amount + transfer_input_size + getOversizeFee(size + transfer_input_size)],
 			function(rows){
@@ -124,6 +125,7 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 			CROSS JOIN units USING(unit) \n\
 			WHERE address IN(?) AND asset"+(asset ? "="+conn.escape(asset) : " IS NULL")+" AND is_spent=0 \n\
 				AND sequence='good' "+confirmation_condition+"  \n\
+				" + (constants.bDevnet ? "" : "AND (units.is_aa_response IS NULL OR units.creation_date<" + conn.addTime('-30 SECOND') + ") ") + " \n\
 			ORDER BY amount DESC LIMIT ?",
 			[arrSpendableAddresses, constants.MAX_INPUTS_PER_PAYMENT_MESSAGE-2],
 			function(rows){
