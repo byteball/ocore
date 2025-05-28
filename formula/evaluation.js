@@ -1129,7 +1129,7 @@ exports.evaluate = function (opts, callback) {
 					if (fatal_error)
 						return cb(false);
 					if (typeof var_name !== 'string')
-						return setFatalError("var name evaluated to " + var_name, cb, false);
+						return setFatalError("local var name must be string, evaluated to " + var_name + ` (${typeof var_name})`, cb, false);
 					var value = locals[var_name];
 					if (value === undefined || !hasOwnProperty(locals, var_name))
 						return cb(false);
@@ -1150,7 +1150,7 @@ exports.evaluate = function (opts, callback) {
 					if (fatal_error)
 						return cb(false);
 					if (typeof var_name !== 'string')
-						return setFatalError("assignment: var name "+var_name_or_expr+" evaluated to " + var_name, cb, false);
+						return setFatalError("assignment: local var name must be string, " + var_name_or_expr + " evaluated to " + var_name + ` (${typeof var_name})`, cb, false);
 					if (hasOwnProperty(locals, var_name)) {
 						if (!selectors)
 							return setFatalError("reassignment to " + var_name + ", old value " + locals[var_name], cb, false);
@@ -1223,7 +1223,7 @@ exports.evaluate = function (opts, callback) {
 					if (fatal_error)
 						return cb(false);
 					if (typeof var_name !== 'string')
-						return setFatalError("assignment: var name "+var_name_or_expr+" evaluated to " + var_name, cb, false);
+						return setFatalError("assignment: state var name maust be string, " + var_name_or_expr + " evaluated to " + var_name + ` (${typeof var_name})`, cb, false);
 					evaluate(rhs, function (res) {
 						if (fatal_error)
 							return cb(false);
@@ -1314,7 +1314,7 @@ exports.evaluate = function (opts, callback) {
 					if (fatal_error)
 						return cb(false);
 					if (typeof var_name !== 'string')
-						return setFatalError("assignment: var name "+var_name_or_expr+" evaluated to " + var_name, cb, false);
+						return setFatalError("assignment: response var name must be string, " + var_name_or_expr + " evaluated to " + var_name + ` (${typeof var_name})`, cb, false);
 					evaluate(rhs, function (res) {
 						if (fatal_error)
 							return cb(false);
