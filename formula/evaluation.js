@@ -921,10 +921,11 @@ exports.evaluate = function (opts, callback) {
 									if (rows.length > 0 && ifseveral !== 'abort') // if found but ifseveral=abort, we continue
 										return returnValue(rows);
 									// then check the stable units
+									const or_null_mci = conf.bLight ? 'OR main_chain_index IS NULL' : '';
 									conn.query(
 										"SELECT "+selected_fields+" FROM "+table+" CROSS JOIN units USING(unit) \n\
 										WHERE attestor_address IN(" + arrAttestorAddresses.map(conn.escape).join(', ') + ") \n\
-											AND address = ? "+and_field+" AND main_chain_index <= ? \n\
+											AND address = ? "+and_field+" AND (main_chain_index <= ? " + or_null_mci + ") AND +sequence='good' \n\
 										ORDER BY main_chain_index DESC, latest_included_mc_index DESC, level DESC, unit LIMIT ?",
 										[params.address.value, mci, (ifseveral === 'abort') ? 2 : 1],
 										function (rows) {
