@@ -246,7 +246,7 @@ function dryRunPrimaryAATrigger(trigger, address, arrDefinition, onDone) {
 		conn.query("BEGIN", function () {
 			var batch = conf.bLight ? lightBatch : kvstore.batch();
 			readLastStableMcUnit(conn, function (mci, objMcUnit) {
-				trigger.unit = objMcUnit.unit;
+				trigger.unit = constants.GENESIS_UNIT; // objMcUnit.unit; // might cause duplicate trigger_unit in aa_triggers if objMcUnit is already a real trigger
 				if (!trigger.address)
 					trigger.address = objMcUnit.authors[0].address;
 				trigger.initial_address = trigger.address;
