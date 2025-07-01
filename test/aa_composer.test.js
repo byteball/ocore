@@ -60,6 +60,7 @@ function fixCache() {
 }
 
 test.before.cb(t => {
+	db.query("INSERT INTO units (unit, headers_commission, payload_commission) VALUES(?, 0, 0)", [constants.GENESIS_UNIT]);
 	eventBus.once('caches_ready', () => {
 		old_cache.assocUnstableUnits = _.cloneDeep(storage.assocUnstableUnits);
 		old_cache.assocStableUnits = _.cloneDeep(storage.assocStableUnits);
