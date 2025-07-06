@@ -1732,7 +1732,7 @@ function addLightWatchedAa(aa, address, handle){
 	eventBus.on('connected', () => sendJustsayingToLightVendor('light/new_aa_to_watch', params));
 }
 
-function flushEvents(forceFlushing) {
+async function flushEvents(forceFlushing) {
 	if (peer_events_buffer.length == 0 || (!forceFlushing && peer_events_buffer.length != 100)) {
 		return;
 	}
@@ -1759,10 +1759,14 @@ function flushEvents(forceFlushing) {
 		db.query("UPDATE peer_hosts SET "+sql_columns_updates.join()+" WHERE peer_host=?", [host]);
 	}
 
-	// IGNORE in case of an event from a new host that has not been added into peer_hosts yet
-	db.query("INSERT " + db.getIgnore() + " INTO peer_events (peer_host, event, event_date) VALUES " + arrQueryParams.join());
-	peer_events_buffer = [];
-	objUpdatedHosts = {};
+	// ignore errors due to a new host that has not been added into peer_hosts yet
+	try {
+		await db.query("INSERT INTO peer_events (peer_host, event, event_date) VALUES " + arrQueryParams.join());
+		peer_events_buffer = [];
+	}
+	catch (e) {
+		console.log('flushing events failed', e);
+	}
 }
 
 function writeEvent(event, host){
