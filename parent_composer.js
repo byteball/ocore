@@ -361,7 +361,7 @@ function pickParentUnitsAndLastBall(conn, arrWitnesses, timestamp, arrFromAddres
 			}
 		));
 	conn.query(
-		`SELECT units.unit, units.version, units.alt, units.witnessed_level, units.level, units.is_aa_response, lb_units.main_chain_index AS last_ball_mci
+		`SELECT units.unit, units.version, units.alt, units.witnessed_level, units.level, units.is_aa_response, units.latest_included_mc_index, lb_units.main_chain_index AS last_ball_mci
 		FROM units ${conf.storage === 'sqlite' ? "INDEXED BY byFree" : ""}
 		LEFT JOIN archived_joints USING(unit)
 		LEFT JOIN units AS lb_units ON units.last_ball_unit=lb_units.unit
@@ -499,6 +499,8 @@ async function filterParentsWithOlderOpListAndReplace(conn, prows, top_ops, arrF
 
 async function replaceParents(conn, filtered_prows, excluded_parents) {
 	const max_parent_limci = filtered_prows.length > 0 ? Math.max.apply(null, filtered_prows.map(row => row.latest_included_mc_index)) : -1;
+	if (!Number.isFinite(max_parent_limci))
+		throw Error(`max_parent_limci is ${max_parent_limci}`);
 	const replacement_rows = await conn.query(`SELECT DISTINCT parent_unit 
 		FROM parenthoods
 		LEFT JOIN units ON parent_unit=unit
@@ -506,6 +508,7 @@ async function replaceParents(conn, filtered_prows, excluded_parents) {
 		[excluded_parents, max_parent_limci]
 	);
 	const replacement_parents = replacement_rows.map(r => r.parent_unit);
+	console.log('replacement_parents', replacement_parents);
 	let bAddedNewParents = false;
 	for (let unit of replacement_parents) {
 		const remaining_replacement_parents = replacement_parents.filter(p => p !== unit);
@@ -518,13 +521,14 @@ async function replaceParents(conn, filtered_prows, excluded_parents) {
 			}
 		}
 		const [props] = await conn.query(
-			`SELECT units.unit, units.version, units.alt, units.witnessed_level, units.level, units.is_aa_response, lb_units.main_chain_index AS last_ball_mci
+			`SELECT units.unit, units.version, units.alt, units.witnessed_level, units.level, units.is_aa_response, units.latest_included_mc_index, lb_units.main_chain_index AS last_ball_mci
 			FROM units
 			LEFT JOIN units AS lb_units ON units.last_ball_unit=lb_units.unit
 			WHERE units.unit=?`,
 			[unit]
 		);
 		filtered_prows.push(props);
+		console.log(`added replacement parent ${unit}`);
 		bAddedNewParents = true;
 	}
 	return bAddedNewParents;
