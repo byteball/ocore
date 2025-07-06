@@ -1158,7 +1158,7 @@ function determineIfStableInLaterUnitsAndUpdateStableMcFlag(conn, earlier_unit, 
 		breadcrumbs.add('stable in parents, will wait for write lock');
 		handleResult(bStable, true);
 
-		// result callback already called, we leave here to move the stability point forward.
+		// result callback already called, we stay here to move the stability point forward.
 		// To avoid deadlocks, we always first obtain a "write" lock, then a db connection
 		mutex.lock(["write"], async function(unlock){
 			breadcrumbs.add('stable in parents, got write lock');

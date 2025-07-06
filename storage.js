@@ -2143,7 +2143,7 @@ function fixIsFreeAfterForgettingUnit(parent_units) {
 	});
 }
 
-function shrinkCache(){
+async function shrinkCache(){
 	if (Object.keys(assocCachedAssetInfos).length > MAX_ITEMS_IN_CACHE)
 		assocCachedAssetInfos = {};
 	console.log(Object.keys(assocUnstableUnits).length+" unstable units");
@@ -2154,6 +2154,7 @@ function shrinkCache(){
 	var arrWitnessesUnits = Object.keys(assocCachedUnitWitnesses);
 	if (arrPropsUnits.length < MAX_ITEMS_IN_CACHE && arrAuthorsUnits.length < MAX_ITEMS_IN_CACHE && arrWitnessesUnits.length < MAX_ITEMS_IN_CACHE && arrKnownUnits.length < MAX_ITEMS_IN_CACHE && arrStableUnits.length < MAX_ITEMS_IN_CACHE)
 		return console.log('cache is small, will not shrink');
+	const unlock = await mutex.lock("write");
 	var arrUnits = _.union(arrPropsUnits, arrAuthorsUnits, arrWitnessesUnits, arrKnownUnits, arrStableUnits);
 	console.log('will shrink cache, total units: '+arrUnits.length);
 	if (min_retrievable_mci === null)
@@ -2173,7 +2174,7 @@ function shrinkCache(){
 				"SELECT unit FROM units WHERE unit IN(?) AND main_chain_index<? AND main_chain_index!=0", 
 				[arrUnits.slice(offset, offset+CHUNK_SIZE), top_mci], 
 				function(rows){
-					console.log('will remove '+rows.length+' units from cache');
+					console.log('will remove '+rows.length+' units from cache, top mci = ' + top_mci);
 					rows.forEach(function(row){
 						delete assocKnownUnits[row.unit];
 						delete assocCachedUnits[row.unit];
@@ -2185,6 +2186,7 @@ function shrinkCache(){
 				}
 			);
 		}
+		unlock();
 	});
 }
 setInterval(shrinkCache, 300*1000);
