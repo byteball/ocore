@@ -702,6 +702,7 @@ async function handleNewPeers(ws, request, arrPeerUrls){
 			continue;
 		}
 		console.log(`will try to connect to peer ${url} shared by ${ws.host}`);
+		addPeerHost(host);
 		connectToPeer(url, err => {
 			if (!err) // add only if successfully connected
 				addPeer(url, ws.host);
@@ -1759,14 +1760,8 @@ async function flushEvents(forceFlushing) {
 		db.query("UPDATE peer_hosts SET "+sql_columns_updates.join()+" WHERE peer_host=?", [host]);
 	}
 
-	// ignore errors due to a new host that has not been added into peer_hosts yet
-	try {
-		await db.query("INSERT INTO peer_events (peer_host, event, event_date) VALUES " + arrQueryParams.join());
-		peer_events_buffer = [];
-	}
-	catch (e) {
-		console.log('flushing events failed', e);
-	}
+	db.query("INSERT INTO peer_events (peer_host, event, event_date) VALUES " + arrQueryParams.join());
+	peer_events_buffer = [];
 }
 
 function writeEvent(event, host){
