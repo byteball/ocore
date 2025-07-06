@@ -1759,7 +1759,8 @@ function flushEvents(forceFlushing) {
 		db.query("UPDATE peer_hosts SET "+sql_columns_updates.join()+" WHERE peer_host=?", [host]);
 	}
 
-	db.query("INSERT INTO peer_events (peer_host, event, event_date) VALUES "+ arrQueryParams.join());
+	// IGNORE in case of an event from a new host that has not been added into peer_hosts yet
+	db.query("INSERT " + db.getIgnore() + " INTO peer_events (peer_host, event, event_date) VALUES " + arrQueryParams.join());
 	peer_events_buffer = [];
 	objUpdatedHosts = {};
 }
