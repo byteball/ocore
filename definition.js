@@ -48,21 +48,21 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 		if (hasFieldsExcept(filter, ["what", "asset", "type", "address", "amount", "amount_at_least", "amount_at_most"]))
 			return "unknown fields in filter";
 		if (filter.what !== "input" && filter.what !== "output")
-			return "invalid what="+filter.what;
+			return "invalid what";
 		if (bAssetCondition && filter.asset === "this asset" && objValidationState.bDefiningPrivateAsset)
 			return "private asset cannot reference itself";
 		if ("asset" in filter && !(filter.asset === "base" || isStringOfLength(filter.asset, constants.HASH_LENGTH) || bAssetCondition && filter.asset === "this asset"))
-			return "invalid asset: "+filter.asset;
+			return "invalid asset";
 		if (filter.what === "output"){
 			if ("type" in filter)
 				return "output canot have type";
 		}
 		if ("type" in filter && filter.type !== "issue" && filter.type !== "transfer")
-			return "invalid type: "+filter.type;
+			return "invalid type in filter";
 		if (bAssetCondition && (filter.address === 'this address' || filter.address === 'other address'))
 			return "asset condition cannot reference this/other address";
 		if ("address" in filter && !isValidAddress(filter.address) && filter.address !== 'this address' && (filter.address !== 'other address' || objValidationState.last_ball_mci < constants.otherAddressInDefinitionUpgradeMci)) // it is ok if the address was never used yet
-			return "invalid address: "+filter.address;
+			return "invalid address in filter";
 		if ("amount" in filter && !isPositiveInteger(filter.amount))
 			return "amount must be positive int";
 		if ("amount_at_least" in filter && !isPositiveInteger(filter.amount_at_least))
@@ -105,6 +105,8 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 			return cb("expression must be 2-element array");
 		var op = arr[0];
 		var args = arr[1];
+		if (typeof op !== 'string')
+			return cb("op is not a string");
 		switch(op){
 			case 'or':
 			case 'and':
@@ -353,7 +355,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 					return cb("no attestors");
 				for (var i=0; i<arrAttestors.length; i++)
 					if (!isValidAddress(arrAttestors[i]))
-						return cb("invalid attestor address "+arrAttestors[i]);
+						return cb("invalid attestor address");
 				if (objValidationState.last_ball_mci < constants.attestedInDefinitionUpgradeMci)
 					return cb(op+" not enabled yet");
 				return cb();
@@ -385,10 +387,12 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 					return cb("no addresses in "+op);
 				for (var i=0; i<arrAddresses.length; i++)
 					if (!isValidAddress(arrAddresses[i])) // it is ok if the address was never used yet
-						return cb("address "+arrAddresses[i]+" not valid");
+						return cb("oracle address not valid");
 				complexity += arrAddresses.length-1; // 1 complexity point for each address (1 point was already counted)
 				if (!isNonemptyString(relation))
 					return cb("no relation");
+				if (typeof relation !== 'string')
+					return cb("relation is not a string");
 				if (["=", ">", "<", ">=", "<=", "!="].indexOf(relation) === -1)
 					return cb("invalid relation: "+relation);
 				if (!isNonemptyString(feed_name))
@@ -430,7 +434,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 					return cb("no addresses in "+op);
 				for (var i=0; i<arrAddresses.length; i++)
 					if (!isValidAddress(arrAddresses[i])) // it is ok if the address was never used yet
-						return cb("address "+arrAddresses[i]+" not valid");
+						return cb("oracle address not valid");
 				complexity += arrAddresses.length-1; // 1 complexity point for each address (1 point was already counted)
 				if (!isNonemptyString(feed_name))
 					return cb("no feed_name");
@@ -452,7 +456,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 				if (!isNonemptyString(relation))
 					return cb("no relation");
 				if (["=", ">", "<", ">=", "<=", "!="].indexOf(relation) === -1)
-					return cb("invalid relation: "+relation);
+					return cb("invalid relation: " + JSON.stringify(relation));
 				if (!isNonnegativeInteger(value))
 					return cb(op+" must be a non-neg number");
 				if (op === 'timestamp' && objValidationState.last_ball_mci < constants.timestampUpgradeMci)
@@ -496,6 +500,8 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 				var assocUsedFields = {};
 				for (var i=0; i<args.equal_fields.length; i++){
 					var field = args.equal_fields[i];
+					if (typeof field !== 'string')
+						return cb("fields must be strings");
 					if (assocUsedFields[field])
 						return cb("duplicate "+field);
 					assocUsedFields[field] = true;

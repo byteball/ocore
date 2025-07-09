@@ -442,6 +442,8 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 					return cb("bad message formula: " + message);
 				continue;
 			}
+			if (typeof message.app !== 'string')
+				return cb("app is not a string");
 			if (['payment', 'data', 'data_feed', 'definition', "asset", "asset_attestors", "attestation", "poll", "vote", 'text', 'profile', 'definition_template', 'state'].indexOf(message.app) === -1)
 				return cb("bad app: " + message.app);
 			if (message.app === 'state') {
@@ -730,12 +732,12 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 			return callback("too small base bounce fee: "+template.bounce_fees.base);
 	}
 	if ('doc_url' in template && !isNonemptyString(template.doc_url))
-		return callback("invalid doc_url: " + template.doc_url);
+		return callback("invalid doc_url");
 	if ('getters' in template) {
 		if (mci < constants.aa2UpgradeMci)
 			return callback("getters not activated yet");
 		if (getFormula(template.getters) === null)
-			return callback("invalid getters: " + template.getters);
+			return callback("invalid getters");
 	}
 	validateFieldWrappedInCases(template, 'messages', validateMessages, function (err) {
 		if (err)

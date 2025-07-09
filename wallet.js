@@ -70,6 +70,8 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 		var body = json.body;
 		if (!subject || typeof body == "undefined")
 			return callbacks.ifError("no subject or body");
+		if (typeof subject !== "string")
+			return callbacks.ifError("subject is not a string");
 		//if (bIndirectCorrespondent && ["cancel_new_wallet", "my_xpubkey", "new_wallet_address"].indexOf(subject) === -1)
 		//    return callbacks.ifError("you're indirect correspondent, cannot trust "+subject+" from you");
 		var from_address = objectHash.getDeviceAddress(device_pubkey);

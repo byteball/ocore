@@ -136,7 +136,7 @@ function validate(objJoint, callbacks, external_conn) {
 		if (objectLength.getHeadersSize(objUnit) !== objUnit.headers_commission)
 			return callbacks.ifJointError("wrong headers commission, expected "+objectLength.getHeadersSize(objUnit));
 		if (objectLength.getTotalPayloadSize(objUnit) !== objUnit.payload_commission)
-			return callbacks.ifJointError("wrong payload commission, unit "+objUnit.unit+", calculated "+objectLength.getTotalPayloadSize(objUnit)+", expected "+objUnit.payload_commission);
+			return callbacks.ifJointError("wrong payload commission, unit "+objUnit.unit+", expected "+objectLength.getTotalPayloadSize(objUnit));
 		if (objUnit.headers_commission + objUnit.payload_commission > constants.MAX_UNIT_LENGTH && !bGenesis)
 			return callbacks.ifUnitError("unit too large");
 	}
@@ -437,6 +437,8 @@ function validateHashTreeParentsAndSkiplist(conn, objJoint, callback){
 // we cannot verify that skiplist units lie on MC if they are unstable yet, 
 // but if they don't, we'll get unmatching ball hash when the current unit reaches stability
 function validateSkiplist(conn, arrSkiplistUnits, callback){
+	if (!arrSkiplistUnits.every(isNonemptyString))
+		return callback("skiplist units must be non-empty strings");
 	var prev = "";
 	async.eachSeries(
 		arrSkiplistUnits,
@@ -474,6 +476,8 @@ function validateParentsExistAndOrdered(conn, objUnit, callback){
 	async.eachSeries(
 		objUnit.parent_units,
 		function(parent_unit, cb){
+			if (typeof parent_unit !== 'string')
+				return cb("parents must be strings");
 			if (parent_unit <= prev)
 				return cb("parent units not ordered");
 			prev = parent_unit;
@@ -812,6 +816,8 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 		var prev_witness = objUnit.witnesses[0];
 		for (var i=0; i<objUnit.witnesses.length; i++){
 			var curr_witness = objUnit.witnesses[i];
+			if (!isNonemptyString(curr_witness))
+				return callback("witness address must be a string");
 			if (!chash.isChashValid(curr_witness))
 				return callback("witness address "+curr_witness+" is invalid");
 			if (i === 0)
@@ -1293,8 +1299,13 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 		var arrAddressDefinition = objAuthor.definition;
 		storage.readDefinitionByAddress(conn, objAuthor.address, objValidationState.last_ball_mci, {
 			ifDefinitionNotFound: function(definition_chash){ // first use of the definition_chash (in particular, of the address, when definition_chash=address)
-				if (objectHash.getChash160(arrAddressDefinition) !== definition_chash)
-					return callback("wrong definition: "+objectHash.getChash160(arrAddressDefinition) +"!=="+ definition_chash);
+				try {
+					if (objectHash.getChash160(arrAddressDefinition) !== definition_chash)
+						return callback("wrong definition: " + objectHash.getChash160(arrAddressDefinition) + "!==" + definition_chash);
+				}
+				catch (e) {
+					return callback("definition hash failed: " + e.toString());
+				}
 				callback();
 			},
 			ifFound: function(arrAddressDefinition2){ // arrAddressDefinition2 can be different
@@ -1308,8 +1319,13 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 			return callback("duplicate definition of address "+objAuthor.address+", bNonserial="+bNonserial);
 		// todo: investigate if this can split the nodes
 		// in one particular case, the attacker changes his definition then quickly sends a new ball with the old definition - the new definition will not be active yet
-		if (objectHash.getChash160(arrAddressDefinition) !== objectHash.getChash160(objAuthor.definition))
-			return callback("unit definition doesn't match the stored definition");
+		try {
+			if (objectHash.getChash160(arrAddressDefinition) !== objectHash.getChash160(objAuthor.definition))
+				return callback("unit definition doesn't match the stored definition");
+		}
+		catch (e) {
+			return callback("handleDuplicateAddressDefinition definition hash failed: " + e.toString());
+		}
 		callback(); // let it be for now. Eventually, at most one of the balls will be declared good
 	}
 	
@@ -1360,7 +1376,7 @@ function validateMessage(conn, objMessage, message_index, objUnit, objValidation
 			//    return callback("spend_proofs not sorted");
 			
 			if (!isValidBase64(objSpendProof.spend_proof, constants.HASH_LENGTH))
-				return callback("spend proof "+objSpendProof.spend_proof+" is not a valid base64");
+				return callback("spend proof " + JSON.stringify(objSpendProof.spend_proof) + " is not a valid base64");
 			
 			var address = null;
 			if (arrAuthorAddresses.length === 1){
@@ -1710,7 +1726,7 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 				return callback("can be only one system vote count");
 			objValidationState.bHasSystemVoteCount = true;
 			if (!["op_list", "threshold_size", "base_tps_fee", "tps_interval", "tps_fee_multiplier"].includes(payload))
-				return callback("unknown subject in vote count: " + payload);
+				return callback("unknown subject in vote count");
 			return callback();
 
 		case "data_feed":
@@ -1926,7 +1942,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 		if (hasFieldsExcept(output, ["address", "amount", "blinding", "output_hash"]))
 			return callback("unknown fields in payment output");
 		if (!isPositiveInteger(output.amount))
-			return callback("amount must be positive integer, found "+output.amount);
+			return callback("amount must be positive integer, found "+JSON.stringify(output.amount));
 		if (output.amount > constants.MAX_CAP)
 			return callback("output too large: " + output.amount);
 		if (objAsset && objAsset.fixed_denominations && output.amount % denomination !== 0)
@@ -1943,7 +1959,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 			if (("blinding" in output) !== ("address" in output))
 				return callback("address and bilinding must come together");
 			if ("address" in output && !ValidationUtils.isValidAddressAnyCase(output.address))
-				return callback("output address "+output.address+" invalid");
+				return callback("output address " + JSON.stringify(output.address) + " invalid");
 			if (output.address)
 				count_open_outputs++;
 		}
@@ -1953,7 +1969,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 			if ("output_hash" in output)
 				return callback("public output must not have output_hash");
 			if (!ValidationUtils.isValidAddressAnyCase(output.address))
-				return callback("output address "+output.address+" invalid");
+				return callback("output address " + JSON.stringify(output.address) + " invalid");
 			if (prev_address > output.address)
 				return callback("output addresses not sorted");
 			else if (prev_address === output.address && prev_amount > output.amount)
@@ -2083,7 +2099,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 					if (!isPositiveInteger(input.amount))
 						return cb("amount must be positive");
 					if (input.amount > constants.MAX_CAP)
-						return cb("issue ampunt too large: " + input.amount)
+						return cb("issue amount too large: " + input.amount)
 					if (!isPositiveInteger(input.serial_number))
 						return cb("serial_number must be positive");
 					if (!objAsset || objAsset.cap){
@@ -2598,7 +2614,7 @@ function checkAttestorList(arrAttestors){
 		if (arrAttestors[i] <= prev)
 			return "attestors not sorted";
 		if (!isValidAddress(arrAttestors[i]))
-			return "invalid attestor address: "+arrAttestors[i];
+			return "invalid attestor address: "+JSON.stringify(arrAttestors[i]);
 		prev = arrAttestors[i];
 	}
 	return null;

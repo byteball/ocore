@@ -306,7 +306,7 @@ exports.validate = function (opts, callback) {
 			case 'floor':
 			case 'round':
 				if (typeof arr[1] === 'string' || typeof arr[2] === 'string')
-					return cb(op + " of a string " + arr[1] + ', ' + arr[2]);
+					return cb(op + " of a string " + JSON.stringify(arr[1]) + ', ' + JSON.stringify(arr[2]));
 				evaluate(arr[1], function (err) {
 					if (err)
 						return cb(err);
@@ -480,7 +480,7 @@ exports.validate = function (opts, callback) {
 						if (comp === '==')
 							return cb2("wrong comparison operator: " + comp);
 						if (!ValidationUtils.isNonemptyArray(fields) || !fields.every(key => typeof key === 'string'))
-							return cb2("bad search field: " + fields);
+							return cb2("bad search field: " + JSON.stringify(fields));
 						if (value.value === 'none') {
 							if (comp !== '=' && comp !== '!=')
 								return cb2("bad comparison for none: " + comp);
@@ -1110,7 +1110,7 @@ exports.validate = function (opts, callback) {
 					function (expr, cb2) {
 						evaluate(expr, function (err) {
 							if (err)
-								return cb2("expr " + expr + " invalid: " + err);
+								return cb2("expr " + JSON.stringify(expr) + " invalid: " + err);
 							cb2();
 						});
 					},
@@ -1153,7 +1153,7 @@ exports.validate = function (opts, callback) {
 						function (expr, cb2) {
 							evaluate(expr, function (err) {
 								if (err)
-									return cb2("expr " + expr + " invalid: " + err);
+									return cb2("expr " + JSON.stringify(expr) + " invalid: " + err);
 								cb2();
 							});
 						},
@@ -1170,7 +1170,7 @@ exports.validate = function (opts, callback) {
 							}
 							readGetterProps(ultimate_remote_aa, func_name, getter => {
 								if (!getter)
-									return cb("no such getter: " + ultimate_remote_aa + ".$" + func_name + "()");
+									return cb("no such getter: " + JSON.stringify(ultimate_remote_aa) + ".$" + func_name + "()");
 								if (typeof getter.complexity !== 'number' || typeof getter.count_ops !== 'number' || (typeof getter.count_args !== 'number' && getter.count_args !== null))
 									throw Error("invalid getter in " + ultimate_remote_aa + ".$" + func_name + ": " + JSON.stringify(getter));
 								if (getter.count_args !== null && arrExpressions.length > getter.count_args)
@@ -1372,7 +1372,7 @@ exports.validate = function (opts, callback) {
 				}
 				readGetterProps(ultimate_remote_aa, func_name, getter => {
 					if (!getter)
-						return cb("no such getter: " + ultimate_remote_aa + ".$" + func_name + "()");
+						return cb("no such getter: " + JSON.stringify(ultimate_remote_aa) + ".$" + func_name + "()");
 					if (typeof getter.complexity !== 'number' || typeof getter.count_ops !== 'number' || (typeof getter.count_args !== 'number' && getter.count_args !== null))
 						throw Error("invalid getter in " + ultimate_remote_aa + ".$" + func_name + ": " + JSON.stringify(getter));
 					getter.complexity++; // for remote call
@@ -1390,7 +1390,7 @@ exports.validate = function (opts, callback) {
 			count = count_expr.toNumber();
 		else if (typeof count_expr === 'object') {
 			if (count_expr[0] !== 'local_var')
-				return cb("only local vars allowed as count expression: " + count_expr);
+				return cb("only local vars allowed as count expression: " + JSON.stringify(count_expr));
 			var var_name = count_expr[1];
 			if (typeof var_name !== 'string')
 				return cb("only literal var names allowed in count expression");
@@ -1400,7 +1400,7 @@ exports.validate = function (opts, callback) {
 			if (count === undefined)
 				return cb("count must be a constant");
 			if (!Decimal.isDecimal(count))
-				return cb("not decimal: " + count);
+				return cb("not decimal: " + JSON.stringify(count));
 			count = count.toNumber();
 		}
 		else
@@ -1424,7 +1424,7 @@ exports.validate = function (opts, callback) {
 				return { error: "remote AA var " + var_name + " must be a constant" };
 		}
 		if (!ValidationUtils.isValidAddress(remote_aa))
-			return { error: "not valid AA address: " + remote_aa };
+			return { error: "not valid AA address: " + JSON.stringify(remote_aa) };
 		return { remote_aa };
 	}
 

@@ -2033,7 +2033,7 @@ exports.evaluate = function (opts, callback) {
 								return setFatalError("not an object in join: " + res, cb, false);
 							var values = Array.isArray(res.obj) ? res.obj : Object.keys(res.obj).sort().map(key => res.obj[key]);
 							if (!values.every(val => typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean'))
-								return setFatalError("some elements to be joined are not scalars: " + values, cb, false);
+								return setFatalError("some elements to be joined are not scalars: " + JSON.stringify(values), cb, false);
 							var str = values.join(separator);
 							if (str.length > constants.MAX_AA_STRING_LENGTH)
 								return setFatalError("the string after join would be too long: " + str, cb, false);
@@ -2115,12 +2115,12 @@ exports.evaluate = function (opts, callback) {
 					var bArray = Array.isArray(res.obj);
 					if (op === 'keys') {
 						if (bArray)
-							return setFatalError("not an object but an array: " + res.obj, cb, false);
+							return setFatalError("not an object but an array: " + JSON.stringify(res.obj), cb, false);
 						cb(new wrappedObject(Object.keys(res.obj).sort()));
 					}
 					else {
 						if (!bArray)
-							return setFatalError("not an array: " + res.obj, cb, false);
+							return setFatalError("not an array: " + JSON.stringify(res.obj), cb, false);
 						cb(new wrappedObject(_.cloneDeep(res.obj).reverse()));
 					}
 				});
@@ -2388,7 +2388,7 @@ exports.evaluate = function (opts, callback) {
 							if (fatal_error)
 								return cb2(fatal_error);
 							if (!isValidValue(res) && !(res instanceof wrappedObject))
-								return setFatalError("bad value of function argument: " + res, cb2);
+								return setFatalError("bad value of function argument: " + JSON.stringify(res), cb2);
 							args.push(res);
 							cb2();
 						});
@@ -2416,7 +2416,7 @@ exports.evaluate = function (opts, callback) {
 							if (fatal_error)
 								return cb2(fatal_error);
 							if (!isValidValue(res) && !(res instanceof wrappedObject))
-								return setFatalError("bad value of function argument: " + res, cb2);
+								return setFatalError("bad value of function argument: " + JSON.stringify(res), cb2);
 							args.push(res);
 							cb2();
 						});
@@ -2498,7 +2498,7 @@ exports.evaluate = function (opts, callback) {
 					if (evaluated_req instanceof wrappedObject)
 						evaluated_req = true;
 					if (!isValidValue(evaluated_req))
-						return setFatalError("bad value in require: " + evaluated_req, cb, false);
+						return setFatalError("bad value in require: " + JSON.stringify(evaluated_req), cb, false);
 					if (Decimal.isDecimal(evaluated_req) && evaluated_req.toNumber() === 0)
 						evaluated_req = 0;
 					if (evaluated_req)
@@ -2591,7 +2591,7 @@ exports.evaluate = function (opts, callback) {
 			else if (!bArray0 && !bArray1)
 				result = new wrappedObject(Object.assign({}, obj0, obj1));
 			else
-				return { error: "trying to concat an object and array: " + obj0 + " and " + obj1 };
+				return { error: "trying to concat an object and array: " + JSON.stringify(obj0) + " and " + JSON.stringify(obj1) };
 		}
 		else { // one of operands is a string, then treat both as strings
 			if (operand0 instanceof wrappedObject)
@@ -2653,7 +2653,7 @@ exports.evaluate = function (opts, callback) {
 							return setFatalError("bad selector key: " + evaluated_key, cb2);
 					}
 					else if (typeof evaluated_key !== 'string')
-						return setFatalError("result of " + key + " is not a string or number: " + evaluated_key, cb2);
+						return setFatalError("result of " + JSON.stringify(key) + " is not a string or number: " + evaluated_key, cb2);
 					arrEvaluatedKeys.push(evaluated_key);
 					cb2();
 				});
@@ -2707,7 +2707,7 @@ exports.evaluate = function (opts, callback) {
 			arrKeys || [],
 			function (key, cb2) {
 				if (typeof value !== 'object')
-					return cb2('not an object while trying to access key ' + key);
+					return cb2('not an object while trying to access key ' + JSON.stringify(key));
 				if (ValidationUtils.isArrayOfLength(key, 2) && key[0] === 'search_param_list') {
 					var arrPairs = key[1];
 					filterBySearchCriteria(value, arrPairs, function (err, filtered_array) {
@@ -2729,7 +2729,7 @@ exports.evaluate = function (opts, callback) {
 							return setFatalError("bad selector key: " + evaluated_key, cb2);
 					}
 					else if (typeof evaluated_key !== 'string')
-						return setFatalError("result of " + key + " is not a string or number: " + evaluated_key, cb2);
+						return setFatalError("result of " + JSON.stringify(key) + " is not a string or number: " + evaluated_key, cb2);
 					if (typeof evaluated_key === 'string')
 						value = unwrapOneElementArrays(value);
 					if (!hasOwnProperty(value, evaluated_key))
@@ -3069,7 +3069,7 @@ function callGetter(conn, aa_address, getter, args, stateVars, objValidationStat
 			if (res === null)
 				return cb(err.bounce_message || "formula " + f + " failed: " + err);
 			if (!locals[getter])
-				return cb("no such getter: " + getter);
+				return cb("no such getter: " + JSON.stringify(getter));
 			if (!(locals[getter] instanceof Func))
 				return cb(getter + " is not a function");
 			if (typeof args === 'function') // callback function passed instead of args

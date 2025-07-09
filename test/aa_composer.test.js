@@ -1260,7 +1260,7 @@ test.cb.serial('calling a remote function in a parameterized AA with unknown bas
 	}];
 
 	validateAA(aa, async (err, res) => {
-		t.regex(err, /no such getter: I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT\.\$g\(\)/);
+		t.regex(err, /no such getter: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT"\.\$g\(\)/);
 		t.end();
 	});
 });

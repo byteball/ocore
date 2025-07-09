@@ -679,6 +679,8 @@ async function handleNewPeers(ws, request, arrPeerUrls){
 		return console.log('get_peers failed: '+arrPeerUrls.error);
 	if (!Array.isArray(arrPeerUrls))
 		return sendError(ws, "peer urls is not an array");
+	if (!arrPeerUrls.every(ValidationUtils.isNonemptyString))
+		return sendError(ws, "peer urls must be non-empty strings");
 	for (var i=0; i<arrPeerUrls.length; i++){
 		var url = arrPeerUrls[i];
 		if (conf.myUrl && conf.myUrl.toLowerCase() === url.toLowerCase())
@@ -929,7 +931,7 @@ function handleResponseToJointRequest(ws, request, response){
 		return sendError(ws, 'no unit');
 	var unit = objJoint.unit.unit;
 	if (request.params !== unit)
-		return sendError(ws, "I didn't request this unit from you: "+unit);
+		return sendError(ws, "I didn't request this unit from you: " + JSON.stringify(unit));
 	if (conf.bLight && objJoint.ball && !objJoint.unit.content_hash){
 		// accept it as unfinished (otherwise we would have to require a proof)
 		delete objJoint.ball;
@@ -2119,11 +2121,11 @@ function handleOnlinePrivatePayment(ws, arrPrivateElements, bViaHub, callbacks){
 	var message_index = arrPrivateElements[0].message_index;
 	var output_index = arrPrivateElements[0].payload.denomination ? arrPrivateElements[0].output_index : -1;
 	if (!ValidationUtils.isValidBase64(unit, constants.HASH_LENGTH))
-		return callbacks.ifError("invalid unit " + unit);
+		return callbacks.ifError("invalid unit");
 	if (!ValidationUtils.isNonnegativeInteger(message_index))
-		return callbacks.ifError("invalid message_index " + message_index);
+		return callbacks.ifError("invalid message_index");
 	if (!(ValidationUtils.isNonnegativeInteger(output_index) || output_index === -1))
-		return callbacks.ifError("invalid output_index " + output_index);
+		return callbacks.ifError("invalid output_index");
 
 	var savePrivatePayment = function(cb){
 		// we may receive the same unit and message index but different output indexes if recipient and cosigner are on the same device.
@@ -2513,8 +2515,16 @@ function handleJustsaying(ws, subject, body){
 				return;
 			ws.library_version = body.library_version;
 			if (typeof ws.library_version !== 'string') {
-				sendError(ws, "invalid library_version: " + ws.library_version);
+				sendError(ws, "invalid library_version");
 				return ws.close(1000, "invalid library_version");
+			}
+			if (typeof body.protocol_version !== 'string') {
+				sendError(ws, "invalid protocol_version");
+				return ws.close(1000, "invalid protocol_version");
+			}
+			if (typeof body.alt !== 'string') {
+				sendError(ws, "invalid alt");
+				return ws.close(1000, "invalid alt");
 			}
 			if (version2int(ws.library_version) < version2int(constants.minCoreVersion)){
 				ws.old_core = true;
@@ -2889,9 +2899,9 @@ function handleJustsaying(ws, subject, body){
 			if (ws.bOutbound)
 				return sendError(ws, "light clients have to be inbound");
 			if (!ValidationUtils.isValidAddress(body.aa))
-				return sendError(ws, "invalid AA: " + body.aa);
+				return sendError(ws, "invalid AA");
 			if (body.address && !ValidationUtils.isValidAddress(body.address))
-				return sendError(ws, "invalid address: " + body.address);
+				return sendError(ws, "invalid address");
 			storage.readAADefinition(db, body.aa, function (arrDefinition) {
 				if (!arrDefinition) {
 					arrDefinition = storage.getUnconfirmedAADefinition(body.aa);
@@ -2945,7 +2955,7 @@ function handleJustsaying(ws, subject, body){
 }
 
 function handleRequest(ws, tag, command, params){
-	if (!command)
+	if (!ValidationUtils.isNonemptyString(command))
 		return sendErrorResponse(ws, tag, "no command");
 	if (!ValidationUtils.isNonemptyString(tag))
 		return sendErrorResponse(ws, tag, "invalid tag"); // can be even an object
@@ -2995,7 +3005,7 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "I'm light, cannot subscribe you to updates");
 			}
 			if (typeof params.library_version !== 'string') {
-				sendErrorResponse(ws, tag, "invalid library_version: " + params.library_version);
+				sendErrorResponse(ws, tag, "invalid library_version");
 				return ws.close(1000, "invalid library_version");
 			}
 			if (version2int(params.library_version) < version2int(constants.minCoreVersionForFullNodes))
@@ -3021,6 +3031,8 @@ function handleRequest(ws, tag, command, params){
 			if (ws.old_core)
 				return sendErrorResponse(ws, tag, "old core, will not serve get_joint");
 			var unit = params;
+			if (!ValidationUtils.isNonemptyString(unit))
+				return sendErrorResponse(ws, tag, "unit must be a string");
 			storage.readJoint(db, unit, {
 				ifFound: function(objJoint){
 					// make the peer go a bit deeper into stable units and request catchup only when and if it reaches min retrievable and we can deliver a catchup
@@ -3204,6 +3216,8 @@ function handleRequest(ws, tag, command, params){
 					|| !objDeviceMessage.encrypted_package.encrypted_message
 					|| !objDeviceMessage.encrypted_package.iv || !objDeviceMessage.encrypted_package.authtag)
 				return sendErrorResponse(ws, tag, "missing fields");
+			if (!ValidationUtils.isNonemptyString(objDeviceMessage.to))
+				return sendErrorResponse(ws, tag, "to address must be a string");
 			var bToMe = (my_device_address && my_device_address === objDeviceMessage.to);
 			if (!conf.bServeAsHub && !bToMe)
 				return sendErrorResponse(ws, tag, "I'm not a hub");
@@ -3707,9 +3721,11 @@ function handleRequest(ws, tag, command, params){
 				var value = aa_params[name];
 				if (typeof value === 'object') {
 					if (!ValidationUtils.isArrayOfLength(value, 2))
-						return sendErrorResponse(ws, tag, "invalid value of param " + name + ": " + value);
+						return sendErrorResponse(ws, tag, "invalid value of param " + name + ": " + JSON.stringify(value));
 					var comp = value[0];
 					value = value[1];
+					if (typeof comp !== 'string')
+						return sendErrorResponse(ws, tag, "bad comparison");
 					if (!['=', '!=', '>', '>=', '<', '<='].includes(comp))
 						return sendErrorResponse(ws, tag, "invalid comparison of param " + name + ": " + comp);
 					if (!['string', 'number', 'boolean'].includes(typeof value))
@@ -3825,7 +3841,7 @@ function handleRequest(ws, tag, command, params){
 		case 'hub/get_asset_metadata':
 			var asset = params;
 			if (!ValidationUtils.isStringOfLength(asset, constants.HASH_LENGTH))
-				return sendErrorResponse(ws, tag, "bad asset: "+asset);
+				return sendErrorResponse(ws, tag, "bad asset");
 			db.query("SELECT metadata_unit, registry_address, suffix FROM asset_metadata WHERE asset=?", [asset], function(rows){
 				if (rows.length === 0)
 					return sendErrorResponse(ws, tag, "no metadata");
@@ -3928,7 +3944,7 @@ function onWebsocketMessage(message) {
 			return handleResponse(ws, content.tag, content.response);
 			
 		default: 
-			console.log("unknown type: "+message_type);
+			console.log("unknown type: ", message_type);
 		//	throw Error("unknown type: "+message_type);
 	}
 }

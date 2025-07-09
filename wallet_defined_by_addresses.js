@@ -346,7 +346,7 @@ function handleNewSharedAddress(body, callbacks){
 	for (var signing_path in body.signers){
 		var signerInfo = body.signers[signing_path];
 		if (signerInfo.address && signerInfo.address !== 'secret' && !ValidationUtils.isValidAddress(signerInfo.address))
-			return callbacks.ifError("invalid member address: "+signerInfo.address);
+			return callbacks.ifError("invalid member address: " + JSON.stringify(signerInfo.address));
 	}
 	determineIfIncludesMeAndRewriteDeviceAddress(body.signers, function(err){
 		if (err)
