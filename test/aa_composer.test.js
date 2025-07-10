@@ -1671,3 +1671,128 @@ test.cb.serial('calling a remote function that fails', t => {
 		});
 	});
 });
+
+test.cb.serial('invalid selector', t => {
+	var trigger_address = "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT";
+	var trigger = { outputs: { base: 10000 }, data: { x: 5 }, address: trigger_address };
+	
+	var aa = ['autonomous agent', {
+		init: `{
+			$x = {};
+			$x[{a:9}] = 1;
+		}`,
+		messages: [
+			{
+				app: 'state',
+				state: `{
+				}`
+			}
+		]
+	}];
+
+
+	validateAA(aa, async err => {
+		t.deepEqual(err, null);
+
+		var aa_address = objectHash.getChash160(aa);
+		await asyncAddAA(aa);
+		
+		aa_composer.dryRunPrimaryAATrigger(trigger, aa_address, aa, (arrResponses) => {
+			t.deepEqual(arrResponses.length, 1);
+			t.deepEqual(arrResponses[0].bounced, true);
+			t.deepEqual(arrResponses[0].response.error, `formula {
+			$x = {};
+			$x[{a:9}] = 1;
+		} failed: result of ["dictionary",[["a","9"]]] is not a string or number: [object Object]`);
+			fixCache();
+			t.deepEqual(storage.assocUnstableUnits, old_cache.assocUnstableUnits);
+			t.deepEqual(storage.assocStableUnits, old_cache.assocStableUnits);
+			t.deepEqual(storage.assocUnstableMessages, old_cache.assocUnstableMessages);
+			t.deepEqual(storage.assocBestChildren, old_cache.assocBestChildren);
+			t.deepEqual(storage.assocStableUnitsByMci, old_cache.assocStableUnitsByMci);
+			t.end();
+		});
+	});
+});
+
+test.cb.serial('invalid local var name', t => {
+	var trigger_address = "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT";
+	var trigger = { outputs: { base: 10000 }, data: { x: 5 }, address: trigger_address };
+	
+	var aa = ['autonomous agent', {
+		init: `{
+			$y = \${{valueOf: false, "toString": false}};
+		}`,
+		messages: [
+			{
+				app: 'state',
+				state: `{
+				}`
+			}
+		]
+	}];
+
+
+	validateAA(aa, async err => {
+		t.deepEqual(err, null);
+
+		var aa_address = objectHash.getChash160(aa);
+		await asyncAddAA(aa);
+		
+		aa_composer.dryRunPrimaryAATrigger(trigger, aa_address, aa, (arrResponses) => {
+			t.deepEqual(arrResponses.length, 1);
+			t.deepEqual(arrResponses[0].bounced, true);
+			t.deepEqual(arrResponses[0].response.error, `formula {
+			$y = \${{valueOf: false, "toString": false}};
+		} failed: local var name must be string, evaluated to {"obj":{"valueOf":false,"toString":false},"frozen":false} (object)`);
+			fixCache();
+			t.deepEqual(storage.assocUnstableUnits, old_cache.assocUnstableUnits);
+			t.deepEqual(storage.assocStableUnits, old_cache.assocStableUnits);
+			t.deepEqual(storage.assocUnstableMessages, old_cache.assocUnstableMessages);
+			t.deepEqual(storage.assocBestChildren, old_cache.assocBestChildren);
+			t.deepEqual(storage.assocStableUnitsByMci, old_cache.assocStableUnitsByMci);
+			t.end();
+		});
+	});
+});
+
+test.cb.serial('invalid state var name', t => {
+	var trigger_address = "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT";
+	var trigger = { outputs: { base: 10000 }, data: { x: 5 }, address: trigger_address };
+	
+	var aa = ['autonomous agent', {
+		init: `{
+		}`,
+		messages: [
+			{
+				app: 'state',
+				state: `{
+					var[{valueOf: false, "toString": false}] = 1;
+				}`
+			}
+		]
+	}];
+
+
+	validateAA(aa, async err => {
+		t.deepEqual(err, null);
+
+		var aa_address = objectHash.getChash160(aa);
+		await asyncAddAA(aa);
+		
+		aa_composer.dryRunPrimaryAATrigger(trigger, aa_address, aa, (arrResponses) => {
+			t.deepEqual(arrResponses.length, 1);
+			t.deepEqual(arrResponses[0].bounced, true);
+			t.deepEqual(arrResponses[0].response.error, `formula 
+					var[{valueOf: false, "toString": false}] = 1;
+				 failed: assignment: state var name must be string, dictionary,valueOf,false,toString,false evaluated to {"obj":{"valueOf":false,"toString":false},"frozen":false} (object)`);
+			fixCache();
+			t.deepEqual(storage.assocUnstableUnits, old_cache.assocUnstableUnits);
+			t.deepEqual(storage.assocStableUnits, old_cache.assocStableUnits);
+			t.deepEqual(storage.assocUnstableMessages, old_cache.assocUnstableMessages);
+			t.deepEqual(storage.assocBestChildren, old_cache.assocBestChildren);
+			t.deepEqual(storage.assocStableUnitsByMci, old_cache.assocStableUnitsByMci);
+			t.end();
+		});
+	});
+});
