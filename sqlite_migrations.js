@@ -4,7 +4,7 @@ var eventBus = require('./event_bus.js');
 var constants = require("./constants.js");
 var conf = require("./conf.js");
 
-var VERSION = 46;
+var VERSION = 47;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -590,6 +590,8 @@ function migrateDb(connection, onDone){
 						WHERE is_aa_response!=1 AND unit IN (SELECT trigger_unit FROM aa_responses)
 					`);
 				}
+				if (version < 47 && !conf.bLight && !constants.bTestnet) // fix incorrectly calculated balance
+					connection.addQuery(arrQueries, "UPDATE aa_balances SET balance=23000 WHERE address='GZKVAR5Z2U4N6S2BIQDIY3HN5ZHVV45M' AND asset='base' AND balance=46000");
 				cb();
 			},
 		],
