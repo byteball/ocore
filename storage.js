@@ -905,7 +905,7 @@ function insertAADefinitions(conn, arrPayloads, unit, mci, bForAAsOnly, onDone) 
 				readAAGetterProps(conn, aa_address, func_name, cb);
 			};
 			aa_validation.determineGetterProps(payload.definition, readGetterProps, function (getters) {
-				conn.query("INSERT " + db.getIgnore() + " INTO aa_addresses (address, definition, unit, mci, base_aa, getters) VALUES (?,?, ?,?, ?,?)", [address, json, unit, mci, base_aa, getters ? JSON.stringify(getters) : null], function (res) {
+				conn.query("INSERT " + db.getIgnore() + " INTO aa_addresses (address, definition, unit, mci, base_aa, getters) VALUES (?,?, ?,?, ?,?)", [address, json, unit, mci, base_aa, getters ? JSON.stringify(getters) : null], async function (res) {
 					if (res.affectedRows === 0) { // already exists
 						if (bForAAsOnly){
 							console.log("ignoring repeated definition of AA " + address + " in AA unit " + unit);
@@ -914,6 +914,11 @@ function insertAADefinitions(conn, arrPayloads, unit, mci, bForAAsOnly, onDone) 
 						var old_payloads = getUnconfirmedAADefinitionsPostedByAAs([address]);
 						if (old_payloads.length === 0) {
 							console.log("ignoring repeated definition of AA " + address + " in unit " + unit);
+							return cb();
+						}
+						const [{ unit: prev_unit }] = await conn.query("SELECT unit FROM aa_addresses WHERE address=?", [address]);
+						if (prev_unit !== unit) {
+							console.log(`ignoring repeated definition of AA ${address} in another unit ${unit}, first definition unit ${prev_unit}`);
 							return cb();
 						}
 						// we need to recalc the balances to reflect the payments received from non-AAs between definition and stabilization
