@@ -236,12 +236,20 @@ function validateAATriggerObject(trigger, handle) {
 	db.query("SELECT 1 FROM assets WHERE unit IN (?)", [arrAssets], function(rows) {
 		if (rows.length !== arrAssets.length)
 			return handle("unknown asset");
-		else
-			return handle();
+		else {
+			// check that trigger address is not an AA
+			db.query("SELECT 1 FROM aa_addresses WHERE address=?", [trigger.address], rows => {
+				if (rows.length)
+					return handle("trigger address must not be an AA");
+				else
+					return handle();
+			});
+		}
 	});
 }
 
 function dryRunPrimaryAATrigger(trigger, address, arrDefinition, onDone) {
+	console.log('dry run', address, trigger);
 	db.takeConnectionFromPool(function (conn) {
 		conn.query("BEGIN", function () {
 			var batch = conf.bLight ? lightBatch : kvstore.batch();
