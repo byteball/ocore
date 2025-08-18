@@ -4,7 +4,7 @@ var eventBus = require('./event_bus.js');
 var constants = require("./constants.js");
 var conf = require("./conf.js");
 
-var VERSION = 47;
+var VERSION = 48;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -589,9 +589,14 @@ function migrateDb(connection, onDone){
 						SET count_primary_aa_triggers=(SELECT COUNT(*) FROM aa_responses WHERE trigger_unit=unit)
 						WHERE is_aa_response!=1 AND unit IN (SELECT trigger_unit FROM aa_responses)
 					`);
+					connection.addQuery(arrQueries, "PRAGMA user_version=46");
 				}
 				if (version < 47 && !conf.bLight && !constants.bTestnet) // fix incorrectly calculated balance
 					connection.addQuery(arrQueries, "UPDATE aa_balances SET balance=23000 WHERE address='GZKVAR5Z2U4N6S2BIQDIY3HN5ZHVV45M' AND asset='base' AND balance=46000");
+				if (version < 48) {
+					connection.addQuery(arrQueries, "DROP INDEX IF EXISTS hcobyAddressSpent");
+					connection.addQuery(arrQueries, "DROP INDEX IF EXISTS byWitnessAddressSpent");
+				}
 				cb();
 			},
 		],
