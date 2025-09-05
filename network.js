@@ -2621,7 +2621,7 @@ function handleJustsaying(ws, subject, body){
 			break;
 			
 		case 'private_payment':
-			return sendError(`direct sending of private payments disabled, use chat instead`);
+			return sendError(ws, `direct sending of private payments disabled, use chat instead`);
 			if (!body)
 				return;
 			var arrPrivateElements = body;
