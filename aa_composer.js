@@ -1544,9 +1544,11 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 	}
 
 	function handleSecondaryTriggers(objUnit, arrOutputAddresses) {
-		conn.query("SELECT address, definition FROM aa_addresses WHERE address IN(?) AND mci<=? ORDER BY address", [arrOutputAddresses, mci], function (rows) {
+		conn.query("SELECT address, definition, mci, main_chain_index FROM aa_addresses LEFT JOIN units USING(unit) WHERE address IN(?) AND mci<=? ORDER BY address", [arrOutputAddresses, mci], function (rows) {
 			if (rows.length > 0 && constants.bTestnet && mci < testnetAAsDefinedByAAsAreActiveImmediatelyUpgradeMci)
 				rows = rows.filter(function (row) {
+					if (row.main_chain_index && row.main_chain_index < mci) // previous definition is already stable
+						return true;
 					var len = storage.getUnconfirmedAADefinitionsPostedByAAs([row.address]).length;
 					if (len > 0)
 						console.log("not calling secondary trigger from unit " + objUnit.unit + " to AA " + row.address);
