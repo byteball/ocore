@@ -1182,7 +1182,7 @@ function getFinalTps(objUnitProps) {
 			if (u.bAA)
 				continue;
 			if (assocStableUnits[u.unit] !== u)
-				throw Error(`different objects for unit ${u.unit}: assocStableUnitsByMci[${i}][n] = ${JSON.stringify(u)}, assocStableUnits[${u.unit}] = ${JSON.stringify(assocStableUnits[u.unit])}`);
+				throw Error(`different objects for unit ${u.unit}: equal = ${_.isEqual(u, assocStableUnits[u.unit])}, assocStableUnitsByMci[${i}][n] = ${JSON.stringify(u)}, assocStableUnits[${u.unit}] = ${JSON.stringify(assocStableUnits[u.unit])}`);
 			countAll += 1 + (u.count_aa_responses || 0);
 			vAll[u.unit] = 1 + (u.count_aa_responses || 0);
 		}
@@ -1480,6 +1480,7 @@ function readUnitProps(conn, unit, handleProps){
 				delete props.witness_list_unit;
 			delete props.version;
 			if (props.is_stable) {
+				console.log('caching stable unit', unit);
 				if (props.sequence === 'good') // we don't cache final-bads as they can be voided later
 					assocStableUnits[unit] = props;
 				// we don't add it to assocStableUnitsByMci as all we need there is already there
