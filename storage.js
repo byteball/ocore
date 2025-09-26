@@ -1481,6 +1481,12 @@ function readUnitProps(conn, unit, handleProps){
 			delete props.version;
 			if (props.is_stable) {
 				console.log('caching stable unit', unit, 'already cached =', !!assocStableUnits[unit]);
+				// the unit could become stable after the check above and be added to assocStableUnits
+				if (assocStableUnits[unit]) {
+					if (!_.isEqual(assocStableUnits[unit], props))
+						throw Error(`different props: assocStableUnits[unit]=${assocStableUnits[unit]}, props=${props}`);
+					return handleProps(assocStableUnits[unit]);
+				}
 				if (props.sequence === 'good') // we don't cache final-bads as they can be voided later
 					assocStableUnits[unit] = props;
 				// we don't add it to assocStableUnitsByMci as all we need there is already there
