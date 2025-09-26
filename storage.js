@@ -1480,7 +1480,7 @@ function readUnitProps(conn, unit, handleProps){
 				delete props.witness_list_unit;
 			delete props.version;
 			if (props.is_stable) {
-				console.log('caching stable unit', unit);
+				console.log('caching stable unit', unit, 'already cached =', !!assocStableUnits[unit]);
 				if (props.sequence === 'good') // we don't cache final-bads as they can be voided later
 					assocStableUnits[unit] = props;
 				// we don't add it to assocStableUnitsByMci as all we need there is already there
