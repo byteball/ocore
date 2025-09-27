@@ -1483,8 +1483,10 @@ function readUnitProps(conn, unit, handleProps){
 				console.log('caching stable unit', unit, 'already cached =', !!assocStableUnits[unit]);
 				// the unit could become stable after the check above and be added to assocStableUnits
 				if (assocStableUnits[unit]) {
-					if (!_.isEqual(assocStableUnits[unit], props))
-						throw Error(`different props: assocStableUnits[unit]=${JSON.stringify(assocStableUnits[unit])}, props=${JSON.stringify(props)}`);
+					let props2 = _.cloneDeep(assocStableUnits[unit]);
+					delete props2.parent_units;
+					if (!_.isEqual(props2, props))
+						throw Error(`different props: assocStableUnits[unit]=${JSON.stringify(props2)}, props=${JSON.stringify(props)}`);
 					return handleProps(assocStableUnits[unit]);
 				}
 				if (props.sequence === 'good') // we don't cache final-bads as they can be voided later
