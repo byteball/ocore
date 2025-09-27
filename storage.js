@@ -1484,7 +1484,7 @@ function readUnitProps(conn, unit, handleProps){
 				// the unit could become stable after the check above and be added to assocStableUnits
 				if (assocStableUnits[unit]) {
 					if (!_.isEqual(assocStableUnits[unit], props))
-						throw Error(`different props: assocStableUnits[unit]=${assocStableUnits[unit]}, props=${props}`);
+						throw Error(`different props: assocStableUnits[unit]=${JSON.stringify(assocStableUnits[unit])}, props=${JSON.stringify(props)}`);
 					return handleProps(assocStableUnits[unit]);
 				}
 				if (props.sequence === 'good') // we don't cache final-bads as they can be voided later
