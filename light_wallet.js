@@ -147,8 +147,14 @@ function refreshLightClientHistory(addresses, handle){
 		if (handle)
 			throw Error("have a callback but can't refresh history");
 	};
-	if (!network.light_vendor_url)
-		return refuse('refreshLightClientHistory called too early: light_vendor_url not set yet');
+	if (!network.light_vendor_url) {
+		if (handle) {
+			console.log('light_vendor_url not set yet, will retry refreshLightClientHistory in 1s');
+			return setTimeout(refreshLightClientHistory, 1000, addresses, handle);
+		}
+		else
+			return refuse('refreshLightClientHistory called too early: light_vendor_url not set yet');
+	}
 	if (!addresses && !exports.bRefreshFullHistory || !exports.bRefreshHistory)
 		return refuse("history refresh is disabled now");
 	if (!addresses) // partial refresh stays silent
