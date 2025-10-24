@@ -2532,6 +2532,7 @@ exports.assocBestChildren = assocBestChildren;
 exports.assocHashTreeUnitsByBall = assocHashTreeUnitsByBall;
 exports.assocUnstableMessages = assocUnstableMessages;
 exports.systemVars = systemVars;
+exports.last_aa_response_id = last_aa_response_id;
 
 exports.getSystemVar = getSystemVar;
 exports.getOpList = getOpList;
