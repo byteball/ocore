@@ -99,6 +99,8 @@ function prepareHistory(historyRequest, callbacks){
 		if (rows.length > MAX_HISTORY_ITEMS)
 			return callbacks.ifError(constants.lightHistoryTooLargeErrorMessage);
 		const last_aa_response_id = storage.last_aa_response_id;
+		if (last_aa_response_id === null)
+			throw Error('last_aa_response_id not initialized yet');
 
 		mutex.lock(['prepareHistory'], function(unlock){
 			var start_ts = Date.now();
