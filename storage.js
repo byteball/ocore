@@ -50,7 +50,7 @@ let last_stable_mci = null;
 var min_retrievable_mci = null;
 initializeMinRetrievableMci();
 
-let last_aa_response_id = null;
+exports.last_aa_response_id = null;
 initializeLastAAResponseId();
 
 function readUnit(unit, cb) {
@@ -1747,7 +1747,7 @@ function initializeLastAAResponseId() {
 	if (conf.bLight)
 		return;
 	db.query("SELECT aa_response_id FROM aa_responses ORDER BY aa_response_id DESC LIMIT 1", rows => {
-		last_aa_response_id = rows.length ? rows[0].aa_response_id : 0;
+		exports.last_aa_response_id = rows.length ? rows[0].aa_response_id : 0;
 	});
 }
 
@@ -2532,7 +2532,6 @@ exports.assocBestChildren = assocBestChildren;
 exports.assocHashTreeUnitsByBall = assocHashTreeUnitsByBall;
 exports.assocUnstableMessages = assocUnstableMessages;
 exports.systemVars = systemVars;
-exports.last_aa_response_id = last_aa_response_id;
 
 exports.getSystemVar = getSystemVar;
 exports.getOpList = getOpList;
