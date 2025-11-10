@@ -3,6 +3,7 @@
 var async = require('async');
 var objectHash = require("./object_hash.js");
 var constants = require("./constants.js");
+var conf = require("./conf.js");
 var paid_witnessing = require("./paid_witnessing.js");
 var headers_commission = require("./headers_commission.js");
 var mc_outputs = require("./mc_outputs.js");
@@ -99,9 +100,16 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 			`SELECT unit, message_index, output_index, amount, blinding, address
 			FROM outputs
 			CROSS JOIN units USING(unit)
+			${conf.bLight ? "LEFT JOIN aa_responses ON unit=response_unit" : ""}
 			WHERE address IN(?) AND asset${asset ? "="+conn.escape(asset) : " IS NULL"} AND is_spent=0 AND amount ${more} ?
 				AND sequence='good' ${confirmation_condition}
-				${constants.bDevnet ? "" : `AND (units.is_aa_response IS NULL OR units.creation_date<${conn.addTime('-30 SECOND')} )`}
+				${constants.bDevnet
+					? ""
+					: (conf.bLight
+						? `AND ( response_unit IS NULL OR aa_responses.creation_date<${conn.addTime('-30 SECOND')} )`
+						: `AND ( units.is_aa_response IS NULL OR units.creation_date<${conn.addTime('-30 SECOND')} )`
+					)
+				}
 			ORDER BY is_stable DESC, amount LIMIT 1`,
 			[arrSpendableAddresses, net_required_amount + transfer_input_size + getOversizeFee(size + transfer_input_size)],
 			function(rows){
@@ -123,9 +131,16 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 			`SELECT unit, message_index, output_index, amount, address, blinding
 			FROM outputs
 			CROSS JOIN units USING(unit)
+			${conf.bLight ? "LEFT JOIN aa_responses ON unit=response_unit" : ""}
 			WHERE address IN(?) AND asset${asset ? "="+conn.escape(asset) : " IS NULL"} AND is_spent=0
 				AND sequence='good' ${confirmation_condition}
-				${constants.bDevnet ? "" : `AND (units.is_aa_response IS NULL OR units.creation_date<${conn.addTime('-30 SECOND')} )`}
+				${constants.bDevnet
+					? ""
+					: (conf.bLight
+						? `AND ( response_unit IS NULL OR aa_responses.creation_date<${conn.addTime('-30 SECOND')} )`
+						: `AND ( units.is_aa_response IS NULL OR units.creation_date<${conn.addTime('-30 SECOND')} )`
+					)
+				}
 			ORDER BY amount DESC LIMIT ?`,
 			[arrSpendableAddresses, constants.MAX_INPUTS_PER_PAYMENT_MESSAGE-2],
 			function(rows){
