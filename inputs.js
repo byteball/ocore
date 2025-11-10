@@ -96,13 +96,13 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 			return pickMultipleCoinsAndContinue();
 		var more = is_base ? '>' : '>=';
 		conn.query(
-			"SELECT unit, message_index, output_index, amount, blinding, address \n\
-			FROM outputs \n\
-			CROSS JOIN units USING(unit) \n\
-			WHERE address IN(?) AND asset"+(asset ? "="+conn.escape(asset) : " IS NULL")+" AND is_spent=0 AND amount "+more+" ? \n\
-				AND sequence='good' "+confirmation_condition+" \n\
-				" + (constants.bDevnet ? "" : "AND (units.is_aa_response IS NULL OR units.creation_date<" + conn.addTime('-30 SECOND') + ") ") + " \n\
-			ORDER BY is_stable DESC, amount LIMIT 1",
+			`SELECT unit, message_index, output_index, amount, blinding, address
+			FROM outputs
+			CROSS JOIN units USING(unit)
+			WHERE address IN(?) AND asset${asset ? "="+conn.escape(asset) : " IS NULL"} AND is_spent=0 AND amount ${more} ?
+				AND sequence='good' ${confirmation_condition}
+				${constants.bDevnet ? "" : `AND (units.is_aa_response IS NULL OR units.creation_date<${conn.addTime('-30 SECOND')} )`}
+			ORDER BY is_stable DESC, amount LIMIT 1`,
 			[arrSpendableAddresses, net_required_amount + transfer_input_size + getOversizeFee(size + transfer_input_size)],
 			function(rows){
 				if (rows.length === 1){
@@ -120,13 +120,13 @@ function pickDivisibleCoinsForAmount(conn, objAsset, arrAddresses, last_ball_mci
 	// then, try to add smaller coins until we accumulate the target amount
 	function pickMultipleCoinsAndContinue(){
 		conn.query(
-			"SELECT unit, message_index, output_index, amount, address, blinding \n\
-			FROM outputs \n\
-			CROSS JOIN units USING(unit) \n\
-			WHERE address IN(?) AND asset"+(asset ? "="+conn.escape(asset) : " IS NULL")+" AND is_spent=0 \n\
-				AND sequence='good' "+confirmation_condition+"  \n\
-				" + (constants.bDevnet ? "" : "AND (units.is_aa_response IS NULL OR units.creation_date<" + conn.addTime('-30 SECOND') + ") ") + " \n\
-			ORDER BY amount DESC LIMIT ?",
+			`SELECT unit, message_index, output_index, amount, address, blinding
+			FROM outputs
+			CROSS JOIN units USING(unit)
+			WHERE address IN(?) AND asset${asset ? "="+conn.escape(asset) : " IS NULL"} AND is_spent=0
+				AND sequence='good' ${confirmation_condition}
+				${constants.bDevnet ? "" : `AND (units.is_aa_response IS NULL OR units.creation_date<${conn.addTime('-30 SECOND')} )`}
+			ORDER BY amount DESC LIMIT ?`,
 			[arrSpendableAddresses, constants.MAX_INPUTS_PER_PAYMENT_MESSAGE-2],
 			function(rows){
 				async.eachSeries(
