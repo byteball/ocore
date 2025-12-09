@@ -28,13 +28,6 @@ function getFormulaByLine(formula, line) {
 	return lines[line - 1] || formula;
 }
 
-function isSignatureFormula(formula) {
-	if (!formula) return false;
-	const lines = formula.split('\n');
-	if (lines.length !== 1) return false;
-	return /^\$[A-Za-z0-9_]+\(/.test(lines[0].trim());
-}
-
 function hasLineInFormula(formula, line) {
 	if (!formula || line === undefined || line <= 0) return false;
 	return line <= formula.split('\n').length;
@@ -48,14 +41,7 @@ function pickBestFormulaForLine(formulas, line, currentFormula) {
 	const withLine = formulas.filter(f => hasLineInFormula(f, line));
 	const candidates = withLine.length ? withLine : formulas;
 
-	let best = candidates.includes(currentFormula) ? currentFormula : candidates[0];
-
-	for (const f of candidates) {
-		if (isSignatureFormula(best) && !isSignatureFormula(f)) {
-			best = f;
-		}
-	}
-
+	const best = candidates.includes(currentFormula) ? currentFormula : candidates[0];
 	return best || currentFormula;
 }
 
@@ -352,7 +338,7 @@ function recordSnapshot(traceLine, state) {
 	const { snapshotsByLine, framesStack, funcFormulas, funcFormulaStack } = state;
 
 	let snapFormula = state.ownerFormula || state.lastFormula;
-
+	
 	if (funcFormulaStack.length) {
 		snapFormula = funcFormulaStack.at(-1);
 	} else if (state.namedFuncAtLastLine && funcFormulas.has(state.namedFuncAtLastLine)) {
@@ -361,7 +347,6 @@ function recordSnapshot(traceLine, state) {
 
 	snapshotsByLine[traceLine] = {
 		gettersAA: state.gettersAAAtLastLine,
-		namedFunc: state.namedFuncAtLastLine,
 		formula: snapFormula,
 		frames: framesStack.slice(),
 	};
@@ -463,12 +448,10 @@ function buildContext(errJson) {
 	const { line, allLinesFromArr } = resolveErrorLine(errJson, state);
 	const targetSnap = state.snapshotsByLine[line];
 	const gettersAAAtTarget = targetSnap?.gettersAA || state.gettersAAAtLastLine;
-	const namedFuncAtTarget = targetSnap?.namedFunc || state.lastNamedFunc;
 
 	let lastFormulaAtTarget = resolveTargetFormula(line, {
 		...state,
 		gettersAA: gettersAAAtTarget,
-		namedFunc: namedFuncAtTarget,
 	});
 
 	const getterFormula = gettersAAAtTarget && state.getters.get(gettersAAAtTarget);
@@ -483,7 +466,6 @@ function buildContext(errJson) {
 		allLinesFromArr,
 		dontShowFormat: state.dontShowFormat,
 		gettersAA: gettersAAAtTarget,
-		namedFunc: namedFuncAtTarget,
 		snapshotsByLine: state.snapshotsByLine,
 		aaFormulas: state.aaFormulas,
 	};
@@ -498,14 +480,13 @@ function processNestedError(nestedError, line) {
 }
 
 function buildCodeLines(ctx) {
-	const { allLinesFromArr, line, lastFormula, snapshotsByLine, aaPath, gettersAA, aaFormulas, namedFunc } = ctx;
+	const { allLinesFromArr, line, lastFormula, snapshotsByLine, aaPath, gettersAA, aaFormulas } = ctx;
 
 	const formulaState = {
 		snapshotsByLine,
 		aaPath,
 		gettersAA,
 		aaFormulas,
-		namedFunc,
 		lastFormula,
 	};
 	const effectiveFormula = resolveTargetFormula(line, formulaState);

@@ -4,16 +4,23 @@ const rawOps = new Set([
     'this_address',
     'timestamp',
     'trigger.address',
-    'trigger.initial_address'
+    'trigger.initial_address',
+    'trigger.unit',
+    'trigger.initial_unit',
+    'trigger.data',
+    'trigger.outputs',
 ]);
 
 module.exports = function renderOp(arr, format = true) {
-	if(Array.isArray(arr) && arr.length === 1) {
-		arr = arr[0];
+	let arrContext;
+	if (!Array.isArray(arr) && arr && Array.isArray(arr.value)) {
+		arrContext = arr.context;
+		arr = arr.value;
 	}
 
-	if (!Array.isArray(arr) && arr && Array.isArray(arr.value)) {
-		arr = arr.value;
+	if (Array.isArray(arr)) {
+		if (arr.context) arrContext = arr.context;
+		if (arr.length === 1) arr = arr[0];
 	}
 
     if (typeof arr === 'boolean') {
@@ -62,7 +69,7 @@ module.exports = function renderOp(arr, format = true) {
 		case 'local_var':
 			return `$${renderOp(arr[1], false)}`;
 		case 'with_selectors':
-            const selector = arr.context.typeSelectors['0'];
+            const selector = arrContext.typeSelectors['0'];
             if (selector === 'dotSelector') {
                 const vars = Array.isArray(arr[2]) ? arr[2].map(v => renderOp(v, false)).join('.') : renderOp(arr[2], false);
                 return `${renderOp(arr[1], false)}.${vars}`;

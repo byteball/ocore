@@ -282,16 +282,16 @@ definition -> "definition" "[" expr "]"   {% function(d) { return addLocation(['
 
 with_selectors -> (func_call|remote_func_call|local_var|trigger_outputs|trigger_data|params|previous_aa_responses|unit|definition) (%dotSelector|"[" "[" search_param_list "]" "]"|"[" expr "]"):+  {% function(d) {
 	var v = d[0][0];
-	let context = {typeSelectors: {}};
+	let context = {selectorTypes: {}};
 	var selectors = d[1].map(function(item, i){
 		if (item[0].type === 'dotSelector'){
-			context.typeSelectors[i] = 'dotSelector';
+			context.selectorTypes[i] = 'dotSelector';
 			return item[0].value.substr(1);
 		} else if (item.length === 5){
-			context.typeSelectors[i] = 'search_param_list';
+			context.selectorTypes[i] = 'search_param_list';
 			return addLocation(['search_param_list', item[2]], d);
 		} else {
-			context.typeSelectors[i] = 'arr';
+			context.selectorTypes[i] = 'arr';
 			return addLocation(item[1], d);
 		}
 	});

@@ -340,16 +340,16 @@ var grammar = {
     {"name": "with_selectors$ebnf$1", "symbols": ["with_selectors$ebnf$1", "with_selectors$ebnf$1$subexpression$2"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
     {"name": "with_selectors", "symbols": ["with_selectors$subexpression$1", "with_selectors$ebnf$1"], "postprocess":  function(d) {
         	var v = d[0][0];
-        	let context = {typeSelectors: {}};
+        	let context = {selectorTypes: {}};
         	var selectors = d[1].map(function(item, i){
         		if (item[0].type === 'dotSelector'){
-        			context.typeSelectors[i] = 'dotSelector';
+        			context.selectorTypes[i] = 'dotSelector';
         			return item[0].value.substr(1);
         		} else if (item.length === 5){
-        			context.typeSelectors[i] = 'search_param_list';
+        			context.selectorTypes[i] = 'search_param_list';
         			return addLocation(['search_param_list', item[2]], d);
         		} else {
-        			context.typeSelectors[i] = 'arr';
+        			context.selectorTypes[i] = 'arr';
         			return addLocation(item[1], d);
         		}
         	});
