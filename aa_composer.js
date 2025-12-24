@@ -700,9 +700,9 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 					});
 				},
 				function (err) {
-					xpath += '/' + idx;
 					if (!err)
-						return cb({message: "neither case is true in " + name, xpath: '/messages/cases'});
+						return cb({message: "neither case is true in " + name, xpath});
+					xpath += '/' + idx;
 					if (err !== 'done')
 						return cb(err);
 					var replacement_value = thecase[name];
