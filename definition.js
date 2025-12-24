@@ -1116,7 +1116,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 						objValidationState: objValidationState,
 						address: address
 					};
-					formulaParser.evaluate(opts, function (err, result) {
+					formulaParser.evaluate(opts, [], '', function (err, result) {
 						if (err)
 							return cb2(false);
 						if (typeof result === 'boolean') {

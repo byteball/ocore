@@ -39,7 +39,7 @@ function evalFormulaWithVars(opts, callback) {
 			console.log('complexity exceeded');
 			return callback(null);
 		}
-		formulaParser.evaluate(opts, function (err, eval_res) {
+		formulaParser.evaluate(opts, [], '', function (err, eval_res) {
 			if (err)
 				console.log("evaluation error: " + err);
 			callback(eval_res, validation_res.complexity, validation_res.count_ops);

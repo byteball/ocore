@@ -52,7 +52,7 @@ function evalFormula(conn, formula, messages, objValidationState, address, callb
 			objValidationState: objValidationState,
 			address: address
 		};
-		formulaParser.evaluate(opts, function (err, eval_res) {
+		formulaParser.evaluate(opts, [], '', function (err, eval_res) {
 			if (err)
 				console.log("evaluation error: ", err);
 			callback(eval_res);
@@ -77,7 +77,7 @@ function evalAAFormula(conn, formula, trigger, objValidationState, address, call
 			objValidationState: objValidationState,
 			address: address
 		};
-		formulaParser.evaluate(opts, function (err, eval_res) {
+		formulaParser.evaluate(opts, [], '', function (err, eval_res) {
 			if (err)
 				console.log("evaluation error: ", err);
 			callback(eval_res, validation_res.complexity, validation_res.count_ops);
@@ -110,7 +110,7 @@ function evalFormulaWithVars(opts, callback) {
 			console.log('test: complexity exceeded: ' + validation_res.complexity);
 			return callback(null, validation_res.complexity);
 		}
-		formulaParser.evaluate(opts, function (err, eval_res) {
+		formulaParser.evaluate(opts, [], '', function (err, eval_res) {
 			if (err)
 				console.log("evaluation error: ", err);
 			callback(eval_res, validation_res.complexity, validation_res.count_ops, val_locals);

@@ -15,6 +15,7 @@ var dataFeeds = require('../data_feeds.js');
 var storage = require('../storage.js');
 var signed_message = require("../signed_message.js"); // which requires definition.js - cyclic dependency :(
 var signature = require('../signature.js');
+const formatError = require("./error/errorFormatter");
 
 var cache = require('./common.js').cache;
 var formulasInCache = require('./common.js').formulasInCache;
@@ -47,15 +48,21 @@ function wrappedObject(obj){
 	this.frozen = false;
 }
 
-function Func(args, body, scopeVarNames) {
+function Func(args, body, scopeVarNames, formula, xpath) {
 	if (!Array.isArray(args))
 		throw Error("args is not an array");
 	this.args = args;
 	this.body = body;
 	this.scopeVarNames = scopeVarNames;
+	if (formula) {
+		this.formula = formula;
+	}
+	if (xpath) {
+		this.xpath = xpath;
+	}
 }
 
-exports.evaluate = function (opts, callback) {
+exports.evaluate = function (opts, astTrace, xpath, callback) {
 	var conn = opts.conn;
 	var formula = fixFormula(opts.formula, opts.address);
 	var messages = opts.messages || [];
@@ -74,6 +81,15 @@ exports.evaluate = function (opts, callback) {
 	if (!objValidationState.logs)
 		objValidationState.logs = [];
 	var logs = objValidationState.logs || [];
+
+	if (!Array.isArray(astTrace)) {
+		astTrace = [];
+	}
+	if (typeof xpath !== 'string') {
+		xpath = '';
+	}
+
+	astTrace.push({system: 'enter to aa', aa: address, formula, bGetters: opts.bGetters, xpath});
 
 	if (!ValidationUtils.isPositiveInteger(objValidationState.last_ball_timestamp))
 		throw Error('last_ball_timestamp is not a number: ' + objValidationState.last_ball_timestamp);
@@ -116,21 +132,25 @@ exports.evaluate = function (opts, callback) {
 			return cb(true);
 		if (Decimal.isDecimal(arr)) {
 			if (!arr.isFinite())
-				return setFatalError("bad decimal: " + arr, cb, false);
+				return setFatalError("bad decimal: " + arr, { arr }, false, cb);
 			if (!isFinite(arr.toNumber()))
-				return setFatalError("number overflow: " + arr, cb, false);
+				return setFatalError("number overflow: " + arr, { arr }, false, cb);
 			return cb(toDoubleRange(arr));
 		}
-		if (arr instanceof Func) return setFatalError("function returned", cb, false);
+		if (arr instanceof Func) return setFatalError("function returned", { arr }, false, cb);
 		if (arr instanceof wrappedObject) return cb(arr);
 		if (typeof arr !== 'object') {
 			if (typeof arr === 'boolean') return cb(arr);
 			if (typeof arr === 'string') {
 				if (arr.length > constants.MAX_AA_STRING_LENGTH)
-					return setFatalError("string is too long: " + arr, cb, false);
+					return setFatalError("string is too long: " + arr, { arr }, false, cb);
 				return cb(arr);
 			}
-			return setFatalError("unknown type of arr: "+(typeof arr), cb, false);
+			return setFatalError("unknown type of arr: "+(typeof arr), { arr }, false, cb);
+		}
+
+		if (arr.line !== undefined) {
+			astTrace.push({ line: arr.line });
 		}
 		var op = arr[0];
 		switch (op) {
@@ -187,7 +207,7 @@ exports.evaluate = function (opts, callback) {
 										return cb2();
 									}
 									if (res.abs().gte(Number.MAX_SAFE_INTEGER))
-										return setFatalError('too large exponent ' + res, cb2);
+										return setFatalError('too large exponent ' + res, { arr }, undefined, cb2);
 									if (res.isInteger()) {
 										prevV = prevV.pow(res);
 										return cb2();
@@ -206,7 +226,7 @@ exports.evaluate = function (opts, callback) {
 							}
 							cb2();
 						} else {
-							return setFatalError('not a decimal in '+op+': '+ res, cb2);
+							return setFatalError('not a decimal in '+op+': '+ res, { arr }, undefined, cb2);
 						}
 
 					});
@@ -214,7 +234,7 @@ exports.evaluate = function (opts, callback) {
 					if (err)
 						return cb(false);
 					if (!isFiniteDecimal(prevV))
-						return setFatalError('not finite in '+op, cb, false);
+						return setFatalError('not finite in '+op, { arr }, false, cb);
 					cb(toDoubleRange(prevV));
 				});
 				break;
@@ -238,10 +258,10 @@ exports.evaluate = function (opts, callback) {
 						if (op === 'abs')
 							return cb(toDoubleRange(res.abs()));
 						if (res.isNegative())
-							return setFatalError(op + " of negative", cb, false);
+							return setFatalError(op + " of negative", { arr }, false, cb);
 						evaluate(toDoubleRange(op === 'sqrt' ? res.sqrt() : res.ln()), cb);
 					} else {
-						return setFatalError('not a decimal in '+op, cb, false);
+						return setFatalError('not a decimal in '+op, { arr }, false, cb);
 					}
 				});
 				break;
@@ -267,7 +287,7 @@ exports.evaluate = function (opts, callback) {
 					if (Decimal.isDecimal(dp_res) && dp_res.isInteger() && !dp_res.isNegative() && dp_res.lte(15))
 						dp = dp_res;
 					else{
-						return setFatalError('bad dp in ' + op + ': ' + dp + ', ' + dp_res, cb, false);
+						return setFatalError('bad dp in ' + op + ': ' + dp + ', ' + dp_res, { arr }, false, cb);
 					}
 					var roundingMode;
 					switch (op) {
@@ -296,7 +316,7 @@ exports.evaluate = function (opts, callback) {
 						if (isFiniteDecimal(res)) {
 							evaluate(res.toDecimalPlaces(dp.toNumber(), roundingMode), cb);
 						} else {
-							return setFatalError('not a decimal in '+op, cb, false);
+							return setFatalError('not a decimal in '+op, { arr }, false, cb);
 						}
 					});
 				});
@@ -323,7 +343,7 @@ exports.evaluate = function (opts, callback) {
 							vals.push(res);
 							cb2();
 						} else {
-							return setFatalError('not a decimal in '+op, cb2);
+							return setFatalError('not a decimal in '+op, { arr }, undefined, cb2);
 						}
 					});
 				}, function (err) {
@@ -361,7 +381,7 @@ exports.evaluate = function (opts, callback) {
 						else if (typeof res === 'string')
 							res = !!res;
 						else
-							return setFatalError('unrecognized type in ' + op, cb2);
+							return setFatalError('unrecognized type in ' + op, { arr }, undefined, cb2);
 						prevV = prevV && res;
 						if (!prevV) // found first false - abort
 							return cb2('done');
@@ -389,7 +409,7 @@ exports.evaluate = function (opts, callback) {
 						else if (typeof res === 'string')
 							res = !!res;
 						else
-							return setFatalError('unrecognized type in ' + op, cb2);
+							return setFatalError('unrecognized type in ' + op, { arr }, undefined, cb2);
 						prevV = prevV || res;
 						if (prevV) // found first true - abort
 							return cb2('done');
@@ -406,7 +426,12 @@ exports.evaluate = function (opts, callback) {
 				var vals = [];
 				var operator = arr[1];
 				if (operator === '=')
-					return setFatalError("= in comparison", cb, false);
+					return setFatalError("= in comparison", {
+						arr,
+						op: arr[1],
+						left: { var_name: arr[2], val: null, type: null },
+						right: { var_name: arr[3], val: null, type: null },
+					}, false, cb);
 				var param1 = arr[2];
 				var param2 = arr[3];
 				async.forEachOfSeries([param1, param2], function (param, index, cb2) {
@@ -426,10 +451,20 @@ exports.evaluate = function (opts, callback) {
 							return cb(_.isEqual(val1, val2));
 						if (operator === '!=')
 							return cb(!_.isEqual(val1, val2));
-						return setFatalError("not allowed comparison for objects: " + operator, cb, false);
+						return setFatalError("not allowed comparison for objects: " + operator, {
+							arr,
+							op: arr[1],
+							left: { var_name: arr[2], val: val1, type: Decimal.isDecimal(val1) ? 'number' : typeof val1 },
+							right: { var_name: arr[3], val: val2, type: Decimal.isDecimal(val2) ? 'number' : typeof val2 },
+						}, false, cb);
 					}
 					if (val1 instanceof wrappedObject || val2 instanceof wrappedObject)
-						return setFatalError("objects cannot be compared with other types", cb, false);
+						return setFatalError("objects cannot be compared with other types", {
+							arr,
+							op: arr[1],
+							left: { var_name: arr[2], val: val1, type: Decimal.isDecimal(val1) ? 'number' : typeof val1 },
+							right: { var_name: arr[3], val: val2, type: Decimal.isDecimal(val2) ? 'number' : typeof val2 },
+						}, false, cb);
 					if (typeof val1 === 'boolean' && typeof val2 === 'boolean' || typeof val1 === 'string' && typeof val2 === 'string') {
 						switch (operator) {
 							case '==':
@@ -449,10 +484,20 @@ exports.evaluate = function (opts, callback) {
 						}
 					}
 					if (typeof val1 === 'boolean' || typeof val2 === 'boolean')
-						return setFatalError("booleans cannot be compared with other types", cb, false);
+						return setFatalError("booleans cannot be compared with other types", {
+							arr,
+							op: arr[1],
+							left: { var_name: arr[2], val: val1, type: Decimal.isDecimal(val1) ? 'number' : typeof val1 },
+							right: { var_name: arr[3], val: val2, type: Decimal.isDecimal(val2) ? 'number' : typeof val2 },
+						}, false, cb);
 					if (Decimal.isDecimal(val1) && Decimal.isDecimal(val2)) {
 						if (!isFiniteDecimal(val1) || !isFiniteDecimal(val2))
-							return setFatalError("non-finite in comparison", cb, false);
+							return setFatalError("non-finite in comparison", {
+								arr,
+								op: arr[1],
+								left: { var_name: arr[2], val: val1, type: Decimal.isDecimal(val1) ? 'number' : typeof val1 },
+								right: { var_name: arr[3], val: val2, type: Decimal.isDecimal(val2) ? 'number' : typeof val2 },
+							}, false, cb);
 						switch (operator) {
 							case '==':
 								return cb(val1.eq(val2));
@@ -481,10 +526,20 @@ exports.evaluate = function (opts, callback) {
 							case '!=':
 								return cb(val1 !== val2);
 							default:
-								return setFatalError("not allowed comparison for string-casts: " + operator, cb, false);
+								return setFatalError("not allowed comparison for string-casts: " + operator, {
+									arr,
+									op: arr[1],
+									left: { var_name: arr[2], val: val1, type: Decimal.isDecimal(val1) ? 'number' : typeof val1 },
+									right: { var_name: arr[3], val: val2, type: Decimal.isDecimal(val2) ? 'number' : typeof val2 },
+								}, false, cb);
 						}
 					}
-					return setFatalError('unrecognized combination of types in '+op, cb, false);
+					return setFatalError('unrecognized combination of types in '+op, {
+							arr,
+							op: arr[1],
+							left: { var_name: arr[2], val: val1, type: Decimal.isDecimal(val1) ? 'number' : typeof val1 },
+							right: { var_name: arr[3], val: val2, type: Decimal.isDecimal(val2) ? 'number' : typeof val2 },
+						}, false, cb);
 				});
 				break;
 
@@ -502,7 +557,7 @@ exports.evaluate = function (opts, callback) {
 					else if (typeof res === 'string')
 						conditionResult = !!res;
 					else
-						return setFatalError('unrecognized type in '+op, cb, false);
+						return setFatalError('unrecognized type in '+op, { arr }, false, cb);
 					var param2 = conditionResult ? arr[2] : arr[3];
 					evaluate(param2, function (res) {
 						if (fatal_error)
@@ -512,7 +567,7 @@ exports.evaluate = function (opts, callback) {
 						else if (typeof res === 'boolean' || typeof res === 'string' || res instanceof wrappedObject)
 							cb(res);
 						else
-							return setFatalError('unrecognized type of res in '+op, cb, false);
+							return setFatalError('unrecognized type of res in '+op, { arr }, false, cb);
 					});
 				});
 				break;
@@ -617,7 +672,7 @@ exports.evaluate = function (opts, callback) {
 								res = true;
 							// boolean allowed for ifnone
 							if (!isValidValue(res) || typeof res === 'boolean' && param_name !== 'ifnone')
-								return setFatalError('bad value in data feed: '+res, cb2);
+								return setFatalError('bad value in data feed: '+res, undefined, undefined, cb2);
 							if (Decimal.isDecimal(res))
 								res = toDoubleRange(res);
 							evaluated_params[param_name] = {
@@ -632,7 +687,7 @@ exports.evaluate = function (opts, callback) {
 							return cb(false);
 						getDataFeed(evaluated_params, function (err, result) {
 							if (err)
-								return setFatalError('error from data feed: '+err, cb, false);
+								return setFatalError('error from data feed: '+err, false, undefined, cb);
 							cb(result);
 						});
 					}
@@ -651,7 +706,7 @@ exports.evaluate = function (opts, callback) {
 							if (res instanceof wrappedObject)
 								res = true;
 							if (!isValidValue(res) || typeof res === 'boolean')
-								return setFatalError('bad in-df param', cb2);
+								return setFatalError('bad in-df param', { arr }, undefined, cb2);
 							if (Decimal.isDecimal(res))
 								res = toDoubleRange(res);
 							evaluated_params[param_name] = {
@@ -665,22 +720,22 @@ exports.evaluate = function (opts, callback) {
 						if (fatal_error)
 							return cb(false);
 						if (typeof evaluated_params.oracles.value !== 'string')
-							return setFatalError('oracles is not a string', cb, false);
+							return setFatalError('oracles is not a string', { arr }, false, cb);
 						var arrAddresses = evaluated_params.oracles.value.split(':');
 						if (!arrAddresses.every(ValidationUtils.isValidAddress)) // even if some addresses are ok
-							return setFatalError('bad oracles', cb, false);
+							return setFatalError('bad oracles', { arr }, false, cb);
 						var feed_name = evaluated_params.feed_name.value;
 						if (!feed_name || typeof feed_name !== 'string')
-							return setFatalError('bad feed name', cb, false);
+							return setFatalError('bad feed name', { arr }, false, cb);
 						var value = evaluated_params.feed_value.value;
 						var relation = evaluated_params.feed_value.operator;
 						if (!isValidValue(value))
-							return setFatalError("bad feed_value: "+value, cb, false);
+							return setFatalError("bad feed_value: "+value, { arr }, false, cb);
 						var min_mci = 0;
 						if (evaluated_params.min_mci){
 							min_mci = evaluated_params.min_mci.value.toString();
 							if (!(/^\d+$/.test(min_mci) && ValidationUtils.isNonnegativeInteger(parseInt(min_mci))))
-								return setFatalError('bad min_mci', cb, false);
+								return setFatalError('bad min_mci', { arr }, false, cb);
 							min_mci = parseInt(min_mci);
 						}
 						dataFeeds.dataFeedExists(arrAddresses, feed_name, relation, value, min_mci, mci, bAA, cb);
@@ -765,7 +820,7 @@ exports.evaluate = function (opts, callback) {
 							if (res instanceof wrappedObject)
 								res = true;
 							if (!isValidValue(res) || typeof res === 'boolean')
-								return setFatalError('bad value in '+op+': '+res, cb2);
+								return setFatalError('bad value in '+op+': '+res, { arr }, undefined, cb2);
 							if (Decimal.isDecimal(res))
 								res = toDoubleRange(res);
 							evaluated_params[param_name] = {
@@ -781,21 +836,21 @@ exports.evaluate = function (opts, callback) {
 						if (evaluated_params.address){
 							var v = evaluated_params.address.value;
 							if (!ValidationUtils.isValidAddress(v))
-								return setFatalError('bad address in '+op+': '+v, cb, false);
+								return setFatalError('bad address in '+op+': '+v, { arr }, false, cb);
 						}
 						if (evaluated_params.asset){
 							var v = evaluated_params.asset.value;
 							if (!ValidationUtils.isValidBase64(v, constants.HASH_LENGTH) && v !== 'base')
-								return setFatalError('bad asset', cb, false);
+								return setFatalError('bad asset', { arr }, false, cb);
 						}
 						if (evaluated_params.amount){
 							var v = evaluated_params.amount.value;
 							if(!isFiniteDecimal(v))
-								return setFatalError('bad amount', cb, false);
+								return setFatalError('bad amount', { arr }, false, cb);
 						}
 						var result = findOutputOrInputAndReturnName(evaluated_params);
 						if (result === '')
-							return setFatalError('not found or ambiguous '+op, cb, false);
+							return setFatalError('not found or ambiguous '+op, { arr }, false, cb);
 						if (arr[2] === 'amount') {
 							cb(new Decimal(result.amount));
 						} else if (arr[2] === 'asset') {
@@ -822,10 +877,10 @@ exports.evaluate = function (opts, callback) {
 							if (res instanceof wrappedObject)
 								res = true;
 							if (typeof res !== 'string' && param_name !== 'ifnone')
-								return setFatalError('bad value of '+param_name+' in attestation: '+res, cb2);
+								return setFatalError('bad value of '+param_name+' in attestation: '+res, cb2, { arr, target: params[param_name].value });
 							if (Decimal.isDecimal(res)) {
 								if (!isFiniteDecimal(res))
-									return setFatalError('not finite '+param_name+' in attestation: '+res, cb2);
+									return setFatalError('not finite '+param_name+' in attestation: '+res, cb2, { arr, target: params[param_name].value });
 								res = toDoubleRange(res);
 							}
 							evaluated_params[param_name] = {
@@ -841,27 +896,27 @@ exports.evaluate = function (opts, callback) {
 						params = evaluated_params;
 
 						if (typeof params.attestors.value !== 'string')
-							return setFatalError('attestors is not a string', cb, false);
+							return setFatalError('attestors is not a string', { arr }, false, cb);
 						var arrAttestorAddresses = params.attestors.value.split(':');
 						if (!arrAttestorAddresses.every(ValidationUtils.isValidAddress)) // even if some addresses are ok
-							return setFatalError('bad attestors', cb, false);
+							return setFatalError('bad attestors', { arr }, false, cb);
 
 						var v = params.address.value;
 						if (!ValidationUtils.isValidAddress(v))
-							return setFatalError('bad address in attestation: ' + v, cb, false);
+							return setFatalError('bad address in attestation: ' + v, { arr }, false, cb);
 
 						var ifseveral = 'last';
 						if (params.ifseveral) {
 							ifseveral = params.ifseveral.value;
 							if (ifseveral !== 'last' && ifseveral !== 'abort')
-								return setFatalError('bad ifseveral ' + ifseveral, cb, false);
+								return setFatalError('bad ifseveral ' + ifseveral, { arr }, false, cb);
 						}
 
 						var type = 'auto';
 						if (params.type) {
 							type = params.type.value;
 							if (type !== 'string' && type !== 'auto')
-								return setFatalError('bad att type ' + type, cb, false);
+								return setFatalError('bad att type ' + type, { arr }, false, cb);
 						}
 
 						if (field === null) // special case when we are not interested in any field, just the fact of attestation
@@ -881,7 +936,7 @@ exports.evaluate = function (opts, callback) {
 							else {
 								field = evaluated_field;
 								if (typeof field !== 'string' || field.length === 0)
-									return setFatalError('bad evaluated field: ' + field, cb, false);
+									return setFatalError('bad evaluated field: ' + field, { arr }, false, cb);
 								table = 'attested_fields';
 								and_field = "AND field = " + conn.escape(field);
 								selected_fields = 'value';
@@ -917,7 +972,7 @@ exports.evaluate = function (opts, callback) {
 										rows = []; // discard any results
 									count_rows += rows.length;
 									if (count_rows > 1 && ifseveral === 'abort')
-										return setFatalError("several attestations found for " + params.address.value, cb, false);
+										return setFatalError("several attestations found for " + params.address.value, { arr }, false, cb);
 									if (rows.length > 0 && ifseveral !== 'abort') // if found but ifseveral=abort, we continue
 										return returnValue(rows);
 									// then check the stable units
@@ -931,7 +986,7 @@ exports.evaluate = function (opts, callback) {
 										function (rows) {
 											count_rows += rows.length;
 											if (count_rows > 1 && ifseveral === 'abort')
-												return setFatalError("several attestations found for " + params.address.value, cb, false);
+												return setFatalError("several attestations found for " + params.address.value, { arr }, false, cb);
 											if (rows.length > 0)
 												return returnValue(rows);
 											if (params.ifnone) // type is never converted
@@ -962,7 +1017,7 @@ exports.evaluate = function (opts, callback) {
 						else if (typeof res === 'boolean')
 							operand = res.toString();
 						else
-							return setFatalError('unrecognized type in ' + op + ': ' + res, cb2);
+							return setFatalError('unrecognized type in ' + op + ': ' + res, { arr }, undefined, cb2);
 						operands.push(operand);
 						cb2();
 					});
@@ -971,7 +1026,7 @@ exports.evaluate = function (opts, callback) {
 						return cb(false);
 					var ret = concat(operands[0], operands[1]);
 					if (ret.error)
-						return setFatalError(ret.error, cb, false);
+						return setFatalError(ret.error, { arr }, false, cb);
 					cb(ret.result);
 				});
 				break;
@@ -1040,7 +1095,7 @@ exports.evaluate = function (opts, callback) {
 					if (fatal_error)
 						return cb(false);
 					if (typeof asset !== 'string' || asset !== 'base' && !ValidationUtils.isValidBase64(asset, constants.HASH_LENGTH))
-						return setFatalError("bad asset " + asset, cb, false);
+						return setFatalError("bad asset " + asset, { arr }, false, cb);
 					var output;
 					for (var a in trigger.outputs) {
 						if (comparison_operator === '=' && a === asset || comparison_operator === '!=' && a !== asset) {
@@ -1057,7 +1112,7 @@ exports.evaluate = function (opts, callback) {
 						output = { asset: 'none', amount: 0 };
 					}
 					if (output.asset === 'ambiguous' && field === 'amount')
-						return setFatalError("trying to access amount of ambiguous asset", cb, false);
+						return setFatalError("trying to access amount of ambiguous asset", { arr }, false, cb);
 					output.amount = new Decimal(output.amount);
 				//	console.log('output', output)
 					cb(output[field]);
@@ -1077,7 +1132,7 @@ exports.evaluate = function (opts, callback) {
 								arrItems.push(res.obj);
 							else {
 								if (!isValidValue(res))
-									return setFatalError("bad value " + res, cb2);
+									return setFatalError("bad value " + res, { arr }, undefined, cb2);
 								if (Decimal.isDecimal(res))
 									res = res.toNumber();
 								arrItems.push(res);
@@ -1107,7 +1162,7 @@ exports.evaluate = function (opts, callback) {
 								assignField(obj, key, res.obj);
 							else {
 								if (!isValidValue(res))
-									return setFatalError("bad value " + res, cb2);
+									return setFatalError("bad value " + res, { arr }, undefined, cb2);
 								if (Decimal.isDecimal(res))
 									res = res.toNumber();
 								assignField(obj, key, res);
@@ -1130,12 +1185,12 @@ exports.evaluate = function (opts, callback) {
 					if (fatal_error)
 						return cb(false);
 					if (typeof var_name !== 'string')
-						return setFatalError("local var name must be string, evaluated to " + JSON.stringify(var_name) + ` (${typeof var_name})`, cb, false);
+						return setFatalError("local var name must be string, evaluated to " + JSON.stringify(var_name) + ` (${typeof var_name})`, { arr }, false, cb);
 					var value = locals[var_name];
 					if (value === undefined || !hasOwnProperty(locals, var_name))
 						return cb(false);
 					if (value instanceof Func)
-						return setFatalError("trying to access function " + var_name + " without calling it", cb, false);
+						return setFatalError("trying to access function " + var_name + " without calling it", { arr }, false, cb);
 					if (typeof value === 'number')
 						value = createDecimal(value);
 					cb(value);
@@ -1151,47 +1206,47 @@ exports.evaluate = function (opts, callback) {
 					if (fatal_error)
 						return cb(false);
 					if (typeof var_name !== 'string')
-						return setFatalError("assignment: local var name must be string, " + var_name_or_expr + " evaluated to " + JSON.stringify(var_name) + ` (${typeof var_name})`, cb, false);
+						return setFatalError("assignment: local var name must be string, " + var_name_or_expr + " evaluated to " + JSON.stringify(var_name) + ` (${typeof var_name})`, { arr, target: var_name_or_expr, var_name }, false, cb);
 					if (hasOwnProperty(locals, var_name)) {
 						if (!selectors)
-							return setFatalError("reassignment to " + var_name + ", old value " + locals[var_name], cb, false);
+							return setFatalError("reassignment to " + var_name + ", old value " + locals[var_name], { arr }, false, cb);
 						if (!(locals[var_name] instanceof wrappedObject))
-							return setFatalError("variable " + var_name + " is not an object", cb, false);
+							return setFatalError("variable " + var_name + " is not an object", { arr }, false, cb);
 						if (locals[var_name].frozen)
-							return setFatalError("variable " + var_name + " is frozen", cb, false);
+							return setFatalError("variable " + var_name + " is frozen", { arr }, false, cb);
 					}
 					else if (selectors)
-						return setFatalError("mutating a non-existent var " + var_name, cb, null);
+						return setFatalError("mutating a non-existent var " + var_name, { arr }, null, cb);
 					if (rhs[0] === 'func_declaration') {
 						if (selectors)
-							return setFatalError("only top level functions are supported", cb, null);
+							return setFatalError("only top level functions are supported", { arr }, null, cb);
 						var args = rhs[1];
 						var body = rhs[2];
 						var scopeVarNames = Object.keys(locals);
 						if (args.indexOf(var_name) >= 0)
 							throw Error("arg name cannot be the same as func name in evaluation");
 						if (_.intersection(args, scopeVarNames).length > 0)
-							return setFatalError("some args of " + var_name + " would shadow some local vars", cb, false);
-						assignField(locals, var_name, new Func(args, body, scopeVarNames));
+							return setFatalError("some args of " + var_name + " would shadow some local vars", { arr }, false, cb);
+						assignField(locals, var_name, new Func(args, body, scopeVarNames, formula, xpath));
 						return cb(true);
 					}
 					evaluate(rhs, function (res) {
 						if (fatal_error)
 							return cb(false);
 						if (!isValidValue(res) && !(res instanceof wrappedObject))
-							return setFatalError("evaluation of rhs " + rhs + " in local var assignment failed: " + JSON.stringify(res), cb, false);
+							return setFatalError("evaluation of rhs " + rhs + " in local var assignment failed: " + JSON.stringify(res), { arr }, false, cb);
 						if (Decimal.isDecimal(res))
 							res = toDoubleRange(res);
 						if (hasOwnProperty(locals, var_name)) { // mutating an object
 							if (!selectors)
-								return setFatalError("reassignment to " + var_name + " after evaluation", cb, false);
+								return setFatalError("reassignment to " + var_name + " after evaluation", { arr }, false, cb);
 							if (!(locals[var_name] instanceof wrappedObject))
 								throw Error("variable " + var_name + " is not an object");
 							if (Decimal.isDecimal(res))
 								res = res.toNumber();
 							if (res instanceof wrappedObject)
 								res = _.cloneDeep(res.obj);
-							evaluateSelectorKeys(selectors, function (arrKeys) {
+							evaluateSelectorKeys(selectors, arr, function (arrKeys) {
 								if (fatal_error)
 									return cb(false);
 								try {
@@ -1199,7 +1254,7 @@ exports.evaluate = function (opts, callback) {
 									cb(true);
 								}
 								catch (e) {
-									setFatalError(e.toString(), cb, false);
+									setFatalError(e.toString(), { arr }, false, cb);
 								}
 							});
 						}
@@ -1216,7 +1271,7 @@ exports.evaluate = function (opts, callback) {
 
 			case 'state_var_assignment':
 				if (!bStateVarAssignmentAllowed)
-					return setFatalError("state var assignment not allowed here", cb, false);
+					return setFatalError("state var assignment not allowed here", { arr }, false, cb);
 				var var_name_or_expr = arr[1];
 				var rhs = arr[2];
 				var assignment_op = arr[3];
@@ -1224,12 +1279,12 @@ exports.evaluate = function (opts, callback) {
 					if (fatal_error)
 						return cb(false);
 					if (typeof var_name !== 'string')
-						return setFatalError("assignment: state var name must be string, " + var_name_or_expr + " evaluated to " + JSON.stringify(var_name) + ` (${typeof var_name})`, cb, false);
+						return setFatalError("assignment: state var name must be string, " + var_name_or_expr + " evaluated to " + JSON.stringify(var_name) + ` (${typeof var_name})`, { arr }, false, cb);
 					evaluate(rhs, function (res) {
 						if (fatal_error)
 							return cb(false);
 						if (!isValidValue(res) && !(res instanceof wrappedObject))
-							return setFatalError("evaluation of rhs " + rhs + " in state var assignment failed: " + JSON.stringify(res), cb, false);
+							return setFatalError("evaluation of rhs " + rhs + " in state var assignment failed: " + JSON.stringify(res), { arr }, false, cb);
 						if (Decimal.isDecimal(res))
 							res = toDoubleRange(res);
 						// state vars can store strings, decimals, objects, and booleans but booleans are treated specially when persisting to the db: true is converted to 1, false deletes the var
@@ -1238,20 +1293,20 @@ exports.evaluate = function (opts, callback) {
 								res = true;
 							else {
 								if (assignment_op !== '=' && assignment_op !== '||=')
-									return setFatalError(assignment_op + " not supported for object vars", cb, false);
+									return setFatalError(assignment_op + " not supported for object vars", { arr }, false, cb);
 								try {
 									var json = string_utils.getJsonSourceString(res.obj, true);
 								}
 								catch (e) {
-									return setFatalError("stringify failed: " + e, cb, false);
+									return setFatalError("stringify failed: " + e, { arr }, false, cb);
 								}
 								if (json.length > constants.MAX_STATE_VAR_VALUE_LENGTH)
-									return setFatalError("state var value too long when in json: " + json, cb, false);
+									return setFatalError("state var value too long when in json: " + json, { arr }, false, cb);
 								res = new wrappedObject(_.cloneDeep(res.obj)); // make a copy
 							}
 						}
 						if (var_name.length > constants.MAX_STATE_VAR_NAME_LENGTH)
-							return setFatalError("state var name too long: " + var_name, cb, false);
+							return setFatalError("state var name too long: " + var_name, { arr }, false, cb);
 					//	if (typeof res === 'boolean')
 					//		res = res ? dec1 : dec0;
 						if (!stateVars[address])
@@ -1260,17 +1315,17 @@ exports.evaluate = function (opts, callback) {
 						readVar(address, var_name, function (value) {
 							if (assignment_op === "=") {
 								if (typeof res === 'string' && res.length > constants.MAX_STATE_VAR_VALUE_LENGTH)
-									return setFatalError("state var value too long: " + res, cb, false);
+									return setFatalError("state var value too long: " + res, { arr }, false, cb);
 								stateVars[address][var_name].value = res;
 								stateVars[address][var_name].updated = true;
 								return cb(true);
 							}
 							if (value instanceof wrappedObject && assignment_op !== '||=')
-								return setFatalError("can't " + assignment_op + " to object", cb, false);
+								return setFatalError("can't " + assignment_op + " to object", { arr }, false, cb);
 							if (assignment_op === '||=') {
 								var ret = concat(value, res);
 								if (ret.error)
-									return setFatalError("state var assignment: " + ret.error, cb, false);
+									return setFatalError("state var assignment: " + ret.error, { arr }, false, cb);
 								value = ret.result;
 							}
 							else {
@@ -1279,9 +1334,9 @@ exports.evaluate = function (opts, callback) {
 								if (typeof res === 'boolean')
 									res = res ? dec1 : dec0;
 								if (!Decimal.isDecimal(value))
-									return setFatalError("current value is not decimal: " + value, cb, false);
+									return setFatalError("current value is not decimal: " + value, { arr }, false, cb);
 								if (!Decimal.isDecimal(res))
-									return setFatalError("rhs is not decimal: " + res, cb, false);
+									return setFatalError("rhs is not decimal: " + res, { arr }, false, cb);
 								if ((assignment_op === '+=' || assignment_op === '-=') && stateVars[address][var_name].old_value === undefined)
 									stateVars[address][var_name].old_value = dec0;
 								if (assignment_op === '+=')
@@ -1297,7 +1352,7 @@ exports.evaluate = function (opts, callback) {
 								else
 									throw Error("unknown assignment op: " + assignment_op);
 								if (!isFiniteDecimal(value))
-									return setFatalError("not finite: " + value, cb, false);
+									return setFatalError("not finite: " + value, { arr }, false, cb);
 								value = toDoubleRange(value);
 							}
 							stateVars[address][var_name].value = value;
@@ -1315,7 +1370,7 @@ exports.evaluate = function (opts, callback) {
 					if (fatal_error)
 						return cb(false);
 					if (typeof var_name !== 'string')
-						return setFatalError("assignment: response var name must be string, " + var_name_or_expr + " evaluated to " + JSON.stringify(var_name) + ` (${typeof var_name})`, cb, false);
+						return setFatalError("assignment: response var name must be string, " + var_name_or_expr + " evaluated to " + JSON.stringify(var_name) + ` (${typeof var_name})`, { arr }, false, cb);
 					evaluate(rhs, function (res) {
 						if (fatal_error)
 							return cb(false);
@@ -1323,11 +1378,11 @@ exports.evaluate = function (opts, callback) {
 						if (res instanceof wrappedObject)
 							res = true;
 						if (!isValidValue(res))
-							return setFatalError("evaluation of rhs " + rhs + " in response var assignment failed: " + JSON.stringify(res), cb, false);
+							return setFatalError("evaluation of rhs " + rhs + " in response var assignment failed: " + JSON.stringify(res), { arr }, false, cb);
 						if (Decimal.isDecimal(res)) {
 							res = res.toNumber();
 							if (!isFinite(res))
-								return setFatalError("not finite js number in response_var_assignment", cb, false);
+								return setFatalError("not finite js number in response_var_assignment", { arr }, false, cb);
 						}
 						assignField(responseVars, var_name, res);
 						cb(true);
@@ -1352,7 +1407,7 @@ exports.evaluate = function (opts, callback) {
 						if (fatal_error)
 							return cb(false);
 						if (err)
-							return setFatalError("statements in {} failed: " + err, cb, false);
+							return setFatalError("statements in {} failed: " + err, { arr }, false, cb);
 						cb(true);
 					}
 				);
@@ -1368,7 +1423,7 @@ exports.evaluate = function (opts, callback) {
 					if (res instanceof wrappedObject)
 						res = true;
 					if (!isValidValue(res))
-						return setFatalError("bad value in ifelse: " + res, cb, false);
+						return setFatalError("bad value in ifelse: " + res, { arr }, false, cb);
 					if (Decimal.isDecimal(res))
 						res = (res.toNumber() !== 0);
 					else if (typeof res === 'object')
@@ -1388,18 +1443,18 @@ exports.evaluate = function (opts, callback) {
 					if (fatal_error)
 						return cb(false);
 					if (typeof evaluated_param1 !== 'string')
-						return setFatalError("1st var name is not a string: " + evaluated_param1, cb, false);
+						return setFatalError("1st var name is not a string: " + evaluated_param1, { arr }, false, cb);
 					if (param2 === null)
 						return ((op === 'var') ? readVar(address, evaluated_param1, cb) : readBalance(address, evaluated_param1, cb));
 					// then, the 1st param is the address of an AA whose state or balance we are going to query
 					var param_address = evaluated_param1;
 					if (!ValidationUtils.isValidAddress(param_address))
-						return setFatalError("var address is invalid: " + param_address, cb, false);
+						return setFatalError("var address is invalid: " + param_address, { arr }, false, cb);
 					evaluate(param2, function (evaluated_param2) {
 						if (fatal_error)
 							return cb(false);
 						if (typeof evaluated_param2 !== 'string')
-							return setFatalError("2nd var name is not a string: " + evaluated_param2, cb, false);
+							return setFatalError("2nd var name is not a string: " + evaluated_param2, { arr }, false, cb);
 						(op === 'var')
 							? readVar(param_address, evaluated_param2, cb)
 							: readBalance(param_address, evaluated_param2, cb);
@@ -1408,7 +1463,7 @@ exports.evaluate = function (opts, callback) {
 
 				function readBalance(param_address, bal_asset, cb2) {
 					if (bal_asset !== 'base' && !ValidationUtils.isValidBase64(bal_asset, constants.HASH_LENGTH))
-						return setFatalError('bad asset ' + bal_asset, cb, false);
+						return setFatalError('bad asset ' + bal_asset, { arr }, false, cb);
 
 					if (!objValidationState.assocBalances[param_address])
 						objValidationState.assocBalances[param_address] = {};
@@ -1437,14 +1492,14 @@ exports.evaluate = function (opts, callback) {
 						if (fatal_error)
 							return cb(false);
 						if (typeof field !== 'string' || !objBaseAssetInfo.hasOwnProperty(field))
-							return setFatalError("bad field in asset[]: " + field, cb, false);
+							return setFatalError("bad field in asset[]: " + field, { arr }, false, cb);
 						var convertValue = (value) => (typeof value === 'number' && mci >= constants.aa3UpgradeMci) ? new Decimal(value) : value;
 						if (asset === 'base')
 							return cb(convertValue(objBaseAssetInfo[field]));
 						if (!ValidationUtils.isValidBase64(asset, constants.HASH_LENGTH)) {
 							if (field === 'exists')
 								return cb(false);
-							return setFatalError("bad asset in asset[]: " + asset, cb, false);
+							return setFatalError("bad asset in asset[]: " + asset, { arr }, false, cb);
 						}
 						readAssetInfoPossiblyDefinedByAA(asset, function (objAsset) {
 							if (!objAsset)
@@ -1551,7 +1606,7 @@ exports.evaluate = function (opts, callback) {
 					if (fatal_error)
 						return cb(false);
 					if (!ValidationUtils.isValidAddress(evaluated_address))
-						return setFatalError("bad address in is_valid_signed_package: " + evaluated_address, cb, false);
+						return setFatalError("bad address in is_valid_signed_package: " + evaluated_address, { arr }, false, cb);
 					evaluate(signed_package_expr, function (signedPackage) {
 						if (fatal_error)
 							return cb(false);
@@ -1587,22 +1642,22 @@ exports.evaluate = function (opts, callback) {
 					if (fatal_error)
 						return cb(false);
 					if (!ValidationUtils.isNonemptyString(evaluated_message))
-						return setFatalError("bad message string in is_valid_sig", cb, false);
+						return setFatalError("bad message string in is_valid_sig", { arr }, false, cb);
 					evaluate(sig, function (evaluated_signature) {
 						if (fatal_error)
 							return cb(false);
 						if (!ValidationUtils.isNonemptyString(evaluated_signature))
-							return setFatalError("bad signature string in is_valid_sig", cb, false);
+							return setFatalError("bad signature string in is_valid_sig", { arr }, false, cb);
 						if (evaluated_signature.length > 1024)
-							return setFatalError("signature is too large", cb, false);
+							return setFatalError("signature is too large", { arr }, false, cb);
 						if (!ValidationUtils.isValidHexadecimal(evaluated_signature) && !ValidationUtils.isValidBase64(evaluated_signature))
-							return setFatalError("bad signature string in is_valid_sig", cb, false);
+							return setFatalError("bad signature string in is_valid_sig", { arr }, false, cb);
 						evaluate(pem_key, function (evaluated_pem_key) {
 							if (fatal_error)
 								return cb(false);
 							signature.validateAndFormatPemPubKey(evaluated_pem_key, "any", function (error, formatted_pem_key){
 								if (error)
-									return setFatalError("bad PEM key in is_valid_sig: " + error, cb, false);
+									return setFatalError("bad PEM key in is_valid_sig: " + error, { arr }, false, cb);
 								var result = signature.verifyMessageWithPemPubKey(evaluated_message, evaluated_signature, formatted_pem_key);
 								return cb(result);
 							});
@@ -1619,22 +1674,22 @@ exports.evaluate = function (opts, callback) {
 					if (fatal_error)
 						return cb(false);
 					if (!ValidationUtils.isNonemptyString(evaluated_seed))
-						return setFatalError("bad seed in vrf_verify", cb, false);
+						return setFatalError("bad seed in vrf_verify", { arr }, false, cb);
 					evaluate(proof, function (evaluated_proof) {
 						if (fatal_error)
 							return cb(false);
 						if (!ValidationUtils.isNonemptyString(evaluated_proof))
-							return setFatalError("bad proof string in vrf_verify", cb, false);
+							return setFatalError("bad proof string in vrf_verify", { arr }, false, cb);
 						if (evaluated_proof.length > 1024)
-							return setFatalError("proof is too large", cb, false);
+							return setFatalError("proof is too large", { arr }, false, cb);
 						if (!ValidationUtils.isValidHexadecimal(evaluated_proof))
-							return setFatalError("bad signature string in vrf_verify", cb, false);
+							return setFatalError("bad signature string in vrf_verify", { arr }, false, cb);
 						evaluate(pem_key, function (evaluated_pem_key) {
 							if (fatal_error)
 								return cb(false);
 							signature.validateAndFormatPemPubKey(evaluated_pem_key, "RSA", function (error, formatted_pem_key){
 								if (error)
-									return setFatalError("bad PEM key in vrf_verify: " + error, cb, false);
+									return setFatalError("bad PEM key in vrf_verify: " + error, { arr }, false, cb);
 								var result = signature.verifyMessageWithPemPubKey(evaluated_seed, evaluated_proof, formatted_pem_key);
 								return cb(result);
 							});
@@ -1652,7 +1707,7 @@ exports.evaluate = function (opts, callback) {
 					if (typeof element === 'boolean' || isFiniteDecimal(element))
 						element = element.toString();
 					if (!ValidationUtils.isNonemptyString(element))
-						return setFatalError("bad element in is_valid_merkle_proof", cb, false);
+						return setFatalError("bad element in is_valid_merkle_proof", { arr }, false, cb);
 					evaluate(proof_expr, function (proof) {
 						if (fatal_error)
 							return cb(false);
@@ -1661,7 +1716,7 @@ exports.evaluate = function (opts, callback) {
 							objProof = proof.obj;
 						else if (typeof proof === 'string') {
 							if (proof.length > 1024)
-								return setFatalError("proof is too large", cb, false);
+								return setFatalError("proof is too large", { arr }, false, cb);
 							objProof = merkle.deserializeMerkleProof(proof);
 						}
 						else // can't be valid proof
@@ -1683,7 +1738,7 @@ exports.evaluate = function (opts, callback) {
 							res = string_utils.getJsonSourceString(res.obj, true); // it's ok if the string is longer than MAX_AA_STRING_LENGTH
 					}
 					if (!isValidValue(res))
-						return setFatalError("invalid value in sha256: " + res, cb, false);
+						return setFatalError("invalid value in sha256: " + res, { arr }, false, cb);
 					if (Decimal.isDecimal(res))
 						res = toDoubleRange(res);
 					var format_expr = arr[2];
@@ -1693,7 +1748,7 @@ exports.evaluate = function (opts, callback) {
 						if (fatal_error)
 							return cb(false);
 						if (format !== 'base64' && format !== 'hex' && format !== 'base32')
-							return setFatalError("bad format of sha256: " + format, cb, false);
+							return setFatalError("bad format of sha256: " + format, { arr }, false, cb);
 						var h = crypto.createHash("sha256").update(res.toString(), "utf8");
 						if (format === 'base32')
 							cb(base32.encode(h.digest()).toString());
@@ -1713,12 +1768,12 @@ exports.evaluate = function (opts, callback) {
 							var chash160 = objectHash.getChash160(res.obj);
 						}
 						catch (e) {
-							return setFatalError("chash160 failed: " + e, cb, false);
+							return setFatalError("chash160 failed: " + e, { arr }, false, cb);
 						}
 						return cb(chash160);
 					}
 					if (!isValidValue(res))
-						return setFatalError("invalid value in chash160: " + res, cb, false);
+						return setFatalError("invalid value in chash160: " + res, { arr }, false, cb);
 					if (Decimal.isDecimal(res))
 						res = toDoubleRange(res);
 					cb(chash.getChash160(res.toString()));
@@ -1736,7 +1791,7 @@ exports.evaluate = function (opts, callback) {
 							if (res instanceof wrappedObject)
 								res = true;
 							if (!isValidValue(res))
-								return setFatalError("invalid value in sha256: " + res, cb, false);
+								return setFatalError("invalid value in sha256: " + res, { arr }, false, cb);
 							if (isFiniteDecimal(res))
 								res = toDoubleRange(res);
 							evaluated_params.push(res);
@@ -1763,11 +1818,11 @@ exports.evaluate = function (opts, callback) {
 							max = evaluated_params[2];
 						}
 						if (!isFiniteDecimal(min) || !isFiniteDecimal(max))
-							return setFatalError("min and max must be numbers", cb, false);
+							return setFatalError("min and max must be numbers", { arr }, false, cb);
 						if (!min.isInteger() || !max.isInteger())
-							return setFatalError("min and max must be integers", cb, false);
+							return setFatalError("min and max must be integers", { arr }, false, cb);
 						if (!max.gt(min))
-							return setFatalError("max must be greater than min", cb, false);
+							return setFatalError("max must be greater than min", { arr }, false, cb);
 						var len = max.minus(min).plus(1);
 						num = num.times(len).floor().plus(min);
 						cb(num);
@@ -1782,7 +1837,7 @@ exports.evaluate = function (opts, callback) {
 						return cb(false);
 					if (res instanceof wrappedObject)
 						res = true;
-					//	return setFatalError("json_parse of object", cb, false);
+					//	return setFatalError("json_parse of object", false, undefined, cb);
 					if (Decimal.isDecimal(res))
 						res = toDoubleRange(res);
 					if (typeof res !== 'string')
@@ -1813,15 +1868,15 @@ exports.evaluate = function (opts, callback) {
 						res = res.obj;
 					else if (Decimal.isDecimal(res)) {
 						if (!res.isFinite())
-							return setFatalError("not finite decimal: " + res, cb, false);
+							return setFatalError("not finite decimal: " + res, { arr }, false, cb);
 						res = res.toNumber();
 						if (!isFinite(res))
-							return setFatalError("not finite js number: " + res, cb, false);
+							return setFatalError("not finite js number: " + res, { arr }, false, cb);
 					}
 					var bAllowEmpty = (mci >= constants.aa2UpgradeMci);
 					var json = string_utils.getJsonSourceString(res, bAllowEmpty); // sorts keys unlike JSON.stringify()
 					if (json.length > constants.MAX_AA_STRING_LENGTH)
-						return setFatalError("json_stringified is too long", cb, false);
+						return setFatalError("json_stringified is too long", { arr }, false, cb);
 					cb(json);
 				});
 				break;
@@ -1883,7 +1938,7 @@ exports.evaluate = function (opts, callback) {
 							try {
 								console.log('has only ' + str + ' ' + sub);
 								if (sub.match(/\\]/) || sub[sub.length - 1] === '\\')
-									return setFatalError("invalid character group: " + sub, cb, false);
+									return setFatalError("invalid character group: " + sub, { arr }, false, cb);
 								sub = sub.replace(/]/g, '\\]'); // don't allow to close the group early
 								var bMatches = new RegExp("^[" + sub + "]*$").test(str);
 							}
@@ -1916,7 +1971,7 @@ exports.evaluate = function (opts, callback) {
 							if (f !== null && mci >= constants.aa2UpgradeMci)
 								start = createDecimal(f);
 							else
-								return setFatalError("start index in substring cannot be a string", cb, false);
+								return setFatalError("start index in substring cannot be a string", { arr }, false, cb);
 						}
 						if (start instanceof wrappedObject)
 							start = true;
@@ -1927,7 +1982,7 @@ exports.evaluate = function (opts, callback) {
 						else
 							throw Error("unknown type of start in substring: " + start);
 						if (!ValidationUtils.isInteger(start))
-							return setFatalError("start index must be integer: " + start, cb, false);
+							return setFatalError("start index must be integer: " + start, { arr }, false, cb);
 						if (!length_expr)
 							return cb(str.substr(start));
 						evaluate(length_expr, function (length) {
@@ -1938,7 +1993,7 @@ exports.evaluate = function (opts, callback) {
 								if (f !== null && mci >= constants.aa2UpgradeMci)
 									length = createDecimal(f);
 								else
-									return setFatalError("length in substring cannot be a string", cb, false);
+									return setFatalError("length in substring cannot be a string", { arr }, false, cb);
 							}
 							if (length instanceof wrappedObject)
 								length = true;
@@ -1949,7 +2004,7 @@ exports.evaluate = function (opts, callback) {
 							else
 								throw Error("unknown type of length in substring: " + length);
 							if (!ValidationUtils.isInteger(length))
-								return setFatalError("length must be integer: " + length, cb, false);
+								return setFatalError("length must be integer: " + length, { arr }, false, cb);
 							cb(str.substr(start, length));
 						});
 					});
@@ -1981,7 +2036,7 @@ exports.evaluate = function (opts, callback) {
 							var parts = str.split(search_str);
 							var new_str = parts.join(replacement);
 							if (new_str.length > constants.MAX_AA_STRING_LENGTH)
-								return setFatalError("the string after replace would be too long: " + new_str, cb, false);
+								return setFatalError("the string after replace would be too long: " + new_str, { arr }, false, cb);
 							cb(new_str);
 						});
 					});
@@ -2018,25 +2073,25 @@ exports.evaluate = function (opts, callback) {
 								else if (typeof limit === 'string') {
 									var f = string_utils.toNumber(limit);
 									if (f === null)
-										return setFatalError("not a number: " + limit, cb, false);
+										return setFatalError("not a number: " + limit, { arr }, false, cb);
 									limit = f;
 								}
 								else
-									return setFatalError("bad type of limit: " + limit, cb, false);
+									return setFatalError("bad type of limit: " + limit, { arr }, false, cb);
 								if (!ValidationUtils.isNonnegativeInteger(limit))
-									return setFatalError("bad limit: " + limit, cb, false);
+									return setFatalError("bad limit: " + limit, { arr }, false, cb);
 								cb(new wrappedObject(res.split(separator, limit)));
 							});
 						}
 						else { // join
 							if (!(res instanceof wrappedObject))
-								return setFatalError("not an object in join: " + res, cb, false);
+								return setFatalError("not an object in join: " + res, { arr }, false, cb);
 							var values = Array.isArray(res.obj) ? res.obj : Object.keys(res.obj).sort().map(key => res.obj[key]);
 							if (!values.every(val => typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean'))
-								return setFatalError("some elements to be joined are not scalars: " + JSON.stringify(values), cb, false);
+								return setFatalError("some elements to be joined are not scalars: " + JSON.stringify(values), { arr }, false, cb);
 							var str = values.join(separator);
 							if (str.length > constants.MAX_AA_STRING_LENGTH)
-								return setFatalError("the string after join would be too long: " + str, cb, false);
+								return setFatalError("the string after join would be too long: " + str, { arr }, false, cb);
 							cb(str);
 						}
 					});
@@ -2099,7 +2154,7 @@ exports.evaluate = function (opts, callback) {
 					if (fatal_error)
 						return cb(false);
 					if (!(res instanceof wrappedObject) || !Array.isArray(res.obj))
-						return setFatalError("not an array: " + res, cb, false);
+						return setFatalError("not an array: " + res, { arr }, false, cb);
 					cb(new Decimal(res.obj.length));
 				});
 				break;
@@ -2111,16 +2166,16 @@ exports.evaluate = function (opts, callback) {
 					if (fatal_error)
 						return cb(false);
 					if (!(res instanceof wrappedObject))
-						return setFatalError("not an object: " + res, cb, false);
+						return setFatalError("not an object: " + res, { arr }, false, cb);
 					var bArray = Array.isArray(res.obj);
 					if (op === 'keys') {
 						if (bArray)
-							return setFatalError("not an object but an array: " + JSON.stringify(res.obj), cb, false);
+							return setFatalError("not an object but an array: " + JSON.stringify(res.obj), { arr }, false, cb);
 						cb(new wrappedObject(Object.keys(res.obj).sort()));
 					}
 					else {
 						if (!bArray)
-							return setFatalError("not an array: " + JSON.stringify(res.obj), cb, false);
+							return setFatalError("not an array: " + JSON.stringify(res.obj), { arr }, false, cb);
 						cb(new wrappedObject(_.cloneDeep(res.obj).reverse()));
 					}
 				});
@@ -2132,9 +2187,9 @@ exports.evaluate = function (opts, callback) {
 					if (fatal_error)
 						return cb(false);
 					if (!hasOwnProperty(locals, var_name))
-						return setFatalError("no such variable: " + var_name, cb, false);
+						return setFatalError("no such variable: " + var_name, { arr }, false, cb);
 					if (locals[var_name] instanceof Func)
-						return setFatalError("functions cannot be frozen: " + var_name, cb, false);
+						return setFatalError("functions cannot be frozen: " + var_name, { arr }, false, cb);
 					if (locals[var_name] instanceof wrappedObject)
 						locals[var_name].frozen = true;
 					else
@@ -2151,30 +2206,30 @@ exports.evaluate = function (opts, callback) {
 					if (fatal_error)
 						return cb(false);
 					if (!hasOwnProperty(locals, var_name))
-						return setFatalError("no such variable: " + var_name, cb, false);
+						return setFatalError("no such variable: " + var_name, { arr }, false, cb);
 					if (!(locals[var_name] instanceof wrappedObject))
-						return setFatalError("trying to delete a key from a non-object", cb, false);
+						return setFatalError("trying to delete a key from a non-object", { arr }, false, cb);
 					if (locals[var_name].frozen)
-						return setFatalError("variable " + var_name + " is frozen", cb, false);
-					selectSubobject(locals[var_name], selectors, function (res) {
+						return setFatalError("variable " + var_name + " is frozen", { arr }, false, cb);
+					selectSubobject(locals[var_name], selectors, arr, function (res) {
 						if (!(res instanceof wrappedObject))
-							return setFatalError("trying to delete a key from a subobject which is not an object", cb, false);
+							return setFatalError("trying to delete a key from a subobject which is not an object", { arr }, false, cb);
 						evaluate(key_expr, function (key) {
 							if (fatal_error)
 								return cb(false);
 							if (!isValidValue(key) || typeof key === 'boolean')
-								return setFatalError("bad key to delete: " + key, cb, false);
+								return setFatalError("bad key to delete: " + key, { arr }, false, cb);
 							if (Array.isArray(res.obj)) {
 								if (Decimal.isDecimal(key))
 									key = key.toNumber();
 								else { // string
 									var f = string_utils.toNumber(key);
 									if (f === null)
-										return setFatalError("key to be deleted is not a number: " + key, cb, false);
+										return setFatalError("key to be deleted is not a number: " + key, { arr }, false, cb);
 									key = f;
 								}
 								if (!ValidationUtils.isNonnegativeInteger(key))
-									return setFatalError("key to be deleted must be nonnegative integer: " + key, cb, false);
+									return setFatalError("key to be deleted must be nonnegative integer: " + key, { arr }, false, cb);
 								res.obj.splice(key, 1); // does nothing if the key is out of range
 							}
 							else
@@ -2198,22 +2253,22 @@ exports.evaluate = function (opts, callback) {
 					if (fatal_error)
 						return cb(false);
 					if (!(res instanceof wrappedObject))
-						return setFatalError("scalar in foreach: " + res, cb, false);
+						return setFatalError("scalar in foreach: " + res, { arr }, false, cb);
 					evaluate(count_expr, function (count) {
 						if (fatal_error)
 							return cb(false);
 						if (!Decimal.isDecimal(count))
-							return setFatalError("count is not a number: " + count, cb, false);
+							return setFatalError("count is not a number: " + count, { arr }, false, cb);
 						count = count.toNumber();
 						if (!ValidationUtils.isNonnegativeInteger(count))
-							return setFatalError("count is not nonnegative integer: " + count, cb, false);
-						evaluateFunctionExpression(func_expr, funcInfo => {
+							return setFatalError("count is not nonnegative integer: " + count, { arr }, false, cb);
+						evaluateFunctionExpression(func_expr, arr, funcInfo => {
 							if (fatal_error)
 								return cb(false);
 							var bArray = Array.isArray(res.obj);
 							var arrElements = bArray ? res.obj : Object.keys(res.obj).sort();
 							if (arrElements.length > count)
-								return setFatalError("found " + arrElements.length + " elements in object, only up to " + count + " allowed", cb, false);
+								return setFatalError("found " + arrElements.length + " elements in object, only up to " + count + " allowed", { arr }, false, cb);
 							evaluate(bReduce ? initial_value_expr : "", initial_value => {
 								if (fatal_error)
 									return cb(false);
@@ -2247,15 +2302,17 @@ exports.evaluate = function (opts, callback) {
 											var func = funcInfo.local;
 											var args = getArgs(func.args.length);
 											caller = function (res_cb) {
-												callFunction(func, args, res_cb);
+												callFunction(func, args, undefined, { aa: address, call_line: arr.line, call_xpath: xpath }, res_cb);
 											};
 										}
 										else if (funcInfo.remote) {
 											var fargs = (func) => getArgs(func.args.length);
 											caller = function (res_cb) {
-												callGetter(conn, funcInfo.remote.remote_aa, funcInfo.remote.func_name, fargs, stateVars, objValidationState, (err, r) => {
+												callGetter(conn, funcInfo.remote.remote_aa, funcInfo.remote.func_name, fargs, stateVars, objValidationState, astTrace, xpath, { caller_aa: address, call_line: arr.line, call_xpath: xpath }, (err, r) => {
 													if (err)
-														return setFatalError(err, res_cb, false);
+														return setFatalError(err, { arr }, false, res_cb);
+
+													astTrace.push({system: 'exit from getters', aa: funcInfo.remote.remote_aa, caller_aa: address, call_line: arr.line, call_xpath: xpath});
 													res_cb(r);
 												});
 											};
@@ -2296,7 +2353,7 @@ exports.evaluate = function (opts, callback) {
 									}
 								);
 							});
-						});
+						}, arr);
 					});
 				});
 				break;
@@ -2308,13 +2365,13 @@ exports.evaluate = function (opts, callback) {
 					if (fatal_error)
 						return cb(false);
 					if (!Decimal.isDecimal(ts))
-						return setFatalError('timestamp in timestamp_to_string must be a number', cb, false);
+						return setFatalError('timestamp in timestamp_to_string must be a number', { arr }, false, cb);
 					ts = ts.toNumber();
 					evaluate(format_expr, function (format) {
 						if (fatal_error)
 							return cb(false);
 						if (format !== 'date' && format !== 'datetime' && format !== 'time')
-							return setFatalError("format in timestamp_to_string must be date or time or datetime", cb, false);
+							return setFatalError("format in timestamp_to_string must be date or time or datetime", { arr }, false, cb);
 						var str = new Date(ts * 1000).toISOString().replace('.000', '');
 						if (format === 'date')
 							str = str.substr(0, 10);
@@ -2360,13 +2417,13 @@ exports.evaluate = function (opts, callback) {
 						return cb('number');
 					if (typeof res === 'string')
 						return cb('string');
-					setFatalError("unknown type of " + res, cb, false);
+					setFatalError("unknown type of " + res, { arr }, false, cb);
 				});
 				break;
 
 			case 'response_unit':
 				if (!bAA || !bStateVarAssignmentAllowed)
-					return setFatalError("response_unit outside state update formula", cb, false);
+					return setFatalError("response_unit outside state update formula", { arr }, false, cb);
 				if (!objResponseUnit)
 					return cb(false);
 				cb(objResponseUnit.unit);
@@ -2388,7 +2445,7 @@ exports.evaluate = function (opts, callback) {
 							if (fatal_error)
 								return cb2(fatal_error);
 							if (!isValidValue(res) && !(res instanceof wrappedObject))
-								return setFatalError("bad value of function argument: " + JSON.stringify(res), cb2);
+								return setFatalError("bad value of function argument: " + JSON.stringify(res), { arr }, undefined, cb2);
 							args.push(res);
 							cb2();
 						});
@@ -2397,8 +2454,8 @@ exports.evaluate = function (opts, callback) {
 						if (fatal_error)
 							return cb(false);
 						if (err)
-							return setFatalError("arguments failed: " + err, cb, false);
-						callFunction(func, args, cb);
+							return setFatalError("arguments failed: " + err, { arr }, false, cb);
+						callFunction(func, args, func_name, { aa: address, call_line: arr.line, call_xpath: xpath }, cb);
 					}
 				);
 				break;
@@ -2416,7 +2473,7 @@ exports.evaluate = function (opts, callback) {
 							if (fatal_error)
 								return cb2(fatal_error);
 							if (!isValidValue(res) && !(res instanceof wrappedObject))
-								return setFatalError("bad value of function argument: " + JSON.stringify(res), cb2);
+								return setFatalError("bad value of function argument: " + JSON.stringify(res), { arr }, undefined, cb2);
 							args.push(res);
 							cb2();
 						});
@@ -2426,17 +2483,18 @@ exports.evaluate = function (opts, callback) {
 							return cb(false);
 						evaluate(remote_aa_expr, function (remote_aa) {
 							if (fatal_error)
-								return setFatalError(fatal_error, cb, false);
+								return setFatalError(fatal_error, { arr }, false, cb);
 							if (!ValidationUtils.isValidAddress(remote_aa))
-								return setFatalError("not valid remote AA: " + remote_aa, cb, false);
+								return setFatalError("not valid remote AA: " + remote_aa, { arr }, false, cb);
 							checkMaxRemoteComplexity(remote_aa, func_name, max_remote_complexity, (err) => {
 								if (fatal_error)
 									return cb(false);
 								if (err)
-									return setFatalError(err, cb, false);
-								callGetter(conn, remote_aa, func_name, args, stateVars, objValidationState, (err, res) => {
+									return setFatalError(err, { arr }, false, cb);
+								callGetter(conn, remote_aa, func_name, args, stateVars, objValidationState, astTrace, xpath, { caller_aa: address, call_line: arr.line, call_xpath: xpath }, (err, res) => {
 									if (err)
-										return setFatalError(err, cb, false);
+										return setFatalError(err, { arr }, false, cb);
+									astTrace.push({system: 'exit from getters', aa: remote_aa, caller_aa: address, call_line: arr.line, call_xpath: xpath});
 									cb(res);
 								});
 							});
@@ -2452,8 +2510,8 @@ exports.evaluate = function (opts, callback) {
 					if (fatal_error)
 						return cb(false);
 					if (!isValidValue(res) && !(res instanceof wrappedObject))
-						return setFatalError("bad value for with_selectors: " + JSON.stringify(res), cb, false);
-					selectSubobject(res, arrKeys, cb);
+						return setFatalError("bad value for with_selectors: " + JSON.stringify(res), { arr }, false, cb);
+					selectSubobject(res, arrKeys, arr, cb);
 				});
 				break;
 	
@@ -2485,7 +2543,7 @@ exports.evaluate = function (opts, callback) {
 					if (fatal_error)
 						return cb(false);
 					console.log('bounce called: ', evaluated_error_description);
-					setFatalError({ bounce_message: evaluated_error_description }, cb, false);
+					setFatalError({ bounce_message: evaluated_error_description }, { arr }, false, cb);
 				});
 				break;
 
@@ -2498,7 +2556,7 @@ exports.evaluate = function (opts, callback) {
 					if (evaluated_req instanceof wrappedObject)
 						evaluated_req = true;
 					if (!isValidValue(evaluated_req))
-						return setFatalError("bad value in require: " + JSON.stringify(evaluated_req), cb, false);
+						return setFatalError("bad value in require: " + JSON.stringify(evaluated_req), { arr }, false, cb);
 					if (Decimal.isDecimal(evaluated_req) && evaluated_req.toNumber() === 0)
 						evaluated_req = 0;
 					if (evaluated_req)
@@ -2507,7 +2565,7 @@ exports.evaluate = function (opts, callback) {
 						if (fatal_error)
 							return cb(false);
 						console.log('require not met:', evaluated_error_description);
-						setFatalError({ bounce_message: evaluated_error_description }, cb, false);
+						setFatalError({ bounce_message: evaluated_error_description }, { arr }, false, cb);
 					});
 				});
 				break;
@@ -2517,12 +2575,12 @@ exports.evaluate = function (opts, callback) {
 				if (expr === null) { // empty return
 					// already checked during validation
 				//	if (!bStatementsOnly)
-				//		return setFatalError("empty early return", cb, false);
+				//		return setFatalError("empty early return", false, undefined, cb);
 					early_return = true;
 					return cb(true);
 				}
 			//	if (bStatementsOnly)
-			//		return setFatalError("non-empty early return", cb, false);
+			//		return setFatalError("non-empty early return", false, undefined, cb);
 				evaluate(expr, function (res) {
 					if (fatal_error)
 						return cb(false);
@@ -2541,9 +2599,9 @@ exports.evaluate = function (opts, callback) {
 				var expr = arr[2];
 				if (bTopLevel) {
 					if (bStatementsOnly && expr)
-						return setFatalError("expected statements only", cb, false);
+						return setFatalError("expected statements only", { arr }, false, cb);
 					if (!bStatementsOnly && !expr)
-						return setFatalError("return value missing", cb, false);
+						return setFatalError("return value missing", { arr }, false, cb);
 				}
 				async.eachSeries(
 					arrStatements,
@@ -2560,7 +2618,7 @@ exports.evaluate = function (opts, callback) {
 						if (fatal_error)
 							return cb(false);
 						if (err)
-							return setFatalError("statements failed: " + err, cb, false);
+							return setFatalError("statements failed: " + err, { arr }, false, cb);
 					//	console.log('--- expr', expr)
 						expr ? evaluate(expr, cb) : cb(true);
 					}
@@ -2635,7 +2693,7 @@ exports.evaluate = function (opts, callback) {
 		});
 	}
 
-	function evaluateSelectorKeys(arrKeys, cb) {
+	function evaluateSelectorKeys(arrKeys, arr, cb) {
 		var arrEvaluatedKeys = []; // strings or numbers
 		async.eachSeries(
 			arrKeys || [],
@@ -2650,10 +2708,12 @@ exports.evaluate = function (opts, callback) {
 					if (Decimal.isDecimal(evaluated_key)) {
 						evaluated_key = evaluated_key.toNumber();
 						if (!ValidationUtils.isNonnegativeInteger(evaluated_key))
-							return setFatalError("bad selector key: " + evaluated_key, cb2);
+							return setFatalError("bad selector key: " + evaluated_key, { arr }, undefined, cb2);
 					}
-					else if (typeof evaluated_key !== 'string')
-						return setFatalError("result of " + JSON.stringify(key) + " is not a string or number: " + evaluated_key, cb2);
+					else if (typeof evaluated_key !== 'string'){
+						const result = evaluated_key instanceof wrappedObject ? JSON.stringify(evaluated_key.obj) : evaluated_key;
+						return setFatalError("result of " + JSON.stringify(key) + " is not a string or number: " + result, { arr }, undefined, cb2);
+					}
 					arrEvaluatedKeys.push(evaluated_key);
 					cb2();
 				});
@@ -2700,7 +2760,7 @@ exports.evaluate = function (opts, callback) {
 		assignField(pointer, last_key, value);
 	}
 
-	function selectSubobject(value, arrKeys, cb) {
+	function selectSubobject(value, arrKeys, arr, cb) {
 		if (value instanceof wrappedObject)
 			value = value.obj;
 		async.eachSeries(
@@ -2726,10 +2786,10 @@ exports.evaluate = function (opts, callback) {
 					if (Decimal.isDecimal(evaluated_key)) {
 						evaluated_key = evaluated_key.toNumber();
 						if (!ValidationUtils.isNonnegativeInteger(evaluated_key))
-							return setFatalError("bad selector key: " + evaluated_key, cb2);
+							return setFatalError("bad selector key: " + evaluated_key, { arr }, undefined, cb2);
 					}
 					else if (typeof evaluated_key !== 'string')
-						return setFatalError("result of " + JSON.stringify(key) + " is not a string or number: " + evaluated_key, cb2);
+						return setFatalError("result of " + JSON.stringify(key) + " is not a string or number: " + evaluated_key, { arr }, undefined, cb2);
 					if (typeof evaluated_key === 'string')
 						value = unwrapOneElementArrays(value);
 					if (!hasOwnProperty(value, evaluated_key))
@@ -2747,12 +2807,12 @@ exports.evaluate = function (opts, callback) {
 					cb(createDecimal(value));
 				else if (Decimal.isDecimal(value)) {
 					if (!isFiniteDecimal(value))
-						return setFatalError("bad decimal " + value, cb, false);
+						return setFatalError("bad decimal " + value, { arr }, false, cb);
 					cb(toDoubleRange(value.times(1)));
 				}
 				else if (typeof value === 'string') {
 					if (value.length > constants.MAX_AA_STRING_LENGTH)
-						return setFatalError("string value too long: " + value, cb, false);
+						return setFatalError("string value too long: " + value, { arr }, false, cb);
 					// convert to number if possible
 					var f = string_utils.toNumber(value, bLimitedPrecision);
 					(f === null) ? cb(value) : cb(createDecimal(value));
@@ -2831,7 +2891,19 @@ exports.evaluate = function (opts, callback) {
 		);
 	}
 
-	function callFunction(func, args, cb) {
+	function callFunction(func, args, func_name, callInfo, cb) {
+		const frameAA = callInfo && callInfo.aa ? callInfo.aa : address;
+		const call_line = callInfo ? callInfo.call_line : undefined;
+		const call_xpath = callInfo ? callInfo.call_xpath : undefined;
+		astTrace.push({
+			system: 'enter to func',
+			formula: func.formula || formula,
+			name: func_name,
+			xpath: func.xpath || '',
+			aa: frameAA,
+			call_line,
+			call_xpath,
+		});
 		if (early_return !== undefined)
 			throw Error("function called after a return");
 		var func_locals = {};
@@ -2862,25 +2934,26 @@ exports.evaluate = function (opts, callback) {
 			if (fatal_error)
 				return cb(false);
 			if (!isValidValue(res) && !(res instanceof wrappedObject))
-				return setFatalError("bad value returned from func", cb, false);
+				return setFatalError("bad value returned from func", { arr: [] }, false, cb);
+			astTrace.push({system: 'exit from func', name: func_name});
 			cb(res);
 		});
 	}
 
-	function evaluateFunctionExpression(func_expr, cb) {
+	function evaluateFunctionExpression(func_expr, arr, cb) {
 		if (func_expr[0] === 'func_declaration') { // anonymous function
 			var args = func_expr[1];
 			var body = func_expr[2];
 			var scopeVarNames = Object.keys(locals);
 			if (_.intersection(args, scopeVarNames).length > 0)
-				return setFatalError("some args of anonymous function would shadow some local vars", cb, false);
-			cb({ local: new Func(args, body, scopeVarNames) });
+				return setFatalError("some args of anonymous function would shadow some local vars", { arr }, false, cb);
+			cb({ local: new Func(args, body, scopeVarNames, formula, xpath) });
 		}
 		else if (func_expr[0] === 'local_var') {
 			var var_name = func_expr[1];
 			var func = locals[var_name];
 			if (!(func instanceof Func))
-				return setFatalError("not a func: " + var_name, cb, false);
+				return setFatalError("not a func: " + var_name, { arr }, false, cb);
 			cb({ local: func });
 		}
 		else if (func_expr[0] === 'remote_func') {
@@ -2894,7 +2967,7 @@ exports.evaluate = function (opts, callback) {
 					if (fatal_error)
 						return cb(false);
 					if (err)
-						return setFatalError(err, cb, false);
+						return setFatalError(err, { arr }, false, cb);
 					cb({ remote: { remote_aa, func_name } });
 				});
 			});
@@ -2958,10 +3031,18 @@ exports.evaluate = function (opts, callback) {
 		return ValidationUtils.isArrayOfLength(value, 1) ? unwrapOneElementArrays(value[0]) : value;
 	}
 
-	function setFatalError(err, cb, cb_arg){
-		fatal_error = err;
+	function setFatalError(err, context, cb_arg, cb){
+		try {
+			const errorData = { error: err, context: context || {}, trace: astTrace, xpath, trigger };
+			fatal_error = {formattedError: formatError(errorData)};		
+		} catch(formatError) {
+			console.error('unhandled error, use old format', err, formatError);
+			fatal_error = err;
+		}
+
 		console.log(err);
 		(cb_arg !== undefined) ? cb(cb_arg) : cb(err);
+		astTrace = [];
 	}
 
 
@@ -2982,6 +3063,7 @@ exports.evaluate = function (opts, callback) {
 				}
 				else if (typeof res === 'string' && res.length > constants.MAX_AA_STRING_LENGTH)
 					return callback('result string is too long', null);
+				astTrace = [];
 				callback(null, res);
 			}
 		}, true);
@@ -3036,7 +3118,7 @@ function stateVars2assoc(stateVars) {
 	return assoc;
 }
 
-function callGetter(conn, aa_address, getter, args, stateVars, objValidationState, cb) {
+function callGetter(conn, aa_address, getter, args, stateVars, objValidationState, astTrace, xpath, callerInfo, cb) {
 	var i = 0;
 	var locals = {};
 	function getNextArgName() {
@@ -3045,6 +3127,13 @@ function callGetter(conn, aa_address, getter, args, stateVars, objValidationStat
 			i++;
 		return 'arg' + i;
 	}
+
+	function addAstTrace(value) {
+		if (astTrace) {
+			astTrace.push(value);
+		}
+	}
+
 	// no need to cloneDeep, we need to rewrite only storage size, assocBalances cache can be updated by reference
 	objValidationState = _.clone(objValidationState);
 	storage.readBaseAADefinitionAndParams(conn, aa_address, function (arrBaseDefinition, params, storage_size) {
@@ -3053,6 +3142,12 @@ function callGetter(conn, aa_address, getter, args, stateVars, objValidationStat
 		// rewrite storage size with the storage size of the AA being called
 		objValidationState.storage_size = storage_size;
 		var f = getFormula(arrBaseDefinition[1].getters);
+		const caller_aa = callerInfo && callerInfo.caller_aa;
+		const call_line = callerInfo && callerInfo.call_line;
+		const call_xpath = callerInfo && callerInfo.call_xpath;
+
+		addAstTrace({ system: 'enter to getters', aa: aa_address, formula: f, caller_aa, call_line, call_xpath });
+
 		var opts = {
 			conn: conn,
 			formula: f,
@@ -3065,9 +3160,9 @@ function callGetter(conn, aa_address, getter, args, stateVars, objValidationStat
 			objValidationState: objValidationState,
 			address: aa_address
 		};
-		exports.evaluate(opts, function (err, res) {
-			if (res === null)
-				return cb(err.bounce_message || "formula " + f + " failed: " + err);
+		exports.evaluate(opts, astTrace, xpath, function (err, res) {
+			if (res === null) 
+				return cb(err.formattedError || "formula " + f + " failed: " + err);
 			if (!locals[getter])
 				return cb("no such getter: " + JSON.stringify(getter));
 			if (!(locals[getter] instanceof Func))
@@ -3095,9 +3190,11 @@ function callGetter(conn, aa_address, getter, args, stateVars, objValidationStat
 				objValidationState: objValidationState,
 				address: aa_address
 			};
-			exports.evaluate(call_opts, function (err, res) {
-				if (res === null)
-					return cb(err.bounce_message || "formula " + call_formula + " failed: " + err);
+			exports.evaluate(call_opts, astTrace, xpath, function (err, res) {
+				if (res === null) {
+					addAstTrace({ system: 'error in getter', aa: aa_address, formula: opts.formula, getter: getter });
+					return cb(err.formattedError || "formula " + call_formula + " failed: " + err);
+				}
 				// fractional and large numbers are returned as strings, attempt to convert back
 				if (typeof res === 'string') {
 					var f = string_utils.toNumber(res);
@@ -3105,7 +3202,7 @@ function callGetter(conn, aa_address, getter, args, stateVars, objValidationStat
 						res = f;
 				}
 				cb(null, toOscriptType(res));
-			});	
+			});
 		});
 	});
 }
@@ -3139,7 +3236,7 @@ function executeGetterInState(conn, aa_address, getter, args, stateVars, assocBa
 		while (args.length && (args[args.length - 1] === null || args[args.length - 1] === undefined))
 			args.length--;
 		args = args.map(toOscriptType);
-		callGetter(conn, aa_address, getter, args, stateVars, objValidationState, (err, res) => {
+		callGetter(conn, aa_address, getter, args, stateVars, objValidationState, [], '', undefined, (err, res) => {
 			if (err)
 				return cb(err);
 			cb(null, toJsType(res));
