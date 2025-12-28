@@ -337,6 +337,10 @@ function processTraceEvent(event, state) {
 function recordSnapshot(traceLine, state) {
 	const { snapshotsByLine, framesStack, funcFormulas, funcFormulaStack } = state;
 
+	if (snapshotsByLine[traceLine] !== undefined) {
+		return;
+	}
+
 	let snapFormula = state.ownerFormula || state.lastFormula;
 	
 	if (funcFormulaStack.length) {
@@ -354,13 +358,13 @@ function recordSnapshot(traceLine, state) {
 
 function processTraceEvents(trace, state) {
 	for (const traceEvent of trace) {
+		processTraceEvent(traceEvent, state);
 		if (traceEvent.line !== undefined) {
 			state.lastTraceLine = traceEvent.line;
 			state.gettersAAAtLastLine = state.lastGettersAA;
 			state.namedFuncAtLastLine = state.lastNamedFunc;
 			recordSnapshot(state.lastTraceLine, state);
 		}
-		processTraceEvent(traceEvent, state);
 	}
 }
 
