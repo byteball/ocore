@@ -22,6 +22,7 @@ var catchup = require('./catchup.js');
 var privatePayment = require('./private_payment.js');
 var objectHash = require('./object_hash.js');
 var objectLength = require('./object_length.js');
+const { isTooDeeplyNested } = require("./string_utils.js");
 var ecdsaSig = require('./signature.js');
 var eventBus = require('./event_bus.js');
 var light = require('./light.js');
@@ -2601,6 +2602,8 @@ function handleJustsaying(ws, subject, body){
 			db.query("SELECT 1 FROM archived_joints WHERE unit=? AND reason='uncovered'", [objJoint.unit.unit], function(rows){
 				if (rows.length > 0) // ignore it as long is it was unsolicited
 					return sendError(ws, "this unit is already known and archived");
+				if (isTooDeeplyNested(objJoint.unit))
+					return sendError(ws, "unit is too deeply nested");
 				if (objectLength.getRatio(objJoint.unit) > 3)
 					return sendError(ws, "the total size of keys is too large");
 				if (conf.bLight && objJoint.unit.authors && arrTempWatchedAddresses.length > 0) {
@@ -3052,6 +3055,8 @@ function handleRequest(ws, tag, command, params){
 			var objJoint = params;
 			if (!objJoint || !objJoint.unit || !objJoint.unit.unit)
 				return sendErrorResponse(ws, tag, 'no unit');
+			if (isTooDeeplyNested(objJoint.unit))
+				return sendErrorResponse(ws, tag, "unit is too deeply nested");
 			if (objectLength.getRatio(objJoint.unit) > 3)
 				return sendErrorResponse(ws, tag, "the total size of keys is too large");
 			handlePostedJoint(ws, objJoint, function(error){

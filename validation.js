@@ -10,6 +10,7 @@ var headers_commission = require("./headers_commission.js");
 var mc_outputs = require("./mc_outputs.js");
 var objectHash = require("./object_hash.js");
 var objectLength = require("./object_length.js");
+const { isTooDeeplyNested } = require("./string_utils.js");
 var db = require('./db.js');
 var chash = require('./chash.js');
 var mutex = require('./mutex.js');
@@ -69,6 +70,9 @@ function validate(objJoint, callbacks, external_conn) {
 	catch(e){
 		return callbacks.ifJointError("failed to calc unit hash: "+e);
 	}
+
+	if (isTooDeeplyNested(objUnit))
+		return callbacks.ifUnitError("unit is too deeply nested");
 
 	const bGenesis = storage.isGenesisUnit(objUnit.unit);
 
@@ -859,7 +863,7 @@ async function validateAATrigger(conn, objUnit, objValidationState, callback) {
 	for (let m of objUnit.messages) {
 		if (m.app === 'payment' && m.payload) {
 			if (!isNonemptyArray(m.payload.outputs))
-				return callback("outputs must be an array");
+				return callback("outputs must be a non-empty array");
 			for (let o of m.payload.outputs)
 				if (!arrOutputAddresses.includes(o.address))
 					arrOutputAddresses.push(o.address);
