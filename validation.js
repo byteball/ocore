@@ -856,11 +856,15 @@ async function validateAATrigger(conn, objUnit, objValidationState, callback) {
 	let arrOutputAddresses = [];
 	for (let m of objUnit.messages) {
 		if (m.app === 'payment' && m.payload) {
+			if (!isNonemptyArray(m.payload.outputs))
+				return callback("outputs must be an array");
 			for (let o of m.payload.outputs)
 				if (!arrOutputAddresses.includes(o.address))
 					arrOutputAddresses.push(o.address);
 		}
 	}
+	if (arrOutputAddresses.length === 0)
+		return callback("no output addresses found in payment messages");
 
 	// Look for AA triggers
 	// There might be actually more triggers due to AAs defined between last_ball_mci and our unit, so our validation of tps fee might require a smaller fee than the fee actually charged when the trigger executes
