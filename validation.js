@@ -625,17 +625,19 @@ function validateParents(conn, objJoint, objValidationState, callback){
 							return callback("should have no per-unit witnesses since version 4.0");
 						if ("witness_list_unit" in objUnit)
 							return callback("should have no witness_list_unit since version 4.0");
-						const oversize_fee = storage.getOversizeFee(objUnit, objValidationState.last_ball_mci);
-						if (oversize_fee) {
-							if (objUnit.oversize_fee !== oversize_fee)
-								return callback(createJointError(`oversize_fee mismatch: expected ${oversize_fee}, found ${objUnit.oversize_fee}`));
+						if (!("content_hash" in objUnit)) { // serial unit
+							const oversize_fee = storage.getOversizeFee(objUnit, objValidationState.last_ball_mci);
+							if (oversize_fee) {
+								if (objUnit.oversize_fee !== oversize_fee)
+									return callback(createJointError(`oversize_fee mismatch: expected ${oversize_fee}, found ${objUnit.oversize_fee}`));
+							}
+							else {
+								if ("oversize_fee" in objUnit)
+									return callback("zero oversize fee should be omitted");
+							}
+							if (!("tps_fee" in objUnit) && !objValidationState.bAA)
+								return callback("no tps_fee field");
 						}
-						else {
-							if ("oversize_fee" in objUnit)
-								return callback("zero oversize fee should be omitted");
-						}
-						if (!("tps_fee" in objUnit) && !objValidationState.bAA)
-							return callback("no tps_fee field");
 					}
 					else { // < 4.0
 						if (bCommonOpList)
