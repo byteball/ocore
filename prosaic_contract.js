@@ -37,9 +37,7 @@ function getBySharedAddress(address, cb) {
 
 function getAllByStatus(status, cb) {
 	db.query("SELECT hash, title, my_address, peer_address, peer_device_address, cosigners, creation_date FROM prosaic_contracts WHERE status=? ORDER BY creation_date DESC", [status], function(rows){
-		rows.forEach(function(row) {
-			row = decodeRow(row);
-		});
+		rows.forEach(decodeRow);
 		cb(rows);
 	});
 }
