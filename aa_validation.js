@@ -236,7 +236,7 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 						if (isNonemptyString(denominations)) {
 							var f = getFormula(denominations);
 							if (f === null)
-								return cb3("denominations is a string but not formula: " + attestors);
+								return cb3("denominations is a string but not formula: " + denominations);
 							return cb3();
 						}
 						if (!isNonemptyArray(denominations))
@@ -366,7 +366,7 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 						if (isNonemptyString(choices)) {
 							var f = getFormula(choices);
 							if (f === null)
-								return cb3("choices is a string but not formula: " + attestors);
+								return cb3("choices is a string but not formula: " + choices);
 							return cb3();
 						}
 						if (!isNonemptyArray(choices))

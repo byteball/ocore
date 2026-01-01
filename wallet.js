@@ -1235,7 +1235,7 @@ function fetchAssetMetadata(asset, handleMetadata){
 				},
 				ifFound: function(objJoint){
 					if (objJoint.unit.authors[0].address !== registry_address)
-						return handleMetadata("registry address doesn't match: expected " + registry_address + ", got " + bjJoint.unit.authors[0].address);
+						return handleMetadata("registry address doesn't match: expected " + registry_address + ", got " + objJoint.unit.authors[0].address);
 					objJoint.unit.messages.forEach(function(message){
 						if (message.app !== 'data')
 							return;

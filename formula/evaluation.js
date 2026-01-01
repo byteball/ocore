@@ -877,10 +877,10 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 							if (res instanceof wrappedObject)
 								res = true;
 							if (typeof res !== 'string' && param_name !== 'ifnone')
-								return setFatalError('bad value of '+param_name+' in attestation: '+res, cb2, { arr, target: params[param_name].value });
+								return setFatalError('bad value of '+param_name+' in attestation: '+res, { arr, target: params[param_name].value }, undefined, cb2);
 							if (Decimal.isDecimal(res)) {
 								if (!isFiniteDecimal(res))
-									return setFatalError('not finite '+param_name+' in attestation: '+res, cb2, { arr, target: params[param_name].value });
+									return setFatalError('not finite '+param_name+' in attestation: '+res, { arr, target: params[param_name].value }, undefined, cb2);
 								res = toDoubleRange(res);
 							}
 							evaluated_params[param_name] = {

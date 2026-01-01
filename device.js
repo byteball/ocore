@@ -209,7 +209,7 @@ function handleJustsaying(ws, subject, body){
 		// I'm connected to a hub, received a report about my undelivered inbox
 		case 'hub/message_box_status':
 			if (!ws.bLoggedIn)
-				return respondWithError("you are not my hub");
+				return network.sendError(ws, "you are not my hub");
 			if (body === 'empty')
 				scheduleTempDeviceKeyRotation();
 			else if (body === 'has_more')

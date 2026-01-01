@@ -3,7 +3,7 @@
 var db = require('./db.js');
 var device = require('./device.js');
 var http = require('https');
-var validationUtils = require('ocore/validation_utils.js');
+var validationUtils = require('./validation_utils.js');
 
 var arbStoreInfos = {}; // map arbiter_address => arbstoreInfo {address: ..., cut: ...}
 
@@ -46,7 +46,12 @@ function requestInfoFromArbStore(url, cb){
 
 function getArbstoreInfo(arbiter_address, cb) {
 	if (!cb)
-		return new Promise(resolve => getArbstoreInfo(arbiter_address, resolve));
+		return new Promise(function(resolve, reject){
+			getArbstoreInfo(arbiter_address, function(err, info){
+				if (err) return reject(err);
+				resolve(info);
+			});
+		});
 	if (arbStoreInfos[arbiter_address]) return cb(null, arbStoreInfos[arbiter_address]);
 	device.requestFromHub("hub/get_arbstore_url", arbiter_address, function(err, url){
 		if (err) {
@@ -55,8 +60,9 @@ function getArbstoreInfo(arbiter_address, cb) {
 		requestInfoFromArbStore(url+'/api/get_info', function(err, info){
 			if (err)
 				return cb(err);
-			if (!info.address || !validationUtils.isValidAddress(info.address) || parseFloat(info.cut) === NaN || parseFloat(info.cut) < 0 || parseFloat(info.cut) >= 1) {
-				cb("mailformed info received from ArbStore");
+			const cut = parseFloat(info.cut);
+			if (!info.address || !validationUtils.isValidAddress(info.address) || isNaN(cut) || cut < 0 || cut >= 1) {
+				cb("malformed info received from ArbStore");
 			}
 			info.url = url;
 			arbStoreInfos[arbiter_address] = info;

@@ -221,7 +221,7 @@ function composeDivisibleAssetPaymentJoint(params){
 		retrieveMessages: function(conn, last_ball_mci, bMultiAuthored, arrPayingAddresses, onDone){
 			var arrAssetPayingAddresses = _.intersection(arrPayingAddresses, params.paying_addresses);
 			var messages = [];
-			var assocPrivatePayloads;
+			var assocPrivatePayloads = {};
 			async.eachSeries(
 				arrAssetPayments,
 				function (payment, cb) {

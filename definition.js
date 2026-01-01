@@ -693,6 +693,10 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 						fatal_error = "bad signature at path "+path;
 					cb2(res);
 				}
+				else {
+					fatal_error = "unsupported sig algo at path "+path;
+					return cb2(false);
+				}
 				break;
 				
 			case 'hash':
@@ -706,6 +710,10 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 					if (!res)
 						fatal_error = "bad hash at path "+path;
 					cb2(res);
+				}
+				else {
+					fatal_error = "unsupported hash algo at path "+path;
+					return cb2(false);
 				}
 				break;
 				

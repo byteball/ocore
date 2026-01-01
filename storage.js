@@ -350,7 +350,7 @@ function readJointDirectly(conn, unit, callbacks, bRetrying) {
 													if (poll_rows.length !== 1)
 														throw Error("no poll question or too many?");
 													objMessage.payload = {question: poll_rows[0].question};
-													conn.query("SELECT choice FROM poll_choices WHERE unit=? ORDER BY choice_index", [unit], function(ch_rows){
+													conn.query("SELECT choice FROM poll_choices WHERE unit=? AND message_index=? ORDER BY choice_index", [unit, message_index], function(ch_rows){
 														if (ch_rows.length === 0)
 															throw Error("no choices?");
 														objMessage.payload.choices = ch_rows.map(function(choice_row){ return choice_row.choice; });

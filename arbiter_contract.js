@@ -569,7 +569,7 @@ function complete(hash, walletInstance, arrSigningDeviceAddresses, cb) {
 			return cb("contract can't be completed");
 		storage.readAssetInfo(db, objContract.asset, function(assetInfo) {
 			var opts;
-			new Promise(resolve => {
+			new Promise((resolve, reject) => {
 				if (assetInfo && assetInfo.is_private) {
 					var value = {};
 					value["CONTRACT_DONE_" + objContract.hash] = objContract.peer_address;
@@ -596,7 +596,7 @@ function complete(hash, walletInstance, arrSigningDeviceAddresses, cb) {
 					if (objContract.me_is_payer && !(assetInfo && assetInfo.fixed_denominations)) { // complete
 						arbiters.getArbstoreInfo(objContract.arbiter_address, function(err, arbstoreInfo) {
 							if (err)
-								return cb(err);
+								return reject(err);
 							if (parseFloat(arbstoreInfo.cut) == 0) {
 								opts.to_address = objContract.peer_address;
 								opts.amount = objContract.amount;
@@ -626,6 +626,8 @@ function complete(hash, walletInstance, arrSigningDeviceAddresses, cb) {
 						cb(null, objContract, unit);
 					});
 				});
+			}).catch(err => {
+				cb(err);
 			});
 		});
 	});

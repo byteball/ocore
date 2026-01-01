@@ -912,8 +912,12 @@ exports.validate = function (opts, callback) {
 							return cb("no such variable: " + var_name_expr);
 						if (bExists && locals[var_name_expr].type === 'func')
 							return cb("functions cannot be frozen");
-						if (!bInIf)
-							locals[var_name_expr].state = 'frozen';
+						if (!bInIf) {
+							if (!bExists)
+								assignField(locals, var_name_expr, { state: 'frozen', type: 'data' });
+							else
+								locals[var_name_expr].state = 'frozen';
+						}
 					}
 					cb();
 				});
