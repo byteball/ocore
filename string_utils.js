@@ -224,25 +224,21 @@ function getJsonSourceString(obj, bAllowEmpty) {
 function isTooDeeplyNested(obj) {
 	const depthLimit = 1000;
 	function check(variable, depth){
-		if (variable === null)
-			return false;
 		if (depth > depthLimit)
 			return true;
-		if (typeof variable === "object") {
-			if (Array.isArray(variable)) {
-				for (let v of variable)
-					if (check(v, depth + 1))
-						return true;
-			}
-			else {
-				for (let key in variable)
-					if (check(variable[key], depth + 1))
-						return true;
-			}
+		if (variable === null || typeof variable !== "object")
 			return false;
+		if (Array.isArray(variable)) {
+			for (let v of variable)
+				if (check(v, depth + 1))
+					return true;
 		}
-		else
-			return false;
+		else {
+			for (let key in variable)
+				if (check(variable[key], depth + 1))
+					return true;
+		}
+		return false;
 	}
 
 	return check(obj, 1);
