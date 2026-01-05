@@ -10,7 +10,7 @@ var headers_commission = require("./headers_commission.js");
 var mc_outputs = require("./mc_outputs.js");
 var objectHash = require("./object_hash.js");
 var objectLength = require("./object_length.js");
-const { isTooDeeplyNested } = require("./string_utils.js");
+const { isTooDeeplyNestedOrHasTooManyNodes } = require("./string_utils.js");
 var db = require('./db.js');
 var chash = require('./chash.js');
 var mutex = require('./mutex.js');
@@ -71,7 +71,7 @@ function validate(objJoint, callbacks, external_conn) {
 		return callbacks.ifJointError("failed to calc unit hash: "+e);
 	}
 
-	if (isTooDeeplyNested(objUnit))
+	if (isTooDeeplyNestedOrHasTooManyNodes(objUnit, 1000, Infinity))
 		return callbacks.ifUnitError("unit is too deeply nested");
 
 	const bGenesis = storage.isGenesisUnit(objUnit.unit);

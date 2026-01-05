@@ -221,19 +221,22 @@ function getJsonSourceString(obj, bAllowEmpty) {
 }
 
 
-function isTooDeeplyNested(obj) {
-	const depthLimit = 1000;
+function isTooDeeplyNestedOrHasTooManyNodes(obj, depthLimit = 1000, nodesLimit = 10000) {
+	let nodeCount = 0;
+
 	function check(variable, depth){
-		if (depth > depthLimit)
+		if (depth > depthLimit || nodeCount > nodesLimit)
 			return true;
 		if (variable === null || typeof variable !== "object")
 			return false;
 		if (Array.isArray(variable)) {
+			nodeCount += variable.length;
 			for (let v of variable)
 				if (check(v, depth + 1))
 					return true;
 		}
 		else {
+			nodeCount += Object.keys(variable).length;
 			for (let key in variable)
 				if (check(variable[key], depth + 1))
 					return true;
@@ -256,6 +259,6 @@ exports.getFeedValue = getFeedValue;
 exports.encodeDoubleInLexicograpicOrder = encodeDoubleInLexicograpicOrder;
 exports.decodeLexicographicToDouble = decodeLexicographicToDouble;
 exports.getJsonSourceString = getJsonSourceString;
-exports.isTooDeeplyNested = isTooDeeplyNested;
+exports.isTooDeeplyNestedOrHasTooManyNodes = isTooDeeplyNestedOrHasTooManyNodes;
 
 
