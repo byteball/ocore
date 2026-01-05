@@ -1735,7 +1735,12 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 						if (mci < constants.aa2UpgradeMci)
 							res = true;
 						else
-							res = string_utils.getJsonSourceString(res.obj, true); // it's ok if the string is longer than MAX_AA_STRING_LENGTH
+							try {
+								res = string_utils.getJsonSourceString(res.obj, true); // it's ok if the string is longer than MAX_AA_STRING_LENGTH
+							}
+							catch (e) {
+								return setFatalError("stringify failed: " + e, { arr }, false, cb);
+							}
 					}
 					if (!isValidValue(res))
 						return setFatalError("invalid value in sha256: " + res, { arr }, false, cb);
@@ -1874,7 +1879,12 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 							return setFatalError("not finite js number: " + res, { arr }, false, cb);
 					}
 					var bAllowEmpty = (mci >= constants.aa2UpgradeMci);
-					var json = string_utils.getJsonSourceString(res, bAllowEmpty); // sorts keys unlike JSON.stringify()
+					try {
+						var json = string_utils.getJsonSourceString(res, bAllowEmpty); // sorts keys unlike JSON.stringify()
+					}
+					catch (e) {
+						return setFatalError("stringify failed: " + e, { arr }, false, cb);
+					}
 					if (json.length > constants.MAX_AA_STRING_LENGTH)
 						return setFatalError("json_stringified is too long", { arr }, false, cb);
 					cb(json);
