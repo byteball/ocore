@@ -7,36 +7,44 @@ var PARENT_UNITS_SIZE = 2*44;
 var PARENT_UNITS_KEY_SIZE = "parent_units".length;
 
 function getLength(value, bWithKeys) {
-	if (value === null)
-		return 0;
-	switch (typeof value){
-		case "string": 
-			return value.length;
-		case "number": 
-			if (!isFinite(value))
-				throw Error("invalid number: " + value);
-			return 8;
-			//return value.toString().length;
-		case "object":
-			var len = 0;
-			if (Array.isArray(value))
-				value.forEach(function(element){
-					len += getLength(element, bWithKeys);
-				});
-			else    
-				for (var key in value){
-					if (typeof value[key] === "undefined")
-						throw Error("undefined at "+key+" of "+JSON.stringify(value));
-					if (bWithKeys)
-						len += key.length;
-					len += getLength(value[key], bWithKeys);
-				}
-			return len;
-		case "boolean": 
-			return 1;
-		default:
-			throw Error("unknown type="+(typeof value)+" of "+value);
+	let cache = new WeakMap();  // object to length
+	function _getLength(value) {
+		if (value === null)
+			return 0;
+		switch (typeof value) {
+			case "string":
+				return value.length;
+			case "number":
+				if (!isFinite(value))
+					throw Error("invalid number: " + value);
+				return 8;
+				//return value.toString().length;
+			case "object":
+				// return cached result if already processed
+				if (cache.has(value))
+					return cache.get(value);
+				var len = 0;
+				if (Array.isArray(value))
+					value.forEach(function (element) {
+						len += _getLength(element);
+					});
+				else
+					for (var key in value) {
+						if (typeof value[key] === "undefined")
+							throw Error("undefined at " + key + " of " + JSON.stringify(value));
+						if (bWithKeys)
+							len += key.length;
+						len += _getLength(value[key]);
+					}
+				cache.set(value, len);  // memoize for future references
+				return len;
+			case "boolean":
+				return 1;
+			default:
+				throw Error("unknown type=" + (typeof value) + " of " + value);
+		}
 	}
+	return _getLength(value);
 }
 
 function getHeadersSize(objUnit) {

@@ -188,6 +188,7 @@ function toWellFormedJsonStringify(obj) {
 }
 
 function getJsonSourceString(obj, bAllowEmpty) {
+	let cache = new WeakMap();  // object to stringified result
 	function stringify(variable){
 		if (variable === null)
 			throw Error("null value in "+JSON.stringify(obj));
@@ -200,18 +201,23 @@ function getJsonSourceString(obj, bAllowEmpty) {
 			case "boolean":
 				return variable.toString();
 			case "object":
+				// return cached result if already processed
+				if (cache.has(variable))
+					return cache.get(variable);
+				let result;
 				if (Array.isArray(variable)){
 					if (variable.length === 0 && !bAllowEmpty)
 						throw Error("empty array in "+JSON.stringify(obj));
-					return '[' + variable.map(stringify).join(',') + ']';
+					result = '[' + variable.map(stringify).join(',') + ']';
 				}
 				else{
 					var keys = Object.keys(variable).sort();
 					if (keys.length === 0 && !bAllowEmpty)
 						throw Error("empty object in "+JSON.stringify(obj));
-					return '{' + keys.map(function(key){ return toWellFormedJsonStringify(key)+':'+stringify(variable[key]) }).join(',') + '}';
+					result = '{' + keys.map(function(key){ return toWellFormedJsonStringify(key)+':'+stringify(variable[key]) }).join(',') + '}';
 				}
-				break;
+				cache.set(variable, result);  // memoize for future references
+				return result;
 			default:
 				throw Error("getJsonSourceString: unknown type="+(typeof variable)+" of "+variable+", object: "+JSON.stringify(obj));
 		}
