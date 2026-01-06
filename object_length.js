@@ -111,13 +111,12 @@ function getPaidTempDataFee(objUnit) {
 
 function getRatio(objUnit) {
 	try {
-		if (objUnit.version !== constants.versionWithoutTimestamp && objUnit.version !== constants.versionWithoutKeySizes)
-			return 1;
-		return getLength(objUnit, true) / getLength(objUnit);
+		if (objUnit.version === constants.versionWithoutTimestamp || objUnit.version === constants.versionWithoutKeySizes)
+			return getLength(objUnit, true) / getLength(objUnit);
 	}
 	catch (e) {
-		return 1;
 	}
+	return 1;
 }
 
 exports.getHeadersSize = getHeadersSize;
