@@ -1,5 +1,6 @@
 /*jslint node: true */
 "use strict";
+var util = require('util');
 var Decimal = require('decimal.js');
 var _ = require('lodash');
 var async = require('async');
@@ -912,7 +913,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 
 	// with bAir option, we don't send or save a real unit
 	function sendDummyUnit(messages) {
-		console.log('AA ' + address + ': send dummy unit with messages', JSON.stringify(messages, null, '\t'));
+		console.log('AA ' + address + ': send dummy unit with messages', util.inspect(messages, { depth: 6 }));
 		var objUnit = messages.length ? {
 			unit: 'dummy' + Date.now(),
 			authors: [{ address: address }],
@@ -972,7 +973,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 	function sendUnit(messages) {
 		if (trigger_opts.bAir)
 			return sendDummyUnit(messages);
-		console.log('send unit with messages', JSON.stringify(messages, null, '\t'));
+		console.log('send unit with messages', util.inspect(messages, { depth: 6 }));
 		var arrUsedOutputIds = [];
 		var arrConsumedOutputs = [];
 
@@ -1266,7 +1267,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 					objUnit.headers_commission = objectLength.getHeadersSize(objUnit);
 					objUnit.payload_commission = objectLength.getTotalPayloadSize(objUnit);
 					var size = objUnit.headers_commission + objUnit.payload_commission;
-					console.log('unit before completing bytes payment', JSON.stringify(objUnit, null, '\t'));
+					console.log('unit before completing bytes payment', util.inspect(objUnit, { depth: 6 }));
 					completePaymentPayload(objBasePaymentMessage.payload, size, function (err) {
 					//	console.log('--- completePaymentPayload', err);
 						if (err)
@@ -1277,7 +1278,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 						if (oversize_fee)
 							objUnit.oversize_fee = oversize_fee;
 						objUnit.unit = objectHash.getUnitHash(objUnit);
-						console.log('unit', JSON.stringify(objUnit, null, '\t'))
+						console.log('unit', util.inspect(objUnit, { depth: 6 }))
 						executeStateUpdateFormula(objUnit, function (err) {
 							if (err)
 								return bounce(err);
