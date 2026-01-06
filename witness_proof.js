@@ -253,7 +253,7 @@ function processWitnessProof(arrUnstableMcJoints, arrWitnessChangeAndDefinitionJ
 							return cb3(err);
 						for (var i=0; i<objUnit.messages.length; i++){
 							var message = objUnit.messages[i];
-							if (message.app === 'address_definition_change' 
+							if (message.app === 'address_definition_change' && message.payload
 									&& (message.payload.address === address || objUnit.authors.length === 1 && objUnit.authors[0].address === address)){
 								assocDefinitionChashes[address] = message.payload.definition_chash;
 								bFound = true;
