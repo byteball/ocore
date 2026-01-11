@@ -50,3 +50,4 @@ Session.vim
 .idea
 
 .testdata-*
+.vscode/

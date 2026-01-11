@@ -1,5 +1,7 @@
 # O<sub>byte</sub> core library (O<sub>core</sub>)
 
+![Node.js CI](https://github.com/AdekunleBamz/ocore/actions/workflows/ci.yml/badge.svg)
+
 This is a library used in [O<sub>byte</sub>](https://obyte.org) clients.  Some of the clients that require the library:
 
 * [GUI wallet](https://github.com/byteball/obyte-gui-wallet) - GUI wallet for Mac, Windows, Linux, iOS, and Android.
