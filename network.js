@@ -3639,6 +3639,8 @@ function handleRequest(ws, tag, command, params){
 								storage.resetMemory(conn, onDone);
 							});
 						}
+						if (ws.library_version === '0.4.2' && arrResponses.length === 1 && arrResponses[0].bounced && typeof arrResponses[0].response.error === 'object')
+							arrResponses[0].response.error = arrResponses[0].response.error.message;
 						sendResponse(ws, tag, arrResponses);
 					});
 				})
