@@ -955,7 +955,7 @@ function validateHeadersCommissionRecipients(objUnit, cb){
 			if (!isPositiveInteger(recipient.earned_headers_commission_share))
 				return cb("earned_headers_commission_share must be positive integer");
 			if (hasFieldsExcept(recipient, ["address", "earned_headers_commission_share"]))
-				return cb("unknowsn fields in recipient");
+				return cb("unknown fields in recipient");
 			if (recipient.address <= prev_address)
 				return cb("recipient list must be sorted by address");
 			if (!isValidAddress(recipient.address))
