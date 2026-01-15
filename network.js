@@ -3983,12 +3983,12 @@ function startAcceptingConnections(){
 	// listen for new connections
 	wss = new WebSocketServer(conf.portReuse ? { noServer: true } : { port: conf.port });
 	wss.on('connection', function(ws, req) {
-		var ip = req.socket.remoteAddress.replace(/^::ffff:/, '');
-		if (!ip){
+		if (!req.socket.remoteAddress){
 			console.log("no ip in accepted connection");
 			ws.terminate();
 			return;
 		}
+		let ip = req.socket.remoteAddress.replace(/^::ffff:/, '');
 		if (req.headers['x-real-ip'] && (ip === '127.0.0.1' || ip.match(/^192\.168\./) || ip.match(/^10\./))) // we are behind a proxy
 			ip = req.headers['x-real-ip'];
 		ws.peer = ip + ":" + req.socket.remotePort;
