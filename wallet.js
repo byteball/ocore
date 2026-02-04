@@ -85,6 +85,11 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				message_counter++;
 				if (!ValidationUtils.isNonemptyString(body))
 					return callbacks.ifError("text body must be string");
+				body = body
+					.replace(/\(prosaic-contract:.+?\)/g, '')
+					.replace(/\(arbiter-contract-offer:.+?\)/g, '')
+					.replace(/\(arbiter-contract-event:.+?\)/g, '')
+					.replace(/\(arbiter-dispute:.+?\)/g, '');
 				// the wallet should have an event handler that displays the text to the user
 				eventBus.emit("text", from_address, body, message_counter);
 				callbacks.ifOk();
