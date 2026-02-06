@@ -23,6 +23,13 @@ function dataFeedExists(arrAddresses, feed_name, relation, value, min_mci, max_m
 				default: throw Error("unknown relation: " + relation);
 			}
 		}
+		function valueIsNumber() {
+			if (typeof value === 'string') {
+				const float = string_utils.toNumber(value, bLimitedPrecision);
+				return float !== null;
+			}
+			return true;
+		}
 		for (var unit in storage.assocUnstableMessages) {
 			var objUnit = storage.assocUnstableUnits[unit] || storage.assocStableUnits[unit];
 			if (!objUnit)
@@ -46,8 +53,15 @@ function dataFeedExists(arrAddresses, feed_name, relation, value, min_mci, max_m
 					return;
 				}
 				if (relation === '!=') {
-					if (value.toString() !== feed_value.toString())
-						bFound = true;
+					// search only within the same type, otherwise 'abc' != 123 but we don't want to say that they are not equal, because they are incomparable
+					if (valueIsNumber()) {
+						if (value.toString() !== feed_value.toString())
+							bFound = true;
+					}
+					else {
+						if (value !== feed_value)
+							bFound = true;
+					}
 					return;
 				}
 				if (typeof value === 'number' && typeof feed_value === 'number') {
@@ -94,6 +108,7 @@ function dataFeedExists(arrAddresses, feed_name, relation, value, min_mci, max_m
 
 function dataFeedByAddressExists(address, feed_name, relation, value, min_mci, max_mci, handleResult){
 	if (relation === '!='){
+		// comparison only makes sense within the same type, otherwise 'abc' != 123 but we don't want to say that they are not equal, because they are incomparable
 		return dataFeedByAddressExists(address, feed_name, '>', value, min_mci, max_mci, function(bFound){
 			if (bFound)
 				return handleResult(true);
