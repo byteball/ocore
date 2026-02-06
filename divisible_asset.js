@@ -139,7 +139,7 @@ function validateDivisiblePrivatePayment(conn, objPrivateElement, callbacks){
 							return sp_cb(err);
 						//arrSpendProofs.sort(function(a,b){ return a.spend_proof.localeCompare(b.spend_proof); });
 						conn.query(
-							"SELECT address, spend_proof FROM spend_proofs WHERE unit=? AND message_index=? ORDER BY spend_proof", 
+							"SELECT address, spend_proof FROM spend_proofs WHERE unit=? AND message_index=? ORDER BY spend_proof_index", 
 							[unit, message_index],
 							function(rows){
 								if (rows.length !== arrSpendProofs.length)
