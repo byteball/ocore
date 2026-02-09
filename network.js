@@ -3968,7 +3968,7 @@ function handleUpgradeConnection(incomingRequest, socket, head) {
 
 	function upgrade($request, $socket, $head) {
 		wss.handleUpgrade($request, $socket, $head, function(ws) {
-			wss.emit('connection', ws, request);
+			wss.emit('connection', ws, $request);
 		})
 	}
 }
