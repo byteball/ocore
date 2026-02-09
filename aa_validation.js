@@ -681,7 +681,7 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 			);
 		}
 		else
-			throw Error('unknown type of value in ' + name);
+			cb('empty object in ' + name);
 	}
 
 
