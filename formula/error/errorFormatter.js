@@ -15,6 +15,10 @@ const FRAME_TYPES = {
 	FUNCTION: 'function',
 };
 
+function normalizeXpath(xpath) {
+	return typeof xpath === 'string' ? xpath.trim() : xpath;
+}
+
 const SPECIAL_OPS = {
 	BOUNCE: 'bounce',
 	REQUIRE: 'require',
@@ -104,7 +108,7 @@ function collectFunctionsAfterGetter(frames, getterIndex) {
 function buildAAFrame(frame, nextFrame, traceLine, defaultXpath) {
 	const aaFrame = { type: FRAME_TYPES.AA, aa: frame.aa };
 
-	aaFrame.xpath = frame.xpath ?? defaultXpath;
+	aaFrame.xpath = normalizeXpath(frame.xpath) ?? normalizeXpath(defaultXpath);
 	aaFrame.line = nextFrame?.call_line ?? traceLine;
 
 	if (aaFrame.xpath === undefined) delete aaFrame.xpath;
@@ -117,9 +121,15 @@ function buildGetterFrame(frame, getterFuncName, functionsAfterGetter, traceLine
 	const getterFrame = {
 		type: FRAME_TYPES.GETTER,
 		aa: frame.aa,
-		xpath: '/getters',
 		name: getterFuncName ?? frame.name,
 	};
+
+	if (frame.xpath !== undefined) {
+		getterFrame.xpath = normalizeXpath(frame.xpath);
+	} else {
+		const firstFunc = functionsAfterGetter.find(f => f?.def_xpath !== undefined);
+		if (firstFunc?.def_xpath !== undefined) getterFrame.xpath = normalizeXpath(firstFunc.def_xpath);
+	}
 
 	if (functionsAfterGetter.length > 1) {
 		getterFrame.line = functionsAfterGetter[1]?.call_line ?? traceLine;
@@ -140,12 +150,16 @@ function buildFunctionFrame(frame, nextFrame, traceLine) {
 	};
 
 	if (frame.def_xpath !== undefined) {
-		funcFrame.xpath = frame.def_xpath;
+		funcFrame.xpath = normalizeXpath(frame.def_xpath);
 	}
 
 	const nextIsFunc = nextFrame?.type === FRAME_TYPES.FUNCTION;
 	const hasNextCallLine = nextIsFunc && nextFrame.call_line !== undefined;
-	funcFrame.line = hasNextCallLine ? nextFrame.call_line : traceLine;
+	if (hasNextCallLine) {
+		funcFrame.line = nextFrame.call_line;
+	} else {
+		funcFrame.line = traceLine;
+	}
 
 	if (funcFrame.line === undefined) delete funcFrame.line;
 
@@ -185,8 +199,9 @@ function buildTraceFromFrames(frames, traceLine, defaultXpath) {
 					const funcFrame = {
 						type: FRAME_TYPES.FUNCTION,
 						name: lastFunc.name || '<anonymous>',
-						xpath: '/getters',
 					};
+					if (lastFunc?.def_xpath !== undefined) funcFrame.xpath = normalizeXpath(lastFunc.def_xpath);
+					else if (frame?.xpath !== undefined) funcFrame.xpath = normalizeXpath(frame.xpath);
 					if (traceLine !== undefined) funcFrame.line = traceLine;
 					result.push(funcFrame);
 				}
@@ -233,13 +248,22 @@ function handleEnterFunc(event, state) {
 	if (event.name && event.formula) funcFormulas.set(event.name, event.formula);
 	if (event.formula) funcFormulaStack.push(event.formula);
 
+	let def_line = event.def_line;
+	if (def_line === undefined && typeof event.formula === 'string' && typeof event.name === 'string') {
+		const needle = '$' + event.name;
+		const lines = event.formula.split('\n');
+		const idx = lines.findIndex(l => l.includes(needle));
+		if (idx !== -1) def_line = idx + 1;
+	}
+
 	framesStack.push({
 		type: FRAME_TYPES.FUNCTION,
 		name: event.name || '<anonymous>',
 		aa: event.aa,
-		def_xpath: event.xpath,
+		def_xpath: normalizeXpath(event.xpath),
+		def_line,
 		call_line: event.call_line,
-		call_xpath: event.call_xpath,
+		call_xpath: normalizeXpath(event.call_xpath),
 	});
 }
 
@@ -268,7 +292,7 @@ function handleEnterAA(event, state) {
 	state.ownerAA = event.aa;
 	state.ownerFormula = event.formula;
 
-	framesStack.push({ type: FRAME_TYPES.AA, aa: event.aa, xpath: event.xpath });
+	framesStack.push({ type: FRAME_TYPES.AA, aa: event.aa, xpath: normalizeXpath(event.xpath) });
 
 	if (!aaFormulas.has(event.aa)) {
 		aaFormulas.set(event.aa, new Set());
@@ -293,7 +317,8 @@ function handleEnterGetters(event, state) {
 		name: event.getter || event.name,
 		caller_aa: event.caller_aa,
 		call_line: event.call_line,
-		call_xpath: event.call_xpath,
+		call_xpath: normalizeXpath(event.call_xpath),
+		xpath: normalizeXpath(event.xpath),
 	});
 }
 
@@ -334,36 +359,74 @@ function processTraceEvent(event, state) {
 	TRACE_HANDLERS[event.system]?.(event, state);
 }
 
-function recordSnapshot(traceLine, state) {
-	const { snapshotsByLine, framesStack, funcFormulas, funcFormulaStack } = state;
 
-	if (snapshotsByLine[traceLine] !== undefined) {
-		return;
+function selectBestSnapshot(snapshots, criteria) {
+	if (!Array.isArray(snapshots) || snapshots.length === 0) return undefined;
+
+	let candidates = snapshots;
+
+	if (criteria?.preferFatal) {
+		const fatal = candidates.filter(s => s.isFatal);
+		if (fatal.length) candidates = fatal;
 	}
 
+	if (criteria?.aa !== undefined) {
+		const sameAA = candidates.filter(s => s.aa === criteria.aa);
+		if (sameAA.length) candidates = sameAA;
+	}
+
+	if (criteria?.xpath !== undefined) {
+		const sameXpath = candidates.filter(s => s.xpath === criteria.xpath);
+		if (sameXpath.length) candidates = sameXpath;
+	}
+
+	return candidates.at(-1);
+}
+
+function recordSnapshot(traceLine, traceEvent, state) {
+	const { snapshotsByLine, framesStack, funcFormulas, funcFormulaStack } = state;
+	if (traceLine === undefined) return;
+
 	let snapFormula = state.ownerFormula || state.lastFormula;
-	
 	if (funcFormulaStack.length) {
 		snapFormula = funcFormulaStack.at(-1);
 	} else if (state.namedFuncAtLastLine && funcFormulas.has(state.namedFuncAtLastLine)) {
 		snapFormula = funcFormulas.get(state.namedFuncAtLastLine);
 	}
 
-	snapshotsByLine[traceLine] = {
+	if (!Array.isArray(snapshotsByLine[traceLine])) {
+		snapshotsByLine[traceLine] = [];
+	}
+
+	const snapshot = {
 		gettersAA: state.gettersAAAtLastLine,
 		formula: snapFormula,
 		frames: framesStack.slice(),
+		aa: traceEvent?.aa,
+		xpath: traceEvent?.xpath,
+		isFatal: traceEvent?.system === 'fatal error',
 	};
+
+	const list = snapshotsByLine[traceLine];
+	const last = list.at(-1);
+	const lastTop = last?.frames?.at(-1);
+	const snapTop = snapshot.frames.at(-1);
+	const isSameTop = !!lastTop && !!snapTop && lastTop.type === snapTop.type && lastTop.name === snapTop.name && lastTop.aa === snapTop.aa;
+	const isSame = last && last.formula === snapshot.formula && isSameTop && last.isFatal === snapshot.isFatal;
+	if (!isSame) list.push(snapshot);
 }
 
 function processTraceEvents(trace, state) {
 	for (const traceEvent of trace) {
 		processTraceEvent(traceEvent, state);
 		if (traceEvent.line !== undefined) {
+			if (traceEvent.system === 'fatal error') {
+				state.fatalError = { line: traceEvent.line, aa: traceEvent.aa, xpath: traceEvent.xpath };
+			}
 			state.lastTraceLine = traceEvent.line;
 			state.gettersAAAtLastLine = state.lastGettersAA;
 			state.namedFuncAtLastLine = state.lastNamedFunc;
-			recordSnapshot(state.lastTraceLine, state);
+			recordSnapshot(state.lastTraceLine, traceEvent, state);
 		}
 	}
 }
@@ -388,9 +451,12 @@ function resolveErrorLine(errJson, state) {
 }
 
 function resolveTargetFormula(line, state) {
-	const { snapshotsByLine, aaPath, gettersAA, aaFormulas, lastFormula } = state;
+	const { snapshotsByLine, aaPath, gettersAA, aaFormulas, lastFormula, targetSnapshot } = state;
 
-	let effectiveFormula = snapshotsByLine?.[line]?.formula || lastFormula;
+	let effectiveFormula = targetSnapshot?.formula || lastFormula;
+	if (!effectiveFormula && snapshotsByLine?.[line]) {
+		effectiveFormula = selectBestSnapshot(snapshotsByLine[line])?.formula || effectiveFormula;
+	}
 
 	if (aaFormulas && line !== undefined) {
 		if (hasLineInFormula(effectiveFormula, line)) {
@@ -437,6 +503,7 @@ function createInitialState() {
 		namedFuncAtLastLine: undefined,
 		ownerAA: undefined,
 		ownerFormula: undefined,
+		fatalError: undefined,
 		funcFormulas: new Map(),
 		funcFormulaStack: [],
 		framesStack: [],
@@ -450,12 +517,16 @@ function buildContext(errJson) {
 	processTraceEvents(trace, state);
 
 	const { line, allLinesFromArr } = resolveErrorLine(errJson, state);
-	const targetSnap = state.snapshotsByLine[line];
+	const desired = state.fatalError && state.fatalError.line === line
+		? { ...state.fatalError, preferFatal: true }
+		: { aa: state.lastAA, xpath: errJson?.xpath };
+	const targetSnap = selectBestSnapshot(state.snapshotsByLine[line], desired);
 	const gettersAAAtTarget = targetSnap?.gettersAA || state.gettersAAAtLastLine;
 
 	let lastFormulaAtTarget = resolveTargetFormula(line, {
 		...state,
 		gettersAA: gettersAAAtTarget,
+		targetSnapshot: targetSnap,
 	});
 
 	const getterFormula = gettersAAAtTarget && state.getters.get(gettersAAAtTarget);
@@ -472,6 +543,8 @@ function buildContext(errJson) {
 		gettersAA: gettersAAAtTarget,
 		snapshotsByLine: state.snapshotsByLine,
 		aaFormulas: state.aaFormulas,
+		targetSnapshot: targetSnap,
+		fatalError: state.fatalError,
 	};
 }
 
@@ -484,7 +557,7 @@ function processNestedError(nestedError, line) {
 }
 
 function buildCodeLines(ctx) {
-	const { allLinesFromArr, line, lastFormula, snapshotsByLine, aaPath, gettersAA, aaFormulas } = ctx;
+	const { allLinesFromArr, line, lastFormula, snapshotsByLine, aaPath, gettersAA, aaFormulas, targetSnapshot } = ctx;
 
 	const formulaState = {
 		snapshotsByLine,
@@ -493,7 +566,7 @@ function buildCodeLines(ctx) {
 		aaFormulas,
 		lastFormula,
 	};
-	const effectiveFormula = resolveTargetFormula(line, formulaState);
+	const effectiveFormula = resolveTargetFormula(line, { ...formulaState, targetSnapshot });
 
 	const hasLines = allLinesFromArr.length > 0;
 	const hasLine = line !== undefined;
@@ -505,8 +578,9 @@ function buildCodeLines(ctx) {
 	});
 }
 
-function extractFramesForTrace(snapshotsByLine, traceLine) {
-	const snapshot = snapshotsByLine?.[traceLine];
+function extractFramesForTrace(snapshotsByLine, traceLine, criteria) {
+	const snapshots = snapshotsByLine?.[traceLine];
+	const snapshot = selectBestSnapshot(snapshots, criteria);
 	return Array.isArray(snapshot?.frames) ? snapshot.frames : undefined;
 }
 
@@ -525,7 +599,7 @@ function clearContextForSpecialOps(result, errJson) {
 
 function formatError(errJson) {
 	const ctx = buildContext(errJson);
-	const { line, dontShowFormat, snapshotsByLine } = ctx;
+	const { line, dontShowFormat, snapshotsByLine, fatalError } = ctx;
 
 	const message = getErrorMessage(errJson.error);
 	const nestedError = typeof errJson?.error === 'object' ? errJson.error : null;
@@ -548,7 +622,10 @@ function formatError(errJson) {
 	const result = { message, formattedContext, codeLines };
 	clearContextForSpecialOps(result, errJson);
 
-	const framesForTrace = extractFramesForTrace(snapshotsByLine, traceLine);
+	const traceCriteria = fatalError && fatalError.line === traceLine
+		? { ...fatalError, preferFatal: true }
+		: { aa: undefined, xpath: undefined };
+	const framesForTrace = extractFramesForTrace(snapshotsByLine, traceLine, traceCriteria);
 	if (framesForTrace?.length) {
 		result.trace = buildTraceFromFrames(framesForTrace, traceLine, errJson.xpath);
 	}

@@ -88,6 +88,8 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 	if (typeof xpath !== 'string') {
 		xpath = '';
 	}
+	var current_xpath = xpath;
+	var current_xpath_stack = [];
 
 	astTrace.push({system: 'enter to aa', aa: address, formula, bGetters: opts.bGetters, xpath});
 
@@ -150,7 +152,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 		}
 
 		if (arr.line !== undefined) {
-			astTrace.push({ line: arr.line });
+			astTrace.push({ line: arr.line, aa: address, xpath: current_xpath });
 		}
 		var op = arr[0];
 		switch (op) {
@@ -1227,7 +1229,10 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 							throw Error("arg name cannot be the same as func name in evaluation");
 						if (_.intersection(args, scopeVarNames).length > 0)
 							return setFatalError("some args of " + var_name + " would shadow some local vars", { arr }, false, cb);
-						assignField(locals, var_name, new Func(args, body, scopeVarNames, formula, xpath));
+						var f = new Func(args, body, scopeVarNames, formula, xpath);
+						if (arr.line !== undefined)
+							f.def_line = arr.line;
+						assignField(locals, var_name, f);
 						return cb(true);
 					}
 					evaluate(rhs, function (res) {
@@ -2322,7 +2327,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 													if (err)
 														return setFatalError(err, { arr }, false, res_cb);
 
-													astTrace.push({system: 'exit from getters', aa: funcInfo.remote.remote_aa, caller_aa: address, call_line: arr.line, call_xpath: xpath});
+													astTrace.push({system: 'exit from getters', aa: funcInfo.remote.remote_aa, xpath: '/getters', caller_aa: address, call_line: arr.line, call_xpath: xpath});
 													res_cb(r);
 												});
 											};
@@ -2504,7 +2509,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 								callGetter(conn, remote_aa, func_name, args, stateVars, objValidationState, astTrace, xpath, { caller_aa: address, call_line: arr.line, call_xpath: xpath }, (err, res) => {
 									if (err)
 										return setFatalError(err, { arr }, false, cb);
-									astTrace.push({system: 'exit from getters', aa: remote_aa, caller_aa: address, call_line: arr.line, call_xpath: xpath});
+									astTrace.push({system: 'exit from getters', aa: remote_aa, xpath: '/getters', caller_aa: address, call_line: arr.line, call_xpath: xpath});
 									cb(res);
 								});
 							});
@@ -2905,6 +2910,9 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 		const frameAA = callInfo && callInfo.aa ? callInfo.aa : address;
 		const call_line = callInfo ? callInfo.call_line : undefined;
 		const call_xpath = callInfo ? callInfo.call_xpath : undefined;
+		current_xpath_stack.push(current_xpath);
+		if (typeof func.xpath === 'string')
+			current_xpath = func.xpath;
 		astTrace.push({
 			system: 'enter to func',
 			formula: func.formula || formula,
@@ -2913,6 +2921,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 			aa: frameAA,
 			call_line,
 			call_xpath,
+			def_line: func.def_line,
 		});
 		if (early_return !== undefined)
 			throw Error("function called after a return");
@@ -2940,6 +2949,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 			// restore
 			assignObject(locals, saved_locals);
 			early_return = undefined;
+			current_xpath = current_xpath_stack.pop();
 
 			if (fatal_error)
 				return cb(false);
@@ -2957,7 +2967,12 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 			var scopeVarNames = Object.keys(locals);
 			if (_.intersection(args, scopeVarNames).length > 0)
 				return setFatalError("some args of anonymous function would shadow some local vars", { arr }, false, cb);
-			cb({ local: new Func(args, body, scopeVarNames, formula, xpath) });
+			var f = new Func(args, body, scopeVarNames, formula, xpath);
+			if (func_expr.line !== undefined)
+				f.def_line = func_expr.line;
+			else if (arr.line !== undefined)
+				f.def_line = arr.line;
+			cb({ local: f });
 		}
 		else if (func_expr[0] === 'local_var') {
 			var var_name = func_expr[1];
@@ -3043,14 +3058,15 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 
 	function setFatalError(err, context, cb_arg, cb){
 		try {
+			if (context && context.arr && context.arr.line !== undefined)
+				astTrace.push({ system: 'fatal error', line: context.arr.line, aa: address, xpath: current_xpath });
 			const errorData = { error: err, context: context || {}, trace: astTrace, xpath, trigger };
-			fatal_error = {formattedError: formatError(errorData)};		
+			fatal_error = {formattedError: formatError(errorData)};							
 		} catch(formatError) {
 			console.error('unhandled error, use old format', err, formatError);
 			fatal_error = err;
 		}
 
-		console.log(err);
 		(cb_arg !== undefined) ? cb(cb_arg) : cb(err);
 		astTrace = [];
 	}
@@ -3156,7 +3172,7 @@ function callGetter(conn, aa_address, getter, args, stateVars, objValidationStat
 		const call_line = callerInfo && callerInfo.call_line;
 		const call_xpath = callerInfo && callerInfo.call_xpath;
 
-		addAstTrace({ system: 'enter to getters', aa: aa_address, formula: f, caller_aa, call_line, call_xpath });
+		addAstTrace({ system: 'enter to getters', aa: aa_address, xpath: '/getters', formula: f, caller_aa, call_line, call_xpath });
 
 		var opts = {
 			conn: conn,
@@ -3170,7 +3186,7 @@ function callGetter(conn, aa_address, getter, args, stateVars, objValidationStat
 			objValidationState: objValidationState,
 			address: aa_address
 		};
-		exports.evaluate(opts, astTrace, xpath, function (err, res) {
+		exports.evaluate(opts, astTrace, '/getters', function (err, res) {
 			if (res === null) 
 				return cb(err.formattedError || "formula " + f + " failed: " + err);
 			if (!locals[getter])
@@ -3200,7 +3216,7 @@ function callGetter(conn, aa_address, getter, args, stateVars, objValidationStat
 				objValidationState: objValidationState,
 				address: aa_address
 			};
-			exports.evaluate(call_opts, astTrace, xpath, function (err, res) {
+			exports.evaluate(call_opts, astTrace, '/getters', function (err, res) {
 				if (res === null) {
 					addAstTrace({ system: 'error in getter', aa: aa_address, formula: opts.formula, getter: getter });
 					return cb(err.formattedError || "formula " + call_formula + " failed: " + err);
