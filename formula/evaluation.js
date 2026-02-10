@@ -3045,8 +3045,8 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 		try {
 			const errorData = { error: err, context: context || {}, trace: astTrace, xpath, trigger };
 			fatal_error = {formattedError: formatError(errorData)};		
-		} catch(formatError) {
-			console.error('unhandled error, use old format', err, formatError);
+		} catch(formatErr) {
+			console.error('unhandled error, use old format', err, formatErr);
 			fatal_error = err;
 		}
 
