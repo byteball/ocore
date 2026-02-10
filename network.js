@@ -2420,7 +2420,7 @@ function checkThatEachChainElementIncludesThePrevious(arrPrivateElements, handle
 		light.processLinkProofs(arrUnits, arrChain, {
 			ifError: function(err){
 				console.log("linkproof validation failed: "+err);
-				throw Error(err);
+			//	throw Error(err);
 				handleResult(false);
 			},
 			ifOk: function(){
