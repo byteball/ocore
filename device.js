@@ -482,7 +482,7 @@ function readMessageInChunksFromOutbox(message_hash, len, handleMessage){
 }
 
 function resendStalledMessages(delay){
-	var delay = delay || 0;
+	delay = delay || 0;
 	console.log("resending stalled messages delayed by "+delay+" minute");
 	if (!network.isStarted())
 		return console.log("resendStalledMessages: network not started yet");

@@ -2210,7 +2210,7 @@ setInterval(shrinkCache, 300*1000);
 function initUnstableUnits(conn, onDone){
 	if (!onDone)
 		return new Promise(resolve => initUnstableUnits(conn, resolve));
-	var conn = conn || db;
+	conn = conn || db;
 	conn.query(
 		"SELECT unit, level, latest_included_mc_index, main_chain_index, is_on_main_chain, is_free, is_stable, witnessed_level, headers_commission, payload_commission, sequence, timestamp, GROUP_CONCAT(address) AS author_addresses, COALESCE(witness_list_unit, unit) AS witness_list_unit, best_parent_unit, last_ball_unit, tps_fee, max_aa_responses, count_aa_responses, count_primary_aa_triggers, is_aa_response, version \n\
 			FROM units \n\
@@ -2343,7 +2343,7 @@ function initHashTreeBalls(conn, onDone){
 function initUnstableMessages(conn, onDone){
 	if (!onDone)
 		return new Promise(resolve => initUnstableMessages(conn, resolve));
-	var conn = conn || db;
+	conn = conn || db;
 	conn.query(`SELECT DISTINCT unit FROM units ${conf.storage === 'sqlite' ? db.forceIndex('byStableMci') : ''} CROSS JOIN messages USING(unit) WHERE is_stable=0 AND app IN('data_feed', 'definition', 'system_vote', 'system_vote_count')`, function(rows){
 		async.eachSeries(
 			rows,
