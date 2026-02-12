@@ -15,21 +15,16 @@ const FRAME_TYPES = {
 	FUNCTION: 'function',
 };
 
-function normalizeXpath(xpath) {
-	return typeof xpath === 'string' ? xpath.trim() : xpath;
-}
-
 const SPECIAL_OPS = {
 	BOUNCE: 'bounce',
 	REQUIRE: 'require',
 	COMPARISON: 'comparison',
 };
 
-
 function getFormulaByLine(formula, line) {
 	if (!formula) return '';
 	const lines = formula.split('\n').map(l => l.trim());
-	return lines[line - 1] || formula;
+	return lines[line - 1] || '';
 }
 
 function hasLineInFormula(formula, line) {
@@ -38,15 +33,12 @@ function hasLineInFormula(formula, line) {
 }
 
 function pickBestFormulaForLine(formulas, line, currentFormula) {
-	if (!Array.isArray(formulas) || !formulas.length) {
-		return currentFormula;
-	}
+	if (!Array.isArray(formulas) || !formulas.length) return undefined;
 
 	const withLine = formulas.filter(f => hasLineInFormula(f, line));
-	const candidates = withLine.length ? withLine : formulas;
+	if (!withLine.length) return undefined;
 
-	const best = candidates.includes(currentFormula) ? currentFormula : candidates[0];
-	return best || currentFormula;
+	return withLine.includes(currentFormula) ? currentFormula : withLine[0];
 }
 
 function getErrorMessage(error) {
@@ -67,7 +59,8 @@ function unwrapAstNode(node) {
 }
 
 function formatComparisonContext(context) {
-	const { left = {}, right = {}, op = '' } = context;
+	const { left, right, op } = context;
+	if (!left || !right || !op) return '';
 
 	const leftCode = renderOp(unwrapAstNode(left.var_name));
 	const rightCode = renderOp(unwrapAstNode(right.var_name));
@@ -105,14 +98,13 @@ function collectFunctionsAfterGetter(frames, getterIndex) {
 	return { functionsAfterGetter, getterFuncName };
 }
 
-function buildAAFrame(frame, nextFrame, traceLine, defaultXpath) {
+function buildAAFrame(frame, nextFrame, traceLine) {
 	const aaFrame = { type: FRAME_TYPES.AA, aa: frame.aa };
 
-	aaFrame.xpath = normalizeXpath(frame.xpath) ?? normalizeXpath(defaultXpath);
-	aaFrame.line = nextFrame?.call_line ?? traceLine;
+	if (frame.xpath !== undefined) aaFrame.xpath = frame.xpath;
 
-	if (aaFrame.xpath === undefined) delete aaFrame.xpath;
-	if (aaFrame.line === undefined) delete aaFrame.line;
+	const line = nextFrame?.call_line ?? traceLine;
+	if (line !== undefined) aaFrame.line = line;
 
 	return aaFrame;
 }
@@ -121,24 +113,19 @@ function buildGetterFrame(frame, getterFuncName, functionsAfterGetter, traceLine
 	const getterFrame = {
 		type: FRAME_TYPES.GETTER,
 		aa: frame.aa,
-		name: getterFuncName ?? frame.name,
 	};
 
-	if (frame.xpath !== undefined) {
-		getterFrame.xpath = normalizeXpath(frame.xpath);
-	} else {
-		const firstFunc = functionsAfterGetter.find(f => f?.def_xpath !== undefined);
-		if (firstFunc?.def_xpath !== undefined) getterFrame.xpath = normalizeXpath(firstFunc.def_xpath);
-	}
+	const name = getterFuncName ?? frame.name;
+	if (name !== undefined) getterFrame.name = name;
+	if (frame.xpath !== undefined) getterFrame.xpath = frame.xpath;
 
 	if (functionsAfterGetter.length > 1) {
-		getterFrame.line = functionsAfterGetter[1]?.call_line ?? traceLine;
+		const line = functionsAfterGetter[1]?.call_line ?? traceLine;
+		if (line !== undefined) getterFrame.line = line;
 	} else {
-		getterFrame.line = traceLine ?? frame.call_line;
+		const line = traceLine ?? frame.call_line;
+		if (line !== undefined) getterFrame.line = line;
 	}
-
-	if (getterFrame.name === undefined) delete getterFrame.name;
-	if (getterFrame.line === undefined) delete getterFrame.line;
 
 	return getterFrame;
 }
@@ -149,24 +136,18 @@ function buildFunctionFrame(frame, nextFrame, traceLine) {
 		name: frame.name || '<anonymous>',
 	};
 
-	if (frame.def_xpath !== undefined) {
-		funcFrame.xpath = normalizeXpath(frame.def_xpath);
-	}
+	if (frame.def_xpath !== undefined) funcFrame.xpath = frame.def_xpath;
 
-	const nextIsFunc = nextFrame?.type === FRAME_TYPES.FUNCTION;
-	const hasNextCallLine = nextIsFunc && nextFrame.call_line !== undefined;
-	if (hasNextCallLine) {
+	if (nextFrame?.type === FRAME_TYPES.FUNCTION && nextFrame.call_line !== undefined) {
 		funcFrame.line = nextFrame.call_line;
-	} else {
+	} else if (traceLine !== undefined) {
 		funcFrame.line = traceLine;
 	}
-
-	if (funcFrame.line === undefined) delete funcFrame.line;
 
 	return funcFrame;
 }
 
-function buildTraceFromFrames(frames, traceLine, defaultXpath) {
+function buildTraceFromFrames(frames, traceLine) {
 	if (!Array.isArray(frames) || !frames.length) return null;
 
 	const getterIndex = findGetterIndex(frames);
@@ -186,7 +167,7 @@ function buildTraceFromFrames(frames, traceLine, defaultXpath) {
 			case FRAME_TYPES.AA:
 				if (added.aa) break;
 				added.aa = true;
-				result.push(buildAAFrame(frame, frames[i + 1], traceLine, defaultXpath));
+				result.push(buildAAFrame(frame, frames[i + 1], traceLine));
 				break;
 
 			case FRAME_TYPES.GETTER:
@@ -200,8 +181,7 @@ function buildTraceFromFrames(frames, traceLine, defaultXpath) {
 						type: FRAME_TYPES.FUNCTION,
 						name: lastFunc.name || '<anonymous>',
 					};
-					if (lastFunc?.def_xpath !== undefined) funcFrame.xpath = normalizeXpath(lastFunc.def_xpath);
-					else if (frame?.xpath !== undefined) funcFrame.xpath = normalizeXpath(frame.xpath);
+					if (lastFunc.def_xpath !== undefined) funcFrame.xpath = lastFunc.def_xpath;
 					if (traceLine !== undefined) funcFrame.line = traceLine;
 					result.push(funcFrame);
 				}
@@ -243,27 +223,16 @@ function collectLinesFromArr(arr, lines = new Set()) {
 function handleEnterFunc(event, state) {
 	const { framesStack, funcFormulas, funcFormulaStack } = state;
 
-	state.inFunc = true;
 	if (event.name) state.lastNamedFunc = event.name;
 	if (event.name && event.formula) funcFormulas.set(event.name, event.formula);
 	if (event.formula) funcFormulaStack.push(event.formula);
-
-	let def_line = event.def_line;
-	if (def_line === undefined && typeof event.formula === 'string' && typeof event.name === 'string') {
-		const needle = '$' + event.name;
-		const lines = event.formula.split('\n');
-		const idx = lines.findIndex(l => l.includes(needle));
-		if (idx !== -1) def_line = idx + 1;
-	}
 
 	framesStack.push({
 		type: FRAME_TYPES.FUNCTION,
 		name: event.name || '<anonymous>',
 		aa: event.aa,
-		def_xpath: normalizeXpath(event.xpath),
-		def_line,
+		def_xpath: event.xpath,
 		call_line: event.call_line,
-		call_xpath: normalizeXpath(event.call_xpath),
 	});
 }
 
@@ -278,7 +247,6 @@ function removeLastFrameByType(framesStack, type, matchAA) {
 }
 
 function handleExitFunc(_, state) {
-	state.inFunc = false;
 	state.lastNamedFunc = undefined;
 	if (state.funcFormulaStack.length) state.funcFormulaStack.pop();
 	removeLastFrameByType(state.framesStack, FRAME_TYPES.FUNCTION);
@@ -292,7 +260,7 @@ function handleEnterAA(event, state) {
 	state.ownerAA = event.aa;
 	state.ownerFormula = event.formula;
 
-	framesStack.push({ type: FRAME_TYPES.AA, aa: event.aa, xpath: normalizeXpath(event.xpath) });
+	framesStack.push({ type: FRAME_TYPES.AA, aa: event.aa, xpath: event.xpath });
 
 	if (!aaFormulas.has(event.aa)) {
 		aaFormulas.set(event.aa, new Set());
@@ -315,10 +283,8 @@ function handleEnterGetters(event, state) {
 		type: FRAME_TYPES.GETTER,
 		aa: event.aa,
 		name: event.getter || event.name,
-		caller_aa: event.caller_aa,
 		call_line: event.call_line,
-		call_xpath: normalizeXpath(event.call_xpath),
-		xpath: normalizeXpath(event.xpath),
+		xpath: event.xpath,
 	});
 }
 
@@ -445,44 +411,36 @@ function resolveErrorLine(errJson, state) {
 	}
 
 	if (line === undefined) line = state.lastTraceLine;
-	if (state.inFunc) state.lastFormula = state.getters.get(state.lastAA) || state.lastFormula;
 
 	return { line, allLinesFromArr };
 }
 
 function resolveTargetFormula(line, state) {
-	const { snapshotsByLine, aaPath, gettersAA, aaFormulas, lastFormula, targetSnapshot } = state;
+	const { snapshotsByLine, gettersAA, aaFormulas, lastFormula, targetSnapshot } = state;
 
 	let effectiveFormula = targetSnapshot?.formula || lastFormula;
 	if (!effectiveFormula && snapshotsByLine?.[line]) {
-		effectiveFormula = selectBestSnapshot(snapshotsByLine[line])?.formula || effectiveFormula;
+		effectiveFormula = selectBestSnapshot(snapshotsByLine[line])?.formula;
 	}
 
-	if (aaFormulas && line !== undefined) {
-		if (hasLineInFormula(effectiveFormula, line)) {
-			return effectiveFormula;
-		}
+	if (!aaFormulas || line === undefined) return effectiveFormula;
 
-		const targetAA = gettersAA || aaPath?.[0];
-		if (targetAA && aaFormulas.has(targetAA)) {
-			const formulasSet = aaFormulas.get(targetAA);
-			const formulas = Array.isArray(formulasSet) ? formulasSet : Array.from(formulasSet);
-			const found = pickBestFormulaForLine(formulas, line, effectiveFormula);
-			if (hasLineInFormula(found, line)) {
-				return found;
-			}
-		}
+	if (hasLineInFormula(effectiveFormula, line)) return effectiveFormula;
 
-		for (const [, formulasSet] of aaFormulas) {
-			const formulas = Array.isArray(formulasSet) ? formulasSet : Array.from(formulasSet);
-			const found = formulas.find(f => hasLineInFormula(f, line));
-			if (found) {
-				return found;
-			}
-		}
+	if (gettersAA && aaFormulas.has(gettersAA)) {
+		const formulasSet = aaFormulas.get(gettersAA);
+		const formulas = Array.isArray(formulasSet) ? formulasSet : Array.from(formulasSet);
+		const found = pickBestFormulaForLine(formulas, line, effectiveFormula);
+		if (hasLineInFormula(found, line)) return found;
 	}
 
-	return effectiveFormula;
+	for (const [, formulasSet] of aaFormulas) {
+		const formulas = Array.isArray(formulasSet) ? formulasSet : Array.from(formulasSet);
+		const found = formulas.find(f => hasLineInFormula(f, line));
+		if (found) return found;
+	}
+
+	return undefined;
 }
 
 function createInitialState() {
@@ -494,7 +452,6 @@ function createInitialState() {
 		lastAA: '',
 		lastFormula: '',
 		lastTraceLine: undefined,
-		inFunc: false,
 		dontShowFormat: false,
 		lastGettersAA: undefined,
 		gettersAAAtLastLine: undefined,
@@ -535,7 +492,6 @@ function buildContext(errJson) {
 	}
 
 	return {
-		aaPath: state.aaPath,
 		lastFormula: lastFormulaAtTarget,
 		line,
 		allLinesFromArr,
@@ -557,16 +513,15 @@ function processNestedError(nestedError, line) {
 }
 
 function buildCodeLines(ctx) {
-	const { allLinesFromArr, line, lastFormula, snapshotsByLine, aaPath, gettersAA, aaFormulas, targetSnapshot } = ctx;
+	const { allLinesFromArr, line, lastFormula, snapshotsByLine, gettersAA, aaFormulas, targetSnapshot } = ctx;
 
-	const formulaState = {
+	const effectiveFormula = resolveTargetFormula(line, {
 		snapshotsByLine,
-		aaPath,
 		gettersAA,
 		aaFormulas,
 		lastFormula,
-	};
-	const effectiveFormula = resolveTargetFormula(line, { ...formulaState, targetSnapshot });
+		targetSnapshot,
+	});
 
 	const hasLines = allLinesFromArr.length > 0;
 	const hasLine = line !== undefined;
@@ -627,7 +582,7 @@ function formatError(errJson) {
 		: { aa: undefined, xpath: undefined };
 	const framesForTrace = extractFramesForTrace(snapshotsByLine, traceLine, traceCriteria);
 	if (framesForTrace?.length) {
-		result.trace = buildTraceFromFrames(framesForTrace, traceLine, errJson.xpath);
+		result.trace = buildTraceFromFrames(framesForTrace, traceLine);
 	}
 
 	return result;
