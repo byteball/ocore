@@ -3052,9 +3052,9 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 			if (context && context.arr && context.arr.line !== undefined)
 				astTrace.push({ system: 'fatal error', line: context.arr.line, aa: address, xpath: current_xpath });
 			const errorData = { error: err, context: context || {}, trace: astTrace, xpath, trigger };
-			fatal_error = {formattedError: formatError(errorData)};							
-		} catch(formatError) {
-			console.error('unhandled error, use old format', err, formatError);
+			fatal_error = {formattedError: formatError(errorData)};
+		} catch(formatErr) {
+			console.error('unhandled error, use old format', err, formatErr);
 			fatal_error = err;
 		}
 

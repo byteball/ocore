@@ -8,7 +8,7 @@ var validationUtils = require('./validation_utils.js');
 var arbStoreInfos = {}; // map arbiter_address => arbstoreInfo {address: ..., cut: ...}
 
 function getInfo(address, cb) {
-	var cb = cb || function() {};
+	cb = cb || function() {};
 	db.query("SELECT device_pub_key, real_name FROM wallet_arbiters WHERE arbiter_address=?", [address], function(rows){
 		if (rows.length && rows[0].real_name) { // request again if no real name
 			cb(null, rows[0]);

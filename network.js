@@ -2420,7 +2420,7 @@ function checkThatEachChainElementIncludesThePrevious(arrPrivateElements, handle
 		light.processLinkProofs(arrUnits, arrChain, {
 			ifError: function(err){
 				console.log("linkproof validation failed: "+err);
-				throw Error(err);
+			//	throw Error(err);
 				handleResult(false);
 			},
 			ifOk: function(){
@@ -2599,7 +2599,7 @@ function handleJustsaying(ws, subject, body){
 				return sendError(ws, 'only requested joint can contain a ball');
 			if (conf.bLight && !ws.bLightVendor)
 				return sendError(ws, "I'm a light client and you are not my vendor");
-			db.query("SELECT 1 FROM archived_joints WHERE unit=? AND reason='uncovered'", [objJoint.unit.unit], function(rows){
+			db.query("SELECT 1 FROM archived_joints WHERE unit=? AND reason='uncovered'", [objJoint.unit.unit], function (rows) {
 				if (rows.length > 0) // ignore it as long is it was unsolicited
 					return sendError(ws, "this unit is already known and archived");
 				if (isTooDeeplyNestedOrHasTooManyNodes(objJoint.unit))
@@ -2616,6 +2616,7 @@ function handleJustsaying(ws, subject, body){
 				// light clients accept the joint without proof, it'll be saved as unconfirmed (non-stable)
 				return conf.bLight ? handleLightOnlineJoint(ws, objJoint) : handleOnlineJoint(ws, objJoint);
 			});
+			break;
 			
 		case 'free_joints_end':
 		case 'result':
