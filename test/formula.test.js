@@ -4063,6 +4063,50 @@ test('dictionary with __proto__ key', t => {
 	})
 });
 
+test('assigning to __proto__ key', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {
+			"key1": 7,
+			key2: 9
+		};
+		$x.__proto__ = {"hasOwnProperty": 8, "z": 3};
+		$x.abc = 16;
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+	//	t.deepEqual(res, JSON.parse('{ "key1": 7, "__proto__": {"z": 3}, "key2": 9, "abc": 16 }')); // with Object.freeze(Object.prototype)
+		t.deepEqual(res, JSON.parse('{ "key1": 7, "__proto__": {"hasOwnProperty": 8, "z": 3}, "key2": 9, "abc": 16 }'));
+		t.deepEqual(complexity, 1);
+	})
+});
+
+test('assigning to __proto__.hasOwnProperty key', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$x = {
+			"key1": 7,
+			key2: 9
+		};
+	//	$x.__proto__ = {};
+		$x.__proto__.hasOwnProperty = 8;
+		$x.prototype.hasOwnProperty = 9;
+		$x.abc = 16;
+		$y = [8, 9];
+		$y.b = 7; // treating array as object
+		$y[] = 10;
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, JSON.parse('{ "key1": 7, "__proto__": {"hasOwnProperty": 8}, "prototype": {"hasOwnProperty": 9}, "key2": 9, "abc": 16 }'));
+		t.deepEqual(complexity, 1);
+	})
+});
+
 test('__proto__ variable', t => {
 	var trigger = { data: { q: { a: 6 } } };
 	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };

@@ -1,3 +1,5 @@
+/*jslint node: true */
+"use strict";
 var nearley = require("nearley");
 var grammar = require("./grammars/oscript.js");
 var async = require('async');
@@ -2747,7 +2749,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 					throw Error("not an array: " + pointer);
 				key = pointer.length;
 			}
-			if (pointer[key] === undefined || pointer[key] === null) {
+			if (!hasOwnProperty(pointer, key) || pointer[key] === null) {
 				if (typeof key === 'number' && key > 0 && (pointer[key - 1] === undefined || pointer[key - 1] === null))
 					throw Error("previous key value " + (key - 1) + " not set");
 				var next_key = arrKeys[i + 1];

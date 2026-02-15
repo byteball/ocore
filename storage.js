@@ -13,6 +13,10 @@ var eventBus = require('./event_bus.js');
 var profiler = require('./profiler.js');
 var ValidationUtils = require("./validation_utils.js");
 
+//Object.freeze(Object.prototype); // breaks assignment to __proto__ field in oscript formulas, see test/formula.test.js
+Object.freeze(Array.prototype);
+Object.freeze(String.prototype);
+
 var testnetAssetsDefinedByAAsAreVisibleImmediatelyUpgradeMci = 1167000;
 
 var bCordova = (typeof window === 'object' && window.cordova);

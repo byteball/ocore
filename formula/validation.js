@@ -1,3 +1,5 @@
+/*jslint node: true */
+"use strict";
 var nearley = require("nearley");
 var grammar = require("./grammars/oscript.js");
 var async = require('async');
