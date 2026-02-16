@@ -1275,10 +1275,10 @@ hF0aQX7GEzIUaf6U+tcCxH0vA98NJruvNSo6\n\
 	})
 });
 
-test.cb('is_valid_sig null key', t => {
+test.cb('is_valid_sig empty key', t => {
 	var trigger = { data: 
 	{
-		pem_key: null,
+		pem_key: '',
 		message: "GrR8t8sUxWoZTA==",
 		signature: "3035021900d6f10143fdd2663e607005e63946d3f8b06fc5506853b32502183f1b991abf1dd88b2be604db0439070eb190e663f3e0d4c2"}
 	};
@@ -1290,14 +1290,14 @@ test.cb('is_valid_sig null key', t => {
 	})
 });
 
-test.cb('is_valid_sig  null message', t => {
+test.cb('is_valid_sig empty message', t => {
 	var trigger = { data: 
 		{
 			pem_key: "-----BEGIN PUBLIC KEY-----\n\
 MD4wEAYHKoZIzj0CAQYFZysBBAcDKgAEuafrAVc0ym3lxXBCqIVkKasIwV0dErF9\n\
 2w2aL5E2iCtWJiMBZPj1Xg==\n\
 -----END PUBLIC KEY-----",
-			message: null,
+			message: '',
 			signature: "MC0CFHRbtpr0eXsXyyDjZ4MCMt/IYqW5AhUA1WBkcg7hvusyTTnYChpy93P8JNA="
 		}
 	};
@@ -1309,7 +1309,7 @@ MD4wEAYHKoZIzj0CAQYFZysBBAcDKgAEuafrAVc0ym3lxXBCqIVkKasIwV0dErF9\n\
 	})
 });
 
-test.cb('is_valid_sig null sig', t => {
+test.cb('is_valid_sig wrong sig', t => {
 	var trigger = { data: 
 		{
 			pem_key: "-----BEGIN PUBLIC KEY-----\n\
@@ -1317,7 +1317,7 @@ MD4wEAYHKoZIzj0CAQYFZysBBAcDKgAEuafrAVc0ym3lxXBCqIVkKasIwV0dErF9\n\
 2w2aL5E2iCtWJiMBZPj1Xg==\n\
 -----END PUBLIC KEY-----",
 			message: "6bd95527ec489fc85fcc50c1e2de9576cd590e8b334283b2ac8007761f65321f",
-			signature: null
+			signature: 'sig'
 		}
 	};
 	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {

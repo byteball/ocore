@@ -2815,7 +2815,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 					var f = string_utils.toNumber(value, bLimitedPrecision);
 					(f === null) ? cb(value) : cb(createDecimal(value));
 				}
-				else if (typeof value === 'object')
+				else if (typeof value === 'object' && value !== null)
 					cb(new wrappedObject(value));
 				else
 					throw Error("unknown type of subobject: " + value);
