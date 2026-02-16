@@ -37,8 +37,8 @@ function prepareWitnessProof(arrWitnesses, last_stable_mci, handleResult){
 								arrFoundWitnesses.push(address);
 						}
 						// collect last balls of majority witnessed units
-						// (genesis lacks last_ball_unit)
-						if (objJoint.unit.last_ball_unit && arrFoundWitnesses.length >= constants.MAJORITY_OF_WITNESSES && arrLastBallUnits.indexOf(objJoint.unit.last_ball_unit) === -1)
+						// (genesis lacks last_ball_unit but we select only units with main_chain_index > start_mci, so we won't get genesis)
+						if (arrFoundWitnesses.length >= constants.MAJORITY_OF_WITNESSES && arrLastBallUnits.indexOf(objJoint.unit.last_ball_unit) === -1)
 							arrLastBallUnits.push(objJoint.unit.last_ball_unit);
 						cb2();
 					});
@@ -186,7 +186,9 @@ function processWitnessProof(arrUnstableMcJoints, arrWitnessChangeAndDefinitionJ
 			}
 		}
 		arrParentUnits = objUnit.parent_units;
-		if (objUnit.last_ball_unit && arrFoundWitnesses.length >= constants.MAJORITY_OF_WITNESSES){
+		if (!objUnit.last_ball_unit)
+			return handleResult("unit without last_ball_unit");
+		if (arrFoundWitnesses.length >= constants.MAJORITY_OF_WITNESSES){
 			arrLastBallUnits.push(objUnit.last_ball_unit);
 			assocLastBallByLastBallUnit[objUnit.last_ball_unit] = objUnit.last_ball;
 		}
