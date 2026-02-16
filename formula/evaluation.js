@@ -19,21 +19,7 @@ var signed_message = require("../signed_message.js"); // which requires definiti
 var signature = require('../signature.js');
 const formatError = require("./error/errorFormatter");
 
-var cache = require('./common.js').cache;
-var formulasInCache = require('./common.js').formulasInCache;
-var cacheLimit = require('./common.js').cacheLimit;
-
-var Decimal = require('./common.js').Decimal;
-var objBaseAssetInfo = require('./common.js').objBaseAssetInfo;
-
-var isFiniteDecimal = require('./common.js').isFiniteDecimal;
-var toDoubleRange = require('./common.js').toDoubleRange;
-var createDecimal = require('./common.js').createDecimal;
-var assignObject = require('./common.js').assignObject;
-var assignField = require('./common.js').assignField;
-var isValidValue = require('./common.js').isValidValue;
-var getFormula = require('./common.js').getFormula;
-var fixFormula = require('./common.js').fixFormula;
+const { cache, formulasInCache, cacheLimit, Decimal, objBaseAssetInfo, isFiniteDecimal, toDoubleRange, createDecimal, assignObject, assignField, isValidValue, getFormula, fixFormula, replaceNulls } = require('./common.js');
 
 var hasOwnProperty = ValidationUtils.hasOwnProperty;
 
@@ -1850,7 +1836,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 					if (typeof res !== 'string')
 						res = res.toString();
 					try {
-						var json = JSON.parse(res);
+						var json = replaceNulls(JSON.parse(res));
 					}
 					catch (e) {
 						console.log('json_parse failed: ' + e.toString());
