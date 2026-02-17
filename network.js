@@ -302,6 +302,8 @@ function deletePendingRequest(ws, tag){
 
 
 function handleResponse(ws, tag, response){
+	if (!tag)
+		return console.log("no tag in response");
 	var pendingRequest = ws.assocPendingRequests[tag];
 	if (!pendingRequest) // was canceled due to timeout or rerouted and answered by another peer
 		//throw "no req by tag "+tag;
@@ -778,7 +780,7 @@ function subscribe(ws){
 	storage.readLastMainChainIndex(function(last_mci){
 		sendRequest(ws, 'subscribe', {subscription_id: ws.subscription_id, last_mci: last_mci, library_version: libraryPackageJson.version}, false, function(ws, request, response){
 			delete ws.subscription_id;
-			if (response.error)
+			if (response && response.error)
 				return;
 			ws.bSource = true;
 			eventBus.emit('connected_to_source', ws);
@@ -1990,7 +1992,7 @@ function requestCatchup(ws){
 }
 
 function handleCatchupChain(ws, request, response){
-	if (response.error){
+	if (response && response.error){
 		bWaitingForCatchupChain = false;
 		console.log('catchup request got error response: '+response.error);
 		// findLostJoints will wake up and trigger another attempt to request catchup
@@ -2043,7 +2045,7 @@ function requestNextHashTree(ws){
 }
 
 function handleHashTree(ws, request, response){
-	if (response.error){
+	if (response && response.error){
 		console.log('get_hash_tree got error response: '+response.error);
 		waitTillHashTreeFullyProcessedAndRequestNext(ws); // after 1 sec, it'll request the same hash tree, likely from another peer
 		return;
@@ -2347,7 +2349,7 @@ function requestHistoryAfterMCI(arrUnits, addresses, minMCI, onDone){
 		if (minMCI !== -1)
 			objHistoryRequest.min_mci = minMCI;
 		requestFromLightVendor('light/get_history', objHistoryRequest, function(ws, request, response){
-			if (response.error){
+			if (response && response.error){
 				console.log(response.error);
 				return onDone(response.error);
 			}
@@ -2412,7 +2414,7 @@ function checkThatEachChainElementIncludesThePrevious(arrPrivateElements, handle
 		return handleResult(true);
 	var arrUnits = arrPrivateElements.map(function(objPrivateElement){ return objPrivateElement.unit; });
 	requestFromLightVendor('light/get_link_proofs', arrUnits, function(ws, request, response){
-		if (response.error)
+		if (response && response.error)
 			return handleResult(null); // undefined result
 		var arrChain = response;
 		if (!ValidationUtils.isNonemptyArray(arrChain))
