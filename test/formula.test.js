@@ -2280,6 +2280,22 @@ test('json_parse null', t => {
 	})
 });
 
+test('json_parse "key":null', t => {
+	var trigger = { data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}} };
+	var stateVars = {  };
+	evalFormulaWithVars({ conn: null, formula: `$x = json_parse('{"key":null}'); length($x.key)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, bObjectResultAllowed: false, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity) => {
+		t.deepEqual(res, 5); // length of string "false" (null is converted to false)
+	})
+});
+
+test('json_parse [null]', t => {
+	var trigger = { data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}} };
+	var stateVars = {  };
+	evalFormulaWithVars({ conn: null, formula: `$x = json_parse('[null]'); length($x[0])`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, bObjectResultAllowed: false, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity) => {
+		t.deepEqual(res, 5); // length of string "false" (null is converted to false)
+	})
+});
+
 test('this_address', t => {
 	var trigger = {  };
 	var stateVars = {  };
