@@ -146,13 +146,18 @@ function processCatchupChain(catchupChain, peer, arrWitnesses, callbacks){
 						return callbacks.ifError("wrong ball hash: unit "+objBall.unit+", ball "+objBall.ball);
 					if (!assocKnownBalls[objBall.ball])
 						return callbacks.ifError("ball not known: "+objBall.ball+', unit='+objBall.unit+', i='+i+', unstable: '+catchupChain.unstable_mc_joints.map(function(j){ return j.unit.unit }).join(', ')+', arrLastBallUnits '+arrLastBallUnits.join(', '));
+					if (!ValidationUtils.isNonemptyArray(objBall.parent_balls))
+						return callbacks.ifError("parent_balls must be a non-empty array");
 					objBall.parent_balls.forEach(function(parent_ball){
 						assocKnownBalls[parent_ball] = true;
 					});
-					if (objBall.skiplist_balls)
+					if (objBall.skiplist_balls) {
+						if (!ValidationUtils.isNonemptyArray(objBall.skiplist_balls))
+							return callbacks.ifError("skiplist_balls must be a non-empty array");
 						objBall.skiplist_balls.forEach(function(skiplist_ball){
 							assocKnownBalls[skiplist_ball] = true;
 						});
+					}
 				}
 				assocKnownBalls = null; // free memory
 				var objEarliestProofchainBall = catchupChain.proofchain_balls[catchupChain.proofchain_balls.length - 1];
