@@ -52,7 +52,7 @@ module.exports = function(connection_or_pool){
 						if (Buffer.isBuffer(row[key])) // VARBINARY fields are read as buffer, we have to convert them to string
 							row[key] = row[key].toString();
 					}
-					return Object.assign({}, row);
+					return { ...row };
 				});
 			var consumed_time = Date.now() - start_ts;
 			if (consumed_time > 25)

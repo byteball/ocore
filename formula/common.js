@@ -58,7 +58,10 @@ function clearObject(obj) {
 // copies source to target while preserving the target object reference
 function assignObject(target, source) {
 	clearObject(target);
-	Object.assign(target, source);
+	for (let key in source) {
+		if (ValidationUtils.hasOwnProperty(source, key))
+			assignField(target, key, source[key]);
+	}
 }
 
 function assignField(obj, field, value) {

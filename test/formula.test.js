@@ -4027,7 +4027,7 @@ test('dictionary with keys containing reserved words', t => {
 			address: 7,
 			addressasset: 7,
 		};
-		$x.timestamp_to_stringa
+		$x.timestamp_to_string
 	`;
 	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
 		t.deepEqual(res, 7);

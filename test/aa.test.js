@@ -1097,3 +1097,70 @@ test.cb.serial('AA with response vars', t => {
 		});
 	});
 });
+
+
+test.cb.serial('Attempt to replace __proto__ using object concatenation', t => {
+	var db = require("../db");
+	var batch = kvstore.batch();
+	var stateVars = {};
+	var objMcUnit = {
+		unit: 'DTDDiGV4wBlVUdEpwwQMxZK2ZsHQGBQ6x4vM463/uy8=',
+		last_ball_unit: 'oXGOcA9TQx8Tl5Syjp1d5+mB4xicsRk3kbcE82YQAS0=',
+		last_ball: 'oXGOcA9TQx8Tl5Syjp1d5+mB4xicsRk3kbcE82YQAS0=',
+		witness_list_unit: 'oj8yEksX9Ubq7lLc+p6F2uyHUuynugeVq4+ikT67X6E=',
+		timestamp: 1.5e9+100,
+	};
+	var trigger = {
+		address: 'TU3Q44S6H2WXTGQO6BZAGWFKKJCF7Q3W',
+		outputs: { base: 40000 },
+		data: {
+			x: { name: "test" },
+			y: '{"__proto__": {"phantom_key": "phantom_value"}}'
+		},
+		unit: objMcUnit.unit
+	};
+	var arrResponseUnits = [];
+	var aa = ['autonomous agent', {
+		bounce_fees: { base: 10000 },
+		messages: [{
+			app: 'data',
+			payload: {
+				result: `{
+					$a = trigger.data.x;
+					$b = json_parse(trigger.data.y);
+					$c = $a || $b;
+					$c.ggg = 123;
+					$c
+				}`
+			}
+		}]
+	}];
+	var address = objectHash.getChash160(aa);
+	db.takeConnectionFromPool(conn => {
+		conn.query('BEGIN');
+		conn.query("INSERT INTO aa_addresses (address, definition, unit, mci) VALUES(?, ?, ?, ?)", [address, JSON.stringify(aa), objMcUnit.last_ball_unit, 500]);
+		conn.query("INSERT INTO outputs (unit, message_index, output_index, address, amount) VALUES(?, 0, 6, ?, ?)", [objMcUnit.unit, address, trigger.outputs.base]);
+		conn.query("DELETE FROM aa_responses WHERE trigger_unit=? AND aa_address=?", [trigger.unit, address]);
+
+		var objUnit;
+		writer.saveJoint = function (objJoint, objValidationState, preCommitCallback, onDone) {
+			console.log("mock saving unit", JSON.stringify(objJoint, null, '\t'));
+			objUnit = objJoint.unit;
+			onDone();
+		}
+		
+		aa_composer.handleTrigger(conn, batch, trigger, {}, stateVars, aa, address, 600, objMcUnit, false, arrResponseUnits, (bPosted, bBounced) => {
+			conn.query('ROLLBACK', () => {
+				conn.release();
+			});
+			t.deepEqual(!!bPosted, true);
+			t.deepEqual(bBounced, false);
+			t.deepEqual(objUnit.phantom_key, undefined); // global prototype not polluted
+			const result = objUnit.messages.find(function (message) { return (message.app === 'data'); }).payload.result;
+			t.deepEqual(Object.getPrototypeOf(result) === Object.prototype, true); // not polluted
+			t.deepEqual(result, JSON.parse('{ "name": "test", "ggg": 123, "__proto__": {"phantom_key": "phantom_value"} }'));
+			t.deepEqual(objUnit.payload_commission, 408);
+			t.end();
+		});
+	});
+});

@@ -888,7 +888,7 @@ function updateCorrespondentSettings(correspondent_address, settings, cb){
 	getHubWs(function(err, ws){
 		if (err)
 			return cb ? cb(err) : null;
-		network.sendJustsaying(ws, 'hub/update_correspondent_settings', Object.assign({correspondent_address: correspondent_address}, settings));
+		network.sendJustsaying(ws, 'hub/update_correspondent_settings', { correspondent_address, ...settings });
 		if (cb)
 			cb();
 	});

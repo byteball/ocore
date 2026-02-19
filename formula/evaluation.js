@@ -2645,7 +2645,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 			if (bArray0 && bArray1)
 				result = new wrappedObject(obj0.concat(obj1));
 			else if (!bArray0 && !bArray1)
-				result = new wrappedObject(Object.assign({}, obj0, obj1));
+				result = new wrappedObject({ ...obj0, ...obj1 });
 			else
 				return { error: "trying to concat an object and array: " + JSON.stringify(obj0) + " and " + JSON.stringify(obj1) };
 		}

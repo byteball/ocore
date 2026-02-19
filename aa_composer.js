@@ -1588,7 +1588,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 					child_trigger.initial_unit = trigger.initial_unit;
 					var arrChildDefinition = JSON.parse(row.definition);
 
-					var child_trigger_opts = Object.assign({}, trigger_opts);
+					var child_trigger_opts = { ...trigger_opts };
 					child_trigger_opts.trigger = child_trigger;
 					child_trigger_opts.params = {};
 					child_trigger_opts.arrDefinition = arrChildDefinition;
