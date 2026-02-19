@@ -3984,7 +3984,8 @@ function startAcceptingConnections(){
 	setInterval(unblockPeers, 10*60*1000);
 	initBlockedPeers();
 	// listen for new connections
-	wss = new WebSocketServer(conf.portReuse ? { noServer: true } : { port: conf.port });
+	const maxPayload = 10 * 1024 * 1024; // 10 MB
+	wss = new WebSocketServer(conf.portReuse ? { noServer: true, maxPayload } : { port: conf.port, maxPayload });
 	wss.on('connection', function(ws, req) {
 		if (!req.socket.remoteAddress){
 			console.log("no ip in accepted connection");
