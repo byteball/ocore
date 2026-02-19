@@ -30,6 +30,8 @@ function getLength(value, bWithKeys) {
 					});
 				else
 					for (var key in value) {
+						if (!Object.prototype.hasOwnProperty.call(value, key))
+							throw Error("object has non-own property " + key + " in " + JSON.stringify(value));
 						if (typeof value[key] === "undefined")
 							throw Error("undefined at " + key + " of " + JSON.stringify(value));
 						if (bWithKeys)
