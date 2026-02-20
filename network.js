@@ -33,6 +33,7 @@ var aa_composer = require('./aa_composer.js');
 var formulaEvaluation = require('./formula/evaluation.js');
 var dataFeeds = require('./data_feeds.js');
 var libraryPackageJson = require('./package.json');
+const kvstore = require('./kvstore.js');
 
 var FORWARDING_TIMEOUT = 10*1000; // don't forward if the joint was received more than FORWARDING_TIMEOUT ms ago
 var STALLED_TIMEOUT = 5000; // a request is treated as stalled if no response received within STALLED_TIMEOUT ms
@@ -516,7 +517,7 @@ function addOutboundPeers(multiplier){
 	if (max_new_outbound_peers <= 0)
 		return;
 	db.query(
-		"SELECT peer \n\
+		"SELECT peer, peers.peer_host \n\
 		FROM peers \n\
 		JOIN peer_hosts USING(peer_host) \n\
 		LEFT JOIN peer_host_urls ON peer=url AND is_active=1 \n\
@@ -530,6 +531,8 @@ function addOutboundPeers(multiplier){
 		[conf.MAX_TOLERATED_INVALID_RATIO*multiplier, max_new_outbound_peers], 
 		function(rows){
 			for (var i=0; i<rows.length; i++){
+				if (peerIsBlocked(rows[i].peer_host))
+					continue;
 				assocKnownPeers[rows[i].peer] = true;
 				findOutboundPeerOrConnect(rows[i].peer);
 			}
@@ -1030,9 +1033,17 @@ function handleJoint(ws, objJoint, bSaved, bPosted, callbacks){
 	
 	var validate = function(){
 		mutex.lock(['handleJoint'], function(unlock){
+			if (ws && !bCatchingUp && !conf.bLight)
+				kvstore.put('peer_host:' + ws.host, Date.now(), () => { });
+			// clear host only if validation completed with any result, otherwise it crashed and we keep it for a while to avoid DoS from the same peer
+			const clearHost = () => {
+				if (ws && !bCatchingUp && !conf.bLight)
+					kvstore.del('peer_host:' + ws.host);
+			};
 			validation.validate(objJoint, {
 				ifUnitError: function(error){
 					console.log(objJoint.unit.unit+" validation failed: "+error);
+					clearHost();
 					callbacks.ifUnitError(error);
 					if (constants.bDevnet)
 						throw Error(error);
@@ -1046,6 +1057,7 @@ function handleJoint(ws, objJoint, bSaved, bPosted, callbacks){
 						eventBus.emit("validated-"+unit, false);
 				},
 				ifJointError: function(error){
+					clearHost();
 					callbacks.ifJointError(error);
 				//	throw Error(error);
 					unlock();
@@ -1060,6 +1072,7 @@ function handleJoint(ws, objJoint, bSaved, bPosted, callbacks){
 				ifTransientError: function(error){
 				//	throw Error(error);
 					console.log("############################## transient error "+error);
+					clearHost();
 					callbacks.ifTransientError ? callbacks.ifTransientError(error) : callbacks.ifUnitError(error);
 					process.nextTick(unlock);
 					joint_storage.removeUnhandledJointAndDependencies(unit, function(){
@@ -1072,6 +1085,7 @@ function handleJoint(ws, objJoint, bSaved, bPosted, callbacks){
 				},
 				ifNeedHashTree: function(){
 					console.log('need hash tree for unit '+unit);
+					clearHost();
 					if (objJoint.unsigned)
 						throw Error("ifNeedHashTree() unsigned");
 					callbacks.ifNeedHashTree();
@@ -1080,10 +1094,12 @@ function handleJoint(ws, objJoint, bSaved, bPosted, callbacks){
 					unlock();
 				},
 				ifNeedParentUnits: function(arrMissingUnits){
+					clearHost();
 					callbacks.ifNeedParentUnits(arrMissingUnits);
 					unlock();
 				},
 				ifOk: function(objValidationState, validation_unlock){
+					clearHost();
 					if (objJoint.unsigned)
 						throw Error("ifOk() unsigned");
 					if (bPosted && objValidationState.sequence !== 'good') {
@@ -1109,6 +1125,7 @@ function handleJoint(ws, objJoint, bSaved, bPosted, callbacks){
 					});
 				},
 				ifOkUnsigned: function(bSerial){
+					clearHost();
 					if (!objJoint.unsigned)
 						throw Error("ifOkUnsigned() signed");
 					callbacks.ifOkUnsigned();
@@ -1806,6 +1823,18 @@ function initBlockedPeers(){
 		function(rows){
 			rows.forEach(function(row){
 				assocBlockedPeers[row.peer_host] = row.ts*1000;
+			});
+			const stream = kvstore.createReadStream({ gte: "peer_host:", lte: "peer_host:\uFFFF" });
+			stream.on('data', data => {
+				const peer_host = data.key.slice("peer_host:".length);
+				const ts = +data.value;
+				if (Date.now() - ts < 3600 * 1000) {
+					assocBlockedPeers[peer_host] = ts;
+					console.log(`added blocked peer ${peer_host} from kvstore`);
+				}
+			})
+			.on('error', function(error){
+				throw Error('error from data stream: '+error);
 			});
 		}
 	);
@@ -3981,8 +4010,6 @@ function startAcceptingConnections(){
 	db.query("DELETE FROM watched_light_aas");
 	db.query("DELETE FROM watched_light_units");
 	//db.query("DELETE FROM light_peer_witnesses");
-	setInterval(unblockPeers, 10*60*1000);
-	initBlockedPeers();
 	// listen for new connections
 	const maxPayload = 10 * 1024 * 1024; // 10 MB
 	wss = new WebSocketServer(conf.portReuse ? { noServer: true, maxPayload } : { port: conf.port, maxPayload });
@@ -4062,6 +4089,9 @@ function startPeerExchange() {
 }
 
 async function startRelay(){
+	setInterval(unblockPeers, 10*60*1000);
+	initBlockedPeers();
+	
 	if (bCordova || !conf.port) // no listener on mobile
 		wss = {clients: new Set()};
 	else
