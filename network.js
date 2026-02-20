@@ -1786,10 +1786,10 @@ function writeEvent(event, host){
 	flushEvents();
 }
 
-function determineIfPeerIsBlocked(host, handleResult){
+function peerIsBlocked(host) {
 	if (constants.bTestnet || constants.bDevnet)
-		return handleResult(false);
-	handleResult(!!assocBlockedPeers[host]);
+		return false;
+	return !!assocBlockedPeers[host];
 }
 
 function unblockPeers(){
@@ -4011,37 +4011,27 @@ function startAcceptingConnections(){
 			ws.close(1000, "inbound connections maxed out"); // 1001 doesn't work in cordova
 			return;
 		}
-		var bStatsCheckUnderWay = true;
-		determineIfPeerIsBlocked(ws.host, function(bBlocked){
-			bStatsCheckUnderWay = false;
-			if (bBlocked){
-				console.log("rejecting new client "+ws.host+" because of bad stats");
-				return ws.terminate();
-			}
+		if (peerIsBlocked(ws.host)) {
+			console.log("rejecting new client "+ws.host+" because of bad stats");
+			return ws.terminate();
+		}
 
-			// welcome the new peer with the list of free joints
-			//if (!bCatchingUp)
-			//    sendFreeJoints(ws);
+		// welcome the new peer with the list of free joints
+		//if (!bCatchingUp)
+		//    sendFreeJoints(ws);
 
-			sendVersion(ws);
+		sendVersion(ws);
 
-			// I'm a hub, send challenge
-			if (conf.bServeAsHub){
-				ws.challenge = crypto.randomBytes(30).toString("base64");
-				sendJustsaying(ws, 'hub/challenge', ws.challenge);
-			}
-			if (!conf.bLight)
-				subscribe(ws);
-			eventBus.emit('connected', ws);
-		});
-		ws.on('message', function(message){ // might come earlier than stats check completes
-			function tryHandleMessage(){
-				if (bStatsCheckUnderWay)
-					setTimeout(tryHandleMessage, 100);
-				else
-					onWebsocketMessage.call(ws, message);
-			}
-			tryHandleMessage();
+		// I'm a hub, send challenge
+		if (conf.bServeAsHub){
+			ws.challenge = crypto.randomBytes(30).toString("base64");
+			sendJustsaying(ws, 'hub/challenge', ws.challenge);
+		}
+		if (!conf.bLight)
+			subscribe(ws);
+		eventBus.emit('connected', ws);
+		ws.on('message', function(message){
+			onWebsocketMessage.call(ws, message);
 		});
 		ws.on('close', function(){
 			if (bWatchingForLight){
