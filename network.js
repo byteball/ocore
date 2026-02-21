@@ -33,7 +33,6 @@ var aa_composer = require('./aa_composer.js');
 var formulaEvaluation = require('./formula/evaluation.js');
 var dataFeeds = require('./data_feeds.js');
 var libraryPackageJson = require('./package.json');
-const kvstore = require('./kvstore.js');
 
 var FORWARDING_TIMEOUT = 10*1000; // don't forward if the joint was received more than FORWARDING_TIMEOUT ms ago
 var STALLED_TIMEOUT = 5000; // a request is treated as stalled if no response received within STALLED_TIMEOUT ms
@@ -691,7 +690,7 @@ async function handleNewPeers(ws, request, arrPeerUrls){
 		var url = arrPeerUrls[i];
 		if (conf.myUrl && conf.myUrl.toLowerCase() === url.toLowerCase())
 			continue;
-		var regexp = (conf.WS_PROTOCOL === 'wss://') ? /^wss:\/\// : /^wss?:\/\//;
+		var regexp = (conf.WS_PROTOCOL === 'wss://') ? /^wss:\/\/[\w:\/.?&+=;,@-]+$/ : /^wss?:\/\/[\w:\/.?&+=;,@-]+$/;
 		if (!url.match(regexp)){
 			console.log('ignoring new peer '+url+' because of incompatible ws protocol');
 			continue;
@@ -1033,12 +1032,12 @@ function handleJoint(ws, objJoint, bSaved, bPosted, callbacks){
 	
 	var validate = function(){
 		mutex.lock(['handleJoint'], function(unlock){
-			if (ws && !bCatchingUp && !conf.bLight)
-				kvstore.put('peer_host:' + ws.host, Date.now(), () => { });
+			if (ws && !conf.bLight)
+				ws.handlingJoint = true;
 			// clear host only if validation completed with any result, otherwise it crashed and we keep it for a while to avoid DoS from the same peer
 			const clearHost = () => {
-				if (ws && !bCatchingUp && !conf.bLight)
-					kvstore.del('peer_host:' + ws.host);
+				if (ws && !conf.bLight)
+					ws.handlingJoint = false;
 			};
 			validation.validate(objJoint, {
 				ifUnitError: function(error){
@@ -1824,18 +1823,23 @@ function initBlockedPeers(){
 			rows.forEach(function(row){
 				assocBlockedPeers[row.peer_host] = row.ts*1000;
 			});
-			const stream = kvstore.createReadStream({ gte: "peer_host:", lte: "peer_host:\uFFFF" });
-			stream.on('data', data => {
-				const peer_host = data.key.slice("peer_host:".length);
-				const ts = +data.value;
-				if (Date.now() - ts < 3600 * 1000) {
-					assocBlockedPeers[peer_host] = ts;
-					console.log(`added blocked peer ${peer_host} from kvstore`);
+			try {
+				const fs = require('fs');
+				const app_data_dir = require('./desktop_app.js').getAppDataDir();
+				const filepath = `${app_data_dir}/uncaught_exception_clients.txt`;
+				const hosts = fs.readFileSync(filepath, 'utf8').split('\n');
+				for (let host of hosts) {
+					assocBlockedPeers[host] = Date.now();
+					console.log(`added blocked peer ${host} from uncaught_exception_clients.txt`);
 				}
-			})
-			.on('error', function(error){
-				throw Error('error from data stream: '+error);
-			});
+				setTimeout(() => {
+					fs.unlinkSync(filepath);
+					console.log('deleted uncaught_exception_clients.txt file');
+				}, 3600*1000);
+			}
+			catch (e) {
+				console.log('no uncaught_exception_clients.txt file found', e);
+			}
 		}
 	);
 }
@@ -3972,20 +3976,25 @@ function onWebsocketMessage(message) {
 	if (!content || typeof content !== 'object')
 		return console.log("content is not object: "+content);
 	
+	ws.handlingMessage = true;
 	switch (message_type){
 		case 'justsaying':
-			return handleJustsaying(ws, content.subject, content.body);
+			handleJustsaying(ws, content.subject, content.body);
+			break;
 			
 		case 'request':
-			return handleRequest(ws, content.tag, content.command, content.params);
-			
+			handleRequest(ws, content.tag, content.command, content.params);
+			break;
+		
 		case 'response':
-			return handleResponse(ws, content.tag, content.response);
+			handleResponse(ws, content.tag, content.response);
+			break;
 			
 		default: 
 			console.log("unknown type: ", message_type);
 		//	throw Error("unknown type: "+message_type);
 	}
+	ws.handlingMessage = false;
 }
 
 // @see https://www.npmjs.com/package/ws#multiple-servers-sharing-a-single-https-server
@@ -4182,6 +4191,21 @@ if (!conf.explicitStart) {
 function setExchangeRates(rates) {
 	exchangeRates = rates;
 }
+
+process.on('uncaughtException', (err) => {
+	console.log('Uncaught exception:', err);
+	console.error('Uncaught exception:', err);
+	if (!conf.bLight) {
+		const all_clients = [...wss.clients].concat(arrOutboundPeers);
+		const sending_clients = all_clients.filter(ws => Object.keys(ws.assocCommandsInPreparingResponse).length > 0 || ws.handlingMessage || ws.handlingJoint);
+		const hosts = sending_clients.map(ws => ws.host);
+		console.log('Clients with pending requests/messages at the time of uncaught exception:', hosts);
+		const fs = require('fs');
+		const app_data_dir = require('./desktop_app.js').getAppDataDir();
+		fs.writeFileSync(`${app_data_dir}/uncaught_exception_clients.txt`, hosts.join('\n'), 'utf8');
+	}
+	throw err; // crash the process to avoid ending up in an inconsistent state
+});
 
 exports.start = start;
 exports.startAcceptingConnections = startAcceptingConnections;
