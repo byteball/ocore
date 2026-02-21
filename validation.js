@@ -139,8 +139,14 @@ function validate(objJoint, callbacks, external_conn) {
 
 		if (objectLength.getHeadersSize(objUnit) !== objUnit.headers_commission)
 			return callbacks.ifJointError("wrong headers commission, expected "+objectLength.getHeadersSize(objUnit));
-		if (objectLength.getTotalPayloadSize(objUnit) !== objUnit.payload_commission)
-			return callbacks.ifJointError("wrong payload commission, unit "+objUnit.unit+", expected "+objectLength.getTotalPayloadSize(objUnit));
+		try {
+			const payloadSize = objectLength.getTotalPayloadSize(objUnit);
+			if (payloadSize !== objUnit.payload_commission)
+				return callbacks.ifJointError("wrong payload commission, unit " + objUnit.unit + ", expected " + payloadSize);
+		}
+		catch (e) {
+			return callbacks.ifUnitError("failed to calculate payload commission: " + e);
+		}
 		if (objUnit.headers_commission + objUnit.payload_commission > constants.MAX_UNIT_LENGTH && !bGenesis)
 			return callbacks.ifUnitError("unit too large");
 	}
@@ -1794,12 +1800,17 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 			if ("data" in payload) {
 				if (payload.data === null)
 					return callback("null data");
-				const len = objectLength.getLength(payload.data, true);
-				if (len !== payload.data_length)
-					return callback(`data_length mismatch, expected ${payload.data_length}, got ${len}`);
-				const hash = objectHash.getBase64Hash(payload.data, true);
-				if (hash !== payload.data_hash)
-					return callback(`data_hash mismatch, expected ${payload.data_hash}, got ${hash}`);
+				try {
+					const len = objectLength.getLength(payload.data, true);
+					if (len !== payload.data_length)
+						return callback(`data_length mismatch, expected ${payload.data_length}, got ${len}`);
+					const hash = objectHash.getBase64Hash(payload.data, true);
+					if (hash !== payload.data_hash)
+						return callback(`data_hash mismatch, expected ${payload.data_hash}, got ${hash}`);
+				}
+				catch (e) {
+					return callback("invalid temp data: " + e);
+				}
 			}
 			else {
 				if (Math.round(Date.now()/1000) - objUnit.timestamp < constants.TEMP_DATA_PURGE_TIMEOUT)
