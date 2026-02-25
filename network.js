@@ -3967,14 +3967,14 @@ function onWebsocketMessage(message) {
 	
 	try{
 		var arrMessage = JSON.parse(message);
+		var message_type = arrMessage[0];
+		var content = arrMessage[1];
+		if (!content || typeof content !== 'object')
+			return console.log("content is not object: "+content);
 	}
 	catch(e){
 		return console.log('failed to json.parse message '+message);
 	}
-	var message_type = arrMessage[0];
-	var content = arrMessage[1];
-	if (!content || typeof content !== 'object')
-		return console.log("content is not object: "+content);
 	
 	ws.handlingMessage = true;
 	switch (message_type){
