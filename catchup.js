@@ -112,10 +112,8 @@ function processCatchupChain(catchupChain, peer, arrWitnesses, callbacks){
 		return callbacks.ifCurrent();
 	if (!Array.isArray(catchupChain.unstable_mc_joints))
 		return callbacks.ifError("no unstable_mc_joints");
-	if (!Array.isArray(catchupChain.stable_last_ball_joints))
+	if (!ValidationUtils.isNonemptyArray(catchupChain.stable_last_ball_joints))
 		return callbacks.ifError("no stable_last_ball_joints");
-	if (catchupChain.stable_last_ball_joints.length === 0)
-		return callbacks.ifError("stable_last_ball_joints is empty");
 	if (!catchupChain.witness_change_and_definition_joints)
 		catchupChain.witness_change_and_definition_joints = [];
 	if (!Array.isArray(catchupChain.witness_change_and_definition_joints))
@@ -339,7 +337,7 @@ function readHashTree(hashTreeRequest, callbacks){
 }
 
 function processHashTree(arrBalls, callbacks){
-	if (!Array.isArray(arrBalls))
+	if (!ValidationUtils.isNonemptyArray(arrBalls))
 		return callbacks.ifError("no balls array");
 	mutex.lock(["hash_tree"], function(unlock){
 		
@@ -360,7 +358,7 @@ function processHashTree(arrBalls, callbacks){
 							if (typeof objBall.unit !== "string")
 								return cb("no unit");
 							if (!storage.isGenesisUnit(objBall.unit)){
-								if (!Array.isArray(objBall.parent_balls))
+								if (!ValidationUtils.isNonemptyArray(objBall.parent_balls))
 									return cb("no parents");
 							}
 							else if (objBall.parent_balls)
