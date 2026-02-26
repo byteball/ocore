@@ -304,7 +304,7 @@ function deletePendingRequest(ws, tag){
 function handleResponse(ws, tag, response){
 	if (!tag)
 		return console.log("no tag in response");
-	var pendingRequest = ws.assocPendingRequests[tag];
+	var pendingRequest = ValidationUtils.hasOwnProperty(ws.assocPendingRequests, tag) && ws.assocPendingRequests[tag];
 	if (!pendingRequest) // was canceled due to timeout or rerouted and answered by another peer
 		//throw "no req by tag "+tag;
 		return console.log("no req by tag "+tag);
