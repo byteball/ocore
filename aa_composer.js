@@ -224,6 +224,12 @@ function validateAATriggerObject(trigger, handle) {
 		return handle("no trigger outputs");
 	if (!ValidationUtils.isValidAddress(trigger.address))
 		return handle("bad trigger address");
+	try {
+		string_utils.getJsonSourceString(trigger.data);
+	}
+	catch (e) {
+		return handle("invalid trigger data: " + e);
+	}
 	var arrAssets = Object.keys(trigger.outputs).filter(function(asset) {return asset !== 'base'});
 	if (arrAssets.length >= constants.MAX_MESSAGES_PER_UNIT)
 		return handle("too many assets");
