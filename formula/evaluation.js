@@ -2432,7 +2432,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 				var arrExpressions = arr[2];
 				var func = locals[func_name];
 				if (!func)
-					throw Error("no such function: " + func_name);
+					return setFatalError("no such function: " + func_name, { arr }, false, cb);
 				if (!(func instanceof Func))
 					throw Error("not a function: " + func_name);
 				var args = [];
