@@ -4202,7 +4202,7 @@ process.on('uncaughtException', (err) => {
 		console.log('Clients with pending requests/messages at the time of uncaught exception:', hosts);
 		const fs = require('fs');
 		const app_data_dir = require('./desktop_app.js').getAppDataDir();
-		fs.writeFileSync(`${app_data_dir}/uncaught_exception_clients.txt`, hosts.join('\n'), 'utf8');
+		fs.writeFileSync(`${app_data_dir}/uncaught_exception_clients.txt`, hosts.concat(Object.keys(assocBlockedPeers)).join('\n'), 'utf8');
 	}
 	throw err; // crash the process to avoid ending up in an inconsistent state
 });
