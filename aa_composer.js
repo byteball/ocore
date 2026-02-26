@@ -225,7 +225,8 @@ function validateAATriggerObject(trigger, handle) {
 	if (!ValidationUtils.isValidAddress(trigger.address))
 		return handle("bad trigger address");
 	try {
-		string_utils.getJsonSourceString(trigger.data);
+		if (trigger.data)
+			string_utils.getJsonSourceString(trigger.data);
 	}
 	catch (e) {
 		return handle("invalid trigger data: " + e);
