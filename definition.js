@@ -517,7 +517,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 					var err = getFilterError(filter);
 					if (err)
 						return cb(err);
-					if (!(filter.asset || filter.asset === 'base' || bAssetCondition && filter.asset === "this asset"))
+					if (!(!filter.asset || filter.asset === 'base' || bAssetCondition && filter.asset === "this asset"))
 						arrAssets.push(filter.asset);
 				}
 				if (args.equal_fields.indexOf("type") >= 0 && (args.search_criteria[0].what === "output" || args.search_criteria[1].what === "output"))
