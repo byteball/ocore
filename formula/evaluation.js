@@ -2370,11 +2370,16 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 							return cb(false);
 						if (format !== 'date' && format !== 'datetime' && format !== 'time')
 							return setFatalError("format in timestamp_to_string must be date or time or datetime", { arr }, false, cb);
-						var str = new Date(ts * 1000).toISOString().replace('.000', '');
-						if (format === 'date')
-							str = str.substr(0, 10);
-						else if (format === 'time')
-							str = str.substr(11, 8);
+						try {
+							var str = new Date(ts * 1000).toISOString().replace('.000', '');
+							if (format === 'date')
+								str = str.substr(0, 10);
+							else if (format === 'time')
+								str = str.substr(11, 8);
+						}
+						catch (e) {
+							return setFatalError("invalid timestamp in timestamp_to_string: " + e, { arr }, false, cb);
+						}
 						cb(str);
 					});
 				});
