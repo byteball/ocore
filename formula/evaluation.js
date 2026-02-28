@@ -1229,7 +1229,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 							if (!selectors)
 								return setFatalError("reassignment to " + var_name + " after evaluation", { arr }, false, cb);
 							if (!(locals[var_name] instanceof wrappedObject))
-								throw Error("variable " + var_name + " is not an object");
+								return setFatalError("variable " + var_name + " is not an object (again)", { arr }, false, cb);
 							if (Decimal.isDecimal(res))
 								res = res.toNumber();
 							if (res instanceof wrappedObject)

@@ -1996,6 +1996,13 @@ test('local vars with selectors by expr', t => {
 	})
 });
 
+test('selectors on a scalar var', t => {
+	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { key1: "val1", key2: { key3: "val3", key4: 444 } }, outputs: { base: 555 } };
+	evalFormulaWithVars({ formula: "$a=8; $a.x=9; $a", trigger: trigger, locals: { a4: 100 }, stateVars: {}, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, res => {
+		t.deepEqual(res, null);
+	})
+});
+
 test('line comment', t => {
 	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { key1: "val1", key2: { key3: "val3", key4: 444 } }, outputs: { base: 555 } };
 	evalFormulaWithVars({ formula: "$a=11; // a comment\n$a-1", trigger: trigger, locals: { a4: 100 }, stateVars: {}, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, res => {
