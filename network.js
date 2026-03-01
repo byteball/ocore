@@ -3254,6 +3254,7 @@ function handleRequest(ws, tag, command, params){
 			if (!objDeviceMessage || !objDeviceMessage.signature || !objDeviceMessage.pubkey || !objDeviceMessage.to
 					|| !objDeviceMessage.encrypted_package || !objDeviceMessage.encrypted_package.dh
 					|| !objDeviceMessage.encrypted_package.dh.sender_ephemeral_pubkey 
+					|| !objDeviceMessage.encrypted_package.dh.recipient_ephemeral_pubkey 
 					|| !objDeviceMessage.encrypted_package.encrypted_message
 					|| !objDeviceMessage.encrypted_package.iv || !objDeviceMessage.encrypted_package.authtag)
 				return sendErrorResponse(ws, tag, "missing fields");
@@ -3280,9 +3281,12 @@ function handleRequest(ws, tag, command, params){
 				return;
 			}
 			
-			db.query("SELECT 1 FROM devices WHERE device_address=?", [objDeviceMessage.to], function(rows){
+			db.query("SELECT pubkey, temp_pubkey_package FROM devices WHERE device_address=?", [objDeviceMessage.to], function(rows){
 				if (rows.length === 0)
 					return sendErrorResponse(ws, tag, "address "+objDeviceMessage.to+" not registered here");
+				var objTempPubkey = JSON.parse(rows[0].temp_pubkey_package);
+				if (![rows[0].pubkey, objTempPubkey.temp_pubkey].includes(objDeviceMessage.encrypted_package.dh.recipient_ephemeral_pubkey))
+					return sendErrorResponse(ws, tag, "wrong recipient ephemeral pubkey");
 				var message_hash = objectHash.getBase64Hash(objDeviceMessage);
 				var message_string = JSON.stringify(objDeviceMessage);
 				db.query(

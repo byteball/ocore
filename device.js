@@ -145,6 +145,7 @@ function handleJustsaying(ws, subject, body){
 			if (!message_hash || !objDeviceMessage || !objDeviceMessage.signature || !objDeviceMessage.pubkey || !objDeviceMessage.to
 					|| !objDeviceMessage.encrypted_package || !objDeviceMessage.encrypted_package.dh
 					|| !objDeviceMessage.encrypted_package.dh.sender_ephemeral_pubkey 
+					|| !objDeviceMessage.encrypted_package.dh.recipient_ephemeral_pubkey 
 					|| !objDeviceMessage.encrypted_package.encrypted_message
 					|| !objDeviceMessage.encrypted_package.iv || !objDeviceMessage.encrypted_package.authtag)
 				return network.sendError(ws, "missing fields");
