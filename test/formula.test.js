@@ -3088,6 +3088,16 @@ test('is_valid_merkle_proof string invalid', t => {
 	})
 });
 
+test('is_valid_merkle_proof invalid proof without siblings', t => {
+
+	var trigger = { data: { proof: { index: 0 }, element: 'element' } };
+	var stateVars = {};
+	evalFormulaWithVars({ conn: null, formula: `is_valid_merkle_proof(trigger.data.element, trigger.data.proof)`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, false);
+		t.deepEqual(complexity, 2);
+	})
+});
+
 test('function', t => {
 	var trigger = { data: {  } };
 	var stateVars = {};

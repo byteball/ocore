@@ -82,17 +82,22 @@ function deserializeMerkleProof(serialized_proof){
 }
 
 function verifyMerkleProof(element, proof){
-	var index = proof.index;
-	var the_other_sibling = hash(element);
-	for (var i=0; i<proof.siblings.length; i++){
-		// this also works for duplicated trailing nodes
-		if (index % 2 === 0)
-			the_other_sibling = hash(the_other_sibling + proof.siblings[i]);
-		else
-			the_other_sibling = hash(proof.siblings[i] + the_other_sibling);
-		index = Math.floor(index/2);
+	try {
+		var index = proof.index;
+		var the_other_sibling = hash(element);
+		for (var i = 0; i < proof.siblings.length; i++) {
+			// this also works for duplicated trailing nodes
+			if (index % 2 === 0)
+				the_other_sibling = hash(the_other_sibling + proof.siblings[i]);
+			else
+				the_other_sibling = hash(proof.siblings[i] + the_other_sibling);
+			index = Math.floor(index / 2);
+		}
+		return (the_other_sibling === proof.root);
 	}
-	return (the_other_sibling === proof.root);
+	catch (e){
+		return false;
+	}
 }
 
 

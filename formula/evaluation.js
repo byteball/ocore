@@ -1699,17 +1699,25 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 					evaluate(proof_expr, function (proof) {
 						if (fatal_error)
 							return cb(false);
-						var objProof;
-						if (proof instanceof wrappedObject)
-							objProof = proof.obj;
-						else if (typeof proof === 'string') {
-							if (proof.length > 1024)
-								return setFatalError("proof is too large", { arr }, false, cb);
-							objProof = merkle.deserializeMerkleProof(proof);
+						let res;
+						try {
+							var objProof;
+							if (proof instanceof wrappedObject)
+								objProof = proof.obj;
+							else if (typeof proof === 'string') {
+								if (proof.length > 1024)
+									return setFatalError("proof is too large", { arr }, false, cb);
+								objProof = merkle.deserializeMerkleProof(proof);
+							}
+							else // can't be valid proof
+								res = false;
+							if (objProof)
+								res = merkle.verifyMerkleProof(element, objProof);
 						}
-						else // can't be valid proof
-							return cb(false);
-						cb(merkle.verifyMerkleProof(element, objProof));
+						catch (e) {
+							res = false;
+						}
+						cb(res);
 					});
 				});
 				break;
