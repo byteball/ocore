@@ -189,7 +189,7 @@ function handleJustsaying(ws, subject, body){
 			// check that we know this device
 			db.query("SELECT hub, is_indirect FROM correspondent_devices WHERE device_address=?", [from_address], function(rows){
 				if (rows.length > 0){
-					if (json.device_hub && json.device_hub !== rows[0].hub) // update correspondent's home address if necessary
+					if (json.device_hub && typeof json.device_hub === 'string' && json.device_hub !== rows[0].hub) // update correspondent's home address if necessary
 						db.query("UPDATE correspondent_devices SET hub=? WHERE device_address=?", [json.device_hub, from_address], function(){
 							handleMessage(rows[0].is_indirect);
 						});

@@ -1962,7 +1962,7 @@ function findWitnessListUnit(conn, arrWitnesses, last_ball_mci, handleWitnessLis
 }
 
 function sliceAndExecuteQuery(query, params, largeParam, callback) {
-	if (typeof largeParam !== 'object' || largeParam.length === 0) return callback([]);
+	if (!ValidationUtils.isNonemptyArray(largeParam)) return callback([]);
 	var CHUNK_SIZE = 200;
 	var length = largeParam.length;
 	var arrParams = [];

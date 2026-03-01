@@ -2630,6 +2630,8 @@ function handleJustsaying(ws, subject, body){
 			var objJoint = body;
 			if (!objJoint || !objJoint.unit || !objJoint.unit.unit)
 				return sendError(ws, 'no unit');
+			if (typeof objJoint.unit.unit !== 'string' || !ValidationUtils.isValidBase64(objJoint.unit.unit, constants.HASH_LENGTH))
+				return sendError(ws, 'invalid unit');
 			if (objJoint.ball && !storage.isGenesisUnit(objJoint.unit.unit))
 				return sendError(ws, 'only requested joint can contain a ball');
 			if (conf.bLight && !ws.bLightVendor)
@@ -2824,6 +2826,8 @@ function handleJustsaying(ws, subject, body){
 			var message_hash = body;
 			if (!message_hash)
 				return sendError(ws, "no message hash");
+			if (typeof message_hash !== 'string' || !ValidationUtils.isValidBase64(message_hash, constants.HASH_LENGTH))
+				return sendError(ws, "invalid message hash");
 			if (!ws.device_address)
 				return sendError(ws, "please log in first");
 			db.query("DELETE FROM device_messages WHERE device_address=? AND message_hash=?", [ws.device_address, message_hash], function(){
@@ -3395,7 +3399,7 @@ function handleRequest(ws, tag, command, params){
 								"INSERT "+db.getIgnore()+" INTO watched_light_addresses (peer, address) VALUES "+
 								params.addresses.map(function(address){ return "("+db.escape(ws.peer)+", "+db.escape(address)+")"; }).join(", ")
 							);
-						if (params.requested_joints) {
+						if (params.requested_joints && ValidationUtils.isNonemptyArray(params.requested_joints)) {
 							storage.sliceAndExecuteQuery("SELECT unit FROM units WHERE main_chain_index >= ? AND unit IN(?)",
 								[storage.getMinRetrievableMci(), params.requested_joints], params.requested_joints, function(rows) {
 								if(rows.length) {
@@ -3458,6 +3462,8 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "no params in light/get_attestation");
 			if (!params.attestor_address || !params.field || !params.value)
 				return sendErrorResponse(ws, tag, "missing params in light/get_attestation");
+			if (typeof params.attestor_address !== 'string' || typeof params.field !== 'string' || typeof params.value !== 'string')
+				return sendErrorResponse(ws, tag, "invalid params in light/get_attestation");
 			var order = (conf.storage === 'sqlite') ? 'rowid' : 'creation_date';
 			var join = (conf.storage === 'sqlite') ? '' : 'JOIN units USING(unit)';
 			db.query(
@@ -3475,7 +3481,7 @@ function handleRequest(ws, tag, command, params){
 			if (!params)
 				return sendErrorResponse(ws, tag, "no params in light/get_attestations");
 			if (!ValidationUtils.isValidAddress(params.address))
-				return sendErrorResponse(ws, tag, "missing address in light/get_attestations");
+				return sendErrorResponse(ws, tag, "invalid address in light/get_attestations");
 			var order = (conf.storage === 'sqlite') ? 'attestations.rowid' : 'creation_date';
 			var join = (conf.storage === 'sqlite') ? '' : 'JOIN units USING(unit)';
 			db.query(
