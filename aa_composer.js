@@ -1422,10 +1422,19 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 					delta_storage_size -= var_name.length + getValueSize(state.original_old_value);
 			}
 			else {
+				try {
+					var newSize = getValueSize(state.value);
+				}
+				catch (e) {
+					console.log("failed to get size of new value of state var " + var_name + ": ", e);
+					return cb("invalid new value of state var " + var_name);
+				}
+				if (newSize > constants.MAX_STATE_VAR_VALUE_LENGTH)
+					return cb(`state var value too long: ${newSize}`);
 				if (state.original_old_value !== undefined)
-					delta_storage_size += getValueSize(state.value) - getValueSize(state.original_old_value);
+					delta_storage_size += newSize - getValueSize(state.original_old_value);
 				else
-					delta_storage_size += var_name.length + getValueSize(state.value);
+					delta_storage_size += var_name.length + newSize;
 			}
 		}
 		console.log('storage size = ' + storage_size + ' + ' + delta_storage_size + ', byte_balance = ' + byte_balance);
