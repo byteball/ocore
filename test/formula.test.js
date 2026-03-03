@@ -3226,6 +3226,16 @@ test('function whose args shadow local variables', t => {
 	})
 });
 
+test('function whose argument shadows a calculated local variable name', t => {
+	var trigger = { data: {  } };
+	var stateVars = {};
+	var locals = { };
+	var formula = `\${'a'||''}=2; $f = ($a) => {$x=$a; 2*$x}; $f(3)`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
 test('function local var not visible outside its scope', t => {
 	var trigger = { data: {  } };
 	var stateVars = {};
