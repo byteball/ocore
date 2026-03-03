@@ -3589,6 +3589,22 @@ test('referencing a function by calculated name without calling it', t => {
 	})
 });
 
+test('using a calculated name to assign a scalar value to a function', t => {
+	var trigger = { data: { cond: 0 } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		if (trigger.data.cond) {
+			$f = ($a) => $a + 1;
+		}
+		\${'f' || ''} = 42;
+		var['result'] = $f(5);
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bStateVarAssignmentAllowed: true, bStatementsOnly: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
 test('function that returns value using return statement, bStatementsOnly=true', t => {
 	var trigger = { data: {  } };
 	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };

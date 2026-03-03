@@ -2447,7 +2447,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 				if (!func)
 					return setFatalError("no such function: " + func_name, { arr }, false, cb);
 				if (!(func instanceof Func))
-					throw Error("not a function: " + func_name);
+					return setFatalError("not a function: " + func_name, { arr }, false, cb);
 				var args = [];
 				async.eachSeries(
 					arrExpressions,
