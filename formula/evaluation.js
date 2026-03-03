@@ -1595,7 +1595,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 						return cb(false);
 					if (!ValidationUtils.isValidAddress(evaluated_address))
 						return setFatalError("bad address in is_valid_signed_package: " + evaluated_address, { arr }, false, cb);
-					evaluate(signed_package_expr, function (signedPackage) {
+					evaluate(signed_package_expr, async function (signedPackage) {
 						if (fatal_error)
 							return cb(false);
 						if (!(signedPackage instanceof wrappedObject))
@@ -1609,6 +1609,11 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 							const fVersion = parseFloat(signedPackage.version);
 							const maxVersion = 4; // depends on mci in the future updates
 							if (fVersion > maxVersion)
+								return cb(false);
+						}
+						if (typeof signedPackage.last_ball_unit === 'string') {
+							const [row] = await conn.query("SELECT main_chain_index FROM units WHERE unit=?", [signedPackage.last_ball_unit]);
+							if (!row || row.main_chain_index > mci) // not existing or not stable last ball unit
 								return cb(false);
 						}
 						signed_message.validateSignedMessage(conn, signedPackage, evaluated_address, function (err, last_ball_mci) {
