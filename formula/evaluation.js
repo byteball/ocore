@@ -1212,7 +1212,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 						var body = rhs[2];
 						var scopeVarNames = Object.keys(locals);
 						if (args.indexOf(var_name) >= 0)
-							throw Error("arg name cannot be the same as func name in evaluation");
+							return setFatalError("arg name cannot be the same as func name in evaluation", { arr }, false, cb); // should never happen as already checked in validation
 						if (_.intersection(args, scopeVarNames).length > 0)
 							return setFatalError("some args of " + var_name + " would shadow some local vars", { arr }, false, cb);
 						assignField(locals, var_name, new Func(args, body, scopeVarNames, formula, xpath));
