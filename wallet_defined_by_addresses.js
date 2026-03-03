@@ -341,7 +341,13 @@ function handleNewSharedAddress(body, callbacks){
 		return callbacks.ifError("invalid definition");
 	if (typeof body.signers !== "object" || Object.keys(body.signers).length === 0)
 		return callbacks.ifError("invalid signers");
-	if (body.address !== objectHash.getChash160(body.definition))
+	try {
+		var addr = objectHash.getChash160(body.definition);
+	}
+	catch (e) {
+		return callbacks.ifError("invalid definition: " + e);
+	}
+	if (body.address !== addr)
 		return callbacks.ifError("definition doesn't match its c-hash");
 	for (var signing_path in body.signers){
 		var signerInfo = body.signers[signing_path];

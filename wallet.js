@@ -480,8 +480,13 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 							if (body.authors.length !== 1)
 								return callbacks.ifError("wrong number of authors received");
 							var author = body.authors[0];
-							if (author.definition && (author.address !== objectHash.getChash160(author.definition)))
-								return callbacks.ifError("incorrect definition received");
+							try {
+								if (author.definition && (author.address !== objectHash.getChash160(author.definition)))
+									return callbacks.ifError("incorrect definition received");
+							}
+							catch (e) {
+								return callbacks.ifError("invalid definition: " + e);
+							}
 							if (!ValidationUtils.isValidAddress(author.address) || author.address !== objContract.peer_address)
 								return callbacks.ifError("incorrect author address");
 							// this can happen when acceptor and offerer have same device in cosigners
@@ -714,8 +719,13 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 							if (body.authors.length !== 1)
 								return callbacks.ifError("wrong number of authors received");
 							var author = body.authors[0];
-							if (author.definition && (author.address !== objectHash.getChash160(author.definition)))
-								return callbacks.ifError("incorrect definition received");
+							try {
+								if (author.definition && (author.address !== objectHash.getChash160(author.definition)))
+									return callbacks.ifError("incorrect definition received");
+							}
+							catch (e) {
+								return callbacks.ifError("invalid definition: " + e);
+							}
 							if (!ValidationUtils.isValidAddress(author.address) || author.address !== objContract.peer_address)
 								return callbacks.ifError("incorrect author address");
 							// this can happen when acceptor and offerer have same device in cosigners

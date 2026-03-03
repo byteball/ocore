@@ -4,6 +4,7 @@ var async = require('async');
 var db = require('./db.js');
 var constants = require('./constants.js');
 var conf = require('./conf.js');
+var string_utils = require("./string_utils.js");
 var objectHash = require('./object_hash.js');
 var ecdsaSig = require('./signature.js');
 var _ = require('lodash');
@@ -150,6 +151,12 @@ function validateSignedMessage(conn, objSignedMessage, address, handleResult) {
 		the_author = authors[0];
 	}
 	var objAuthor = the_author;
+	try { // check for nulls and empty objects, this makes getChash160 safe on all authors, not just the signer
+		string_utils.getJsonSourceString(objSignedMessage);
+	}
+	catch (e) {
+		return handleResult("invalid signed message: " + e);
+	}
 	var bNetworkAware = ("last_ball_unit" in objSignedMessage);
 	if (bNetworkAware && !ValidationUtils.isValidBase64(objSignedMessage.last_ball_unit, constants.HASH_LENGTH))
 		return handleResult("invalid last_ball_unit");
