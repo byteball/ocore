@@ -2929,7 +2929,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 			if (value === undefined) // no argument passed
 				value = false;
 			if (hasOwnProperty(func_locals, arg_name))
-				throw Error("argument " + arg_name + " would shadow a local var");
+				return setFatalError("argument " + arg_name + " would shadow a local var", { arr: [] }, false, cb);
 			assignField(func_locals, arg_name, toOscriptType(value));
 		}
 		var saved_locals = _.clone(locals);
