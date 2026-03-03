@@ -2928,7 +2928,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 			var value = args[i];
 			if (value === undefined) // no argument passed
 				value = false;
-			if (func_locals[arg_name] !== undefined)
+			if (hasOwnProperty(func_locals, arg_name))
 				throw Error("argument " + arg_name + " would shadow a local var");
 			assignField(func_locals, arg_name, toOscriptType(value));
 		}
@@ -3174,7 +3174,7 @@ function callGetter(conn, aa_address, getter, args, stateVars, objValidationStat
 		exports.evaluate(opts, astTrace, xpath, function (err, res) {
 			if (res === null) 
 				return cb(err.formattedError || "formula " + f + " failed: " + err);
-			if (!locals[getter])
+			if (!hasOwnProperty(locals, getter))
 				return cb("no such getter: " + JSON.stringify(getter));
 			if (!(locals[getter] instanceof Func))
 				return cb(getter + " is not a function");

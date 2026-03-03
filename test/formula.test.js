@@ -4221,6 +4221,21 @@ test('__proto__ function', t => {
 	})
 });
 
+test('__proto__ as function argument', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$f = $__proto__ => $__proto__^2;
+		$x = $f(3);
+		$x
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 9);
+		t.deepEqual(complexity, 2);
+	})
+});
+
 test('mutating objects', t => {
 	var trigger = { data: { q: { a: 6 } } };
 	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
