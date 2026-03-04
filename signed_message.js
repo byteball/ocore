@@ -232,17 +232,23 @@ function validateSignedMessage(conn, objSignedMessage, address, handleResult) {
 		catch (e) {
 			return handleResult("failed to calc unit_hash_to_sign: " + e);
 		}
-		// passing db as null
-		Definition.validateAuthentifiers(
-			conn, objAuthor.address, null, arrAddressDefinition, objUnit, objValidationState, objAuthor.authentifiers,
-			function (err, res) {
-				if (err) // error in address definition
-					return handleResult(err);
-				if (!res) // wrong signature or the like
-					return handleResult("authentifier verification failed");
-				handleResult(null, last_ball_mci);
-			}
-		);
+		try {
+			// passing db as null
+			Definition.validateAuthentifiers(
+				conn, objAuthor.address, null, arrAddressDefinition, objUnit, objValidationState, objAuthor.authentifiers,
+				function (err, res) {
+					if (err) // error in address definition
+						return handleResult(err);
+					if (!res) // wrong signature or the like
+						return handleResult("authentifier verification failed");
+					handleResult(null, last_ball_mci);
+				}
+			);
+		}
+		catch (e) {
+			console.log("exception while validating signed message:", e);
+			return handleResult("exception while validating: " + e);
+		}
 	});
 }
 

@@ -440,6 +440,8 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 					return cb("no feed_name");
 				if (feed_name.length > constants.MAX_DATA_FEED_NAME_LENGTH)
 					return cb("feed_name too long");
+				if (!isNonemptyString(element))
+					return cb("no element");
 			//	if (!isStringOfLength(element_hash, constants.HASH_LENGTH))
 			//		return cb("incorrect length of element hash");
 				if (!element.match(/[\w ~,.\/\\;:!@#$%^&*\(\)=+\[\]\{\}<>\?|-]{1,100}/))
