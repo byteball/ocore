@@ -144,6 +144,12 @@ function validateSignedMessage(conn, objSignedMessage, address, handleResult) {
 			return handleResult("not valid address");
 		if (!ValidationUtils.isNonemptyObject(author.authentifiers))
 			return handleResult("no authentifiers");
+		for (let path in author.authentifiers) {
+			if (!ValidationUtils.isNonemptyString(author.authentifiers[path]))
+				return handleResult("authentifiers must be nonempty strings");
+			if (author.authentifiers[path].length > constants.MAX_AUTHENTIFIER_LENGTH)
+				return handleResult("authentifier too long");
+		}
 	}
 	if (!the_author) {
 		if (address)

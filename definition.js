@@ -703,7 +703,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				
 			case 'hash':
 				// ['hash', {algo: 'sha256', hash: 'base64'}]
-				if (!assocAuthentifiers[path])
+				if (!assocAuthentifiers[path] || typeof assocAuthentifiers[path] !== 'string')
 					return cb2(false);
 				arrUsedPaths.push(path);
 				var algo = args.algo || 'sha256';
