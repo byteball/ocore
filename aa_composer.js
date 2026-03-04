@@ -714,7 +714,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 					if (err !== 'done')
 						return cb(err);
 					var replacement_value = thecase[name];
-					if (!replacement_value)
+					if (!ValidationUtils.hasOwnProperty(thecase, name))
 						throw Error("a case was selected but no replacement value in " + name);
 					assignField(obj, name, replacement_value);
 					if (!thecase.init)

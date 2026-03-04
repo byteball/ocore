@@ -1879,3 +1879,42 @@ test.cb.serial('invalid state var name', t => {
 		});
 	});
 });
+
+test.cb.serial('cases in payload with falsy value', t => {
+	var trigger_address = "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT";
+	var trigger = { outputs: { base: 10000 }, data: { x: 5 }, address: trigger_address };
+	
+	var aa = ['autonomous agent', {
+		messages: [{
+			app: 'data',
+			payload: {
+				key: {
+					cases: [
+						{ key: 0 }
+					]
+				}
+			}
+		}]
+	}];
+
+
+	validateAA(aa, async err => {
+		t.deepEqual(err, null);
+
+		var aa_address = objectHash.getChash160(aa);
+		await asyncAddAA(aa);
+		
+		aa_composer.dryRunPrimaryAATrigger(trigger, aa_address, aa, (arrResponses) => {
+			t.deepEqual(arrResponses.length, 1);
+			t.deepEqual(arrResponses[0].bounced, false);
+			t.deepEqual(arrResponses[0].objResponseUnit.messages.find(function (message) { return (message.app === 'data'); }).payload, { key: 0 });
+			fixCache();
+			t.deepEqual(storage.assocUnstableUnits, old_cache.assocUnstableUnits);
+			t.deepEqual(storage.assocStableUnits, old_cache.assocStableUnits);
+			t.deepEqual(storage.assocUnstableMessages, old_cache.assocUnstableMessages);
+			t.deepEqual(storage.assocBestChildren, old_cache.assocBestChildren);
+			t.deepEqual(storage.assocStableUnitsByMci, old_cache.assocStableUnitsByMci);
+			t.end();
+		});
+	});
+});
