@@ -1121,7 +1121,7 @@ function handleJoint(ws, objJoint, bSaved, bPosted, callbacks){
 							console.log(`dry run trigger for AA address ${address} in submitted unit ${unit}`);
 							const trigger = aa_composer.getTrigger(objJoint.unit, address);
 							// if it would crash, let it crash now, not when we execute the trigger for real
-							await aa_composer.dryRunPrimaryAATrigger(trigger, address, JSON.parse(definition), objJoint);
+							await aa_composer.dryRunPrimaryAATrigger(trigger, address, JSON.parse(definition));
 						}
 					}
 					writer.saveJoint(objJoint, objValidationState, null, function(){
