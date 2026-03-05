@@ -133,11 +133,30 @@ function validateSignedMessage(conn, objSignedMessage, address, handleResult) {
 		return handleResult("no authors");
 	if (!address && !ValidationUtils.isArrayOfLength(authors, 1))
 		return handleResult("authors not an array of len 1");
+	if (authors.length > constants.MAX_AUTHORS_PER_UNIT)
+		return handleResult("too many authors");
+	var prev_address = "";
 	var the_author;
 	for (var i = 0; i < authors.length; i++){
 		var author = authors[i];
+		if (author.address <= prev_address)
+			return handleResult("author addresses not sorted");
+		prev_address = author.address;
 		if (ValidationUtils.hasFieldsExcept(author, ['address', 'definition', 'authentifiers']))
 			return handleResult("foreign fields in author");
+		if ("definition" in author) {
+			if (!ValidationUtils.isArrayOfLength(author.definition, 2))
+				return handleResult("definition must be an array of length 2");
+			if (author.definition[0] === 'autonomous agent')
+				return handleResult('AA cannot be defined in authors');
+			try {
+				if (objectHash.getChash160(author.definition) !== author.address)
+					return handleResult("wrong definition: " + objectHash.getChash160(author.definition) + "!==" + author.address);
+			}
+			catch (e) {
+				return handleResult("failed to calc address definition hash: " + e);
+			}
+		}
 		if (author.address === address)
 			the_author = author;
 		else if (!ValidationUtils.isValidAddress(author.address))

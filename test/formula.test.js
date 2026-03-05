@@ -6223,3 +6223,47 @@ test.cb('is_valid_signed_package with bad hash authentifier', t => {
 	})
 });
 
+
+test.cb('is_valid_signed_package with duplicate addresses', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = {};
+	var pubkey = crypto.randomBytes(33).toString('base64');
+
+	var innerDefinition = ["sig", { pubkey: pubkey }];
+	var innerAddr = objectHash.getChash160(innerDefinition);
+	var outerDefinition = ["address", innerAddr];
+	var outerAddr = objectHash.getChash160(outerDefinition);
+
+	var formula = `
+		$pkg = {
+			signed_message: "test",
+			last_ball_unit: 'oXGOcA9TQx8Tl5Syjp1d5+mB4xicsRk3kbcE82YQAS0=',
+			authors: [
+				{
+					address: '${outerAddr}',
+					definition: ${JSON.stringify(outerDefinition)},
+					authentifiers: {"r": "dummy_signature"}
+				},
+				{
+					address: '${innerAddr}',
+					definition: ${JSON.stringify(innerDefinition)},
+					authentifiers: {"r": "dummy_signature"}
+				},
+				{
+					address: '${innerAddr}',
+					definition: ${JSON.stringify(innerDefinition)},
+					authentifiers: {"r": "dummy_signature"}
+				}
+			]
+		};
+		$result = is_valid_signed_package($pkg, '${outerAddr}');
+		$result
+	`;
+	evalFormulaWithVars({ conn: db, formula, trigger, locals, stateVars, objValidationState,  bObjectResultAllowed: true, address: 'I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, false);
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});
+
