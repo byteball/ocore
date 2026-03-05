@@ -932,7 +932,7 @@ function handleResponseToJointRequest(ws, request, response){
 		return;
 	}
 	var objJoint = response.joint;
-	if (!objJoint.unit || !objJoint.unit.unit)
+	if (!objJoint.unit || !objJoint.unit.unit || typeof objJoint.unit.unit !== 'string')
 		return sendError(ws, 'no unit');
 	var unit = objJoint.unit.unit;
 	if (request.params !== unit)
@@ -1026,6 +1026,8 @@ function handleJoint(ws, objJoint, bSaved, bPosted, callbacks){
 	if ('aa' in objJoint)
 		return callbacks.ifJointError("AA unit cannot be broadcast");
 	var unit = objJoint.unit.unit;
+	if (typeof unit !== 'string')
+		return callbacks.ifJointError("invalid unit");
 	if (assocUnitsInWork[unit])
 		return callbacks.ifUnitInWork();
 	assocUnitsInWork[unit] = true;
@@ -1097,7 +1099,7 @@ function handleJoint(ws, objJoint, bSaved, bPosted, callbacks){
 					callbacks.ifNeedParentUnits(arrMissingUnits);
 					unlock();
 				},
-				ifOk: function(objValidationState, validation_unlock){
+				ifOk: async function(objValidationState, validation_unlock){
 					clearHost();
 					if (objJoint.unsigned)
 						throw Error("ifOk() unsigned");
@@ -1109,6 +1111,18 @@ function handleJoint(ws, objJoint, bSaved, bPosted, callbacks){
 						if (ws)
 							writeEvent('nonserial', ws.host);
 						return;
+					}
+					if (conf.bDryRunNewTriggers && !conf.bLight && !objJoint.ball) {
+						const outputAddresses = objJoint.unit.messages
+							.filter(msg => msg.app === 'payment')
+							.reduce((acc, msg) => acc.concat(msg.payload.outputs.map(output => output.address)), []);
+						const rows = await db.query("SELECT address, definition FROM aa_addresses WHERE address IN (?)", [outputAddresses]);
+						for (let { address, definition } of rows) {
+							console.log(`dry run trigger for AA address ${address} in submitted unit ${unit}`);
+							const trigger = aa_composer.getTrigger(objJoint.unit, address);
+							// if it would crash, let it crash now, not when we execute the trigger for real
+							await aa_composer.dryRunPrimaryAATrigger(trigger, address, JSON.parse(definition), objJoint);
+						}
 					}
 					writer.saveJoint(objJoint, objValidationState, null, function(){
 						validation_unlock();
@@ -1156,7 +1170,7 @@ function handleJoint(ws, objJoint, bSaved, bPosted, callbacks){
 // handle joint posted to me by a light client
 function handlePostedJoint(ws, objJoint, onDone){
 	
-	if (!objJoint || !objJoint.unit || !objJoint.unit.unit)
+	if (!objJoint || !objJoint.unit || !objJoint.unit.unit || typeof objJoint.unit.unit !== 'string')
 		return onDone('no unit');
 	
 	var unit = objJoint.unit.unit;

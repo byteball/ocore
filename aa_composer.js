@@ -257,6 +257,8 @@ function validateAATriggerObject(trigger, handle) {
 }
 
 function dryRunPrimaryAATrigger(trigger, address, arrDefinition, onDone) {
+	if (!onDone)
+		return new Promise(resolve => dryRunPrimaryAATrigger(trigger, address, arrDefinition, resolve));
 	console.log('dry run', address, trigger);
 	db.takeConnectionFromPool(function (conn) {
 		conn.query("BEGIN", function () {
