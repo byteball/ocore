@@ -1540,6 +1540,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 							if (sequence !== 'good') // bad units don't exist for us
 								return cb(false);
 							var objUnit = objJoint.unit;
+							objectHash.cleanNulls(objUnit); // removes actual_tps_fee which is null in AA responses
 							if (objUnit.version === constants.versionWithoutTimestamp)
 								objUnit.timestamp = 0;
 							var unit_mci = objUnit.main_chain_index;

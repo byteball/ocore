@@ -2834,6 +2834,48 @@ test.cb('unit selector and var', t => {
 	})
 });
 
+test.cb('unit with null field', t => {
+	const db = require("../db");
+	const kvstore = require("../kvstore");
+	let fakeUnit = {
+		version: '4.0dev',
+		alt: '2',
+		messages: [{
+			app: 'payment',
+			payload_location: 'inline',
+			payload_hash: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+			payload: {
+				outputs: [{ address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', amount: 1000 }],
+				inputs: [{ unit: constants.GENESIS_UNIT, message_index: 0, output_index: 0 }]
+			}
+		}],
+		authors: [{ address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }],
+		parent_units: [constants.GENESIS_UNIT],
+		last_ball_unit: constants.GENESIS_UNIT,
+		last_ball: 'oiIA6Y/BBKMiRiQNBJijpADBVnCKJN6oG7Z2OcbRnMA=',
+		headers_commission: 100,
+		payload_commission: 100,
+		timestamp: 1700000000
+	};
+	const unit = objectHash.getUnitHash(fakeUnit);
+	fakeUnit.unit = unit;
+	// actual_tps_fee is null
+	db.query(`INSERT INTO units (unit, headers_commission, payload_commission, is_free, main_chain_index, is_stable, is_on_main_chain, witness_list_unit, witnessed_level, level, timestamp, version) VALUES ('${unit}', 300, 300, 0, 500, 1, 1, 'oj8yEksX9Ubq7lLc+p6F2uyHUuynugeVq4+ikT67X6E=', 450, 500, 1.5e9, '4.0')`, () => {
+		const batch = kvstore.batch();
+		const jointJson = JSON.stringify({ unit: fakeUnit });
+		batch.put('j\n' + unit, jointJson);
+		batch.write(function () {
+			const trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: {} };
+			let stateVars = {};
+			evalFormulaWithVars({ conn: db, formula: `$u = unit['${unit}']; require($u, 'no unit'); $fee = $u.actual_tps_fee; $fee`, trigger: trigger, locals: {}, stateVars: stateVars, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops) => {
+				t.deepEqual(res, false);
+				t.deepEqual(complexity, 2);
+				t.end();
+			})
+		});
+	});
+});
+
 test.cb('unit not found', t => {
 	var db = require("../db");
 	var trigger = { address: "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT", data: { messages: [{app: 'payment', payload: {asset: 'sss', outputs: [{amount: '1000', address: 'ADDR'}]}}, {app: 'profile', payload: {name: 'John', age: 88}}, {app: 'payment', payload: {outputs: [{amount: 5000, address: 'ADDR2'}]}},] }  };
