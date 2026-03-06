@@ -1418,6 +1418,7 @@ function hasReferences(arrDefinition){
 			case 'in data feed':
 			case 'in merkle':
 			case 'mci':
+			case 'timestamp':
 			case 'age':
 			case 'has':
 			case 'has one':
