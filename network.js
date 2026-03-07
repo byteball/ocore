@@ -3302,8 +3302,12 @@ function handleRequest(ws, tag, command, params){
 			db.query("SELECT pubkey, temp_pubkey_package FROM devices WHERE device_address=?", [objDeviceMessage.to], function(rows){
 				if (rows.length === 0)
 					return sendErrorResponse(ws, tag, "address "+objDeviceMessage.to+" not registered here");
-				var objTempPubkey = JSON.parse(rows[0].temp_pubkey_package);
-				if (![rows[0].pubkey, objTempPubkey.temp_pubkey].includes(objDeviceMessage.encrypted_package.dh.recipient_ephemeral_pubkey))
+				let keys = [rows[0].pubkey];
+				if (rows[0].temp_pubkey_package) {
+					var objTempPubkey = JSON.parse(rows[0].temp_pubkey_package);
+					keys.push(objTempPubkey.temp_pubkey);
+				}
+				if (!keys.includes(objDeviceMessage.encrypted_package.dh.recipient_ephemeral_pubkey))
 					return sendErrorResponse(ws, tag, "wrong recipient ephemeral pubkey");
 				var message_hash = objectHash.getBase64Hash(objDeviceMessage);
 				var message_string = JSON.stringify(objDeviceMessage);
