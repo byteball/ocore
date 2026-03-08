@@ -1187,6 +1187,12 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 		}
 		var objBasePaymentMessage;
 		var arrOutputAddresses = [];
+		const addOutputAddresses = (outputs) => {
+			outputs.forEach(function (output) {
+				if (output.address !== address && arrOutputAddresses.indexOf(output.address) === -1)
+					arrOutputAddresses.push(output.address);
+			});
+		};
 		var assetInfos = {};
 		async.eachSeries(
 			messages,
@@ -1203,12 +1209,6 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 					return cb();
 				}
 				var payload = message.payload;
-				var addOutputAddresses = () => {
-					payload.outputs.forEach(function (output) {
-						if (output.address !== address && arrOutputAddresses.indexOf(output.address) === -1)
-							arrOutputAddresses.push(output.address);
-					});
-				};
 				if (payload.asset === 'base')
 					delete payload.asset;
 				var asset = payload.asset || null;
@@ -1216,7 +1216,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 					if (objBasePaymentMessage)
 						return cb("already have base payment");
 					objBasePaymentMessage = message;
-					addOutputAddresses();
+					// we'll add output addresses later, after possibly removing a send-all output
 					return cb(); // skip it for now, we can estimate the fees only after all other messages are in place
 				}
 				storage.loadAssetWithListOfAttestedAuthors(conn, asset, mci, [address], true, function (err, objAsset) {
@@ -1228,7 +1228,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 					completePaymentPayload(payload, 0, function (err) {
 						if (err)
 							return cb(err);
-						addOutputAddresses();
+						addOutputAddresses(payload.outputs);
 						if (payload.outputs.length > 0) // send-all output might get removed while being the only output
 							completeMessage(message);
 						cb();
@@ -1281,6 +1281,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 					//	console.log('--- completePaymentPayload', err);
 						if (err)
 							return bounce(err);
+						addOutputAddresses(objBasePaymentMessage.payload.outputs);
 						completeMessage(objBasePaymentMessage); // fixes payload_hash
 						objUnit.payload_commission = objectLength.getTotalPayloadSize(objUnit);
 						const oversize_fee = (mci >= constants.v4UpgradeMci) ? storage.getOversizeFee(objUnit, mci) : 0;
