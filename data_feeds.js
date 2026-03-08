@@ -258,6 +258,8 @@ function readDataFeedValue(arrAddresses, feed_name, value, min_mci, max_mci, uns
 					return -1;
 				if (a.level > b.level)
 					return 1;
+				if (bIncludeAllUnstable) // still ambiguous, sort randomly (it's OK outside AAs)
+					return 1;
 				throw Error("can't sort candidates "+a+" and "+b);
 			});
 			var feed = arrCandidates[arrCandidates.length - 1];
