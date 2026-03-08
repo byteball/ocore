@@ -16,7 +16,7 @@ CREATE TABLE units (
 	max_aa_responses INT NULL,
 	count_aa_responses INT NULL, -- includes responses without a response unit
 	is_aa_response TINYINT NULL,
-	count_primary_aa_triggers TINYINT NULL,
+	count_primary_aa_triggers INT NULL,
 	is_free TINYINT NOT NULL DEFAULT 1,
 	is_on_main_chain TINYINT NOT NULL DEFAULT 0,
 	main_chain_index INT NULL, -- when it first appears
@@ -981,7 +981,7 @@ CREATE TABLE system_vars (
 CREATE TABLE tps_fees_balances (
 	address CHAR(32) NOT NULL,
 	mci INT NOT NULL,
-	tps_fees_balance INT NOT NULL DEFAULT 0, -- can be negative
+	tps_fees_balance BIGINT NOT NULL DEFAULT 0, -- can be negative
 	creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (address, mci DESC)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;

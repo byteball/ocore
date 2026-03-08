@@ -1693,7 +1693,7 @@ async function countVotes(conn, mci, subject, is_emergency = 0, emergency_count_
 
 	await conn.query(`CREATE TEMPORARY TABLE voter_balances (
 		address CHAR(32) NOT NULL PRIMARY KEY,
-		balance INT NOT NULL
+		balance BIGINT NOT NULL
 	)`);
 	await conn.query(`INSERT INTO voter_balances (address, balance) VALUES ` + values.join(', '));
 
