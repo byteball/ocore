@@ -1112,7 +1112,7 @@ function handleJoint(ws, objJoint, bSaved, bPosted, callbacks){
 							writeEvent('nonserial', ws.host);
 						return;
 					}
-					if (conf.bDryRunNewTriggers && !conf.bLight && !objJoint.ball) {
+					if (conf.bDryRunNewTriggers && !conf.bLight && !objJoint.ball && objValidationState.count_primary_aa_triggers) {
 						const outputAddresses = objJoint.unit.messages
 							.filter(msg => msg.app === 'payment')
 							.reduce((acc, msg) => acc.concat(msg.payload.outputs.map(output => output.address)), []);
