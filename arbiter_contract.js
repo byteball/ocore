@@ -489,7 +489,7 @@ function createSharedAddressAndPostUnit(hash, walletInstance, cb) {
 						device_address: contract.peer_device_address
 					},
 				};
-				require("ocore/wallet_defined_by_addresses.js").createNewSharedAddress(arrDefinition, assocSignersByPath, {
+				require("./wallet_defined_by_addresses.js").createNewSharedAddress(arrDefinition, assocSignersByPath, {
 					ifError: function(err){
 						cb(err);
 					},
