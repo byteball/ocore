@@ -715,7 +715,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					if (body.status === "accepted" && !body.signed_message)
 						return callbacks.ifError("response is not signed");
 					var processResponse = function(objSignedMessage) {
-						if (body.authors && body.authors.length) {
+						if (body.authors && body.authors.length && objSignedMessage) {
 							if (body.authors.length !== 1)
 								return callbacks.ifError("wrong number of authors received");
 							var author = body.authors[0];
