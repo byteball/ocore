@@ -2783,7 +2783,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 		async.eachSeries(
 			arrKeys || [],
 			function (key, cb2) {
-				if (typeof value !== 'object')
+				if (typeof value !== 'object' || Decimal.isDecimal(value))
 					return cb2('not an object while trying to access key ' + JSON.stringify(key));
 				if (ValidationUtils.isArrayOfLength(key, 2) && key[0] === 'search_param_list') {
 					var arrPairs = key[1];
@@ -2809,7 +2809,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 						return setFatalError("result of " + JSON.stringify(key) + " is not a string or number: " + evaluated_key, { arr }, undefined, cb2);
 					if (typeof evaluated_key === 'string')
 						value = unwrapOneElementArrays(value);
-					if (!hasOwnProperty(value, evaluated_key))
+					if (!hasOwnProperty(value, evaluated_key) || Decimal.isDecimal(value))
 						return cb2("no such key in data");
 					value = value[evaluated_key];
 					cb2();

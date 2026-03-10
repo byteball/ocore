@@ -2303,6 +2303,26 @@ test('json_parse [null]', t => {
 	})
 });
 
+test('constructor on decimal', t => {
+	var trigger = { data: { z: ['z', 9, 'ak'], ww: {dd: 'h', aa: 8}} };
+	var stateVars = {  };
+	evalFormulaWithVars({
+		conn: null, formula: `
+			$x = 5;
+			$y = $x.constructor;
+			$ob = {a:$x};
+			$z = $ob.a.constructor;
+			$ar = [5];
+			$w = $ar[0].constructor;
+			$q = $ar.constructor; // unwrapOneElementArrays
+		//	$ob.a.constructor.v = 6;
+			[$y, $z, $w, $q]
+		`, trigger: trigger, locals: {}, stateVars: stateVars, objValidationState: objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'
+	}, (res, complexity) => {
+		t.deepEqual(res, [false, false, false, false]);
+	})
+});
+
 test('this_address', t => {
 	var trigger = {  };
 	var stateVars = {  };
