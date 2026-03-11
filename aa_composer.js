@@ -362,7 +362,7 @@ function getTrigger(objUnit, receiving_address) {
 	objUnit.messages.forEach(function (message) {
 		if (message.app === 'data' && !trigger.data) // use the first data message, ignore the subsequent ones
 			trigger.data = message.payload;
-		else if (message.app === 'payment') {
+		else if (message.app === 'payment' && message.payload) {
 			var payload = message.payload;
 			var asset = payload.asset || 'base';
 			payload.outputs.forEach(function (output) {
