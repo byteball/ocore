@@ -655,15 +655,22 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 								return callbacks.ifError("contract was not accepted");
 							if (objContract.unit)
 								return callbacks.ifError("unit was already provided for this contract");
-							arbiter_contract.setField(objContract.hash, "status", "signed", null, true);
+							if (!ValidationUtils.isValidBase64(body.value, constants.HASH_LENGTH))
+								return callbacks.ifError("invalid unit hash provided");
+							if (!objContract.shared_address)
+								return callbacks.ifError("unit received while shared_address is not set yet");
+							arbiter_contract.handleReceivedSigningUnit(objContract, body.value, from_cosigner);
+							return callbacks.ifOk();
 						} else
 						if (body.field === "shared_address") {
 							if (objContract.status !== "accepted")
 								return callbacks.ifError("contract was not accepted");
 							if (objContract.shared_address)
-									return callbacks.ifError("shared_address was already provided for this contract");
+								return callbacks.ifError("shared_address was already provided for this contract");
 							if (!ValidationUtils.isValidAddress(body.value))
 								return callbacks.ifError("invalid address provided");
+							arbiter_contract.handleReceivedSharedAddress(objContract.hash, body.value, from_cosigner);
+							return callbacks.ifOk();
 						} else {
 							return callbacks.ifError("wrong field");
 						}

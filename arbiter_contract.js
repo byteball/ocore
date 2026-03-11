@@ -391,148 +391,205 @@ function getAllMyCosigners(hash, cb) {
 		});
 }
 
-// walletInstance should have "sendMultiPayment" function with appropriate signer inside
-function createSharedAddressAndPostUnit(hash, walletInstance, cb) {
-	getByHash(hash, function(contract) {
+function deriveSharedAddress(hash, bOfferor, cb) {
+	getByHash(hash, function (contract) {
+		const offeror_address = bOfferor ? contract.my_address : contract.peer_address;
+		const acceptor_address = bOfferor ? contract.peer_address : contract.my_address;
+		const offeror_is_payer = bOfferor ? contract.me_is_payer : !contract.me_is_payer;
+		const offeror_device_address = bOfferor ? device.getMyDeviceAddress() : contract.peer_device_address;
+		const acceptor_device_address = bOfferor ? contract.peer_device_address : device.getMyDeviceAddress();
 		arbiters.getArbstoreInfo(contract.arbiter_address, function(err, arbstoreInfo) {
 			if (err)
 				return cb(err);
-			storage.readAssetInfo(db, contract.asset, function(assetInfo) {
-			    var arrDefinition =
-				["or", [
-					["and", [
-						["address", contract.my_address],
-						["address", contract.peer_address]
-					]],
-					[], // placeholders [1][1]
-					[],	// placeholders [1][2]
-					["and", [
-				        ["address", contract.my_address],
-				        ["in data feed", [[contract.arbiter_address], "CONTRACT_" + contract.hash, "=", contract.my_address]]
-				    ]],
-				    ["and", [
-				        ["address", contract.peer_address],
-				        ["in data feed", [[contract.arbiter_address], "CONTRACT_" + contract.hash, "=", contract.peer_address]]
-				    ]]
-				]];
+			storage.readAssetInfo(db, contract.asset, function (assetInfo) {
+				var arrDefinition =
+					["or", [
+						["and", [
+							["address", offeror_address],
+							["address", acceptor_address]
+						]],
+						[], // placeholders [1][1]
+						[],	// placeholders [1][2]
+						["and", [
+							["address", offeror_address],
+							["in data feed", [[contract.arbiter_address], "CONTRACT_" + contract.hash, "=", offeror_address]]
+						]],
+						["and", [
+							["address", acceptor_address],
+							["in data feed", [[contract.arbiter_address], "CONTRACT_" + contract.hash, "=", acceptor_address]]
+						]]
+					]];
 				var isPrivate = assetInfo && assetInfo.is_private;
 				var isFixedDen = assetInfo && assetInfo.fixed_denominations;
 				var hasArbStoreCut = arbstoreInfo.cut > 0;
 				if (isPrivate) { // private asset
 					arrDefinition[1][1] = ["and", [
-				        ["address", contract.my_address],
-				        ["in data feed", [[contract.peer_address], "CONTRACT_DONE_" + contract.hash, "=", contract.my_address]]
-				    ]];
-				    arrDefinition[1][2] = ["and", [
-				        ["address", contract.peer_address],
-				        ["in data feed", [[contract.my_address], "CONTRACT_DONE_" + contract.hash, "=", contract.peer_address]]
-				    ]];
+						["address", offeror_address],
+						["in data feed", [[acceptor_address], "CONTRACT_DONE_" + contract.hash, "=", offeror_address]]
+					]];
+					arrDefinition[1][2] = ["and", [
+						["address", acceptor_address],
+						["in data feed", [[offeror_address], "CONTRACT_DONE_" + contract.hash, "=", acceptor_address]]
+					]];
 				} else {
 					arrDefinition[1][1] = ["and", [
-				        ["address", contract.my_address],
-				        ["has", {
-				            what: "output",
-				            asset: contract.asset || "base", 
-				            amount: contract.me_is_payer && !isFixedDen && hasArbStoreCut ? Math.floor(contract.amount * (1-arbstoreInfo.cut)) : contract.amount,
-				            address: contract.peer_address
-				        }]
-				    ]];
-				    arrDefinition[1][2] = ["and", [
-				        ["address", contract.peer_address],
-				        ["has", {
-				            what: "output",
-				            asset: contract.asset || "base", 
-				            amount: contract.me_is_payer || isFixedDen || !hasArbStoreCut ? contract.amount : Math.floor(contract.amount * (1-arbstoreInfo.cut)),
-				            address: contract.my_address
-				        }]
-				    ]];
-				    if (!isFixedDen && hasArbStoreCut) {
-				    	arrDefinition[1][contract.me_is_payer ? 1 : 2][1].push(
-					        ["has", {
-					            what: "output",
-					            asset: contract.asset || "base", 
-					            amount: contract.amount - Math.floor(contract.amount * (1-arbstoreInfo.cut)),
-					            address: arbstoreInfo.address
-					        }]
-					    );
-				    }
+						["address", offeror_address],
+						["has", {
+							what: "output",
+							asset: contract.asset || "base",
+							amount: offeror_is_payer && !isFixedDen && hasArbStoreCut ? Math.floor(contract.amount * (1 - arbstoreInfo.cut)) : contract.amount,
+							address: acceptor_address
+						}]
+					]];
+					arrDefinition[1][2] = ["and", [
+						["address", acceptor_address],
+						["has", {
+							what: "output",
+							asset: contract.asset || "base",
+							amount: offeror_is_payer || isFixedDen || !hasArbStoreCut ? contract.amount : Math.floor(contract.amount * (1 - arbstoreInfo.cut)),
+							address: offeror_address
+						}]
+					]];
+					if (!isFixedDen && hasArbStoreCut) {
+						arrDefinition[1][offeror_is_payer ? 1 : 2][1].push(
+							["has", {
+								what: "output",
+								asset: contract.asset || "base",
+								amount: contract.amount - Math.floor(contract.amount * (1 - arbstoreInfo.cut)),
+								address: arbstoreInfo.address
+							}]
+						);
+					}
 				}
 				var assocSignersByPath = {
 					"r.0.0": {
-						address: contract.my_address,
+						address: offeror_address,
 						member_signing_path: "r",
-						device_address: device.getMyDeviceAddress()
+						device_address: offeror_device_address
 					},
 					"r.0.1": {
-						address: contract.peer_address,
+						address: acceptor_address,
 						member_signing_path: "r",
-						device_address: contract.peer_device_address
+						device_address: acceptor_device_address
 					},
 					"r.1.0": {
-						address: contract.my_address,
+						address: offeror_address,
 						member_signing_path: "r",
-						device_address: device.getMyDeviceAddress()
+						device_address: offeror_device_address
 					},
 					"r.2.0": {
-						address: contract.peer_address,
+						address: acceptor_address,
 						member_signing_path: "r",
-						device_address: contract.peer_device_address
+						device_address: acceptor_device_address
 					},
 					"r.3.0": {
-						address: contract.my_address,
+						address: offeror_address,
 						member_signing_path: "r",
-						device_address: device.getMyDeviceAddress()
+						device_address: offeror_device_address
 					},
 					"r.4.0": {
-						address: contract.peer_address,
+						address: acceptor_address,
 						member_signing_path: "r",
-						device_address: contract.peer_device_address
+						device_address: acceptor_device_address
 					},
 				};
-				require("./wallet_defined_by_addresses.js").createNewSharedAddress(arrDefinition, assocSignersByPath, {
-					ifError: function(err){
-						cb(err);
-					},
-					ifOk: function(shared_address){
-						setField(contract.hash, "shared_address", shared_address, function(contract) {
-							// share this contract to my cosigners for them to show proper ask dialog
-							shareContractToCosigners(contract.hash);
-							shareUpdateToPeer(contract.hash, "shared_address");
-
-							// post a unit with contract text hash and send it for signing to correspondent
-							var value = {"contract_text_hash": contract.hash, "arbiter": contract.arbiter_address};
-							var objContractMessage = {
-								app: "data",
-								payload_location: "inline",
-								payload_hash: objectHash.getBase64Hash(value, true),
-								payload: value
-							};
-
-							walletInstance.sendMultiPayment({
-								spend_unconfirmed: walletInstance.spendUnconfirmed ? 'all' : 'own',
-								asset: "base",
-								to_address: shared_address,
-								amount: exports.CHARGE_AMOUNT,
-								arrSigningDeviceAddresses: contract.cosigners.length ? contract.cosigners.concat([contract.peer_device_address, device.getMyDeviceAddress()]) : [],
-								signing_addresses: [shared_address],
-								messages: [objContractMessage]
-							}, function(err, unit) { // can take long if multisig
-								if (err)
-									return cb(err);
-
-								// set contract's unit field
-								setField(contract.hash, "unit", unit, function(contract) {
-									shareUpdateToPeer(contract.hash, "unit");
-									setField(contract.hash, "status", "signed", function(contract) {
-										cb(null, contract);
-									});
-								});
-							});
-						});
-					}
-				});
+				cb(null, arrDefinition, assocSignersByPath);
 			});
 		});
+	});
+}
+
+// walletInstance should have "sendMultiPayment" function with appropriate signer inside
+function createSharedAddressAndPostUnit(hash, walletInstance, cb) {
+	deriveSharedAddress(hash, true, function(err, arrDefinition, assocSignersByPath) {
+		if (err)
+			return cb(err);
+		require("./wallet_defined_by_addresses.js").createNewSharedAddress(arrDefinition, assocSignersByPath, {
+			ifError: function(err){
+				cb(err);
+			},
+			ifOk: function(shared_address){
+				setField(hash, "shared_address", shared_address, function(contract) {
+					// share this contract to my cosigners for them to show proper ask dialog
+					shareContractToCosigners(contract.hash);
+					shareUpdateToPeer(contract.hash, "shared_address");
+
+					// post a unit with contract text hash and send it for signing to correspondent
+					var value = {"contract_text_hash": contract.hash, "arbiter": contract.arbiter_address};
+					var objContractMessage = {
+						app: "data",
+						payload_location: "inline",
+						payload_hash: objectHash.getBase64Hash(value, true),
+						payload: value
+					};
+
+					walletInstance.sendMultiPayment({
+						spend_unconfirmed: walletInstance.spendUnconfirmed ? 'all' : 'own',
+						asset: "base",
+						to_address: shared_address,
+						amount: exports.CHARGE_AMOUNT,
+						arrSigningDeviceAddresses: contract.cosigners.length ? contract.cosigners.concat([contract.peer_device_address, device.getMyDeviceAddress()]) : [],
+						signing_addresses: [shared_address],
+						messages: [objContractMessage]
+					}, function(err, unit) { // can take long if multisig
+						if (err)
+							return cb(err);
+
+						// set contract's unit field
+						setField(contract.hash, "unit", unit, function(contract) {
+							shareUpdateToPeer(contract.hash, "unit");
+							setField(contract.hash, "status", "signed", function(contract) {
+								cb(null, contract);
+							});
+						});
+					});
+				});
+			}
+		});
+	});
+}
+
+function handleReceivedSharedAddress(hash, shared_address, from_cosigner, retry_count = 0) {
+	console.log(`received shared address ${shared_address} for arbiter contract ${hash} from peer`);
+	db.query("SELECT 1 FROM shared_addresses WHERE shared_address=?", [shared_address], function (rows) {
+		if (rows.length === 0) {
+			if (retry_count >= 10)
+				return console.log(`shared address ${shared_address} not found in db after 10 retries, giving up`);
+			console.log(`shared address ${shared_address} not yet in db, waiting for 30 seconds and trying again`);
+			return setTimeout(handleReceivedSharedAddress, 30000, hash, shared_address, from_cosigner, retry_count + 1);
+		}
+		console.log(`shared address ${shared_address} found in db, deriving shared address definition to verify it matches the received one`);
+		deriveSharedAddress(hash, false, function (err, arrDefinition, assocSignersByPath) {
+			if (err) {
+				if (retry_count >= 10)
+					return console.log(`failed derivation of shared address ${shared_address} after 10 retries, giving up`, err);
+				console.log("error deriving shared address definition, will retry in 30 seconds", err);
+				return setTimeout(handleReceivedSharedAddress, 30000, hash, shared_address, from_cosigner, retry_count + 1);
+			}
+			const expected_shared_address = objectHash.getChash160(arrDefinition);
+			if (expected_shared_address !== shared_address)
+				return console.log(`expected shared address ${expected_shared_address} does not match received from offeror ${shared_address}`, JSON.stringify(arrDefinition, null, 2));
+			console.log(`shared address ${expected_shared_address} matches the received one, setting it to the contract and sharing with cosigners`);
+			setField(hash, "shared_address", shared_address, function (contract) {
+				eventBus.emit("arbiter_contract_update", contract, "shared_address", shared_address);
+			}, from_cosigner);
+		});
+	});
+}
+
+function handleReceivedSigningUnit(contract, unit, from_cosigner, retry_count = 0) {
+	db.query("SELECT 1 FROM unit_authors WHERE unit=? AND address=?", [unit, contract.shared_address], function (rows) {
+		if (rows.length === 0) {
+			if (retry_count >= 10)
+				return console.log(`signing tx ${unit} not found in db after 10 retries, giving up`);
+			console.log(`signing tx ${unit} not yet in db, waiting for 30 seconds and trying again`);
+			return setTimeout(handleReceivedSigningUnit, 30000, contract, unit, from_cosigner, retry_count + 1);
+		}
+		console.log(`signing tx ${unit} found in db, setting contract's unit and status to signed`);
+		setField(contract.hash, "status", "signed", null, true);
+		setField(contract.hash, "unit", unit, function(contract) {
+			eventBus.emit("arbiter_contract_update", contract, "unit", unit);
+		}, from_cosigner);
 	});
 }
 
@@ -841,6 +898,8 @@ exports.getAllByArbiterAddress = getAllByArbiterAddress;
 exports.getAllByPeerAddress = getAllByPeerAddress;
 exports.getAllMyCosigners = getAllMyCosigners;
 exports.createSharedAddressAndPostUnit = createSharedAddressAndPostUnit;
+exports.handleReceivedSharedAddress = handleReceivedSharedAddress;
+exports.handleReceivedSigningUnit = handleReceivedSigningUnit;
 exports.shareUpdateToPeer = shareUpdateToPeer;
 exports.pay = pay;
 exports.complete = complete;
