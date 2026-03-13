@@ -3241,7 +3241,7 @@ function executeGetterInState(conn, aa_address, getter, args, stateVars, assocBa
 				unit: 'dummyforgetter',
 			};
 		}
-		objValidationState = {
+		let objValidationState = {
 			last_ball_mci: props.main_chain_index,
 			last_ball_timestamp: Math.round(Date.now() / 1000),
 			mc_unit: props.unit, // must not be used
