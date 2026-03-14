@@ -215,7 +215,9 @@ function validate(objJoint, callbacks, external_conn) {
 		objValidationState.bUnsigned = true;
 //	if (bAA)
 		objValidationState.bAA = bAA;
-	
+	if (objJoint.ball)
+		objValidationState.hasBall = true;
+
 	if (conf.bLight){
 		if (!isPositiveInteger(objUnit.timestamp) && !objJoint.unsigned)
 			return callbacks.ifJointError("bad timestamp");
@@ -2375,8 +2377,14 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 						doubleSpendIndexMySQL = " USE INDEX (byIndexAddress) ";
 
 					mc_outputs.readNextSpendableMcIndex(conn, type, address, objValidationState.arrConflictingUnits, function(next_spendable_mc_index){
-						if (input.from_main_chain_index < next_spendable_mc_index)
-							return cb(type+" ranges must not overlap"); // gaps allowed, in case a unit becomes bad due to another address being nonserial
+						if ((objValidationState.arrConflictingUnits || []).length > 0 || objValidationState.hasBall) {
+							if (input.from_main_chain_index < next_spendable_mc_index)
+								return cb(type + " ranges must not overlap"); // gaps allowed, in case a unit becomes bad due to another address being nonserial
+						}
+						else { // no conflicts
+							if (input.from_main_chain_index !== next_spendable_mc_index)
+								return cb(type+" ranges must leave no gaps and not overlap");
+						}
 						var max_mci = (type === "headers_commission") 
 							? headers_commission.getMaxSpendableMciForLastBallMci(objValidationState.last_ball_mci)
 							: paid_witnessing.getMaxSpendableMciForLastBallMci(objValidationState.last_ball_mci);

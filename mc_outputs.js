@@ -13,7 +13,7 @@ var conf = require('./conf.js');
 function readNextSpendableMcIndex(conn, type, address, arrConflictingUnits, handleNextSpendableMcIndex){
 	conn.query(
 		"SELECT to_main_chain_index FROM inputs CROSS JOIN units USING(unit) \n\
-		WHERE type=? AND address=? AND sequence='good' "+(
+		WHERE type=? AND address=? AND sequence!='final-bad' "+(
 			(arrConflictingUnits && arrConflictingUnits.length > 0) 
 			? " AND unit NOT IN("+arrConflictingUnits.map(function(unit){ return db.escape(unit); }).join(", ")+") " 
 			: ""
