@@ -915,6 +915,7 @@ CREATE TABLE IF NOT EXISTS wallet_arbiter_contracts (
 	resolution_unit CHAR(44) NULL,
 	arbstore_address  CHAR(32) NULL,
 	arbstore_device_address  CHAR(33) NULL,
+	FOREIGN KEY (shared_address) REFERENCES shared_addresses(shared_address),
 	FOREIGN KEY (my_address) REFERENCES my_addresses(address)
 );
 CREATE INDEX wacStatus ON wallet_arbiter_contracts(status);

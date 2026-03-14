@@ -4,7 +4,7 @@ var eventBus = require('./event_bus.js');
 var constants = require("./constants.js");
 var conf = require("./conf.js");
 
-var VERSION = 48;
+var VERSION = 49;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -596,6 +596,46 @@ function migrateDb(connection, onDone){
 				if (version < 48) {
 					connection.addQuery(arrQueries, "DROP INDEX IF EXISTS hcobyAddressSpent");
 					connection.addQuery(arrQueries, "DROP INDEX IF EXISTS byWitnessAddressSpent");
+				}
+				if (version < 49) { // add foreign key to shared_addresses
+					connection.addQuery(arrQueries, "BEGIN TRANSACTION");
+					connection.addQuery(arrQueries, "ALTER TABLE wallet_arbiter_contracts RENAME TO wallet_arbiter_contracts_old");
+					connection.addQuery(arrQueries, `CREATE TABLE wallet_arbiter_contracts (
+						hash CHAR(44) NOT NULL PRIMARY KEY,
+						peer_address CHAR(32) NOT NULL,
+						peer_device_address CHAR(33) NOT NULL,
+						my_address  CHAR(32) NOT NULL,
+						arbiter_address CHAR(32) NOT NULL,
+						me_is_payer TINYINT NOT NULL,
+						my_party_name VARCHAR(100) NULL,
+						peer_party_name VARCHAR(100) NULL,
+						amount BIGINT NULL,
+						asset CHAR(44) NULL,
+						is_incoming TINYINT NOT NULL,
+						me_is_cosigner TINYINT NULL,
+						creation_date TIMESTAMP NOT NULL,
+						ttl INT NOT NULL DEFAULT 168, -- 168 hours = 24 * 7 = 1 week
+						status VARCHAR(40) CHECK (status IN('pending', 'revoked', 'accepted', 'signed', 'declined', 'paid', 'in_dispute', 'dispute_resolved', 'in_appeal', 'appeal_approved', 'appeal_declined', 'cancelled', 'completed')) NOT NULL DEFAULT 'pending',
+						title VARCHAR(1000) NOT NULL,
+						text TEXT NOT NULL,
+						my_contact_info TEXT NULL,
+						peer_contact_info TEXT NULL,
+						peer_pairing_code VARCHAR(200) NULL,
+						shared_address CHAR(32) NULL UNIQUE,
+						unit CHAR(44) NULL,
+						cosigners VARCHAR(1500),
+						resolution_unit CHAR(44) NULL,
+						arbstore_address  CHAR(32) NULL,
+						arbstore_device_address  CHAR(33) NULL,
+						FOREIGN KEY (shared_address) REFERENCES shared_addresses(shared_address),
+						FOREIGN KEY (my_address) REFERENCES my_addresses(address)
+					)`);
+					connection.addQuery(arrQueries, "INSERT INTO wallet_arbiter_contracts (hash, peer_address, peer_device_address, my_address, arbiter_address, me_is_payer, my_party_name, peer_party_name, amount, asset, is_incoming, me_is_cosigner, creation_date, ttl, status, title, text, my_contact_info, peer_contact_info, peer_pairing_code, shared_address, unit, cosigners, resolution_unit, arbstore_address, arbstore_device_address) SELECT hash, peer_address, peer_device_address, my_address, arbiter_address, me_is_payer, my_party_name, peer_party_name, amount, asset, is_incoming, me_is_cosigner, creation_date, ttl, status, title, text, my_contact_info, peer_contact_info, peer_pairing_code, shared_address, unit, cosigners, resolution_unit, arbstore_address, arbstore_device_address FROM wallet_arbiter_contracts_old");
+					connection.addQuery(arrQueries, "DROP TABLE wallet_arbiter_contracts_old");
+					connection.addQuery(arrQueries, "CREATE INDEX wacStatus ON wallet_arbiter_contracts(status)");
+					connection.addQuery(arrQueries, "CREATE INDEX wacArbiterAddress ON wallet_arbiter_contracts(arbiter_address)");
+					connection.addQuery(arrQueries, "CREATE INDEX wacPeerAddress ON wallet_arbiter_contracts(peer_address)");
+					connection.addQuery(arrQueries, "COMMIT");
 				}
 				cb();
 			},
