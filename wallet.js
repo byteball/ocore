@@ -565,7 +565,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 
 			case 'arbiter_contract_offer':
 				body.peer_device_address = from_address;
-				if (!body.title || !body.text || !body.creation_date || !body.arbiter_address || typeof body.me_is_payer === "undefined" || !body.my_pairing_code || !body.amount || body.amount <= 0)
+				if (!body.title || !body.text || !body.creation_date || !body.arbiter_address || typeof body.me_is_payer === "undefined" || !body.my_pairing_code || !body.amount || !(body.amount > 0) || !(body.ttl > 0))
 					return callbacks.ifError("not all contract fields submitted");
 				if (!ValidationUtils.isValidAddress(body.my_address) || !ValidationUtils.isValidAddress(body.peer_address) || !ValidationUtils.isValidAddress(body.arbiter_address))
 					return callbacks.ifError("either peer_address or address or arbiter_address is not valid in contract");
@@ -574,6 +574,12 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				}
 				if (!/^\d{4}\-\d{2}\-\d{2} \d{2}:\d{2}:\d{2}$/.test(body.creation_date))
 					return callbacks.ifError("wrong contract creation date");
+				if (![body.title, body.text, body.my_pairing_code].every(ValidationUtils.isNonemptyString))
+					return callbacks.ifError("wrong required fields");
+				if (![body.my_contact_info, body.my_party_name, body.peer_party_name].every(field => !field || typeof field === "string"))
+					return callbacks.ifError("wrong optional fields");
+				if (!(body.asset === null || ValidationUtils.isValidBase64(body.asset, constants.HASH_LENGTH)))
+					return callbacks.ifError("wrong asset");
 				var my_address = body.peer_address;
 				body.peer_address = body.my_address;
 				body.my_address = my_address;
@@ -597,7 +603,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				
 			// to cosigners
 			case 'arbiter_contract_shared':
-				if (!body.title || !body.text || !body.creation_date || !body.arbiter_address || typeof body.me_is_payer === "undefined" || !body.peer_pairing_code || !body.amount || body.amount <= 0)
+				if (!body.title || !body.text || !body.creation_date || !body.arbiter_address || typeof body.me_is_payer === "undefined" || !body.peer_pairing_code || !body.amount || !(body.amount > 0))
 					return callbacks.ifError("not all contract fields submitted");
 				if (!ValidationUtils.isValidAddress(body.peer_address) || !ValidationUtils.isValidAddress(body.my_address) || !ValidationUtils.isValidAddress(body.arbiter_address) )
 					return callbacks.ifError("either peer_address or address or arbiter_address or shared_address are not valid in contract");
