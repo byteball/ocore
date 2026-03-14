@@ -588,7 +588,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				db.query("SELECT 1 FROM my_addresses WHERE address=?", [body.my_address], function(rows) {
 					if (!rows.length)
 						return callbacks.ifError("contract does not contain my address");
-					arbiter_contract.store(body, function() {
+					arbiter_contract.store(body, false, function() {
 						eventBus.emit("arbiter_contract_offer", body.hash);
 						callbacks.ifOk();
 					});
@@ -612,7 +612,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 						if (!rows.length)
 							return callbacks.ifError("contract does not contain my address");
 						body.me_is_cosigner = true;
-						arbiter_contract.store(body);
+						arbiter_contract.store(body, true);
 						callbacks.ifOk();
 					}
 				);

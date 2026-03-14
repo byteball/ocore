@@ -86,19 +86,23 @@ function setField(hash, field, value, cb, skipSharing) {
 	});
 }
 
-function store(objContract, cb) {
+function store(objContract, bFromCosigner, cb) { // contracts shared by cosigners are trusted to to reflect their true status
+	const me_is_cosigner = bFromCosigner ? 1 : 0;
+	const status = bFromCosigner ? (objContract.status || status_PENDING) : status_PENDING;
 	var fields = "(hash, peer_address, peer_device_address, my_address, arbiter_address, me_is_payer, my_party_name, peer_party_name, amount, asset, is_incoming, creation_date, ttl, status, title, text, peer_pairing_code, peer_contact_info, me_is_cosigner";
 	var placeholders = "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?";
-	var values = [objContract.hash, objContract.peer_address, objContract.peer_device_address, objContract.my_address, objContract.arbiter_address, objContract.me_is_payer ? 1 : 0, objContract.my_party_name, objContract.peer_party_name, objContract.amount, objContract.asset, 1, objContract.creation_date, objContract.ttl, objContract.status || status_PENDING, objContract.title, objContract.text, objContract.peer_pairing_code, objContract.peer_contact_info, objContract.me_is_cosigner ? 1 : 0];
-	if (objContract.shared_address) {
-		fields += ", shared_address";
-		placeholders += ", ?";
-		values.push(objContract.shared_address);
-	}
-	if (objContract.unit) {
-		fields += ", unit";
-		placeholders += ", ?";
-		values.push(objContract.unit);
+	var values = [objContract.hash, objContract.peer_address, objContract.peer_device_address, objContract.my_address, objContract.arbiter_address, objContract.me_is_payer ? 1 : 0, objContract.my_party_name, objContract.peer_party_name, objContract.amount, objContract.asset, 1, objContract.creation_date, objContract.ttl, status, objContract.title, objContract.text, objContract.peer_pairing_code, objContract.peer_contact_info, me_is_cosigner];
+	if (bFromCosigner) {
+		if (objContract.shared_address) {
+			fields += ", shared_address";
+			placeholders += ", ?";
+			values.push(objContract.shared_address);
+		}
+		if (objContract.unit) {
+			fields += ", unit";
+			placeholders += ", ?";
+			values.push(objContract.unit);
+		}
 	}
 	fields += ")";
 	placeholders += ")";
