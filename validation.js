@@ -2364,7 +2364,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 						address = input.address;
 					}
 
-					var input_key = type + "-" + address + "-" + input.from_main_chain_index;
+					var input_key = type + "-" + address;
 					if (objValidationState.arrInputKeys.indexOf(input_key) >= 0)
 						return cb("input "+input_key+" already used");
 					objValidationState.arrInputKeys.push(input_key);
