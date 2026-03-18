@@ -273,7 +273,8 @@ function processWitnessProof(arrUnstableMcJoints, arrWitnessChangeAndDefinitionJ
 						handleAuthor();
 					},
 					ifDefinitionNotFound: function(d){
-						throw Error("definition "+definition_chash+" not found, address "+address+", my witnesses "+arrWitnesses.join(', ')+", unit "+objUnit.unit);
+						// e.g. if the peer maliciously sent an empty arrWitnessChangeAndDefinitionJoints
+						return cb3("definition "+definition_chash+" not found, address "+address+", my witnesses "+arrWitnesses.join(', ')+", unit "+objUnit.unit);
 					}
 				});
 			},
