@@ -843,11 +843,11 @@ eventBus.on("my_transactions_became_stable", function(units) {
 					objUnit.messages.forEach(function (m) {
 						if (m.app !== "data_feed")
 							return;
-						for (var key in m.payload) {
-							var contract_hash_matches = key.match(/CONTRACT_DONE_(.+)/);
+						for (let key in m.payload) {
+							const contract_hash_matches = key.match(/CONTRACT_DONE_(.+)/);
 							if (!contract_hash_matches)
 								continue;
-							var contract_hash = contract_hash_matches[1];
+							const contract_hash = contract_hash_matches[1];
 							getByHash(contract_hash, function (objContract) {
 								if (!objContract)
 									return;
@@ -859,10 +859,10 @@ eventBus.on("my_transactions_became_stable", function(units) {
 									if (m.payload[key] != objContract.my_address)
 										return;
 									if (objContract.status === 'paid') {
-										var status = objContract.me_is_payer ? 'cancelled' : 'completed';
+										const status = objContract.me_is_payer ? 'cancelled' : 'completed';
 										setField(contract_hash, 'status', status, function (objContract) {
 											eventBus.emit("arbiter_contract_update", objContract, "status", status, unit, null, true);
-											var count = 0;
+											let count = 0;
 											getAllByPeerAddress(objContract.peer_address, function (contracts) {
 												contracts.forEach(function (objContract) {
 													if (objContract.status === "paid")

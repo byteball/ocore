@@ -686,16 +686,16 @@ async function handleNewPeers(ws, request, arrPeerUrls){
 		return sendError(ws, "peer urls is not an array");
 	if (!arrPeerUrls.every(ValidationUtils.isNonemptyString))
 		return sendError(ws, "peer urls must be non-empty strings");
-	for (var i=0; i<arrPeerUrls.length; i++){
-		var url = arrPeerUrls[i];
+	for (let i=0; i<arrPeerUrls.length; i++){
+		const url = arrPeerUrls[i];
 		if (conf.myUrl && conf.myUrl.toLowerCase() === url.toLowerCase())
 			continue;
-		var regexp = (conf.WS_PROTOCOL === 'wss://') ? /^wss:\/\/[\w:\/.?&+=;,@-]+$/ : /^wss?:\/\/[\w:\/.?&+=;,@-]+$/;
+		const regexp = (conf.WS_PROTOCOL === 'wss://') ? /^wss:\/\/[\w:\/.?&+=;,@-]+$/ : /^wss?:\/\/[\w:\/.?&+=;,@-]+$/;
 		if (!url.match(regexp)){
 			console.log('ignoring new peer '+url+' because of incompatible ws protocol');
 			continue;
 		}
-		var host = getHostByPeer(url);
+		const host = getHostByPeer(url);
 		if (host === 'byteball.org')
 			continue;
 		const peer_ws = getPeerWebSocket(url);
