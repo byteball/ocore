@@ -627,10 +627,8 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			// sent by both contract parties and your cosigners, in both directions
 			case 'arbiter_contract_update':
 				arbiter_contract.getByHash(body.hash, function(objContract){
-					var from_cosigner = false;
 					db.query("SELECT 1 FROM wallet_signing_paths JOIN my_addresses USING(wallet) WHERE device_address=? AND address=?", [from_address, objContract.my_address], function(rows) {
-						if (rows.length && objContract.me_is_cosigner)
-							from_cosigner = true;
+						const from_cosigner = (rows.length && objContract.me_is_cosigner);
 						if (!objContract || (from_address !== objContract.peer_device_address && !from_cosigner && !(from_address === objContract.arbstore_device_address && objContract.status === 'in_appeal' && body.field === 'status')))
 							return callbacks.ifError("wrong contract hash or not an owner");
 						if (body.field === "status") {
