@@ -245,24 +245,29 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				var bJsonBased = (objUnit.version !== constants.versionWithoutTimestamp);
 				// replace all existing signatures with placeholders so that signing requests sent to us on different stages of signing become identical,
 				// hence the hashes of such unsigned units are also identical
-				objUnit.authors.forEach(function(author){
-					var authentifiers = author.authentifiers;
-					for (var path in authentifiers)
-						authentifiers[path] = authentifiers[path].replace(/./, '-'); 
-				});
+				try {
+					objUnit.authors.forEach(function (author) {
+						var authentifiers = author.authentifiers;
+						for (var path in authentifiers)
+							authentifiers[path] = authentifiers[path].replace(/./, '-');
+					});
+				}
+				catch (e) {
+					return callbacks.ifError("invalid authors: " + e.toString());
+				}
 				var assocPrivatePayloads = body.private_payloads;
 				if ("private_payloads" in body){
 					if (typeof assocPrivatePayloads !== "object" || !assocPrivatePayloads)
 						return callbacks.ifError("bad private payloads");
 					for (var payload_hash in assocPrivatePayloads){
-						var payload = assocPrivatePayloads[payload_hash];
-						var hidden_payload = _.cloneDeep(payload);
-						if (payload.denomination) // indivisible asset.  In this case, payload hash is calculated based on output_hash rather than address and blinding
-							hidden_payload.outputs.forEach(function(o){
-								delete o.address;
-								delete o.blinding;
-							});
 						try {
+							const payload = assocPrivatePayloads[payload_hash];
+							const hidden_payload = _.cloneDeep(payload);
+							if (payload.denomination) // indivisible asset.  In this case, payload hash is calculated based on output_hash rather than address and blinding
+								hidden_payload.outputs.forEach(function(o){
+									delete o.address;
+									delete o.blinding;
+								});
 							var calculated_payload_hash = objectHash.getBase64Hash(hidden_payload, bJsonBased);
 						}
 						catch (e) {
