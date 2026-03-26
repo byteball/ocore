@@ -68,7 +68,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 
 		var subject = json.subject;
 		var body = json.body;
-		if (!subject || typeof body == "undefined")
+		if (!subject || typeof body == "undefined" || body === null)
 			return callbacks.ifError("no subject or body");
 		if (typeof subject !== "string")
 			return callbacks.ifError("subject is not a string");
