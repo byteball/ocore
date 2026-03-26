@@ -203,14 +203,20 @@ function processHistory(objResponse, arrWitnesses, callbacks){
 					return callbacks.ifError("wrong ball hash: unit "+objBall.unit+", ball "+objBall.ball);
 				if (!assocKnownBalls[objBall.ball])
 					return callbacks.ifError("ball not known: "+objBall.ball);
-				if (objBall.unit !== constants.GENESIS_UNIT)
-					objBall.parent_balls.forEach(function(parent_ball){
+				if (objBall.unit !== constants.GENESIS_UNIT) {
+					if (!ValidationUtils.isNonemptyArray(objBall.parent_balls))
+						return callbacks.ifError("no parent_balls");
+					objBall.parent_balls.forEach(function (parent_ball) {
 						assocKnownBalls[parent_ball] = true;
 					});
-				if (objBall.skiplist_balls)
-					objBall.skiplist_balls.forEach(function(skiplist_ball){
+				}
+				if (objBall.skiplist_balls) {
+					if (!ValidationUtils.isNonemptyArray(objBall.skiplist_balls))
+						return callbacks.ifError("bad skiplist_balls");
+					objBall.skiplist_balls.forEach(function (skiplist_ball) {
 						assocKnownBalls[skiplist_ball] = true;
 					});
+				}
 				assocProvenUnitsNonserialness[objBall.unit] = objBall.is_nonserial;
 			}
 			assocKnownBalls = null; // free memory
@@ -789,6 +795,8 @@ function processLinkProofs(arrUnits, arrChain, callbacks){
 				return callbacks.ifError("invalid hash of unit "+unit);
 			assocKnownBalls[objUnit.last_ball] = true;
 			assocKnownUnits[objUnit.last_ball_unit] = true;
+			if (!ValidationUtils.isNonemptyArray(objUnit.parent_units))
+				return callbacks.ifError("no parent_units");
 			objUnit.parent_units.forEach(function(parent_unit){
 				assocKnownUnits[parent_unit] = true;
 			});
@@ -799,14 +807,20 @@ function processLinkProofs(arrUnits, arrChain, callbacks){
 				return callbacks.ifError("unknown ball "+objBall.ball);
 			if (objBall.ball !== objectHash.getBallHash(objBall.unit, objBall.parent_balls, objBall.skiplist_balls, objBall.is_nonserial))
 				return callbacks.ifError("invalid ball hash");
-			if (objBall.unit !== constants.GENESIS_UNIT)
+			if (objBall.unit !== constants.GENESIS_UNIT) {
+				if (!ValidationUtils.isNonemptyArray(objBall.parent_balls))
+					return callbacks.ifError("no parent_balls");
 				objBall.parent_balls.forEach(function(parent_ball){
 					assocKnownBalls[parent_ball] = true;
 				});
-			if (objBall.skiplist_balls)
+			}
+			if (objBall.skiplist_balls) {
+				if (!ValidationUtils.isNonemptyArray(objBall.skiplist_balls))
+					return callbacks.ifError("bad skiplist_balls");
 				objBall.skiplist_balls.forEach(function(skiplist_ball){
 					assocKnownBalls[skiplist_ball] = true;
 				});
+			}
 			assocKnownUnits[objBall.unit] = true;
 		}
 		else
