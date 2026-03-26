@@ -1564,7 +1564,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 						return cb(false);
 					if (!ValidationUtils.isValidAddress(addr))
 						return cb(false);
-					storage.readAADefinition(conn, addr, function (arrDefinition, definition_unit) {
+					storage.readAADefinition(conn, addr, mci, function (arrDefinition, definition_unit) {
 						if (arrDefinition) {
 							if (bAA)
 								return cb(new wrappedObject(arrDefinition));
@@ -3001,7 +3001,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 			if (fatal_error)
 				return cb(fatal_error);
 			if (typeof max_remote_complexity === 'string') {
-				storage.readAADefinition(conn, remote_aa, arrDefinition => {
+				storage.readAADefinition(conn, remote_aa, mci, arrDefinition => {
 					if (!arrDefinition)
 						return cb("no such remote AA: " + remote_aa);
 					const base_aa = arrDefinition[1].base_aa;
@@ -3012,7 +3012,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 			}
 			else if (Decimal.isDecimal(max_remote_complexity)) {
 				max_remote_complexity = max_remote_complexity.toNumber();
-				storage.readAAGetterProps(conn, remote_aa, func_name, props => {
+				storage.readAAGetterProps(conn, remote_aa, func_name, mci, props => {
 					if (!props)
 						return cb("no such getter: " + remote_aa + "." + func_name);
 					if (typeof props.complexity !== 'number')
@@ -3036,7 +3036,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 			if (!bAA) // we are not an AA and can't see assets defined by fresh AAs
 				return handleAssetInfo(null);
 			// defined later than last ball, check if defined by AA
-			storage.readAADefinition(conn, objAsset.definer_address, function(arrDefinition) {
+			storage.readAADefinition(conn, objAsset.definer_address, mci, function(arrDefinition) {
 				if (arrDefinition)
 					return handleAssetInfo(objAsset);
 				handleAssetInfo(null); // defined later by non-AA
@@ -3153,7 +3153,7 @@ function callGetter(conn, aa_address, getter, args, stateVars, objValidationStat
 
 	// no need to cloneDeep, we need to rewrite only storage size, assocBalances cache can be updated by reference
 	objValidationState = _.clone(objValidationState);
-	storage.readBaseAADefinitionAndParams(conn, aa_address, function (arrBaseDefinition, params, storage_size) {
+	storage.readBaseAADefinitionAndParams(conn, aa_address, objValidationState.last_ball_mci, function (arrBaseDefinition, params, storage_size) {
 		if (!arrBaseDefinition)
 			return cb("remote AA not found: " + aa_address);
 		// rewrite storage size with the storage size of the AA being called

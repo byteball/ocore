@@ -79,7 +79,9 @@ function validate(objJoint, callbacks, external_conn) {
 	var bAA = false;
 	if (objJoint.aa) {
 		bAA = true;
+		var aa_mci = objJoint.aa_mci;
 		delete objJoint.aa;
+		delete objJoint.aa_mci;
 	}
 	else {
 		if (ValidationUtils.isArrayOfLength(objUnit.authors, 1) && !ValidationUtils.isNonemptyObject(objUnit.authors[0].authentifiers) && !objUnit.content_hash)
@@ -213,8 +215,9 @@ function validate(objJoint, callbacks, external_conn) {
 	}
 	if (objJoint.unsigned)
 		objValidationState.bUnsigned = true;
-//	if (bAA)
-		objValidationState.bAA = bAA;
+	objValidationState.bAA = bAA;
+	if (bAA)
+		objValidationState.aa_mci = aa_mci;
 	if (objJoint.ball)
 		objValidationState.hasBall = true;
 
@@ -1020,9 +1023,9 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 	var bInitialDefinition = false;
 
 	if (objValidationState.bAA) {
-		storage.readAADefinition(conn, objAuthor.address, function (arrDefinition) {
+		storage.readAADefinition(conn, objAuthor.address, objValidationState.aa_mci, function (arrDefinition) {
 			if (!arrDefinition)
-				throw Error("AA definition not found");
+				throw Error("AA definition not found " + objAuthor.address);
 			checkSerialAddressUse();
 		});
 		return;
@@ -1045,7 +1048,7 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 		// we check signatures using the latest address definition before last ball
 		storage.readDefinitionByAddress(conn, objAuthor.address, objValidationState.last_ball_mci, {
 			ifDefinitionNotFound: function(definition_chash){
-				storage.readAADefinition(conn, objAuthor.address, function (arrAADefinition) {
+				storage.readAADefinition(conn, objAuthor.address, objValidationState.last_ball_mci, function (arrAADefinition) {
 					if (arrAADefinition)
 						return callback(createTransientError("will not validate unit signed by AA"));
 					findUnstableInitialDefinition(definition_chash, function (arrDefinition) {
@@ -1605,8 +1608,9 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 			}
 			if (constants.bTestnet && ['BD7RTYgniYtyCX0t/a/mmAAZEiK/ZhTvInCMCPG5B1k=', 'EHEkkpiLVTkBHkn8NhzZG/o4IphnrmhRGxp4uQdEkco=', 'bx8VlbNQm2WA2ruIhx04zMrlpQq3EChK6o3k5OXJ130=', '08t8w/xuHcsKlMpPWajzzadmMGv+S4AoeV/QL1F3kBM=', '4N5fsU9qJSn2FuS70cChKx8QqgcesPRPs0dNfzOhoXw='].indexOf(objUnit.unit) >= 0)
 				return callback();
+			const top_mci = objValidationState.aa_mci || objValidationState.last_ball_mci;
 			var readGetterProps = function (aa_address, func_name, cb) {
-				storage.readAAGetterProps(conn, aa_address, func_name, cb);
+				storage.readAAGetterProps(conn, aa_address, func_name, top_mci, cb);
 			};
 			aa_validation.validateAADefinition(payload.definition, readGetterProps, objValidationState.last_ball_mci, function (err) {
 				if (err)
@@ -1615,7 +1619,7 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 				if (template.messages)
 					return callback(); // regular AA
 				// else parameterized AA
-				storage.readAADefinition(conn, template.base_aa, function (arrBaseDefinition) {
+				storage.readAADefinition(conn, template.base_aa, top_mci, function (arrBaseDefinition) {
 					if (!arrBaseDefinition)
 						return callback("base AA not found");
 					if (!arrBaseDefinition[1].messages)
@@ -1704,7 +1708,7 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 							return callback("OP list must be sorted and unique");
 						prev_op = op;
 					}
-					checkNotAAs(conn, arrOPs, err => {
+					checkNotAAs(conn, arrOPs, objValidationState.last_ball_mci, err => {
 						if (err)
 							return callback(err);
 						checkWitnessesKnownAndGood(conn, objValidationState, arrOPs, err => {
@@ -1866,8 +1870,8 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 	}
 }
 
-function checkNotAAs(conn, arrOPs, cb) {
-	conn.query("SELECT address FROM aa_addresses WHERE address IN (?)", [arrOPs], rows => {
+function checkNotAAs(conn, arrOPs, mci, cb) {
+	conn.query("SELECT address FROM aa_addresses WHERE address IN (?) AND mci<=?", [arrOPs, mci], rows => {
 		rows.length ? cb("some OPs are AAs: " + rows.map(r => r.address).join(', ')) : cb();
 	});
 }

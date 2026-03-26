@@ -8,7 +8,7 @@ var aa_validation = require('../aa_validation.js');
 
 
 var readGetterProps = function (aa_address, func_name, cb) {
-	storage.readAAGetterProps(db, aa_address, func_name, cb);
+	storage.readAAGetterProps(db, aa_address, func_name, null, cb);
 };
 
 

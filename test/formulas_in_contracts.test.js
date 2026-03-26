@@ -17,7 +17,7 @@ var db = require("../db");
 var storage = require("../storage");
 
 var readGetterProps = function (aa_address, func_name, cb) {
-	storage.readAAGetterProps(db, aa_address, func_name, cb);
+	storage.readAAGetterProps(db, aa_address, func_name, null, cb);
 };
 
 function validateFormula(formula, complexity, cb) {

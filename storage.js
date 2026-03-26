@@ -794,10 +794,12 @@ function readDefinition(conn, definition_chash, callbacks){
 	});
 }
 
-function readAADefinition(conn, address, handleDefinition) {
+function readAADefinition(conn, address, to_mci, handleDefinition) {
 	if (!handleDefinition)
-		return new Promise(resolve => readAADefinition(conn, address, (arrDefinition, unit, storage_size) => resolve({ arrDefinition, unit, storage_size })));
-	conn.query("SELECT definition, unit, storage_size FROM aa_addresses WHERE address=?", [address], function (rows) {
+		return new Promise(resolve => readAADefinition(conn, address, to_mci, (arrDefinition, unit, storage_size) => resolve({ arrDefinition, unit, storage_size })));
+	if (to_mci === null || to_mci === Infinity)
+		to_mci = MAX_INT32;
+	conn.query("SELECT definition, unit, storage_size, mci FROM aa_addresses WHERE address=? AND mci<=?", [address, to_mci], function (rows) {
 		if (rows.length !== 1)
 			return handleDefinition(null);
 		var arrDefinition = JSON.parse(rows[0].definition);
@@ -807,16 +809,16 @@ function readAADefinition(conn, address, handleDefinition) {
 	});
 }
 
-function readBaseAADefinitionAndParams(conn, address, handleDefinitionAndParams) {
+function readBaseAADefinitionAndParams(conn, address, to_mci, handleDefinitionAndParams) {
 	if (!handleDefinitionAndParams)
-		return new Promise(resolve => readBaseAADefinitionAndParams(conn, address, (arrBaseDefinition, params, storage_size) => resolve({ arrBaseDefinition, params, storage_size })));
-	readAADefinition(conn, address, function (arrDefinition, unit, storage_size) {
+		return new Promise(resolve => readBaseAADefinitionAndParams(conn, address, to_mci, (arrBaseDefinition, params, storage_size) => resolve({ arrBaseDefinition, params, storage_size })));
+	readAADefinition(conn, address, to_mci, function (arrDefinition, unit, storage_size) {
 		if (!arrDefinition)
 			return handleDefinitionAndParams(null);
 		var base_aa = arrDefinition[1].base_aa;
 		if (!base_aa)
 			return handleDefinitionAndParams(arrDefinition, null, storage_size);
-		readAADefinition(conn, base_aa, function (arrBaseDefinition) {
+		readAADefinition(conn, base_aa, to_mci, function (arrBaseDefinition) {
 			if (!arrBaseDefinition)
 				throw Error("base AA not found: " + base_aa);
 			handleDefinitionAndParams(arrBaseDefinition, arrDefinition[1].params, storage_size);
@@ -824,17 +826,19 @@ function readBaseAADefinitionAndParams(conn, address, handleDefinitionAndParams)
 	});
 }
 
-function readAAGetters(conn, address, handleGetters) {
+function readAAGetters(conn, address, to_mci, handleGetters) {
 	if (!handleGetters)
-		return new Promise(resolve => readAAGetters(conn, address, resolve));
-	conn.query("SELECT getters, base_aa FROM aa_addresses WHERE address=?", [address], function (rows) {
+		return new Promise(resolve => readAAGetters(conn, address, to_mci, resolve));
+	if (to_mci === null || to_mci === Infinity)
+		to_mci = MAX_INT32;
+	conn.query("SELECT getters, base_aa FROM aa_addresses WHERE address=? AND mci<=?", [address, to_mci], function (rows) {
 		if (rows.length !== 1)
 			return handleGetters(null);
 		var row = rows[0];
 		if (row.getters && row.base_aa)
 			throw Error("both getters and base AA");
 		if (row.base_aa)
-			return readAAGetters(conn, row.base_aa, handleGetters);
+			return readAAGetters(conn, row.base_aa, to_mci, handleGetters);
 		if (!row.getters)
 			return handleGetters({});
 		var assocGetters = JSON.parse(row.getters);
@@ -842,10 +846,10 @@ function readAAGetters(conn, address, handleGetters) {
 	});
 }
 
-function readAAGetterProps(conn, address, func_name, handleGetterProps) {
+function readAAGetterProps(conn, address, func_name, to_mci, handleGetterProps) {
 	if (!handleGetterProps)
-		return new Promise(resolve => readAAGetterProps(conn, address, func_name, resolve));
-	readAAGetters(conn, address, function (getters) {
+		return new Promise(resolve => readAAGetterProps(conn, address, func_name, to_mci, resolve));
+	readAAGetters(conn, address, to_mci, function (getters) {
 		if (!getters)
 			return handleGetterProps(null);
 		if (!ValidationUtils.hasOwnProperty(getters, func_name))
@@ -906,7 +910,7 @@ function insertAADefinitions(conn, arrPayloads, unit, mci, bForAAsOnly, onDone) 
 			var readGetterProps = function (aa_address, func_name, cb) {
 				if (conf.bLight)
 					return cb({ complexity: 0, count_ops: 0, count_args: null });
-				readAAGetterProps(conn, aa_address, func_name, cb);
+				readAAGetterProps(conn, aa_address, func_name, mci, cb);
 			};
 			aa_validation.determineGetterProps(payload.definition, readGetterProps, function (getters) {
 				conn.query("INSERT " + db.getIgnore() + " INTO aa_addresses (address, definition, unit, mci, base_aa, getters) VALUES (?,?, ?,?, ?,?)", [address, json, unit, mci, base_aa, getters ? JSON.stringify(getters) : null], async function (res) {
@@ -1908,7 +1912,7 @@ function readAsset(conn, asset, last_ball_mci, bAcceptUnconfirmedAA, handleAsset
 		// && objAsset.main_chain_index !== null below is for bug compatibility with the old version
 		if (!bAcceptUnconfirmedAA || constants.bTestnet && last_ball_mci < testnetAssetsDefinedByAAsAreVisibleImmediatelyUpgradeMci && objAsset.main_chain_index !== null)
 			return handleAsset("asset definition must be before last ball");
-		readAADefinition(conn, objAsset.definer_address, function (arrDefinition) {
+		readAADefinition(conn, objAsset.definer_address, last_ball_mci, function (arrDefinition) {
 			arrDefinition ? addAttestorsIfNecessary() : handleAsset("asset definition must be before last ball (AA)");
 		});
 	});

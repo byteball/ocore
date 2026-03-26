@@ -2961,7 +2961,7 @@ function handleJustsaying(ws, subject, body){
 				return sendError(ws, "invalid AA");
 			if (body.address && !ValidationUtils.isValidAddress(body.address))
 				return sendError(ws, "invalid address");
-			storage.readAADefinition(db, body.aa, function (arrDefinition) {
+			storage.readAADefinition(db, body.aa, null, function (arrDefinition) {
 				if (!arrDefinition) {
 					arrDefinition = storage.getUnconfirmedAADefinition(body.aa);
 					if (!arrDefinition)
@@ -3693,7 +3693,7 @@ function handleRequest(ws, tag, command, params){
 			if (!ValidationUtils.isValidAddress(params.address))
 				return sendErrorResponse(ws, tag, "address not valid");
 		
-			storage.readAADefinition(db, params.address, function (arrDefinition) {
+			storage.readAADefinition(db, params.address, null, function (arrDefinition) {
 				if (!arrDefinition)
 					return sendErrorResponse(ws, tag, "not an AA");
 				aa_composer.validateAATriggerObject(params.trigger, function(error){
@@ -3734,7 +3734,7 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "limit must be a positive integer");
 			if ('limit' in params && params.limit > MAX_STATE_VARS)
 				return sendErrorResponse(ws, tag, "limit cannot be greater than " + MAX_STATE_VARS);
-			storage.readAADefinition(db, params.address, function (arrDefinition) {
+			storage.readAADefinition(db, params.address, null, function (arrDefinition) {
 				if (!arrDefinition) {
 					arrDefinition = storage.getUnconfirmedAADefinition(params.address);
 					if (!arrDefinition)

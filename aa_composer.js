@@ -153,7 +153,7 @@ function estimatePrimaryAATrigger(objUnit, address, stateVars, assocBalances, on
 		return new Promise(resolve => estimatePrimaryAATrigger(objUnit, address, stateVars, assocBalances, resolve));
 	db.takeConnectionFromPool(function (conn) {
 		conn.query("BEGIN", function () {
-			storage.readAADefinition(conn, address, arrDefinition => {
+			storage.readAADefinition(conn, address, null, arrDefinition => {
 				if (!arrDefinition)
 					throw Error("AA not found: " + address)
 				readLastUnit(conn, function (objMcUnit) {
@@ -416,7 +416,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 	if (template.base_aa) { // parameterized AA
 		if (params && Object.keys(params).length > 0)
 			throw Error("unexpected params");
-		storage.readAADefinition(conn, template.base_aa, function (arrBaseDefinition) {
+		storage.readAADefinition(conn, template.base_aa, mci, function (arrBaseDefinition) {
 			if (!arrBaseDefinition)
 				throw Error("base AA not found: " + template.base_aa);
 			console.log("redirecting to base AA " + template.base_aa + " with params " + JSON.stringify(template.params));
@@ -1678,7 +1678,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 	}
 
 	function validateAndSaveUnit(objUnit, cb) {
-		var objJoint = { unit: objUnit, aa: true };
+		var objJoint = { unit: objUnit, aa: true, aa_mci: mci };
 		validation.validate(objJoint, {
 			ifJointError: function (err) {
 				throw Error("AA validation joint error: " + err);
