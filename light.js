@@ -189,80 +189,85 @@ function processHistory(objResponse, arrWitnesses, callbacks){
 			if (err)
 				return callbacks.ifError(err);
 			
-			var assocKnownBalls = {};
-			for (var unit in assocLastBallByLastBallUnit){
-				var ball = assocLastBallByLastBallUnit[unit];
-				assocKnownBalls[ball] = true;
-			}
+			try {
+				var assocKnownBalls = {};
+				for (var unit in assocLastBallByLastBallUnit) {
+					var ball = assocLastBallByLastBallUnit[unit];
+					assocKnownBalls[ball] = true;
+				}
 		
-			// proofchain
-			var assocProvenUnitsNonserialness = {};
-			for (var i=0; i<objResponse.proofchain_balls.length; i++){
-				var objBall = objResponse.proofchain_balls[i];
-				if (objBall.ball !== objectHash.getBallHash(objBall.unit, objBall.parent_balls, objBall.skiplist_balls, objBall.is_nonserial))
-					return callbacks.ifError("wrong ball hash: unit "+objBall.unit+", ball "+objBall.ball);
-				if (!assocKnownBalls[objBall.ball])
-					return callbacks.ifError("ball not known: "+objBall.ball);
-				if (objBall.unit !== constants.GENESIS_UNIT) {
-					if (!ValidationUtils.isNonemptyArray(objBall.parent_balls))
-						return callbacks.ifError("no parent_balls");
-					objBall.parent_balls.forEach(function (parent_ball) {
-						assocKnownBalls[parent_ball] = true;
-					});
-				}
-				if (objBall.skiplist_balls) {
-					if (!ValidationUtils.isNonemptyArray(objBall.skiplist_balls))
-						return callbacks.ifError("bad skiplist_balls");
-					objBall.skiplist_balls.forEach(function (skiplist_ball) {
-						assocKnownBalls[skiplist_ball] = true;
-					});
-				}
-				assocProvenUnitsNonserialness[objBall.unit] = objBall.is_nonserial;
-			}
-			assocKnownBalls = null; // free memory
-
-			// joints that pay to/from me and joints that I explicitly requested
-			for (var i=0; i<objResponse.joints.length; i++){
-				var objJoint = objResponse.joints[i];
-				var objUnit = objJoint.unit;
-				//if (!objJoint.ball)
-				//    return callbacks.ifError("stable but no ball");
-				if (!validation.hasValidHashes(objJoint))
-					return callbacks.ifError("invalid hash");
-				if (!ValidationUtils.isPositiveInteger(objUnit.timestamp))
-					return callbacks.ifError("no timestamp");
-				// we receive unconfirmed units too
-				//if (!assocProvenUnitsNonserialness[objUnit.unit])
-				//    return callbacks.ifError("proofchain doesn't prove unit "+objUnit.unit);
-			}
-
-			if (objResponse.aa_responses) {
-				// AA responses are trusted without proof
-				if (!ValidationUtils.isNonemptyArray(objResponse.aa_responses))
-					return callbacks.ifError("aa_responses must be non-empty array");
-				for (var i = 0; i < objResponse.aa_responses.length; i++){
-					var aa_response = objResponse.aa_responses[i];
-					if (!ValidationUtils.isPositiveInteger(aa_response.mci))
-						return callbacks.ifError("bad mci");
-					if (!ValidationUtils.isValidAddress(aa_response.trigger_address))
-						return callbacks.ifError("bad trigger_address");
-					if (!ValidationUtils.isValidAddress(aa_response.aa_address))
-						return callbacks.ifError("bad aa_address");
-					if (!ValidationUtils.isValidBase64(aa_response.trigger_unit, constants.HASH_LENGTH))
-						return callbacks.ifError("bad trigger_unit");
-					if (aa_response.bounced !== 0 && aa_response.bounced !== 1)
-						return callbacks.ifError("bad bounced");
-					if ("response_unit" in aa_response && !ValidationUtils.isValidBase64(aa_response.response_unit, constants.HASH_LENGTH))
-						return callbacks.ifError("bad response_unit");
-					try {
-						JSON.parse(aa_response.response);
+				// proofchain
+				var assocProvenUnitsNonserialness = {};
+				for (var i = 0; i < objResponse.proofchain_balls.length; i++) {
+					var objBall = objResponse.proofchain_balls[i];
+					if (objBall.ball !== objectHash.getBallHash(objBall.unit, objBall.parent_balls, objBall.skiplist_balls, objBall.is_nonserial))
+						return callbacks.ifError("wrong ball hash: unit " + objBall.unit + ", ball " + objBall.ball);
+					if (!assocKnownBalls[objBall.ball])
+						return callbacks.ifError("ball not known: " + objBall.ball);
+					if (objBall.unit !== constants.GENESIS_UNIT) {
+						if (!ValidationUtils.isNonemptyArray(objBall.parent_balls))
+							return callbacks.ifError("no parent_balls");
+						objBall.parent_balls.forEach(function (parent_ball) {
+							assocKnownBalls[parent_ball] = true;
+						});
 					}
-					catch (e) {
-						return callbacks.ifError("bad response json");
+					if (objBall.skiplist_balls) {
+						if (!ValidationUtils.isNonemptyArray(objBall.skiplist_balls))
+							return callbacks.ifError("bad skiplist_balls");
+						objBall.skiplist_balls.forEach(function (skiplist_ball) {
+							assocKnownBalls[skiplist_ball] = true;
+						});
 					}
-					if (objResponse.joints.filter(function (objJoint) { return (objJoint.unit.unit === aa_response.trigger_unit) }).length === 0)
-						return callbacks.ifError("foreign trigger_unit");
+					assocProvenUnitsNonserialness[objBall.unit] = objBall.is_nonserial;
 				}
+				assocKnownBalls = null; // free memory
+
+				// joints that pay to/from me and joints that I explicitly requested
+				for (var i = 0; i < objResponse.joints.length; i++) {
+					var objJoint = objResponse.joints[i];
+					var objUnit = objJoint.unit;
+					//if (!objJoint.ball)
+					//    return callbacks.ifError("stable but no ball");
+					if (!validation.hasValidHashes(objJoint))
+						return callbacks.ifError("invalid hash");
+					if (!ValidationUtils.isPositiveInteger(objUnit.timestamp))
+						return callbacks.ifError("no timestamp");
+					// we receive unconfirmed units too
+					//if (!assocProvenUnitsNonserialness[objUnit.unit])
+					//    return callbacks.ifError("proofchain doesn't prove unit "+objUnit.unit);
+				}
+
+				if (objResponse.aa_responses) {
+					// AA responses are trusted without proof
+					if (!ValidationUtils.isNonemptyArray(objResponse.aa_responses))
+						return callbacks.ifError("aa_responses must be non-empty array");
+					for (var i = 0; i < objResponse.aa_responses.length; i++) {
+						var aa_response = objResponse.aa_responses[i];
+						if (!ValidationUtils.isPositiveInteger(aa_response.mci))
+							return callbacks.ifError("bad mci");
+						if (!ValidationUtils.isValidAddress(aa_response.trigger_address))
+							return callbacks.ifError("bad trigger_address");
+						if (!ValidationUtils.isValidAddress(aa_response.aa_address))
+							return callbacks.ifError("bad aa_address");
+						if (!ValidationUtils.isValidBase64(aa_response.trigger_unit, constants.HASH_LENGTH))
+							return callbacks.ifError("bad trigger_unit");
+						if (aa_response.bounced !== 0 && aa_response.bounced !== 1)
+							return callbacks.ifError("bad bounced");
+						if ("response_unit" in aa_response && !ValidationUtils.isValidBase64(aa_response.response_unit, constants.HASH_LENGTH))
+							return callbacks.ifError("bad response_unit");
+						try {
+							JSON.parse(aa_response.response);
+						}
+						catch (e) {
+							return callbacks.ifError("bad response json");
+						}
+						if (objResponse.joints.filter(function (objJoint) { return (objJoint.unit.unit === aa_response.trigger_unit) }).length === 0)
+							return callbacks.ifError("foreign trigger_unit");
+					}
+				}
+			}
+			catch (e) {
+				return callbacks.ifError("bad history: " + e.toString());
 			}
 
 			// save joints that pay to/from me and joints that I explicitly requested

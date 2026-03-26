@@ -130,70 +130,74 @@ function processCatchupChain(catchupChain, peer, arrWitnesses, callbacks){
 			if (err)
 				return callbacks.ifError(err);
 		
-			if (catchupChain.proofchain_balls.length > 0){
-				var assocKnownBalls = {};
-				for (var unit in assocLastBallByLastBallUnit){
-					var ball = assocLastBallByLastBallUnit[unit];
-					assocKnownBalls[ball] = true;
-				}
-
-				// proofchain
-				for (var i=0; i<catchupChain.proofchain_balls.length; i++){
-					var objBall = catchupChain.proofchain_balls[i];
-					if (objBall.ball !== objectHash.getBallHash(objBall.unit, objBall.parent_balls, objBall.skiplist_balls, objBall.is_nonserial))
-						return callbacks.ifError("wrong ball hash: unit "+objBall.unit+", ball "+objBall.ball);
-					if (!assocKnownBalls[objBall.ball])
-						return callbacks.ifError("ball not known: "+objBall.ball+', unit='+objBall.unit+', i='+i+', unstable: '+catchupChain.unstable_mc_joints.map(function(j){ return j.unit.unit }).join(', ')+', arrLastBallUnits '+arrLastBallUnits.join(', '));
-					if (!ValidationUtils.isNonemptyArray(objBall.parent_balls))
-						return callbacks.ifError("parent_balls must be a non-empty array");
-					objBall.parent_balls.forEach(function(parent_ball){
-						assocKnownBalls[parent_ball] = true;
-					});
-					if (objBall.skiplist_balls) {
-						if (!ValidationUtils.isNonemptyArray(objBall.skiplist_balls))
-							return callbacks.ifError("skiplist_balls must be a non-empty array");
-						objBall.skiplist_balls.forEach(function(skiplist_ball){
-							assocKnownBalls[skiplist_ball] = true;
-						});
+			try {
+				if (catchupChain.proofchain_balls.length > 0) {
+					var assocKnownBalls = {};
+					for (var unit in assocLastBallByLastBallUnit) {
+						var ball = assocLastBallByLastBallUnit[unit];
+						assocKnownBalls[ball] = true;
 					}
-				}
-				assocKnownBalls = null; // free memory
-				var objEarliestProofchainBall = catchupChain.proofchain_balls[catchupChain.proofchain_balls.length - 1];
-				var last_ball_unit = objEarliestProofchainBall.unit;
-				var last_ball = objEarliestProofchainBall.ball;
-			}
-			else{
-				var objFirstStableJoint = catchupChain.stable_last_ball_joints[0];
-				var objFirstStableUnit = objFirstStableJoint.unit;
-				if (arrLastBallUnits.indexOf(objFirstStableUnit.unit) === -1)
-					return callbacks.ifError("first stable unit is not last ball unit of any unstable unit");
-				var last_ball_unit = objFirstStableUnit.unit;
-				var last_ball = assocLastBallByLastBallUnit[last_ball_unit];
-				if (objFirstStableJoint.ball !== last_ball)
-					return callbacks.ifError("last ball and last ball unit do not match: "+objFirstStableJoint.ball+"!=="+last_ball);
-			}
-			
-			// stable joints
-			var arrChainBalls = [];
-			for (var i=0; i<catchupChain.stable_last_ball_joints.length; i++){
-				var objJoint = catchupChain.stable_last_ball_joints[i];
-				var objUnit = objJoint.unit;
-				if (!objJoint.ball)
-					return callbacks.ifError("stable but no ball");
-				if (!validation.hasValidHashes(objJoint))
-					return callbacks.ifError("invalid hash");
-				if (objUnit.unit !== last_ball_unit)
-					return callbacks.ifError("not the last ball unit");
-				if (objJoint.ball !== last_ball)
-					return callbacks.ifError("not the last ball");
-				if (objUnit.last_ball_unit){
-					last_ball_unit = objUnit.last_ball_unit;
-					last_ball = objUnit.last_ball;
-				}
-				arrChainBalls.push(objJoint.ball);
-			}
-			arrChainBalls.reverse();
 
+					// proofchain
+					for (var i = 0; i < catchupChain.proofchain_balls.length; i++) {
+						var objBall = catchupChain.proofchain_balls[i];
+						if (objBall.ball !== objectHash.getBallHash(objBall.unit, objBall.parent_balls, objBall.skiplist_balls, objBall.is_nonserial))
+							return callbacks.ifError("wrong ball hash: unit " + objBall.unit + ", ball " + objBall.ball);
+						if (!assocKnownBalls[objBall.ball])
+							return callbacks.ifError("ball not known: " + objBall.ball + ', unit=' + objBall.unit + ', i=' + i + ', unstable: ' + catchupChain.unstable_mc_joints.map(function (j) { return j.unit.unit }).join(', ') + ', arrLastBallUnits ' + arrLastBallUnits.join(', '));
+						if (!ValidationUtils.isNonemptyArray(objBall.parent_balls))
+							return callbacks.ifError("parent_balls must be a non-empty array");
+						objBall.parent_balls.forEach(function (parent_ball) {
+							assocKnownBalls[parent_ball] = true;
+						});
+						if (objBall.skiplist_balls) {
+							if (!ValidationUtils.isNonemptyArray(objBall.skiplist_balls))
+								return callbacks.ifError("skiplist_balls must be a non-empty array");
+							objBall.skiplist_balls.forEach(function (skiplist_ball) {
+								assocKnownBalls[skiplist_ball] = true;
+							});
+						}
+					}
+					assocKnownBalls = null; // free memory
+					var objEarliestProofchainBall = catchupChain.proofchain_balls[catchupChain.proofchain_balls.length - 1];
+					var last_ball_unit = objEarliestProofchainBall.unit;
+					var last_ball = objEarliestProofchainBall.ball;
+				}
+				else {
+					var objFirstStableJoint = catchupChain.stable_last_ball_joints[0];
+					var objFirstStableUnit = objFirstStableJoint.unit;
+					if (arrLastBallUnits.indexOf(objFirstStableUnit.unit) === -1)
+						return callbacks.ifError("first stable unit is not last ball unit of any unstable unit");
+					var last_ball_unit = objFirstStableUnit.unit;
+					var last_ball = assocLastBallByLastBallUnit[last_ball_unit];
+					if (objFirstStableJoint.ball !== last_ball)
+						return callbacks.ifError("last ball and last ball unit do not match: " + objFirstStableJoint.ball + "!==" + last_ball);
+				}
+			
+				// stable joints
+				var arrChainBalls = [];
+				for (var i = 0; i < catchupChain.stable_last_ball_joints.length; i++) {
+					var objJoint = catchupChain.stable_last_ball_joints[i];
+					var objUnit = objJoint.unit;
+					if (!objJoint.ball)
+						return callbacks.ifError("stable but no ball");
+					if (!validation.hasValidHashes(objJoint))
+						return callbacks.ifError("invalid hash");
+					if (objUnit.unit !== last_ball_unit)
+						return callbacks.ifError("not the last ball unit");
+					if (objJoint.ball !== last_ball)
+						return callbacks.ifError("not the last ball");
+					if (objUnit.last_ball_unit) {
+						last_ball_unit = objUnit.last_ball_unit;
+						last_ball = objUnit.last_ball;
+					}
+					arrChainBalls.push(objJoint.ball);
+				}
+				arrChainBalls.reverse();
+			}
+			catch (e) {
+				return callbacks.ifError("bad catchup chain: " + e.toString());
+			}
 
 			var unlock = null;
 			async.series([
@@ -363,8 +367,13 @@ function processHashTree(arrBalls, callbacks){
 							}
 							else if (objBall.parent_balls)
 								return cb("genesis with parents?");
-							if (objBall.ball !== objectHash.getBallHash(objBall.unit, objBall.parent_balls, objBall.skiplist_balls, objBall.is_nonserial))
-								return cb("wrong ball hash, ball "+objBall.ball+", unit "+objBall.unit);
+							try {
+								if (objBall.ball !== objectHash.getBallHash(objBall.unit, objBall.parent_balls, objBall.skiplist_balls, objBall.is_nonserial))
+									return cb("wrong ball hash, ball " + objBall.ball + ", unit " + objBall.unit);
+							}
+							catch (e) {
+								return cb("getBallHash failed: " + e.toString());
+							}
 
 							function addBall(){
 								storage.assocHashTreeUnitsByBall[objBall.ball] = objBall.unit;
