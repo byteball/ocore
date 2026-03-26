@@ -65,6 +65,16 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			ifOk: function(){oldcb.ifOk(); unlock();},
 			ifError: function(err){oldcb.ifError(err); unlock();}
 		};
+		try {
+			doHandle();
+		}
+		catch (e) {
+			callbacks.ifError("exception in handleMessageFromHub: " + e.toString());
+		}
+	});
+
+		
+	function doHandle() {
 
 		var subject = json.subject;
 		var body = json.body;
@@ -795,7 +805,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 			default:
 				callbacks.ifError("unknnown subject: "+subject);
 		}
-	});
+	}
 }
 
 var handledChainsCache = {};
