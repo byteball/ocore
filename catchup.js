@@ -361,6 +361,8 @@ function processHashTree(arrBalls, callbacks){
 						});
 					}
 
+					const top_ball = arrBalls[arrBalls.length - 1].ball;
+
 					// check that the received tree matches the first pair of chain elements
 					const rows = await conn.query(
 						"SELECT ball, main_chain_index \n\
@@ -373,23 +375,33 @@ function processHashTree(arrBalls, callbacks){
 					// removed: the main chain might be rebuilt if we are sending new units while syncing
 					//	if (max_mci !== null && rows[0].main_chain_index !== null && rows[0].main_chain_index !== max_mci)
 					//		return finish("max mci doesn't match first chain element: max mci = "+max_mci+", first mci = "+rows[0].main_chain_index);
-					if (rows[1].ball !== arrBalls[arrBalls.length-1].ball)
+					if (rows[1].ball !== top_ball)
 						return finish("tree root doesn't match second chain element");
+
+					let childlessBalls = {};
+					for (let objBall of arrBalls) {
+						if (typeof objBall.ball !== "string")
+							return finish("no ball");
+						if (typeof objBall.unit !== "string")
+							return finish("no unit");
+						if (!storage.isGenesisUnit(objBall.unit)){
+							if (!ValidationUtils.isNonemptyArray(objBall.parent_balls))
+								return finish("no parents");
+							for (let pb of objBall.parent_balls)
+								delete childlessBalls[pb];
+						}
+						else if (objBall.parent_balls)
+							return finish("genesis with parents?");
+						childlessBalls[objBall.ball] = true;
+					}
+					delete childlessBalls[top_ball]; // the root of the tree has children outside the tree, so we don't require it to be childless
+					if (Object.keys(childlessBalls).length > 0)
+						return finish("some balls are not in the top ball's ancestry: " + Object.keys(childlessBalls).join(', '));
 
 					var max_mci = null;
 					async.eachSeries(
 						arrBalls,
 						function(objBall, cb){
-							if (typeof objBall.ball !== "string")
-								return cb("no ball");
-							if (typeof objBall.unit !== "string")
-								return cb("no unit");
-							if (!storage.isGenesisUnit(objBall.unit)){
-								if (!ValidationUtils.isNonemptyArray(objBall.parent_balls))
-									return cb("no parents");
-							}
-							else if (objBall.parent_balls)
-								return cb("genesis with parents?");
 							try {
 								if (objBall.ball !== objectHash.getBallHash(objBall.unit, objBall.parent_balls, objBall.skiplist_balls, objBall.is_nonserial))
 									return cb("wrong ball hash, ball " + objBall.ball + ", unit " + objBall.unit);
