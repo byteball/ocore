@@ -704,6 +704,8 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 	var address = constants.bTestnet ? objectHash.getChash160(arrDefinition) : null;
 	var arrDefinitionCopy = _.cloneDeep(arrDefinition);
 	var template = arrDefinitionCopy[1];
+	if (!isNonemptyObject(template))
+		return cb2('definition must be a non-empty object');
 	if (template.base_aa) { // parameterized AA
 		if (hasFieldsExcept(template, ['base_aa', 'params']))
 			return callback("foreign fields in parameterized AA definition");
