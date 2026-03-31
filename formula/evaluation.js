@@ -2778,8 +2778,10 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 	}
 
 	function selectSubobject(value, arrKeys, arr, cb) {
-		if (value instanceof wrappedObject)
+		if (value instanceof wrappedObject) {
+			var frozen = value.frozen;
 			value = value.obj;
+		}
 		async.eachSeries(
 			arrKeys || [],
 			function (key, cb2) {
@@ -2834,8 +2836,11 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 					var f = string_utils.toNumber(value, bLimitedPrecision);
 					(f === null) ? cb(value) : cb(createDecimal(value));
 				}
-				else if (typeof value === 'object' && value !== null)
-					cb(new wrappedObject(value));
+				else if (typeof value === 'object' && value !== null) {
+					let wob = new wrappedObject(value);
+					wob.frozen = frozen; // inherits from the enclosing object
+					cb(wob);
+				}
 				else
 					throw Error("unknown type of subobject: " + value);
 			}
