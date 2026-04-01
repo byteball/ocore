@@ -56,6 +56,9 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 				cb3();
 			}
 
+			if (!['string', 'object'].includes(typeof payload) || payload === null)
+				return cb2("payload must be a string or object: " + payload);
+
 			if (message.app !== 'text' && isNonemptyString(payload)) {
 				var payload_formula = getFormula(payload);
 				if (payload_formula === null)
@@ -139,6 +142,8 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 									return cb3("bad output formula: " + output);
 								continue;
 							}
+							if (!isNonemptyObject(output))
+								return cb3("output must be a non-empty object: " + output);
 							if (hasFieldsExcept(output, ['address', 'amount', 'init', 'if']))
 								return cb3('foreign fields in output');
 							if ('if' in output) {
@@ -245,6 +250,10 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 							return cb3("too many denominations");
 						for (var i=0; i<denominations.length; i++){
 							var denomInfo = denominations[i];
+							if (!isNonemptyObject(denomInfo))
+								return cb3("denomination must be a non-empty object: " + denomInfo);
+							if (hasFieldsExcept(denomInfo, ["denomination", "count_coins"]))
+								return cb3("unknown fields in denomination: " + denomInfo);
 							if (typeof denomInfo.denomination === 'number') {
 								if (!isPositiveInteger(denomInfo.denomination))
 									return cb3("invalid denomination");
@@ -442,6 +451,8 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 					return cb("bad message formula: " + message);
 				continue;
 			}
+			if (!isNonemptyObject(message))
+				return cb("message must be a non-empty object");
 			if (typeof message.app !== 'string')
 				return cb("app is not a string");
 			if (['payment', 'data', 'data_feed', 'definition', "asset", "asset_attestors", "attestation", "poll", "vote", 'text', 'profile', 'definition_template', 'state'].indexOf(message.app) === -1)
@@ -480,6 +491,8 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 		var cases = value.cases;
 		for (var i = 0; i < cases.length; i++){
 			var acase = cases[i];
+			if (!isNonemptyObject(acase))
+				return cb('case ' + i + ' must be a non-empty object');
 			if (hasFieldsExcept(acase, [field, 'if', 'init']))
 				return cb('foreign fields in case ' + i + ' of ' + field);
 			if (!hasOwnProperty(acase, field))
@@ -709,7 +722,7 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 	if (template.base_aa) { // parameterized AA
 		if (hasFieldsExcept(template, ['base_aa', 'params']))
 			return callback("foreign fields in parameterized AA definition");
-		if (!ValidationUtils.isNonemptyObject(template.params))
+		if (!isNonemptyObject(template.params))
 			return callback("no params in parameterized AA");
 		if (!variableHasStringsOfAllowedLength(template.params))
 			return callback("some strings in params are too long");
@@ -721,7 +734,7 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 	if (hasFieldsExcept(template, ['bounce_fees', 'messages', 'init', 'doc_url', 'getters']))
 		return callback("foreign fields in AA definition");
 	if ('bounce_fees' in template){
-		if (!ValidationUtils.isNonemptyObject(template.bounce_fees))
+		if (!isNonemptyObject(template.bounce_fees))
 			return callback("empty bounce_fees");
 		for (var asset in template.bounce_fees){
 			if (asset !== 'base' && !isValidBase64(asset, constants.HASH_LENGTH))

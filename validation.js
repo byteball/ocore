@@ -26,6 +26,8 @@ var MAX_INT32 = Math.pow(2, 31) - 1;
 
 var hasFieldsExcept = ValidationUtils.hasFieldsExcept;
 var isNonemptyString = ValidationUtils.isNonemptyString;
+var isNonemptyObject = ValidationUtils.isNonemptyObject;
+var isArrayOfLength = ValidationUtils.isArrayOfLength;
 var isStringOfLength = ValidationUtils.isStringOfLength;
 var isInteger = ValidationUtils.isInteger;
 var isNonnegativeInteger = ValidationUtils.isNonnegativeInteger;
@@ -84,7 +86,7 @@ function validate(objJoint, callbacks, external_conn) {
 		delete objJoint.aa_mci;
 	}
 	else {
-		if (ValidationUtils.isArrayOfLength(objUnit.authors, 1) && !ValidationUtils.isNonemptyObject(objUnit.authors[0].authentifiers) && !objUnit.content_hash)
+		if (isArrayOfLength(objUnit.authors, 1) && !isNonemptyObject(objUnit.authors[0].authentifiers) && !objUnit.content_hash)
 			return callbacks.ifTransientError("possible AA");
 	}
 	
@@ -1009,7 +1011,7 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 	if (!objValidationState.bAA) {
 		if (hasFieldsExcept(objAuthor, ["address", "authentifiers", "definition"]))
 			return callback("unknown fields in author");
-		if (!ValidationUtils.isNonemptyObject(objAuthor.authentifiers) && !objUnit.content_hash)
+		if (!isNonemptyObject(objAuthor.authentifiers) && !objUnit.content_hash)
 			return callback("no authentifiers");
 		for (var path in objAuthor.authentifiers) {
 			if (!isNonemptyString(objAuthor.authentifiers[path]))
@@ -1569,7 +1571,7 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 			return callback();
 
 		case "address_definition_change":
-			if (!ValidationUtils.isNonemptyObject(payload))
+			if (!isNonemptyObject(payload))
 				return callback("payload must be a non empty object");
 			if (hasFieldsExcept(payload, ["definition_chash", "address"]))
 				return callback("unknown fields in address_definition_change");
@@ -1597,6 +1599,8 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 			return callback();
 
 		case "definition": // for AAs only
+			if (!isNonemptyObject(payload))
+				return callback("payload must be a non empty object");
 			if (hasFieldsExcept(payload, ["address", "definition"])) // AA definition cannot be changed and its address is also its definition_chash
 				return callback("unknown fields in app definition");
 			try{
@@ -1633,8 +1637,8 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 			if (objValidationState.bHasPoll)
 				return callback("can be only one poll");
 			objValidationState.bHasPoll = true;
-			if (typeof payload !== "object" || Array.isArray(payload))
-				return callback("poll payload must be object");
+			if (!isNonemptyObject(payload))
+				return callback("poll payload must be a non empty object");
 			if (hasFieldsExcept(payload, ["question", "choices"]))
 				return callback("unknown fields in "+objMessage.app);
 			if (typeof payload.question !== 'string')
@@ -1656,6 +1660,8 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 			return callback();
 			
 		case "vote":
+			if (!isNonemptyObject(payload))
+				return callback("payload must be a non empty object");
 			if (!isStringOfLength(payload.unit, constants.HASH_LENGTH))
 				return callback("invalid unit in vote");
 			if (typeof payload.choice !== "string")
@@ -1688,6 +1694,8 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 			if (objValidationState.bHasSystemVote)
 				return callback("can be only one system vote");
 			objValidationState.bHasSystemVote = true;
+			if (!isNonemptyObject(payload))
+				return callback("payload must be a non empty object");
 			if (hasFieldsExcept(payload, ["subject", "value"]))
 				return callback("unknown fields in " + objMessage.app);
 			if (typeof payload.subject !== "string")
@@ -1697,7 +1705,7 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 			switch (payload.subject) {
 				case "op_list":
 					const arrOPs = payload.value;
-					if (!ValidationUtils.isArrayOfLength(arrOPs, constants.COUNT_WITNESSES))
+					if (!isArrayOfLength(arrOPs, constants.COUNT_WITNESSES))
 						return callback("OP list must be an array of " + constants.COUNT_WITNESSES);
 					if (!arrOPs.every(isValidAddress))
 						return callback("all OPs must be valid addresses");
@@ -1755,7 +1763,7 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 			if (objValidationState.bHasDataFeed)
 				return callback("can be only one data feed");
 			objValidationState.bHasDataFeed = true;
-			if (!ValidationUtils.isNonemptyObject(payload))
+			if (!isNonemptyObject(payload))
 				return callback("data feed payload must be non-empty object");
 			for (var feed_name in payload){
 				if (feed_name.length > constants.MAX_DATA_FEED_NAME_LENGTH)
@@ -1835,12 +1843,14 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 		case "attestation":
 			if (objUnit.authors.length !== 1)
 				return callback("attestation must be single-authored");
+			if (!isNonemptyObject(payload))
+				return callback("payload must be a non empty object");
 			if (hasFieldsExcept(payload, ["address", "profile"]))
 				return callback("unknown fields in "+objMessage.app);
 			if (!isValidAddress(payload.address))
 				return callback("attesting an invalid address");
-			if (typeof payload.profile !== 'object' || payload.profile === null)
-				return callback("attested profile must be object");
+			if (!isNonemptyObject(payload.profile))
+				return callback("attested profile must be non empty object");
 			// it is ok if the address has never been used yet
 			// it is also ok to attest oneself
 			return callback();
@@ -1879,6 +1889,8 @@ function checkNotAAs(conn, arrOPs, mci, cb) {
 // used for both public and private payments
 function validatePayment(conn, payload, message_index, objUnit, objValidationState, callback){
 
+	if (!isNonemptyObject(payload))
+		return callback("payment must be a non-empty object");
 	if (!isNonemptyArray(payload.inputs))
 		return callback("no inputs");
 	if (!isNonemptyArray(payload.outputs))
@@ -1966,6 +1978,8 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 	var count_open_outputs = 0;
 	for (var i=0; i<payload.outputs.length; i++){
 		var output = payload.outputs[i];
+		if (!isNonemptyObject(output))
+			return callback("output must be a non-empty object");
 		if (hasFieldsExcept(output, ["address", "amount", "blinding", "output_hash"]))
 			return callback("unknown fields in payment output");
 		if (!isPositiveInteger(output.amount))
@@ -1984,7 +1998,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 			if ("blinding" in output && !isStringOfLength(output.blinding, 16))
 				return callback("bad blinding");
 			if (("blinding" in output) !== ("address" in output))
-				return callback("address and bilinding must come together");
+				return callback("address and blinding must come together");
 			if ("address" in output && !ValidationUtils.isValidAddressAnyCase(output.address))
 				return callback("output address " + JSON.stringify(output.address) + " invalid");
 			if (output.address)
@@ -2053,6 +2067,8 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 	async.forEachOfSeries(
 		payload.inputs,
 		function(input, input_index, cb){
+			if (!isNonemptyObject(input))
+				return cb("input must be a non-empty object");
 			if (objAsset){
 				if ("type" in input && input.type !== "issue")
 					return cb("non-base input can have only type=issue");
@@ -2534,6 +2550,8 @@ function initPrivatePaymentValidationState(conn, unit, message_index, payload, o
 function validateAssetDefinition(conn, payload, objUnit, objValidationState, callback){
 	if (objUnit.authors.length !== 1)
 		return callback("asset definition must be single-authored");
+	if (!isNonemptyObject(payload))
+		return callback("asset definition must be a non-empty object");
 	if (hasFieldsExcept(payload, ["cap", "is_private", "is_transferrable", "auto_destroy", "fixed_denominations", "issued_by_definer_only", "cosigned_by_definer", "spender_attested", "issue_condition", "transfer_condition", "attestors", "denominations"]))
 		return callback("unknown fields in asset definition");
 	if (typeof payload.is_private !== "boolean" || typeof payload.is_transferrable !== "boolean" || typeof payload.auto_destroy !== "boolean" || typeof payload.fixed_denominations !== "boolean" || typeof payload.issued_by_definer_only !== "boolean" || typeof payload.cosigned_by_definer !== "boolean" || typeof payload.spender_attested !== "boolean")
@@ -2560,6 +2578,10 @@ function validateAssetDefinition(conn, payload, objUnit, objValidationState, cal
 		var prev_denom = 0;
 		for (var i=0; i<payload.denominations.length; i++){
 			var denomInfo = payload.denominations[i];
+			if (!isNonemptyObject(denomInfo))
+				return callback("denomination must be a non-empty object: " + denomInfo);
+			if (hasFieldsExcept(denomInfo, ["denomination", "count_coins"]))
+				return callback("unknown fields in denomination: " + denomInfo);
 			if (!isPositiveInteger(denomInfo.denomination))
 				return callback("invalid denomination");
 			if (denomInfo.denomination <= prev_denom)
@@ -2619,6 +2641,8 @@ function validateAssetDefinition(conn, payload, objUnit, objValidationState, cal
 function validateAttestorListUpdate(conn, payload, objUnit, objValidationState, callback){
 	if (objUnit.authors.length !== 1)
 		return callback("attestor list must be single-authored");
+	if (!isNonemptyObject(payload))
+		return callback("attestor update must be a non-empty object");
 	if (hasFieldsExcept(payload, ['asset', 'attestors']))
 		return callback("foreign fields in attestor list update");
 	if (!isStringOfLength(payload.asset, constants.HASH_LENGTH))
