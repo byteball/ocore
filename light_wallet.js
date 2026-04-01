@@ -194,7 +194,11 @@ function refreshLightClientHistory(addresses, handle){
 				return finish();
 			ws.bLightVendor = true;
 			network.sendRequest(ws, 'light/get_history', objRequest, false, function(ws, request, response){
+				if (!response)
+					return finish("no response");
 				if (response.error){
+					if (typeof response.error !== 'string')
+						return finish("non-string error");
 					if (response.error.indexOf('your history is too large') >= 0)
 						throw Error(response.error);
 					return finish(response.error);
@@ -232,8 +236,8 @@ function archiveDoublespendUnits(){
 		breadcrumbs.add("units still unstable after 1 day: "+(arrUnits.join(', ') || 'none'));
 		arrUnits.forEach(function(unit){
 			network.requestFromLightVendor('get_joint', unit, function(ws, request, response){
-				if (response.error)
-					return breadcrumbs.add("get_joint "+unit+": "+response.error);
+				if (!response || response.error)
+					return breadcrumbs.add("get_joint "+unit+": "+response?.error);
 				if (response.joint_not_found === unit){
 					breadcrumbs.add("light vendor doesn't know about unit "+unit+" any more, will archive");
 					storage.archiveJointAndDescendantsIfExists(unit);

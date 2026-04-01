@@ -299,6 +299,8 @@ function composeJoint(params){
 				'light/get_parents_and_last_ball_and_witness_list_unit', 
 				{witnesses: arrWitnesses, from_addresses: arrFromAddresses, output_addresses: arrOutputAddresses, max_aa_responses}, 
 				function(ws, request, response){
+					if (!response)
+						return handleError("empty response from light vendor");
 					if (response.error)
 						return handleError(response.error); // cb is not called
 					if (!response.parent_units || !response.last_stable_mc_ball || !response.last_stable_mc_ball_unit || typeof response.last_stable_mc_ball_mci !== 'number')
@@ -806,7 +808,7 @@ function postJointToLightVendorIfNecessaryAndSave(objJoint, onLightError, save){
 			if (response === 'accepted')
 				save();
 			else
-				onLightError(response.error);
+				onLightError(response ? response.error : "empty response from light vendor");
 		});
 	}
 	else
@@ -838,6 +840,8 @@ function composeAuthorsAndMciForAddresses(conn, arrFromAddresses, signer, cb) {
 				'light/get_parents_and_last_ball_and_witness_list_unit', 
 				{witnesses: arrWitnesses, from_addresses: arrFromAddresses, output_addresses: arrFromAddresses}, 
 				function(ws, request, response){
+					if (!response)
+						return cb("empty response from light vendor");
 					if (response.error)
 						return cb(response.error);
 					if (!response.parent_units || !response.last_stable_mc_ball || !response.last_stable_mc_ball_unit || typeof response.last_stable_mc_ball_mci !== 'number')

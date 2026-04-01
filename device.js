@@ -287,7 +287,7 @@ function sendTempPubkey(ws, temp_pubkey, callbacks){
 	network.sendRequest(ws, 'hub/temp_pubkey', createTempPubkeyPackage(temp_pubkey), false, function(ws, request, response){
 		if (response === 'updated')
 			return callbacks.ifOk();
-		var error = response.error || ("unrecognized response: "+JSON.stringify(response));
+		var error = response?.error || ("unrecognized response: "+JSON.stringify(response));
 		callbacks.ifError(error);
 	});
 }
@@ -604,6 +604,8 @@ function sendPreparedMessageToConnectedHub(ws, recipient_device_pubkey, message_
 			callbacks.ifError(error);
 			db.query("UPDATE outbox SET last_error=? WHERE message_hash=?", [error, message_hash], function(){});
 		}
+		if (!response)
+			return handleError("empty response");
 		if (response.error)
 			return handleError(response.error);
 		var objTempPubkey = response;
@@ -633,7 +635,7 @@ function sendPreparedMessageToConnectedHub(ws, recipient_device_pubkey, message_
 				});
 			}
 			else
-				handleError( response.error || ("unrecognized response: "+JSON.stringify(response)) );
+				handleError( response?.error || ("unrecognized response: "+JSON.stringify(response)) );
 		});
 	});
 }
@@ -911,6 +913,8 @@ function getWitnessesFromHub(cb){
 		if (err)
 			return cb(err);
 		network.sendRequest(ws, 'get_witnesses', null, false, function(ws, request, response){
+			if (!response)
+				return cb("empty response from hub");
 			if (response.error)
 				return cb(response.error);
 			var arrWitnessesFromHub = response;
@@ -929,6 +933,8 @@ function requestFromHub(command, params, responseHandler){
 		if (err)
 			return responseHandler(err);
 		network.sendRequest(ws, command, params, false, function(ws, request, response){
+			if (!response)
+				return responseHandler("empty response from hub");
 			if (response.error)
 				return responseHandler(response.error);
 			responseHandler(null, response);
