@@ -31,6 +31,7 @@ var breadcrumbs = require('./breadcrumbs.js');
 var mail = require('./mail.js');
 var aa_composer = require('./aa_composer.js');
 var formulaEvaluation = require('./formula/evaluation.js');
+const errorToString = require('./formula/error/errorToString.js');
 var dataFeeds = require('./data_feeds.js');
 var libraryPackageJson = require('./package.json');
 
@@ -1686,7 +1687,7 @@ function aaResponseAffectsAddress(objAAResponse, address) {
 		}
 	}
 	// check if the error message contains our address
-	if (objAAResponse.response.error && objAAResponse.response.error.indexOf(address) >= 0)
+	if (objAAResponse.response.error && errorToString(objAAResponse.response.error).indexOf(address) >= 0)
 		return true;
 	// check if any response variable name contains our address
 	if (objAAResponse.response.responseVars) {
