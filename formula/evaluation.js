@@ -1064,15 +1064,15 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 				var value = (op === 'params') ? aa_params : trigger.data;
 				if (!value || Object.keys(value).length === 0)
 					return cb(false);
-				cb(new wrappedObject(value));
+				cb(new wrappedObject(_.cloneDeep(value)));
 				break;
 
 			case 'previous_aa_responses':
-				cb(new wrappedObject(objValidationState.arrPreviousAAResponses));
+				cb(new wrappedObject(_.cloneDeep(objValidationState.arrPreviousAAResponses)));
 				break;
 
 			case 'trigger.outputs':
-				cb(new wrappedObject(trigger.outputs));
+				cb(new wrappedObject(_.cloneDeep(trigger.outputs)));
 				break;
 
 			case 'trigger.output':
@@ -1117,7 +1117,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 							if (fatal_error)
 								return cb2(fatal_error);
 							if (res instanceof wrappedObject)
-								arrItems.push(res.obj);
+								arrItems.push(_.cloneDeep(res.obj)); // might be frozen
 							else {
 								if (!isValidValue(res))
 									return setFatalError("bad value " + res, { arr }, undefined, cb2);
@@ -1147,7 +1147,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 							if (fatal_error)
 								return cb2(fatal_error);
 							if (res instanceof wrappedObject)
-								assignField(obj, key, res.obj);
+								assignField(obj, key, _.cloneDeep(res.obj)); // might be frozen
 							else {
 								if (!isValidValue(res))
 									return setFatalError("bad value " + res, { arr }, undefined, cb2);
@@ -1521,12 +1521,12 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 					if (bAA) {
 						// 1. check the current response unit
 						if (objResponseUnit && objResponseUnit.unit === unit)
-							return cb(new wrappedObject(objResponseUnit));
+							return cb(new wrappedObject(_.cloneDeep(objResponseUnit)));
 						// 2. check previous response units from the same primary trigger, they are not in the db yet
 						for (var i = 0; i < objValidationState.arrPreviousAAResponses.length; i++) {
 							var objPreviousResponseUnit = objValidationState.arrPreviousAAResponses[i].unit_obj;
 							if (objPreviousResponseUnit && objPreviousResponseUnit.unit === unit)
-								return cb(new wrappedObject(objPreviousResponseUnit));
+								return cb(new wrappedObject(_.cloneDeep(objPreviousResponseUnit)));
 						}
 					}
 					// 3. check the units from the db
@@ -2657,8 +2657,8 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 		}
 		var result;
 		if (operand0 instanceof wrappedObject && operand1 instanceof wrappedObject) {
-			var obj0 = operand0.obj;
-			var obj1 = operand1.obj;
+			var obj0 = _.cloneDeep(operand0.obj); // might be frozen, so clone it
+			var obj1 = _.cloneDeep(operand1.obj);
 			var bArray0 = Array.isArray(obj0);
 			var bArray1 = Array.isArray(obj1);
 			if (bArray0 && bArray1)
