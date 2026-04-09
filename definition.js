@@ -51,7 +51,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 			return "invalid what";
 		if (bAssetCondition && filter.asset === "this asset" && objValidationState.bDefiningPrivateAsset)
 			return "private asset cannot reference itself";
-		if ("asset" in filter && !(filter.asset === "base" || isStringOfLength(filter.asset, constants.HASH_LENGTH) || bAssetCondition && filter.asset === "this asset"))
+		if ("asset" in filter && !(filter.asset === "base" || isValidBase64(filter.asset, constants.HASH_LENGTH) || bAssetCondition && filter.asset === "this asset"))
 			return "invalid asset";
 		if (filter.what === "output"){
 			if ("type" in filter)
@@ -284,8 +284,8 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 					return cb("2-element array expected in "+op);
 				var unit = args[0];
 				var params = args[1];
-				if (!isStringOfLength(unit, constants.HASH_LENGTH))
-					return cb("unit must be 44 bytes long");
+				if (!isValidBase64(unit, constants.HASH_LENGTH))
+					return cb("unit must be a valid base64 string 44 bytes long");
 				if (!ValidationUtils.isNonemptyObject(params))
 					return cb("params must be non-empty object");
 				for (var key in params)
