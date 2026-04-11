@@ -1330,8 +1330,10 @@ function getCurrentTps(shift = 0) {
 	const since_mci = last_stable_mci + shift;
 	let count = 0;
 	let since_timestamp = 0;
+	const now = Math.round(Date.now() / 1000);
 	for (let unit in assocUnstableUnits) {
 		const objUnitProps = assocUnstableUnits[unit];
+		if (objUnitProps.timestamp > now) continue; // skip future-timestamped units
 		if (objUnitProps.main_chain_index > since_mci || objUnitProps.main_chain_index === null)
 			count += getCountUnitsPayingTpsFee(objUnitProps);
 		else if (shift > 0 && objUnitProps.main_chain_index === since_mci) {
