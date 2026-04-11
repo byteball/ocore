@@ -1649,6 +1649,7 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 				return callback("no choices in poll");
 			if (payload.choices.length > constants.MAX_CHOICES_PER_POLL)
 				return callback("too many choices in poll");
+			let seenChoices = Object.create(null);
 			for (var i=0; i<payload.choices.length; i++) {
 				if (typeof payload.choices[i] !== 'string')
 					return callback("all choices must be strings");
@@ -1656,6 +1657,9 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 					return callback("all choices must be longer than 0 chars");
 				if (payload.choices[i].length > constants.MAX_CHOICE_LENGTH)
 					return callback("all choices must be "+ constants.MAX_CHOICE_LENGTH + " chars or less");
+				if (seenChoices[payload.choices[i]])
+					return callback("all choices must be different");
+				seenChoices[payload.choices[i]] = true;
 			}
 			return callback();
 			
