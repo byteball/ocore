@@ -2303,6 +2303,8 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 												var key = element;
 												var value = toOscriptType(res.obj[element]);
 											}
+											if (value instanceof wrappedObject && res.frozen)
+												value.frozen = true;
 											if (count_args === 1)
 												args.push(value);
 											else
