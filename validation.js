@@ -935,7 +935,7 @@ async function validateTpsFee(conn, objJoint, objValidationState, callback) {
 	console.log('validation', {min_tps_fee}, objUnitProps)
 	
 	// compare against the current tps fee or soft-reject
-	const current_tps_fee = objJoint.ball ? 0 : storage.getCurrentTpsFee(); // very low while catching up
+	const current_tps_fee = objJoint.ball ? 0 : storage.getCurrentTpsFee(0, count_units); // very low while catching up
 	const min_acceptable_tps_fee_multiplier = objJoint.ball ? 0 : storage.getMinAcceptableTpsFeeMultiplier();
 	const min_acceptable_tps_fee = current_tps_fee * min_acceptable_tps_fee_multiplier * count_units;
 

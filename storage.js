@@ -1324,11 +1324,11 @@ function getCountUnitsPayingTpsFee(objUnitProps) {
 }
 
 // current tps based on units with mci greater than last_stable_mci + shift
-function getCurrentTps(shift = 0) {
+function getCurrentTps(shift = 0, count_units = 1) {
 	if (last_stable_mci === null)
 		throw Error(`getCurrentTps: last_stable_mci not set yet`);
 	const since_mci = last_stable_mci + shift;
-	let count = 0;
+	let count = count_units; // include the current unit and its AA responses
 	let since_timestamp = 0;
 	const now = Math.round(Date.now() / 1000);
 	for (let unit in assocUnstableUnits) {
@@ -1360,17 +1360,17 @@ function getCurrentTps(shift = 0) {
 	return count / elapsed;
 }
 
-function getCurrentTpsFee(shift = 0) {
-	const tps = getCurrentTps(shift);
+function getCurrentTpsFee(shift = 0, count_units = 1) {
+	const tps = getCurrentTps(shift, count_units);
 	console.log(`current tps with shift ${shift} ${tps}`);
 	const base_tps_fee = getSystemVar('base_tps_fee', last_stable_mci);
 	const tps_interval = getSystemVar('tps_interval', last_stable_mci);
 	return Math.round(base_tps_fee * (Math.exp(tps / tps_interval) - 1));
 }
 
-function getCurrentTpsFeeToPay(shift = 0) {
+function getCurrentTpsFeeToPay(shift = 0, count_units = 1) {
 	const tps_fee_multiplier = getSystemVar('tps_fee_multiplier', last_stable_mci);
-	return Math.round(tps_fee_multiplier * getCurrentTpsFee(shift));
+	return Math.round(tps_fee_multiplier * getCurrentTpsFee(shift, count_units));
 }
 
 

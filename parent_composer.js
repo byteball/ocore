@@ -537,8 +537,8 @@ async function replaceParents(conn, filtered_prows, excluded_parents) {
 async function getTpsFee(conn, parent_units, last_ball_unit, timestamp, count_units = 1) {
 	return Math.max(
 		await getLocalTpsFee(conn, parent_units, last_ball_unit, timestamp, count_units),
-		storage.getCurrentTpsFeeToPay() * count_units,
-		storage.getCurrentTpsFeeToPay(1) * count_units
+		storage.getCurrentTpsFeeToPay(0, count_units) * count_units,
+		storage.getCurrentTpsFeeToPay(1, count_units) * count_units
 	);
 }
 
