@@ -168,7 +168,7 @@ function validate(objJoint, callbacks, external_conn) {
 		if (!isPositiveInteger(objUnit.timestamp))
 			return callbacks.ifUnitError("timestamp required in version " + objUnit.version);
 		var current_ts = Math.round(Date.now() / 1000);
-		var max_seconds_into_the_future_to_accept = conf.max_seconds_into_the_future_to_accept || 3600;
+		var max_seconds_into_the_future_to_accept = conf.max_seconds_into_the_future_to_accept || 5;
 		if (objUnit.timestamp > current_ts + max_seconds_into_the_future_to_accept)
 			return callbacks.ifTransientError("timestamp is too far into the future");
 	}
