@@ -133,8 +133,12 @@ function validate(objJoint, callbacks, external_conn) {
 			return callbacks.ifUnitError("bad tps_fee");
 		if ("burn_fee" in objUnit && !isPositiveInteger(objUnit.burn_fee))
 			return callbacks.ifUnitError("bad burn_fee");
-		if ("max_aa_responses" in objUnit && !isNonnegativeInteger(objUnit.max_aa_responses))
-			return callbacks.ifUnitError("bad max_aa_responses");
+		if ("max_aa_responses" in objUnit) {
+			if (!isNonnegativeInteger(objUnit.max_aa_responses))
+				return callbacks.ifUnitError("bad max_aa_responses");
+			if (objUnit.max_aa_responses > constants.MAX_RESPONSES_PER_PRIMARY_TRIGGER)
+				return callbacks.ifTransientError("max_aa_responses too large"); // later: ifUnitError
+		}
 		
 		if (!isNonemptyArray(objUnit.messages))
 			return callbacks.ifUnitError("missing or empty messages array");
