@@ -136,7 +136,7 @@ function validate(objJoint, callbacks, external_conn) {
 		if ("max_aa_responses" in objUnit) {
 			if (!isNonnegativeInteger(objUnit.max_aa_responses))
 				return callbacks.ifUnitError("bad max_aa_responses");
-			if (objUnit.max_aa_responses > constants.MAX_RESPONSES_PER_PRIMARY_TRIGGER)
+			if (objUnit.max_aa_responses > constants.MAX_RESPONSES_PER_PRIMARY_TRIGGER && !(constants.bTestnet && ['pLpKQaXTTgcpFrd8B1zvcw2dLcDAvaUkQuz1fY+ldPA=', 'J/8gMqNqIkq2LIPV7rQNjWk37u16/P7nToV+SSZxMDs='].includes(objUnit.unit)))
 				return callbacks.ifTransientError("max_aa_responses too large"); // later: ifUnitError
 		}
 		
