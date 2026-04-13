@@ -1,6 +1,6 @@
 var path = require('path');
-var shell = require('child_process').execSync;
 var _ = require('lodash');
+var testdataFs = require('./_testdata_fs.js');
 
 process.env.devnet = 1;
 var constants = require("../constants.js");
@@ -10,9 +10,8 @@ desktop_app.getAppDataDir = function () { return __dirname + '/.testdata-' + pat
 
 var src_dir = __dirname + '/initial-testdata-' + path.basename(__filename);
 var dst_dir = __dirname + '/.testdata-' + path.basename(__filename);
-//shell('mkdir ' + dst_dir);
-shell('rm -rf ' + dst_dir);
-shell('cp -r ' + src_dir + '/ ' + dst_dir);
+testdataFs.removeTestdataDir(dst_dir);
+testdataFs.copyTestdataDir(src_dir, dst_dir);
 
 var db = require('../db.js');
 var aa_validation = require('../aa_validation.js');

@@ -1,5 +1,5 @@
-var shell = require('child_process').execSync;
 var path = require('path');
+var testdataFs = require('./_testdata_fs.js');
 var crypto = require('crypto');
 var Mnemonic = require('bitcore-mnemonic');
 
@@ -17,7 +17,7 @@ desktop_app.getAppDataDir = function() { return __dirname + '/.testdata-' + path
 
 // cleanup, if last time failed
 var dst_dir = __dirname + '/.testdata-' + path.basename(__filename);
-shell('rm -rf ' + dst_dir);
+testdataFs.removeTestdataDir(dst_dir);
 
 var Decimal = require('decimal.js');
 var formulaParser = require('../formula/index');
