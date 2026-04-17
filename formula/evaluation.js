@@ -2337,9 +2337,9 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 											if (op === 'map') {
 												r = toJsType(r);
 												if (bArray)
-													retValue.push(r);
+													retValue.push(_.cloneDeep(r));
 												else
-													assignField(retValue, element, r);
+													assignField(retValue, element, _.cloneDeep(r));
 											}
 											else if (op === 'filter') {
 												r = toJsType(r);
