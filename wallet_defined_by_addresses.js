@@ -430,7 +430,12 @@ function getMemberDeviceAddressesBySigningPaths(arrAddressDefinitionTemplate){
 }
 
 function validateAddressDefinitionTemplate(arrDefinitionTemplate, from_address, handleResult){
-	var assocMemberDeviceAddressesBySigningPaths = getMemberDeviceAddressesBySigningPaths(arrDefinitionTemplate);
+	try{
+		var assocMemberDeviceAddressesBySigningPaths = getMemberDeviceAddressesBySigningPaths(arrDefinitionTemplate);
+	}
+	catch (e) {
+		return handleResult("failed to get member device addresses of new shared address: " + e.toString());
+	}
 	var arrDeviceAddresses = _.uniq(_.values(assocMemberDeviceAddressesBySigningPaths));
 	if (arrDeviceAddresses.length < 2)
 		return handleResult("less than 2 member devices");

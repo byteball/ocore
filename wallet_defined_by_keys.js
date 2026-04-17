@@ -480,7 +480,12 @@ function getDeviceAddressesBySigningPaths(arrWalletDefinitionTemplate){
 }
 
 function validateWalletDefinitionTemplate(arrWalletDefinitionTemplate, from_address, handleResult){
-	var arrDeviceAddresses = getDeviceAddresses(arrWalletDefinitionTemplate);
+	try {
+		var arrDeviceAddresses = getDeviceAddresses(arrWalletDefinitionTemplate);
+	}
+	catch (e) {
+		return handleResult("failed to get device addresses of new wallet: " + e.toString());
+	}
 	if (arrDeviceAddresses.indexOf(device.getMyDeviceAddress()) === - 1)
 		return handleResult("my device address not mentioned in the definition");
 	if (arrDeviceAddresses.indexOf(from_address) === - 1)
