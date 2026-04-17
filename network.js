@@ -42,6 +42,7 @@ var HEARTBEAT_TIMEOUT = conf.HEARTBEAT_TIMEOUT || 10*1000;
 var HEARTBEAT_RESPONSE_TIMEOUT = 60*1000;
 var HEARTBEAT_PAUSE_TIMEOUT = 2*HEARTBEAT_TIMEOUT;
 var MAX_STATE_VARS = 2000;
+const maxPayload = 6 * 1024 * 1024; // 6 MB
 
 var wss;
 var arrOutboundPeers = [];
@@ -426,7 +427,7 @@ function checkIfHaveEnoughOutboundPeersAndAdd(){
 function connectToPeer(url, onOpen, dontAddPeer) {
 	if (!dontAddPeer)
 		addPeer(url);
-	var options = {};
+	var options = { maxPayload };
 	if (SocksProxyAgent && conf.socksHost && conf.socksPort) {
 		let socksUrl = 'socks5h://';
 		if (conf.socksUsername && conf.socksPassword)
@@ -439,7 +440,7 @@ function connectToPeer(url, onOpen, dontAddPeer) {
 		console.log('Using httpsProxy: ' + conf.httpsProxy);
 	}
 
-	var ws = options.agent ? new WebSocket(url,options) : new WebSocket(url);
+	var ws = !bCordova ? new WebSocket(url,options) : new WebSocket(url);
 	assocConnectingOutboundWebsockets[url] = ws;
 	setTimeout(function(){
 		if (assocConnectingOutboundWebsockets[url]){
@@ -4054,7 +4055,6 @@ function startAcceptingConnections(){
 	db.query("DELETE FROM watched_light_units");
 	//db.query("DELETE FROM light_peer_witnesses");
 	// listen for new connections
-	const maxPayload = 6 * 1024 * 1024; // 6 MB
 	wss = new WebSocketServer(conf.portReuse ? { noServer: true, maxPayload } : { port: conf.port, maxPayload });
 	wss.on('connection', function(ws, req) {
 		if (!req.socket.remoteAddress){
