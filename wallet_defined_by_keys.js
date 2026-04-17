@@ -244,7 +244,7 @@ function createWallet(xPubKey, account, arrWalletDefinitionTemplate, walletName,
 		device.readCorrespondentsByDeviceAddresses(arrDeviceAddresses, function(arrOtherCosigners){
 			if (arrOtherCosigners.length !== arrDeviceAddresses.length - 1)
 				throw Error("incorrect length of other cosigners");
-			arrDeviceAddresses.forEach(function(device_address){
+			_.uniq(arrDeviceAddresses).forEach(function(device_address){
 				if (device_address === device.getMyDeviceAddress())
 					return;
 				console.log("sending offer to "+device_address);
@@ -428,7 +428,7 @@ function addNewAddress(wallet, is_change, address_index, address, handleError){
 }
 
 function getDeviceAddresses(arrWalletDefinitionTemplate){
-	return _.uniq(_.values(getDeviceAddressesBySigningPaths(arrWalletDefinitionTemplate)));
+	return _.values(getDeviceAddressesBySigningPaths(arrWalletDefinitionTemplate));
 }
 
 function getDeviceAddressesBySigningPaths(arrWalletDefinitionTemplate){
