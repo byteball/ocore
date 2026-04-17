@@ -4054,7 +4054,7 @@ function startAcceptingConnections(){
 	db.query("DELETE FROM watched_light_units");
 	//db.query("DELETE FROM light_peer_witnesses");
 	// listen for new connections
-	const maxPayload = 10 * 1024 * 1024; // 10 MB
+	const maxPayload = 6 * 1024 * 1024; // 6 MB
 	wss = new WebSocketServer(conf.portReuse ? { noServer: true, maxPayload } : { port: conf.port, maxPayload });
 	wss.on('connection', function(ws, req) {
 		if (!req.socket.remoteAddress){
