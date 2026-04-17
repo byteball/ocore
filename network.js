@@ -4032,6 +4032,19 @@ function onWebsocketMessage(message) {
 	ws.handlingMessage = false;
 }
 
+function watchMemory() {
+	const v8 = require('v8');
+	const THRESHOLD_PERCENT = 80;
+
+	setInterval(() => {
+		const stats = v8.getHeapStatistics();
+		const usagePercent = (stats.used_heap_size / stats.heap_size_limit) * 100;
+		if (usagePercent > THRESHOLD_PERCENT) // crash with uncaughtException before OOM
+			throw new Error(`Memory usage is at ${usagePercent.toFixed(2)}%`);
+	}, 5000); // Check every 5 seconds
+}
+
+
 // @see https://www.npmjs.com/package/ws#multiple-servers-sharing-a-single-https-server
 function handleUpgradeConnection(incomingRequest, socket, head) {
 	if (!(wss instanceof WebSocketServer)) throw new Error('reuse port and upgrade connection in light node is not supported')
@@ -4158,6 +4171,7 @@ async function startRelay(){
 	setInterval(joint_storage.purgeUncoveredNonserialJointsUnderLock, 60*1000);
 	setInterval(handleSavedPrivatePayments, 5*1000);
 	joint_storage.readDependentJointsThatAreReady(null, handleSavedJoint);
+	watchMemory();
 
 	eventBus.on('new_aa_unit', onNewAA);
 	eventBus.on('system_vars_updated', onSystemVarUpdated);
