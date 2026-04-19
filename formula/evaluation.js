@@ -2682,12 +2682,16 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 		return { result };
 	}
 
+	function copyIfObject(value) {
+		return (value instanceof wrappedObject) ? new wrappedObject(_.cloneDeep(value.obj)) : value;
+	}
+
 	function readVar(param_address, var_name, cb2) {
 		if (!stateVars[param_address])
 			stateVars[param_address] = {};
 		if (hasOwnProperty(stateVars[param_address], var_name)) {
 		//	console.log('using cache for var '+var_name);
-			return cb2(stateVars[param_address][var_name].value);
+			return cb2(copyIfObject(stateVars[param_address][var_name].value));
 		}
 		storage.readAAStateVar(param_address, var_name, function (value) {
 		//	console.log(var_name+'='+(typeof value === 'object' ? JSON.stringify(value) : value));
@@ -2708,7 +2712,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 					value = new wrappedObject(value);
 			}
 			assignField(stateVars[param_address], var_name, { value: value, old_value: value, original_old_value: value });
-			cb2(value);
+			cb2(copyIfObject(value));
 		});
 	}
 
