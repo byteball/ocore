@@ -873,7 +873,8 @@ function requestNewMissingJoints(ws, arrUnits){
 				ifKnown: function(){console.log("known"); cb();}, // it has just been handled
 				ifKnownUnverified: function(){console.log("known unverified"); cb();}, // I was already waiting for it
 				ifKnownBad: function(error){
-					throw Error("known bad "+unit+": "+error);
+					console.log("known bad "+unit+": "+error); // might happen if it's immediately used as parent but not written to known_bad_joints yet
+					cb();
 				}
 			});
 		},
@@ -1052,10 +1053,10 @@ function handleJoint(ws, objJoint, bSaved, bPosted, callbacks){
 					callbacks.ifUnitError(error);
 					if (constants.bDevnet)
 						throw Error(error);
-					unlock();
 					purgeJointAndDependenciesAndNotifyPeers(objJoint, error, function(){
 						delete assocUnitsInWork[unit];
 					});
+					unlock();
 					if (ws && error !== 'authentifier verification failed' && !error.match(/bad merkle proof at path/) && !bPosted)
 						writeEvent('invalid', ws.host);
 					if (objJoint.unsigned)
@@ -1065,10 +1066,10 @@ function handleJoint(ws, objJoint, bSaved, bPosted, callbacks){
 					clearHost();
 					callbacks.ifJointError(error);
 				//	throw Error(error);
-					unlock();
 					joint_storage.saveKnownBadJoint(objJoint, error, function(){
 						delete assocUnitsInWork[unit];
 					});
+					unlock();
 					if (ws)
 						writeEvent('invalid', ws.host);
 					if (objJoint.unsigned)
