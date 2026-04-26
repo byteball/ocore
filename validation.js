@@ -73,7 +73,7 @@ function validate(objJoint, callbacks, external_conn) {
 		return callbacks.ifJointError("failed to calc unit hash: "+e);
 	}
 
-	if (isTooDeeplyNestedOrHasTooManyNodes(objUnit, 1000, Infinity))
+	if (isTooDeeplyNestedOrHasTooManyNodes(objUnit))
 		return callbacks.ifUnitError("unit is too deeply nested");
 
 	const bGenesis = storage.isGenesisUnit(objUnit.unit);

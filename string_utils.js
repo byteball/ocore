@@ -227,7 +227,7 @@ function getJsonSourceString(obj, bAllowEmpty) {
 }
 
 
-function isTooDeeplyNestedOrHasTooManyNodes(obj, depthLimit = 1000, nodesLimit = 10000) {
+function isTooDeeplyNestedOrHasTooManyNodes(obj, depthLimit = 100, nodesLimit = 10000) {
 	let nodeCount = 0;
 
 	function check(variable, depth){
