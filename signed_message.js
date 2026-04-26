@@ -175,7 +175,6 @@ function validateSignedMessage(conn, objSignedMessage, address, handleResult) {
 			return handleResult("not signed by the expected address");
 		the_author = authors[0];
 	}
-	var objAuthor = the_author;
 	try { // check for nulls and empty objects, this makes getChash160 safe on all authors, not just the signer
 		string_utils.getJsonSourceString(objSignedMessage);
 	}
@@ -186,7 +185,7 @@ function validateSignedMessage(conn, objSignedMessage, address, handleResult) {
 	if (bNetworkAware && !ValidationUtils.isValidBase64(objSignedMessage.last_ball_unit, constants.HASH_LENGTH))
 		return handleResult("invalid last_ball_unit");
 	
-	function validateOrReadDefinition(cb, bRetrying) {
+	function validateOrReadDefinition(objAuthor, cb, bRetrying) {
 		var bHasDefinition = ("definition" in objAuthor);
 		if (bNetworkAware) {
 			conn.query("SELECT main_chain_index, timestamp FROM units WHERE unit=?", [objSignedMessage.last_ball_unit], function (rows) {
@@ -196,12 +195,12 @@ function validateSignedMessage(conn, objSignedMessage, address, handleResult) {
 						return handleResult("last_ball_unit " + objSignedMessage.last_ball_unit + " not found");
 					if (conf.bLight)
 						network.requestHistoryFor([objSignedMessage.last_ball_unit], [objAuthor.address], function () {
-							validateOrReadDefinition(cb, true);
+							validateOrReadDefinition(objAuthor, cb, true);
 						});
 					else
 						eventBus.once('catching_up_done', function () {
 							// no retry flag, will retry multiple times until the catchup is over
-							validateOrReadDefinition(cb);
+							validateOrReadDefinition(objAuthor, cb);
 						});
 					return;
 				}
@@ -215,7 +214,7 @@ function validateSignedMessage(conn, objSignedMessage, address, handleResult) {
 								return handleResult("definition expected but not provided");
 							var network = require('./network.js');
 							return network.requestHistoryFor([], [objAuthor.address], function () {
-								validateOrReadDefinition(cb, true);
+								validateOrReadDefinition(objAuthor, cb, true);
 							});
 						}
 						if (objectHash.getChash160(objAuthor.definition) !== definition_chash)
@@ -243,38 +242,50 @@ function validateSignedMessage(conn, objSignedMessage, address, handleResult) {
 		}
 	}
 
-	validateOrReadDefinition(function (arrAddressDefinition, last_ball_mci, last_ball_timestamp) {
-		var objUnit = _.clone(objSignedMessage);
-		objUnit.messages = []; // some ops need it
-		try {
-			var objValidationState = {
-				unit_hash_to_sign: objectHash.getSignedPackageHashToSign(objSignedMessage),
-				last_ball_mci: last_ball_mci,
-				last_ball_timestamp: last_ball_timestamp,
-				bNoReferences: !bNetworkAware
-			};
-		}
-		catch (e) {
-			return handleResult("failed to calc unit_hash_to_sign: " + e);
-		}
-		try {
-			// passing db as null
-			Definition.validateAuthentifiers(
-				conn, objAuthor.address, null, arrAddressDefinition, objUnit, objValidationState, objAuthor.authentifiers,
-				function (err, res) {
-					if (err) // error in address definition
-						return handleResult(err);
-					if (!res) // wrong signature or the like
-						return handleResult("authentifier verification failed");
-					handleResult(null, last_ball_mci);
+	let last_ball_mci;
+	async.eachSeries(
+		authors,
+		function (objAuthor, cb) {
+			validateOrReadDefinition(objAuthor, function (arrAddressDefinition, _last_ball_mci, last_ball_timestamp) {
+				last_ball_mci = _last_ball_mci;
+				var objUnit = _.clone(objSignedMessage);
+				objUnit.messages = []; // some ops need it
+				try {
+					var objValidationState = {
+						unit_hash_to_sign: objectHash.getSignedPackageHashToSign(objSignedMessage),
+						last_ball_mci: last_ball_mci,
+						last_ball_timestamp: last_ball_timestamp,
+						bNoReferences: !bNetworkAware
+					};
 				}
-			);
+				catch (e) {
+					return cb("failed to calc unit_hash_to_sign: " + e);
+				}
+				try {
+					// passing db as null
+					Definition.validateAuthentifiers(
+						conn, objAuthor.address, null, arrAddressDefinition, objUnit, objValidationState, objAuthor.authentifiers,
+						function (err, res) {
+							if (err) // error in address definition
+								return cb(err);
+							if (!res) // wrong signature or the like
+								return cb("authentifier verification failed");
+							cb();
+						}
+					);
+				}
+				catch (e) {
+					console.log("exception while validating signed message:", e);
+					return cb("exception while validating: " + e);
+				}
+			});
+		},
+		function (err) {
+			if (err)
+				return handleResult(err);
+			handleResult(null, last_ball_mci);
 		}
-		catch (e) {
-			console.log("exception while validating signed message:", e);
-			return handleResult("exception while validating: " + e);
-		}
-	});
+	);
 }
 
 // inconsistent for multisig addresses
