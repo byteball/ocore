@@ -1080,8 +1080,8 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 						for (var i=0; i<arrFoundObjects.length; i++)
 							sum += arrFoundObjects[i].amount;
 					console.log("sum="+sum);
-					if (typeof args.equals === "number" && sum === args.equals)
-						return cb2(true);
+					if (typeof args.equals === "number")
+						return cb2(sum === args.equals);
 					if (typeof args.at_least === "number" && sum < args.at_least)
 						return cb2(false);
 					if (typeof args.at_most === "number" && sum > args.at_most)
