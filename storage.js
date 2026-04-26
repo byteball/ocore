@@ -1224,10 +1224,10 @@ async function updateTpsFees(conn, arrMcis) {
 			const total_tps_fees_delta = (objUnitProps.tps_fee || 0) - tps_fee; // can be negative
 			//	if (total_tps_fees_delta === 0)
 			//		continue;
-			/*	const recipients = (objUnitProps.earned_headers_commission_recipients && total_tps_fees_delta < 0)
-					? storage.getTpsFeeRecipients(objUnitProps.earned_headers_commission_recipients, objUnitProps.author_addresses)
-					: (objUnitProps.earned_headers_commission_recipients || { [objUnitProps.author_addresses[0]]: 100 });*/
-			const recipients = getTpsFeeRecipients(objUnitProps.earned_headers_commission_recipients, objUnitProps.author_addresses);
+			/*	const recipients = (objUnitProps.assocEarnedHeadersCommissionRecipients && total_tps_fees_delta < 0)
+					? storage.getTpsFeeRecipients(objUnitProps.assocEarnedHeadersCommissionRecipients, objUnitProps.author_addresses)
+					: (objUnitProps.assocEarnedHeadersCommissionRecipients || { [objUnitProps.author_addresses[0]]: 100 });*/
+			const recipients = getTpsFeeRecipients(objUnitProps.assocEarnedHeadersCommissionRecipients, objUnitProps.author_addresses);
 			for (let address in recipients) {
 				const share = recipients[address];
 				const tps_fees_delta = Math.floor(total_tps_fees_delta * share / 100);
@@ -1384,7 +1384,7 @@ async function getPaidTpsFee(conn, unit) {
 		objUnitProps = {
 			unit,
 			author_addresses: objUnit.authors.map(a => a.address),
-			earned_headers_commission_recipients: objUnit.earned_headers_commission_recipients,
+			assocEarnedHeadersCommissionRecipients: objUnit.earned_headers_commission_recipients,
 			tps_fee: objUnit.tps_fee || 0,
 			last_ball_unit: objUnit.last_ball_unit,
 		};
@@ -1393,7 +1393,7 @@ async function getPaidTpsFee(conn, unit) {
 		throw Error(`no tps_fee in props`);
 	const objLastBallUnitProps = await readUnitProps(conn, objUnitProps.last_ball_unit);
 	const last_ball_mci = objLastBallUnitProps.main_chain_index;
-	const recipients = getTpsFeeRecipients(objUnitProps.earned_headers_commission_recipients, objUnitProps.author_addresses);
+	const recipients = getTpsFeeRecipients(objUnitProps.assocEarnedHeadersCommissionRecipients, objUnitProps.author_addresses);
 	let min_tps_fee = Infinity;
 	for (let address in recipients) {
 		const share = recipients[address] / 100;
@@ -1433,9 +1433,9 @@ function getMinAcceptableTpsFeeMultiplier() {
 }
 
 
-function getTpsFeeRecipients(earned_headers_commission_recipients, author_addresses) {
-	let recipients = earned_headers_commission_recipients || { [author_addresses[0]]: 100 };
-	if (earned_headers_commission_recipients) {
+function getTpsFeeRecipients(assocEarnedHeadersCommissionRecipients, author_addresses) {
+	let recipients = assocEarnedHeadersCommissionRecipients || { [author_addresses[0]]: 100 };
+	if (assocEarnedHeadersCommissionRecipients) {
 		let bHasExternalRecipients = false;
 		for (let address in recipients) {
 			if (!author_addresses.includes(address))
@@ -1508,7 +1508,7 @@ function readUnitProps(conn, unit, handleProps){
 					throw Error("no unstable props of "+unit);
 				var props2 = _.cloneDeep(assocUnstableUnits[unit]);
 				delete props2.parent_units;
-				delete props2.earned_headers_commission_recipients;
+				delete props2.assocEarnedHeadersCommissionRecipients;
 			//	delete props2.bAA;
 				if (!_.isEqual(props, props2)) {
 					debugger;
@@ -1549,7 +1549,7 @@ function readPropsOfUnits(conn, earlier_unit, arrLaterUnits, handleProps){
 				var arrAllProps2cmp = arrLaterUnitProps2cmp.concat([objEarlierUnitProps2cmp]);
 				arrAllProps2cmp.forEach(function(props){
 					delete props.parent_units;
-					delete props.earned_headers_commission_recipients;
+					delete props.assocEarnedHeadersCommissionRecipients;
 					delete props.author_addresses;
 					delete props.is_stable;
 				//	delete props.witnessed_level;
@@ -2316,14 +2316,14 @@ function initParenthoodAndHeadersComissionShareForUnits(conn, assocUnits, onDone
 				}
 			);
 		},
-		function(cb){ // headers_commision_share
+		function(cb){ // headers_commission_share
 			conn.query(
 				"SELECT unit, address, earned_headers_commission_share FROM earned_headers_commission_recipients WHERE unit IN("+Object.keys(assocUnits).map(db.escape).join(', ')+")",
 				function(prows){
 					prows.forEach(function(prow){
-						if (!assocUnits[prow.unit].earned_headers_commission_recipients)
-							assocUnits[prow.unit].earned_headers_commission_recipients = {};
-						assocUnits[prow.unit].earned_headers_commission_recipients[prow.address] = prow.earned_headers_commission_share;
+						if (!assocUnits[prow.unit].assocEarnedHeadersCommissionRecipients)
+							assocUnits[prow.unit].assocEarnedHeadersCommissionRecipients = {};
+						assocUnits[prow.unit].assocEarnedHeadersCommissionRecipients[prow.address] = prow.earned_headers_commission_share;
 					});
 					cb();
 				}

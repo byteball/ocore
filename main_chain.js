@@ -96,7 +96,7 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStability
 				delete objBestParentUnitPropsForCheck.bAA;
 				delete objBestParentUnitPropsForCheck.parent_units;
 				if (!storage.isGenesisUnit(best_parent_unit))
-					delete objBestParentUnitProps2ForCheck.earned_headers_commission_recipients;
+					delete objBestParentUnitProps2ForCheck.assocEarnedHeadersCommissionRecipients;
 				if (!conf.bFaster && !_.isEqual(objBestParentUnitProps2ForCheck, objBestParentUnitPropsForCheck))
 					throwError("different props, db: "+JSON.stringify(objBestParentUnitProps)+", unstable: "+JSON.stringify(objBestParentUnitProps2));
 				if (!objBestParentUnitProps.is_on_main_chain)

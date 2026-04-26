@@ -175,9 +175,9 @@ function calcHeadersCommissions(conn, onDone){
 									var objUnit = storage.assocStableUnits[child_unit];
 									for (var payer_unit in assocWonAmounts[child_unit]){
 										var full_amount = assocWonAmounts[child_unit][payer_unit];
-										if (objUnit.earned_headers_commission_recipients) { // multiple authors or recipient is another address
-											for (var address in objUnit.earned_headers_commission_recipients) {
-												var share = objUnit.earned_headers_commission_recipients[address];
+										if (objUnit.assocEarnedHeadersCommissionRecipients) { // multiple authors or recipient is another address
+											for (var address in objUnit.assocEarnedHeadersCommissionRecipients) {
+												var share = objUnit.assocEarnedHeadersCommissionRecipients[address];
 												var amount = Math.round(full_amount * share / 100.0);
 												arrValuesRAM.push("('"+payer_unit+"', '"+address+"', "+amount+")");
 											};

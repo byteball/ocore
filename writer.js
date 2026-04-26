@@ -569,9 +569,9 @@ async function saveJoint(objJoint, objValidationState, preCommitCallback, onDone
 		if (!bGenesis)
 			objNewUnitProps.parent_units = objUnit.parent_units;
 		if ("earned_headers_commission_recipients" in objUnit) {
-			objNewUnitProps.earned_headers_commission_recipients = {};
+			objNewUnitProps.assocEarnedHeadersCommissionRecipients = {};
 			objUnit.earned_headers_commission_recipients.forEach(function(row){
-				objNewUnitProps.earned_headers_commission_recipients[row.address] = row.earned_headers_commission_share;
+				objNewUnitProps.assocEarnedHeadersCommissionRecipients[row.address] = row.earned_headers_commission_share;
 			});
 		}
 		
