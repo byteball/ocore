@@ -3099,7 +3099,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 				if (early_return !== undefined)
 					res = early_return;
 				if (res instanceof wrappedObject)
-					res = bObjectResultAllowed ? res.obj : true;
+					res = bObjectResultAllowed ? _.cloneDeep(res.obj) : true;
 				else if (Decimal.isDecimal(res)) {
 					if (!isFiniteDecimal(res))
 						return callback('result is not finite', null);
