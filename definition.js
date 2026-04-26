@@ -1166,7 +1166,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 			//console.log("augmented: ", objValidationState.arrAugmentedMessages[0].payload);
 			evaluateFilter(op, filter, handleResult);
 		}
-		if (!objValidationState.arrAugmentedMessages && filter.what === "input" && (filter.address || typeof filter.amount === "number" || typeof filter.amount_at_least === "number" || typeof filter.amount_at_most === "number"))
+		if (!objValidationState.arrAugmentedMessages && filter.what === "input" && (filter.address || typeof filter.amount === "number" || typeof filter.amount_at_least === "number" || typeof filter.amount_at_most === "number" || typeof filter.equals === "number" || typeof filter.at_least === "number" || typeof filter.at_most === "number"))
 			augmentMessages(doEvaluateFilter);
 		else
 			doEvaluateFilter();
