@@ -1103,6 +1103,14 @@ async function purgeTempData() {
 	console.log(`purgeTempData done, ${count} units purged, new last_temp_data_purge_mci=${last_mci}`);
 }
 
+function ehcr2assoc(earned_headers_commission_recipients) {
+	if (!earned_headers_commission_recipients)
+		return earned_headers_commission_recipients; // null or undefined
+	let assoc = {};
+	for (let { address, share } of earned_headers_commission_recipients)
+		assoc[address] = share;
+	return assoc;
+}
 
 function getSystemVar(subject, mci) {
 	for (let { vote_count_mci, value } of systemVars[subject])
@@ -1384,7 +1392,7 @@ async function getPaidTpsFee(conn, unit) {
 		objUnitProps = {
 			unit,
 			author_addresses: objUnit.authors.map(a => a.address),
-			assocEarnedHeadersCommissionRecipients: objUnit.earned_headers_commission_recipients,
+			assocEarnedHeadersCommissionRecipients: ehcr2assoc(objUnit.earned_headers_commission_recipients),
 			tps_fee: objUnit.tps_fee || 0,
 			last_ball_unit: objUnit.last_ball_unit,
 		};
@@ -2542,6 +2550,8 @@ exports.assocBestChildren = assocBestChildren;
 exports.assocHashTreeUnitsByBall = assocHashTreeUnitsByBall;
 exports.assocUnstableMessages = assocUnstableMessages;
 exports.systemVars = systemVars;
+
+exports.ehcr2assoc = ehcr2assoc;
 
 exports.getSystemVar = getSystemVar;
 exports.getOpList = getOpList;

@@ -373,7 +373,9 @@ function composeJoint(params){
 						const rows = await conn.query("SELECT 1 FROM aa_addresses WHERE address IN (?)", [arrOutputAddresses]);
 						const count_primary_aa_triggers = rows.length;
 						const tps_fee = await parentComposer.getTpsFee(conn, arrParentUnits, last_stable_mc_ball_unit, objUnit.timestamp, 1 + count_primary_aa_triggers * max_aa_responses);
-						const recipients = storage.getTpsFeeRecipients(objUnit.earned_headers_commission_recipients, arrFromAddresses);
+						let recipients = storage.getTpsFeeRecipients(storage.ehcr2assoc(objUnit.earned_headers_commission_recipients), arrFromAddresses);
+						if (!recipients[arrFromAddresses[0]]) // for backward compatibility with the old buggy getTpsFeeRecipients
+							recipients[arrFromAddresses[0]] = 100;
 						let paid_tps_fee = 0;
 						for (let address in recipients) {
 							const share = recipients[address] / 100;

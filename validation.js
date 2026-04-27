@@ -941,7 +941,7 @@ async function validateTpsFee(conn, objJoint, objValidationState, callback) {
 
 	const author_addresses = objUnit.authors.map(a => a.address);
 	const bFromOP = isFromOP(author_addresses, objValidationState.last_ball_mci);
-	const recipients = storage.getTpsFeeRecipients(objUnit.earned_headers_commission_recipients, author_addresses);
+	const recipients = storage.getTpsFeeRecipients(objValidationState.last_ball_mci < constants.tpsFeeRecipientsFixMci ? objUnit.earned_headers_commission_recipients : storage.ehcr2assoc(objUnit.earned_headers_commission_recipients), author_addresses);
 	for (let address in recipients) {
 		const share = recipients[address] / 100;
 		const [row] = await conn.query("SELECT tps_fees_balance FROM tps_fees_balances WHERE address=? AND mci<=? ORDER BY mci DESC LIMIT 1", [address, objValidationState.last_ball_mci]);
