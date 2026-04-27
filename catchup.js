@@ -21,9 +21,9 @@ function prepareCatchupChain(catchupRequest, callbacks){
 	var last_known_mci = catchupRequest.last_known_mci;
 	var arrWitnesses = catchupRequest.witnesses;
 	
-	if (typeof last_stable_mci !== "number")
+	if (!ValidationUtils.isNonnegativeInteger(last_stable_mci))
 		return callbacks.ifError("no last_stable_mci");
-	if (typeof last_known_mci !== "number")
+	if (!ValidationUtils.isNonnegativeInteger(last_known_mci))
 		return callbacks.ifError("no last_known_mci");
 	if (last_stable_mci >= last_known_mci && (last_known_mci > 0 || last_stable_mci > 0))
 		return callbacks.ifError("last_stable_mci >= last_known_mci");

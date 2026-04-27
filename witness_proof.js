@@ -13,7 +13,7 @@ var ValidationUtils = require("./validation_utils.js");
 
 
 function prepareWitnessProof(arrWitnesses, last_stable_mci, handleResult){
-	if (typeof last_stable_mci !== 'number')
+	if (typeof last_stable_mci !== 'number' || last_stable_mci < 0)
 		throw Error('bad last_stable_mci: ' + last_stable_mci);
 	if (!arrWitnesses.every(ValidationUtils.isValidAddress))
 		return handleResult("invalid witness addresses");
