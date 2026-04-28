@@ -2717,7 +2717,7 @@ function handleJustsaying(ws, subject, body){
 			if (ws.bAdvertisedOwnUrl) // allow it only once per connection
 				break;
 			ws.bAdvertisedOwnUrl = true;
-			var regexp = (conf.WS_PROTOCOL === 'wss://') ? /^wss:\/\// : /^wss?:\/\//;
+			var regexp = (conf.WS_PROTOCOL === 'wss://') ? /^wss:\/\/[\w:\/.?&+=;,@-]+$/ : /^wss?:\/\/[\w:\/.?&+=;,@-]+$/;
 			if (!url.match(regexp)) {
 				console.log("ignoring peer's my_url " + url + " because of incompatible ws protocol");
 				break;
