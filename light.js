@@ -667,6 +667,8 @@ function createLinkProof(later_unit, earlier_unit, arrChain, cb){
 		},
 		ifFound: function(objLaterJoint){
 			var later_mci = objLaterJoint.unit.main_chain_index;
+			if (later_mci === 0)
+				return cb("later unit is genesis");
 			arrChain.push(objLaterJoint);
 			storage.readUnitProps(db, objLaterJoint.unit.last_ball_unit, function(objLaterLastBallUnitProps){
 				var later_lb_mci = objLaterLastBallUnitProps.main_chain_index;
