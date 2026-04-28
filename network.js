@@ -67,6 +67,10 @@ var prev_bugreport_hash = '';
 let definitions = {}; // cache
 let largeHistoryTags = {};
 
+let messagesInWork = {};
+let requestsInWork = {};
+let currentJointHost = null;
+
 if (bCordova){ // browser
 	console.log("defining .on() on ws");
 	WebSocket.prototype.on = function(event, callback) {
@@ -206,6 +210,8 @@ function sendVersion(ws){
 function sendResponse(ws, tag, response){
 	var command = ws.assocCommandsInPreparingResponse[tag];
 	delete ws.assocCommandsInPreparingResponse[tag];
+	if (command)
+		decrementPending(requestsInWork, ws.host);
 	sendMessage(ws, 'response', {tag: tag, command: command, response: response});
 }
 
@@ -1040,11 +1046,11 @@ function handleJoint(ws, objJoint, bSaved, bPosted, callbacks){
 	var validate = function(){
 		mutex.lock(['handleJoint'], function(unlock){
 			if (ws && !conf.bLight)
-				ws.handlingJoint = true;
+				currentJointHost = ws.host;
 			// clear host only if validation completed with any result, otherwise it crashed and we keep it for a while to avoid DoS from the same peer
 			const clearHost = () => {
 				if (ws && !conf.bLight)
-					ws.handlingJoint = false;
+					currentJointHost = null;
 			};
 			validation.validate(objJoint, {
 				ifUnitError: function(error){
@@ -3026,6 +3032,7 @@ function handleRequest(ws, tag, command, params){
 	if (ws.assocCommandsInPreparingResponse[tag]) // ignore repeated request while still preparing response to a previous identical request
 		return console.log("ignoring identical "+command+" request");
 	ws.assocCommandsInPreparingResponse[tag] = command;
+	incrementPending(requestsInWork, ws.host);
 	if (command.startsWith('light/')) {
 		if (conf.bLight)
 			return sendErrorResponse(ws, tag, "I'm light myself, can't serve you");
@@ -3963,10 +3970,12 @@ function handleRequest(ws, tag, command, params){
 		case 'custom':
 			eventBus.emit('custom_request', ws, params,tag);
 			delete ws.assocCommandsInPreparingResponse[tag];
+			decrementPending(requestsInWork, ws.host);
 			break;
 		
 		default:
 			delete ws.assocCommandsInPreparingResponse[tag];
+			decrementPending(requestsInWork, ws.host);
 	}
 }
 
@@ -4012,7 +4021,7 @@ function onWebsocketMessage(message) {
 		return console.log('failed to json.parse message '+message);
 	}
 	
-	ws.handlingMessage = true;
+	incrementPending(messagesInWork, ws.host)
 	switch (message_type){
 		case 'justsaying':
 			handleJustsaying(ws, content.subject, content.body);
@@ -4030,7 +4039,7 @@ function onWebsocketMessage(message) {
 			console.log("unknown type: ", message_type);
 		//	throw Error("unknown type: "+message_type);
 	}
-	ws.handlingMessage = false;
+	decrementPending(messagesInWork, ws.host);
 }
 
 function watchMemory() {
@@ -4241,13 +4250,26 @@ function setExchangeRates(rates) {
 	exchangeRates = rates;
 }
 
+function incrementPending(assoc, host) {
+	if (!assoc[host])
+		assoc[host] = 0;
+	assoc[host]++;
+}
+
+function decrementPending(assoc, host) {
+	if (!assoc[host]) throw Error(`no pending for ${host}: ${assoc[host]}`);
+	assoc[host]--;
+	if (assoc[host] === 0)
+		delete assoc[host];
+}
+
 process.on('uncaughtException', (err) => {
 	console.log('Uncaught exception:', err);
 	console.error('Uncaught exception:', err);
 	if (!conf.bLight) {
-		const all_clients = [...wss.clients].concat(arrOutboundPeers);
-		const sending_clients = all_clients.filter(ws => Object.keys(ws.assocCommandsInPreparingResponse).length > 0 || ws.handlingMessage || ws.handlingJoint);
-		const hosts = sending_clients.map(ws => ws.host);
+		let hosts = [...Object.keys(messagesInWork), ...Object.keys(requestsInWork)];
+		if (currentJointHost)
+			hosts.push(currentJointHost);
 		console.log('Clients with pending requests/messages at the time of uncaught exception:', hosts);
 		const fs = require('fs');
 		const app_data_dir = require('./desktop_app.js').getAppDataDir();
