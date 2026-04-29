@@ -579,7 +579,9 @@ function prepareParentsAndLastBallAndWitnessListUnit(arrWitnesses, arrFromAddres
 		return callbacks.ifError("bad witness addresses");
 	if (!ValidationUtils.isNonnegativeInteger(max_aa_responses))
 		return callbacks.ifError("bad max_aa_responses");
-	if (arrOutputAddresses && (!ValidationUtils.isNonemptyArray(arrOutputAddresses) || !arrOutputAddresses.every(ValidationUtils.isValidAddress)))
+	if (!ValidationUtils.isNonemptyArray(arrFromAddresses) || arrFromAddresses.length > constants.MAX_AUTHORS_PER_UNIT || !arrFromAddresses.every(ValidationUtils.isValidAddress))
+		return callbacks.ifError("bad from addresses");
+	if (arrOutputAddresses && (!ValidationUtils.isNonemptyArray(arrOutputAddresses) || arrOutputAddresses.length > 200 || !arrOutputAddresses.every(ValidationUtils.isValidAddress)))
 		return callbacks.ifError("bad output addresses");
 	storage.determineIfWitnessAddressDefinitionsHaveReferences(db, arrWitnesses, function(bWithReferences){
 		if (bWithReferences)

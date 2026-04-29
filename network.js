@@ -3540,6 +3540,8 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "asset is not valid");
 			if (!ValidationUtils.isNonemptyArray(params.addresses))
 				return sendErrorResponse(ws, tag, "addresses must be non-empty array");
+			if (params.addresses.length > constants.MAX_AUTHORS_PER_UNIT)
+				return sendErrorResponse(ws, tag, "too many addresses");
 			if (!params.addresses.every(ValidationUtils.isValidAddress))
 				return sendErrorResponse(ws, tag, "some addresses are not valid");
 			if (!ValidationUtils.isPositiveInteger(params.last_ball_mci))

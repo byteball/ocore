@@ -15,6 +15,10 @@ var ValidationUtils = require("./validation_utils.js");
 function prepareWitnessProof(arrWitnesses, last_stable_mci, handleResult){
 	if (typeof last_stable_mci !== 'number' || last_stable_mci < 0)
 		throw Error('bad last_stable_mci: ' + last_stable_mci);
+	if (!ValidationUtils.isNonemptyArray(arrWitnesses))
+		return handleResult("no witnesses");
+	if (arrWitnesses.length > 20) // witnesses are not necessarily OPs, their number might be different
+		return handleResult("too many witnesses");
 	if (!arrWitnesses.every(ValidationUtils.isValidAddress))
 		return handleResult("invalid witness addresses");
 
