@@ -1743,7 +1743,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 			if (!messages)
 				return bounce('no messages');
 			// this will also filter out the special message that performs the state changes
-			messages = messages.filter(function (message) { return ('payload' in message && (message.app !== 'payment' || 'outputs' in message.payload)); });
+			messages = messages.filter(function (message) { return (isNonemptyObject(message) && 'payload' in message && (message.app !== 'payment' || isNonemptyObject(message.payload) && Array.isArray(message.payload.outputs))); });
 			if (messages.length === 0) { // eat the received coins and send no response, state changes are still performed
 				error_message = 'no messages after filtering';
 				console.log(error_message);
