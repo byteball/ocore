@@ -472,7 +472,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 						WHERE my_addresses.address=? AND wallet_signing_paths.device_address=?",[body.my_address, from_address],
 					function(rows) {
 						if (!rows.length)
-							return callbacks.ifError("contract does not contain my address");
+							return callbacks.ifError("contract does not contain my address shared with your device");
 						prosaic_contract.store(body);
 						callbacks.ifOk();
 					}
@@ -490,6 +490,10 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 						return callbacks.ifError("wrong contract hash");
 					if (body.status === "accepted" && !body.signed_message)
 						return callbacks.ifError("response is not signed");
+					if (from_address !== objContract.peer_device_address)
+						return callbacks.ifError("response is from wrong device");
+					if (objContract.is_incoming)
+						return callbacks.ifError("this contract is incoming, cannot accept your own offer");
 					var processResponse = function(objSignedMessage) {
 						if (body.authors && body.authors.length) {
 							if (body.authors.length !== 1)
@@ -631,7 +635,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 						WHERE my_addresses.address=? AND wallet_signing_paths.device_address=?",[body.my_address, from_address],
 					function(rows) {
 						if (!rows.length)
-							return callbacks.ifError("contract does not contain my address");
+							return callbacks.ifError("contract does not contain my address shared with your device");
 						body.me_is_cosigner = true;
 						arbiter_contract.store(body, true);
 						callbacks.ifOk();
@@ -740,6 +744,10 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 						return callbacks.ifError("wrong contract hash");
 					if (body.status === "accepted" && !body.signed_message)
 						return callbacks.ifError("response is not signed");
+					if (from_address !== objContract.peer_device_address)
+						return callbacks.ifError("response is from wrong device");
+					if (objContract.is_incoming)
+						return callbacks.ifError("this contract is incoming, cannot accept your own offer");
 					var processResponse = function(objSignedMessage) {
 						if (body.authors && body.authors.length && objSignedMessage) {
 							if (body.authors.length !== 1)
