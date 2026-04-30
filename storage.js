@@ -1107,8 +1107,8 @@ function ehcr2assoc(earned_headers_commission_recipients) {
 	if (!earned_headers_commission_recipients)
 		return earned_headers_commission_recipients; // null or undefined
 	let assoc = {};
-	for (let { address, share } of earned_headers_commission_recipients)
-		assoc[address] = share;
+	for (let { address, earned_headers_commission_share } of earned_headers_commission_recipients)
+		assoc[address] = earned_headers_commission_share;
 	return assoc;
 }
 

@@ -944,6 +944,8 @@ async function validateTpsFee(conn, objJoint, objValidationState, callback) {
 	const recipients = storage.getTpsFeeRecipients(objValidationState.last_ball_mci < constants.tpsFeeRecipientsFixMci ? objUnit.earned_headers_commission_recipients : storage.ehcr2assoc(objUnit.earned_headers_commission_recipients), author_addresses);
 	for (let address in recipients) {
 		const share = recipients[address] / 100;
+		if (!share)
+			throw Error(`invalid share for address ${address}: ${share}`);
 		const [row] = await conn.query("SELECT tps_fees_balance FROM tps_fees_balances WHERE address=? AND mci<=? ORDER BY mci DESC LIMIT 1", [address, objValidationState.last_ball_mci]);
 		const tps_fees_balance = row ? row.tps_fees_balance : 0;
 		if (tps_fees_balance + objUnit.tps_fee * share < min_tps_fee * share)
