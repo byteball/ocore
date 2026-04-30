@@ -139,6 +139,8 @@ function validateSignedMessage(conn, objSignedMessage, address, handleResult) {
 	var the_author;
 	for (var i = 0; i < authors.length; i++){
 		var author = authors[i];
+		if (!ValidationUtils.isNonemptyObject(author))
+			return handleResult("author must be a non-empty object");
 		if (author.address <= prev_address)
 			return handleResult("author addresses not sorted");
 		prev_address = author.address;
