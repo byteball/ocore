@@ -688,8 +688,8 @@ function requestPeers(ws){
 }
 
 async function handleNewPeers(ws, request, arrPeerUrls){
-	if (arrPeerUrls.error)
-		return console.log('get_peers failed: '+arrPeerUrls.error);
+	if (!arrPeerUrls || arrPeerUrls.error)
+		return console.log('get_peers failed: ' + (arrPeerUrls ? arrPeerUrls.error : 'no response'));
 	if (!Array.isArray(arrPeerUrls))
 		return sendError(ws, "peer urls is not an array");
 	if (!arrPeerUrls.every(ValidationUtils.isNonemptyString))
@@ -2517,8 +2517,8 @@ function initWitnessesIfNecessary(ws, onDone){
 		if (arrWitnesses.length > 0) // already have witnesses
 			return onDone();
 		sendRequest(ws, 'get_witnesses', null, false, function(ws, request, arrWitnesses){
-			if (arrWitnesses.error){
-				console.log('get_witnesses returned error: '+arrWitnesses.error);
+			if (!arrWitnesses || arrWitnesses.error){
+				console.log('get_witnesses returned error: ' + (arrWitnesses ? arrWitnesses.error : 'no response'));
 				return onDone();
 			}
 			myWitnesses.insertWitnesses(arrWitnesses, onDone);
