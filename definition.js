@@ -1050,24 +1050,27 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 			case 'has equal':
 			case 'has one equal':
 				// ['has equal', {equal_fields: ['address', 'amount'], search_criteria: [{what: 'output', asset: 'asset1', address: 'BASE32'}, {what: 'input', asset: 'asset2', type: 'issue', address: 'ANOTHERBASE32'}]}]
-				augmentMessagesAndEvaluateFilter("has", args.search_criteria[0], function(res1, arrFirstObjects){
-					if (!res1)
-						return cb2(false);
-					augmentMessagesAndEvaluateFilter("has", args.search_criteria[1], function(res2, arrSecondObjects){
-						if (!res2)
+				const needsAugment = args.search_criteria.map(f => f.what).includes("input") && _.intersection(args.equal_fields, ["address", "amount"]).length > 0;
+				augmentMessagesIfNeeded(needsAugment, () => {
+					augmentMessagesAndEvaluateFilter("has", args.search_criteria[0], function(res1, arrFirstObjects){
+						if (!res1)
 							return cb2(false);
-						var count_equal_pairs = 0;
-						for (var i=0; i<arrFirstObjects.length; i++)
-							for (var j=0; j<arrSecondObjects.length; j++)
-								if (!args.equal_fields.some(function(field){ return (arrFirstObjects[i][field] !== arrSecondObjects[j][field]); }))
-									count_equal_pairs++;
-						if (count_equal_pairs === 0)
-							return cb2(false);
-						if (op === "has one equal" && count_equal_pairs === 1)
-							return cb2(true);
-						if (op === "has equal" && count_equal_pairs > 0)
-							return cb2(true);
-						cb2(false);
+						augmentMessagesAndEvaluateFilter("has", args.search_criteria[1], function(res2, arrSecondObjects){
+							if (!res2)
+								return cb2(false);
+							var count_equal_pairs = 0;
+							for (var i = 0; i < arrFirstObjects.length; i++)
+								for (var j = 0; j < arrSecondObjects.length; j++)
+									if (args.equal_fields.every(field => arrFirstObjects[i][field] === arrSecondObjects[j][field]))
+										count_equal_pairs++;
+							if (count_equal_pairs === 0)
+								return cb2(false);
+							if (op === "has one equal" && count_equal_pairs === 1)
+								return cb2(true);
+							if (op === "has equal" && count_equal_pairs > 0)
+								return cb2(true);
+							cb2(false);
+						});
 					});
 				});
 				break;
@@ -1171,6 +1174,13 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 		else
 			doEvaluateFilter();
 	}
+
+	function augmentMessagesIfNeeded(bNeeded, next) {
+		if (!objValidationState.arrAugmentedMessages && bNeeded)
+			augmentMessages(next);
+		else
+			next();
+	}
 	
 	
 	function evaluateFilter(op, filter, handleResult){
@@ -1225,7 +1235,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 						continue;
 					if (filter.amount_at_most && augmented_input.amount > filter.amount_at_most)
 						continue;
-					arrFoundObjects.push(augmented_input || input);
+					arrFoundObjects.push({...(augmented_input || input), asset: payload.asset || "base", type: input.type || "transfer" });
 				}
 			} // input
 			else if (filter.what === "output"){
@@ -1251,7 +1261,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 						continue;
 					if (filter.amount_at_most && output.amount > filter.amount_at_most)
 						continue;
-					arrFoundObjects.push(output);
+					arrFoundObjects.push({...output, asset: payload.asset || "base"});
 				}
 			} // output
 		}
