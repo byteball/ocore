@@ -181,6 +181,10 @@ function processHistory(objResponse, arrWitnesses, callbacks){
 		return callbacks.ifError("no joints");
 	if (!objResponse.proofchain_balls)
 		objResponse.proofchain_balls = [];
+	if (!Array.isArray(objResponse.proofchain_balls))
+		return callbacks.ifError("proofchain_balls must be array");
+	if (!objResponse.proofchain_balls.every(ValidationUtils.isNonemptyObject))
+		return callbacks.ifError("proofchain_balls must be array of non-empty objects");
 
 	witnessProof.processWitnessProof(
 		objResponse.unstable_mc_joints, objResponse.witness_change_and_definition_joints, false, arrWitnesses,
