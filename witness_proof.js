@@ -169,58 +169,64 @@ function processWitnessProof(arrUnstableMcJoints, arrWitnessChangeAndDefinitionJ
 	var arrLastBallUnits = [];
 	var assocLastBallByLastBallUnit = {};
 	var arrWitnessJoints = [];
-	for (var i=0; i<arrUnstableMcJoints.length; i++){
-		var objJoint = arrUnstableMcJoints[i];
-		var objUnit = objJoint.unit;
-		if (objJoint.ball)
-			return handleResult("unstable mc but has ball");
-		if (!validation.hasValidHashes(objJoint))
-			return handleResult("invalid hash");
-		if (arrParentUnits && arrParentUnits.indexOf(objUnit.unit) === -1)
-			return handleResult("not in parents");
-		var bAddedJoint = false;
-		for (var j=0; j<objUnit.authors.length; j++){
-			var address = objUnit.authors[j].address;
-			if (arrWitnesses.indexOf(address) >= 0){
-				if (arrFoundWitnesses.indexOf(address) === -1)
-					arrFoundWitnesses.push(address);
-				if (!bAddedJoint)
-					arrWitnessJoints.push(objJoint);
-				bAddedJoint = true;
+
+	try {
+		for (var i = 0; i < arrUnstableMcJoints.length; i++) {
+			var objJoint = arrUnstableMcJoints[i];
+			var objUnit = objJoint.unit;
+			if (objJoint.ball)
+				return handleResult("unstable mc but has ball");
+			if (!validation.hasValidHashes(objJoint))
+				return handleResult("invalid hash");
+			if (arrParentUnits && arrParentUnits.indexOf(objUnit.unit) === -1)
+				return handleResult("not in parents");
+			var bAddedJoint = false;
+			for (var j = 0; j < objUnit.authors.length; j++) {
+				var address = objUnit.authors[j].address;
+				if (arrWitnesses.indexOf(address) >= 0) {
+					if (arrFoundWitnesses.indexOf(address) === -1)
+						arrFoundWitnesses.push(address);
+					if (!bAddedJoint)
+						arrWitnessJoints.push(objJoint);
+					bAddedJoint = true;
+				}
+			}
+			arrParentUnits = objUnit.parent_units;
+			if (!objUnit.last_ball_unit)
+				return handleResult("unit without last_ball_unit");
+			if (arrFoundWitnesses.length >= constants.MAJORITY_OF_WITNESSES) {
+				arrLastBallUnits.push(objUnit.last_ball_unit);
+				assocLastBallByLastBallUnit[objUnit.last_ball_unit] = objUnit.last_ball;
 			}
 		}
-		arrParentUnits = objUnit.parent_units;
-		if (!objUnit.last_ball_unit)
-			return handleResult("unit without last_ball_unit");
-		if (arrFoundWitnesses.length >= constants.MAJORITY_OF_WITNESSES){
-			arrLastBallUnits.push(objUnit.last_ball_unit);
-			assocLastBallByLastBallUnit[objUnit.last_ball_unit] = objUnit.last_ball;
+		if (arrFoundWitnesses.length < constants.MAJORITY_OF_WITNESSES)
+			return handleResult("not enough witnesses");
+
+
+		if (arrLastBallUnits.length === 0)
+			throw Error("processWitnessProof: no last ball units");
+
+
+		// changes and definitions of witnesses
+		for (var i = 0; i < arrWitnessChangeAndDefinitionJoints.length; i++) {
+			var objJoint = arrWitnessChangeAndDefinitionJoints[i];
+			var objUnit = objJoint.unit;
+			if (!objJoint.ball)
+				return handleResult("witness_change_and_definition_joints: joint without ball");
+			if (!validation.hasValidHashes(objJoint))
+				return handleResult("witness_change_and_definition_joints: invalid hash");
+			var bAuthoredByWitness = false;
+			for (var j = 0; j < objUnit.authors.length; j++) {
+				var address = objUnit.authors[j].address;
+				if (arrWitnesses.indexOf(address) >= 0)
+					bAuthoredByWitness = true;
+			}
+			if (!bAuthoredByWitness)
+				return handleResult("not authored by my witness");
 		}
 	}
-	if (arrFoundWitnesses.length < constants.MAJORITY_OF_WITNESSES)
-		return handleResult("not enough witnesses");
-
-
-	if (arrLastBallUnits.length === 0)
-		throw Error("processWitnessProof: no last ball units");
-
-
-	// changes and definitions of witnesses
-	for (var i=0; i<arrWitnessChangeAndDefinitionJoints.length; i++){
-		var objJoint = arrWitnessChangeAndDefinitionJoints[i];
-		var objUnit = objJoint.unit;
-		if (!objJoint.ball)
-			return handleResult("witness_change_and_definition_joints: joint without ball");
-		if (!validation.hasValidHashes(objJoint))
-			return handleResult("witness_change_and_definition_joints: invalid hash");
-		var bAuthoredByWitness = false;
-		for (var j=0; j<objUnit.authors.length; j++){
-			var address = objUnit.authors[j].address;
-			if (arrWitnesses.indexOf(address) >= 0)
-				bAuthoredByWitness = true;
-		}
-		if (!bAuthoredByWitness)
-			return handleResult("not authored by my witness");
+	catch(e){
+		return handleResult("witness proof error: " + e.toString());
 	}
 
 	var assocDefinitions = {}; // keyed by definition chash
