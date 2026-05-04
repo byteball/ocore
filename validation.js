@@ -1389,7 +1389,7 @@ function validateMessage(conn, objMessage, message_index, objUnit, objValidation
 	
 	if ("spend_proofs" in objMessage){
 		if (objValidationState.bAA)
-			throw Error("spend proofs in AA");
+			return callback("spend proofs in AA");
 		if (!Array.isArray(objMessage.spend_proofs) || objMessage.spend_proofs.length === 0 || objMessage.spend_proofs.length > constants.MAX_SPEND_PROOFS_PER_MESSAGE)
 			return callback("spend_proofs must be non-empty array max "+constants.MAX_SPEND_PROOFS_PER_MESSAGE+" elements");
 		var arrAuthorAddresses = objUnit.authors.map(function(author) { return author.address; } );
@@ -2359,7 +2359,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 				case "headers_commission":
 				case "witnessing":
 					if (objValidationState.bAA)
-						throw Error(type+" in AA");
+						return cb(type+" in AA");
 					if (type === "headers_commission"){
 						if (bHaveWitnessings)
 							return cb("all headers commissions must come before witnessings");
