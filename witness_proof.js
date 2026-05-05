@@ -87,7 +87,10 @@ function prepareWitnessProof(arrWitnesses, last_stable_mci, handleResult){
 				if (!row)
 					return cb("your witness list might be too much off, too few witness authored units and witness list unit not on MC");
 				const { main_chain_index } = row;
-				const start_mci = await storage.findLastBallMciOfMci(db, await storage.findLastBallMciOfMci(db, main_chain_index));
+				const lb_mci = await storage.findLastBallMciOfMci(db, main_chain_index);
+				if (lb_mci === 0)
+					return cb("last ball mci is 0");
+				const start_mci = await storage.findLastBallMciOfMci(db, lb_mci);
 				findUnstableJointsAndLastBallUnits(start_mci, main_chain_index, (_arrUnstableMcJoints, _arrLastBallUnits) => {
 					if (_arrLastBallUnits.length > 0) {
 						arrUnstableMcJoints = _arrUnstableMcJoints;
