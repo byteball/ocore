@@ -807,6 +807,10 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				if (filter.asset){
 					if (filter.asset === 'base')
 						sql += " AND asset IS NULL ";
+					else if (bAssetCondition && filter.asset === "this asset"){
+						sql += " AND asset=? ";
+						params.push(this_asset);
+					}
 					else{
 						sql += " AND asset=? ";
 						params.push(filter.asset);
