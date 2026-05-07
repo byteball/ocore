@@ -1390,6 +1390,10 @@ function validateMessage(conn, objMessage, message_index, objUnit, objValidation
 	if ("spend_proofs" in objMessage){
 		if (objValidationState.bAA)
 			return callback("spend proofs in AA");
+		if (objMessage.app !== "payment")
+			return callback("spend proofs in non-payment message");
+		if (objMessage.payload_location !== "none")
+			return callback("spend proofs in message with payload");
 		if (!Array.isArray(objMessage.spend_proofs) || objMessage.spend_proofs.length === 0 || objMessage.spend_proofs.length > constants.MAX_SPEND_PROOFS_PER_MESSAGE)
 			return callback("spend_proofs must be non-empty array max "+constants.MAX_SPEND_PROOFS_PER_MESSAGE+" elements");
 		var arrAuthorAddresses = objUnit.authors.map(function(author) { return author.address; } );
