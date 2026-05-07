@@ -2581,6 +2581,13 @@ function validateAssetDefinition(conn, payload, objUnit, objValidationState, cal
 	if ("cap" in payload && !(isPositiveInteger(payload.cap) && payload.cap <= constants.MAX_CAP))
 		return callback("invalid cap");
 
+	if (objValidationState.bAA) {
+		if (payload.cosigned_by_definer !== false)
+			return callback("cosigned_by_definer must be false because AAs can't cosign");
+		if (payload.issued_by_definer_only === true && (payload.is_private !== false || payload.fixed_denominations !== false))
+			return callback("assets issued by AA definer cannot be private or fixed denominations");
+	}
+
 	// attestors
 	var err;
 	if ( payload.spender_attested && (err=checkAttestorList(payload.attestors)) )
