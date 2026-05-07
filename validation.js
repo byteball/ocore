@@ -1471,6 +1471,13 @@ function validateMessage(conn, objMessage, message_index, objUnit, objValidation
 	if (arrInlineOnlyApps.indexOf(objMessage.app) >= 0 && objMessage.payload_location !== "inline")
 		return callback(objMessage.app+" must be inline");
 
+	if (objValidationState.bAA) {
+		if (!aa_validation.aaApps.includes(objMessage.app))
+			return callback("unsupported app in AA response: " + objMessage.app);
+		if (objMessage.payload_location !== "inline")
+			return callback("AA response must be inline");
+	}
+	
 	
 	function validatePayload(cb){
 		if (objMessage.payload_location === "inline"){

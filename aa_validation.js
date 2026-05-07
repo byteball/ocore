@@ -27,6 +27,8 @@ var hasOwnProperty = ValidationUtils.hasOwnProperty;
 
 var MAX_DEPTH = 100;
 
+exports.aaApps = ['payment', 'data', 'data_feed', 'definition', "asset", "asset_attestors", "attestation", "poll", "vote", 'text', 'profile', 'definition_template', 'state'];
+
 function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 
 
@@ -455,7 +457,7 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 				return cb("message must be a non-empty object");
 			if (typeof message.app !== 'string')
 				return cb("app is not a string");
-			if (['payment', 'data', 'data_feed', 'definition', "asset", "asset_attestors", "attestation", "poll", "vote", 'text', 'profile', 'definition_template', 'state'].indexOf(message.app) === -1)
+			if (exports.aaApps.indexOf(message.app) === -1)
 				return cb("bad app: " + message.app);
 			if (message.app === 'state') {
 				if (hasFieldsExcept(message, ['app', 'state', 'if', 'init']))
