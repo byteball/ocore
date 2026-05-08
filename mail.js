@@ -28,7 +28,7 @@ function sendmail(params, cb){
 
 function sendMailThroughUnixSendmail(params, cb){
 	try {
-		var child = child_process.spawn('/usr/sbin/sendmail', ['-t', params.to]);
+		var child = child_process.spawn('/usr/sbin/sendmail', ['-t', '--', params.to]);
 	}
 	catch (e) {
 		console.error("failed to spawn /usr/sbin/sendmail while trying to send", params.subject, e);
