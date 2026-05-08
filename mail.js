@@ -15,6 +15,9 @@ if (conf.smtpTransport === 'relay' && !conf.smtpRelay)
 function sendmail(params, cb){
 	if (!cb)
 		cb = function(){};
+	params.to = strip_rn(params.to);
+	params.from = strip_rn(params.from);
+	params.subject = strip_rn(params.subject);
 	switch (conf.smtpTransport){
 		case 'relay':
 			return sendMailThroughRelay(params, cb);
@@ -24,6 +27,10 @@ function sendmail(params, cb){
 		default:
 			sendMailThroughUnixSendmail(params, cb);
 	}
+}
+
+function strip_rn(str) {
+	return (str||'').replace(/[\r\n]/g, '');
 }
 
 function sendMailThroughUnixSendmail(params, cb){
