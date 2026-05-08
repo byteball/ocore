@@ -660,7 +660,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 							var isOK = false;
 							switch (objContract.status) {
 								case "pending":
-									if (body.value === "revoked" || body.value === "accepted")
+									if (body.value === "revoked" || from_cosigner && ["accepted", "declined"].includes(body.value))
 										isOK = true;
 									break;
 								case "paid":
