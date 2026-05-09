@@ -204,6 +204,31 @@ function decodeRow(row) {
 	return row;
 }
 
+function fillArbstoreAddresses(objContract, cb) {
+	if (!cb)
+		return new Promise(resolve => fillArbstoreAddresses(objContract, resolve));
+	if (objContract.arbstore_device_address && objContract.arbstore_address)
+		return cb();
+	device.requestFromHub("hub/get_arbstore_url", objContract.arbiter_address, function(err, url){
+		if (err)
+			return cb(err);
+		device.requestFromHub("hub/get_arbstore_address", objContract.arbiter_address, function(err, arbstore_address){
+			if (err) {
+				return cb(err);
+			}
+			httpRequest(url, "/api/get_device_address", "", function(err, arbstore_device_address) {
+				if (err) {
+					console.warn("no arbstore_device_address", err);
+					return cb(err);
+				}
+				objContract.arbstore_address = arbstore_address;
+				objContract.arbstore_device_address = arbstore_device_address;
+				db.query("UPDATE wallet_arbiter_contracts SET arbstore_address=?, arbstore_device_address=? WHERE hash=?", [arbstore_address, arbstore_device_address, objContract.hash], function () { cb(); });
+			});
+		});
+	});
+}
+
 function openDispute(hash, cb) {
 	getByHash(hash, function(objContract){
 		if (objContract.status !== "paid")
@@ -211,7 +236,10 @@ function openDispute(hash, cb) {
 		device.requestFromHub("hub/get_arbstore_url", objContract.arbiter_address, function(err, url){
 			if (err)
 				return cb(err);
-			arbiters.getInfo(objContract.arbiter_address, function(err, objArbiter) {
+			arbiters.getInfo(objContract.arbiter_address, async function(err, objArbiter) {
+				if (err)
+					return cb(err);
+				err = await fillArbstoreAddresses(objContract);
 				if (err)
 					return cb(err);
 				device.getOrGeneratePermanentPairingInfo(function(pairingInfo){
@@ -238,19 +266,6 @@ function openDispute(hash, cb) {
 							if (err)
 								return cb(err);
 
-							device.requestFromHub("hub/get_arbstore_address", objContract.arbiter_address, function(err, arbstore_address){
-								if (err) {
-									return cb(err);
-								}
-								httpRequest(url, "/api/get_device_address", "", function(err, arbstore_device_address) {
-									if (err) {
-										console.warn("no arbstore_device_address", err);
-										return cb(err);
-									}
-									db.query("UPDATE wallet_arbiter_contracts SET arbstore_address=?, arbstore_device_address=? WHERE hash=?", [arbstore_address, arbstore_device_address, objContract.hash], function(){});
-								});
-							});
-
 							setField(hash, "status", "in_dispute", function(objContract) {
 								shareUpdateToPeer(hash, "status");
 								// listen for arbiter response
@@ -275,9 +290,12 @@ function appeal(hash, cb) {
 			command = "hub/get_arbstore_url_by_address";
 			address = objContract.arbstore_address;
 		}
-		device.requestFromHub(command, address, function(err, url){
+		device.requestFromHub(command, address, async function(err, url){
 			if (err)
 				return cb("can't get arbstore url:", err);
+			err = await fillArbstoreAddresses(objContract);
+			if (err)
+				return cb(err);
 			device.getOrGeneratePermanentPairingInfo(function(pairingInfo){
 				var my_pairing_code = pairingInfo.device_pubkey + "@" + pairingInfo.hub + "#" + pairingInfo.pairing_secret;
 				var data = JSON.stringify({
@@ -513,7 +531,10 @@ function createSharedAddressAndPostUnit(hash, walletInstance, cb) {
 				cb(err);
 			},
 			ifOk: function(shared_address){
-				setField(hash, "shared_address", shared_address, function(contract) {
+				setField(hash, "shared_address", shared_address, async function(contract) {
+					const err = await fillArbstoreAddresses(contract);
+					if (err)
+						return cb(err);
 					// share this contract to my cosigners for them to show proper ask dialog
 					shareContractToCosigners(contract.hash);
 					shareUpdateToPeer(contract.hash, "shared_address");
@@ -602,6 +623,9 @@ function handleReceivedSigningUnit(contract, unit, from_cosigner, retry_count = 
 		const isMutuallySigned = signing_paths.find(p => p.startsWith('r.0.0') && signing_paths.find(p => p.startsWith('r.0.1')));
 		if (!isMutuallySigned)
 			return console.log(`signing unit ${unit} is not mutually signed, authentifiers: ${JSON.stringify(author.authentifiers)}`);
+		const err = await fillArbstoreAddresses(contract);
+		if (err)
+			return console.log(`failed to fill arbstore addresses for contract ${contract.hash} while handling received signing unit ${unit}`, err);
 		setField(contract.hash, "status", "signed", null, true);
 		setField(contract.hash, "unit", unit, function(contract) {
 			eventBus.emit("arbiter_contract_update", contract, "unit", unit);
