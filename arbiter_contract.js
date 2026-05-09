@@ -625,7 +625,7 @@ function handleReceivedSigningUnit(contract, unit, from_cosigner, retry_count = 
 			return console.log(`signing unit ${unit} is not mutually signed, authentifiers: ${JSON.stringify(author.authentifiers)}`);
 		const err = await fillArbstoreAddresses(contract);
 		if (err)
-			return console.log(`failed to fill arbstore addresses for contract ${contract.hash} while handling received signing unit ${unit}`, err);
+			console.log(`failed to fill arbstore addresses for contract ${contract.hash} while handling received signing unit ${unit}`, err);
 		setField(contract.hash, "status", "signed", null, true);
 		setField(contract.hash, "unit", unit, function(contract) {
 			eventBus.emit("arbiter_contract_update", contract, "unit", unit);
@@ -661,9 +661,12 @@ function pay(hash, walletInstance, arrSigningDeviceAddresses, cb) {
 }
 
 function complete(hash, walletInstance, arrSigningDeviceAddresses, cb) {
-	getByHash(hash, function(objContract) {
+	getByHash(hash, async function(objContract) {
 		if (objContract.status !== "paid" && objContract.status !== "in_dispute")
 			return cb("contract can't be completed");
+		const err = await fillArbstoreAddresses(objContract);
+		if (err)
+			return cb(err);
 		storage.readAssetInfo(db, objContract.asset, function(assetInfo) {
 			var opts;
 			new Promise((resolve, reject) => {
@@ -690,18 +693,24 @@ function complete(hash, walletInstance, arrSigningDeviceAddresses, cb) {
 						change_address: objContract.shared_address,
 						asset: objContract.asset
 					};
-					if (objContract.me_is_payer && !(assetInfo && assetInfo.fixed_denominations)) { // complete
-						arbiters.getArbstoreInfo(objContract.arbiter_address, function(err, arbstoreInfo) {
-							if (err)
-								return reject(err);
-							if (parseFloat(arbstoreInfo.cut) == 0) {
+					if (objContract.me_is_payer && !(assetInfo && (assetInfo.fixed_denominations || assetInfo.is_private))) { // complete
+						require("./wallet_defined_by_addresses.js").readSharedAddressDefinition(objContract.shared_address, function (arrDefinition) {
+							const index = objContract.is_incoming ? 2 : 1;
+							const peer_amount = arrDefinition[1][index][1][1][1].amount;
+							const arbstore_amount = arrDefinition[1][index][1][2] ? arrDefinition[1][index][1][2][1].amount : 0;
+							if (!isFinite(peer_amount) || !isFinite(arbstore_amount))
+								throw new Error("invalid amounts in shared address definition: " + JSON.stringify(arrDefinition));
+							if (peer_amount + arbstore_amount !== objContract.amount)
+								throw new Error(`amounts in shared address definition do not sum up to contract amount: ${peer_amount} + ${arbstore_amount} !== ${objContract.amount}`);
+							if (arbstore_amount > peer_amount)
+								throw new Error(`arbstore cut is more than 50% of the total amount, peer_amount: ${peer_amount}, arbstore_amount: ${arbstore_amount}`);
+							if (arbstore_amount === 0) {
 								opts.to_address = objContract.peer_address;
 								opts.amount = objContract.amount;
 							} else {
-								var peer_amount = Math.floor(objContract.amount * (1-arbstoreInfo.cut));
 								opts[objContract.asset && objContract.asset != "base" ? "asset_outputs" : "base_outputs"] = [
 									{ address: objContract.peer_address, amount: peer_amount},
-									{ address: arbstoreInfo.address, amount: objContract.amount-peer_amount},
+									{ address: objContract.arbstore_address, amount: arbstore_amount},
 								];
 							}
 							resolve();
