@@ -582,7 +582,7 @@ function handleReceivedSharedAddress(hash, shared_address, from_cosigner, retry_
 }
 
 function handleReceivedSigningUnit(contract, unit, from_cosigner, retry_count = 0) {
-	db.query("SELECT 1 FROM unit_authors WHERE unit=? AND address=?", [unit, contract.shared_address], function (rows) {
+	db.query("SELECT 1 FROM unit_authors WHERE unit=? AND address=?", [unit, contract.shared_address], async function (rows) {
 		if (rows.length === 0) {
 			if (retry_count >= 10)
 				return console.log(`signing tx ${unit} not found in db after 10 retries, giving up`);
@@ -590,6 +590,18 @@ function handleReceivedSigningUnit(contract, unit, from_cosigner, retry_count = 
 			return setTimeout(handleReceivedSigningUnit, 30000, contract, unit, from_cosigner, retry_count + 1);
 		}
 		console.log(`signing tx ${unit} found in db, setting contract's unit and status to signed`);
+		const objUnit = await storage.readUnit(unit);
+		const dataMessage = objUnit.messages.find(message => message.app === "data");
+		if (!dataMessage)
+			return console.log(`data message not found in purported signing unit ${unit}`);
+		const { payload } = dataMessage;
+		if (payload.arbiter !== contract.arbiter_address || payload.contract_text_hash !== contract.hash)
+			return console.log(`data message payload does not match contract ${contract.hash} in purported signing unit ${unit}`);
+		const author = objUnit.authors.find(author => author.address === contract.shared_address);
+		const signing_paths = Object.keys(author.authentifiers);
+		const isMutuallySigned = signing_paths.find(p => p.startsWith('r.0.0') && signing_paths.find(p => p.startsWith('r.0.1')));
+		if (!isMutuallySigned)
+			return console.log(`signing unit ${unit} is not mutually signed, authentifiers: ${JSON.stringify(author.authentifiers)}`);
 		setField(contract.hash, "status", "signed", null, true);
 		setField(contract.hash, "unit", unit, function(contract) {
 			eventBus.emit("arbiter_contract_update", contract, "unit", unit);
