@@ -664,7 +664,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 										isOK = true;
 									break;
 								case "paid":
-									if (body.value === "in_dispute" || body.value === "cancelled" || body.value === "completed")
+									if (body.value === "in_dispute")
 										isOK = true;
 									break;
 								case "dispute_resolved":
