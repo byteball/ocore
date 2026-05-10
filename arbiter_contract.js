@@ -302,7 +302,7 @@ function appeal(hash, cb) {
 					contract_hash: hash,
 					my_pairing_code: my_pairing_code,
 					my_address: objContract.my_address,
-					contract: {title: objContract.title, text: objContract.text, creation_date: objContract.creation_date}
+					contract: {title: objContract.title, text: objContract.text, creation_date: objContract.creation_date, me_is_payer: objContract.me_is_payer, my_party_name: objContract.my_party_name, peer_party_name: objContract.peer_party_name, arbiter_address: objContract.arbiter_address, amount: objContract.amount, asset: objContract.asset},
 				});
 				httpRequest(url, "/api/appeal/new", data, function(err, resp) {
 					if (err)
