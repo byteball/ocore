@@ -1927,9 +1927,9 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 					if (res instanceof wrappedObject)
 						res = true;
 					if (op === 'to_upper')
-						return cb(res.toString().toUpperCase());
+						return cb(asciiToUpper(res.toString()));
 					if (op === 'to_lower')
-						return cb(res.toString().toLowerCase());
+						return cb(asciiToLower(res.toString()));
 					throw Error("unknown op: " + op);
 				});
 				break;
@@ -3161,6 +3161,18 @@ function stateVars2assoc(stateVars) {
 	for (var var_name in stateVars)
 		assoc[var_name] = toJsType(stateVars[var_name].value);
 	return assoc;
+}
+
+function asciiToUpper(str) {
+	return str.replace(/[a-z]/g, (chr) => 
+		String.fromCharCode(chr.charCodeAt(0) & 223)
+	);
+}
+
+function asciiToLower(str) {
+	return str.replace(/[A-Z]/g, (chr) => 
+		String.fromCharCode(chr.charCodeAt(0) | 32)
+	);
 }
 
 function callGetter(conn, aa_address, getter, args, stateVars, objValidationState, astTrace, xpath, callerInfo, cb) {
