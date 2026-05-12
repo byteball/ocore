@@ -58,7 +58,7 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 				cb3();
 			}
 
-			if (!['string', 'object'].includes(typeof payload) || payload === null)
+			if (!['string', 'object'].includes(typeof payload) || !payload)
 				return cb2("payload must be a string or object: " + payload);
 
 			if (message.app !== 'text' && isNonemptyString(payload)) {
