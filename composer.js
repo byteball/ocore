@@ -33,7 +33,7 @@ function repeatString(str, times){
 }
 
 function sortOutputs(a,b){
-	var addr_comparison = a.address.localeCompare(b.address);
+	var addr_comparison = (a.address < b.address) ? -1 : ((a.address > b.address) ? 1 : 0);
 	return addr_comparison ? addr_comparison : (a.amount - b.amount);
 }
 
