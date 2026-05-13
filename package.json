@@ -46,7 +46,7 @@
     "ws": "^8.18.1"
   },
   "scripts": {
-    "test": "yarn ava --timeout=60s --concurrency=1 --fail-fast --verbose",
+    "test": "ava --timeout=60s --concurrency=1 --fail-fast --verbose",
     "compileGrammar:oscript": "nearleyc ./formula/grammars/oscript.ne -o ./formula/grammars/oscript.js",
     "compileGrammar:ojson": "nearleyc ./formula/grammars/ojson.ne -o ./formula/grammars/ojson.js"
   },
