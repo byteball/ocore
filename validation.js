@@ -1786,6 +1786,8 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 			objValidationState.bHasDataFeed = true;
 			if (!isNonemptyObject(payload))
 				return callback("data feed payload must be non-empty object");
+			if (Object.keys(payload).length * objUnit.authors.length > constants.MAX_DATA_FEEDS_PER_MESSAGE)
+				return callback("too many data feeds in message");
 			for (var feed_name in payload){
 				if (feed_name.length > constants.MAX_DATA_FEED_NAME_LENGTH)
 					return callback("feed name "+feed_name+" too long");
