@@ -1995,6 +1995,8 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 	if (objAsset && objAsset.fixed_denominations && payload.inputs.length !== 1)
 		return callback("fixed denominations payment must have 1 input");
 
+	const isValidAddressWithCase = objValidationState.last_ball_mci >= constants.timestampUpgradeMci ? ValidationUtils.isValidAddress : ValidationUtils.isValidAddressAnyCase;
+
 	var total_output = 0;
 	var prev_address = ""; // if public, outputs must be sorted by address
 	var prev_amount = 0;
@@ -2022,7 +2024,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 				return callback("bad blinding");
 			if (("blinding" in output) !== ("address" in output))
 				return callback("address and blinding must come together");
-			if ("address" in output && !ValidationUtils.isValidAddressAnyCase(output.address))
+			if ("address" in output && !isValidAddressWithCase(output.address))
 				return callback("output address " + JSON.stringify(output.address) + " invalid");
 			if (output.address)
 				count_open_outputs++;
@@ -2032,7 +2034,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 				return callback("public output must not have blinding");
 			if ("output_hash" in output)
 				return callback("public output must not have output_hash");
-			if (!ValidationUtils.isValidAddressAnyCase(output.address))
+			if (!isValidAddressWithCase(output.address))
 				return callback("output address " + JSON.stringify(output.address) + " invalid");
 			if (prev_address > output.address)
 				return callback("output addresses not sorted");
