@@ -1081,19 +1081,23 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				
 			case 'sum':
 				// ['sum', {filter: {what: 'input', asset: 'asset or base', type: 'transfer'|'issue', address: 'BASE32'}, at_least: 123, at_most: 123, equals: 123}]
-				augmentMessagesAndEvaluateFilter("has", args.filter, function(res, arrFoundObjects){
-					var sum = 0;
-					if (res)
-						for (var i=0; i<arrFoundObjects.length; i++)
-							sum += arrFoundObjects[i].amount;
-					console.log("sum="+sum);
-					if (typeof args.equals === "number")
-						return cb2(sum === args.equals);
-					if (typeof args.at_least === "number" && sum < args.at_least)
-						return cb2(false);
-					if (typeof args.at_most === "number" && sum > args.at_most)
-						return cb2(false);
-					cb2(true);
+				augmentMessagesIfNeeded(args.filter.what === "input", () => {
+					augmentMessagesAndEvaluateFilter("has", args.filter, function(res, arrFoundObjects){
+						var sum = 0;
+						if (res)
+							for (var i=0; i<arrFoundObjects.length; i++)
+								sum += arrFoundObjects[i].amount;
+						if (!isFinite(sum))
+							throw Error("invalid sum: "+sum);
+						console.log("sum="+sum);
+						if (typeof args.equals === "number")
+							return cb2(sum === args.equals);
+						if (typeof args.at_least === "number" && sum < args.at_least)
+							return cb2(false);
+						if (typeof args.at_most === "number" && sum > args.at_most)
+							return cb2(false);
+						cb2(true);
+					});
 				});
 				break;
 				
