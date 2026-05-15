@@ -2099,7 +2099,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 					return cb("non-base input can have only type=issue");
 			}
 			else{
-				if ("type" in input && !isNonemptyString(input.type))
+				if ("type" in input && !["issue", "headers_commission", "witnessing"].includes(input.type))
 					return cb("bad input type");
 			}
 			var type = input.type || "transfer";
