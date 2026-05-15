@@ -719,6 +719,19 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				var contractContent = device.decryptPackage(body.encrypted_contract);
 				if (!contractContent || !contractContent.creation_date || !contractContent.title || !contractContent.text)
 					return callbacks.ifError("wrong contract content");
+				var expectedContractHash = arbiter_contract.getHash({
+					title: contractContent.title,
+					text: contractContent.text,
+					creation_date: contractContent.creation_date,
+					my_party_name: contractContent.plaintiff_party_name,
+					peer_party_name: contractContent.respondent_party_name,
+					me_is_payer: body.me_is_payer,
+					arbiter_address: body.arbiter_address,
+					amount: body.amount,
+					asset: body.asset
+				});
+				if (body.contract_hash !== expectedContractHash)
+					return callbacks.ifError("wrong contract hash");
 				if (conf.bLight)
 					network.requestHistoryFor([body.unit], [], function(){});
 				body.contract_content = contractContent;
