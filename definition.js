@@ -286,7 +286,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 				var params = args[1];
 				if (!isValidBase64(unit, constants.HASH_LENGTH))
 					return cb("unit must be a valid base64 string 44 bytes long");
-				if (!ValidationUtils.isNonemptyObject(params))
+				if (!isNonemptyObject(params))
 					return cb("params must be non-empty object");
 				for (var key in params)
 					if (typeof params[key] !== "string" && typeof params[key] !== "number")
@@ -1016,8 +1016,12 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 						if (message.app !== 'payment' || !message.payload)
 							continue;
 						var inputs = message.payload.inputs;
+						if (!Array.isArray(inputs))
+							continue;
 						for (var j=0; j<inputs.length; j++){
 							var input = inputs[j];
+							if (!isNonemptyObject(input))
+								continue;
 							if (input.type !== 'transfer') // assume age is satisfied for issue, headers commission, and witnessing commission
 								continue;
 							if (!input.address) // augment should add it
@@ -1213,8 +1217,12 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				}
 			}
 			if (filter.what === "input"){
+				if (!Array.isArray(payload.inputs))
+					continue;
 				for (var j=0; j<payload.inputs.length; j++){
 					var input = payload.inputs[j];
+					if (!isNonEmptyObject(input))
+						continue;
 					if (input.type === "headers_commission" || input.type === "witnessing")
 						continue;
 					if (filter.type){
@@ -1247,8 +1255,12 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				}
 			} // input
 			else if (filter.what === "output"){
+				if (!Array.isArray(payload.outputs))
+					continue;
 				for (var j=0; j<payload.outputs.length; j++){
 					var output = payload.outputs[j];
+					if (!isNonEmptyObject(output))
+						continue;
 					if (filter.address){
 						if (filter.address === 'this address'){
 							if (output.address !== address)
@@ -1290,16 +1302,20 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 		async.eachSeries(
 			objValidationState.arrAugmentedMessages,
 			function(message, cb3){
+				if (!isNonEmptyObject(message))
+					return cb3();
 				if (message.app !== 'payment' || !message.payload) // we are looking only for public payments
 					return cb3();
 				var payload = message.payload;
-				if (!payload.inputs) // skip now, will choke when checking the message
+				if (!Array.isArray(payload.inputs)) // skip now, will choke when checking the message
 					return cb3();
 				console.log("augmenting inputs");
 				async.eachSeries(
 					payload.inputs,
 					function(input, cb4){
 						console.log("input", input);
+						if (!isNonEmptyObject(input))
+							return cb4();
 						if (input.type === "issue"){
 							if (!input.address)
 								input.address = arrAuthorAddresses[0];
