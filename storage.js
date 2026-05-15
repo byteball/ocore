@@ -1887,15 +1887,16 @@ function readAsset(conn, asset, last_ball_mci, bAcceptUnconfirmedAA, handleAsset
 		if (objAsset.sequence !== "good")
 			return handleAsset("asset definition is not serial");
 		
-		function addAttestorsIfNecessary(){
+		function addAttestorsIfNecessary(byAA = false){
 			if (!objAsset.spender_attested)
 				return handleAsset(null, objAsset);
 
 			// find latest list of attestors
+			const before_last_ball_cond = byAA ? `AND main_chain_index<=${+last_ball_mci} AND is_stable=1` : "";
 			conn.query(
 				"SELECT unit FROM asset_attestors CROSS JOIN units USING(unit) \n\
-				WHERE asset=? AND main_chain_index<=? AND is_stable=1 AND sequence='good' ORDER BY "+ (conf.bLight ? "units.rowid" : "level") + " DESC LIMIT 1",
-				[asset, last_ball_mci],
+				WHERE asset=? " + before_last_ball_cond + " AND sequence='good' ORDER BY "+ (conf.bLight ? "units.rowid" : "level") + " DESC LIMIT 1",
+				[asset],
 				function (latest_rows) {
 					if (latest_rows.length === 0)
 						throw Error("no latest attestor list");
@@ -1904,8 +1905,8 @@ function readAsset(conn, asset, last_ball_mci, bAcceptUnconfirmedAA, handleAsset
 					// read the list
 					conn.query(
 						"SELECT attestor_address FROM asset_attestors CROSS JOIN units USING(unit) \n\
-						WHERE asset=? AND unit=? AND main_chain_index<=? AND is_stable=1 AND sequence='good'",
-						[asset, latest_attestor_list_unit, last_ball_mci],
+						WHERE asset=? AND unit=? " + before_last_ball_cond + " AND sequence='good'",
+						[asset, latest_attestor_list_unit],
 						function (att_rows) {
 							if (att_rows.length === 0)
 								throw Error("no attestors?");
@@ -1923,7 +1924,7 @@ function readAsset(conn, asset, last_ball_mci, bAcceptUnconfirmedAA, handleAsset
 		if (!bAcceptUnconfirmedAA || constants.bTestnet && last_ball_mci < testnetAssetsDefinedByAAsAreVisibleImmediatelyUpgradeMci && objAsset.main_chain_index !== null)
 			return handleAsset("asset definition must be before last ball");
 		readAADefinition(conn, objAsset.definer_address, last_ball_mci, function (arrDefinition) {
-			arrDefinition ? addAttestorsIfNecessary() : handleAsset("asset definition must be before last ball (AA)");
+			arrDefinition ? addAttestorsIfNecessary(true) : handleAsset("asset definition must be before last ball (AA)");
 		});
 	});
 }
