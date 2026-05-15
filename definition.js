@@ -1025,7 +1025,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 							if (input.type !== 'transfer') // assume age is satisfied for issue, headers commission, and witnessing commission
 								continue;
 							if (!input.address) // augment should add it
-								throw Error('no input address');
+								continue;  //throw Error('no input address'); // the input is not validated yet, might be invalid
 							if (input.address === address && arrSrcUnits.indexOf(input.unit) === -1)
 								arrSrcUnits.push(input.unit);
 						}
