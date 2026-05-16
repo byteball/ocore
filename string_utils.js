@@ -15,6 +15,8 @@ function getSourceString(obj) {
 			throw Error("null value in "+JSON.stringify(obj));
 		switch (typeof variable){
 			case "string":
+				if (variable.includes(STRING_JOIN_CHAR))
+					throw Error("00 byte in string value in " + JSON.stringify(obj));
 				arrComponents.push("s", variable);
 				break;
 			case "number":
