@@ -241,6 +241,9 @@ function validate(objJoint, callbacks, external_conn) {
 			return callbacks.ifJointError("bad timestamp");
 	}
 	
+	if (!arrAuthorAddresses.every(isValidAddress))
+		return callbacks.ifUnitError("invalid author address");
+
 	mutex.lock(arrAuthorAddresses, function(unlock){
 		
 		var conn = null;
@@ -1010,8 +1013,6 @@ function validateAuthors(conn, arrAuthors, objUnit, objValidationState, callback
 }
 
 function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
-	if (!isStringOfLength(objAuthor.address, 32))
-		return callback("wrong address length");
 	if (objValidationState.bAA && hasFieldsExcept(objAuthor, ["address"]))
 		throw Error("unknown fields in AA author");
 	if (!objValidationState.bAA) {
@@ -1047,8 +1048,6 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 		validateAuthentifiers(arrAddressDefinition);
 	}
 	else if (!("definition" in objAuthor)){
-		if (!chash.isChashValid(objAuthor.address))
-			return callback("address checksum invalid");
 		if (objUnit.content_hash){ // nothing else to check
 			objValidationState.sequence = 'final-bad';
 			return callback();
