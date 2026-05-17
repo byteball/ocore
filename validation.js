@@ -144,6 +144,8 @@ function validate(objJoint, callbacks, external_conn) {
 			return callbacks.ifUnitError("missing or empty messages array");
 		if (objUnit.messages.length > constants.MAX_MESSAGES_PER_UNIT && !bGenesis)
 			return callbacks.ifUnitError("too many messages");
+		if (!objUnit.messages.every(isNonemptyObject))
+			return callbacks.ifUnitError("all messages must be non-empty objects");
 
 		if (objectLength.getHeadersSize(objUnit) !== objUnit.headers_commission)
 			return callbacks.ifJointError("wrong headers commission, expected "+objectLength.getHeadersSize(objUnit));
@@ -240,7 +242,7 @@ function validate(objJoint, callbacks, external_conn) {
 		if ("timestamp" in objUnit && !isPositiveInteger(objUnit.timestamp))
 			return callbacks.ifJointError("bad timestamp");
 	}
-	
+
 	if (!arrAuthorAddresses.every(isValidAddress))
 		return callbacks.ifUnitError("invalid author address");
 
@@ -885,7 +887,7 @@ async function validateAATrigger(conn, objUnit, objValidationState, callback) {
 			if (!isNonemptyArray(m.payload.outputs))
 				return callback("outputs must be a non-empty array");
 			for (let o of m.payload.outputs)
-				if (!arrOutputAddresses.includes(o.address))
+				if (isNonemptyObject(o) && !arrOutputAddresses.includes(o.address))
 					arrOutputAddresses.push(o.address);
 		}
 	}
