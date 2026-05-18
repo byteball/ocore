@@ -182,7 +182,7 @@ function validate(objJoint, callbacks, external_conn) {
 
 	if (bGenesis) {
 		if ("oversize_fee" in objUnit)
-			return callbacks.ifUnitError("oversize_fee in genesis");
+			return callbacks.ifJointError("oversize_fee in genesis");
 		if ("tps_fee" in objUnit)
 			return callbacks.ifUnitError("tps_fee in genesis");
 		if ("burn_fee" in objUnit)
@@ -659,7 +659,7 @@ function validateParents(conn, objJoint, objValidationState, callback){
 							}
 							else {
 								if ("oversize_fee" in objUnit)
-									return callback("zero oversize fee should be omitted");
+									return callback(createJointError("zero oversize fee should be omitted"));
 							}
 							if (!("tps_fee" in objUnit) && !objValidationState.bAA)
 								return callback("no tps_fee field");
@@ -671,7 +671,7 @@ function validateParents(conn, objJoint, objValidationState, callback){
 						if (!("witnesses" in objUnit) && !("witness_list_unit" in objUnit))
 							return callback("should have either witnesses or witness_list_unit");
 						if ("oversize_fee" in objUnit)
-							return callback("oversize_fee not charged before version 4.0");
+							return callback(createJointError("oversize_fee not charged before version 4.0"));
 						if ("tps_fee" in objUnit)
 							return callback("tps_fee not charged before version 4.0");
 						if ("burn_fee" in objUnit)
