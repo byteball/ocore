@@ -96,7 +96,7 @@ exports.unstableInitialDefinitionUpgradeMci = exports.bTestnet ? 1358300 : 54940
 exports.includeKeySizesUpgradeMci = exports.bTestnet ? 1383500 : 5530000;
 exports.aa3UpgradeMci = exports.bTestnet ? 2291500 : 7810000;
 exports.v4UpgradeMci = exports.bTestnet ? 3522600 : 10968000;
-exports.tpsFeeRecipientsFixMci = exports.bTestnet ? 3909321 : 0;
+exports.tpsFeeRecipientsFixMci = exports.bTestnet ? 3909321 : 11985000;
 
 
 if (process.env.devnet) {
