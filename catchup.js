@@ -275,7 +275,7 @@ function readHashTree(hashTreeRequest, callbacks){
 	var from_mci;
 	var to_mci;
 	db.query(
-		"SELECT is_stable, is_on_main_chain, main_chain_index, ball, unit, last_ball_unit FROM balls JOIN units USING(unit) WHERE ball IN(?,?) ORDER BY main_chain_index", 
+		"SELECT is_stable, is_on_main_chain, main_chain_index, ball, unit, last_ball_unit, (SELECT main_chain_index FROM units AS lb_units WHERE lb_units.unit=units.last_ball_unit) AS last_ball_mci FROM balls JOIN units USING(unit) WHERE ball IN(?,?) ORDER BY main_chain_index", 
 		[from_ball, to_ball], 
 		function(rows){
 			if (rows.length !== 2)
@@ -293,8 +293,8 @@ function readHashTree(hashTreeRequest, callbacks){
 			}
 			if (from_mci >= to_mci)
 				return callbacks.ifError("from is after to");
-			if (rows[1].last_ball_unit !== rows[0].unit)
-				return callbacks.ifError("from_ball is not last stable ball of to_ball");
+			if (rows[1].last_ball_mci > rows[0].main_chain_index)
+				return callbacks.ifError("from_ball is earlier than last stable ball of to_ball");
 			var arrBalls = [];
 			var op = (from_mci === 0) ? ">=" : ">"; // if starting from 0, add genesis itself
 			db.query(
