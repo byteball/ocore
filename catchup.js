@@ -114,6 +114,8 @@ function processCatchupChain(catchupChain, peer, arrWitnesses, callbacks){
 		return callbacks.ifError("no unstable_mc_joints");
 	if (!ValidationUtils.isNonemptyArray(catchupChain.stable_last_ball_joints))
 		return callbacks.ifError("no stable_last_ball_joints");
+	if (!catchupChain.stable_last_ball_joints.every(ValidationUtils.isNonemptyObject))
+		return callbacks.ifError("invalid stable_last_ball_joints");
 	if (!catchupChain.witness_change_and_definition_joints)
 		catchupChain.witness_change_and_definition_joints = [];
 	if (!Array.isArray(catchupChain.witness_change_and_definition_joints))
@@ -345,6 +347,8 @@ function readHashTree(hashTreeRequest, callbacks){
 function processHashTree(arrBalls, callbacks){
 	if (!ValidationUtils.isNonemptyArray(arrBalls))
 		return callbacks.ifError("no balls array");
+	if (!arrBalls.every(ValidationUtils.isNonemptyObject))
+		return callbacks.ifError("invalid balls array");
 	mutex.lock(["hash_tree"], function(unlock){
 		
 		db.query("SELECT 1 FROM hash_tree_balls LIMIT 1", function(ht_rows){
