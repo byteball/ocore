@@ -979,12 +979,17 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 		});
 	}
 
-	function sendUnit(messages) {
+	async function sendUnit(messages) {
 		if (trigger_opts.bAir)
 			return sendDummyUnit(messages);
 		console.log('send unit with messages', util.inspect(messages, { depth: 6 }));
 		var arrUsedOutputIds = [];
 		var arrConsumedOutputs = [];
+
+		const objLastBallUnit = await storage.readUnitProps(conn, objMcUnit.last_ball_unit);
+		if (!objLastBallUnit)
+			throw Error("last ball unit not found: " + objMcUnit.last_ball_unit);
+		const last_ball_mci = objLastBallUnit.main_chain_index;
 
 		function completeMessage(message) {
 			message.payload_location = 'inline';
@@ -1019,7 +1024,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 			var bFound = false;
 
 			function getOversizeFee(s) {
-				return (mci >= constants.v4UpgradeMci && is_base) ? storage.getOversizeFee(s - paid_temp_data_fee, mci) : 0;
+				return (mci >= constants.v4UpgradeMci && is_base) ? storage.getOversizeFee(s - paid_temp_data_fee, last_ball_mci) : 0;
 			}
 
 			function iterateUnspentOutputs(rows) {
@@ -1284,7 +1289,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 						addOutputAddresses(objBasePaymentMessage.payload.outputs);
 						completeMessage(objBasePaymentMessage); // fixes payload_hash
 						objUnit.payload_commission = objectLength.getTotalPayloadSize(objUnit);
-						const oversize_fee = (mci >= constants.v4UpgradeMci) ? storage.getOversizeFee(objUnit, mci) : 0;
+						const oversize_fee = (mci >= constants.v4UpgradeMci) ? storage.getOversizeFee(objUnit, last_ball_mci) : 0;
 						if (oversize_fee)
 							objUnit.oversize_fee = oversize_fee;
 						objUnit.unit = objectHash.getUnitHash(objUnit);
