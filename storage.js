@@ -1338,7 +1338,7 @@ function getCurrentTps(shift = 0, count_units = 1) {
 	const since_mci = last_stable_mci + shift;
 	let count = count_units; // include the current unit and its AA responses
 	let since_timestamp = 0;
-	const now = Math.round(Date.now() / 1000);
+	const now = Math.ceil(Date.now() / 1000);
 	for (let unit in assocUnstableUnits) {
 		const objUnitProps = assocUnstableUnits[unit];
 		if (objUnitProps.timestamp > now) continue; // skip future-timestamped units
@@ -1349,7 +1349,7 @@ function getCurrentTps(shift = 0, count_units = 1) {
 				since_timestamp = objUnitProps.timestamp;
 		}
 	}
-	if (count === 0)
+	if (count === count_units)
 		return 0;
 	//	throw Error(`getCurrentTps: no unstable units`);
 	if (shift === 0) {
