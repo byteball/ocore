@@ -4109,6 +4109,20 @@ test('dictionary with numeric keys not allowed', t => {
 	})
 });
 
+test('treating array as object not allowed', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$y = [8, 9];
+		$y.b = 7; // treating array as object
+		$y
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	})
+});
+
 test('dictionary with duplicate keys not allowed', t => {
 	var trigger = { data: { q: { a: 6 } } };
 	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
@@ -4251,7 +4265,7 @@ test('assigning to __proto__.hasOwnProperty key', t => {
 		$x.prototype.hasOwnProperty = 9;
 		$x.abc = 16;
 		$y = [8, 9];
-		$y.b = 7; // treating array as object
+	//	$y.b = 7; // treating array as object
 		$y[] = 10;
 		$x
 	`;
