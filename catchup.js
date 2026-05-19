@@ -86,9 +86,7 @@ function prepareCatchupChain(catchupRequest, callbacks){
 				function goUp(unit){
 					storage.readJointWithBall(db, unit, function(objJoint){
 						objCatchupChain.stable_last_ball_joints.push(objJoint);
-						storage.readUnitProps(db, unit, function(objUnitProps){
-							(objUnitProps.main_chain_index <= last_stable_mci) ? cb() : goUp(objJoint.unit.last_ball_unit);
-						});
+						(objJoint.unit.main_chain_index <= last_stable_mci) ? cb() : goUp(objJoint.unit.last_ball_unit);
 					});
 				}
 			}
