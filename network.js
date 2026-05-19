@@ -116,7 +116,7 @@ function sendMessage(ws, type, content) {
 	var message = JSON.stringify([type, content]);
 	if (ws.readyState !== ws.OPEN)
 		return console.log("readyState="+ws.readyState+' on peer '+ws.peer+', will not send '+message);
-	console.log("SENDING "+message+" to "+ws.peer);
+	console.log("SENDING "+message.length+" chars "+message+" to "+ws.peer);
 	if (bCordova) {
 		ws.send(message);
 	} else {
@@ -4009,7 +4009,7 @@ function onWebsocketMessage(message) {
 	
 	if (typeof message !== 'string') // ws 8+
 		message = message.toString();
-	console.log('RECEIVED '+(message.length > 1000 ? message.substr(0,1000)+'... ('+message.length+' chars)' : message)+' from '+ws.peer);
+	console.log('RECEIVED ' + message.length + ' chars ' + (message.length > 1000 ? message.substr(0,1000)+'...' : message) + ' from '+ws.peer);
 	ws.last_ts = Date.now();
 	
 	try{
