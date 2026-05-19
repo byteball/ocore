@@ -11,7 +11,7 @@ var witnessProof = require('./witness_proof.js');
 var proofChain = require('./proof_chain.js');
 var ValidationUtils = require("./validation_utils.js");
 
-var MAX_CATCHUP_CHAIN_LENGTH = 1000000; // how many MCIs long
+var MAX_CATCHUP_CHAIN_LENGTH = 100000; // how many MCIs long
 
 
 function prepareCatchupChain(catchupRequest, callbacks){
