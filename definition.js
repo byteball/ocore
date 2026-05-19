@@ -1221,7 +1221,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 					continue;
 				for (var j=0; j<payload.inputs.length; j++){
 					var input = payload.inputs[j];
-					if (!isNonEmptyObject(input))
+					if (!isNonemptyObject(input))
 						continue;
 					if (input.type === "headers_commission" || input.type === "witnessing")
 						continue;
@@ -1259,7 +1259,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 					continue;
 				for (var j=0; j<payload.outputs.length; j++){
 					var output = payload.outputs[j];
-					if (!isNonEmptyObject(output))
+					if (!isNonemptyObject(output))
 						continue;
 					if (filter.address){
 						if (filter.address === 'this address'){
@@ -1302,7 +1302,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 		async.eachSeries(
 			objValidationState.arrAugmentedMessages,
 			function(message, cb3){
-				if (!isNonEmptyObject(message))
+				if (!isNonemptyObject(message))
 					return cb3();
 				if (message.app !== 'payment' || !message.payload) // we are looking only for public payments
 					return cb3();
@@ -1314,7 +1314,7 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 					payload.inputs,
 					function(input, cb4){
 						console.log("input", input);
-						if (!isNonEmptyObject(input))
+						if (!isNonemptyObject(input))
 							return cb4();
 						if (input.type === "issue"){
 							if (!input.address)
