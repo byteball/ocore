@@ -433,7 +433,7 @@ function checkIfHaveEnoughOutboundPeersAndAdd(){
 function connectToPeer(url, onOpen, dontAddPeer) {
 	if (!dontAddPeer)
 		addPeer(url);
-	var options = {  };
+	var options = { maxPayload };
 	if (SocksProxyAgent && conf.socksHost && conf.socksPort) {
 		let socksUrl = 'socks5h://';
 		if (conf.socksUsername && conf.socksPassword)
