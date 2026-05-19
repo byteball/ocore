@@ -166,6 +166,8 @@ exports.getJointHash = getJointHash;
 exports.cleanNulls = cleanNulls;
 exports.cleanNullsDeep = cleanNullsDeep;
 
+exports.getStrippedUnit = getStrippedUnit;
+
 exports.getDeviceAddress = getDeviceAddress;
 exports.getDeviceMessageHashToSign = getDeviceMessageHashToSign;
 exports.getSignedPackageHashToSign = getSignedPackageHashToSign;

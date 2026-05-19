@@ -85,8 +85,11 @@ function prepareCatchupChain(catchupRequest, callbacks){
 
 				function goUp(unit){
 					storage.readJointWithBall(db, unit, function(objJoint){
+						const { main_chain_index, last_ball_unit } = objJoint.unit;
+						objJoint.unit = objectHash.getStrippedUnit(objJoint.unit); // save bandwidth, stripped unit is enough to verify the hash
+						objJoint.unit.unit = unit; // add it back
 						objCatchupChain.stable_last_ball_joints.push(objJoint);
-						(objJoint.unit.main_chain_index <= last_stable_mci) ? cb() : goUp(objJoint.unit.last_ball_unit);
+						(main_chain_index <= last_stable_mci) ? cb() : goUp(last_ball_unit);
 					});
 				}
 			}
