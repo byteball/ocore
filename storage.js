@@ -1892,7 +1892,7 @@ function readAsset(conn, asset, last_ball_mci, bAcceptUnconfirmedAA, handleAsset
 				return handleAsset(null, objAsset);
 
 			// find latest list of attestors
-			const before_last_ball_cond = byAA ? `AND main_chain_index<=${+last_ball_mci} AND is_stable=1` : "";
+			const before_last_ball_cond = byAA ? "" : `AND main_chain_index<=${+last_ball_mci} AND is_stable=1`;
 			conn.query(
 				"SELECT unit FROM asset_attestors CROSS JOIN units USING(unit) \n\
 				WHERE asset=? " + before_last_ball_cond + " AND sequence='good' ORDER BY "+ (conf.bLight ? "units.rowid" : "level") + " DESC LIMIT 1",
