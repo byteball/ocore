@@ -1882,7 +1882,17 @@ function comeOnline(){
 		requestFreeJointsFromAllOutboundPeers();
 		setTimeout(cleanBadSavedPrivatePayments, 300*1000);
 	});
-	eventBus.emit('catching_up_done');
+	waitTillRecentTimestamp();
+}
+
+function waitTillRecentTimestamp() {
+	if (bCatchingUp) return;
+	db.query("SELECT timestamp FROM units ORDER BY main_chain_index DESC LIMIT 1", function (rows) {
+		if (rows.length === 0 || rows[0].timestamp > Date.now() / 1000 - 300)
+			return eventBus.emit('catching_up_done');
+		console.log('last unit is old, will wait');
+		setTimeout(waitTillRecentTimestamp, 10 * 1000);
+	});
 }
 
 function isIdle(){
