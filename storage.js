@@ -12,6 +12,7 @@ var archiving = require('./archiving.js');
 var eventBus = require('./event_bus.js');
 var profiler = require('./profiler.js');
 var ValidationUtils = require("./validation_utils.js");
+const { Decimal } = require('./formula/common.js');
 
 //Object.freeze(Object.prototype); // breaks assignment to __proto__ field in oscript formulas, see test/formula.test.js
 Object.freeze(Array.prototype);
@@ -1123,6 +1124,9 @@ function getOpList(mci) {
 	return getSystemVar('op_list', mci);
 }
 
+function exp(x) {
+	return new Decimal(x).exp().toNumber();
+}
 
 function getOversizeFee(objUnitOrSize, mci) {
 	let size;
@@ -1138,7 +1142,7 @@ function getOversizeFee(objUnitOrSize, mci) {
 	const threshold_size = getSystemVar('threshold_size', mci);
 	if (size <= threshold_size)
 		return 0;
-	return Math.ceil(size * (Math.exp(size / threshold_size - 1) - 1));
+	return Math.ceil(size * (exp(size / threshold_size - 1) - 1));
 }
 
 
@@ -1216,7 +1220,7 @@ function getFinalTpsFee(objUnitProps) {
 	const tps_interval = getSystemVar('tps_interval', mci);
 	const tps = getFinalTps(objUnitProps);
 	console.log(`final tps at ${objUnitProps.unit} ${tps}`);
-	return Math.round(base_tps_fee * (Math.exp(tps / tps_interval) - 1));
+	return Math.round(base_tps_fee * (exp(tps / tps_interval) - 1));
 }
 
 async function updateTpsFees(conn, arrMcis) {
@@ -1318,7 +1322,7 @@ async function getLocalTpsFee(conn, objUnitProps, count_units = 1) {
 	const tps_fee_multiplier = getSystemVar('tps_fee_multiplier', last_ball_mci);
 	const tps = await getLocalTps(conn, objUnitProps, count_units);
 	console.log(`local tps at ${objUnitProps.unit} ${tps}`);
-	const tps_fee_per_unit = Math.round(tps_fee_multiplier * base_tps_fee * (Math.exp(tps / tps_interval) - 1));
+	const tps_fee_per_unit = Math.round(tps_fee_multiplier * base_tps_fee * (exp(tps / tps_interval) - 1));
 	return count_units * tps_fee_per_unit;
 }
 
@@ -1373,7 +1377,7 @@ function getCurrentTpsFee(shift = 0, count_units = 1) {
 	console.log(`current tps with shift ${shift} ${tps}`);
 	const base_tps_fee = getSystemVar('base_tps_fee', last_stable_mci);
 	const tps_interval = getSystemVar('tps_interval', last_stable_mci);
-	return Math.round(base_tps_fee * (Math.exp(tps / tps_interval) - 1));
+	return Math.round(base_tps_fee * (exp(tps / tps_interval) - 1));
 }
 
 function getCurrentTpsFeeToPay(shift = 0, count_units = 1) {
