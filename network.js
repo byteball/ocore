@@ -2649,16 +2649,21 @@ function handleJustsaying(ws, subject, body){
 				return console.log("no bug_sink_email, not accepting bugreport");
 			if (!body || !body.exception || !ValidationUtils.isNonemptyString(body.message))
 				return console.log("invalid bugreport");
-			var arrParts = body.exception.toString().split("Breadcrumbs", 2);
-			var text = body.message + ' ' + arrParts[0];
-			var matches = body.message.match(/message encrypted to unknown key, device (0\w{32})/);
-			var hash = matches ? matches[1] : crypto.createHash("sha256").update(text, "utf8").digest("base64");
-			if (hash === prev_bugreport_hash)
-				return console.log("ignoring known bug report");
-			prev_bugreport_hash = hash;
-			if (conf.ignoreBugreportRegexp && new RegExp(conf.ignoreBugreportRegexp).test(text))
-				return console.log('ignoring bugreport');
-			mail.sendBugEmail(body.message, body.exception);
+			try {
+				var arrParts = body.exception.toString().split("Breadcrumbs", 2);
+				var text = body.message + ' ' + arrParts[0];
+				var matches = body.message.match(/message encrypted to unknown key, device (0\w{32})/);
+				var hash = matches ? matches[1] : crypto.createHash("sha256").update(text, "utf8").digest("base64");
+				if (hash === prev_bugreport_hash)
+					return console.log("ignoring known bug report");
+				prev_bugreport_hash = hash;
+				if (conf.ignoreBugreportRegexp && new RegExp(conf.ignoreBugreportRegexp).test(text))
+					return console.log('ignoring bugreport');
+				mail.sendBugEmail(body.message, body.exception);
+			}
+			catch (e) {
+				console.log("failed to process bugreport", e);
+			}
 			break;
 			
 		case 'joint':
