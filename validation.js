@@ -579,12 +579,15 @@ function validateParents(conn, objJoint, objValidationState, callback){
 	var arrPrevParentUnitProps = [];
 	objValidationState.max_parent_limci = 0;
 	objValidationState.max_parent_wl = 0;
+	let bHaveNonAAParent = false;
 	async.eachSeries(
 		objUnit.parent_units, 
 		function(parent_unit, cb){
 			storage.readUnitProps(conn, parent_unit, function(objParentUnitProps){
 				if (objUnit.version !== constants.versionWithoutTimestamp && objUnit.timestamp < objParentUnitProps.timestamp)
 					return cb("timestamp decreased from parent " + parent_unit);
+				if (!objParentUnitProps.bAA)
+					bHaveNonAAParent = true;
 				if (objParentUnitProps.latest_included_mc_index > objValidationState.max_parent_limci)
 					objValidationState.max_parent_limci = objParentUnitProps.latest_included_mc_index;
 				if (objParentUnitProps.witnessed_level > objValidationState.max_parent_wl)
@@ -608,6 +611,8 @@ function validateParents(conn, objJoint, objValidationState, callback){
 		function(err){
 			if (err)
 				return callback(err);
+			if (!objValidationState.bAA && !bHaveNonAAParent)
+				return callback("non-AA unit should have at least one non-AA parent");
 			conn.query(
 				"SELECT is_stable, is_on_main_chain, main_chain_index, ball, timestamp, (SELECT MAX(main_chain_index) FROM units) AS max_known_mci \n\
 				FROM units LEFT JOIN balls USING(unit) WHERE unit=?", 
