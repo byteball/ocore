@@ -43,6 +43,8 @@ function getSourceString(obj) {
 					keys.forEach(function(key){
 						if (typeof variable[key] === "undefined")
 							throw Error("undefined at "+key+" of "+JSON.stringify(obj));
+						if (key.includes(STRING_JOIN_CHAR))
+							throw Error("00 byte in object key in " + JSON.stringify(obj));
 						arrComponents.push(key);
 						extractComponents(variable[key]);
 					});
