@@ -455,6 +455,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				db.query("SELECT 1 FROM my_addresses WHERE address=?", [body.my_address], function(rows) {
 					if (!rows.length)
 						return callbacks.ifError("contract does not contain my address");
+					delete body.shared_address;
 					prosaic_contract.store(body);
 					var chat_message = "(prosaic-contract:" + Buffer.from(JSON.stringify(body), 'utf8').toString('base64') + ")";
 					eventBus.emit("text", from_address, chat_message, ++message_counter);
@@ -563,21 +564,29 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 						return callbacks.ifError("wrong contract hash or not an owner");
 					if (body.field == "status") {
 						if (body.value !== "revoked" || objContract.status !== "pending")
-								return callbacks.ifError("wrong status for contract supplied");
+							return callbacks.ifError("wrong status for contract supplied");
 					} else 
 					if (body.field == "unit") {
 						if (objContract.status !== "accepted")
 							return callbacks.ifError("contract was not accepted");
 						if (objContract.unit)
-								return callbacks.ifError("unit was already provided for this contract");
+							return callbacks.ifError("unit was already provided for this contract");
+						if (!ValidationUtils.isValidBase64(body.value, constants.HASH_LENGTH))
+							return callbacks.ifError("invalid unit hash provided");
+						if (!objContract.shared_address)
+							return callbacks.ifError("unit received while shared_address is not set yet");
+						prosaic_contract.handleReceivedSigningUnit(objContract, body.value);
+						return callbacks.ifOk();
 					} else
 					if (body.field == "shared_address") {
 						if (objContract.status !== "accepted")
 							return callbacks.ifError("contract was not accepted");
 						if (objContract.shared_address)
-								return callbacks.ifError("shared_address was already provided for this contract");
-							if (!ValidationUtils.isValidAddress(body.value))
-								return callbacks.ifError("invalid address provided");
+							return callbacks.ifError("shared_address was already provided for this contract");
+						if (!ValidationUtils.isValidAddress(body.value))
+							return callbacks.ifError("invalid address provided");
+						prosaic_contract.handleReceivedSharedAddress(objContract, body.value);
+						return callbacks.ifOk();
 					} else {
 						return callbacks.ifError("wrong field");
 					}

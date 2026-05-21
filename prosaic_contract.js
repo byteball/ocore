@@ -4,6 +4,7 @@ var db = require('./db.js');
 var device = require('./device.js');
 var composer = require('./composer.js');
 var objectHash = require('./object_hash.js');
+var storage = require("./storage.js");
 var crypto = require('crypto');
 
 var status_PENDING = 'pending';
@@ -109,6 +110,73 @@ function decodeRow(row) {
 	return row;
 }
 
+
+function deriveSharedAddress(contract, bOfferor) {
+	const offeror_address = bOfferor ? contract.my_address : contract.peer_address;
+	const acceptor_address = bOfferor ? contract.peer_address : contract.my_address;
+	const offeror_device_address = bOfferor ? device.getMyDeviceAddress() : contract.peer_device_address;
+	const acceptor_device_address = bOfferor ? contract.peer_device_address : device.getMyDeviceAddress();
+	var arrDefinition =
+		["and", [
+			["address", offeror_address],
+			["address", acceptor_address]
+		]];
+
+	var assocSignersByPath = {
+		"r.0": {
+			address: offeror_address,
+			member_signing_path: "r",
+			device_address: offeror_device_address
+		},
+		"r.1": {
+			address: acceptor_address,
+			member_signing_path: "r",
+			device_address: acceptor_device_address
+		},
+	};
+	return { arrDefinition, assocSignersByPath };
+}
+
+function handleReceivedSharedAddress(contract, shared_address, retry_count = 0) {
+	console.log(`received shared address ${shared_address} for prosaic contract ${contract.hash} from peer`);
+	db.query("SELECT 1 FROM shared_addresses WHERE shared_address=?", [shared_address], function (rows) {
+		if (rows.length === 0) {
+			if (retry_count >= 10)
+				return console.log(`shared address ${shared_address} not found in db after 10 retries, giving up`);
+			console.log(`shared address ${shared_address} not yet in db, waiting for 30 seconds and trying again`);
+			return setTimeout(handleReceivedSharedAddress, 30000, contract, shared_address, retry_count + 1);
+		}
+		console.log(`shared address ${shared_address} found in db, deriving shared address definition to verify it matches the received one`);
+		const { arrDefinition } = deriveSharedAddress(contract, false);
+		const expected_shared_address = objectHash.getChash160(arrDefinition);
+		if (expected_shared_address !== shared_address)
+			return console.log(`expected shared address ${expected_shared_address} does not match received from offeror ${shared_address}`, JSON.stringify(arrDefinition, null, 2));
+		console.log(`shared address ${expected_shared_address} matches the received one, saving it to the contract`);
+		setField(contract.hash, "shared_address", shared_address);
+	});
+}
+
+function handleReceivedSigningUnit(contract, unit, retry_count = 0) {
+	db.query("SELECT 1 FROM unit_authors WHERE unit=? AND address=?", [unit, contract.shared_address], async function (rows) {
+		if (rows.length === 0) {
+			if (retry_count >= 10)
+				return console.log(`signing tx ${unit} not found in db after 10 retries, giving up`);
+			console.log(`signing tx ${unit} not yet in db, waiting for 30 seconds and trying again`);
+			return setTimeout(handleReceivedSigningUnit, 30000, contract, unit, retry_count + 1);
+		}
+		console.log(`signing tx ${unit} found in db, setting contract's unit`);
+		const objUnit = await storage.readUnit(unit);
+		const dataMessage = objUnit.messages.find(message => message.app === "data");
+		if (!dataMessage)
+			return console.log(`data message not found in purported prosaic signing unit ${unit}`);
+		const { payload } = dataMessage;
+		if (payload.contract_text_hash !== contract.hash)
+			return console.log(`data message payload does not match contract ${contract.hash} in purported prosaic signing unit ${unit}`);
+		setField(contract.hash, "unit", unit);
+	});
+}
+
+
 exports.createAndSend = createAndSend;
 exports.getByHash = getByHash;
 exports.getBySharedAddress = getBySharedAddress;
@@ -119,3 +187,6 @@ exports.store = store;
 exports.getHash = getHash;
 exports.getHashV1 = getHashV1;
 exports.share = share;
+exports.deriveSharedAddress = deriveSharedAddress;
+exports.handleReceivedSharedAddress = handleReceivedSharedAddress;
+exports.handleReceivedSigningUnit = handleReceivedSigningUnit;
