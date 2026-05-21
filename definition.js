@@ -560,7 +560,15 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 			case 'formula':
 				if (objValidationState.last_ball_mci < constants.formulaUpgradeMci)
 					return cb("formulas not allowed at this mci yet");
-				formulaParser.validate({ formula: args, complexity: complexity, count_ops: count_ops, mci: objValidationState.last_ball_mci, locals: {} }, function (result) {
+				formulaParser.validate({
+					formula: args,
+					complexity,
+					count_ops,
+					mci: objValidationState.last_ball_mci,
+					locals: {},
+					bAA: false,
+					bAssetCondition,
+				}, function (result) {
 					complexity = result.complexity;
 					count_ops = result.count_ops;
 					cb(result.error);

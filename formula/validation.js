@@ -226,6 +226,7 @@ exports.validate = function (opts, callback) {
 	var bStatementsOnly = opts.bStatementsOnly;
 	var bGetters = opts.bGetters;
 	var bAA = opts.bAA;
+	var bAssetCondition = opts.bAssetCondition;
 	var complexity = opts.complexity;
 	var count_ops = opts.count_ops;
 	var mci = opts.mci;
@@ -417,7 +418,12 @@ exports.validate = function (opts, callback) {
 
 			case 'mci':
 			case 'timestamp':
+				cb();
+				break;
+			
 			case 'this_address':
+				if (!bAA && bAssetCondition)
+					return cb('this_address in non-AA asset condition');
 				cb();
 				break;
 
