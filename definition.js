@@ -1017,7 +1017,9 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				var age = args[1];
 				if (["=", ">", "<", ">=", "<=", "!="].indexOf(relation) === -1)
 					throw Error("invalid relation in age: "+relation);
-				augmentMessagesAndContinue(function(){
+				augmentMessagesAndContinue(function(err){
+					if (err)
+						return cb2(false);
 					var arrSrcUnits = [];
 					for (var i=0; i<objValidationState.arrAugmentedMessages.length; i++){
 						var message = objValidationState.arrAugmentedMessages[i];
@@ -1067,7 +1069,9 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 			case 'has one equal':
 				// ['has equal', {equal_fields: ['address', 'amount'], search_criteria: [{what: 'output', asset: 'asset1', address: 'BASE32'}, {what: 'input', asset: 'asset2', type: 'issue', address: 'ANOTHERBASE32'}]}]
 				const needsAugment = args.search_criteria.map(f => f.what).includes("input") && _.intersection(args.equal_fields, ["address", "amount"]).length > 0;
-				augmentMessagesIfNeeded(needsAugment, () => {
+				augmentMessagesIfNeeded(needsAugment, (err) => {
+					if (err)
+						return cb2(false);
 					augmentMessagesAndEvaluateFilter("has", args.search_criteria[0], function(res1, arrFirstObjects){
 						if (!res1)
 							return cb2(false);
@@ -1093,7 +1097,9 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				
 			case 'sum':
 				// ['sum', {filter: {what: 'input', asset: 'asset or base', type: 'transfer'|'issue', address: 'BASE32'}, at_least: 123, at_most: 123, equals: 123}]
-				augmentMessagesIfNeeded(args.filter.what === "input", () => {
+				augmentMessagesIfNeeded(args.filter.what === "input", (err) => {
+					if (err)
+						return cb2(false);
 					augmentMessagesAndEvaluateFilter("has", args.filter, function(res, arrFoundObjects){
 						var sum = 0;
 						if (res)
@@ -1135,7 +1141,9 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 			
 			case 'formula':
 				var formula = args;
-				augmentMessagesOrIgnore(formula, function (messages) {
+				augmentMessagesOrIgnore(formula, function (err, messages) {
+					if (err)
+						return cb2(false);
 					var trigger = {};
 					objUnit.messages.forEach(function (message) {
 						if (message.app === 'data' && !trigger.data) // use the first data mesage, ignore the subsequent ones
@@ -1169,11 +1177,13 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 	
 	function augmentMessagesOrIgnore(formula, cb){
 		if (objValidationState.arrAugmentedMessages || /input/.test(formula)){
-			augmentMessagesAndContinue(function () {
-				cb(objValidationState.arrAugmentedMessages);
+			augmentMessagesAndContinue(err => {
+				if (err)
+					return cb(err);
+				cb(null, objValidationState.arrAugmentedMessages);
 			});
 		}else{
-			cb(objUnit.messages);
+			cb(null, objUnit.messages);
 		}
 	}
 	
@@ -1190,7 +1200,11 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 			evaluateFilter(op, filter, handleResult);
 		}
 		if (!objValidationState.arrAugmentedMessages && filter.what === "input" && (filter.address || typeof filter.amount === "number" || typeof filter.amount_at_least === "number" || typeof filter.amount_at_most === "number" || typeof filter.equals === "number" || typeof filter.at_least === "number" || typeof filter.at_most === "number"))
-			augmentMessages(doEvaluateFilter);
+			augmentMessages(err => {
+				if (err)
+					return handleResult(false);
+				doEvaluateFilter();
+			});
 		else
 			doEvaluateFilter();
 	}
@@ -1306,9 +1320,10 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 	function augmentMessages(onDone){
 		console.log("augmenting");
 		var arrAuthorAddresses = objUnit.authors.map(function(author){ return author.address; });
-		objValidationState.arrAugmentedMessages = _.cloneDeep(objUnit.messages);
+		let arrAugmentedMessages = _.cloneDeep(objUnit.messages);
+		let bHasInvalidInput = false;
 		async.eachSeries(
-			objValidationState.arrAugmentedMessages,
+			arrAugmentedMessages,
 			function(message, cb3){
 				if (!isNonemptyObject(message))
 					return cb3();
@@ -1340,8 +1355,10 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 										input.amount = rows[0].amount;
 										input.address = rows[0].address;
 									} // else will choke when checking the message
-									else
+									else{
 										console.log(rows.length+" src outputs found");
+										bHasInvalidInput = true;
+									}
 									cb4();
 								}
 							);
@@ -1352,7 +1369,12 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 					cb3
 				);
 			},
-			onDone
+			() => {
+				if (bHasInvalidInput)
+					return onDone("some inputs are invalid");
+				objValidationState.arrAugmentedMessages = arrAugmentedMessages;
+				onDone();
+			}
 		);
 	}
 	
