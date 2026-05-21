@@ -444,7 +444,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 					return cb("no element");
 			//	if (!isStringOfLength(element_hash, constants.HASH_LENGTH))
 			//		return cb("incorrect length of element hash");
-				if (!element.match(/[\w ~,.\/\\;:!@#$%^&*\(\)=+\[\]\{\}<>\?|-]{1,100}/))
+				if (!element.match(/^[\w ~,.\/\\;:!@#$%^&*\(\)=+\[\]\{\}<>\?|-]{1,100}$/))
 					return cb("incorrect format of merkled element");
 				if (typeof min_mci !== 'undefined' && !isNonnegativeInteger(min_mci))
 					return cb(op+": invalid min_mci");
