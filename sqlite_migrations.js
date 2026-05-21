@@ -4,7 +4,7 @@ var eventBus = require('./event_bus.js');
 var constants = require("./constants.js");
 var conf = require("./conf.js");
 
-var VERSION = 49;
+var VERSION = 50;
 
 var async = require('async');
 var bCordova = (typeof window === 'object' && window.cordova);
@@ -636,6 +636,10 @@ function migrateDb(connection, onDone){
 					connection.addQuery(arrQueries, "CREATE INDEX wacArbiterAddress ON wallet_arbiter_contracts(arbiter_address)");
 					connection.addQuery(arrQueries, "CREATE INDEX wacPeerAddress ON wallet_arbiter_contracts(peer_address)");
 					connection.addQuery(arrQueries, "COMMIT");
+				}
+				if (version < 50) {
+					connection.addQuery(arrQueries, "ALTER TABLE wallet_arbiter_contracts ADD COLUMN my_pairing_code VARCHAR(200) NULL");
+					connection.addQuery(arrQueries, "PRAGMA user_version=50");
 				}
 				cb();
 			},

@@ -497,7 +497,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					if (from_address !== objContract.peer_device_address)
 						return callbacks.ifError("response is from wrong device");
 					if (objContract.is_incoming)
-						return callbacks.ifError("this contract is incoming, cannot accept your own offer");
+						return callbacks.ifError("this contract is incoming, you cannot accept your own offer");
 					var processResponse = function(objSignedMessage) {
 						if (body.authors && body.authors.length) {
 							if (body.authors.length !== 1)
@@ -732,22 +732,45 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				});
 				if (body.contract_hash !== expectedContractHash)
 					return callbacks.ifError("wrong contract hash");
-				if (conf.bLight)
-					network.requestHistoryFor([body.unit], [], function(){});
-				body.contract_content = contractContent;
-				body.arbstore_device_address = from_address;
-				arbiter_contract.insertDispute(body, function(res) {
-					if (res.affectedRows == 0) {
-						return callbacks.ifError("can't insert dispute request into db");
-					}
-					var objDispute = {
-						contract_hash: body.contract_hash,
-						title: contractContent.title,
-						service_fee_asset: body.service_fee_asset
-					};
-					var chat_message = "(arbiter-dispute:" + Buffer.from(JSON.stringify(objDispute), 'utf8').toString('base64') + ")";
-					eventBus.emit("text", from_address, chat_message, ++message_counter);
-					callbacks.ifOk();
+				const requestUnit = conf.bLight
+					? (onDone) => network.requestHistoryFor([body.unit], [], err => {
+						if (!err) return onDone();
+						console.log("failed to load signing unit " + body.unit + " for dispute request, will try again in 30s");
+						setTimeout(() => requestUnit(onDone), 30000);
+					})
+					: (onDone) => onDone();
+				requestUnit(async () => {
+					const objUnit = await storage.readUnit(body.unit);
+					if (!objUnit)
+						return callbacks.ifError("signing unit not found");
+					const dataMessage = objUnit.messages.find(msg => msg.app === 'data');
+					if (!dataMessage)
+						return callbacks.ifError("no data message in signing unit");
+					const { payload } = dataMessage;
+					const contacts_hash = arbiter_contract.getContactsHash({
+						me_is_payer: body.me_is_payer,
+						my_pairing_code: body.my_pairing_code,
+						peer_pairing_code: body.peer_pairing_code,
+						my_contact_info: contractContent.my_contact_info,
+						peer_contact_info: contractContent.peer_contact_info,
+					});
+					if (payload.contacts_hash !== contacts_hash)
+						return callbacks.ifError("contacts hash doesn't match the signing unit");
+					body.contract_content = contractContent;
+					body.arbstore_device_address = from_address;
+					arbiter_contract.insertDispute(body, function(res) {
+						if (res.affectedRows == 0) {
+							return callbacks.ifError("can't insert dispute request into db");
+						}
+						var objDispute = {
+							contract_hash: body.contract_hash,
+							title: contractContent.title,
+							service_fee_asset: body.service_fee_asset
+						};
+						var chat_message = "(arbiter-dispute:" + Buffer.from(JSON.stringify(objDispute), 'utf8').toString('base64') + ")";
+						eventBus.emit("text", from_address, chat_message, ++message_counter);
+						callbacks.ifOk();
+					});
 				});
 				break;
 

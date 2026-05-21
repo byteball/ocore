@@ -908,6 +908,7 @@ CREATE TABLE IF NOT EXISTS wallet_arbiter_contracts (
 	text TEXT NOT NULL,
 	my_contact_info TEXT NULL,
 	peer_contact_info TEXT NULL,
+	my_pairing_code VARCHAR(200) NULL,
 	peer_pairing_code VARCHAR(200) NULL,
 	shared_address CHAR(32) NULL UNIQUE,
 	unit CHAR(44) NULL,
