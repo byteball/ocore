@@ -611,8 +611,6 @@ function validateParents(conn, objJoint, objValidationState, callback){
 		function(err){
 			if (err)
 				return callback(err);
-			if (!objValidationState.bAA && !bHaveNonAAParent)
-				return callback("non-AA unit should have at least one non-AA parent");
 			conn.query(
 				"SELECT is_stable, is_on_main_chain, main_chain_index, ball, timestamp, (SELECT MAX(main_chain_index) FROM units) AS max_known_mci \n\
 				FROM units LEFT JOIN balls USING(unit) WHERE unit=?", 
@@ -635,6 +633,8 @@ function validateParents(conn, objJoint, objValidationState, callback){
 					objValidationState.max_known_mci = objLastBallUnitProps.max_known_mci;
 					if (objValidationState.max_parent_limci < objValidationState.last_ball_mci)
 						return callback("last ball unit "+last_ball_unit+" is not included in parents, unit "+objUnit.unit);
+					if (!objValidationState.bAA && !bHaveNonAAParent && objValidationState.last_ball_mci >= constants.v4UpgradeMci)
+						return callback("non-AA unit should have at least one non-AA parent");
 					
 					var bRequiresTimestamp = (objValidationState.last_ball_mci >= constants.timestampUpgradeMci);
 					if (bRequiresTimestamp && objUnit.version === constants.versionWithoutTimestamp)
