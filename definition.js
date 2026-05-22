@@ -80,9 +80,13 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 	function determineIfAnyOfAssetsIsPrivate(arrAssets, cb){
 		if (arrAssets.length === 0)
 			return cb(false);
-		conn.query("SELECT 1 FROM assets WHERE unit IN(?) AND is_private=1 LIMIT 1", [arrAssets], function(rows){
+		conn.query(
+			"SELECT 1 FROM assets JOIN units ON assets.unit=units.unit WHERE assets.unit IN(?) AND is_private=1 AND main_chain_index<=? AND is_stable=1 AND sequence='good' LIMIT 1",
+			[arrAssets, objValidationState.last_ball_mci],
+			function(rows){
 			cb(rows.length > 0);
-		});
+			}
+		);
 	}
 	
 	function needToEvaluateNestedAddress(path){

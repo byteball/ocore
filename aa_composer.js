@@ -1116,7 +1116,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 					cb2();
 				}
 				
-				if (objAsset.cap) {
+				if (objAsset.cap) { // only our AA can issue, no unstable consensus-breaking issues possible
 					conn.query("SELECT 1 FROM inputs WHERE type='issue' AND asset=?", [asset], function(rows){
 						if (rows.length > 0) // already issued
 							return cb2('already issued');
@@ -1124,7 +1124,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 					});
 				}
 				else{
-					conn.query(
+					conn.query( // filtered by our AA's address, all equally visible on all nodes
 						"SELECT MAX(serial_number) AS max_serial_number FROM inputs WHERE type='issue' AND asset=? AND address=?",
 						[asset, address],
 						function(rows){

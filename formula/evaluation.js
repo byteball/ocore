@@ -1514,7 +1514,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 								return cb(true);
 							if (field !== 'is_issued')
 								return cb(!!objAsset[field]);
-							conn.query("SELECT 1 FROM inputs WHERE type='issue' AND asset=? LIMIT 1", [asset], function(rows){
+							conn.query("SELECT 1 FROM inputs CROSS JOIN units USING(unit) WHERE type='issue' AND asset=? AND (main_chain_index<=? AND is_stable=1 AND sequence='good' OR is_aa_response=1) LIMIT 1", [asset, mci], function(rows){
 								cb(rows.length > 0);
 							});
 						});

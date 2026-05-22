@@ -1940,9 +1940,9 @@ function filterAttestedAddresses(conn, objAsset, last_ball_mci, arrAddresses, ha
 		WHERE attestor_address IN(?) AND address IN(?) AND main_chain_index<=? AND is_stable=1 AND sequence='good' \n\
 			AND main_chain_index>IFNULL( \n\
 				(SELECT main_chain_index FROM address_definition_changes JOIN units USING(unit) \n\
-				WHERE address_definition_changes.address=attestations.address ORDER BY main_chain_index DESC LIMIT 1), \n\
+				WHERE address_definition_changes.address=attestations.address AND main_chain_index<=? AND is_stable=1 AND sequence='good' ORDER BY main_chain_index DESC LIMIT 1), \n\
 			0)",
-		[objAsset.arrAttestorAddresses, arrAddresses, last_ball_mci],
+		[objAsset.arrAttestorAddresses, arrAddresses, last_ball_mci, last_ball_mci],
 		function(addr_rows){
 			var arrAttestedAddresses = addr_rows.map(function(addr_row){ return addr_row.address; });
 			handleAttestedAddresses(arrAttestedAddresses);
