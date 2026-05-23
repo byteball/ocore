@@ -62,7 +62,7 @@ function getArbstoreInfo(arbiter_address, cb) {
 				return cb(err);
 			const cut = parseFloat(info.cut);
 			if (!info.address || !validationUtils.isValidAddress(info.address) || isNaN(cut) || cut < 0 || cut >= 1) {
-				cb("malformed info received from ArbStore");
+				return cb("malformed info received from ArbStore");
 			}
 			info.url = url;
 			arbStoreInfos[arbiter_address] = info;
