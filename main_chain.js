@@ -1317,8 +1317,10 @@ function markMcIndexStable(conn, batch, mci, onDone){
 							arrNewBadUnitsOnSameMci.push(unit);
 						}
 					}
-					else // on a future MCI
+					else { // on a future MCI
 						storage.assocUnstableUnits[unit].sequence = 'final-bad';
+						delete storage.assocUnstableMessages[unit];
+					}
 				});
 				console.log("new final-bads on the same mci", arrNewBadUnitsOnSameMci);
 				async.eachSeries(

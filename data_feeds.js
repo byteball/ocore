@@ -215,6 +215,8 @@ function readDataFeedValue(arrAddresses, feed_name, value, min_mci, max_mci, uns
 				throw Error("unstable unit " + unit + " not in assoc");
 			if (!objUnit.bAA && !bIncludeAllUnstable)
 				continue;
+			if (objUnit.sequence !== 'good')
+				continue;
 			if (objUnit.latest_included_mc_index < min_mci || objUnit.latest_included_mc_index > max_mci)
 				continue;
 			if (_.intersection(arrAddresses, objUnit.author_addresses).length === 0)

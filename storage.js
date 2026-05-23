@@ -864,6 +864,8 @@ function getUnconfirmedAADefinition(address) {
 		var objUnit = assocUnstableUnits[unit] || assocStableUnits[unit]; // just stabilized
 		if (!objUnit)
 			throw Error("unstable unit " + unit + " not in assoc");
+		if (objUnit.sequence !== 'good')
+			continue;
 		var messages = assocUnstableMessages[unit];
 		for (var i = 0; i < messages.length; i++) {
 			var message = messages[i];
