@@ -485,8 +485,8 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				break;
 
 			case 'prosaic_contract_response':
-				var validation = require('./validation.js');
-
+				if (!ValidationUtils.isNonemptyString(body.hash))
+					return callbacks.ifError("no contract hash");
 				if (body.status !== "accepted" && body.status !== "declined")
 					return callbacks.ifError("wrong status supplied");
 
@@ -559,6 +559,8 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				break;
 
 			case 'prosaic_contract_update':
+				if (!ValidationUtils.isNonemptyString(body.hash))
+					return callbacks.ifError("no contract hash");
 				prosaic_contract.getByHash(body.hash, function(objContract){
 					if (!objContract || objContract.peer_device_address !== from_address)
 						return callbacks.ifError("wrong contract hash or not an owner");
@@ -660,11 +662,15 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 
 			// sent by both contract parties and your cosigners, in both directions
 			case 'arbiter_contract_update':
+				if (!ValidationUtils.isNonemptyString(body.hash))
+					return callbacks.ifError("no contract hash");
 				arbiter_contract.getByHash(body.hash, function(objContract){
+					if (!objContract)
+						return callbacks.ifError("wrong contract hash");
 					db.query("SELECT 1 FROM wallet_signing_paths JOIN my_addresses USING(wallet) WHERE device_address=? AND address=?", [from_address, objContract.my_address], function(rows) {
 						const from_cosigner = (rows.length && objContract.me_is_cosigner);
-						if (!objContract || (from_address !== objContract.peer_device_address && !from_cosigner && !(from_address === objContract.arbstore_device_address && objContract.status === 'in_appeal' && body.field === 'status')))
-							return callbacks.ifError("wrong contract hash or not an owner");
+						if (from_address !== objContract.peer_device_address && !from_cosigner && !(from_address === objContract.arbstore_device_address && objContract.status === 'in_appeal' && body.field === 'status'))
+							return callbacks.ifError("not an owner");
 						if (body.field === "status") {
 							var isOK = false;
 							switch (objContract.status) {
@@ -725,6 +731,8 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				if (!body.contract_hash || !body.my_address || !body.peer_address || body.me_is_payer === undefined || !body.my_pairing_code || !body.peer_pairing_code
 					|| !body.encrypted_contract || !body.unit || !body.amount || body.asset === undefined || !body.arbiter_address || !body.service_fee_asset)
 					return callbacks.ifError("wrong dispute request");
+				if (!ValidationUtils.isNonemptyString(body.contract_hash))
+					return callbacks.ifError("bad contract hash");
 				var contractContent = device.decryptPackage(body.encrypted_contract);
 				if (!contractContent || !contractContent.creation_date || !contractContent.title || !contractContent.text)
 					return callbacks.ifError("wrong contract content");
@@ -785,8 +793,8 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 
 			// sent by peer
 			case 'arbiter_contract_response':
-				var validation = require('./validation.js');
-
+				if (!ValidationUtils.isNonemptyString(body.hash))
+					return callbacks.ifError("no contract hash");
 				if (body.status !== "accepted" && body.status !== "declined")
 					return callbacks.ifError("wrong status supplied");
 
