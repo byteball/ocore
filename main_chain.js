@@ -1650,30 +1650,30 @@ async function countVotes(conn, mci, subject, is_emergency = 0, emergency_count_
 	const addresses = address_rows.map(r => r.address);
 	const strAddresses = addresses.map(db.escape).join(', ');
 	let balances = {};
-	const bal_rows = await conn.query(`SELECT address, SUM(amount) AS balance 
+	// Count all stable-good outputs that have no stable-good spender.
+	// This correctly handles outputs whose only spending unit was propagated to final-bad
+	// (leaving is_spent=1 in the DB while no good unit claims the output), which the
+	// previous two-query approach (bal_rows + spent_rows) silently undercounted.
+	const bal_rows = await conn.query(`
+		SELECT outputs.address, SUM(outputs.amount) AS balance
 		FROM outputs
-		LEFT JOIN units USING(unit)
-		WHERE address IN(${strAddresses}) AND is_spent=0 AND asset IS NULL AND is_stable=1 AND sequence='good' 
-		GROUP BY address`);
+		JOIN units ON outputs.unit = units.unit
+		WHERE outputs.address IN(${strAddresses})
+			AND outputs.asset IS NULL
+			AND units.is_stable = 1 AND units.sequence = 'good'
+			AND NOT EXISTS (
+				SELECT 1 FROM inputs
+				JOIN units AS su ON inputs.unit = su.unit
+				WHERE inputs.src_unit = outputs.unit
+					AND inputs.src_message_index = outputs.message_index
+					AND inputs.src_output_index = outputs.output_index
+					AND su.sequence = 'good'
+					AND su.is_stable = 1
+			)
+		GROUP BY outputs.address`);
 	console.log('bal rows', bal_rows)
 	for (let { address, balance } of bal_rows) {
 		balances[address] = balance;
-	}
-	const spent_rows = await conn.query(`SELECT inputs.address, SUM(outputs.amount) AS spent_balance
-		FROM units
-		CROSS JOIN inputs USING(unit)
-		CROSS JOIN outputs ON src_unit=outputs.unit AND src_message_index=outputs.message_index AND src_output_index=outputs.output_index
-		CROSS JOIN units AS output_units ON outputs.unit=output_units.unit
-		WHERE units.is_stable=0 AND +units.sequence='good'
-			AND +output_units.is_stable=1 AND +output_units.sequence='good'
-			AND inputs.address IN(${strAddresses}) AND type='transfer' AND inputs.asset IS NULL
-		GROUP BY inputs.address`);
-	console.log('spent rows', spent_rows)
-	for (let { address, spent_balance } of spent_rows) {
-		if (balances[address])
-			balances[address] += spent_balance;
-		else
-			balances[address] = spent_balance;
 	}
 	let values = [];
 	for (let address in balances)
