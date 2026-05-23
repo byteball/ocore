@@ -214,15 +214,11 @@ function decodeRow(row) {
 	return row;
 }
 
-function fillArbstoreAddresses(objContract, cb) {
-	if (!cb)
-		return new Promise(resolve => fillArbstoreAddresses(objContract, resolve));
-	if (objContract.arbstore_device_address && objContract.arbstore_address)
-		return cb();
-	device.requestFromHub("hub/get_arbstore_url", objContract.arbiter_address, function(err, url){
+function getArbstoreAddresses(arbiter_address, cb) {
+	device.requestFromHub("hub/get_arbstore_url", arbiter_address, function(err, url){
 		if (err)
 			return cb(err);
-		device.requestFromHub("hub/get_arbstore_address", objContract.arbiter_address, function(err, arbstore_address){
+		device.requestFromHub("hub/get_arbstore_address", arbiter_address, function(err, arbstore_address){
 			if (err) {
 				return cb(err);
 			}
@@ -231,11 +227,24 @@ function fillArbstoreAddresses(objContract, cb) {
 					console.warn("no arbstore_device_address", err);
 					return cb(err);
 				}
-				objContract.arbstore_address = arbstore_address;
-				objContract.arbstore_device_address = arbstore_device_address;
-				db.query("UPDATE wallet_arbiter_contracts SET arbstore_address=?, arbstore_device_address=? WHERE hash=?", [arbstore_address, arbstore_device_address, objContract.hash], function () { cb(); });
+				cb(null, { arbstore_address, arbstore_device_address });
 			});
 		});
+	});
+}
+
+function fillArbstoreAddresses(objContract, cb) {
+	if (!cb)
+		return new Promise(resolve => fillArbstoreAddresses(objContract, resolve));
+	if (objContract.arbstore_device_address && objContract.arbstore_address)
+		return cb();
+	getArbstoreAddresses(objContract.arbiter_address, function(err, result) {
+		if (err)
+			return cb(err);
+		var { arbstore_address, arbstore_device_address } = result;
+		objContract.arbstore_address = arbstore_address;
+		objContract.arbstore_device_address = arbstore_device_address;
+		db.query("UPDATE wallet_arbiter_contracts SET arbstore_address=?, arbstore_device_address=? WHERE hash=?", [arbstore_address, arbstore_device_address, objContract.hash], function () { cb(); });
 	});
 }
 
@@ -641,7 +650,7 @@ function handleReceivedSigningUnit(contract, unit, from_cosigner, retry_count = 
 			return console.log(`data message payload does not match contract ${contract.hash} in purported signing unit ${unit}`);
 		const author = objUnit.authors.find(author => author.address === contract.shared_address);
 		const signing_paths = Object.keys(author.authentifiers);
-		const isMutuallySigned = signing_paths.find(p => p.startsWith('r.0.0') && signing_paths.find(p => p.startsWith('r.0.1')));
+		const isMutuallySigned = signing_paths.find(p => p.startsWith('r.0.0')) && signing_paths.find(p => p.startsWith('r.0.1'));
 		if (!isMutuallySigned)
 			return console.log(`signing unit ${unit} is not mutually signed, authentifiers: ${JSON.stringify(author.authentifiers)}`);
 		const err = await fillArbstoreAddresses(contract);

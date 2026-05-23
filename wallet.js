@@ -29,6 +29,7 @@ var Mnemonic = require('bitcore-mnemonic');
 var inputs = require('./inputs.js');
 var prosaic_contract = require('./prosaic_contract.js');
 var arbiter_contract = require('./arbiter_contract.js');
+var arbiters = require("./arbiters.js");
 var signed_message = require('./signed_message.js');
 var aa_addresses = require('./aa_addresses.js');
 
@@ -737,6 +738,8 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					return callbacks.ifError("bad unit in dispute request");
 				if (body.service_fee_asset !== 'base' && !ValidationUtils.isValidBase64(body.service_fee_asset, constants.HASH_LENGTH))
 					return callbacks.ifError("bad service_fee_asset in dispute request");
+				if (![body.my_address, body.peer_address, body.arbiter_address, body.shared_address].every(ValidationUtils.isValidAddress))
+					return callbacks.ifError("bad addresses in dispute request");
 				var contractContent = device.decryptPackage(body.encrypted_contract);
 				if (!contractContent || !contractContent.creation_date || !contractContent.title || !contractContent.text)
 					return callbacks.ifError("wrong contract content");
@@ -777,6 +780,46 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					});
 					if (payload.contacts_hash !== contacts_hash)
 						return callbacks.ifError("contacts hash doesn't match the signing unit");
+					if (payload.contract_text_hash !== body.contract_hash)
+						return callbacks.ifError("contract hash doesn't match the signing unit");
+					if (payload.arbiter !== body.arbiter_address)
+						return callbacks.ifError("arbiter address doesn't match the signing unit");
+
+					const author = objUnit.authors.find(author => author.address === body.shared_address);
+					if (!author)
+						return callbacks.ifError("shared address author not found in signing unit");
+					const signing_paths = Object.keys(author.authentifiers);
+					const isMutuallySigned = signing_paths.find(p => p.startsWith('r.0.0')) && signing_paths.find(p => p.startsWith('r.0.1'));
+					if (!isMutuallySigned)
+						return callbacks.ifError(`signing unit ${body.unit} is not mutually signed, authentifiers: ${JSON.stringify(author.authentifiers)}`);
+					const definition = author.definition;
+					if (!definition)
+						return callbacks.ifError("no definition for shared address author in signing unit");
+					let offeror_address, acceptor_address;
+					try {
+						const mutualPart = definition[1][0][1];
+						offeror_address = mutualPart[0][1];
+						acceptor_address = mutualPart[1][1];
+					} catch (e) {
+						return callbacks.ifError("unexpected definition structure in signing unit");
+					}
+					if (typeof offeror_address !== 'string' || typeof acceptor_address !== 'string')
+						return callbacks.ifError("unexpected definition structure in signing unit");
+					const bCorrectParties =
+						offeror_address === body.my_address && acceptor_address === body.peer_address
+						|| offeror_address === body.peer_address && acceptor_address === body.my_address;
+					if (!bCorrectParties)
+						return callbacks.ifError("offeror and acceptor addresses in signing unit don't match the dispute request");
+
+					const rows = await db.query("SELECT 1 FROM my_addresses WHERE address=?", [body.arbiter_address]);
+					if (rows.length === 0)
+						return callbacks.ifError("the arbiter is not me");
+
+					// rejection is ok, the message will not be deleted from the hub
+					const { device_address } = await arbiters.getArbstoreInfo(body.arbiter_address);
+					if (device_address !== from_address)
+						return callbacks.ifError("you are not my arbstore");
+
 					body.contract_content = contractContent;
 					body.arbstore_device_address = from_address;
 					arbiter_contract.insertDispute(body, function(res) {
