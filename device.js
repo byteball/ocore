@@ -131,6 +131,8 @@ function handleJustsaying(ws, subject, body){
 		// I'm connected to a hub, received challenge
 		case 'hub/challenge':
 			var challenge = body;
+			if (!ValidationUtils.isNonemptyString(challenge))
+				return;
 			handleChallenge(ws, challenge);
 			break;
 			
@@ -142,7 +144,7 @@ function handleJustsaying(ws, subject, body){
 				network.sendError(ws, error);
 				network.sendJustsaying(ws, 'hub/delete', message_hash);
 			};
-			if (!message_hash || !objDeviceMessage || !objDeviceMessage.signature || !objDeviceMessage.pubkey || !objDeviceMessage.to
+			if (!ValidationUtils.isNonemptyString(message_hash) || !objDeviceMessage || !objDeviceMessage.signature || !objDeviceMessage.pubkey || !objDeviceMessage.to
 					|| !objDeviceMessage.encrypted_package || !objDeviceMessage.encrypted_package.dh
 					|| !objDeviceMessage.encrypted_package.dh.sender_ephemeral_pubkey 
 					|| !objDeviceMessage.encrypted_package.dh.recipient_ephemeral_pubkey 
@@ -189,7 +191,7 @@ function handleJustsaying(ws, subject, body){
 			// check that we know this device
 			db.query("SELECT hub, is_indirect FROM correspondent_devices WHERE device_address=?", [from_address], function(rows){
 				if (rows.length > 0){
-					if (json.device_hub && typeof json.device_hub === 'string' && json.device_hub !== rows[0].hub) // update correspondent's home address if necessary
+					if (json.device_hub && typeof json.device_hub === 'string' && json.device_hub.length <= 200 && json.device_hub !== rows[0].hub) // update correspondent's home address if necessary
 						db.query("UPDATE correspondent_devices SET hub=? WHERE device_address=?", [json.device_hub, from_address], function(){
 							handleMessage(rows[0].is_indirect);
 						});
@@ -387,7 +389,9 @@ function deriveSharedSecret(peer_b64_pubkey, privKey){
 	return shared_secret;
 }
 
-function decryptPackage(objEncryptedPackage){
+function decryptPackage(objEncryptedPackage, depth = 0){
+	if (depth > 2)
+		return console.log("too many layers of encryption");
 	var priv_key;
 	if (typeof objEncryptedPackage.iv !== 'string' || typeof objEncryptedPackage.authtag !== 'string' || typeof objEncryptedPackage.encrypted_message !== 'string' || !objEncryptedPackage.dh || typeof objEncryptedPackage.dh !== 'object')
 		return console.log("wrong params in encrypted package");
@@ -457,7 +461,7 @@ function decryptPackage(objEncryptedPackage){
 	}
 	if (json.encrypted_package){ // strip another layer of encryption
 		console.log("inner encryption");
-		return decryptPackage(json.encrypted_package);
+		return decryptPackage(json.encrypted_package, depth + 1);
 	}
 	else
 		return json;
@@ -774,8 +778,12 @@ function handlePairingMessage(json, device_pubkey, callbacks){
 		return callbacks.ifError("correspondent not known and no pairing secret");
 	if (!ValidationUtils.isNonemptyString(json.device_hub)) // home hub of the sender
 		return callbacks.ifError("no device_hub when pairing");
+	if (json.device_hub.length > 200)
+		return callbacks.ifError("device_hub too long");
 	if (!ValidationUtils.isNonemptyString(body.device_name))
 		return callbacks.ifError("no device_name when pairing");
+	if (body.device_name.length > 100)
+		return callbacks.ifError("device_name too long");
 	if ("reverse_pairing_secret" in body && !ValidationUtils.isNonemptyString(body.reverse_pairing_secret))
 		return callbacks.ifError("bad reverse pairing secret");
 	eventBus.emit("pairing_attempt", from_address, body.pairing_secret);

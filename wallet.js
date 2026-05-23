@@ -733,6 +733,10 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					return callbacks.ifError("wrong dispute request");
 				if (!ValidationUtils.isNonemptyString(body.contract_hash))
 					return callbacks.ifError("bad contract hash");
+				if (!ValidationUtils.isStringOfLength(body.unit, constants.HASH_LENGTH))
+					return callbacks.ifError("bad unit in dispute request");
+				if (body.service_fee_asset !== 'base' && !ValidationUtils.isValidBase64(body.service_fee_asset, constants.HASH_LENGTH))
+					return callbacks.ifError("bad service_fee_asset in dispute request");
 				var contractContent = device.decryptPackage(body.encrypted_contract);
 				if (!contractContent || !contractContent.creation_date || !contractContent.title || !contractContent.text)
 					return callbacks.ifError("wrong contract content");
@@ -842,9 +846,9 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 						var objDateCopy = new Date(objContract.creation_date_obj);
 						if (objDateCopy.setHours(objDateCopy.getHours(), objDateCopy.getMinutes(), (objDateCopy.getSeconds() + objContract.ttl * 60 * 60)|0) < Date.now())
 							return callbacks.ifError("contract already expired");
-						if (body.my_pairing_code)
+						if (body.my_pairing_code && typeof body.my_pairing_code === 'string')
 							arbiter_contract.setField(objContract.hash, "peer_pairing_code", body.my_pairing_code);
-						if (body.my_contact_info)
+						if (body.my_contact_info && typeof body.my_contact_info === 'string')
 							arbiter_contract.setField(objContract.hash, "peer_contact_info", body.my_contact_info);
 						arbiter_contract.setField(objContract.hash, "status", body.status, function(objContract){
 							eventBus.emit("arbiter_contract_response_received", objContract);

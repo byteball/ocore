@@ -645,6 +645,8 @@ function prepareLinkProofs(arrUnits, callbacks){
 		return callbacks.ifError("no units array");
 	if (arrUnits.length === 1)
 		return callbacks.ifError("chain of one element");
+	if (!arrUnits.every(ValidationUtils.isNonemptyString))
+		return callbacks.ifError("units must be non-empty strings");
 	mutex.lock(['prepareLinkProofs'], function(unlock){
 		var start_ts = Date.now();
 		var arrChain = [];

@@ -3303,8 +3303,8 @@ function handleRequest(ws, tag, command, params){
 					|| !objDeviceMessage.encrypted_package.encrypted_message
 					|| !objDeviceMessage.encrypted_package.iv || !objDeviceMessage.encrypted_package.authtag)
 				return sendErrorResponse(ws, tag, "missing fields");
-			if (!ValidationUtils.isNonemptyString(objDeviceMessage.to))
-				return sendErrorResponse(ws, tag, "to address must be a string");
+			if (!ValidationUtils.isValidDeviceAddress(objDeviceMessage.to))
+				return sendErrorResponse(ws, tag, "invalid to address");
 			var bToMe = (my_device_address && my_device_address === objDeviceMessage.to);
 			if (!conf.bServeAsHub && !bToMe)
 				return sendErrorResponse(ws, tag, "I'm not a hub");
@@ -3507,8 +3507,12 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "no params in light/get_attestation");
 			if (!params.attestor_address || !params.field || !params.value)
 				return sendErrorResponse(ws, tag, "missing params in light/get_attestation");
-			if (typeof params.attestor_address !== 'string' || typeof params.field !== 'string' || typeof params.value !== 'string')
-				return sendErrorResponse(ws, tag, "invalid params in light/get_attestation");
+			if (!ValidationUtils.isValidAddress(params.attestor_address))
+				return sendErrorResponse(ws, tag, "invalid attestor_address in light/get_attestation");
+			if (typeof params.field !== 'string' || params.field.length > 50)
+				return sendErrorResponse(ws, tag, "invalid field in light/get_attestation");
+			if (typeof params.value !== 'string' || params.value.length > 100)
+				return sendErrorResponse(ws, tag, "invalid value in light/get_attestation");
 			var order = (conf.storage === 'sqlite') ? 'rowid' : 'creation_date';
 			var join = (conf.storage === 'sqlite') ? '' : 'JOIN units USING(unit)';
 			db.query(
