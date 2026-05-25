@@ -262,6 +262,9 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 						for (var path in authentifiers)
 							authentifiers[path] = authentifiers[path].replace(/./, '-');
 					});
+					const authorAddresses = objUnit.authors.map(author => author.address);
+					if (!authorAddresses.includes(body.address))
+						return callbacks.ifError("address not found among authors");
 				}
 				catch (e) {
 					return callbacks.ifError("invalid authors: " + e.toString());
