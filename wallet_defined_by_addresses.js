@@ -335,6 +335,39 @@ function forwardNewSharedAddressToCosignersOfMyMemberAddresses(address, arrDefin
 	);
 }
 
+// Returns a map of signing_path -> address for every ["address", ...] leaf in the definition
+function extractAddressPathsFromDefinition(arrDefinition) {
+	var result = {};
+	function traverse(arr, path) {
+		if (!Array.isArray(arr) || arr.length < 2) return;
+		var op = arr[0];
+		var args = arr[1];
+		switch (op) {
+			case 'or':
+			case 'and':
+				if (Array.isArray(args))
+					for (var i = 0; i < args.length; i++)
+						traverse(args[i], path + '.' + i);
+				break;
+			case 'r of set':
+				if (args && Array.isArray(args.set))
+					for (var i = 0; i < args.set.length; i++)
+						traverse(args.set[i], path + '.' + i);
+				break;
+			case 'weighted and':
+				if (args && Array.isArray(args.set))
+					for (var i = 0; i < args.set.length; i++)
+						traverse(args.set[i].value, path + '.' + i);
+				break;
+			case 'address':
+				result[path] = args;
+				break;
+		}
+	}
+	traverse(arrDefinition, 'r');
+	return result;
+}
+
 // {address: "BASE32", definition: [...], signers: {...}}
 function handleNewSharedAddress(body, callbacks){
 	if (!ValidationUtils.isArrayOfLength(body.definition, 2))
@@ -353,6 +386,17 @@ function handleNewSharedAddress(body, callbacks){
 		var signerInfo = body.signers[signing_path];
 		if (signerInfo.address && signerInfo.address !== 'secret' && !ValidationUtils.isValidAddress(signerInfo.address))
 			return callbacks.ifError("invalid member address: " + JSON.stringify(signerInfo.address));
+	}
+	const assocDefinitionAddresses = extractAddressPathsFromDefinition(body.definition);
+	for (let signing_path in body.signers) {
+		const signerInfo = body.signers[signing_path];
+		if (!signerInfo.address || signerInfo.address === 'secret') continue;
+		if (assocDefinitionAddresses[signing_path] !== signerInfo.address)
+			return callbacks.ifError("signer address at path " + signing_path + " doesn't match definition");
+	}
+	for (let def_path in assocDefinitionAddresses) {
+		if (!body.signers[def_path])
+			return callbacks.ifError("no signer for definition address at path " + def_path);
 	}
 	determineIfIncludesMeAndRewriteDeviceAddress(body.signers, function(err){
 		if (err)
