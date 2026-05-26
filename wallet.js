@@ -2840,7 +2840,12 @@ function handlePrivatePaymentFile(fullPath, content, cb) {
 		if (err)
 			return cb(err);
 		zip.loadAsync(data).then(function(zip) {
-			zip.file("private_textcoin").async("string").then(function(data) {
+			const entry = zip.file("private_textcoin");
+			if (!entry)
+				return cb("missing private_textcoin entry in zip");
+			if (entry._data && entry._data.uncompressedSize > 100 * 1024 * 1024)
+				return cb("private_textcoin entry is too large");
+			entry.async("string").then(function(data) {
 				try {
 					data = JSON.parse(data);
 					var first_chain_unit = data.chains[0][0].unit;
