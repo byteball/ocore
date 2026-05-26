@@ -39,12 +39,16 @@ function prepareHistory(historyRequest, callbacks){
 	if (arrAddresses){
 		if (!ValidationUtils.isNonemptyArray(arrAddresses))
 			return callbacks.ifError("no addresses");
+		if (arrAddresses.length > 2000)
+			return callbacks.ifError("too many addresses");
 		if (!arrAddresses.every(ValidationUtils.isValidAddress))
 			return callbacks.ifError("some addresses are not valid");
 	}
 	if (arrRequestedJoints) {
 		if (!ValidationUtils.isNonemptyArray(arrRequestedJoints))
 			return callbacks.ifError("no requested joints");
+		if (arrRequestedJoints.length > 2000)
+			return callbacks.ifError("too many requested joints");
 		if (!arrRequestedJoints.every(isValidUnitHash))
 			return callbacks.ifError("invalid requested joints");
 	}
@@ -57,6 +61,8 @@ function prepareHistory(historyRequest, callbacks){
 	if (arrKnownStableUnits) {
 		if (!ValidationUtils.isNonemptyArray(arrKnownStableUnits))
 			return callbacks.ifError("known_stable_units must be non-empty array");
+		if (arrKnownStableUnits.length > 2000)
+			return callbacks.ifError("too many known stable units");
 		if (!arrKnownStableUnits.every(isValidUnitHash))
 			return callbacks.ifError("invalid known stable units");
 		arrKnownStableUnits.forEach(function (unit) {
