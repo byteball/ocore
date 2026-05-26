@@ -362,9 +362,11 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 							network.handleOnlineJoint(ws, objJoint);
 						//});
 					},
-					ifRemote: function(device_address){
+					ifRemote: function(device_address, other_device_addresses){
 						if (device_address === from_address)
 							return callbacks.ifError("looping signing request for address "+body.address+", path "+body.signing_path);
+						if (!other_device_addresses.includes(from_address))
+							return callbacks.ifError("you are not listed as a cosigner for this address "+body.address);
 						try {
 							var text_to_sign = objectHash.getUnitHashToSign(body.unsigned_unit).toString("base64");
 						}
@@ -1184,21 +1186,24 @@ function emitNewPublicPaymentReceived(payer_device_address, objUnit){ // current
 }
 
 
-function findAddress(address, signing_path, callbacks, fallback_remote_device_address){
+function findAddress(address, signing_path, callbacks, fallbackInfo){
 	db.query(
 		"SELECT wallet, account, is_change, address_index, full_approval_date, device_address \n\
 		FROM my_addresses JOIN wallets USING(wallet) JOIN wallet_signing_paths USING(wallet) \n\
 		WHERE address=? AND signing_path=?",
 		[address, signing_path],
-		function(rows){
+		async function(rows){
 			if (rows.length > 1)
 				throw Error("more than 1 address found");
 			if (rows.length === 1){
 				var row = rows[0];
 				if (!row.full_approval_date)
 					return callbacks.ifError("wallet of address "+address+" not approved");
-				if (row.device_address !== device.getMyDeviceAddress())
-					return callbacks.ifRemote(row.device_address);
+				if (row.device_address !== device.getMyDeviceAddress()) {
+					const other_rows = await db.query("SELECT DISTINCT device_address FROM wallet_signing_paths WHERE wallet=? AND device_address!=?", [row.wallet, row.device_address]);
+					const other_device_addresses = other_rows.map(r => r.device_address);
+					return callbacks.ifRemote(row.device_address, other_device_addresses);
+				}
 				var objAddress = {
 					address: address,
 					wallet: row.wallet,
@@ -1215,7 +1220,7 @@ function findAddress(address, signing_path, callbacks, fallback_remote_device_ad
 				"SELECT address, device_address, signing_path FROM shared_address_signing_paths \n\
 				WHERE shared_address=? AND signing_path=SUBSTR(?, 1, LENGTH(signing_path))", 
 				[address, signing_path],
-				function(sa_rows){
+				async function(sa_rows){
 					if (sa_rows.length > 1)
 						throw Error("more than 1 member address found for shared address "+address+" and signing path "+signing_path);
 					if (sa_rows.length === 1) {
@@ -1227,12 +1232,21 @@ function findAddress(address, signing_path, callbacks, fallback_remote_device_ad
 						} else if(objSharedAddress.address === 'secret') {
 							return callbacks.ifSecret();
 						}
-						return findAddress(objSharedAddress.address, relative_signing_path, callbacks, bLocal ? null : objSharedAddress.device_address);
+						let newFallbackInfo = null;
+						if (!bLocal) {
+							newFallbackInfo = {};
+							newFallbackInfo.device_address = objSharedAddress.device_address;
+							const other_rows = await db.query("SELECT DISTINCT device_address FROM shared_address_signing_paths WHERE shared_address=? AND device_address!=?", [address, objSharedAddress.device_address]);
+							newFallbackInfo.other_device_addresses = other_rows.map(r => r.device_address);
+						}
+						return findAddress(objSharedAddress.address, relative_signing_path, callbacks, newFallbackInfo);
 					}
 					db.query(
 						"SELECT device_address, signing_paths FROM peer_addresses WHERE address=?", 
 						[address],
 						function(pa_rows) {
+							if (pa_rows.length > 1)
+								throw Error("more than 1 peer address found for address "+address);
 							var candidate_addresses = [];
 							for (var i = 0; i < pa_rows.length; i++) {
 								var row = pa_rows[i];
@@ -1244,9 +1258,9 @@ function findAddress(address, signing_path, callbacks, fallback_remote_device_ad
 							if (candidate_addresses.length > 1)
 								throw Error("more than 1 candidate device address found for peer address "+address+" and signing path "+signing_path);
 							if (candidate_addresses.length == 1)
-								return callbacks.ifRemote(candidate_addresses[0]);
-							if (fallback_remote_device_address)
-								return callbacks.ifRemote(fallback_remote_device_address);
+								return callbacks.ifRemote(candidate_addresses[0], []);
+							if (fallbackInfo)
+								return callbacks.ifRemote(fallbackInfo.device_address, fallbackInfo.other_device_addresses);
 							return callbacks.ifUnknownAddress();
 						}
 					);
