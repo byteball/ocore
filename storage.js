@@ -944,7 +944,7 @@ function insertAADefinitions(conn, arrPayloads, unit, mci, bForAAsOnly, onDone) 
 						verb + " INTO aa_balances (address, asset, balance) \n\
 						SELECT address, IFNULL(asset, 'base'), SUM(amount) AS balance \n\
 						FROM outputs CROSS JOIN units USING(unit) \n\
-						WHERE address=? AND is_spent=0 AND (main_chain_index<? " + or_sent_by_aa + ") \n\
+						WHERE address=? AND is_spent=0 AND sequence='good' AND (main_chain_index<? " + or_sent_by_aa + ") \n\
 						GROUP BY address, asset", // not including the outputs on the current mci, which will trigger the AA and be accounted for separately
 						[address, mci],
 						function () {

@@ -373,14 +373,14 @@ function migrateDb(connection, onDone){
 					cb();
 			},
 			function (cb) {
-				if (version < 35)
+				if (version < 35 && !conf.bLight)
 					connection.addQuery(arrQueries, "REPLACE INTO aa_balances (address, asset, balance) \n\
 						SELECT address, IFNULL(asset, 'base'), SUM(amount) AS balance \n\
 						FROM aa_addresses \n\
 						CROSS JOIN outputs USING(address) \n\
 						CROSS JOIN units ON outputs.unit=units.unit \n\
 						WHERE is_spent=0 AND ( \n\
-							is_stable=1 \n\
+							is_stable=1 AND sequence='good' \n\
 							OR EXISTS (SELECT 1 FROM unit_authors CROSS JOIN aa_addresses USING(address) WHERE unit_authors.unit=outputs.unit) \n\
 						) \n\
 						GROUP BY address, asset");
@@ -504,7 +504,7 @@ function migrateDb(connection, onDone){
 						CROSS JOIN outputs USING(address) \n\
 						CROSS JOIN units ON outputs.unit=units.unit \n\
 						WHERE is_spent=0 AND address='SLBA27JAT5UJBMQGDQLAT3FQ467XDOGF' AND ( \n\
-							is_stable=1 \n\
+							is_stable=1 AND sequence='good' \n\
 							OR EXISTS (SELECT 1 FROM unit_authors CROSS JOIN aa_addresses USING(address) WHERE unit_authors.unit=outputs.unit) \n\
 						) \n\
 						GROUP BY address, asset");
