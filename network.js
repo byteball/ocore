@@ -692,6 +692,8 @@ async function handleNewPeers(ws, request, arrPeerUrls){
 		return console.log('get_peers failed: ' + (arrPeerUrls ? arrPeerUrls.error : 'no response'));
 	if (!Array.isArray(arrPeerUrls))
 		return sendError(ws, "peer urls is not an array");
+	if (arrPeerUrls.length > 100)
+		return sendError(ws, "too many peer urls");
 	if (!arrPeerUrls.every(ValidationUtils.isNonemptyString))
 		return sendError(ws, "peer urls must be non-empty strings");
 	for (let i=0; i<arrPeerUrls.length; i++){
@@ -716,6 +718,8 @@ async function handleNewPeers(ws, request, arrPeerUrls){
 			console.log(`peer ${url} shared by ${ws.host} is already known`);
 			continue;
 		}
+		if (arrOutboundPeers.length >= conf.MAX_OUTBOUND_CONNECTIONS)
+			return console.log(`will not connect to peer #${i} ${url} shared by ${ws.host} because max outbound connections already exhausted, will skip the remaining peers too`);
 		console.log(`will try to connect to peer ${url} shared by ${ws.host}`);
 		addPeerHost(host);
 		connectToPeer(url, err => {
