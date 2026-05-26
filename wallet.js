@@ -246,10 +246,10 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				// {address: "BASE32", signing_path: "r.1.2.3", unsigned_unit: {...}}
 				if (!ValidationUtils.isValidAddress(body.address))
 					return callbacks.ifError("no address or bad address");
-				if (!ValidationUtils.isNonemptyString(body.signing_path) || body.signing_path.charAt(0) !== 'r')
+				if (!ValidationUtils.isNonemptyString(body.signing_path) || !/^r(\.\d+)*$/.test(body.signing_path))
 					return callbacks.ifError("bad signing path");
 				var objUnit = body.unsigned_unit;
-				if (typeof objUnit !== "object")
+				if (typeof objUnit !== "object" || objUnit === null)
 					return callbacks.ifError("no unsigned unit");
 				if (!ValidationUtils.isNonemptyArray(objUnit.authors))
 					return callbacks.ifError("no authors array");
@@ -260,7 +260,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					objUnit.authors.forEach(function (author) {
 						var authentifiers = author.authentifiers;
 						for (var path in authentifiers)
-							authentifiers[path] = authentifiers[path].replace(/./, '-');
+							authentifiers[path] = authentifiers[path].replace(/./g, '-');
 					});
 					const authorAddresses = objUnit.authors.map(author => author.address);
 					if (!authorAddresses.includes(body.address))
@@ -291,7 +291,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 							return callbacks.ifError("private payload hash does not match");
 						if (!ValidationUtils.isNonemptyArray(objUnit.messages))
 							return callbacks.ifError("no messages in unsigned unit");
-						if (objUnit.messages.filter(function(objMessage){ return (objMessage.payload_hash === payload_hash); }).length !== 1)
+						if (objUnit.messages.filter(function(objMessage){ return (objMessage && objMessage.payload_hash === payload_hash); }).length !== 1)
 							return callbacks.ifError("no such payload hash in the messages");
 					}
 				}
@@ -300,6 +300,8 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					if (!Array.isArray(arrMessages))
 						return callbacks.ifError("bad type of messages");
 					for (var i=0; i<arrMessages.length; i++){
+						if (!arrMessages[i])
+							return callbacks.ifError("empty message in messages array");
 						if (arrMessages[i].payload === undefined)
 							continue;
 						try {
@@ -361,10 +363,8 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 						//});
 					},
 					ifRemote: function(device_address){
-						if (device_address === from_address){
-							callbacks.ifError("looping signing request for address "+body.address+", path "+body.signing_path);
-							throw Error("looping signing request for address "+body.address+", path "+body.signing_path);
-						}
+						if (device_address === from_address)
+							return callbacks.ifError("looping signing request for address "+body.address+", path "+body.signing_path);
 						try {
 							var text_to_sign = objectHash.getUnitHashToSign(body.unsigned_unit).toString("base64");
 						}
@@ -398,7 +398,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					return callbacks.ifError("bad signed text");
 				if (!ValidationUtils.isStringOfLength(body.signature, constants.SIG_LENGTH) && body.signature !== '[refused]')
 					return callbacks.ifError("bad signature length");
-				if (!ValidationUtils.isNonemptyString(body.signing_path) || body.signing_path.charAt(0) !== 'r')
+				if (!ValidationUtils.isNonemptyString(body.signing_path) || !/^r(\.\d+)*$/.test(body.signing_path))
 					return callbacks.ifError("bad signing path");
 				if (!ValidationUtils.isValidAddress(body.address))
 					return callbacks.ifError("bad address");
