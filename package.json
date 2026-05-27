@@ -28,7 +28,7 @@
   },
   "dependencies": {
     "async": "^2.6.4",
-    "decimal.js": "^10.0.2",
+    "decimal.js": "10.6.0",
     "bitcore-mnemonic": "~1.0.0",
     "dotenv": "5.0.1",
     "https-proxy-agent": "^7.0.6",
