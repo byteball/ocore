@@ -834,7 +834,7 @@ eventBus.on("new_my_transactions", function(arrNewUnits) {
 	db.query("SELECT hash, outputs.unit FROM wallet_arbiter_contracts\n\
 		JOIN outputs ON outputs.address=wallet_arbiter_contracts.my_address\n\
 		JOIN inputs ON inputs.address=wallet_arbiter_contracts.shared_address AND inputs.unit=outputs.unit\n\
-		WHERE outputs.unit IN (" + arrNewUnits.map(db.escape).join(', ') + ") AND outputs.asset IS wallet_arbiter_contracts.asset AND (wallet_arbiter_contracts.status='paid' OR wallet_arbiter_contracts.status='in_dispute')\n\
+		WHERE outputs.unit IN (" + arrNewUnits.map(db.escape).join(', ') + ") AND outputs.asset IS wallet_arbiter_contracts.asset AND wallet_arbiter_contracts.status IN('paid','in_dispute')\n\
 		GROUP BY wallet_arbiter_contracts.hash", function(rows) {
 			rows.forEach(function(row) {
 				getByHash(row.hash, function(contract){
