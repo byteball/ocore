@@ -854,12 +854,13 @@ eventBus.on("new_my_transactions", function(units) {
 			var address = objUnit.authors[0].address;
 			getAllByArbiterAddress(address, function(contracts) {
 				contracts.forEach(function(objContract) {
-					if (objContract.status !== "in_dispute")
-						return;
+				//	if (objContract.status !== "in_dispute") // the peer might "forget" to send me the in_dispute status update (but we still need to start watching the arbiter's address)
+				//		return;
 					var winner = parseWinnerFromUnit(objContract, objUnit);
 					if (!winner) {
 						return;
 					}
+					console.log(`arbiter resolution received for contract ${objContract.hash}, winner: ${winner}, resolution unit: ${unit}, current status: ${objContract.status}`);
 					var unit = objUnit.unit;
 					setField(objContract.hash, "resolution_unit", unit);
 					setField(objContract.hash, "status", "dispute_resolved", function(objContract) {
