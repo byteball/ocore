@@ -860,8 +860,8 @@ eventBus.on("new_my_transactions", function(units) {
 					if (!winner) {
 						return;
 					}
-					console.log(`arbiter resolution received for contract ${objContract.hash}, winner: ${winner}, resolution unit: ${unit}, current status: ${objContract.status}`);
 					var unit = objUnit.unit;
+					console.log(`arbiter resolution received for contract ${objContract.hash}, winner: ${winner}, resolution unit: ${unit}, current status: ${objContract.status}`);
 					setField(objContract.hash, "resolution_unit", unit);
 					setField(objContract.hash, "status", "dispute_resolved", function(objContract) {
 						eventBus.emit("arbiter_contract_update", objContract, "status", "dispute_resolved", unit, winner);
