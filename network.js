@@ -310,7 +310,7 @@ function deletePendingRequest(ws, tag){
 
 
 function handleResponse(ws, tag, response){
-	if (!tag)
+	if (!ValidationUtils.isNonemptyString(tag))
 		return console.log("no tag in response");
 	var pendingRequest = ValidationUtils.hasOwnProperty(ws.assocPendingRequests, tag) && ws.assocPendingRequests[tag];
 	if (!pendingRequest) // was canceled due to timeout or rerouted and answered by another peer
@@ -3043,9 +3043,9 @@ function handleJustsaying(ws, subject, body){
 
 function handleRequest(ws, tag, command, params){
 	if (!ValidationUtils.isNonemptyString(command))
-		return sendErrorResponse(ws, tag, "no command");
+		return console.log("no command");
 	if (!ValidationUtils.isNonemptyString(tag))
-		return sendErrorResponse(ws, tag, "invalid tag"); // can be even an object
+		return console.log("invalid tag"); // can be even an object
 	if (tag.length > constants.HASH_LENGTH)
 		return sendErrorResponse(ws, tag, "tag too long");
 	if (ws.assocCommandsInPreparingResponse[tag]) // ignore repeated request while still preparing response to a previous identical request
