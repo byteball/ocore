@@ -120,8 +120,8 @@ function validateSignedMessage(conn, objSignedMessage, address, handleResult) {
 		objSignedMessage = conn;
 		conn = db;
 	}
-	if (typeof objSignedMessage !== 'object')
-		return handleResult("not an object");
+	if (!ValidationUtils.isNonemptyObject(objSignedMessage))
+		return handleResult("signed message must be a non-empty object");
 	if (ValidationUtils.hasFieldsExcept(objSignedMessage, ["signed_message", "authors", "last_ball_unit", "timestamp", "version"]))
 		return handleResult("unknown fields");
 	if (!('signed_message' in objSignedMessage))
