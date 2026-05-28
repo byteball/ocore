@@ -797,8 +797,18 @@ function buildPath(objLaterJoint, objEarlierJoint, arrChain, onDone){
 }
 
 function processLinkProofs(arrUnits, arrChain, callbacks){
+	if (!ValidationUtils.isNonemptyArray(arrUnits))
+		return callbacks.ifError("invalid units array");
+	if (!ValidationUtils.isNonemptyArray(arrChain))
+		return callbacks.ifError("invalid chain array");
+	if (!arrUnits.every(ValidationUtils.isNonemptyString))
+		return callbacks.ifError("units must be non-empty strings");
+	if (!arrChain.every(ValidationUtils.isNonemptyObject))
+		return callbacks.ifError("chain must be array of non-empty objects");
 	// check first element
 	var objFirstJoint = arrChain[0];
+	if (!ValidationUtils.isNonemptyObject(objFirstJoint.unit))
+		return callbacks.ifError("1st element must have unit");
 	if (!objFirstJoint || !objFirstJoint.unit || objFirstJoint.unit.unit !== arrUnits[0])
 		return callbacks.ifError("unexpected 1st element");
 	var assocKnownUnits = {};
@@ -810,6 +820,8 @@ function processLinkProofs(arrUnits, arrChain, callbacks){
 			var objJoint = objElement;
 			var objUnit = objJoint.unit;
 			var unit = objUnit.unit;
+			if (!ValidationUtils.isNonemptyString(unit))
+				return callbacks.ifError("unit must be non-empty string");
 			if (!assocKnownUnits[unit])
 				return callbacks.ifError("unknown unit "+unit);
 			if (!validation.hasValidHashes(objJoint))
@@ -824,6 +836,8 @@ function processLinkProofs(arrUnits, arrChain, callbacks){
 		}
 		else if (objElement.unit && objElement.ball){
 			var objBall = objElement;
+			if (!ValidationUtils.isNonemptyString(objBall.ball))
+				return callbacks.ifError("ball must be non-empty string");
 			if (!assocKnownBalls[objBall.ball])
 				return callbacks.ifError("unknown ball "+objBall.ball);
 			if (objBall.ball !== objectHash.getBallHash(objBall.unit, objBall.parent_balls, objBall.skiplist_balls, objBall.is_nonserial))
@@ -838,6 +852,8 @@ function processLinkProofs(arrUnits, arrChain, callbacks){
 			if (objBall.skiplist_balls) {
 				if (!ValidationUtils.isNonemptyArray(objBall.skiplist_balls))
 					return callbacks.ifError("bad skiplist_balls");
+				if (!objBall.skiplist_balls.every(ValidationUtils.isNonemptyString))
+					return callbacks.ifError("skiplist_balls must be non-empty strings");
 				objBall.skiplist_balls.forEach(function(skiplist_ball){
 					assocKnownBalls[skiplist_ball] = true;
 				});
