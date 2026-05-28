@@ -797,76 +797,81 @@ function buildPath(objLaterJoint, objEarlierJoint, arrChain, onDone){
 }
 
 function processLinkProofs(arrUnits, arrChain, callbacks){
-	if (!ValidationUtils.isNonemptyArray(arrUnits))
-		return callbacks.ifError("invalid units array");
-	if (!ValidationUtils.isNonemptyArray(arrChain))
-		return callbacks.ifError("invalid chain array");
-	if (!arrUnits.every(ValidationUtils.isNonemptyString))
-		return callbacks.ifError("units must be non-empty strings");
-	if (!arrChain.every(ValidationUtils.isNonemptyObject))
-		return callbacks.ifError("chain must be array of non-empty objects");
-	// check first element
-	var objFirstJoint = arrChain[0];
-	if (!ValidationUtils.isNonemptyObject(objFirstJoint.unit))
-		return callbacks.ifError("1st element must have unit");
-	if (!objFirstJoint || !objFirstJoint.unit || objFirstJoint.unit.unit !== arrUnits[0])
-		return callbacks.ifError("unexpected 1st element");
-	var assocKnownUnits = {};
-	var assocKnownBalls = {};
-	assocKnownUnits[arrUnits[0]] = true;
-	for (var i=0; i<arrChain.length; i++){
-		var objElement = arrChain[i];
-		if (objElement.unit && objElement.unit.unit){
-			var objJoint = objElement;
-			var objUnit = objJoint.unit;
-			var unit = objUnit.unit;
-			if (!ValidationUtils.isNonemptyString(unit))
-				return callbacks.ifError("unit must be non-empty string");
-			if (!assocKnownUnits[unit])
-				return callbacks.ifError("unknown unit "+unit);
-			if (!validation.hasValidHashes(objJoint))
-				return callbacks.ifError("invalid hash of unit "+unit);
-			assocKnownBalls[objUnit.last_ball] = true;
-			assocKnownUnits[objUnit.last_ball_unit] = true;
-			if (!ValidationUtils.isNonemptyArray(objUnit.parent_units))
-				return callbacks.ifError("no parent_units");
-			objUnit.parent_units.forEach(function(parent_unit){
-				assocKnownUnits[parent_unit] = true;
-			});
-		}
-		else if (objElement.unit && objElement.ball){
-			var objBall = objElement;
-			if (!ValidationUtils.isNonemptyString(objBall.ball))
-				return callbacks.ifError("ball must be non-empty string");
-			if (!assocKnownBalls[objBall.ball])
-				return callbacks.ifError("unknown ball "+objBall.ball);
-			if (objBall.ball !== objectHash.getBallHash(objBall.unit, objBall.parent_balls, objBall.skiplist_balls, objBall.is_nonserial))
-				return callbacks.ifError("invalid ball hash");
-			if (objBall.unit !== constants.GENESIS_UNIT) {
-				if (!ValidationUtils.isNonemptyArray(objBall.parent_balls))
-					return callbacks.ifError("no parent_balls");
-				objBall.parent_balls.forEach(function(parent_ball){
-					assocKnownBalls[parent_ball] = true;
+	try {
+		if (!ValidationUtils.isNonemptyArray(arrUnits))
+			return callbacks.ifError("invalid units array");
+		if (!ValidationUtils.isNonemptyArray(arrChain))
+			return callbacks.ifError("invalid chain array");
+		if (!arrUnits.every(ValidationUtils.isNonemptyString))
+			return callbacks.ifError("units must be non-empty strings");
+		if (!arrChain.every(ValidationUtils.isNonemptyObject))
+			return callbacks.ifError("chain must be array of non-empty objects");
+		// check first element
+		var objFirstJoint = arrChain[0];
+		if (!ValidationUtils.isNonemptyObject(objFirstJoint.unit))
+			return callbacks.ifError("1st element must have unit");
+		if (!objFirstJoint || !objFirstJoint.unit || objFirstJoint.unit.unit !== arrUnits[0])
+			return callbacks.ifError("unexpected 1st element");
+		var assocKnownUnits = {};
+		var assocKnownBalls = {};
+		assocKnownUnits[arrUnits[0]] = true;
+		for (var i = 0; i < arrChain.length; i++) {
+			var objElement = arrChain[i];
+			if (objElement.unit && objElement.unit.unit) {
+				var objJoint = objElement;
+				var objUnit = objJoint.unit;
+				var unit = objUnit.unit;
+				if (!ValidationUtils.isNonemptyString(unit))
+					return callbacks.ifError("unit must be non-empty string");
+				if (!assocKnownUnits[unit])
+					return callbacks.ifError("unknown unit " + unit);
+				if (!validation.hasValidHashes(objJoint))
+					return callbacks.ifError("invalid hash of unit " + unit);
+				assocKnownBalls[objUnit.last_ball] = true;
+				assocKnownUnits[objUnit.last_ball_unit] = true;
+				if (!ValidationUtils.isNonemptyArray(objUnit.parent_units))
+					return callbacks.ifError("no parent_units");
+				objUnit.parent_units.forEach(function (parent_unit) {
+					assocKnownUnits[parent_unit] = true;
 				});
 			}
-			if (objBall.skiplist_balls) {
-				if (!ValidationUtils.isNonemptyArray(objBall.skiplist_balls))
-					return callbacks.ifError("bad skiplist_balls");
-				if (!objBall.skiplist_balls.every(ValidationUtils.isNonemptyString))
-					return callbacks.ifError("skiplist_balls must be non-empty strings");
-				objBall.skiplist_balls.forEach(function(skiplist_ball){
-					assocKnownBalls[skiplist_ball] = true;
-				});
+			else if (objElement.unit && objElement.ball) {
+				var objBall = objElement;
+				if (!ValidationUtils.isNonemptyString(objBall.ball))
+					return callbacks.ifError("ball must be non-empty string");
+				if (!assocKnownBalls[objBall.ball])
+					return callbacks.ifError("unknown ball " + objBall.ball);
+				if (objBall.ball !== objectHash.getBallHash(objBall.unit, objBall.parent_balls, objBall.skiplist_balls, objBall.is_nonserial))
+					return callbacks.ifError("invalid ball hash");
+				if (objBall.unit !== constants.GENESIS_UNIT) {
+					if (!ValidationUtils.isNonemptyArray(objBall.parent_balls))
+						return callbacks.ifError("no parent_balls");
+					objBall.parent_balls.forEach(function (parent_ball) {
+						assocKnownBalls[parent_ball] = true;
+					});
+				}
+				if (objBall.skiplist_balls) {
+					if (!ValidationUtils.isNonemptyArray(objBall.skiplist_balls))
+						return callbacks.ifError("bad skiplist_balls");
+					if (!objBall.skiplist_balls.every(ValidationUtils.isNonemptyString))
+						return callbacks.ifError("skiplist_balls must be non-empty strings");
+					objBall.skiplist_balls.forEach(function (skiplist_ball) {
+						assocKnownBalls[skiplist_ball] = true;
+					});
+				}
+				assocKnownUnits[objBall.unit] = true;
 			}
-			assocKnownUnits[objBall.unit] = true;
+			else
+				return callbacks.ifError("unrecognized chain element");
 		}
-		else
-			return callbacks.ifError("unrecognized chain element");
+		// so, the chain is valid, now check that we can find the requested units in the chain
+		for (var i = 1; i < arrUnits.length; i++) // skipped first unit which was already checked
+			if (!assocKnownUnits[arrUnits[i]])
+				return callbacks.ifError("unit " + arrUnits[i] + " not found in the chain");
 	}
-	// so, the chain is valid, now check that we can find the requested units in the chain
-	for (var i=1; i<arrUnits.length; i++) // skipped first unit which was already checked
-		if (!assocKnownUnits[arrUnits[i]])
-			return callbacks.ifError("unit "+arrUnits[i]+" not found in the chain");
+	catch (e) {
+		return callbacks.ifError("bad chain: " + e.toString());
+	}
 	callbacks.ifOk();
 }
 
