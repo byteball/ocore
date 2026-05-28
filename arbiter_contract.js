@@ -250,7 +250,7 @@ function fillArbstoreAddresses(objContract, cb) {
 
 function openDispute(hash, cb) {
 	getByHash(hash, function(objContract){
-		if (objContract.status !== "paid")
+		if (!["paid", "in_dispute"].includes(objContract.status))
 			return cb("contract can't be disputed");
 		device.requestFromHub("hub/get_arbstore_url", objContract.arbiter_address, function(err, url){
 			if (err)
