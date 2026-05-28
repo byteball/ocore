@@ -689,7 +689,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 										isOK = true;
 									break;
 								case "dispute_resolved":
-									if (body.value === "in_appeal")
+									if (body.value === "in_appeal" && from_cosigner)
 										isOK = true;
 									break;
 								case "in_appeal":
