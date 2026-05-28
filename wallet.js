@@ -506,7 +506,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					if (objContract.is_incoming)
 						return callbacks.ifError("this contract is incoming, you cannot accept your own offer");
 					var processResponse = function(objSignedMessage) {
-						if (body.authors && body.authors.length) {
+						if (body.authors && body.authors.length && objSignedMessage) {
 							if (body.authors.length !== 1)
 								return callbacks.ifError("wrong number of authors received");
 							var author = body.authors[0];
