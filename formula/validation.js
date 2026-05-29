@@ -910,6 +910,8 @@ exports.validate = function (opts, callback) {
 			case 'freeze':
 				if (mci < constants.aa2UpgradeMci)
 					return cb("freeze statement not activated yet");
+				if (bGetters && !bInFunction)
+					return cb("freeze not allowed at top level in getters");
 				var var_name_expr = arr[1];
 				evaluate(var_name_expr, function (err) {
 					if (err)
@@ -1105,6 +1107,8 @@ exports.validate = function (opts, callback) {
 			case 'func_call':
 				if (mci < constants.aa2UpgradeMci)
 					return cb("funcs not activated yet");
+				if (bGetters && !bInFunction)
+					return cb("func call not allowed at top level in getters");
 				var func_name = arr[1];
 				var arrExpressions = arr[2];
 				if (!hasOwnProperty(locals, func_name))
@@ -1135,6 +1139,8 @@ exports.validate = function (opts, callback) {
 					return cb("remote func call allowed in AAs only");
 				if (mci < constants.aa2UpgradeMci)
 					return cb("getter funcs not activated yet");
+				if (bGetters && !bInFunction)
+					return cb("remote func call not allowed at top level in getters");
 				var remote_aa = arr[1];
 				var max_remote_complexity = arr[2];
 				var func_name = arr[3];
@@ -1215,6 +1221,8 @@ exports.validate = function (opts, callback) {
 			case 'log':
 				if (mci < constants.aa3UpgradeMci)
 					return cb('log not activated yet');
+				if (bGetters && !bInFunction)
+					return cb('log not allowed at top level in getters');
 				if (arr[1].length === 0)
 					return cb("no arguments of log");
 				async.eachSeries(arr[1], evaluate, cb);
