@@ -751,6 +751,8 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				var expectedContractHash = arbiter_contract.getHash({
 					title: contractContent.title,
 					text: contractContent.text,
+					my_address: body.my_address,
+					peer_address: body.peer_address,
 					creation_date: contractContent.creation_date,
 					my_party_name: contractContent.plaintiff_party_name,
 					peer_party_name: contractContent.respondent_party_name,

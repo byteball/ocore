@@ -15,6 +15,8 @@ var eventBus = require('./event_bus.js');
 
 var status_PENDING = "pending";
 exports.CHARGE_AMOUNT = 4000;
+exports.NEW_HASH_DATE = '2026-09-01';
+exports.DELIMITER = "[|#|]";
 
 function createAndSend(objContract, cb) {
 	objContract = _.cloneDeep(objContract);
@@ -189,10 +191,19 @@ function shareUpdateToPeer(hash, field) {
 	});
 }
 
-function getHash(contract) {
+function getHashSrc(contract) {
 	const payer_name = contract.me_is_payer ? contract.my_party_name : contract.peer_party_name;
 	const payee_name = contract.me_is_payer ? contract.peer_party_name : contract.my_party_name;
-	return crypto.createHash("sha256").update(contract.title + contract.text + contract.creation_date + (payer_name || '') + contract.arbiter_address + (payee_name || '') + contract.amount + contract.asset, "utf8").digest("base64");
+	const payer_address = contract.me_is_payer ? contract.my_address : contract.peer_address;
+	const payee_address = contract.me_is_payer ? contract.peer_address : contract.my_address;
+	const src = contract.creation_date > exports.NEW_HASH_DATE
+		 ? [contract.title, contract.text, contract.creation_date, payer_address, payer_name || '', contract.arbiter_address, payee_address, payee_name || '', contract.amount, contract.asset].join(exports.DELIMITER)
+		 : [contract.title, contract.text, contract.creation_date, payer_name || '', contract.arbiter_address, payee_name || '', contract.amount, contract.asset].join("");
+	return src;
+}
+
+function getHash(contract) {
+	return crypto.createHash("sha256").update(getHashSrc(contract), "utf8").digest("base64");
 }
 
 function getContactsHash(contract) {
@@ -329,7 +340,7 @@ function appeal(hash, cb) {
 					contract_hash: hash,
 					my_pairing_code: objContract.my_pairing_code,
 					my_address: objContract.my_address,
-					contract: {title: objContract.title, text: objContract.text, creation_date: objContract.creation_date, me_is_payer: objContract.me_is_payer, my_party_name: objContract.my_party_name, peer_party_name: objContract.peer_party_name, arbiter_address: objContract.arbiter_address, amount: objContract.amount, asset: objContract.asset},
+					contract: {title: objContract.title, text: objContract.text, creation_date: objContract.creation_date, me_is_payer: objContract.me_is_payer, my_address: objContract.my_address, peer_address: objContract.peer_address, my_party_name: objContract.my_party_name, peer_party_name: objContract.peer_party_name, arbiter_address: objContract.arbiter_address, amount: objContract.amount, asset: objContract.asset},
 				});
 				httpRequest(url, "/api/appeal/new", data, function(err, resp) {
 					if (err)
@@ -967,6 +978,7 @@ exports.revoke = revoke;
 exports.getAllByStatus = getAllByStatus;
 exports.setField = setField;
 exports.store = store;
+exports.getHashSrc = getHashSrc;
 exports.getHash = getHash;
 exports.getContactsHash = getContactsHash;
 exports.openDispute = openDispute;

@@ -2604,17 +2604,13 @@ function handleJustsaying(ws, subject, body){
 			if (version2int(ws.library_version) < version2int(constants.minCoreVersion)){
 				ws.old_core = true;
 				ws.bSubscribed = false;
-				sendJustsaying(ws, 'upgrade_required');
-				sendJustsaying(ws, "old core");
-				return ws.close(1000, "old core");
+				return disconnectOldVersion(ws, "old core");
 			}
 			if (version2int(ws.library_version) < version2int(constants.minCoreVersionForFullNodes)){
 				ws.old_core = true;
 				if (ws.bSubscribed){
 					ws.bSubscribed = false;
-					sendJustsaying(ws, 'upgrade_required');
-					sendJustsaying(ws, "old core (full)");
-					return ws.close(1000, "old core (full)");
+					return disconnectOldVersion(ws, "old core (full)");
 				}
 			}
 			if (constants.supported_versions.indexOf(body.protocol_version) === -1){
@@ -3099,9 +3095,8 @@ function handleRequest(ws, tag, command, params){
 			if (version2int(params.library_version) < version2int(constants.minCoreVersionForFullNodes))
 				ws.old_core = true;
 			if (ws.old_core){ // can be also set in 'version'
-				sendJustsaying(ws, 'upgrade_required');
 				sendErrorResponse(ws, tag, "old core (full)");
-				return ws.close(1000, "old core (full)");
+				return disconnectOldVersion(ws, "old core (full)");
 			}
 			ws.bSubscribed = true;
 			sendResponse(ws, tag, "subscribed");
@@ -3958,6 +3953,10 @@ function handleRequest(ws, tag, command, params){
 			break;
 
 		case 'hub/get_arbstore_url':
+			if (version2int(ws.library_version) < version2int('0.4.5')) {
+				sendErrorResponse(ws, tag, "old core (arbstores)");
+				return disconnectOldVersion(ws, "old core (arbstores)");
+			}
 			if (!conf.arbstores)
 				return sendErrorResponse(ws, tag, "arbstores not defined");
 			var arbiter_address = params;
@@ -3971,6 +3970,12 @@ function handleRequest(ws, tag, command, params){
 			break;
 		
 		case 'hub/get_arbstore_address':
+			if (version2int(ws.library_version) < version2int('0.4.5')) {
+				sendErrorResponse(ws, tag, "old core (arbstores)");
+				return disconnectOldVersion(ws, "old core (arbstores)");
+			}
+			if (!conf.arbstores)
+				return sendErrorResponse(ws, tag, "arbstores not defined");
 			var arbiter_address = params;
 			if (!ValidationUtils.isValidAddress(arbiter_address))
 				return sendErrorResponse(ws, tag, "invalid arbiter address");
@@ -3982,6 +3987,10 @@ function handleRequest(ws, tag, command, params){
 			break;
 		
 		case 'hub/get_arbstore_url_by_address':
+			if (version2int(ws.library_version) < version2int('0.4.5')) {
+				sendErrorResponse(ws, tag, "old core (arbstores)");
+				return disconnectOldVersion(ws, "old core (arbstores)");
+			}
 			var arbstore_address = params;
 			if (!conf.arbstores || !conf.arbstores[arbstore_address])
 				return sendErrorResponse(ws, tag, "arbstore is not known");
@@ -4002,6 +4011,12 @@ function handleRequest(ws, tag, command, params){
 			delete ws.assocCommandsInPreparingResponse[tag];
 			decrementPending(requestsInWork, ws.host);
 	}
+}
+
+function disconnectOldVersion(ws, errMsg) {
+	sendJustsaying(ws, 'upgrade_required');
+	sendJustsaying(ws, errMsg);
+	ws.close(1000, errMsg);
 }
 
 function satisfiesSearchCriteria(this_param_value, searched_param_value) {
