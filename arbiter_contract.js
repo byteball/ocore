@@ -197,8 +197,8 @@ function getHashSrc(contract) {
 	const payer_address = contract.me_is_payer ? contract.my_address : contract.peer_address;
 	const payee_address = contract.me_is_payer ? contract.peer_address : contract.my_address;
 	const src = contract.creation_date > exports.NEW_HASH_DATE
-		 ? [contract.title, contract.text, contract.creation_date, payer_address, payer_name || '', contract.arbiter_address, payee_address, payee_name || '', contract.amount, contract.asset].join(exports.DELIMITER)
-		 : [contract.title, contract.text, contract.creation_date, payer_name || '', contract.arbiter_address, payee_name || '', contract.amount, contract.asset].join("");
+		 ? [contract.title, contract.text, contract.creation_date, payer_address, payer_name || '', contract.arbiter_address, payee_address, payee_name || '', contract.amount, contract.asset || 'null'].join(exports.DELIMITER)
+		 : [contract.title, contract.text, contract.creation_date, payer_name || '', contract.arbiter_address, payee_name || '', contract.amount, contract.asset || 'null'].join("");
 	return src;
 }
 
