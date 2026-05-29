@@ -580,6 +580,8 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 		validateFormula(opts, function (err) {
 			if (err)
 				return cb(err);
+			if (complexity > 0)
+				return cb(`getters incremented complexity to ${complexity}`);
 			getters = getGettersFromLocals(locals);
 			validate(arrDefinition, 1, '', locals, 0, cb);
 		});
