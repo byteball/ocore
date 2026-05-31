@@ -2535,7 +2535,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 
 function initPrivatePaymentValidationState(conn, unit, message_index, payload, onError, onDone){
 	conn.query(
-		"SELECT payload_hash, app, units.sequence, units.version, units.is_stable, lb_units.main_chain_index AS last_ball_mci \n\
+		"SELECT payload_hash, app, units.sequence, units.version, units.is_stable, lb_units.main_chain_index AS last_ball_mci, lb_units.timestamp AS last_ball_timestamp \n\
 		FROM messages JOIN units USING(unit) \n\
 		LEFT JOIN units AS lb_units ON units.last_ball_unit=lb_units.unit \n\
 		WHERE messages.unit=? AND message_index=?", 
@@ -2560,6 +2560,7 @@ function initPrivatePaymentValidationState(conn, unit, message_index, payload, o
 			}
 			var objValidationState = {
 				last_ball_mci: row.last_ball_mci,
+				last_ball_timestamp: row.last_ball_timestamp,
 				arrDoubleSpendInputs: [],
 				arrInputKeys: [],
 				bPrivate: true
