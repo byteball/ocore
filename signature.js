@@ -26,8 +26,11 @@ function verifyMessageWithPemPubKey(message, signature, pem_key) {
 	verify.end();
 	var encoding = ValidationUtils.isValidHexadecimal(signature) ? 'hex' : 'base64';
 	try {
-		return verify.verify(pem_key, signature, encoding);
+		const res = verify.verify(pem_key, signature, encoding);
+		console.log("verify.verify first try result:", res);
+		return res;
 	} catch(e1) {
+		console.log("verify.verify first try exception:", e1);
 		try {
 			if (e1 instanceof TypeError)
 				return verify.verify({key: pem_key}, signature, encoding); // from Node v11, the key has to be included in an object 
