@@ -2657,6 +2657,8 @@ function validateAssetDefinition(conn, payload, objUnit, objValidationState, cal
 		if (!(payload.auto_destroy && !payload.is_transferrable))
 			return callback("if private and divisible, must also be auto-destroy and non-transferrable");
 	}
+	if (payload.is_private && ("issue_condition" in payload || "transfer_condition" in payload) && objValidationState.last_ball_mci >= constants.noPrivateAssetsWithConditionsUpgradeMci)
+		return callback("if private, cannot have issue or transfer conditions");
 	if (payload.cap && !payload.issued_by_definer_only)
 		return callback("if capped, must be issued by definer only");
 	
