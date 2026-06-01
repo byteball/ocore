@@ -2730,8 +2730,14 @@ function checkAttestorList(arrAttestors){
 
 
 function validateAuthorSignaturesWithoutReferences(objAuthor, objUnit, arrAddressDefinition, callback){
+	try {
+		var unit_hash_to_sign = objectHash.getUnitHashToSign(objUnit);
+	}
+	catch(e) {
+		return callback("failed to calc unit hash to sign: "+e);
+	}
 	var objValidationState = {
-		unit_hash_to_sign: objectHash.getUnitHashToSign(objUnit),
+		unit_hash_to_sign,
 		last_ball_mci: -1,
 		bNoReferences: true
 	};
