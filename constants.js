@@ -97,6 +97,7 @@ exports.includeKeySizesUpgradeMci = exports.bTestnet ? 1383500 : 5530000;
 exports.aa3UpgradeMci = exports.bTestnet ? 2291500 : 7810000;
 exports.v4UpgradeMci = exports.bTestnet ? 3522600 : 10968000;
 exports.tpsFeeRecipientsFixMci = exports.bTestnet ? 3909321 : 11985000;
+exports.pemCurvesFixMci = exports.bTestnet ? 3935000 : 12099000;
 
 
 if (process.env.devnet) {
@@ -136,6 +137,7 @@ if (process.env.devnet || process.env.GENESIS_UNIT) {
 	exports.aa3UpgradeMci = 0;
 	exports.v4UpgradeMci = 0;
 	exports.tpsFeeRecipientsFixMci = 0;
+	exports.pemCurvesFixMci = 0;
 }
 
 // textcoins

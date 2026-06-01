@@ -3,6 +3,11 @@
 var ecdsa = require('secp256k1');
 var ValidationUtils = require('./validation_utils.js');
 var crypto = require('crypto');
+var constants = require('./constants.js');
+
+// Full AlgorithmIdentifier for secp256k1: OID ecPublicKey (06 07 ...) + OID secp256k1 (06 05 2b8104000a).
+// Checked at the correct structural position in the DER to avoid false matches against key material.
+var SECP256K1_ALG_ID = Buffer.from('06072a8648ce3d020106052b8104000a', 'hex');
 
 function sign(hash, priv_key){
 	var res = ecdsa.ecdsaSign(hash, priv_key);
@@ -21,6 +26,15 @@ function verify(hash, b64_sig, b64_pub_key){
 };
 
 function verifyMessageWithPemPubKey(message, signature, pem_key) {
+	var contentB64 = pem_key
+		.replace("-----BEGIN PUBLIC KEY-----", "")
+		.replace("-----END PUBLIC KEY-----", "")
+		.replace(/\s/g, "");
+	var der = Buffer.from(contentB64, 'base64');
+	var algIdStart = der[1] <= 0x7F ? 4 : der[1] === 0x81 ? 5 : der[1] === 0x82 ? 6 : -1;
+	if (algIdStart >= 0 && der.slice(algIdStart, algIdStart + SECP256K1_ALG_ID.length).equals(SECP256K1_ALG_ID))
+		return verifyMessageWithSecp256k1PemPubKey(message, signature, der);
+
 	var verify = crypto.createVerify('SHA256');
 	verify.update(message);
 	verify.end();
@@ -42,6 +56,28 @@ function verifyMessageWithPemPubKey(message, signature, pem_key) {
 			console.log("exception when verifying with pem key: " + e1 + " " + e2);
 			return false;
 		}
+	}
+}
+
+function verifyMessageWithSecp256k1PemPubKey(message, signature, der) {
+	try {
+		// Locate the BIT STRING for an uncompressed public key: 03 42 00 04 <32 X> <32 Y>
+		var bitStringIdx = der.indexOf(Buffer.from([0x03, 0x42, 0x00]));
+		if (bitStringIdx === -1) return false;
+		var pubkey = der.slice(bitStringIdx + 3, bitStringIdx + 68); // 65 bytes: 04 + 32 + 32
+		if (pubkey.length !== 65 || pubkey[0] !== 0x04) return false;
+
+		var encoding = ValidationUtils.isValidHexadecimal(signature) ? 'hex' : 'base64';
+		var sigBytes = Buffer.from(signature, encoding);
+		var rawCompact = sigBytes.length === 64 ? sigBytes : Buffer.from(ecdsa.signatureImport(sigBytes));
+		var compactSig = Buffer.from(ecdsa.signatureNormalize(rawCompact));
+
+		var msgBuf = Buffer.isBuffer(message) ? message : Buffer.from(message);
+		var hash = crypto.createHash('sha256').update(msgBuf).digest();
+		return ecdsa.ecdsaVerify(compactSig, hash, pubkey);
+	} catch(e) {
+		console.log('secp256k1 pem verify exception: ' + e);
+		return false;
 	}
 }
 
@@ -90,7 +126,7 @@ function signMessage(message, encoding, pem_key){
 	}
 }
 
-function validateAndFormatPemPubKey(pem_key, algo, handle) {
+function validateAndFormatPemPubKey(pem_key, algo, handle, mci) {
 
 	if (!ValidationUtils.isNonemptyString(pem_key))
 		return handle("pem key should be a non empty string");
@@ -143,6 +179,9 @@ function validateAndFormatPemPubKey(pem_key, algo, handle) {
 	if (!objSupportedPemTypes[typeIdentifiersHex])
 		return handle("unsupported algo or curve in pem key");
 
+	if (typeof mci === 'number' && mci >= constants.pemCurvesFixMci && !objSafePemTypes.has(typeIdentifiersHex))
+		return handle("unsupported curve after MCI " + constants.pemCurvesFixMci);
+
 	if (algo != "any"){
 		if (algo == "ECDSA" && objSupportedPemTypes[typeIdentifiersHex].algo != "ECDSA")
 			return handle("PEM key is not ECDSA type");
@@ -159,6 +198,16 @@ function validateAndFormatPemPubKey(pem_key, algo, handle) {
 	pem_key += "-----END PUBLIC KEY-----";
 	return handle(null,pem_key);
 }
+
+// Curves that are safe to use across all deployment targets.
+// All other curves in objSupportedPemTypes are blocked for new AAs after pemCurvesFixMci.
+var objSafePemTypes = new Set([
+	'06072a8648ce3d020106082a8648ce3d030107', // prime256v1 (P-256)
+	'06072a8648ce3d020106052b81040021',        // secp224r1  (P-224)
+	'06072a8648ce3d020106052b81040022',        // secp384r1  (P-384)
+	'06072a8648ce3d020106052b8104000a',        // secp256k1  (verified via secp256k1 npm, not OpenSSL)
+	'06092a864886f70d0101010500',              // RSA (PKCS #1)
+]);
 
 var objSupportedPemTypes = {
 	'06072a8648ce3d020106092b2403030208010101': {

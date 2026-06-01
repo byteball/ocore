@@ -1666,7 +1666,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 									return setFatalError("bad PEM key in is_valid_sig: " + error, { arr }, false, cb);
 								var result = signature.verifyMessageWithPemPubKey(evaluated_message, evaluated_signature, formatted_pem_key);
 								return cb(result);
-							});
+							}, mci);
 						});
 					});
 				});
@@ -1698,7 +1698,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 									return setFatalError("bad PEM key in vrf_verify: " + error, { arr }, false, cb);
 								var result = signature.verifyMessageWithPemPubKey(evaluated_seed, evaluated_proof, formatted_pem_key);
 								return cb(result);
-							});
+							}, mci);
 						});
 					});
 				});
