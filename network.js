@@ -3311,6 +3311,7 @@ function handleRequest(ws, tag, command, params){
 			try {
 				if (!ecdsaSig.verify(objectHash.getDeviceMessageHashToSign(objDeviceMessage), objDeviceMessage.signature, objDeviceMessage.pubkey))
 					return sendErrorResponse(ws, tag, "wrong message signature");
+				var message_hash = objectHash.getBase64Hash(objDeviceMessage);
 			}
 			catch (e) {
 				return sendErrorResponse(ws, tag, "message hash failed: " + e.toString());
@@ -3320,7 +3321,7 @@ function handleRequest(ws, tag, command, params){
 			if (bToMe){
 				sendResponse(ws, tag, "accepted");
 				eventBus.emit("message_from_hub", ws, 'hub/message', {
-					message_hash: objectHash.getBase64Hash(objDeviceMessage),
+					message_hash,
 					message: objDeviceMessage
 				});
 				return;
@@ -3336,7 +3337,6 @@ function handleRequest(ws, tag, command, params){
 				}
 				if (!keys.includes(objDeviceMessage.encrypted_package.dh.recipient_ephemeral_pubkey))
 					return sendErrorResponse(ws, tag, "wrong recipient ephemeral pubkey");
-				var message_hash = objectHash.getBase64Hash(objDeviceMessage);
 				var message_string = JSON.stringify(objDeviceMessage);
 				db.query(
 					"INSERT "+db.getIgnore()+" INTO device_messages (message_hash, message, device_address) VALUES (?,?,?)", 

@@ -1464,7 +1464,9 @@ function validateMessage(conn, objMessage, message_index, objUnit, objValidation
 		if (!isStringOfLength(objMessage.payload_uri_hash, constants.HASH_LENGTH))
 			return callback("wrong length of payload uri hash");
 		if (objMessage.payload_uri.length > 500)
-			return callback("payload_uri too long");	
+			return callback("payload_uri too long");
+		if (objMessage.payload_uri.includes("\x00"))
+			return callback("payload_uri contains null byte");
 		if (objectHash.getBase64Hash(objMessage.payload_uri) !== objMessage.payload_uri_hash)
 			return callback("wrong payload_uri hash");
 	}
