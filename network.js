@@ -2567,6 +2567,7 @@ function sendStoredDeviceMessages(ws, device_address){
 }
 
 function version2int(version){
+	if (!version) return 0;
 	var arr = version.split('.');
 	return arr[0]*1000000 + arr[1]*1000 + arr[2]*1;
 }
