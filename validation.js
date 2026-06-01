@@ -146,6 +146,13 @@ function validate(objJoint, callbacks, external_conn) {
 			return callbacks.ifUnitError("too many messages");
 		if (!objUnit.messages.every(isNonemptyObject))
 			return callbacks.ifUnitError("all messages must be non-empty objects");
+		if (!objUnit.messages.every(m => {
+			if (m.app === "payment" && m.payload)
+				return isNonemptyArray(m.payload.outputs) && m.payload.outputs.every(o => isNonemptyObject(o) && isValidAddress(o.address) && isPositiveInteger(o.amount));
+			else
+				return true;
+		}))
+			return callbacks.ifUnitError("invalid payment message");
 
 		if (objectLength.getHeadersSize(objUnit) !== objUnit.headers_commission)
 			return callbacks.ifJointError("wrong headers commission, expected "+objectLength.getHeadersSize(objUnit));
