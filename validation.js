@@ -12,7 +12,6 @@ var objectHash = require("./object_hash.js");
 var objectLength = require("./object_length.js");
 const { isTooDeeplyNestedOrHasTooManyNodes } = require("./string_utils.js");
 var db = require('./db.js');
-var chash = require('./chash.js');
 var mutex = require('./mutex.js');
 var constants = require("./constants.js");
 var ValidationUtils = require("./validation_utils.js");
@@ -858,7 +857,7 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 			var curr_witness = objUnit.witnesses[i];
 			if (!isNonemptyString(curr_witness))
 				return callback("witness address must be a string");
-			if (!chash.isChashValid(curr_witness))
+			if (!isValidAddress(curr_witness)) // the isNonemptyString before is to make string concatenation safe in the next line (curr_witness={toString: 42})
 				return callback("witness address "+curr_witness+" is invalid");
 			if (i === 0)
 				continue;
