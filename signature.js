@@ -25,14 +25,15 @@ function verify(hash, b64_sig, b64_pub_key){
 	}
 };
 
-function verifyMessageWithPemPubKey(message, signature, pem_key) {
+function verifyMessageWithPemPubKey(message, signature, pem_key, mci) {
 	var contentB64 = pem_key
 		.replace("-----BEGIN PUBLIC KEY-----", "")
 		.replace("-----END PUBLIC KEY-----", "")
 		.replace(/\s/g, "");
 	var der = Buffer.from(contentB64, 'base64');
 	var algIdStart = der[1] <= 0x7F ? 4 : der[1] === 0x81 ? 5 : der[1] === 0x82 ? 6 : -1;
-	if (algIdStart >= 0 && der.slice(algIdStart, algIdStart + SECP256K1_ALG_ID.length).equals(SECP256K1_ALG_ID))
+	if (algIdStart >= 0 && der.slice(algIdStart, algIdStart + SECP256K1_ALG_ID.length).equals(SECP256K1_ALG_ID)
+			&& typeof mci === 'number' && mci >= constants.pemCurvesFixMci)
 		return verifyMessageWithSecp256k1PemPubKey(message, signature, der);
 
 	var verify = crypto.createVerify('SHA256');

@@ -583,6 +583,25 @@ wtxsPV3F3i6MFRJgSRCbUChJkG9dqyGh7DqM7xwHn5YdqQ+HwfE4bw==\n\
 		t.end();
 	})
 });
+// Same key/message/signature as above but post-pemCurvesFixMci, exercising the secp256k1 npm verification path
+test.cb('is_valid_sig  secp256k1 base64 post-pemCurvesFixMci', t => {
+	var trigger = { data: 
+		{
+			pem_key: "-----BEGIN PUBLIC KEY-----\n\
+MFYwEAYHKoZIzj0CAQYFK4EEAAoDQgAEG7dvwfTNoLaqlZPiXoatOr7ru0qW3OE6\n\
+wtxsPV3F3i6MFRJgSRCbUChJkG9dqyGh7DqM7xwHn5YdqQ+HwfE4bw==\n\
+-----END PUBLIC KEY-----",
+			message: "4111c0dfc41d47f56248ccdc9009b98e7516d6f3db806e999ee5f27b574a48d6",
+			signature: "MEUCIDbAjd+mtf4gim/5VkZdPnnexnS8hOCrGXMVFTOnO2MsAiEA7VtOW1aGhRaX5fbRCtNTosHCCmMQ7Z+kc76wUuPMMgU="
+		}
+	};
+	var objValidationStatePostFix = Object.assign({}, objValidationState, { last_ball_mci: 99999999 });
+	evalFormulaWithVars({ conn: null, formula:  "is_valid_sig(trigger.data.message, trigger.data.pem_key, trigger.data.signature)", trigger: trigger, objValidationState: objValidationStatePostFix, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity) => {
+		t.deepEqual(res, true);
+		t.deepEqual(complexity, 2);
+		t.end();
+	})
+});
 test.cb('is_valid_sig  secp384r1 base64', t => {
 	var trigger = { data: 
 		{

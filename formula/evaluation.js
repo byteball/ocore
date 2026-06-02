@@ -1664,7 +1664,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 							signature.validateAndFormatPemPubKey(evaluated_pem_key, "any", function (error, formatted_pem_key){
 								if (error)
 									return setFatalError("bad PEM key in is_valid_sig: " + error, { arr }, false, cb);
-								var result = signature.verifyMessageWithPemPubKey(evaluated_message, evaluated_signature, formatted_pem_key);
+								var result = signature.verifyMessageWithPemPubKey(evaluated_message, evaluated_signature, formatted_pem_key, mci);
 								return cb(result);
 							}, mci);
 						});
@@ -1696,7 +1696,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 							signature.validateAndFormatPemPubKey(evaluated_pem_key, "RSA", function (error, formatted_pem_key){
 								if (error)
 									return setFatalError("bad PEM key in vrf_verify: " + error, { arr }, false, cb);
-								var result = signature.verifyMessageWithPemPubKey(evaluated_seed, evaluated_proof, formatted_pem_key);
+								var result = signature.verifyMessageWithPemPubKey(evaluated_seed, evaluated_proof, formatted_pem_key, mci);
 								return cb(result);
 							}, mci);
 						});
