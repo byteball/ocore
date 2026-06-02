@@ -100,12 +100,17 @@ function validateDivisiblePrivatePayment(conn, objPrivateElement, callbacks){
 					function(input, cb){
 						if (input.type === "issue"){
 							var address = input.address || arrAuthorAddresses[0];
-							var spend_proof = objectHash.getBase64Hash({
-								asset: payload.asset,
-								amount: input.amount,
-								address: address,
-								serial_number: input.serial_number
-							});
+							try {
+								var spend_proof = objectHash.getBase64Hash({
+									asset: payload.asset,
+									amount: input.amount,
+									address: address,
+									serial_number: input.serial_number
+								});
+							}
+							catch (e) {
+								return cb("failed to calc issue spend proof: " + e.message);
+							}
 							arrSpendProofs.push({address: address, spend_proof: spend_proof});
 							cb();
 						}
@@ -117,15 +122,20 @@ function validateDivisiblePrivatePayment(conn, objPrivateElement, callbacks){
 									if (rows.length !== 1)
 										return cb("not 1 row when selecting src output");
 									var src_output = rows[0];
-									var spend_proof = objectHash.getBase64Hash({
-										asset: payload.asset,
-										unit: input.unit,
-										message_index: input.message_index,
-										output_index: input.output_index,
-										address: src_output.address,
-										amount: src_output.amount,
-										blinding: src_output.blinding
-									});
+									try {
+										var spend_proof = objectHash.getBase64Hash({
+											asset: payload.asset,
+											unit: input.unit,
+											message_index: input.message_index,
+											output_index: input.output_index,
+											address: src_output.address,
+											amount: src_output.amount,
+											blinding: src_output.blinding
+										});
+									}
+									catch (e) {
+										return cb("failed to calc transfer spend proof: " + e.message);
+									}
 									arrSpendProofs.push({address: src_output.address, spend_proof: spend_proof});
 									cb();
 								}

@@ -108,15 +108,20 @@ function validatePrivatePayment(conn, objPrivateElement, objPrevPrivateElement, 
 				if (!prev_hidden_output)
 					return callbacks.ifError("no prev hidden output");
 				input_address = src_output.address;
-				spend_proof = objectHash.getBase64Hash({
-					asset: payload.asset,
-					unit: input.unit,
-					message_index: input.message_index,
-					output_index: input.output_index,
-					address: src_output.address,
-					amount: prev_hidden_output.amount,
-					blinding: src_output.blinding
-				});
+				try {
+					spend_proof = objectHash.getBase64Hash({
+						asset: payload.asset,
+						unit: input.unit,
+						message_index: input.message_index,
+						output_index: input.output_index,
+						address: src_output.address,
+						amount: prev_hidden_output.amount,
+						blinding: src_output.blinding
+					});
+				}
+				catch (e) {
+					return callbacks.ifError("failed to calc transfer spend proof: " + e.message);
+				}
 				console.log("validation spend proof: "+JSON.stringify({
 					asset: payload.asset,
 					unit: input.unit,
@@ -138,13 +143,18 @@ function validatePrivatePayment(conn, objPrivateElement, objPrevPrivateElement, 
 					return callbacks.ifError("prev payload and initial input");
 
 				input_address = (objPartialUnit.authors.length === 1) ? objPartialUnit.authors[0].address : input.address;
-				spend_proof = objectHash.getBase64Hash({
-					asset: payload.asset,
-					address: input_address,
-					serial_number: input.serial_number, // need to avoid duplicate spend proofs when issuing uncapped coins
-					denomination: payload.denomination,
-					amount: input.amount
-				});
+				try {
+					spend_proof = objectHash.getBase64Hash({
+						asset: payload.asset,
+						address: input_address,
+						serial_number: input.serial_number, // need to avoid duplicate spend proofs when issuing uncapped coins
+						denomination: payload.denomination,
+						amount: input.amount
+					});
+				}
+				catch (e) {
+					return callbacks.ifError("failed to calc issue spend proof: " + e.message);
+				}
 			}
 			else
 				return callbacks.ifError("neither transfer nor issue in private input");
