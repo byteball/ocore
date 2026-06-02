@@ -81,7 +81,14 @@ function readAADefinitions(arrAddresses, handleRows) {
 								return cb();
 							}
 							var arrDefinition = response;
-							if (objectHash.getChash160(arrDefinition) !== address) {
+							try {
+								var chash = objectHash.getChash160(arrDefinition);
+							}
+							catch (e) {
+								console.log("failed to calc definition hash of " + address + ": " + e.message);
+								return cb();
+							}
+							if (chash !== address) {
 								console.log("definition doesn't match address: " + address);
 								return cb();
 							}

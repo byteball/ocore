@@ -267,9 +267,14 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 					//	if (objValidationState.bAllowUnresolvedInnerDefinitions)
 					//		return cb(null, true);
 						var bAllowUnresolvedInnerDefinitions = true;
-						var arrDefiningAuthors = objUnit.authors.filter(function(author){
-							return (author.address === other_address && author.definition && objectHash.getChash160(author.definition) === definition_chash);
-						});
+						try {
+							var arrDefiningAuthors = objUnit.authors.filter(function (author) {
+								return (author.address === other_address && author.definition && objectHash.getChash160(author.definition) === definition_chash);
+							});
+						}
+						catch (e) {
+							return cb("failed to calc definition hash of co-author "+other_address+": "+e.message);
+						}
 						if (arrDefiningAuthors.length === 0) // no address definition in the current unit
 							return bAllowUnresolvedInnerDefinitions ? cb(null, true) : cb("definition of inner address "+other_address+" not found");
 						if (arrDefiningAuthors.length > 1)
@@ -741,9 +746,14 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 						evaluate(arrInnerAddressDefinition, path, cb2);
 					},
 					ifDefinitionNotFound: function(definition_chash){
-						var arrDefiningAuthors = objUnit.authors.filter(function(author){
-							return (author.address === other_address && author.definition && objectHash.getChash160(author.definition) === definition_chash);
-						});
+						try {
+							var arrDefiningAuthors = objUnit.authors.filter(function(author){
+								return (author.address === other_address && author.definition && objectHash.getChash160(author.definition) === definition_chash);
+							});
+						}
+						catch (e) {
+							return cb2(false);
+						}
 						if (arrDefiningAuthors.length === 0) // no definition in the current unit
 							return cb2(false);
 						if (arrDefiningAuthors.length > 1)

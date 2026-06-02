@@ -69,7 +69,13 @@ function validatePrivatePayment(conn, objPrivateElement, objPrevPrivateElement, 
 		return callbacks.ifError("bad address in output");
 	if (!ValidationUtils.isNonemptyString(objPrivateElement.output.blinding))
 		return callbacks.ifError("bad blinding in output");
-	if (objectHash.getBase64Hash(objPrivateElement.output) !== our_hidden_output.output_hash)
+	try {
+		var expected_output_hash = objectHash.getBase64Hash(objPrivateElement.output);
+	}
+	catch (e) {
+		return callbacks.ifError("failed to calc output hash: " + e.message);
+	}
+	if (expected_output_hash !== our_hidden_output.output_hash)
 		return callbacks.ifError("output hash doesn't match, output="+JSON.stringify(objPrivateElement.output)+", hash="+our_hidden_output.output_hash);
 	if (!ValidationUtils.isArrayOfLength(payload.inputs, 1))
 		return callbacks.ifError("inputs array must be 1 element long");
