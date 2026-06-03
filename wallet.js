@@ -33,6 +33,8 @@ var arbiters = require("./arbiters.js");
 var signed_message = require('./signed_message.js');
 var aa_addresses = require('./aa_addresses.js');
 
+const { isNonemptyArray, isNonemptyObject, isNonemptyString } = ValidationUtils;
+
 var message_counter = 0;
 var assocLastFailedAssetMetadataTimestamps = {};
 var ASSET_METADATA_RETRY_PERIOD = 3600*1000;
@@ -935,6 +937,20 @@ function handlePrivatePaymentChains(ws, body, from_address, callbacks){
 	var arrChains = body.chains;
 	if (!ValidationUtils.isNonemptyArray(arrChains))
 		return callbacks.ifError("no chains found");
+	if (!arrChains.every(c =>
+		isNonemptyArray(c) &&
+		c.every(e =>
+			isNonemptyObject(e) &&
+			isNonemptyString(e.unit) &&
+			isNonemptyObject(e.payload) &&
+			isNonemptyString(e.payload.asset) &&
+			isNonemptyArray(e.payload.inputs) &&
+			isNonemptyArray(e.payload.outputs) &&
+			e.payload.inputs.every(isNonemptyObject) &&
+			e.payload.outputs.every(isNonemptyObject)
+		)
+	))
+		return callbacks.ifError("malformed private chain");
 	try {
 		var cache_key = objectHash.getBase64Hash(arrChains);
 	}
