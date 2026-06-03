@@ -2626,9 +2626,9 @@ function validateAssetDefinition(conn, payload, objUnit, objValidationState, cal
 		for (var i=0; i<payload.denominations.length; i++){
 			var denomInfo = payload.denominations[i];
 			if (!isNonemptyObject(denomInfo))
-				return callback("denomination must be a non-empty object: " + denomInfo);
+				return callback("denomination must be a non-empty object: " + JSON.stringify(denomInfo));
 			if (hasFieldsExcept(denomInfo, ["denomination", "count_coins"]))
-				return callback("unknown fields in denomination: " + denomInfo);
+				return callback("unknown fields in denomination: " + JSON.stringify(denomInfo));
 			if (!isPositiveInteger(denomInfo.denomination))
 				return callback("invalid denomination");
 			if (denomInfo.denomination <= prev_denom)

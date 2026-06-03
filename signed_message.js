@@ -127,7 +127,7 @@ function validateSignedMessage(conn, objSignedMessage, address, handleResult) {
 	if (!('signed_message' in objSignedMessage))
 		return handleResult("no signed message");
 	if ("version" in objSignedMessage && constants.supported_versions.indexOf(objSignedMessage.version) === -1)
-		return handleResult("unsupported version: " + objSignedMessage.version);
+		return handleResult("unsupported version: " + JSON.stringify(objSignedMessage.version));
 	var authors = objSignedMessage.authors;
 	if (!ValidationUtils.isNonemptyArray(authors))
 		return handleResult("no authors");

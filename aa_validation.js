@@ -71,7 +71,7 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 			if (['payment', 'asset', 'asset_attestors', 'attestation', 'poll', 'vote'].indexOf(message.app) >= 0) {
 				if ('init' in payload) {
 					if (!isNonemptyString(payload.init))
-						return cb2("bad init: " + payload.init);
+						return cb2("bad init: " + JSON.stringify(payload.init));
 					var f = getFormula(payload.init);
 					if (f === null)
 						return cb2("init is not a formula: " + payload.init);
@@ -124,7 +124,7 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 						return cb2("foreign fields in payment");
 					if ('asset' in payload) {
 						if (!isNonemptyString(payload.asset))
-							return cb2("bad asset: " + payload.asset);
+							return cb2("bad asset: " + JSON.stringify(payload.asset));
 						if (payload.asset !== 'base' && !isValidBase64(payload.asset, constants.HASH_LENGTH)) {
 							var asset_formula = getFormula(payload.asset);
 							if (asset_formula === null)
@@ -199,7 +199,7 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 
 				case 'text':
 					if (!isNonemptyString(payload))
-						return cb2("bad text: " + payload);
+						return cb2("bad text: " + JSON.stringify(payload));
 					cb2();
 					break;
 
@@ -236,7 +236,7 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 								return cb2("bad formula in cap: " + payload.cap);
 						}
 						else
-							return cb2("wrong cap: " + payload.cap);
+							return cb2("wrong cap: " + JSON.stringify(payload.cap));
 					}
 
 					function validateDenominations(denominations, cb3) {
@@ -247,15 +247,15 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 							return cb3();
 						}
 						if (!isNonemptyArray(denominations))
-							return cb3("wrong denominations: " + denominations);
+							return cb3("wrong denominations: " + JSON.stringify(denominations));
 						if (denominations.length > constants.MAX_DENOMINATIONS_PER_ASSET_DEFINITION)
 							return cb3("too many denominations");
 						for (var i=0; i<denominations.length; i++){
 							var denomInfo = denominations[i];
 							if (!isNonemptyObject(denomInfo))
-								return cb3("denomination must be a non-empty object: " + denomInfo);
+								return cb3("denomination must be a non-empty object: " + JSON.stringify(denomInfo));
 							if (hasFieldsExcept(denomInfo, ["denomination", "count_coins"]))
-								return cb3("unknown fields in denomination: " + denomInfo);
+								return cb3("unknown fields in denomination: " + JSON.stringify(denomInfo));
 							if (typeof denomInfo.denomination === 'number') {
 								if (!isPositiveInteger(denomInfo.denomination))
 									return cb3("invalid denomination");
@@ -266,7 +266,7 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 									return cb3("bad formula in denomination: "+ denomInfo.denomination);
 							}
 							else
-								return cb3("bad denomination " + denomInfo.denomination);
+								return cb3("bad denomination " + JSON.stringify(denomInfo.denomination));
 							if ("count_coins" in denomInfo) {
 								if (typeof denomInfo.count_coins === 'number') {
 									if (!isPositiveInteger(denomInfo.count_coins))
@@ -278,7 +278,7 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 										return cb3("bad formula in count_coins: "+ denomInfo.count_coins);
 								}
 								else
-									return cb3("bad count_coins " + denomInfo.count_coins);
+									return cb3("bad count_coins " + JSON.stringify(denomInfo.count_coins));
 							}
 						}
 						cb3();
@@ -286,11 +286,11 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 
 					if ("issue_condition" in payload) {
 						if (!isArrayOfLength(payload.issue_condition, 2))
-							return cb2("wrong issue condition: " + payload.issue_condition);
+							return cb2("wrong issue condition: " + JSON.stringify(payload.issue_condition));
 					}
 					if ("transfer_condition" in payload) {
 						if (!isArrayOfLength(payload.transfer_condition, 2))
-							return cb2("wrong transfer condition: " + payload.transfer_condition);
+							return cb2("wrong transfer condition: " + JSON.stringify(payload.transfer_condition));
 					}
 					if (payload.cosigned_by_definer !== false)
 						return cb2("cosigned_by_definer must be false because AA can't cosign");
@@ -354,9 +354,9 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 					if (hasFieldsExcept(payload, ["address", "profile", "init"]))
 						return cb2("unknown fields in AA attestation");
 					if (!isNonemptyObject(payload.profile) && (getFormula(payload.profile) === null || mci < constants.aa3UpgradeMci))
-						return cb2('bad attested profile ' + payload.profile);
+						return cb2('bad attested profile ' + JSON.stringify(payload.profile));
 					if (!isNonemptyString(payload.address))
-						return cb2("bad attested address: " + payload.address);
+						return cb2("bad attested address: " + JSON.stringify(payload.address));
 					var address_formula = getFormula(payload.address);
 					if (address_formula !== null) {
 					}
@@ -371,7 +371,7 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 					if (hasFieldsExcept(payload, ["question", "choices", 'init']))
 						return cb2("unknown fields in AA poll");
 					if (!isNonemptyString(payload.question))
-						return cb2("bad question in AA poll: " + payload.question);
+						return cb2("bad question in AA poll: " + JSON.stringify(payload.question));
 
 					function validateChoices(choices, cb3) {
 						if (isNonemptyString(choices)) {
