@@ -44,11 +44,11 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 					return cb3();
 				}
 				if (!isNonemptyArray(attestors))
-					return cb3("wrong attestors: " + attestors);
+					return cb3("wrong attestors: " + JSON.stringify(attestors));
 				for (var i = 0; i < attestors.length; i++) {
 					var attestor = attestors[i];
 					if (!isNonemptyString(attestor))
-						return cb3("bad attestor: " + attestor);
+						return cb3("bad attestor: " + JSON.stringify(attestor));
 					if (!isValidAddress(attestor)) {
 						var f = getFormula(attestor);
 						if (f === null)
@@ -83,7 +83,7 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 				case 'data':
 				case 'temp_data':
 					if (!isNonemptyObject(payload))
-						return cb2('payload of app=' + message.app + ' must be non-empty object or formula: ' + payload);
+						return cb2('payload of app=' + message.app + ' must be non-empty object or formula: ' + JSON.stringify(payload));
 					cb2();
 					break;
 
@@ -145,25 +145,25 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 								continue;
 							}
 							if (!isNonemptyObject(output))
-								return cb3("output must be a non-empty object: " + output);
+								return cb3("output must be a non-empty object: " + JSON.stringify(output));
 							if (hasFieldsExcept(output, ['address', 'amount', 'init', 'if']))
 								return cb3('foreign fields in output');
 							if ('if' in output) {
 								if (!isNonemptyString(output.if))
-									return cb3("bad if in output: " + output.if);
+									return cb3("bad if in output: " + JSON.stringify(output.if));
 								var f = getFormula(output.if);
 								if (f === null)
 									return cb3("if in output is not a formula: " + output.if);
 							}
 							if ('init' in output) {
 								if (!isNonemptyString(output.init))
-									return cb3("bad init in output: " + output.init);
+									return cb3("bad init in output: " + JSON.stringify(output.init));
 								var f = getFormula(output.init);
 								if (f === null)
 									return cb3("init in output is not a formula: " + output.init);
 							}
 							if (!isNonemptyString(output.address))
-								return cb3('address not a string: ' + output.address);
+								return cb3('address not a string: ' + JSON.stringify(output.address));
 							var f = getFormula(output.address);
 							if (f !== null) {
 							}
@@ -184,7 +184,7 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 								bHaveSendAll = true;
 							}
 							else
-								return cb3('bad amount: ' + output.amount);
+								return cb3('bad amount: ' + JSON.stringify(output.amount));
 						}
 						cb3();
 					}
@@ -436,7 +436,7 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 		if (message.app === 'state') {
 			var f = getFormula(message.state);
 			if (f === null)
-				return cb('bad state formula: ' + message.state);
+				return cb('bad state formula: ' + JSON.stringify(message.state));
 			return cb();
 		}
 		validateFieldWrappedInCases(message, 'payload', validatePayload, cb);
@@ -474,9 +474,9 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 					return cb("no payload in message");
 			}
 			if ('if' in message && !isNonemptyString(message.if))
-				return cb('bad if in message: '+message.if);
+				return cb('bad if in message: '+JSON.stringify(message.if));
 			if ('init' in message && !isNonemptyString(message.init))
-				return cb('bad init in message: '+message.init);
+				return cb('bad init in message: '+JSON.stringify(message.init));
 		}
 		async.eachSeries(messages, validateMessage, cb);
 	}
@@ -500,11 +500,11 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 			if (!hasOwnProperty(acase, field))
 				return cb('case ' + i + ' has no field ' + field);
 			if ('if' in acase && !isNonemptyString(acase.if))
-				return cb('bad if in case: ' + acase.if);
+				return cb('bad if in case: ' + JSON.stringify(acase.if));
 			if (!('if' in acase) && i < cases.length - 1)
 				return cb('if required in all but the last cases');
 			if ('init' in acase && !isNonemptyString(acase.init))
-				return cb('bad init in case: ' + acase.init);
+				return cb('bad init in case: ' + JSON.stringify(acase.init));
 		}
 		async.eachSeries(
 			cases,
@@ -745,7 +745,7 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 				return callback("bad asset in bounce_fees: " + asset);
 			var fee = template.bounce_fees[asset];
 			if (!isNonnegativeInteger(fee) || fee > constants.MAX_CAP)
-				return callback("bad bounce fee: "+fee);
+				return callback("bad bounce fee: "+JSON.stringify(fee));
 		}
 		if ('base' in template.bounce_fees && template.bounce_fees.base < constants.MIN_BYTES_BOUNCE_FEE)
 			return callback("too small base bounce fee: "+template.bounce_fees.base);
