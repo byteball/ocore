@@ -689,7 +689,7 @@ function requestPeers(ws){
 
 async function handleNewPeers(ws, request, arrPeerUrls){
 	if (!arrPeerUrls || arrPeerUrls.error)
-		return console.log('get_peers failed: ' + (arrPeerUrls ? arrPeerUrls.error : 'no response'));
+		return console.log('get_peers failed: ', arrPeerUrls ? arrPeerUrls.error : 'no response');
 	if (!Array.isArray(arrPeerUrls))
 		return sendError(ws, "peer urls is not an array");
 	if (arrPeerUrls.length > 100)
@@ -2066,7 +2066,7 @@ function requestCatchup(ws){
 function handleCatchupChain(ws, request, response){
 	if (!response || response.error){
 		bWaitingForCatchupChain = false;
-		console.log('catchup request got error response: ' + (response ? response.error : 'no response'));
+		console.log('catchup request got error response: ', response ? response.error : 'no response');
 		// findLostJoints will wake up and trigger another attempt to request catchup
 		return;
 	}
@@ -2118,7 +2118,7 @@ function requestNextHashTree(ws){
 
 function handleHashTree(ws, request, response){
 	if (!response || response.error){
-		console.log('get_hash_tree got error response: ' + (response ? response.error : 'no response'));
+		console.log('get_hash_tree got error response: ', response ? response.error : 'no response');
 		waitTillHashTreeFullyProcessedAndRequestNext(ws); // after 1 sec, it'll request the same hash tree, likely from another peer
 		return;
 	}
@@ -2532,7 +2532,7 @@ function initWitnessesIfNecessary(ws, onDone){
 			return onDone();
 		sendRequest(ws, 'get_witnesses', null, false, function(ws, request, arrWitnesses){
 			if (!arrWitnesses || arrWitnesses.error){
-				console.log('get_witnesses returned error: ' + (arrWitnesses ? arrWitnesses.error : 'no response'));
+				console.log('get_witnesses returned error: ', arrWitnesses ? arrWitnesses.error : 'no response');
 				return onDone();
 			}
 			myWitnesses.insertWitnesses(arrWitnesses, onDone);
