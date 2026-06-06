@@ -183,6 +183,8 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 					return cb("unknown fields in "+op);
 				if (!isPositiveInteger(args.required))
 					return cb("required must be positive");
+				if (args.required > 1000 && objValidationState.last_ball_mci >= constants.pemCurvesFixMci)
+					return cb("required must be <= 1000");
 				if (!Array.isArray(args.set))
 					return cb("set must be array");
 				if (args.set.length < 2)
@@ -198,6 +200,8 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 							return cb2("unknown fields in weighted set element");
 						if (!isPositiveInteger(arg.weight))
 							return cb2("weight must be positive int");
+						if (arg.weight > 1000 && objValidationState.last_ball_mci >= constants.pemCurvesFixMci)
+							return cb2("weight must be <= 1000");
 						total_weight += arg.weight;
 						evaluate(arg.value, path+'.'+index, bInNegation, function(err, bHasSig){
 							if (err)
