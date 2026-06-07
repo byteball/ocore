@@ -632,6 +632,7 @@ function prepareParentsAndLastBallAndWitnessListUnit(arrWitnesses, arrFromAddres
 						const [row] = await db.query("SELECT tps_fees_balance FROM tps_fees_balances WHERE address=? AND mci<=? ORDER BY mci DESC LIMIT 1", [arrFromAddresses[0], last_stable_mc_ball_mci]);
 						const tps_fees_balance = row ? row.tps_fees_balance : 0;
 						objResponse.tps_fee = Math.max(tps_fee - tps_fees_balance, 0);
+						objResponse.count_primary_aa_triggers = count_primary_aa_triggers;
 						return callbacks.ifOk(objResponse);
 					}
 					storage.findWitnessListUnit(db, arrWitnesses, last_stable_mc_ball_mci, function(witness_list_unit){

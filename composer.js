@@ -353,6 +353,8 @@ function composeJoint(params){
 				objUnit.timestamp = lightProps.timestamp || Math.round(Date.now() / 1000);
 				if (last_ball_mci >= constants.v4UpgradeMci)
 					objUnit.tps_fee = lightProps.tps_fee;
+				if (lightProps.count_primary_aa_triggers && typeof params.max_aa_responses === "number")
+					objUnit.max_aa_responses = params.max_aa_responses;
 				return checkForUnstablePredecessors();
 			}
 			objUnit.timestamp = Math.round(Date.now() / 1000);
