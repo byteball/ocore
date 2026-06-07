@@ -2275,6 +2275,8 @@ function sendMultiPayment(opts, handleResult)
 
 			if (opts.burn_fee)
 				params.burn_fee = opts.burn_fee;
+			if (opts.max_aa_responses)
+				params.max_aa_responses = opts.max_aa_responses;
 
 			// textcoin claim fees are paid by the sender
 			var indivisibleAssetFeesByAddress = [];
