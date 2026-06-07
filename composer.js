@@ -387,6 +387,8 @@ function composeJoint(params){
 								paid_tps_fee = addr_tps_fee;
 						}
 						objUnit.tps_fee = paid_tps_fee;
+						if (count_primary_aa_triggers && typeof params.max_aa_responses === "number")
+							objUnit.max_aa_responses = params.max_aa_responses;
 					}
 					checkForUnstablePredecessors();
 				}
