@@ -1071,6 +1071,8 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 				storage.readAADefinition(conn, objAuthor.address, objValidationState.last_ball_mci, function (arrAADefinition) {
 					if (arrAADefinition)
 						return callback(createTransientError("will not validate unit signed by AA"));
+					if (objValidationState.last_ball_mci >= constants.pemCurvesFixMci || !objValidationState.hasBall && storage.getMinRetrievableMci() >= constants.pemCurvesFixMci)
+						return callback("definition " + definition_chash + " bound to address " + objAuthor.address + " not found before last ball");
 					findUnstableInitialDefinition(definition_chash, function (arrDefinition) {
 						if (!arrDefinition)
 							return callback("definition " + definition_chash + " bound to address " + objAuthor.address + " is not defined");
@@ -1177,7 +1179,7 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 
 
 	function checkSerialAddressUse(){
-		var next = checkNoPendingChangeOfDefinitionChash;
+		var next = (objValidationState.last_ball_mci >= constants.pemCurvesFixMci || !objValidationState.hasBall && storage.getMinRetrievableMci() >= constants.pemCurvesFixMci) ? validateDefinition : checkNoPendingChangeOfDefinitionChash;
 		findConflictingUnits(function(arrConflictingUnitProps){
 			if (arrConflictingUnitProps.length === 0){ // no conflicting units
 				// we can have 2 authors. If the 1st author gave bad sequence but the 2nd is good then don't overwrite

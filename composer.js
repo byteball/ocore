@@ -891,7 +891,7 @@ function composeAuthorsForAddresses(conn, arrFromAddresses, last_ball_mci, last_
 			for (var j=0; j<arrSigningPaths.length; j++)
 				objAuthor.authentifiers[arrSigningPaths[j]] = repeatString("-", assocLengthsBySigningPaths[arrSigningPaths[j]]);
 			authors.push(objAuthor);
-			var and_stable = (last_ball_mci < constants.unstableInitialDefinitionUpgradeMci) ? "AND is_stable=1 AND main_chain_index<=" + parseInt(last_ball_mci) : "";
+			var and_stable = (last_ball_mci < constants.unstableInitialDefinitionUpgradeMci || last_ball_mci >= constants.pemCurvesFixMci) ? "AND is_stable=1 AND main_chain_index<=" + parseInt(last_ball_mci) : "";
 			conn.query(
 				"SELECT 1 FROM unit_authors CROSS JOIN units USING(unit) \n\
 				WHERE address=? AND sequence='good' " + and_stable + " \n\
