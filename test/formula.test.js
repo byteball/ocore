@@ -6343,3 +6343,37 @@ test.cb('is_valid_signed_package with duplicate addresses', t => {
 	})
 });
 
+test.cb('output amount filter must not mutate payment output.amount', t => {
+	const messages = [{
+		app: 'payment',
+		payload: {
+			inputs: [{
+				unit: 'p+U9OB+JOCW5/7hXiRpVw65HwzFprNfj68PCy/7BR6A=',
+				message_index: 0,
+				output_index: 1
+			}],
+			outputs: [
+				{ address: 'GFK3RDAPQLLNCMQEVGGD2KCPZTLSG3HN', amount: 1 },
+				{ address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU', amount: 19088 }
+			]
+		}
+	}];
+
+	t.is(typeof messages[0].payload.outputs[0].amount, 'number');
+
+	evalFormula(
+		null,
+		'output[[amount=1]].address',
+		messages,
+		objValidationState,
+		'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU',
+		res => {
+			t.is(res, 'GFK3RDAPQLLNCMQEVGGD2KCPZTLSG3HN');
+
+			// Security invariant: formula evaluation should be read-only.
+			t.is(typeof messages[0].payload.outputs[0].amount, 'number');
+
+			t.end();
+		}
+	);
+});

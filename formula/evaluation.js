@@ -766,19 +766,19 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 					}
 					if (objParams.amount) {
 						puts = puts.filter(function (put) {
-							put.amount = new Decimal(put.amount);
+							const amount = new Decimal(put.amount);
 							if (objParams.amount.operator === '=') {
-								return put.amount.eq(objParams.amount.value);
+								return amount.eq(objParams.amount.value);
 							} else if (objParams.amount.operator === '>') {
-								return put.amount.gt(objParams.amount.value);
+								return amount.gt(objParams.amount.value);
 							} else if (objParams.amount.operator === '<') {
-								return put.amount.lt(objParams.amount.value);
+								return amount.lt(objParams.amount.value);
 							} else if (objParams.amount.operator === '<=') {
-								return put.amount.lte(objParams.amount.value);
+								return amount.lte(objParams.amount.value);
 							} else if (objParams.amount.operator === '>=') {
-								return put.amount.gte(objParams.amount.value);
+								return amount.gte(objParams.amount.value);
 							} else if (objParams.amount.operator === '!=') {
-								return !(put.amount.eq(objParams.amount.value));
+								return !(amount.eq(objParams.amount.value));
 							}
 							else
 								throw Error("unknown operator: " + objParams.amount.operator);
