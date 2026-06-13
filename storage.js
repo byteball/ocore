@@ -1300,9 +1300,8 @@ async function getLocalTps(conn, objUnitProps, count_units = 1) {
 				const parentProps = await readUnitPropsWithParents(conn, parent_unit);
 				if (parentProps.main_chain_index <= last_ball_mci && parentProps.main_chain_index !== null)
 					continue;
-				if (parentProps.bAA) // counted elsewhere in max_aa_responses, and its trigger must be on or before last_ball_mci
-					continue;
-				count += getCountUnitsPayingTpsFee(parentProps);
+				if (!parentProps.bAA) // AA responses are counted elsewhere via max_aa_responses of their trigger
+					count += getCountUnitsPayingTpsFee(parentProps);
 				visited[parent_unit] = true;
 				arrParentProps.push(parentProps);
 			}
