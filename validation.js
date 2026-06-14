@@ -2438,14 +2438,8 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 						doubleSpendIndexMySQL = " USE INDEX (byIndexAddress) ";
 
 					mc_outputs.readNextSpendableMcIndex(conn, type, address, objValidationState.arrConflictingUnits, function(next_spendable_mc_index){
-						if ((objValidationState.arrConflictingUnits || []).length > 0 || objValidationState.hasBall) {
-							if (input.from_main_chain_index < next_spendable_mc_index)
-								return cb(type + " ranges must not overlap"); // gaps allowed, in case a unit becomes bad due to another address being nonserial
-						}
-						else { // no conflicts
-							if (input.from_main_chain_index !== next_spendable_mc_index)
-								return cb(type+" ranges must leave no gaps and not overlap");
-						}
+						if (input.from_main_chain_index < next_spendable_mc_index)
+							return cb(type + " ranges must not overlap"); // gaps allowed, in case a unit becomes bad due to another address being nonserial
 						var max_mci = (type === "headers_commission") 
 							? headers_commission.getMaxSpendableMciForLastBallMci(objValidationState.last_ball_mci)
 							: paid_witnessing.getMaxSpendableMciForLastBallMci(objValidationState.last_ball_mci);
