@@ -186,7 +186,7 @@ function print_results_on_log() {
 			if (v > max) max = v;
 			if (v < min) min = v;
 		}
-		console.log(tag.padding(50) + ": avg:" + Math.round(sum / results.length).toString().padding(8) + "max:" + Math.round(max).toString().padding(8) + "min:" + Math.round(min).toString().padding(8) + "records:" + results.length);
+			console.log(padding(tag, 50) + ": avg:" + padding(Math.round(sum / results.length), 8) + "max:" + padding(Math.round(max), 8) + "min:" + padding(Math.round(min), 8) + "records:" + results.length);
 	}
 	var elapsed = Date.now() - profiler_start_ts;
 	console.log("\n\nStart time: " + profiler_start_ts + ", End time: " + Date.now() + " Elapsed ms:" + (Date.now() - profiler_start_ts));
@@ -224,18 +224,15 @@ if (bPrintOnExit){
 	});
 }
 
-String.prototype.padding = function(n, c)
+function padding(value, n, c)
 {
-        var val = this.valueOf();
-        if ( Math.abs(n) <= val.length ) {
-                return val;
-        }
-        var m = Math.max((Math.abs(n) - this.length) || 0, 0);
-        var pad = Array(m + 1).join(String(c || ' ').charAt(0));
-//      var pad = String(c || ' ').charAt(0).repeat(Math.abs(n) - this.length);
-        return (n < 0) ? pad + val : val + pad;
-//      return (n < 0) ? val + pad : pad + val;
-};
+	var val = String(value);
+	if (Math.abs(n) <= val.length)
+		return val;
+	var m = Math.max((Math.abs(n) - val.length) || 0, 0);
+	var pad = Array(m + 1).join(String(c || ' ').charAt(0));
+	return (n < 0) ? pad + val : val + pad;
+}
 
 var clog = console.log;
 //console.log = function(){};
