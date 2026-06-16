@@ -175,6 +175,8 @@ function prepareHistory(historyRequest, callbacks){
 
 
 function processHistory(objResponse, arrWitnesses, callbacks){
+	if (!ValidationUtils.isNonemptyObject(objResponse))
+		return callbacks.ifError("history response must be a non-empty object");
 	if (!("joints" in objResponse)) // nothing found
 		return callbacks.ifOk(false);
 	if (!ValidationUtils.isNonemptyArray(objResponse.unstable_mc_joints))

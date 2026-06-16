@@ -109,6 +109,8 @@ function prepareCatchupChain(catchupRequest, callbacks){
 
 
 function processCatchupChain(catchupChain, peer, arrWitnesses, callbacks){
+	if (!ValidationUtils.isNonemptyObject(catchupChain))
+		return callbacks.ifError("catchupChain must be a non-empty object");
 	if (catchupChain.status === "current")
 		return callbacks.ifCurrent();
 	if (!Array.isArray(catchupChain.unstable_mc_joints))
