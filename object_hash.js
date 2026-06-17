@@ -12,6 +12,10 @@ function getChash160(obj) {
 	return chash.getChash160(sourceString);
 }
 
+function getChash160FromString(str) {
+	return chash.getChash160("s\x00" + str);
+}
+
 function getChash288(obj) {
 	return chash.getChash288(getSourceString(obj));
 }
@@ -139,7 +143,7 @@ function cleanNullsDeep(obj){
 // but still selectable by double-click.  Stripping the leading 0 will not produce a payment address that the device owner knows a private key for,
 // because payment address is derived by c-hashing the definition object, while device address is produced from raw public key.
 function getDeviceAddress(b64_pubkey){
-	return ('0' + getChash160(b64_pubkey));
+	return ('0' + getChash160FromString(b64_pubkey));
 }
 
 function getDeviceMessageHashToSign(objDeviceMessage) {
