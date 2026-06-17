@@ -766,6 +766,8 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 					}
 					if (objParams.amount) {
 						puts = puts.filter(function (put) {
+							if (!ValidationUtils.isPositiveInteger(put.amount)) // header commissions and witnessing inputs have no amount, so they don't match any filter
+								return false;
 							const amount = new Decimal(put.amount);
 							if (objParams.amount.operator === '=') {
 								return amount.eq(objParams.amount.value);
@@ -840,6 +842,8 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 						if (result === '')
 							return setFatalError('not found or ambiguous '+op, { arr }, false, cb);
 						if (arr[2] === 'amount') {
+							if (!ValidationUtils.isPositiveInteger(result.amount))
+								return setFatalError('bad amount in '+op, { arr }, false, cb);
 							cb(new Decimal(result.amount));
 						} else if (arr[2] === 'asset') {
 							cb(result.asset || 'base')
