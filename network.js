@@ -3051,6 +3051,8 @@ function handleRequest(ws, tag, command, params){
 		return sendErrorResponse(ws, tag, "tag too long");
 	if (ws.assocCommandsInPreparingResponse[tag]) // ignore repeated request while still preparing response to a previous identical request
 		return console.log("ignoring identical "+command+" request");
+	if (peerIsBlocked(ws.host)) // requests from the hub's webserver
+		return sendErrorResponse(ws, tag, "you are blocked");
 	ws.assocCommandsInPreparingResponse[tag] = command;
 	incrementPending(requestsInWork, ws.host);
 	if (command.startsWith('light/')) {
