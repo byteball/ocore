@@ -12,6 +12,7 @@ var eventBus = require('./event_bus.js');
 var ValidationUtils = require("./validation_utils.js");
 var conf = require('./conf.js');
 var breadcrumbs = require('./breadcrumbs.js');
+var constants = require('./constants.js');
 
 
 var SEND_RETRY_PERIOD = 60*1000;
@@ -926,6 +927,8 @@ function getWitnessesFromHub(cb){
 			if (response.error)
 				return cb(response.error);
 			var arrWitnessesFromHub = response;
+			if (!ValidationUtils.isArrayOfLength(arrWitnessesFromHub, constants.COUNT_WITNESSES) || !arrWitnessesFromHub.every(ValidationUtils.isValidAddress))
+				return cb("bad witnesses from hub");
 			cb(null, arrWitnessesFromHub);
 		});
 	});

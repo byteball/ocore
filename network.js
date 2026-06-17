@@ -2535,6 +2535,10 @@ function initWitnessesIfNecessary(ws, onDone){
 				console.log('get_witnesses returned error: ', arrWitnesses ? arrWitnesses.error : 'no response');
 				return onDone();
 			}
+			if (!ValidationUtils.isArrayOfLength(arrWitnesses, constants.COUNT_WITNESSES) || !arrWitnesses.every(ValidationUtils.isValidAddress)) {
+				console.log('get_witnesses returned invalid witnesses:', arrWitnesses);
+				return onDone();
+			}
 			myWitnesses.insertWitnesses(arrWitnesses, onDone);
 		});
 	}, 'ignore');
