@@ -3397,6 +3397,8 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "no temp_pubkey params");
 			if (!ValidationUtils.isStringOfLength(objTempPubkey.temp_pubkey, constants.PUBKEY_LENGTH))
 				return sendErrorResponse(ws, tag, "wrong temp_pubkey length");
+			if (!ValidationUtils.isStringOfLength(objTempPubkey.pubkey, constants.PUBKEY_LENGTH))
+				return sendErrorResponse(ws, tag, "wrong pubkey length");
 			if (objectHash.getDeviceAddress(objTempPubkey.pubkey) !== ws.device_address)
 				return sendErrorResponse(ws, tag, "signed by another pubkey");
 			try {
