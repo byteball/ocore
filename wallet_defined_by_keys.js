@@ -114,7 +114,7 @@ function handleOfferToCreateNewWallet(body, from_address, callbacks){
 
 function readNextAccount(handleAccount){
 	db.query("SELECT MAX(account) AS max_account FROM wallets", function(rows){
-		var account = (rows.length === 0) ? 0 : (rows[0].max_account + 1);
+		var account = (rows[0].max_account === null) ? 0 : (rows[0].max_account + 1);
 		handleAccount(account);
 	});
 }
