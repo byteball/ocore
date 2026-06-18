@@ -690,7 +690,7 @@ function arraysEqual(arr1, arr2, fields){
 		return false;
 	for (var i=0; i<arr1.length; i++)
 		for (var j=0; j<fields.length; j++)
-			if (arr1[i][fields[i]] !== arr2[i][fields[i]])
+			if (arr1[i][fields[j]] !== arr2[i][fields[j]])
 				return false;
 	return true;
 }
