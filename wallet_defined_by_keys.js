@@ -76,6 +76,24 @@ function handleOfferToCreateNewWallet(body, from_address, callbacks){
 		return callbacks.ifError("no definition template");
 	if (!ValidationUtils.isNonemptyArray(body.other_cosigners))
 		return callbacks.ifError("no other_cosigners");
+	for (var i=0; i<body.other_cosigners.length; i++){
+		var cosigner = body.other_cosigners[i];
+		if (!ValidationUtils.isNonemptyObject(cosigner))
+			return callbacks.ifError("bad cosigner");
+		if (!ValidationUtils.isStringOfLength(cosigner.pubkey, constants.PUBKEY_LENGTH))
+			return callbacks.ifError("bad pubkey");
+		if (cosigner.device_address !== objectHash.getDeviceAddress(cosigner.pubkey))
+			return callbacks.ifError("bad cosigner device address");
+		if (!ValidationUtils.isNonemptyString(cosigner.name))
+			return callbacks.ifError("no cosigner name");
+		if (cosigner.name.length > 100)
+			return callbacks.ifError("cosigner name too long");
+		cosigner.name = cosigner.name.replace(/[<>]/g, '');
+		if (!ValidationUtils.isNonemptyString(cosigner.hub))
+			return callbacks.ifError("no cosigner hub");
+		if (cosigner.hub.length > 100)
+			return callbacks.ifError("cosigner hub too long");
+	}
 	// the wallet should have an event handler that requests user confirmation, derives (or generates) a new key, records it, 
 	// and sends the newly derived xpubkey to other members
 	validateWalletDefinitionTemplate(body.wallet_definition_template, from_address, function(err, arrDeviceAddresses){
@@ -87,22 +105,6 @@ function handleOfferToCreateNewWallet(body, from_address, callbacks){
 		arrOtherDeviceAddresses.push(from_address);
 		if (!_.isEqual(arrDeviceAddresses.sort(), arrOtherDeviceAddresses.sort()))
 			return callbacks.ifError("wrong other_cosigners");
-		for (var i=0; i<body.other_cosigners.length; i++){
-			var cosigner = body.other_cosigners[i];
-			if (!ValidationUtils.isStringOfLength(cosigner.pubkey, constants.PUBKEY_LENGTH))
-				return callbacks.ifError("bad pubkey");
-			if (cosigner.device_address !== objectHash.getDeviceAddress(cosigner.pubkey))
-				return callbacks.ifError("bad cosigner device address");
-			if (!ValidationUtils.isNonemptyString(cosigner.name))
-				return callbacks.ifError("no cosigner name");
-			if (cosigner.name.length > 100)
-				return callbacks.ifError("cosigner name too long");
-			cosigner.name = cosigner.name.replace(/[<>]/g, '');
-			if (!ValidationUtils.isNonemptyString(cosigner.hub))
-				return callbacks.ifError("no cosigner hub");
-			if (cosigner.hub.length > 100)
-				return callbacks.ifError("cosigner hub too long");
-		}
 		eventBus.emit("create_new_wallet", body.wallet, body.wallet_definition_template, arrDeviceAddresses, body.wallet_name, body.other_cosigners, body.is_single_address);
 		callbacks.ifOk();
 	});
