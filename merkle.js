@@ -82,6 +82,7 @@ function deserializeMerkleProof(serialized_proof){
 }
 
 function verifyMerkleProof(element, proof){
+	// Node-as-Leaf issue might matter in some cases
 	try {
 		var index = proof.index;
 		var the_other_sibling = hash(element);
