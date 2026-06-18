@@ -1852,7 +1852,7 @@ function checkBalances() {
 					CROSS JOIN units ON outputs.unit=units.unit \n\
 					WHERE is_spent=0 AND ( \n\
 						is_stable=1 \n\
-						OR is_stable=0 AND EXISTS (SELECT 1 FROM unit_authors CROSS JOIN aa_addresses USING(address) WHERE unit_authors.unit=outputs.unit) \n\
+						OR is_stable=0 AND is_aa_response=1 \n\
 					) \n\
 					GROUP BY address, asset";
 				var sql_balances_to_outputs = "SELECT aa_balances.address, aa_balances.asset, balance, calculated_balance \n\
