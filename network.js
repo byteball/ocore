@@ -1470,7 +1470,7 @@ function notifyWatchersAboutUnitsGettingBadSequence(arrUnits){
 		// notify light watchers
 		if (!bWatchingForLight)
 			return;
-		db.query("SELECT peer,address,null FROM watched_light_addresses WHERE address IN(?) UNION SELECT peer,null,unit FROM watched_light_units WHERE unit IN(?)", [arrConcernedAddresses, arrUnits], function(rows){
+		db.query("SELECT peer, address, NULL AS unit FROM watched_light_addresses WHERE address IN(?) UNION SELECT peer, NULL AS address, unit FROM watched_light_units WHERE unit IN(?)", [arrConcernedAddresses, arrUnits], function(rows){
 			var assocUniqueUnitsByPeer = {};
 			rows.forEach(function(row){
 				if (row.address){
