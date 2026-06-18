@@ -1850,7 +1850,7 @@ function checkBalances() {
 					FROM aa_addresses \n\
 					CROSS JOIN outputs USING(address) \n\
 					CROSS JOIN units ON outputs.unit=units.unit \n\
-					WHERE is_spent=0 AND ( \n\
+					WHERE is_spent=0 AND sequence='good' AND ( \n\
 						is_stable=1 \n\
 						OR is_stable=0 AND is_aa_response=1 \n\
 					) \n\
