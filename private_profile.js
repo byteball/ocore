@@ -47,7 +47,7 @@ function parseAndValidatePrivateProfile(objPrivateProfile, onDone){
 		for (var field in objPrivateProfile.src_profile){
 			var value = objPrivateProfile.src_profile[field];
 			// the value of each field is either array [plain_text_value, blinding] (if the field is disclosed) or a hash (if it is not disclosed)
-			if (ValidationUtils.isArrayOfLength(value, 2))
+			if (ValidationUtils.isArrayOfLength(value, 2) && value.every(ValidationUtils.isNonemptyString))
 				hidden_profile[field] = objectHash.getBase64Hash(value, bJsonBased);
 			else if (ValidationUtils.isStringOfLength(value, constants.HASH_LENGTH)){
 				hidden_profile[field] = value;
@@ -71,6 +71,12 @@ function parseAndValidatePrivateProfile(objPrivateProfile, onDone){
 			}
 		);
 	}
+	if (!ValidationUtils.isNonemptyObject(objPrivateProfile) ||
+		!ValidationUtils.isNonemptyObject(objPrivateProfile.src_profile) ||
+		!ValidationUtils.isStringOfLength(objPrivateProfile.unit, constants.HASH_LENGTH) ||
+		!ValidationUtils.isStringOfLength(objPrivateProfile.payload_hash, constants.HASH_LENGTH)
+	)
+		return onDone("invalid private profile");
 	storage.readJoint(db, objPrivateProfile.unit, {
 		ifNotFound: function(){
 			eventBus.once('saved_unit-'+objPrivateProfile.unit, handleJoint);
