@@ -2791,7 +2791,7 @@ function claimBackOldTextcoins(to_address, days){
 		throw Error("bad days: " + days);
 	db.query(
 		"SELECT mnemonic FROM sent_mnemonics LEFT JOIN unit_authors USING(address) \n\
-		WHERE mnemonic!='' AND unit_authors.address IS NULL AND creation_date<"+db.addTime("-"+days+" DAYS"),
+		WHERE mnemonic!='' AND unit_authors.address IS NULL AND creation_date<"+db.addTime("-"+days+" DAY"),
 		function(rows){
 			async.eachSeries(
 				rows,
