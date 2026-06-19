@@ -1397,8 +1397,10 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 	function getTypeAndValue(value) {
 		if (typeof value === 'string')
 			return 's\n' + value;
-		else if (typeof value === 'number' || Decimal.isDecimal(value))
-			return 'n\n' + value.toString();
+		else if (typeof value === 'number')
+			return 'n\n' + value;
+		else if (Decimal.isDecimal(value))
+			return 'n\n' + value.toNumber(); // drop the excessive precision in subnormals
 		else if (value instanceof wrappedObject)
 			return 'j\n' + string_utils.getJsonSourceString(value.obj, true);
 		else
@@ -1408,8 +1410,10 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 	function getValueSize(value) {
 		if (typeof value === 'string')
 			return value.length;
-		else if (typeof value === 'number' || Decimal.isDecimal(value))
+		else if (typeof value === 'number')
 			return value.toString().length;
+		else if (Decimal.isDecimal(value))
+			return value.toNumber().toString().length; // drop the excessive precision in subnormals
 		else if (value instanceof wrappedObject)
 			return string_utils.getJsonSourceString(value.obj, true).length;
 		else
