@@ -1777,6 +1777,14 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 				case "tps_fee_multiplier":
 					if (!(typeof payload.value === 'number' && isFinite(payload.value) && payload.value > 0))
 						return callback(payload.subject + " must be a positive number");
+					if (objValidationState.last_ball_mci >= constants.pemCurvesFixMci || !objValidationState.hasBall && storage.getMinRetrievableMci() >= constants.pemCurvesFixMci) {
+						if (payload.subject === "tps_interval" && payload.value < 0.1)
+							return callback(payload.subject + " must be at least 0.1");
+						if (payload.subject === "base_tps_fee" && payload.value > 1e8)
+							return callback(payload.subject + " must be at most 1e8");
+						if (payload.subject === "tps_fee_multiplier" && (payload.value < 1 || payload.value > 1000))
+							return callback(payload.subject + " must be between 1 and 1000");
+					}
 					callback();
 					break;
 				default:
