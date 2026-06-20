@@ -1691,7 +1691,14 @@ async function countVotes(conn, mci, subject, is_emergency = 0, emergency_count_
 	const [activation_row] = await conn.query("SELECT timestamp FROM units WHERE main_chain_index=? AND is_on_main_chain=1", [constants.v4UpgradeMci]);
 	if (!activation_row)
 		throw Error(`no MC unit on OP vote activation MCI ` + constants.v4UpgradeMci);
-	const activation_timestamp = activation_row.timestamp;
+	let activation_timestamp = activation_row.timestamp;
+
+	if (mci >= constants.pemCurvesFixMci) {
+		const [first_vote_row] = await conn.query("SELECT timestamp FROM system_votes WHERE subject=? ORDER BY timestamp ASC LIMIT 1", [subject]);
+		if (!first_vote_row)
+			throw Error(`no votes for subject ${subject}`);
+		activation_timestamp = first_vote_row.timestamp;
+	}
 
 	await conn.query(`CREATE TEMPORARY TABLE voter_balances (
 		address CHAR(32) NOT NULL PRIMARY KEY,
