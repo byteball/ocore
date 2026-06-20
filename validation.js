@@ -1376,8 +1376,20 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 
 function validateMessages(conn, arrMessages, objUnit, objValidationState, callback){
 	console.log("validateMessages "+objUnit.unit);
+	let arrSortedMessages = arrMessages.slice(); // shallow copy
+	arrSortedMessages.sort((a, b) => {
+		if (a.app === 'payment' && b.app !== 'payment') return -1;
+		if (a.app !== 'payment' && b.app === 'payment') return 1;
+		if (a.app === 'payment' && b.app === 'payment') {
+			if (!a.payload) return 1;
+			if (!b.payload) return -1;
+			if (!a.payload.asset) return -1;
+			if (!b.payload.asset) return 1;
+		}
+		return 0;
+	});
 	async.forEachOfSeries(
-		arrMessages, 
+		arrSortedMessages, 
 		function(objMessage, message_index, cb){
 			validateMessage(conn, objMessage, message_index, objUnit, objValidationState, cb); 
 		}, 
