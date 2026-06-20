@@ -1376,8 +1376,9 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 
 function validateMessages(conn, arrMessages, objUnit, objValidationState, callback){
 	console.log("validateMessages "+objUnit.unit);
-	let arrSortedMessages = arrMessages.slice(); // shallow copy
-	arrSortedMessages.sort((a, b) => {
+	let arrSortedMessages = arrMessages.map((objMessage, message_index) => ({ objMessage, message_index })); // shallow copy preserving the original indexes
+
+	arrSortedMessages.sort(({ objMessage: a }, { objMessage: b }) => {
 		if (a.app === 'payment' && b.app !== 'payment') return -1;
 		if (a.app !== 'payment' && b.app === 'payment') return 1;
 		if (a.app === 'payment' && b.app === 'payment') {
@@ -1390,7 +1391,7 @@ function validateMessages(conn, arrMessages, objUnit, objValidationState, callba
 	});
 	async.forEachOfSeries(
 		arrSortedMessages, 
-		function(objMessage, message_index, cb){
+		function({ objMessage, message_index }, _sorted_idx, cb){
 			validateMessage(conn, objMessage, message_index, objUnit, objValidationState, cb); 
 		}, 
 		function(err){
