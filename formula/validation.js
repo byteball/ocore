@@ -265,11 +265,20 @@ exports.validate = function (opts, callback) {
 	}
 
 	var count = 0;
+	let depth = 0;
 
 	function evaluate(arr, cb, bTopLevel) {
 		count++;
 		if (count % 100 === 0) // avoid extra long call stacks to prevent Maximum call stack size exceeded
 			return (typeof setImmediate === 'function') ? setImmediate(evaluate, arr, cb) : setTimeout(evaluate, 0, arr, cb);
+		depth++;
+		const orig_cb = cb;
+		cb = err => {
+			depth--;
+			orig_cb(err);
+		};
+		if (depth > 100 && mci >= constants.pemCurvesFixMci)
+			return cb("maximum depth exceeded");
 		if (Decimal.isDecimal(arr))
 			return isFiniteDecimal(arr) ? cb() : cb("not finite decimal: " + arr);
 		if(typeof arr !== 'object'){
@@ -1472,6 +1481,8 @@ exports.validate = function (opts, callback) {
 	if (parser.results.length === 1 && parser.results[0]) {
 		//	console.log('--- parser result', JSON.stringify(parser.results[0], null, '\t'));
 		evaluate(parser.results[0], err => {
+			if (depth !== 0)
+				throw Error("mismatched depth " + depth);
 			finalizeLocals(locals);
 			callback({ complexity, count_ops, error: err || false });
 		}, true);

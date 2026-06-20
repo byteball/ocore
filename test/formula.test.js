@@ -7,6 +7,7 @@ var constants = require("../constants.js");
 constants.aa2UpgradeMci = 0;
 constants.aa3UpgradeMci = 0;
 constants.v4UpgradeMci = 0;
+constants.pemCurvesFixMci = 0;
 
 var objectHash = require("../object_hash.js");
 var chash = require("../chash.js");
@@ -6376,4 +6377,65 @@ test.cb('output amount filter must not mutate payment output.amount', t => {
 			t.end();
 		}
 	);
+});
+
+test.cb('deeply nested array', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = {};
+	const depth = 2000;
+	evalFormulaWithVars({ conn: db, formula: `${'['.repeat(depth)}1${']'.repeat(depth)}`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	//	t.deepEqual(complexity, 1);
+	//	t.deepEqual(count_ops, depth + 1);
+		t.end();
+	})
+});
+
+test.cb('deeply nested dictionary', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = {};
+	const depth = 2000;
+	evalFormulaWithVars({ conn: db, formula: `${'{a:'.repeat(depth)}1${'}'.repeat(depth)}`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	//	t.deepEqual(complexity, 1);
+	//	t.deepEqual(count_ops, depth + 1);
+		t.end();
+	})
+});
+
+test.cb('deeply nested max', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = {};
+	const depth = 2000;
+	evalFormulaWithVars({ conn: db, formula: `${'max('.repeat(depth)}1${')'.repeat(depth)}`, trigger: trigger, locals: {  }, stateVars: stateVars, bStatementsOnly: false
+	, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	//	t.deepEqual(complexity, 1);
+	//	t.deepEqual(count_ops, depth + 1);
+		t.end();
+	})
+});
+
+test.cb('deeply nested if', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = {};
+	const depth = 2000;
+	evalFormulaWithVars({ conn: db, formula: `${'if(1){'.repeat(depth)}return;${'}'.repeat(depth)}`, trigger: trigger, locals: {  }, stateVars: stateVars, bStatementsOnly: true, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	//	t.deepEqual(complexity, 1);
+	//	t.deepEqual(count_ops, 2 * (depth + 1));
+		t.end();
+	})
+});
+
+test.cb('long sum', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = {};
+	const count = 2000;
+	evalFormulaWithVars({ conn: db, formula: `1${'+1'.repeat(count)}`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, null);
+	//	t.deepEqual(complexity, 1);
+	//	t.deepEqual(count_ops, count + 1);
+		t.end();
+	})
 });

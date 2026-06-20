@@ -1661,6 +1661,8 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 			var readGetterProps = function (aa_address, func_name, cb) {
 				storage.readAAGetterProps(conn, aa_address, func_name, top_mci, cb);
 			};
+			if (!objValidationState.hasBall && storage.getMinRetrievableMci() >= constants.pemCurvesFixMci && objValidationState.last_ball_mci < constants.pemCurvesFixMci)
+				return callback(createTransientError("AA definition attached to an old part of the DAG"));
 			aa_validation.validateAADefinition(payload.definition, readGetterProps, objValidationState.last_ball_mci, function (err) {
 				if (err)
 					return callback(err);
