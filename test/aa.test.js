@@ -595,7 +595,7 @@ test('trying to modify a var frozen in an earlier formula', t => {
 	validateAA(aa, err => {
 		t.deepEqual(err, `validation of formula 
 					$x.b = 8;
-				 failed: statement local_var_assignment,x,8,b invalid: local var x is frozen`);
+				 failed: statement [ 'local_var_assignment', 'x', 8, [ 'b' ], line: 2 ] invalid: local var x is frozen`);
 	});
 });
 
@@ -616,7 +616,7 @@ test('getter with non-constant top-level local var', t => {
 	validateAA(aa, err => {
 		t.deepEqual(err, `validation of formula 
 			$x=1+2;
-		 failed: statement local_var_assignment,x,+,1,2, invalid: non-constant top level vars not allowed in getters`);
+		 failed: statement [ 'local_var_assignment', 'x', [ '+', 1, 2, line: 2 ], null, line: 2 ] invalid: non-constant top level vars not allowed in getters`);
 	});
 });
 

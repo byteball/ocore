@@ -1,5 +1,6 @@
 /*jslint node: true */
 "use strict";
+const util = require('util');
 var nearley = require("nearley");
 var grammar = require("./grammars/oscript.js");
 var async = require('async');
@@ -686,7 +687,7 @@ exports.validate = function (opts, callback) {
 					function (statement, cb2) {
 						evaluate(statement, function (err) {
 							if (err)
-								return cb2("statement in {} " + statement + " invalid: " + err);
+								return cb2("statement in {} " + util.inspect(statement, { depth: 5 }) + " invalid: " + err);
 							cb2();
 						});
 					},
@@ -1289,7 +1290,7 @@ exports.validate = function (opts, callback) {
 					function (statement, cb2) {
 						evaluate(statement, function (err) {
 							if (err)
-								return cb2("statement " + statement + " invalid: " + err);
+								return cb2("statement " + util.inspect(statement, { depth: 5 }) + " invalid: " + err);
 							cb2();
 						});
 					},
