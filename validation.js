@@ -147,7 +147,10 @@ function validate(objJoint, callbacks, external_conn) {
 			return callbacks.ifUnitError("all messages must be non-empty objects");
 		if (!objUnit.messages.every(m => {
 			if (m.app === "payment" && m.payload)
-				return isNonemptyArray(m.payload.outputs) && m.payload.outputs.every(o => isNonemptyObject(o) && isValidAddress(o.address) && isPositiveInteger(o.amount));
+				return isNonemptyArray(m.payload.outputs) &&
+					m.payload.outputs.every(o => isNonemptyObject(o) && isValidAddress(o.address) && isPositiveInteger(o.amount)) &&
+					isNonemptyArray(m.payload.inputs) &&
+					m.payload.inputs.every(i => isNonemptyObject(i) && (!("type" in i) || ["issue", "headers_commission", "witnessing"].includes(i.type)));
 			else
 				return true;
 		}))
