@@ -1360,6 +1360,10 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 						if (input.type === "issue"){
 							if (!input.address)
 								input.address = arrAuthorAddresses[0];
+							if (!isPositiveInteger(input.amount)) {
+								console.log("invalid issue input amount", input.amount);
+								bHasInvalidInput = true;
+							}
 							cb4();
 						}
 						else if (!input.type){
