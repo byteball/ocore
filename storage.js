@@ -1233,6 +1233,8 @@ async function updateTpsFees(conn, arrMcis) {
 		for (let objUnitProps of assocStableUnitsByMci[mci]) {
 			if (objUnitProps.bAA)
 				continue;
+			if (objUnitProps.sequence !== 'good' && mci >= constants.pemCurvesFixMci)
+				continue;
 			const tps_fee = getFinalTpsFee(objUnitProps) * (1 + (objUnitProps.count_aa_responses || 0));
 			await conn.query("UPDATE units SET actual_tps_fee=? WHERE unit=?", [tps_fee, objUnitProps.unit]);
 			const total_tps_fees_delta = (objUnitProps.tps_fee || 0) - tps_fee; // can be negative
