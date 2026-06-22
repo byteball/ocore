@@ -812,7 +812,8 @@ eventBus.on("arbiter_contract_update", function(objContract, field, value) {
 eventBus.on("new_my_transactions", function newtxs(arrNewUnits) {
 	db.query("SELECT hash, outputs.unit FROM wallet_arbiter_contracts\n\
 		JOIN outputs ON outputs.address=wallet_arbiter_contracts.shared_address\n\
-		WHERE outputs.unit IN (" + arrNewUnits.map(db.escape).join(', ') + ") AND outputs.asset IS wallet_arbiter_contracts.asset AND (wallet_arbiter_contracts.status='signed' OR wallet_arbiter_contracts.status='accepted')\n\
+		CROSS JOIN units USING(unit)\n\
+		WHERE outputs.unit IN (" + arrNewUnits.map(db.escape).join(', ') + ") AND outputs.asset IS wallet_arbiter_contracts.asset AND (wallet_arbiter_contracts.status='signed' OR wallet_arbiter_contracts.status='accepted') AND units.sequence='good'\n\
 		GROUP BY outputs.address\n\
 		HAVING SUM(outputs.amount) >= wallet_arbiter_contracts.amount", function(rows) {
 			rows.forEach(function(row) {
@@ -845,7 +846,8 @@ eventBus.on("new_my_transactions", function(arrNewUnits) {
 	db.query("SELECT hash, outputs.unit FROM wallet_arbiter_contracts\n\
 		JOIN outputs ON outputs.address=wallet_arbiter_contracts.my_address\n\
 		JOIN inputs ON inputs.address=wallet_arbiter_contracts.shared_address AND inputs.unit=outputs.unit\n\
-		WHERE outputs.unit IN (" + arrNewUnits.map(db.escape).join(', ') + ") AND outputs.asset IS wallet_arbiter_contracts.asset AND wallet_arbiter_contracts.status IN('paid','in_dispute')\n\
+		CROSS JOIN units ON units.unit=outputs.unit\n\
+		WHERE outputs.unit IN (" + arrNewUnits.map(db.escape).join(', ') + ") AND outputs.asset IS wallet_arbiter_contracts.asset AND wallet_arbiter_contracts.status IN('paid','in_dispute') AND units.sequence='good'\n\
 		GROUP BY wallet_arbiter_contracts.hash", function(rows) {
 			rows.forEach(function(row) {
 				getByHash(row.hash, function(contract){
@@ -889,7 +891,8 @@ eventBus.on("my_transactions_became_stable", function(units) {
 		"SELECT DISTINCT unit_authors.unit \n\
 		FROM unit_authors \n\
 		JOIN wallet_arbiter_contracts ON address=arbiter_address \n\
-		WHERE unit_authors.unit IN(" + units.map(db.escape).join(', ') + ")",
+		CROSS JOIN units ON units.unit=unit_authors.unit \n\
+		WHERE unit_authors.unit IN(" + units.map(db.escape).join(', ') + ") AND units.sequence='good'",
 		function (rows) {
 			units = rows.map(row => row.unit);
 			units.forEach(function(unit) {
@@ -922,7 +925,8 @@ eventBus.on("my_transactions_became_stable", function(units) {
 		FROM unit_authors \n\
 		JOIN wallet_arbiter_contracts ON (address=peer_address OR address=my_address) \n\
 		JOIN assets ON asset=assets.unit \n\
-		WHERE unit_authors.unit IN(" + units.map(db.escape).join(', ') + ") AND is_private=1",
+		JOIN units ON units.unit=unit_authors.unit \n\
+		WHERE unit_authors.unit IN(" + units.map(db.escape).join(', ') + ") AND is_private=1 AND units.sequence='good'",
 		function (rows) {
 			units = rows.map(row => row.unit);
 			units.forEach(function (unit) {

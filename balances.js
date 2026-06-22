@@ -171,7 +171,12 @@ function readAllUnspentOutputs(exclude_from_circulation, handleSupply) {
 		headers_commission_amount: 0,
 		payload_commission_amount: 0,
 	};
-	db.query('SELECT address, COUNT(*) AS count, SUM(amount) AS amount FROM outputs WHERE is_spent=0 AND asset IS null GROUP BY address;', function(rows) {
+	db.query(`SELECT address, COUNT(*) AS count, SUM(amount) AS amount
+		FROM outputs
+		CROSS JOIN units USING(unit)
+		WHERE is_spent=0 AND asset IS NULL AND units.sequence='good'
+		GROUP BY address`,
+		function (rows) {
 		if (rows.length) {
 			supply.addresses += rows.length;
 			rows.forEach(function(row) {

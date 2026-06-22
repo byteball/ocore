@@ -1321,7 +1321,8 @@ function readBalance(wallet, handleBalance){
 function readBalancesOnAddresses(walletId, handleBalancesOnAddresses) {
 	db.query("SELECT outputs.address, COALESCE(outputs.asset, 'base') as asset, sum(outputs.amount) as amount \n\
 	FROM outputs, my_addresses \n\
-	WHERE outputs.address = my_addresses.address AND my_addresses.wallet = ? AND outputs.is_spent=0 \n\
+	CROSS JOIN units ON outputs.unit = units.unit \n\
+	WHERE outputs.address = my_addresses.address AND my_addresses.wallet = ? AND outputs.is_spent=0 AND units.sequence='good' \n\
 	GROUP BY outputs.address, outputs.asset \n\
 	ORDER BY my_addresses.address_index ASC", [walletId], function(rows) {
 		handleBalancesOnAddresses(rows);
