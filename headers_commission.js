@@ -104,6 +104,8 @@ function calcHeadersCommissions(conn, onDone){
 								var arrSameMciChildren = storage.assocStableUnitsByMci[parent.main_chain_index].filter(filter_func);
 								var arrNextMciChildren = storage.assocStableUnitsByMci[parent.main_chain_index+1].filter(filter_func);
 								var arrCandidateChildren = arrSameMciChildren.concat(arrNextMciChildren);
+								if (arrCandidateChildren.length === 0)
+									return; // all eligible children are final-bad, nobody gets the hc
 								var children = arrCandidateChildren.map(function(child){
 									return {child_unit: child.unit, next_mc_unit: next_mc_unit};
 								});
@@ -247,6 +249,8 @@ function calcHeadersCommissions(conn, onDone){
 function getWinnerInfo(arrChildren){
 	if (arrChildren.length === 1)
 		return arrChildren[0];
+	if (arrChildren.length === 0)
+		throw Error("no children for hc");
 	arrChildren.forEach(function(child){
 		child.hash = crypto.createHash("sha1").update(child.child_unit + child.next_mc_unit, "utf8").digest("hex");
 	});
