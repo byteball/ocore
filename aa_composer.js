@@ -1170,6 +1170,10 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 
 		for (var i = 0; i < messages.length; i++){
 			var message = messages[i];
+			if (!isNonemptyObject(message))
+				return bounce("message must be nonempty object");
+			if (typeof message.app !== 'string')
+				return bounce("app must be a string");
 			if (message.app !== 'payment')
 				continue;
 			var payload = message.payload;
@@ -1177,6 +1181,10 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 				return bounce("payload must be nonempty object");
 			if (!Array.isArray(payload.outputs))
 				return bounce("outputs must be array"); // empty array is okay
+			if (!payload.outputs.every(o => ValidationUtils.isValidAddress(o.address)))
+				return bounce("invalid addresses in outputs");
+			if ("asset" in payload && typeof payload.asset !== 'string')
+				return bounce("asset must be a string or omitted");
 			// negative or fractional
 			if (!payload.outputs.every(function (output) { return (isNonnegativeInteger(output.amount) || output.amount === undefined); }))
 				return bounce("negative or fractional amounts");
