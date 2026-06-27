@@ -473,7 +473,7 @@ function validateHashTreeParentsAndSkiplist(conn, objJoint, callback){
 // but if they don't, we'll get unmatching ball hash when the current unit reaches stability
 function validateSkiplist(conn, arrSkiplistUnits, callback){
 	if (!arrSkiplistUnits.every(isNonemptyString))
-		return callback("skiplist units must be non-empty strings");
+		return callback(createJointError("skiplist units must be non-empty strings"));
 	var prev = "";
 	async.eachSeries(
 		arrSkiplistUnits,
@@ -484,14 +484,14 @@ function validateSkiplist(conn, arrSkiplistUnits, callback){
 				return cb(createJointError("skiplist units not ordered"));
 			conn.query("SELECT unit, is_stable, is_on_main_chain, main_chain_index FROM units WHERE unit=?", [skiplist_unit], function(rows){
 				if (rows.length === 0)
-					return cb("skiplist unit "+skiplist_unit+" not found");
+					return cb(createJointError("skiplist unit "+skiplist_unit+" not found"));
 				var objSkiplistUnitProps = rows[0];
 				// if not stable, can't check that it is on MC as MC is not stable in its area yet
 				if (objSkiplistUnitProps.is_stable === 1){
 					if (objSkiplistUnitProps.is_on_main_chain !== 1)
-						return cb("skiplist unit "+skiplist_unit+" is not on MC");
+						return cb(createJointError("skiplist unit "+skiplist_unit+" is not on MC"));
 					if (objSkiplistUnitProps.main_chain_index % 10 !== 0)
-						return cb("skiplist unit "+skiplist_unit+" MCI is not divisible by 10");
+						return cb(createJointError("skiplist unit "+skiplist_unit+" MCI is not divisible by 10"));
 				}
 				// we can't verify the choice of skiplist unit.
 				// If we try to find a skiplist unit now, we might find something matching on unstable part of MC.
@@ -1473,23 +1473,25 @@ function validateMessage(conn, objMessage, message_index, objUnit, objValidation
 
 	if (objMessage.payload_location === "uri"){
 		if ("payload" in objMessage)
-			return callback("must not contain payload");
+			return callback(createJointError("must not contain payload"));
 		if (typeof objMessage.payload_uri !== "string")
-			return callback("no payload uri");
+			return callback(createJointError("no payload uri"));
 		if (objMessage.payload_uri !== objMessage.payload_uri.trim())
-			return callback("payload uri must be trimmed");
+			return callback(createJointError("payload uri must be trimmed"));
 		if (!isStringOfLength(objMessage.payload_uri_hash, constants.HASH_LENGTH))
 			return callback("wrong length of payload uri hash");
 		if (objMessage.payload_uri.length > 500)
-			return callback("payload_uri too long");
+			return callback(createJointError("payload_uri too long"));
 		if (objMessage.payload_uri.includes("\x00"))
-			return callback("payload_uri contains null byte");
+			return callback(createJointError("payload_uri contains null byte"));
 		if (objectHash.getBase64Hash(objMessage.payload_uri) !== objMessage.payload_uri_hash)
-			return callback("wrong payload_uri hash");
+			return callback(createJointError("wrong payload_uri hash"));
 	}
 	else{
-		if ("payload_uri" in objMessage || "payload_uri_hash" in objMessage)
-			return callback("must not contain payload_uri and payload_uri_hash");
+		if ("payload_uri_hash" in objMessage)
+			return callback("must not contain payload_uri_hash");
+		if ("payload_uri" in objMessage)
+			return callback(createJointError("must not contain payload_uri"));
 	}
 	
 	if (objMessage.app === "payment"){ // special requirements for payment
@@ -1606,10 +1608,10 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 	try{
 		var expected_payload_hash = objectHash.getBase64Hash(getPayloadForHash(), objUnit.version !== constants.versionWithoutTimestamp);
 		if (expected_payload_hash !== objMessage.payload_hash)
-			return callback("wrong payload hash: expected "+expected_payload_hash+", got "+objMessage.payload_hash);
+			return callback(createJointError("wrong payload hash: expected "+expected_payload_hash+", got "+objMessage.payload_hash));
 	}
 	catch(e){
-		return callback("failed to calc payload hash: "+e);
+		return callback(createJointError("failed to calc payload hash: "+e));
 	}
 
 	switch (objMessage.app){
@@ -1878,17 +1880,17 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 				return callback("bad data_hash");
 			if ("data" in payload) {
 				if (payload.data === null)
-					return callback("null data");
+					return callback(createJointError("null data"));
 				try {
 					const len = objectLength.getLength(payload.data, true);
 					if (len !== payload.data_length)
-						return callback(`data_length mismatch, expected ${payload.data_length}, got ${len}`);
+						return callback(createJointError(`data_length mismatch, expected ${payload.data_length}, got ${len}`));
 					const hash = objectHash.getBase64Hash(payload.data, true);
 					if (hash !== payload.data_hash)
-						return callback(`data_hash mismatch, expected ${payload.data_hash}, got ${hash}`);
+						return callback(createJointError(`data_hash mismatch, expected ${payload.data_hash}, got ${hash}`));
 				}
 				catch (e) {
-					return callback("invalid temp data: " + e);
+					return callback(createJointError("invalid temp data: " + e));
 				}
 			}
 			else {
