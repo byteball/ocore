@@ -36,6 +36,14 @@ function wrappedObject(obj){
 	this.frozen = false;
 }
 
+function containsNonFiniteNumber(obj) {
+	if (typeof obj === 'number') return !isFinite(obj);
+	if (typeof obj !== 'object' || obj === null) return false;
+	for (const key in obj)
+		if (containsNonFiniteNumber(obj[key])) return true;
+	return false;
+}
+
 function Func(args, body, scopeVarNames, formula, xpath) {
 	if (!Array.isArray(args))
 		throw Error("args is not an array");
@@ -1872,6 +1880,8 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 						console.log('json_parse failed: ' + e.toString());
 						return cb(false);
 					}
+					if (containsNonFiniteNumber(json))
+						return setFatalError("json_parse result contains non-finite number", { arr }, false, cb);
 					if (typeof json === 'object') {
 						if (string_utils.isTooDeeplyNestedOrHasTooManyNodes(json))
 							return setFatalError("json_parse result is too deeply nested or has too many nodes", { arr }, false, cb);
