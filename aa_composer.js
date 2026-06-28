@@ -1247,7 +1247,12 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 							return cb(err);
 						addOutputAddresses(payload.outputs);
 						if (payload.outputs.length > 0) // send-all output might get removed while being the only output
-							completeMessage(message);
+							try {
+								completeMessage(message);
+							}
+							catch (e) {
+								return cb("completeMessage failed: " + e.toString());
+							}
 						cb();
 					});
 				});
@@ -1299,7 +1304,12 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 						if (err)
 							return bounce(err);
 						addOutputAddresses(objBasePaymentMessage.payload.outputs);
-						completeMessage(objBasePaymentMessage); // fixes payload_hash
+						try {
+							completeMessage(objBasePaymentMessage); // fixes payload_hash
+						}
+						catch (e) {
+							return bounce("base completeMessage failed: " + e.toString());
+						}
 						objUnit.payload_commission = objectLength.getTotalPayloadSize(objUnit);
 						const oversize_fee = (mci >= constants.v4UpgradeMci) ? storage.getOversizeFee(objUnit, last_ball_mci) : 0;
 						if (oversize_fee)
