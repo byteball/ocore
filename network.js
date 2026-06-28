@@ -210,7 +210,7 @@ function sendVersion(ws){
 function sendResponse(ws, tag, response){
 	var command = ws.assocCommandsInPreparingResponse[tag];
 	delete ws.assocCommandsInPreparingResponse[tag];
-	if (command)
+	if (command && command !== 'custom') // for custom, we decrement in handleRequest
 		decrementPending(requestsInWork, ws.host);
 	sendMessage(ws, 'response', {tag: tag, command: command, response: response});
 }
