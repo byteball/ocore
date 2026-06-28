@@ -1179,10 +1179,14 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 			var payload = message.payload;
 			if (!isNonemptyObject(payload))
 				return bounce("payload must be nonempty object");
+			if (ValidationUtils.hasFieldsExcept(payload, ['asset', 'outputs']))
+				return bounce("unknown fields in payment payload");
 			if (!Array.isArray(payload.outputs))
 				return bounce("outputs must be array"); // empty array is okay
 			if (!payload.outputs.every(o => ValidationUtils.isValidAddress(o.address)))
 				return bounce("invalid addresses in outputs");
+			if (payload.outputs.some(o => ValidationUtils.hasFieldsExcept(o, ['address', 'amount'])))
+				return bounce("unknown fields in outputs");
 			if (payload.asset && typeof payload.asset !== 'string')
 				return bounce("asset must be a string or omitted");
 			// negative or fractional
