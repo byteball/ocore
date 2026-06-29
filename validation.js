@@ -1678,7 +1678,7 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 			var readGetterProps = function (aa_address, func_name, cb) {
 				storage.readAAGetterProps(conn, aa_address, func_name, top_mci, cb);
 			};
-			if (!objValidationState.hasBall && storage.getMinRetrievableMci() >= constants.pemCurvesFixMci && objValidationState.last_ball_mci < constants.pemCurvesFixMci)
+			if (!objValidationState.hasBall && !objValidationState.bAA && storage.getMinRetrievableMci() >= constants.pemCurvesFixMci && objValidationState.last_ball_mci < constants.pemCurvesFixMci)
 				return callback(createTransientError("AA definition attached to an old part of the DAG"));
 			aa_validation.validateAADefinition(payload.definition, readGetterProps, objValidationState.last_ball_mci, function (err) {
 				if (err)
@@ -1905,7 +1905,7 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 				}
 			}
 			else {
-				if (Math.round(Date.now()/1000) - objUnit.timestamp < constants.TEMP_DATA_PURGE_TIMEOUT)
+				if (Math.round(Date.now()/1000) - objUnit.timestamp < constants.TEMP_DATA_PURGE_TIMEOUT && !objValidationState.bAA)
 					return callback(createTransientError("data not found in temp_data"))
 			}
 			return callback();
