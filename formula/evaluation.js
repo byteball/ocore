@@ -1822,7 +1822,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 							if (res instanceof wrappedObject)
 								res = true;
 							if (!isValidValue(res))
-								return setFatalError("invalid value in sha256: " + res, { arr }, false, cb);
+								return setFatalError("invalid value in sha256: " + res, { arr }, undefined, cb2);
 							if (isFiniteDecimal(res))
 								res = toDoubleRange(res);
 							evaluated_params.push(res);
