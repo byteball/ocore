@@ -2699,8 +2699,6 @@ function handleJustsaying(ws, subject, body){
 					return sendError(ws, "this unit is already known and archived");
 				if (isTooDeeplyNestedOrHasTooManyNodes(objJoint.unit))
 					return sendError(ws, "unit is too deeply nested or has too many nodes");
-				if (objectLength.getRatio(objJoint.unit) > 3)
-					return sendError(ws, "the total size of keys is too large");
 				if (conf.bLight && objJoint.unit.authors && arrTempWatchedAddresses.length > 0) {
 					var author_addresses = objJoint.unit.authors.map(a => a.address);
 					if (_.intersection(author_addresses, arrTempWatchedAddresses).length > 0) {
@@ -3157,8 +3155,6 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, 'no unit');
 			if (isTooDeeplyNestedOrHasTooManyNodes(objJoint.unit))
 				return sendErrorResponse(ws, tag, "unit is too deeply nested or has too many nodes");
-			if (objectLength.getRatio(objJoint.unit) > 3)
-				return sendErrorResponse(ws, tag, "the total size of keys is too large");
 			handlePostedJoint(ws, objJoint, function(error){
 				error ? sendErrorResponse(ws, tag, error) : sendResponse(ws, tag, 'accepted');
 			});

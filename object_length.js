@@ -111,18 +111,8 @@ function getPaidTempDataFee(objUnit) {
 	return Math.ceil(getTempDataLength(objUnit) * constants.TEMP_DATA_PRICE);
 }
 
-function getRatio(objUnit) {
-	try {
-		if (objUnit.version === constants.versionWithoutTimestamp || objUnit.version === constants.versionWithoutKeySizes)
-			return getLength(objUnit, true) / getLength(objUnit);
-	}
-	catch (e) {
-	}
-	return 1;
-}
 
 exports.getHeadersSize = getHeadersSize;
 exports.getTotalPayloadSize = getTotalPayloadSize;
-exports.getRatio = getRatio;
 exports.getLength = getLength;
 exports.getPaidTempDataFee = getPaidTempDataFee;
