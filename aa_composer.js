@@ -1172,6 +1172,8 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 			var message = messages[i];
 			if (!isNonemptyObject(message))
 				return bounce("message must be nonempty object");
+			if (ValidationUtils.hasFieldsExcept(message, ['app', 'payload']))
+				return bounce("unknown fields in message");
 			if (typeof message.app !== 'string')
 				return bounce("app must be a string");
 			if (message.app !== 'payment')
