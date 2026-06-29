@@ -50,6 +50,14 @@ function hasValidHashes(objJoint){
 	return true;
 }
 
+function getPayloadForHash(objMessage) {
+	if (objMessage.app !== "temp_data")
+		return objMessage.payload;
+	let p = _.cloneDeep(objMessage.payload);
+	delete p.data;
+	return p;
+}
+
 function validate(objJoint, callbacks, external_conn) {
 	
 	var objUnit = objJoint.unit;
@@ -73,7 +81,7 @@ function validate(objJoint, callbacks, external_conn) {
 	}
 
 	if (isTooDeeplyNestedOrHasTooManyNodes(objUnit))
-		return callbacks.ifUnitError("unit is too deeply nested");
+		return callbacks.ifJointError("unit is too deeply nested");
 
 	const bGenesis = storage.isGenesisUnit(objUnit.unit);
 
@@ -145,6 +153,31 @@ function validate(objJoint, callbacks, external_conn) {
 			return callbacks.ifUnitError("too many messages");
 		if (!objUnit.messages.every(isNonemptyObject))
 			return callbacks.ifUnitError("all messages must be non-empty objects");
+
+		// validate payload hashes early to make sure payloads were not tampered with
+		for (let m of objUnit.messages) {
+			if (typeof m.payload_location !== "string")
+				return callbacks.ifUnitError("bad payload_location");
+			if (!["inline", "none", "uri"].includes(m.payload_location))
+				return callbacks.ifUnitError("invalid payload_location: " + m.payload_location);
+			if (m.payload_location !== "inline") {
+				if ("payload" in m)
+					return callbacks.ifJointError("payload must be absent when payload_location is not inline");
+				continue;
+			};
+			if (!("payload" in m) || m.payload === null)
+				return callbacks.ifJointError("missing payload");
+			
+			try {
+				const expected_payload_hash = objectHash.getBase64Hash(getPayloadForHash(m), objUnit.version !== constants.versionWithoutTimestamp);
+				if (expected_payload_hash !== m.payload_hash)
+					return callbacks.ifJointError("wrong payload hash: expected " + expected_payload_hash + ", got " + m.payload_hash);
+			}
+			catch(e) {
+				return callbacks.ifJointError("failed to calc payload hash: " + e);
+			}
+		}
+
 		if (!objUnit.messages.every(m => {
 			if (m.app === "payment" && m.payload)
 				return isNonemptyArray(m.payload.outputs) &&
@@ -164,7 +197,7 @@ function validate(objJoint, callbacks, external_conn) {
 				return callbacks.ifJointError("wrong payload commission, unit " + objUnit.unit + ", expected " + payloadSize);
 		}
 		catch (e) {
-			return callbacks.ifUnitError("failed to calculate payload commission: " + e);
+			return callbacks.ifJointError("failed to calculate payload commission: " + e);
 		}
 		if (objUnit.headers_commission + objUnit.payload_commission > constants.MAX_UNIT_LENGTH && !bGenesis)
 			return callbacks.ifUnitError("unit too large");
@@ -1412,8 +1445,6 @@ function validateMessage(conn, objMessage, message_index, objUnit, objValidation
 		return callback("no app");
 	if (!isStringOfLength(objMessage.payload_hash, constants.HASH_LENGTH))
 		return callback("wrong payload hash size");
-	if (typeof objMessage.payload_location !== "string")
-		return callback("no payload_location");
 	if (hasFieldsExcept(objMessage, ["app", "payload_hash", "payload_location", "payload", "payload_uri", "payload_uri_hash", "spend_proofs"]))
 		return callback("unknown fields in message");
 	
@@ -1465,11 +1496,8 @@ function validateMessage(conn, objMessage, message_index, objUnit, objValidation
 			return callback("you don't need spend proofs when you have inline payload");
 	}
 
-	if (objMessage.payload_location !== "inline" && objMessage.payload_location !== "uri" && objMessage.payload_location !== "none")
-		return callback("wrong payload location: "+objMessage.payload_location);
-
 	if (objMessage.payload_location === "none" && ("payload" in objMessage || "payload_uri" in objMessage || "payload_uri_hash" in objMessage))
-		return callback("must be no payload");
+		return callback(createJointError("must be no payload"));
 
 	if (objMessage.payload_location === "uri"){
 		if ("payload" in objMessage)
@@ -1596,23 +1624,6 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 	var payload = objMessage.payload;
 	if (typeof payload === "undefined")
 		return callback("no inline payload");
-	
-	function getPayloadForHash() {
-		if (objMessage.app !== "temp_data")
-			return payload;
-		let p = _.cloneDeep(payload);
-		delete p.data;
-		return p;
-	}
-	
-	try{
-		var expected_payload_hash = objectHash.getBase64Hash(getPayloadForHash(), objUnit.version !== constants.versionWithoutTimestamp);
-		if (expected_payload_hash !== objMessage.payload_hash)
-			return callback(createJointError("wrong payload hash: expected "+expected_payload_hash+", got "+objMessage.payload_hash));
-	}
-	catch(e){
-		return callback(createJointError("failed to calc payload hash: "+e));
-	}
 
 	switch (objMessage.app){
 
