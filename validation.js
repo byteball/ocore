@@ -80,9 +80,6 @@ function validate(objJoint, callbacks, external_conn) {
 		return callbacks.ifJointError("failed to calc unit hash: "+e);
 	}
 
-	if (isTooDeeplyNestedOrHasTooManyNodes(objUnit))
-		return callbacks.ifJointError("unit is too deeply nested");
-
 	const bGenesis = storage.isGenesisUnit(objUnit.unit);
 
 	var bAA = false;
@@ -97,6 +94,9 @@ function validate(objJoint, callbacks, external_conn) {
 			return callbacks.ifTransientError("possible AA");
 	}
 	
+	if (isTooDeeplyNestedOrHasTooManyNodes(objUnit))
+		return bAA ? callbacks.ifUnitError("unit is too deeply nested") : callbacks.ifJointError("unit is too deeply nested");
+
 	if (objJoint.unsigned){
 		if (hasFieldsExcept(objJoint, ["unit", "unsigned"]))
 			return callbacks.ifJointError("unknown fields in unsigned unit-joint");
@@ -1890,18 +1890,19 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 			if (!isValidBase64(payload.data_hash))
 				return callback("bad data_hash");
 			if ("data" in payload) {
+				const createError = objValidationState.bAA ? err => err : createJointError;
 				if (payload.data === null)
-					return callback(createJointError("null data"));
+					return callback(createError("null data"));
 				try {
 					const len = objectLength.getLength(payload.data, true);
 					if (len !== payload.data_length)
-						return callback(createJointError(`data_length mismatch, expected ${payload.data_length}, got ${len}`));
+						return callback(createError(`data_length mismatch, expected ${payload.data_length}, got ${len}`));
 					const hash = objectHash.getBase64Hash(payload.data, true);
 					if (hash !== payload.data_hash)
-						return callback(createJointError(`data_hash mismatch, expected ${payload.data_hash}, got ${hash}`));
+						return callback(createError(`data_hash mismatch, expected ${payload.data_hash}, got ${hash}`));
 				}
 				catch (e) {
-					return callback(createJointError("invalid temp data: " + e));
+					return callback(createError("invalid temp data: " + e));
 				}
 			}
 			else {
