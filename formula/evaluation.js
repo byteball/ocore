@@ -2396,7 +2396,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 									}
 								);
 							});
-						}, arr);
+						});
 					});
 				});
 				break;
