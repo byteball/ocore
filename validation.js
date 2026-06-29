@@ -160,6 +160,8 @@ function validate(objJoint, callbacks, external_conn) {
 				return callbacks.ifUnitError("bad payload_location");
 			if (!["inline", "none", "uri"].includes(m.payload_location))
 				return callbacks.ifUnitError("invalid payload_location: " + m.payload_location);
+			if (!isStringOfLength(m.payload_hash, constants.HASH_LENGTH))
+				return callbacks.ifUnitError("wrong payload hash size");
 			if (m.payload_location !== "inline") {
 				if ("payload" in m)
 					return callbacks.ifJointError("payload must be absent when payload_location is not inline");
@@ -1443,8 +1445,6 @@ function validateMessages(conn, arrMessages, objUnit, objValidationState, callba
 function validateMessage(conn, objMessage, message_index, objUnit, objValidationState, callback) {
 	if (typeof objMessage.app !== "string")
 		return callback("no app");
-	if (!isStringOfLength(objMessage.payload_hash, constants.HASH_LENGTH))
-		return callback("wrong payload hash size");
 	if (hasFieldsExcept(objMessage, ["app", "payload_hash", "payload_location", "payload", "payload_uri", "payload_uri_hash", "spend_proofs"]))
 		return callback("unknown fields in message");
 	
