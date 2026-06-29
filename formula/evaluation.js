@@ -683,7 +683,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 							return cb(false);
 						getDataFeed(evaluated_params, function (err, result) {
 							if (err)
-								return setFatalError('error from data feed: '+err, false, undefined, cb);
+								return setFatalError('error from data feed: '+err, { arr }, false, cb);
 							cb(result);
 						});
 					}
@@ -1220,10 +1220,10 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 							return setFatalError("variable " + var_name + " is frozen", { arr }, false, cb);
 					}
 					else if (selectors)
-						return setFatalError("mutating a non-existent var " + var_name, { arr }, null, cb);
+						return setFatalError("mutating a non-existent var " + var_name, { arr }, false, cb);
 					if (rhs[0] === 'func_declaration') {
 						if (selectors)
-							return setFatalError("only top level functions are supported", { arr }, null, cb);
+							return setFatalError("only top level functions are supported", { arr }, false, cb);
 						var args = rhs[1];
 						var body = rhs[2];
 						var scopeVarNames = Object.keys(locals);
