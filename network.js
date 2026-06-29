@@ -1043,6 +1043,12 @@ function handleJoint(ws, objJoint, bSaved, bPosted, callbacks){
 	var unit = objJoint.unit.unit;
 	if (typeof unit !== 'string')
 		return callbacks.ifJointError("invalid unit");
+	const version = objJoint.unit.version;
+	if (typeof version !== 'string')
+		return callbacks.ifJointError("invalid version");
+	const fVersion = parseFloat(version);
+	if (!(fVersion >= constants.fVersion4 || objJoint.ball)) // covers NaN too
+		return callbacks.ifTransientError("version is too old");
 	if (assocUnitsInWork[unit])
 		return callbacks.ifUnitInWork();
 	assocUnitsInWork[unit] = true;
@@ -1199,6 +1205,9 @@ function handlePostedJoint(ws, objJoint, onDone){
 		ifUnitError: function(error){
 			onDone(error);
 		},
+		ifTransientError: function(error){
+			onDone(error);
+		},
 		ifJointError: function(error){
 			onDone(error);
 		},
@@ -1333,6 +1342,10 @@ function handleSavedJoint(objJoint, creation_ts, peer){
 			}, 1000);
 		},
 		ifUnitError: function(error){
+			if (ws)
+				sendErrorResult(ws, unit, error);
+		},
+		ifTransientError: function(error){
 			if (ws)
 				sendErrorResult(ws, unit, error);
 		},
