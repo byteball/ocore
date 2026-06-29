@@ -2379,8 +2379,11 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 														assignField(retValue, element, _.cloneDeep(res.obj[element]));
 												}
 											}
-											else if (bReduce)
+											else if (bReduce) {
 												accumulator = r;
+												if (string_utils.isTooDeeplyNestedOrHasTooManyNodes(accumulator))
+													return setFatalError("accumulator is too deeply nested or has too many nodes", { arr }, undefined, cb2);
+											}
 											cb2(fatal_error);
 										});
 									},
@@ -2389,8 +2392,11 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 											return cb(false);
 										if (bReduce)
 											cb(accumulator);
-										else if (op === 'map' || op === 'filter')
+										else if (op === 'map' || op === 'filter') {
+											if (op === 'map' && string_utils.isTooDeeplyNestedOrHasTooManyNodes(retValue))
+												return setFatalError("map result is too deeply nested or has too many nodes", { arr }, false, cb);
 											cb(new wrappedObject(retValue));
+										}
 										else
 											cb(true);
 									}
