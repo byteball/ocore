@@ -1258,6 +1258,8 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 									return cb(false);
 								try {
 									assignByPath(locals[var_name].obj, arrKeys, res);
+									if (string_utils.isTooDeeplyNestedOrHasTooManyNodes(locals[var_name].obj))
+										return setFatalError("mutated object is too deeply nested or has too many nodes", { arr }, false, cb);
 									cb(true);
 								}
 								catch (e) {
