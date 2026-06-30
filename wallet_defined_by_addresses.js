@@ -362,6 +362,12 @@ function extractAddressPathsFromDefinition(arrDefinition) {
 			case 'address':
 				result[path] = args;
 				break;
+			case 'hash':
+				result[path] = 'secret';
+				break;
+			case 'in merkle':
+				result[path] = ''; // empty address
+				break;
 		}
 	}
 	traverse(arrDefinition, 'r');
@@ -390,7 +396,6 @@ function handleNewSharedAddress(body, callbacks){
 	const assocDefinitionAddresses = extractAddressPathsFromDefinition(body.definition);
 	for (let signing_path in body.signers) {
 		const signerInfo = body.signers[signing_path];
-		if (!signerInfo.address || signerInfo.address === 'secret') continue;
 		if (assocDefinitionAddresses[signing_path] !== signerInfo.address)
 			return callbacks.ifError("signer address at path " + signing_path + " doesn't match definition");
 	}
