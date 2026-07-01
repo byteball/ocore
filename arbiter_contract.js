@@ -812,7 +812,7 @@ eventBus.on("arbiter_contract_update", function(objContract, field, value) {
 eventBus.on("new_my_transactions", function newtxs(arrNewUnits) {
 	db.query("SELECT hash, outputs.unit FROM wallet_arbiter_contracts\n\
 		JOIN outputs ON outputs.address=wallet_arbiter_contracts.shared_address\n\
-		CROSS JOIN units USING(unit)\n\
+		CROSS JOIN units ON units.unit=outputs.unit\n\
 		WHERE outputs.unit IN (" + arrNewUnits.map(db.escape).join(', ') + ") AND outputs.asset IS wallet_arbiter_contracts.asset AND (wallet_arbiter_contracts.status='signed' OR wallet_arbiter_contracts.status='accepted') AND units.sequence='good'\n\
 		GROUP BY outputs.address\n\
 		HAVING SUM(outputs.amount) >= wallet_arbiter_contracts.amount", function(rows) {
