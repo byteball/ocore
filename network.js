@@ -3645,7 +3645,7 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "address not valid");
 
 			db.query("SELECT definition_chash,is_stable FROM address_definition_changes CROSS JOIN units USING(unit) WHERE address=? AND sequence='good'\n\
-			ORDER BY main_chain_index DESC LIMIT 1",[params.address],function(address_definition_changes){
+			ORDER BY main_chain_index DESC, level DESC LIMIT 1",[params.address],function(address_definition_changes){
 				if (address_definition_changes[0] && address_definition_changes[0].is_stable === 0){
 					return sendResponse(ws, tag, {
 						definition_chash: address_definition_changes[0].definition_chash,

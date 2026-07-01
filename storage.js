@@ -759,7 +759,7 @@ function readDefinitionChashByAddress(conn, address, max_mci, handle){
 	// try to find last definition change, otherwise definition_chash=address
 	conn.query(
 		"SELECT definition_chash FROM address_definition_changes CROSS JOIN units USING(unit) \n\
-		WHERE address=? AND is_stable=1 AND sequence='good' AND main_chain_index<=? ORDER BY main_chain_index DESC LIMIT 1", 
+		WHERE address=? AND is_stable=1 AND sequence='good' AND main_chain_index<=? ORDER BY main_chain_index DESC, level DESC LIMIT 1", 
 		[address, max_mci], 
 		function(rows){
 			var definition_chash = (rows.length > 0) ? rows[0].definition_chash : address;

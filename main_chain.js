@@ -1832,7 +1832,7 @@ async function countVotes(conn, mci, subject, is_emergency = 0, emergency_count_
 
 async function applyEmergencyOpListChange(conn, emergency_count_command_timestamp, cb) {
 	// last stable unit
-	const [{ timestamp, main_chain_index }] = await conn.query("SELECT timestamp, main_chain_index FROM units WHERE is_stable=1 ORDER BY main_chain_index DESC LIMIT 1");
+	const [{ timestamp, main_chain_index }] = await conn.query("SELECT timestamp, main_chain_index FROM units WHERE is_stable=1 AND is_on_main_chain=1 ORDER BY main_chain_index DESC LIMIT 1");
 	if (emergency_count_command_timestamp < timestamp + constants.EMERGENCY_OP_LIST_CHANGE_TIMEOUT) {
 		console.log(`too early to apply emergency OP list change yet`);
 		return cb();
