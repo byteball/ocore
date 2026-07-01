@@ -2700,6 +2700,8 @@ function handleJustsaying(ws, subject, body){
 				if (isTooDeeplyNestedOrHasTooManyNodes(objJoint.unit))
 					return sendError(ws, "unit is too deeply nested or has too many nodes");
 				if (conf.bLight && objJoint.unit.authors && arrTempWatchedAddresses.length > 0) {
+					if (!ValidationUtils.isNonemptyArray(objJoint.unit.authors) || !objJoint.unit.authors.every(ValidationUtils.isNonemptyObject))
+						return sendError(ws, "invalid authors");
 					var author_addresses = objJoint.unit.authors.map(a => a.address);
 					if (_.intersection(author_addresses, arrTempWatchedAddresses).length > 0) {
 						console.log('new joint from a temporarily watched address', author_addresses);
