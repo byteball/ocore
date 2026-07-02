@@ -2049,7 +2049,7 @@ function determineBestParent(conn, objUnit, arrWitnesses, handleBestParent){
 function determineIfHasWitnessListMutationsAlongMc(conn, objUnit, last_ball_unit, arrWitnesses, handleResult){
 	if (!objUnit.parent_units) // genesis
 		return handleResult();
-	if (parseFloat(objUnit.version) >= constants.v4UpgradeMci) // no mutations any more
+	if (parseFloat(objUnit.version) >= constants.fVersion4) // no mutations any more
 		return handleResult();
 	buildListOfMcUnitsWithPotentiallyDifferentWitnesslists(conn, objUnit, last_ball_unit, arrWitnesses, function(bHasBestParent, arrMcUnits){
 		if (!bHasBestParent)
