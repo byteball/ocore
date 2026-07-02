@@ -607,7 +607,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 
 			case 'arbiter_contract_offer':
 				body.peer_device_address = from_address;
-				if (!body.title || !body.text || !body.creation_date || !body.arbiter_address || typeof body.me_is_payer === "undefined" || !body.my_pairing_code || !body.amount || !(body.amount > 0) || !(body.ttl > 0))
+				if (!body.title || !body.text || !body.creation_date || !body.arbiter_address || typeof body.me_is_payer === "undefined" || !body.my_pairing_code || !ValidationUtils.isPositiveInteger(body.amount) || !(body.ttl > 0))
 					return callbacks.ifError("not all contract fields submitted");
 				if (body.status)
 					return callbacks.ifError("status must not be submitted in contract offer");
@@ -647,7 +647,7 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				
 			// to cosigners
 			case 'arbiter_contract_shared':
-				if (!body.title || !body.text || !body.creation_date || !body.arbiter_address || typeof body.me_is_payer === "undefined" || !body.peer_pairing_code || !body.amount || !(body.amount > 0))
+				if (!body.title || !body.text || !body.creation_date || !body.arbiter_address || typeof body.me_is_payer === "undefined" || !body.peer_pairing_code || !ValidationUtils.isPositiveInteger(body.amount))
 					return callbacks.ifError("not all contract fields submitted");
 				if (!ValidationUtils.isValidAddress(body.peer_address) || !ValidationUtils.isValidAddress(body.my_address) || !ValidationUtils.isValidAddress(body.arbiter_address) )
 					return callbacks.ifError("either peer_address or address or arbiter_address or shared_address are not valid in contract");
