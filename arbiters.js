@@ -17,10 +17,14 @@ function getInfo(address, cb) {
 				if (err) {
 					return cb(err);
 				}
+				if (!validationUtils.isNonemptyString(url))
+					return cb("invalid url received from hub");
 				requestInfoFromArbStore(url+'/api/arbiter/'+address, function(err, info){
 					if (err) {
 						return cb(err);
 					}
+					if (!validationUtils.isNonemptyObject(info))
+						return cb("invalid arbiter info received from arbstore");
 					db.query("REPLACE INTO wallet_arbiters (arbiter_address, device_pub_key, real_name) VALUES (?, ?, ?)", [address, info.device_pub_key, info.real_name], function() {cb(null, info);});
 				});
 			});
@@ -57,9 +61,13 @@ function getArbstoreInfo(arbiter_address, cb) {
 		if (err) {
 			return cb(err);
 		}
+		if (!validationUtils.isNonemptyString(url))
+			return cb("invalid url received from hub");
 		requestInfoFromArbStore(url+'/api/get_info', function(err, info){
 			if (err)
 				return cb(err);
+			if (!validationUtils.isNonemptyObject(info))
+				return cb("invalid info received from arbstore");
 			const cut = parseFloat(info.cut);
 			if (!info.address || !validationUtils.isValidAddress(info.address) || isNaN(cut) || cut < 0 || cut >= 1) {
 				return cb("malformed info received from ArbStore");
