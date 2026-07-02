@@ -1631,6 +1631,8 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 						if (ValidationUtils.hasFieldsExcept(signedPackage, ['signed_message', 'last_ball_unit', 'authors', 'version']))
 							return cb(false);
 						if (signedPackage.version) {
+							if (typeof signedPackage.version !== 'string')
+								return cb(false);
 							if (signedPackage.version === constants.versionWithoutTimestamp)
 								return cb(false);
 							const fVersion = parseFloat(signedPackage.version);
