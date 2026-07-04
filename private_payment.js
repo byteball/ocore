@@ -36,6 +36,8 @@ function validateAndSavePrivatePaymentChain(arrPrivateElements, callbacks){
 		storage.readAsset(db, asset, null, function(err, objAsset){
 			if (err)
 				return callbacks.ifError(err);
+			if (objAsset.is_private !== 1)
+				return callbacks.ifError("asset is not private");
 			if (!!objAsset.fixed_denominations !== !!headElement.payload.denomination)
 				return callbacks.ifError("presence of denomination field doesn't match the asset type");
 			db.takeConnectionFromPool(function(conn){
