@@ -167,7 +167,12 @@ function handleJustsaying(ws, subject, body){
 			// end of checks on the open (unencrypted) part of the message. These checks should've been made by the hub before accepting the message
 			
 			// decrypt the message
-			var json = decryptPackage(objDeviceMessage.encrypted_package);
+			try {
+				var json = decryptPackage(objDeviceMessage.encrypted_package);
+			}
+			catch(e){
+				return respondWithError("failed to decrypt: " + e);
+			}
 			if (!json)
 				return respondWithError("failed to decrypt");
 			

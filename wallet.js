@@ -747,7 +747,12 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					return callbacks.ifError("bad service_fee_asset in dispute request");
 				if (![body.my_address, body.peer_address, body.arbiter_address, body.shared_address].every(ValidationUtils.isValidAddress))
 					return callbacks.ifError("bad addresses in dispute request");
-				var contractContent = device.decryptPackage(body.encrypted_contract);
+				try {
+					var contractContent = device.decryptPackage(body.encrypted_contract);
+				}
+				catch (e) {
+					return callbacks.ifError("failed to decrypt contract content: " + e);
+				}
 				if (!contractContent || !contractContent.creation_date || !contractContent.title || !contractContent.text)
 					return callbacks.ifError("wrong contract content");
 				var expectedContractHash = arbiter_contract.getHash({
