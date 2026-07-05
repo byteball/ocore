@@ -145,6 +145,8 @@ function validate(objJoint, callbacks, external_conn) {
 				return callbacks.ifUnitError("bad max_aa_responses");
 			if (objUnit.max_aa_responses > constants.MAX_RESPONSES_PER_PRIMARY_TRIGGER && !(constants.bTestnet && ['pLpKQaXTTgcpFrd8B1zvcw2dLcDAvaUkQuz1fY+ldPA=', 'J/8gMqNqIkq2LIPV7rQNjWk37u16/P7nToV+SSZxMDs='].includes(objUnit.unit)))
 				return callbacks.ifTransientError("max_aa_responses too large"); // later: ifUnitError
+			if (objUnit.max_aa_responses === 0 && !("ball" in objJoint))
+				return callbacks.ifTransientError("max_aa_responses=0 not allowed in new units");
 		}
 		
 		if (!isNonemptyArray(objUnit.messages))
@@ -930,6 +932,8 @@ async function validateAATrigger(conn, objUnit, objValidationState, callback) {
 		objValidationState.count_primary_aa_triggers = 0;
 		return callback();
 	}
+	if (objUnit.max_aa_responses === 0 && objValidationState.last_ball_mci >= constants.pemCurvesFixMci)
+		return callback(`max_aa_responses=0 is not allowed`);
 	let arrOutputAddresses = [];
 	for (let m of objUnit.messages) {
 		if (m.app === 'payment' && m.payload) {
