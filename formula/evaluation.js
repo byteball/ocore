@@ -3320,6 +3320,7 @@ function executeGetterInState(conn, aa_address, getter, args, stateVars, assocBa
 		// remove the trailing null/undefined as these types don't exist in oscript
 		while (args.length && (args[args.length - 1] === null || args[args.length - 1] === undefined))
 			args.length--;
+		args = args.map(replaceNulls);
 		args = args.map(toOscriptType);
 		callGetter(conn, aa_address, getter, args, stateVars, objValidationState, [], '', undefined, (err, res) => {
 			if (err)
