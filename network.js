@@ -3821,6 +3821,8 @@ function handleRequest(ws, tag, command, params){
 					params.args.length--;
 				if (params.args.some(a => a === null))
 					return sendErrorResponse(ws, tag, "args cannot include null");
+				if (isTooDeeplyNestedOrHasTooManyNodes(params.args))
+					return sendErrorResponse(ws, tag, "args are too deeply nested or have too many nodes");
 			}
 			formulaEvaluation.executeGetter(db, params.address, params.getter, params.args || [], function (err, res) {
 				if (err)

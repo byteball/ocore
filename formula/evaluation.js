@@ -1878,19 +1878,19 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 					if (typeof res !== 'string')
 						res = res.toString();
 					try {
-						var json = replaceNulls(JSON.parse(res));
+						var json = JSON.parse(res);
 					}
 					catch (e) {
 						console.log('json_parse failed: ' + e.toString());
 						return cb(false);
 					}
+					if (typeof json === 'object' && string_utils.isTooDeeplyNestedOrHasTooManyNodes(json))
+						return setFatalError("json_parse result is too deeply nested or has too many nodes", { arr }, false, cb);
+					json = replaceNulls(json);
 					if (containsNonFiniteNumber(json))
 						return setFatalError("json_parse result contains non-finite number", { arr }, false, cb);
-					if (typeof json === 'object') {
-						if (string_utils.isTooDeeplyNestedOrHasTooManyNodes(json))
-							return setFatalError("json_parse result is too deeply nested or has too many nodes", { arr }, false, cb);
+					if (typeof json === 'object')
 						return cb(new wrappedObject(json));
-					}
 					if (typeof json === 'number')
 						return evaluate(createDecimal(json), cb);
 					if (typeof json === 'string' || typeof json === 'boolean')
