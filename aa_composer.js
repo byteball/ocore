@@ -18,6 +18,7 @@ var eventBus = require('./event_bus.js');
 var mutex = require('./mutex.js');
 var writer = require('./writer.js');
 var conf = require('./conf.js');
+var aa_validation = require("./aa_validation.js");
 
 var getFormula = require('./formula/common.js').getFormula;
 var hasCases = require('./formula/common.js').hasCases;
@@ -1176,6 +1177,8 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 				return bounce("unknown fields in message");
 			if (typeof message.app !== 'string')
 				return bounce("app must be a string");
+			if (!aa_validation.aaApps.includes(message.app))
+				return bounce("unsupported app: " + message.app);
 			if (message.app !== 'payment')
 				continue;
 			var payload = message.payload;
