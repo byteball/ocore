@@ -1179,6 +1179,8 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 				return bounce("app must be a string");
 			if (!aa_validation.aaApps.includes(message.app))
 				return bounce("unsupported app: " + message.app);
+			if (!['string', 'object'].includes(typeof message.payload) || message.payload === null)
+				return bounce("payload must be string or object");
 			if (message.app !== 'payment')
 				continue;
 			var payload = message.payload;
