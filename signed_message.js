@@ -114,11 +114,17 @@ function signMessage(message, from_address, signer, bNetworkAware, handleResult)
 
 
 
-function validateSignedMessage(conn, objSignedMessage, address, handleResult) {
+function validateSignedMessage(conn, objSignedMessage, address, max_complexity, handleResult) {
 	if (!handleResult) {
-		handleResult = objSignedMessage;
-		objSignedMessage = conn;
-		conn = db;
+		if (max_complexity) { // validateSignedMessage(conn, objSignedMessage, address, handleResult)
+			handleResult = max_complexity;
+			max_complexity = undefined;
+		}
+		else { // validateSignedMessage(objSignedMessage, handleResult)
+			handleResult = objSignedMessage;
+			objSignedMessage = conn;
+			conn = db;
+		}
 	}
 	if (!ValidationUtils.isNonemptyObject(objSignedMessage))
 		return handleResult("signed message must be a non-empty object");
@@ -245,6 +251,7 @@ function validateSignedMessage(conn, objSignedMessage, address, handleResult) {
 	}
 
 	let last_ball_mci;
+	let complexity = 0;
 	async.eachSeries(
 		authors,
 		function (objAuthor, cb) {
@@ -257,7 +264,9 @@ function validateSignedMessage(conn, objSignedMessage, address, handleResult) {
 						unit_hash_to_sign: objectHash.getSignedPackageHashToSign(objSignedMessage),
 						last_ball_mci: last_ball_mci,
 						last_ball_timestamp: last_ball_timestamp,
-						bNoReferences: !bNetworkAware
+						bNoReferences: !bNetworkAware,
+						complexity,
+						max_complexity,
 					};
 				}
 				catch (e) {
@@ -272,6 +281,7 @@ function validateSignedMessage(conn, objSignedMessage, address, handleResult) {
 								return cb(err);
 							if (!res) // wrong signature or the like
 								return cb("authentifier verification failed");
+							complexity = objValidationState.complexity;
 							cb();
 						}
 					);

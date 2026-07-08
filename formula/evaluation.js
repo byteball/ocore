@@ -1645,7 +1645,8 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 							if (!row || row.main_chain_index > mci) // not existing or not stable last ball unit
 								return cb(false);
 						}
-						signed_message.validateSignedMessage(conn, signedPackage, evaluated_address, function (err, last_ball_mci) {
+						const max_complexity = mci >= constants.pemCurvesFixMci ? 10 : 0;
+						signed_message.validateSignedMessage(conn, signedPackage, evaluated_address, max_complexity, function (err, last_ball_mci) {
 							if (err)
 								return cb(false);
 							if (last_ball_mci === null || last_ball_mci > mci)

@@ -105,6 +105,8 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 			return cb("complexity exceeded at "+path);
 		if (count_ops > constants.MAX_OPS)
 			return cb("number of ops exceeded at "+path);
+		if (objValidationState.max_complexity && objValidationState.complexity + complexity > objValidationState.max_complexity)
+			return cb(`custom complexity limit ${objValidationState.max_complexity} exceeded at ${path}`);
 		if (!isArrayOfLength(arr, 2))
 			return cb("expression must be 2-element array");
 		var op = arr[0];
@@ -603,6 +605,11 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 			return handleResult("complexity exceeded");
 		if (count_ops > constants.MAX_OPS)
 			return handleResult("number of ops exceeded");
+		if (objValidationState.max_complexity) {
+			objValidationState.complexity += complexity;
+			if (objValidationState.complexity > objValidationState.max_complexity)
+				return handleResult(`custom complexity limit ${objValidationState.max_complexity} exceeded`);
+		}
 		handleResult();
 	});
 }
