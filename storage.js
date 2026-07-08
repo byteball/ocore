@@ -1187,6 +1187,7 @@ function getFinalTps(objUnitProps) {
 				if (parentProps.bAA) // counted elsewhere in count_aa_responses
 					continue;
 				count++;
+				// count all AA responses, including those that didn't send a response unit
 				if (parentProps.count_aa_responses)
 					count += parentProps.count_aa_responses;
 				visited[parent_unit] = 1 + (parentProps.count_aa_responses || 0);
