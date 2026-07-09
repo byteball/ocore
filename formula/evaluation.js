@@ -1615,6 +1615,11 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 				break;
 
 			case 'is_valid_signed_package':
+				if (!objValidationState.count_signed_packages)
+					objValidationState.count_signed_packages = 0;
+				if (objValidationState.count_signed_packages >= constants.MAX_SIGNED_PACKAGES_PER_AA_EVAL && mci >= constants.pemCurvesFixMci)
+					return setFatalError("too many signed packages in evaluation", { arr }, false, cb);
+				objValidationState.count_signed_packages++;
 				var signed_package_expr = arr[1];
 				var address_expr = arr[2];
 				evaluate(address_expr, function (evaluated_address) {

@@ -2,6 +2,7 @@ var shell = require('child_process').execSync;
 var path = require('path');
 var crypto = require('crypto');
 var Mnemonic = require('bitcore-mnemonic');
+var _ = require('lodash');
 
 var constants = require("../constants.js");
 constants.aa2UpgradeMci = 0;
@@ -50,7 +51,7 @@ function evalFormula(conn, formula, messages, objValidationState, address, callb
 			conn: conn,
 			formula: formula,
 			messages: messages,
-			objValidationState: objValidationState,
+			objValidationState: _.clone(objValidationState),
 			address: address
 		};
 		formulaParser.evaluate(opts, [], '', function (err, eval_res) {
@@ -75,7 +76,7 @@ function evalAAFormula(conn, formula, trigger, objValidationState, address, call
 			conn: conn,
 			formula: formula,
 			trigger: trigger,
-			objValidationState: objValidationState,
+			objValidationState: _.clone(objValidationState),
 			address: address
 		};
 		formulaParser.evaluate(opts, [], '', function (err, eval_res) {
@@ -111,6 +112,7 @@ function evalFormulaWithVars(opts, callback) {
 			console.log('test: complexity exceeded: ' + validation_res.complexity);
 			return callback(null, validation_res.complexity);
 		}
+		opts.objValidationState = _.clone(opts.objValidationState);
 		formulaParser.evaluate(opts, [], '', function (err, eval_res) {
 			if (err)
 				console.log("evaluation error: ", err);
