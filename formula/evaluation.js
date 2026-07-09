@@ -3226,12 +3226,12 @@ function callGetter(conn, aa_address, getter, args, stateVars, objValidationStat
 	}
 
 	// no need to cloneDeep, we need to rewrite only storage size, assocBalances cache can be updated by reference
-	objValidationState = _.clone(objValidationState);
+	let objGetterValidationState = _.clone(objValidationState);
 	storage.readBaseAADefinitionAndParams(conn, aa_address, objValidationState.last_ball_mci, function (arrBaseDefinition, params, storage_size) {
 		if (!arrBaseDefinition)
 			return cb("remote AA not found: " + aa_address);
 		// rewrite storage size with the storage size of the AA being called
-		objValidationState.storage_size = storage_size;
+		objGetterValidationState.storage_size = storage_size;
 		var f = getFormula(arrBaseDefinition[1].getters);
 		const caller_aa = callerInfo && callerInfo.caller_aa;
 		const call_line = callerInfo && callerInfo.call_line;
@@ -3248,7 +3248,7 @@ function callGetter(conn, aa_address, getter, args, stateVars, objValidationStat
 			stateVars: stateVars,
 			responseVars: null,
 			bStatementsOnly: true,
-			objValidationState: objValidationState,
+			objValidationState: objGetterValidationState,
 			address: aa_address
 		};
 		exports.evaluate(opts, astTrace, xpath, function (err, res) {
@@ -3278,7 +3278,7 @@ function callGetter(conn, aa_address, getter, args, stateVars, objValidationStat
 				stateVars: stateVars,
 				responseVars: null,
 				bObjectResultAllowed: true,
-				objValidationState: objValidationState,
+				objValidationState: objGetterValidationState,
 				address: aa_address
 			};
 			exports.evaluate(call_opts, astTrace, xpath, function (err, res) {
@@ -3292,6 +3292,7 @@ function callGetter(conn, aa_address, getter, args, stateVars, objValidationStat
 					if (f !== null)
 						res = f;
 				}
+				objValidationState.count_signed_packages = objGetterValidationState.count_signed_packages;
 				cb(null, toOscriptType(res));
 			});
 		});
