@@ -50,6 +50,33 @@ function hasValidHashes(objJoint){
 	return true;
 }
 
+function hasValidPayloadHashes(objJoint) {
+	try {
+		if (!objJoint.unit.messages) return true; // final-bad
+		for (let m of objJoint.unit.messages) {
+			if (m.payload_location !== "inline") continue;
+			const expected_payload_hash = objectHash.getBase64Hash(getPayloadForHash(m), objJoint.unit.version !== constants.versionWithoutTimestamp);
+			if (expected_payload_hash !== m.payload_hash)
+				return false;
+			if (m.app === "temp_data" && "data" in m.payload) {
+				const hash = objectHash.getBase64Hash(m.payload.data, true);
+				if (hash !== m.payload.data_hash)
+					return false;
+			}
+		}
+	}
+	catch (e) {
+		console.log("failed to calc payload hash: " + e);
+		return false;
+	}
+	return true;
+}
+
+function allHashesAreValid(objJoint) {
+	return hasValidHashes(objJoint) && hasValidPayloadHashes(objJoint);
+}
+
+
 function getPayloadForHash(objMessage) {
 	if (objMessage.app !== "temp_data")
 		return objMessage.payload;
@@ -2827,6 +2854,7 @@ function validateSignedMessageSync(objSignedMessage){
 
 exports.validate = validate;
 exports.hasValidHashes = hasValidHashes;
+exports.allHashesAreValid = allHashesAreValid;
 exports.validateAuthorSignaturesWithoutReferences = validateAuthorSignaturesWithoutReferences;
 exports.validatePayment = validatePayment;
 exports.initPrivatePaymentValidationState = initPrivatePaymentValidationState;

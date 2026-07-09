@@ -240,7 +240,7 @@ function processHistory(objResponse, arrWitnesses, callbacks){
 					var objUnit = objJoint.unit;
 					//if (!objJoint.ball)
 					//    return callbacks.ifError("stable but no ball");
-					if (!validation.hasValidHashes(objJoint))
+					if (!validation.allHashesAreValid(objJoint))
 						return callbacks.ifError("invalid hash");
 					if (!ValidationUtils.isPositiveInteger(objUnit.timestamp))
 						return callbacks.ifError("no timestamp");
