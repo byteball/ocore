@@ -1772,6 +1772,9 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 					return bounce('received ' + asset + ' is not enough to cover bounce fees');
 				}
 			}
+			// skip this check for dry-run which uses genesis unit as trigger unit
+			if (trigger.unit !== constants.GENESIS_UNIT && storage.assocStableUnits[trigger.unit].count_aa_responses && mci >= constants.pemCurvesFixMci)
+				return bounce('a second primary trigger from the same unit is not allowed');
 		}
 
 		evaluateAA(arrDefinition, function (err) {

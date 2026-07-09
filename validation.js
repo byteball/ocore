@@ -956,6 +956,12 @@ async function validateAATrigger(conn, objUnit, objValidationState, callback) {
 		return callback();
 	}
 	objValidationState.count_primary_aa_triggers = rows.length;
+	if (objValidationState.count_primary_aa_triggers > 1) {
+		if (objValidationState.last_ball_mci >= constants.pemCurvesFixMci)
+			return callback(`more than 1 primary AA trigger (${objValidationState.count_primary_aa_triggers})`);
+		if (storage.getMinRetrievableMci() > constants.pemCurvesFixMci)
+			return callback(createTransientError(`more than 1 primary AA trigger (${objValidationState.count_primary_aa_triggers})`));
+	}
 	callback();
 }
 

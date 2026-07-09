@@ -660,6 +660,7 @@ test.cb.serial('compose simple AA', t => {
 		witness_list_unit: 'oj8yEksX9Ubq7lLc+p6F2uyHUuynugeVq4+ikT67X6E=',
 		timestamp: 1.5e9+100,
 	};
+	storage.assocStableUnits[objMcUnit.unit] = {};
 	var trigger = { address: 'TU3Q44S6H2WXTGQO6BZAGWFKKJCF7Q3W', outputs: { base: 40000 }, data: { x: 333 }, unit: objMcUnit.unit };
 	var arrResponseUnits = [];
 	var aa = ['autonomous agent', {
@@ -714,6 +715,7 @@ test.cb.serial('compose complex AA', t => {
 		witness_list_unit: 'oj8yEksX9Ubq7lLc+p6F2uyHUuynugeVq4+ikT67X6E=',
 		timestamp: 1.5e9+100,
 	};
+	storage.assocStableUnits[objMcUnit.unit] = {};
 	var trigger = { address: 'TU3Q44S6H2WXTGQO6BZAGWFKKJCF7Q3W', outputs: { base: 40000 }, data: { x: 333 }, unit: objMcUnit.unit };
 	var arrResponseUnits = [];
 	var aa = ['autonomous agent', {
@@ -821,6 +823,7 @@ test.cb.serial('variable reassignment', t => {
 		witness_list_unit: 'oj8yEksX9Ubq7lLc+p6F2uyHUuynugeVq4+ikT67X6E=',
 		timestamp: 1.5e9+100,
 	};
+	storage.assocStableUnits[objMcUnit.unit] = {};
 	var trigger = { address: 'TU3Q44S6H2WXTGQO6BZAGWFKKJCF7Q3W', outputs: { base: 40000 }, data: { x: 333 }, unit: objMcUnit.unit };
 	var arrResponseUnits = [];
 	var aa = ['autonomous agent', {
@@ -892,6 +895,7 @@ test.cb.serial('no messages', t => {
 		witness_list_unit: 'oj8yEksX9Ubq7lLc+p6F2uyHUuynugeVq4+ikT67X6E=',
 		timestamp: 1.5e9+100,
 	};
+	storage.assocStableUnits[objMcUnit.unit] = {};
 	var trigger = { address: 'TU3Q44S6H2WXTGQO6BZAGWFKKJCF7Q3W', outputs: { base: 40000 }, data: { x: 333 }, unit: objMcUnit.unit };
 	var arrResponseUnits = [];
 	var aa = ['autonomous agent', {
@@ -949,6 +953,7 @@ test.cb.serial('no outputs', t => {
 		witness_list_unit: 'oj8yEksX9Ubq7lLc+p6F2uyHUuynugeVq4+ikT67X6E=',
 		timestamp: 1.5e9+100,
 	};
+	storage.assocStableUnits[objMcUnit.unit] = {};
 	var trigger = { address: 'TU3Q44S6H2WXTGQO6BZAGWFKKJCF7Q3W', outputs: { base: 40000 }, data: { x: 333 }, unit: objMcUnit.unit };
 	var arrResponseUnits = [];
 	var aa = ['autonomous agent', {
@@ -1002,6 +1007,7 @@ test.cb.serial('only 0 output', t => {
 		witness_list_unit: 'oj8yEksX9Ubq7lLc+p6F2uyHUuynugeVq4+ikT67X6E=',
 		timestamp: 1.5e9+100,
 	};
+	storage.assocStableUnits[objMcUnit.unit] = {};
 	var trigger = { address: 'TU3Q44S6H2WXTGQO6BZAGWFKKJCF7Q3W', outputs: { base: 40000 }, data: { x: 333 }, unit: objMcUnit.unit};
 	var arrResponseUnits = [];
 	var aa = ['autonomous agent', {
@@ -1055,6 +1061,7 @@ test.cb.serial('AA with response vars', t => {
 		witness_list_unit: 'oj8yEksX9Ubq7lLc+p6F2uyHUuynugeVq4+ikT67X6E=',
 		timestamp: 1.5e9+100,
 	};
+	storage.assocStableUnits[objMcUnit.unit] = {};
 	var trigger = { address: 'TU3Q44S6H2WXTGQO6BZAGWFKKJCF7Q3W', outputs: { base: 40000 }, data: { x: 333 }, unit: objMcUnit.unit };
 	var arrResponseUnits = [];
 	var aa = ['autonomous agent', {
@@ -1110,6 +1117,7 @@ test.cb.serial('Attempt to replace __proto__ using object concatenation', t => {
 		witness_list_unit: 'oj8yEksX9Ubq7lLc+p6F2uyHUuynugeVq4+ikT67X6E=',
 		timestamp: 1.5e9+100,
 	};
+	storage.assocStableUnits[objMcUnit.unit] = {};
 	var trigger = {
 		address: 'TU3Q44S6H2WXTGQO6BZAGWFKKJCF7Q3W',
 		outputs: { base: 40000 },
