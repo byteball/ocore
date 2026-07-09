@@ -323,7 +323,7 @@ function forwardNewSharedAddressToCosignersOfMyMemberAddresses(address, arrDefin
 	}
 	var arrMyMemberAddresses = Object.keys(assocMyMemberAddresses);
 	if (arrMyMemberAddresses.length === 0)
-		throw Error("my member addresses not found");
+		return console.log("forwardNewSharedAddressToCosignersOfMyMemberAddresses: my member addresses not found for shared address " + address, arrDefinition, assocSignersByPath);
 	db.query(
 		"SELECT DISTINCT device_address FROM my_addresses JOIN wallet_signing_paths USING(wallet) WHERE address IN(?) AND device_address!=?", 
 		[arrMyMemberAddresses, device.getMyDeviceAddress()],
