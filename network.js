@@ -1215,6 +1215,7 @@ function handlePostedJoint(ws, objJoint, onDone){
 			onDone("need hash tree");
 		},
 		ifNeedParentUnits: function(arrMissingUnits){
+			delete assocUnitsInWork[unit];
 			onDone("unknown parents");
 		},
 		ifOk: function(){
