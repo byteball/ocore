@@ -2687,6 +2687,8 @@ function validateAssetDefinition(conn, payload, objUnit, objValidationState, cal
 	var err;
 	if ( payload.spender_attested && (err=checkAttestorList(payload.attestors)) )
 		return callback(err);
+	if (!payload.spender_attested && "attestors" in payload && (objValidationState.last_ball_mci >= constants.pemCurvesFixMci || !objValidationState.hasBall && storage.getMinRetrievableMci() >= constants.pemCurvesFixMci))
+		return callback("attestors should not be defined when spender_attested is false");
 
 	// denominations
 	if (payload.fixed_denominations && !isNonemptyArray(payload.denominations))
