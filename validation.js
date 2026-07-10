@@ -2802,6 +2802,8 @@ function checkAttestorList(arrAttestors){
 
 
 function validateAuthorSignaturesWithoutReferences(objAuthor, objUnit, arrAddressDefinition, callback){
+	if (!isNonemptyObject(objAuthor.authentifiers))
+		return callback("no authentifiers");
 	try {
 		var unit_hash_to_sign = objectHash.getUnitHashToSign(objUnit);
 	}
