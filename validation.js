@@ -1765,6 +1765,9 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 			return callback();
 			
 		case "vote":
+			if (objValidationState.bHasVote && (objValidationState.last_ball_mci >= constants.pemCurvesFixMci || !objValidationState.hasBall && storage.getMinRetrievableMci() >= constants.pemCurvesFixMci))
+				return callback("can be only one vote");
+			objValidationState.bHasVote = true;
 			if (!isNonemptyObject(payload))
 				return callback("payload must be a non empty object");
 			if (!isStringOfLength(payload.unit, constants.HASH_LENGTH))
