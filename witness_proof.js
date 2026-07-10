@@ -216,8 +216,10 @@ function processWitnessProof(arrUnstableMcJoints, arrWitnessChangeAndDefinitionJ
 			var objUnit = objJoint.unit;
 			if (!objJoint.ball)
 				return handleResult("witness_change_and_definition_joints: joint without ball");
-			if (!validation.hasValidHashes(objJoint))
+			if (!validation.allHashesAreValid(objJoint)) // we later inspect messages to find definition changes, so we need to check payload hashes too
 				return handleResult("witness_change_and_definition_joints: invalid hash");
+			if (!Array.isArray(objUnit.messages) || !objUnit.messages.every(ValidationUtils.isNonemptyObject))
+				return handleResult("witness_change_and_definition_joints: stripped unit not allowed");
 			var bAuthoredByWitness = false;
 			for (var j = 0; j < objUnit.authors.length; j++) {
 				var address = objUnit.authors[j].address;
@@ -266,6 +268,8 @@ function processWitnessProof(arrUnstableMcJoints, arrWitnessChangeAndDefinitionJ
 					validation.validateAuthorSignaturesWithoutReferences(author, objUnit, assocDefinitions[definition_chash], function(err){
 						if (err)
 							return cb3(err);
+						if (!bRequireDefinitionOrChange) // ignore definitions changes in unstable units
+							return cb3();
 						for (var i=0; i<objUnit.messages.length; i++){
 							var message = objUnit.messages[i];
 							if (message.app === 'address_definition_change' && message.payload
