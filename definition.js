@@ -45,6 +45,8 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 	function getFilterError(filter){
 		if (!filter)
 			return "no filter";
+		if (!isNonemptyObject(filter))
+			return "filter must be a non-empty object";
 		if (hasFieldsExcept(filter, ["what", "asset", "type", "address", "amount", "amount_at_least", "amount_at_most"]))
 			return "unknown fields in filter";
 		if (filter.what !== "input" && filter.what !== "output")
@@ -143,6 +145,8 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 				break;
 				
 			case 'r of set':
+				if (!isNonemptyObject(args))
+					return cb(op + " args must be a non-empty object");
 				if (hasFieldsExcept(args, ["required", "set"]))
 					return cb("unknown fields in "+op);
 				if (!isPositiveInteger(args.required))
@@ -181,6 +185,8 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 				break;
 				
 			case 'weighted and':
+				if (!isNonemptyObject(args))
+					return cb(op + " args must be a non-empty object");
 				if (hasFieldsExcept(args, ["required", "set"]))
 					return cb("unknown fields in "+op);
 				if (!isPositiveInteger(args.required))
@@ -198,6 +204,8 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 					args.set,
 					function(arg, cb2){
 						index++;
+						if (!isNonemptyObject(arg))
+							return cb2("weighted set element must be a non-empty object");
 						if (hasFieldsExcept(arg, ["value", "weight"]))
 							return cb2("unknown fields in weighted set element");
 						if (!isPositiveInteger(arg.weight))
@@ -229,6 +237,8 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 					return cb(op+" cannot be negated");
 				if (bAssetCondition)
 					return cb("asset condition cannot have "+op);
+				if (!isNonemptyObject(args))
+					return cb(op + " args must be a non-empty object");
 				if (hasFieldsExcept(args, ["algo", "pubkey"]))
 					return cb("unknown fields in "+op);
 				if (args.algo === "secp256k1")
@@ -244,6 +254,8 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 					return cb(op+" cannot be negated");
 				if (bAssetCondition)
 					return cb("asset condition cannot have "+op);
+				if (!isNonemptyObject(args))
+					return cb(op + " args must be a non-empty object");
 				if (hasFieldsExcept(args, ["algo", "hash"]))
 					return cb("unknown fields in "+op);
 				if (args.algo === "sha256")
@@ -468,6 +480,8 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 			case 'mci':
 			case 'age':
 			case 'timestamp':
+				if (!isArrayOfLength(args, 2) && (objValidationState.last_ball_mci >= constants.pemCurvesFixMci || !objValidationState.hasBall && storage.getMinRetrievableMci() >= constants.pemCurvesFixMci))
+					return cb(op + " must have 2 args");
 				var relation = args[0];
 				var value = args[1];
 				if (!isNonemptyString(relation))
@@ -509,6 +523,8 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 			case 'has one equal':
 				if (objValidationState.bNoReferences)
 					return cb("no references allowed in address definition");
+				if (!isNonemptyObject(args))
+					return cb(op + " args must be a non-empty object");
 				if (hasFieldsExcept(args, ["equal_fields", "search_criteria"]))
 					return cb("unknown fields in "+op);
 				
@@ -549,6 +565,8 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 			case 'sum':
 				if (objValidationState.bNoReferences)
 					return cb("no references allowed in address definition");
+				if (!isNonemptyObject(args))
+					return cb(op + " args must be a non-empty object");
 				if (hasFieldsExcept(args, ["filter", "equals", "at_least", "at_most"]))
 					return cb("unknown fields in "+op);
 				var err = getFilterError(args.filter);
@@ -572,9 +590,12 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 					bPrivate ? cb("asset must be public") : cb();
 				});
 				break;
+			
 			case 'formula':
 				if (objValidationState.last_ball_mci < constants.formulaUpgradeMci)
 					return cb("formulas not allowed at this mci yet");
+				if (!isNonemptyString(args))
+					return cb("formula must be a non-empty string");
 				formulaParser.validate({
 					formula: args,
 					complexity,
@@ -589,6 +610,7 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 					cb(result.error);
 				});
 				break;
+			
 			default:
 				return cb("unknown op: "+op);
 		}
