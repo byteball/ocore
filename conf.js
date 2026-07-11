@@ -64,6 +64,7 @@ exports.bIgnoreUnpairRequests = false;
 var bCordova = (typeof window === 'object' && window && window.cordova);
 
 // storage engine: mysql or sqlite
+// mysql is not currently supported
 exports.storage = 'sqlite';
 if (bCordova) {
 	exports.storage = 'sqlite';
