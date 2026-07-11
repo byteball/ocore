@@ -788,6 +788,8 @@ exports.validate = function (opts, callback) {
 				break;
 	
 			case 'is_valid_signed_package':
+				if (!bAA && (mci >= constants.pemCurvesFixMci || require('../storage.js').getMinRetrievableMci() >= constants.pemCurvesFixMci)) // sign transactions instead, otherwise signer definition can call is_valid_signed_package again
+					return cb(op + ' in non-AA');
 				complexity++;
 				var signed_package_expr = arr[1];
 				var address_expr = arr[2];
