@@ -659,6 +659,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 				var params = arr[1];
 				var evaluated_params = {};
 				async.eachSeries(
+					// here and below, the order of keys is standardized since ECMAScript 2020
 					Object.keys(params),
 					function(param_name, cb2){
 						evaluate(params[param_name].value, function(res){

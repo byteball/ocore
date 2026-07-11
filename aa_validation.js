@@ -690,7 +690,7 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 		}
 		else if (isNonemptyObject(value)) {
 			async.eachSeries(
-				Object.keys(value),
+				Object.keys(value).sort(),
 				function (key, cb2) {
 					validate(value, key, path + '/' + key, _.cloneDeep(locals), depth + 1, cb2);
 				},

@@ -828,7 +828,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 		}
 		else if (isNonemptyObject(value)) {
 			async.eachSeries(
-				Object.keys(value),
+				Object.keys(value).sort(),
 				function (key, cb2) {
 					replace(value, key, path + '/' + key, _.clone(locals), xpath, cb2);
 				},
@@ -906,6 +906,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 		if ((trigger.outputs.base || 0) < bounce_fees.base)
 			return finish(null);
 		var messages = [];
+		// iteration order is standardized since ECMAScript 2020
 		for (var asset in trigger.outputs) {
 			var amount = trigger.outputs[asset];
 			var fee = bounce_fees[asset] || 0;
