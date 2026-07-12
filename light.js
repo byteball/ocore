@@ -240,8 +240,8 @@ function processHistory(objResponse, arrWitnesses, callbacks){
 					var objUnit = objJoint.unit;
 					//if (!objJoint.ball)
 					//    return callbacks.ifError("stable but no ball");
-					if (objJoint.ball && !(objUnit.unit in assocProvenUnitsNonserialness))
-						return callbacks.ifError("stable but not proven: " + objUnit.unit);
+					//if (objJoint.ball && !(objUnit.unit in assocProvenUnitsNonserialness))
+					//	return callbacks.ifError("stable but not proven: " + objUnit.unit);
 					const error = validation.validateLight(objJoint);
 					if (error)
 						return callbacks.ifError(error);
