@@ -144,7 +144,7 @@ function validate(objJoint, callbacks, external_conn) {
 		return bAA ? callbacks.ifUnitError("unit is too deeply nested") : callbacks.ifJointError("unit is too deeply nested");
 
 	if (!isObjectWellFormed(objJoint))
-		return bAA ? callbacks.ifUnitError("unit contains invalid UTF-16") : callbacks.ifJointError("unit contains invalid UTF-16");
+		return bAA ? callbacks.ifUnitError("unit contains invalid string (lone surrogate or null byte)") : callbacks.ifJointError("unit contains invalid string (lone surrogate or null byte)");
 
 	if (objJoint.unsigned){
 		if (hasFieldsExcept(objJoint, ["unit", "unsigned"]))
