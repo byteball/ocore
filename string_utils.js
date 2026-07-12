@@ -257,6 +257,22 @@ function isTooDeeplyNestedOrHasTooManyNodes(obj, depthLimit = 100, nodesLimit = 
 	return check(obj, 1);
 }
 
+// returns an object with sorted keys, for deterministic processing later
+function sortObject(obj) {
+	if (typeof obj !== 'object' || obj === null || Array.isArray(obj))
+		return obj;
+
+	return Object.fromEntries(
+		Object.entries(obj)
+			.sort((a, b) => {
+				if (a[0] < b[0]) return -1;
+				if (a[0] > b[0]) return 1;
+				return 0;
+			})
+			.map(([key, value]) => [key, sortObject(value)])
+	);
+}
+
 
 exports.STRING_JOIN_CHAR = STRING_JOIN_CHAR; // for tests
 exports.getSourceString = getSourceString;
@@ -270,5 +286,5 @@ exports.encodeDoubleInLexicograpicOrder = encodeDoubleInLexicograpicOrder;
 exports.decodeLexicographicToDouble = decodeLexicographicToDouble;
 exports.getJsonSourceString = getJsonSourceString;
 exports.isTooDeeplyNestedOrHasTooManyNodes = isTooDeeplyNestedOrHasTooManyNodes;
-
+exports.sortObject = sortObject;
 

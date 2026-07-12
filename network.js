@@ -22,7 +22,7 @@ var catchup = require('./catchup.js');
 var privatePayment = require('./private_payment.js');
 var objectHash = require('./object_hash.js');
 var objectLength = require('./object_length.js');
-const { isTooDeeplyNestedOrHasTooManyNodes } = require("./string_utils.js");
+const { isTooDeeplyNestedOrHasTooManyNodes, sortObject } = require("./string_utils.js");
 var ecdsaSig = require('./signature.js');
 var eventBus = require('./event_bus.js');
 var light = require('./light.js');
@@ -1197,6 +1197,7 @@ function handlePostedJoint(ws, objJoint, onDone){
 	var unit = objJoint.unit.unit;
 	delete objJoint.unit.main_chain_index;
 	delete objJoint.unit.actual_tps_fee;
+	objJoint = sortObject(objJoint);
 	
 	handleJoint(ws, objJoint, false, true, {
 		ifUnitInWork: function(){
@@ -1254,6 +1255,7 @@ function handleOnlineJoint(ws, objJoint, onDone){
 	var unit = objJoint.unit.unit;
 	delete objJoint.unit.main_chain_index;
 	delete objJoint.unit.actual_tps_fee;
+	objJoint = sortObject(objJoint);
 	
 	handleJoint(ws, objJoint, false, false, {
 		ifUnitInWork: onDone,
