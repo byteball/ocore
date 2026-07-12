@@ -957,6 +957,8 @@ function handleResponseToJointRequest(ws, request, response){
 		delete objJoint.ball;
 		delete objJoint.skiplist_units;
 	}
+	if (isTooDeeplyNestedOrHasTooManyNodes(objJoint.unit))
+		return sendError(ws, "unit is too deeply nested or has too many nodes");
 	conf.bLight ? handleLightOnlineJoint(ws, objJoint) : handleOnlineJoint(ws, objJoint);
 }
 
