@@ -136,7 +136,7 @@ function validate(objJoint, callbacks, external_conn) {
 		delete objJoint.aa_mci;
 	}
 	else {
-		if (isArrayOfLength(objUnit.authors, 1) && !isNonemptyObject(objUnit.authors[0].authentifiers) && !objUnit.content_hash)
+		if (isArrayOfLength(objUnit.authors, 1) && !isNonemptyObject(objUnit.authors[0].authentifiers) && !objUnit.content_hash && !conf.bLight)
 			return callbacks.ifTransientError("possible AA");
 	}
 	
