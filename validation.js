@@ -89,8 +89,12 @@ const lightStableErrorMessage = "I'm light, can't accept stable unit without pro
 
 function validateLight(objJoint) {
 	if (!conf.bLight) throw Error("validateLightUnstable called in non-light mode");
+	let objJointCopy = { ...objJoint };
+	objJointCopy.unit = { ...objJoint.unit };
+	delete objJointCopy.unit.main_chain_index;
+	delete objJointCopy.unit.actual_tps_fee;
 	let error;
-	validate(objJoint, {
+	validate(objJointCopy, {
 		// all callbacks are called synchronously, so we can just assign the error and return it
 		ifOk: () => {},
 		ifUnitError: err => error = err,
