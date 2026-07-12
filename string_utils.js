@@ -301,7 +301,7 @@ function sortObject(obj) {
 
 function isObjectWellFormed(obj) {
 	if (typeof obj !== 'object' || obj === null)
-		return typeof obj === 'string' ? obj.isWellFormed() : true;
+		return typeof obj === 'string' ? obj.isWellFormed() && obj.indexOf('\0') === -1 : true;
 
 	if (Array.isArray(obj)) {
 		// for-loop is faster than .every
@@ -313,7 +313,7 @@ function isObjectWellFormed(obj) {
 
 	for (const key in obj) {
 		if (Object.hasOwn(obj, key)) {
-			if (!key.isWellFormed()) return false;
+			if (!key.isWellFormed() || key.indexOf('\0') >= 0) return false;
 			if (!isObjectWellFormed(obj[key])) return false;
 		}
 	}
