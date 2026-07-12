@@ -182,6 +182,32 @@ if (!String.prototype.padStart) {
 	};
 }
 
+// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/isWellFormed
+// Added in Node.js v20 / V8 v11.2. For older runtimes, a fast charCodeAt loop is used
+// (avoids regex engine overhead and exits at the first lone surrogate found).
+if (!String.prototype.isWellFormed) {
+	Object.defineProperty(String.prototype, 'isWellFormed', {
+		value: function isWellFormed() {
+			for (let i = 0; i < this.length; i++) {
+				const code = this.charCodeAt(i);
+				if (code >= 0xD800 && code <= 0xDBFF) {          // high surrogate
+					const next = this.charCodeAt(i + 1); // NaN if out of bounds
+					if (next >= 0xDC00 && next <= 0xDFFF)
+						i++;                                       // valid pair — skip low surrogate
+					else
+						return false;                              // lone high surrogate
+				}
+				else if (code >= 0xDC00 && code <= 0xDFFF)   // lone low surrogate
+					return false;
+			}
+			return true;
+		},
+		writable: true,
+		configurable: true,
+		enumerable: false,
+	});
+}
+
 // node 12+ implements well-formed JSON.stringify(), earlier versions could generate invalid UTF
 // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify#Well-formed_JSON.stringify()
 var bWellFormedJsonStringify = (JSON.stringify("\uD800") === '"\\ud800"');
@@ -273,6 +299,27 @@ function sortObject(obj) {
 	);
 }
 
+function isObjectWellFormed(obj) {
+	if (typeof obj !== 'object' || obj === null)
+		return typeof obj === 'string' ? obj.isWellFormed() : true;
+
+	if (Array.isArray(obj)) {
+		// for-loop is faster than .every
+		for (let i = 0; i < obj.length; i++) {
+			if (!isObjectWellFormed(obj[i])) return false;
+		}
+		return true;
+	}
+
+	for (const key in obj) {
+		if (Object.hasOwn(obj, key)) {
+			if (!key.isWellFormed()) return false;
+			if (!isObjectWellFormed(obj[key])) return false;
+		}
+	}
+
+	return true;
+}
 
 exports.STRING_JOIN_CHAR = STRING_JOIN_CHAR; // for tests
 exports.getSourceString = getSourceString;
@@ -287,4 +334,4 @@ exports.decodeLexicographicToDouble = decodeLexicographicToDouble;
 exports.getJsonSourceString = getJsonSourceString;
 exports.isTooDeeplyNestedOrHasTooManyNodes = isTooDeeplyNestedOrHasTooManyNodes;
 exports.sortObject = sortObject;
-
+exports.isObjectWellFormed = isObjectWellFormed;

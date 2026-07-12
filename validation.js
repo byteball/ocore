@@ -10,7 +10,7 @@ var headers_commission = require("./headers_commission.js");
 var mc_outputs = require("./mc_outputs.js");
 var objectHash = require("./object_hash.js");
 var objectLength = require("./object_length.js");
-const { isTooDeeplyNestedOrHasTooManyNodes } = require("./string_utils.js");
+const { isTooDeeplyNestedOrHasTooManyNodes, isObjectWellFormed } = require("./string_utils.js");
 var db = require('./db.js');
 var mutex = require('./mutex.js');
 var constants = require("./constants.js");
@@ -123,6 +123,9 @@ function validate(objJoint, callbacks, external_conn) {
 	
 	if (isTooDeeplyNestedOrHasTooManyNodes(objUnit))
 		return bAA ? callbacks.ifUnitError("unit is too deeply nested") : callbacks.ifJointError("unit is too deeply nested");
+
+	if (!isObjectWellFormed(objJoint))
+		return bAA ? callbacks.ifUnitError("unit contains invalid UTF-16") : callbacks.ifJointError("unit contains invalid UTF-16");
 
 	if (objJoint.unsigned){
 		if (hasFieldsExcept(objJoint, ["unit", "unsigned"]))
