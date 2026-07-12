@@ -85,6 +85,25 @@ function getPayloadForHash(objMessage) {
 	return p;
 }
 
+const lightStableErrorMessage = "I'm light, can't accept stable unit without proof";
+
+function validateLight(objJoint) {
+	if (!conf.bLight) throw Error("validateLightUnstable called in non-light mode");
+	let error;
+	validate(objJoint, {
+		// all callbacks are called synchronously, so we can just assign the error and return it
+		ifOk: () => {},
+		ifUnitError: err => error = err,
+		ifJointError: err => {
+			if (err !== lightStableErrorMessage) // this means the unit is stable
+				error = err;
+		},
+		ifTransientError: err => error = err,
+		// all other callbacks are impossible in light mode and intentionally left out to cause a crash if still called
+	});
+	return error;
+}
+
 function validate(objJoint, callbacks, external_conn) {
 	
 	var objUnit = objJoint.unit;
@@ -309,7 +328,7 @@ function validate(objJoint, callbacks, external_conn) {
 		if (!isPositiveInteger(objUnit.timestamp) && !objJoint.unsigned)
 			return callbacks.ifJointError("bad timestamp");
 		if (objJoint.ball)
-			return callbacks.ifJointError("I'm light, can't accept stable unit "+objUnit.unit+" without proof");
+			return callbacks.ifJointError(lightStableErrorMessage);
 		return objJoint.unsigned 
 			? callbacks.ifOkUnsigned(true) 
 			: callbacks.ifOk({sequence: 'good', arrDoubleSpendInputs: [], arrAdditionalQueries: []}, function(){});
@@ -2865,6 +2884,7 @@ function validateSignedMessageSync(objSignedMessage){
 exports.validate = validate;
 exports.hasValidHashes = hasValidHashes;
 exports.allHashesAreValid = allHashesAreValid;
+exports.validateLight = validateLight;
 exports.validateAuthorSignaturesWithoutReferences = validateAuthorSignaturesWithoutReferences;
 exports.validatePayment = validatePayment;
 exports.initPrivatePaymentValidationState = initPrivatePaymentValidationState;

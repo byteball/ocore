@@ -240,8 +240,11 @@ function processHistory(objResponse, arrWitnesses, callbacks){
 					var objUnit = objJoint.unit;
 					//if (!objJoint.ball)
 					//    return callbacks.ifError("stable but no ball");
-					if (!validation.allHashesAreValid(objJoint))
-						return callbacks.ifError("invalid hash");
+					if (objJoint.ball && !(objUnit.unit in assocProvenUnitsNonserialness))
+						return callbacks.ifError("stable but not proven: " + objUnit.unit);
+					const error = validation.validateLight(objJoint);
+					if (error)
+						return callbacks.ifError(error);
 					if (!ValidationUtils.isPositiveInteger(objUnit.timestamp))
 						return callbacks.ifError("no timestamp");
 					// we receive unconfirmed units too
