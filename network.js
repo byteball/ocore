@@ -700,8 +700,7 @@ async function handleNewPeers(ws, request, arrPeerUrls){
 		const url = arrPeerUrls[i];
 		if (conf.myUrl && conf.myUrl.toLowerCase() === url.toLowerCase())
 			continue;
-		const regexp = (conf.WS_PROTOCOL === 'wss://') ? /^wss:\/\/[\w:\/.?&+=;,@-]+$/ : /^wss?:\/\/[\w:\/.?&+=;,@-]+$/;
-		if (!url.match(regexp)){
+		if (!isValidWsUrl(url)) {
 			console.log('ignoring new peer '+url+' because of incompatible ws protocol');
 			continue;
 		}
@@ -726,6 +725,20 @@ async function handleNewPeers(ws, request, arrPeerUrls){
 			if (!err) // add only if successfully connected
 				addPeer(url, ws.host);
 		}, true);
+	}
+}
+
+function isValidWsUrl(url) {
+	try {
+		const { protocol } = new URL(url);
+		if (!['wss:', 'ws:'].includes(protocol))
+			return false;
+		if (conf.WS_PROTOCOL === 'wss://' && protocol !== 'wss:')
+			return false;
+		return true;
+	}
+	catch {
+		return false;
 	}
 }
 
@@ -2755,8 +2768,7 @@ function handleJustsaying(ws, subject, body){
 			if (ws.bAdvertisedOwnUrl) // allow it only once per connection
 				break;
 			ws.bAdvertisedOwnUrl = true;
-			var regexp = (conf.WS_PROTOCOL === 'wss://') ? /^wss:\/\/[\w:\/.?&+=;,@-]+$/ : /^wss?:\/\/[\w:\/.?&+=;,@-]+$/;
-			if (!url.match(regexp)) {
+			if (!isValidWsUrl(url)) {
 				console.log("ignoring peer's my_url " + url + " because of incompatible ws protocol");
 				break;
 			}
