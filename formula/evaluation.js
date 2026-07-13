@@ -1322,6 +1322,10 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 						}
 						if (var_name.length > constants.MAX_STATE_VAR_NAME_LENGTH)
 							return setFatalError("state var name too long: " + var_name, { arr }, false, cb);
+						if (!var_name.isWellFormed())
+							return setFatalError("state var name not well formed: " + var_name, { arr }, false, cb);
+						if (typeof res === 'string' && !res.isWellFormed())
+							return setFatalError("state var value not well formed: " + res, { arr }, false, cb);
 					//	if (typeof res === 'boolean')
 					//		res = res ? dec1 : dec0;
 						if (!stateVars[address])
@@ -1459,6 +1463,8 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 						return cb(false);
 					if (typeof evaluated_param1 !== 'string')
 						return setFatalError("1st var name is not a string: " + evaluated_param1, { arr }, false, cb);
+					if (op === 'var' && !evaluated_param1.isWellFormed())
+						return setFatalError("state var name not well formed: " + evaluated_param1, { arr }, false, cb);
 					if (param2 === null)
 						return ((op === 'var') ? readVar(address, evaluated_param1, cb) : readBalance(address, evaluated_param1, cb));
 					// then, the 1st param is the address of an AA whose state or balance we are going to query
@@ -1470,6 +1476,8 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 							return cb(false);
 						if (typeof evaluated_param2 !== 'string')
 							return setFatalError("2nd var name is not a string: " + evaluated_param2, { arr }, false, cb);
+						if (op === 'var' && !evaluated_param2.isWellFormed())
+							return setFatalError("state var name not well formed: " + evaluated_param2, { arr }, false, cb);
 						(op === 'var')
 							? readVar(param_address, evaluated_param2, cb)
 							: readBalance(param_address, evaluated_param2, cb);
