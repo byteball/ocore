@@ -2455,8 +2455,16 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 					if (typeof date !== 'string')
 						return cb(false);
 					var ts;
-					if (date.match(/^\d\d\d\d-\d\d-\d\d$/))
-						ts = Date.parse(date);
+					if (date.match(/^\d\d\d\d-\d\d-\d\d$/)) {
+						const [year, month, day] = date.split('-').map(Number);
+						const d = new Date(0);
+						d.setUTCFullYear(year, month - 1, day);
+						d.setUTCHours(0, 0, 0, 0);
+						ts = d.getTime();
+						const reconstructedDate = d.toISOString().slice(0, 10);
+						if (reconstructedDate !== date) 
+							return cb(false); // Invalid date that carries over, e.g., 2023-02-30
+					}
 					else if (date.match(/^\d\d\d\d-\d\d-\d\d( |T)\d\d:\d\d:\d\dZ$/))
 						ts = Date.parse(date);
 					else if (date.match(/^\d\d\d\d-\d\d-\d\d( |T)\d\d:\d\d:\d\d$/))
