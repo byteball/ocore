@@ -1854,7 +1854,7 @@ function readAssetInfo(conn, asset, handleAssetInfo){
 		return new Promise(resolve => readAssetInfo(conn, asset, resolve));
 	var objAsset = assocCachedAssetInfos[asset];
 	if (objAsset)
-		return handleAssetInfo(objAsset);
+		return handleAssetInfo({ ...objAsset });
 	conn.query(
 		"SELECT assets.*, main_chain_index, sequence, is_stable, address AS definer_address, unit AS asset \n\
 		FROM assets JOIN units USING(unit) JOIN unit_authors USING(unit) WHERE unit=?", 
@@ -1871,7 +1871,7 @@ function readAssetInfo(conn, asset, handleAssetInfo){
 				objAsset.transfer_condition = JSON.parse(objAsset.transfer_condition);
 			if (objAsset.is_stable) // cache only if stable
 				assocCachedAssetInfos[asset] = objAsset;
-			handleAssetInfo(objAsset);
+			handleAssetInfo({ ...objAsset });
 		}
 	);
 }
