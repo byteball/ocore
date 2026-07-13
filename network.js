@@ -970,8 +970,8 @@ function handleResponseToJointRequest(ws, request, response){
 		delete objJoint.ball;
 		delete objJoint.skiplist_units;
 	}
-	if (isTooDeeplyNestedOrHasTooManyNodes(objJoint.unit))
-		return sendError(ws, "unit is too deeply nested or has too many nodes");
+	if (isTooDeeplyNestedOrHasTooManyNodes(objJoint))
+		return sendError(ws, "joint is too deeply nested or has too many nodes");
 	conf.bLight ? handleLightOnlineJoint(ws, objJoint) : handleOnlineJoint(ws, objJoint);
 }
 
@@ -2715,8 +2715,8 @@ function handleJustsaying(ws, subject, body){
 			db.query("SELECT 1 FROM archived_joints WHERE unit=? AND reason='uncovered'", [objJoint.unit.unit], function (rows) {
 				if (rows.length > 0) // ignore it as long is it was unsolicited
 					return sendError(ws, "this unit is already known and archived");
-				if (isTooDeeplyNestedOrHasTooManyNodes(objJoint.unit))
-					return sendError(ws, "unit is too deeply nested or has too many nodes");
+				if (isTooDeeplyNestedOrHasTooManyNodes(objJoint))
+					return sendError(ws, "joint is too deeply nested or has too many nodes");
 				if (conf.bLight && objJoint.unit.authors && arrTempWatchedAddresses.length > 0) {
 					if (!ValidationUtils.isNonemptyArray(objJoint.unit.authors) || !objJoint.unit.authors.every(ValidationUtils.isNonemptyObject))
 						return sendError(ws, "invalid authors");
@@ -3172,8 +3172,8 @@ function handleRequest(ws, tag, command, params){
 			var objJoint = params;
 			if (!objJoint || !objJoint.unit || !objJoint.unit.unit)
 				return sendErrorResponse(ws, tag, 'no unit');
-			if (isTooDeeplyNestedOrHasTooManyNodes(objJoint.unit))
-				return sendErrorResponse(ws, tag, "unit is too deeply nested or has too many nodes");
+			if (isTooDeeplyNestedOrHasTooManyNodes(objJoint))
+				return sendErrorResponse(ws, tag, "joint is too deeply nested or has too many nodes");
 			handlePostedJoint(ws, objJoint, function(error){
 				error ? sendErrorResponse(ws, tag, error) : sendResponse(ws, tag, 'accepted');
 			});
