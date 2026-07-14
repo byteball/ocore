@@ -1078,6 +1078,8 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 
 			function readStableOutputs(handleRows) {
 			//	console.log('--- readStableOutputs');
+				if (asset && assetInfos[asset].auto_destroy && assetInfos[asset].definer_address === address && mci >= constants.pemCurvesFixMci)
+					return handleRows([]);
 				// byte outputs less than 60 bytes (which are net negative) are ignored to prevent dust attack: spamming the AA with very small outputs so that the AA spends all its money for fees when it tries to respond
 				conn.query(
 					"SELECT unit, message_index, output_index, amount, output_id \n\
@@ -1093,6 +1095,8 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 
 			function readUnstableOutputsSentByAAs(handleRows) {
 			//	console.log('--- readUnstableOutputsSentByAAs');
+				if (asset && assetInfos[asset].auto_destroy && assetInfos[asset].definer_address === address && mci >= constants.pemCurvesFixMci)
+					return handleRows([]);
 				conn.query(
 					"SELECT outputs.unit, message_index, output_index, amount, output_id \n\
 					FROM outputs \n\
