@@ -592,7 +592,7 @@ function prepareParentsAndLastBallAndWitnessListUnit(arrWitnesses, arrFromAddres
 		return callbacks.ifError("wrong number of witnesses");
 	if (!arrWitnesses.every(ValidationUtils.isValidAddress))
 		return callbacks.ifError("bad witness addresses");
-	if (!ValidationUtils.isNonnegativeInteger(max_aa_responses))
+	if (!ValidationUtils.isNonnegativeInteger(max_aa_responses) || max_aa_responses > constants.MAX_RESPONSES_PER_PRIMARY_TRIGGER)
 		return callbacks.ifError("bad max_aa_responses");
 	if (!ValidationUtils.isNonemptyArray(arrFromAddresses) || arrFromAddresses.length > constants.MAX_AUTHORS_PER_UNIT || !arrFromAddresses.every(ValidationUtils.isValidAddress))
 		return callbacks.ifError("bad from addresses");

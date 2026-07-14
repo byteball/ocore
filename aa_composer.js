@@ -228,6 +228,8 @@ function validateAATriggerObject(trigger, handle) {
 		return handle("no trigger outputs");
 	if (!ValidationUtils.isValidAddress(trigger.address))
 		return handle("bad trigger address");
+	if ("max_aa_responses" in trigger && (!ValidationUtils.isNonnegativeInteger(trigger.max_aa_responses) || trigger.max_aa_responses > constants.MAX_RESPONSES_PER_PRIMARY_TRIGGER))
+		return handle("bad trigger max_aa_responses");
 	try {
 		if (trigger.data)
 			string_utils.getJsonSourceString(trigger.data);
