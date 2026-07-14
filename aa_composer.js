@@ -45,6 +45,9 @@ var OUTPUT_KEYS_SIZE = "address".length + "amount".length;
 
 const CHECK_BALANCES_INTERVAL = conf.CHECK_BALANCES_INTERVAL || 600 * 1000;
 
+// some precision loss in this calc (it's entirely beyond MAX_SAFE_INTEGER) but that's inconsequential
+const MAX_BALANCE = 2 ** 63 - 1 - constants.MAX_MESSAGES_PER_UNIT * constants.MAX_CAP;
+
 /*
 eventBus.on('new_aa_triggers', function () {
 	mutex.lock(["write"], function (unlock) {
@@ -457,16 +460,20 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 
 	// add the coins received in the trigger
 	function updateInitialAABalances(cb) {
+		let bOverflow = false;
 		if (trigger_opts.assocBalances) {
 			if (!trigger_opts.assocBalances[address])
 				trigger_opts.assocBalances[address] = {};
 			originalBalances = _.cloneDeep(trigger_opts.assocBalances);
-			for (var asset in trigger.outputs)
+			for (var asset in trigger.outputs) {
 				trigger_opts.assocBalances[address][asset] = (trigger_opts.assocBalances[address][asset] || 0) + trigger.outputs[asset];
+				if (trigger_opts.assocBalances[address][asset] > MAX_BALANCE)
+					bOverflow = true;
+			}
 			objValidationState.assocBalances = trigger_opts.assocBalances;
 			byte_balance = trigger_opts.assocBalances[address].base || 0;
 			storage_size = 0;
-			return cb();
+			return cb(bOverflow && mci >= constants.pemCurvesFixMci ? "balance overflow" : null);
 		}
 		objValidationState.assocBalances[address] = {};
 		var arrAssets = Object.keys(trigger.outputs);
@@ -489,6 +496,8 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 						[trigger.outputs[row.asset], address, row.asset]
 					);
 					objValidationState.assocBalances[address][row.asset] = row.balance + trigger.outputs[row.asset];
+					if (objValidationState.assocBalances[address][row.asset] > MAX_BALANCE)
+						bOverflow = true;
 				});
 				// 2. insert balances of new assets
 				var arrExistingAssets = rows.map(function (row) { return row.asset; });
@@ -511,7 +520,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 							throw Error("AA not found? " + address);
 						storage_size = rows[0].storage_size;
 						objValidationState.storage_size = storage_size;
-						cb();
+						cb(bOverflow && mci >= constants.pemCurvesFixMci ? "balance overflow" : null);
 					});
 				});
 			}
@@ -1756,9 +1765,11 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 	}
 
 
-	updateInitialAABalances(function () {
+	updateInitialAABalances(function (err) {
 
 		// these errors must be thrown after updating the balances
+		if (err)
+			return bounce(err);
 		if (arrResponses.length >= constants.MAX_RESPONSES_PER_PRIMARY_TRIGGER) // max number of responses per primary trigger, over all branches stemming from the primary trigger
 			return bounce("max number of responses per trigger exceeded");
 		if ("max_aa_responses" in trigger && arrResponses.length >= trigger.max_aa_responses)
