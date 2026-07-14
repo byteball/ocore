@@ -8,6 +8,7 @@ if (conf.storage === 'mysql'){
 	var pool  = mysql.createPool({
 	//var pool  = mysql.createConnection({
 		connectionLimit : conf.database.max_connections,
+		timezone: 'Z',
 		host     : conf.database.host,
 		user     : conf.database.user,
 		password : conf.database.password,

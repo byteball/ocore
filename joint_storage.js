@@ -349,6 +349,7 @@ function initUnhandledAndKnownBad(){
 		rows.forEach(function(row){
 			assocUnhandledUnits[row.unit] = true;
 		});
+		return; // ignore old known-bads
 		db.query("SELECT unit, joint, error FROM known_bad_joints ORDER BY creation_date DESC LIMIT 1000", function(rows){
 			rows.forEach(function(row){
 				if (row.unit)

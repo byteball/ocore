@@ -22,6 +22,7 @@ var profiler = require('./profiler.js');
 var breadcrumbs = require('./breadcrumbs.js');
 
 var MAX_INT32 = Math.pow(2, 31) - 1;
+const BOOT_DATE = new Date().toISOString().replace(/T/, ' ').slice(0, 19); // YYYY-MM-DD HH:MM:SS
 
 var hasFieldsExcept = ValidationUtils.hasFieldsExcept;
 var isNonemptyString = ValidationUtils.isNonemptyString;
@@ -618,7 +619,7 @@ function validateParentsExistAndOrdered(conn, objUnit, callback){
 			if (err)
 				return callback(err);
 			if (arrMissingParentUnits.length > 0){
-				conn.query("SELECT error FROM known_bad_joints WHERE unit IN(?)", [arrMissingParentUnits], function(rows){
+				conn.query("SELECT error FROM known_bad_joints WHERE unit IN(?) AND creation_date>=?", [arrMissingParentUnits, BOOT_DATE], function(rows){
 					(rows.length > 0)
 						? callback("some of the unit's parents are known bad: "+rows[0].error)
 						: callback({error_code: "unresolved_dependency", arrMissingUnits: arrMissingParentUnits});
