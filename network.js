@@ -2948,6 +2948,8 @@ function handleJustsaying(ws, subject, body){
 		case 'hub/message_box_status':
 			if (!body)
 				return;
+			if (['hub/message', 'hub/message_box_status'].includes(subject) && !ws.bLoggingIn && !ws.bLoggedIn) // accept from hub only
+				return;
 			eventBus.emit("message_from_hub", ws, subject, body);
 			break;
 			
