@@ -4384,6 +4384,7 @@ exports.requestProofsOfJointsIfNewOrUnstable = requestProofsOfJointsIfNewOrUnsta
 exports.requestFromLightVendor = requestFromLightVendor;
 
 exports.addPeer = addPeer;
+exports.isValidWsUrl = isValidWsUrl;
 
 exports.initWitnessesIfNecessary = initWitnessesIfNecessary;
 

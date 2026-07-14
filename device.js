@@ -197,7 +197,7 @@ function handleJustsaying(ws, subject, body){
 			// check that we know this device
 			db.query("SELECT hub, is_indirect FROM correspondent_devices WHERE device_address=?", [from_address], function(rows){
 				if (rows.length > 0){
-					if (json.device_hub && typeof json.device_hub === 'string' && json.device_hub.length <= 200 && json.device_hub !== rows[0].hub) // update correspondent's home address if necessary
+					if (json.device_hub && typeof json.device_hub === 'string' && json.device_hub.length <= 200 && network.isValidWsUrl(conf.WS_PROTOCOL + json.device_hub) && json.device_hub !== rows[0].hub) // update correspondent's home address if necessary
 						db.query("UPDATE correspondent_devices SET hub=? WHERE device_address=?", [json.device_hub, from_address], function(){
 							handleMessage(rows[0].is_indirect);
 						});
@@ -798,6 +798,8 @@ function handlePairingMessage(json, device_pubkey, callbacks){
 		return callbacks.ifError("no device_hub when pairing");
 	if (json.device_hub.length > 200)
 		return callbacks.ifError("device_hub too long");
+	if (!network.isValidWsUrl(conf.WS_PROTOCOL + json.device_hub))
+		return callbacks.ifError("invalid device_hub URL");
 	if (!ValidationUtils.isNonemptyString(body.device_name))
 		return callbacks.ifError("no device_name when pairing");
 	if (body.device_name.length > 100)
@@ -846,6 +848,10 @@ function handlePairingMessage(json, device_pubkey, callbacks){
 
 function addUnconfirmedCorrespondent(device_pubkey, device_hub, device_name, onDone){
 	console.log("addUnconfirmedCorrespondent");
+	if (!ValidationUtils.isNonemptyString(device_hub) || !network.isValidWsUrl(conf.WS_PROTOCOL + device_hub)){
+		console.log("addUnconfirmedCorrespondent: invalid hub URL: ", device_hub);
+		return onDone ? onDone(null) : null;
+	}
 	var device_address = objectHash.getDeviceAddress(device_pubkey);
 	db.query(
 		"INSERT "+db.getIgnore()+" INTO correspondent_devices (device_address, pubkey, hub, name, is_confirmed) VALUES (?,?,?,?,0)", 
@@ -880,6 +886,8 @@ function readCorrespondentsByDeviceAddresses(arrDeviceAddresses, handleCorrespon
 }
 
 function updateCorrespondentProps(correspondent, onDone){
+	if (!ValidationUtils.isNonemptyString(correspondent.hub) || !network.isValidWsUrl(conf.WS_PROTOCOL + correspondent.hub))
+		return onDone ? onDone("invalid hub URL") : null;
 	db.query(
 		"UPDATE correspondent_devices SET hub=?, name=?, my_record_pref=?, peer_record_pref=? WHERE device_address=?", 
 		[correspondent.hub, correspondent.name, correspondent.my_record_pref, correspondent.peer_record_pref, correspondent.device_address], 
@@ -893,6 +901,8 @@ function addIndirectCorrespondents(arrOtherCosigners, onDone){
 	async.eachSeries(arrOtherCosigners, function(correspondent, cb){
 		if (correspondent.device_address === my_device_address)
 			return cb();
+		if (!ValidationUtils.isNonemptyString(correspondent.hub) || !network.isValidWsUrl(conf.WS_PROTOCOL + correspondent.hub))
+			return cb(); // ignore silently and continue eachSeries
 		db.query(
 			"INSERT "+db.getIgnore()+" INTO correspondent_devices (device_address, hub, name, pubkey, is_indirect) VALUES(?,?,?,?,1)", 
 			[correspondent.device_address, correspondent.hub, correspondent.name, correspondent.pubkey],
