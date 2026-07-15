@@ -1313,7 +1313,7 @@ function readBalance(wallet, handleBalance){
 }
 
 function readBalancesOnAddresses(walletId, handleBalancesOnAddresses) {
-	db.query("SELECT outputs.address, COALESCE(outputs.asset, 'base') as asset, sum(outputs.amount) as amount \n\
+	db.query("SELECT outputs.address, COALESCE(outputs.asset, 'base') AS asset, SUM(CAST(amount AS DOUBLE)) AS amount \n\
 	FROM my_addresses \n\
 	JOIN outputs USING(address) \n\
 	CROSS JOIN units ON outputs.unit = units.unit \n\
@@ -1478,7 +1478,7 @@ function readTransactionHistory(opts, handleHistory){
 	db.query(
 		"SELECT unit, level, is_stable, sequence, address, \n\
 			"+db.getUnixTimestamp("units.creation_date")+" AS ts, timestamp, headers_commission+payload_commission+IFNULL(oversize_fee, 0)+IFNULL(tps_fee, 0) AS fee, \n\
-			SUM(amount) AS amount, address AS to_address, NULL AS from_address, main_chain_index AS mci \n\
+			SUM(CAST(amount AS DOUBLE)) AS amount, address AS to_address, NULL AS from_address, main_chain_index AS mci \n\
 		FROM units "+cross+" JOIN outputs USING(unit) "+join_my_addresses+" \n\
 		WHERE "+where_condition+" AND "+asset_condition+" \n\
 		GROUP BY unit, address \n\
@@ -1573,7 +1573,7 @@ function readTransactionHistory(opts, handleHistory){
 					}
 					else if (movement.has_minus){
 						var queryString, parameters;
-						queryString =   "SELECT outputs.address, SUM(outputs.amount) AS amount, outputs.asset, ("
+						queryString =   "SELECT outputs.address, SUM(CAST(outputs.amount AS DOUBLE)) AS amount, outputs.asset, ("
 							+ ( walletIsAddress ? "outputs.address!=?" : "my_addresses.address IS NULL") + ") AS is_external, \n\
 							sent_mnemonics.textAddress, sent_mnemonics.mnemonic, \n\
 							(SELECT unit_authors.unit FROM unit_authors WHERE unit_authors.address = sent_mnemonics.address LIMIT 1) AS claiming_unit, \n\
@@ -1772,7 +1772,7 @@ function readFundedAddresses(asset, wallet, estimated_amount, spend_unconfirmed,
 	if (estimated_amount && typeof estimated_amount !== 'number')
 		throw Error('invalid estimated amount: '+estimated_amount);
 	// addresses closest to estimated amount come first
-	var order_by = estimated_amount ? "(SUM(amount)>"+estimated_amount+") DESC, ABS(SUM(amount)-"+estimated_amount+") ASC" : "SUM(amount) DESC";
+	var order_by = estimated_amount ? "(SUM(CAST(amount AS DOUBLE))>"+estimated_amount+") DESC, ABS(SUM(CAST(amount AS DOUBLE))-"+estimated_amount+") ASC" : "total DESC";
 	readAssetProps(asset, function (err, objAsset) {
 		if (err) {
 			console.log(err);
@@ -1781,7 +1781,7 @@ function readFundedAddresses(asset, wallet, estimated_amount, spend_unconfirmed,
 		var limit = objAsset.fixed_denominations ? "" : " LIMIT " + constants.MAX_AUTHORS_PER_UNIT;
 		db.query(
 			"SELECT * FROM ( \n\
-				SELECT address, SUM(amount) AS total \n\
+				SELECT address, SUM(CAST(amount AS DOUBLE)) AS total \n\
 				FROM my_addresses \n\
 				CROSS JOIN outputs USING(address) \n\
 				CROSS JOIN units USING(unit) \n\
@@ -2707,7 +2707,7 @@ function receiveTextCoin(mnemonic, addressTo, signWithLocalPrivateKey, cb) {
 	// check stability of payingAddresses
 	function checkStability() {
 		db.query(
-			"SELECT is_stable, asset, SUM(amount) AS `amount` \n\
+			"SELECT is_stable, asset, SUM(CAST(amount AS DOUBLE)) AS `amount` \n\
 			FROM outputs JOIN units USING(unit) WHERE address=? AND sequence='good' AND is_spent=0 GROUP BY asset ORDER BY asset DESC", 
 			[addrInfo.address],
 			async function(rows) {

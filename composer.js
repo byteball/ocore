@@ -659,10 +659,10 @@ function readSortedFundedAddresses(asset, arrAvailableAddresses, estimated_amoun
 	if (estimated_amount && typeof estimated_amount !== 'number')
 		throw Error('invalid estimated amount: '+estimated_amount);
 	// addresses closest to estimated amount come first
-	var order_by = estimated_amount ? "(SUM(amount)>"+estimated_amount+") DESC, ABS(SUM(amount)-"+estimated_amount+") ASC" : "SUM(amount) DESC";
+	var order_by = estimated_amount ? "(SUM(CAST(amount AS DOUBLE))>"+estimated_amount+") DESC, ABS(SUM(CAST(amount AS DOUBLE))-"+estimated_amount+") ASC" : "total DESC";
 	db.query(
 		"SELECT * FROM ( \n\
-			SELECT address, SUM(amount) AS total \n\
+			SELECT address, SUM(CAST(amount AS DOUBLE)) AS total \n\
 			FROM outputs \n\
 			CROSS JOIN units USING(unit) \n\
 			WHERE address IN(?) "+inputs.getConfirmationConditionSql(spend_unconfirmed)+" AND sequence='good' \n\

@@ -12,7 +12,7 @@ function readBalance(walletOrAddress, handleBalance){
 	var assocBalances = {base: {stable: 0, pending: 0}};
 	assocBalances[constants.BLACKBYTES_ASSET] = {is_private: 1, stable: 0, pending: 0};
 	db.query(
-		"SELECT asset, is_stable, SUM(amount) AS balance \n\
+		"SELECT asset, is_stable, SUM(CAST(amount AS DOUBLE)) AS balance \n\
 		FROM outputs "+join_my_addresses+" CROSS JOIN units USING(unit) \n\
 		WHERE is_spent=0 AND "+where_condition+" AND sequence='good' \n\
 		GROUP BY asset, is_stable",
@@ -74,7 +74,7 @@ function readOutputsBalance(wallet, handleBalance){
 	var where_condition = walletIsAddress ? "address=?" : "wallet=?";
 	var assocBalances = {base: {stable: 0, pending: 0}};
 	db.query(
-		"SELECT asset, is_stable, SUM(amount) AS balance \n\
+		"SELECT asset, is_stable, SUM(CAST(amount AS DOUBLE)) AS balance \n\
 		FROM outputs "+join_my_addresses+" CROSS JOIN units USING(unit) \n\
 		WHERE is_spent=0 AND "+where_condition+" AND sequence='good' \n\
 		GROUP BY asset, is_stable",
@@ -130,7 +130,7 @@ function readSharedBalance(wallet, handleBalance){
 			return handleBalance(assocBalances);
 		var strAddressList = arrSharedAddresses.map(db.escape).join(', ');
 		db.query(
-			"SELECT asset, address, is_stable, SUM(amount) AS balance \n\
+			"SELECT asset, address, is_stable, SUM(CAST(amount AS DOUBLE)) AS balance \n\
 			FROM outputs CROSS JOIN units USING(unit) \n\
 			WHERE is_spent=0 AND sequence='good' AND address IN("+strAddressList+") \n\
 			GROUP BY asset, address, is_stable \n\

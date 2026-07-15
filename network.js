@@ -3703,7 +3703,7 @@ function handleRequest(ws, tag, command, params){
 			if (addresses.length > 100)
 				return sendErrorResponse(ws, tag, "too many addresses");
 			db.query(
-				"SELECT address, asset, is_stable, SUM(amount) AS balance, COUNT(*) AS outputs_count \n\
+				"SELECT address, asset, is_stable, SUM(CAST(amount AS DOUBLE)) AS balance, COUNT(*) AS outputs_count \n\
 				FROM outputs JOIN units USING(unit) \n\
 				WHERE is_spent=0 AND address IN(?) AND sequence='good' \n\
 				GROUP BY address, asset, is_stable", [addresses], function(rows) {

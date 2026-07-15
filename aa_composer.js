@@ -1900,7 +1900,7 @@ function checkBalances() {
 					PRIMARY KEY (address, asset) \n\
 				)" + (conf.storage === 'mysql' ? " ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci" : "");
 				var sql_fill_temp = "INSERT INTO aa_outputs_balances (address, asset, calculated_balance) \n\
-					SELECT address, IFNULL(asset, 'base'), SUM(amount) \n\
+					SELECT address, IFNULL(asset, 'base'), SUM(CAST(amount AS DOUBLE)) \n\
 					FROM aa_addresses \n\
 					CROSS JOIN outputs USING(address) \n\
 					CROSS JOIN units ON outputs.unit=units.unit \n\
