@@ -966,7 +966,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 								WHERE attestor_address IN(" + arrAttestorAddresses.map(conn.escape).join(', ') + ") \n\
 									AND "+ table + ".address = ? " + and_field +" \n\
 									AND (main_chain_index > ? OR main_chain_index IS NULL) \n\
-								ORDER BY latest_included_mc_index DESC, level DESC, units.unit LIMIT ?",
+								ORDER BY latest_included_mc_index DESC, level DESC, units.unit, message_index LIMIT ?",
 								[params.address.value, mci, (ifseveral === 'abort') ? 2 : 1],
 								function (rows) {
 									if (!bAA)
@@ -982,7 +982,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 										"SELECT "+selected_fields+" FROM "+table+" CROSS JOIN units USING(unit) \n\
 										WHERE attestor_address IN(" + arrAttestorAddresses.map(conn.escape).join(', ') + ") \n\
 											AND address = ? "+and_field+" AND (main_chain_index <= ? " + or_null_mci + ") AND +sequence='good' \n\
-										ORDER BY main_chain_index DESC, latest_included_mc_index DESC, level DESC, unit LIMIT ?",
+										ORDER BY main_chain_index DESC, latest_included_mc_index DESC, level DESC, unit, message_index LIMIT ?",
 										[params.address.value, mci, (ifseveral === 'abort') ? 2 : 1],
 										function (rows) {
 											count_rows += rows.length;
