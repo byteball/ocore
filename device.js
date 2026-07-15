@@ -121,7 +121,12 @@ function setDeviceHub(device_hub){
 }
 
 function isValidPubKey(b64_pubkey){
-	return ecdsa.publicKeyVerify(Buffer.from(b64_pubkey, 'base64'));
+	try{
+		return ecdsa.publicKeyVerify(Buffer.from(b64_pubkey, 'base64'));
+	}
+	catch(e){
+		return false;
+	}
 }
 
 // -------------------------
