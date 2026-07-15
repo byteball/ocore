@@ -53,9 +53,14 @@ function hasValidHashes(objJoint){
 
 function hasValidPayloadHashes(objJoint) {
 	try {
-		if (!objJoint.unit.messages) return true; // final-bad
+		if (!("messages" in objJoint.unit)) return true; // final-bad
+		if (!isNonemptyArray(objJoint.unit.messages)) return false;
 		for (let m of objJoint.unit.messages) {
-			if (m.payload_location !== "inline") continue;
+			if (m.payload_location !== "inline") {
+				if ("payload" in m)
+					return false;
+				continue;
+			}
 			const expected_payload_hash = objectHash.getBase64Hash(getPayloadForHash(m), objJoint.unit.version !== constants.versionWithoutTimestamp);
 			if (expected_payload_hash !== m.payload_hash)
 				return false;
@@ -2888,6 +2893,7 @@ function validateSignedMessageSync(objSignedMessage){
 
 exports.validate = validate;
 exports.hasValidHashes = hasValidHashes;
+exports.hasValidPayloadHashes = hasValidPayloadHashes;
 exports.allHashesAreValid = allHashesAreValid;
 exports.validateLight = validateLight;
 exports.validateAuthorSignaturesWithoutReferences = validateAuthorSignaturesWithoutReferences;

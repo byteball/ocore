@@ -297,30 +297,15 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 							return callbacks.ifError("no such payload hash in the messages");
 					}
 				}
-				if (objUnit.messages){
-					var arrMessages = objUnit.messages;
-					if (!Array.isArray(arrMessages))
-						return callbacks.ifError("bad type of messages");
-					for (var i=0; i<arrMessages.length; i++){
-						if (!arrMessages[i])
-							return callbacks.ifError("empty message in messages array");
-						if (arrMessages[i].payload === undefined)
-							continue;
-						try {
-							var calculated_payload_hash = objectHash.getBase64Hash(arrMessages[i].payload, bJsonBased);
-						}
-						catch (e) {
-							return callbacks.ifError("payload hash failed: " + e.toString());
-						}
-						if (arrMessages[i].payload_hash !== calculated_payload_hash)
-							return callbacks.ifError("payload hash does not match");
-					}
+				if (("messages" in objUnit) + ("signed_message" in objUnit) !== 1)
+					return callbacks.ifError("either messages or signed_message must be present, but not both");
+				if ("messages" in objUnit){
+					const validation = require('./validation.js');
+					if (!validation.hasValidPayloadHashes({ unit: objUnit }))
+						return callbacks.ifError("invalid payload hashes");
+					if (!objUnit.messages.find(m => m.app === 'payment'))
+						return callbacks.ifError("no payment messages");
 				}
-				else if (objUnit.signed_message){
-					// ok
-				}
-				else
-					return callbacks.ifError("neither messages nor signed_message");
 				// findAddress handles both types of addresses
 				findAddress(body.address, body.signing_path, {
 					ifError: callbacks.ifError,
