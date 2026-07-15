@@ -273,8 +273,14 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				}
 				var assocPrivatePayloads = body.private_payloads;
 				if ("private_payloads" in body){
-					if (typeof assocPrivatePayloads !== "object" || !assocPrivatePayloads)
+					if (!isNonemptyObject(assocPrivatePayloads))
 						return callbacks.ifError("bad private payloads");
+					if (!ValidationUtils.isNonemptyArray(objUnit.messages))
+						return callbacks.ifError("private payloads require messages");
+					const sent_pp_hashes = Object.keys(assocPrivatePayloads).sort();
+					const expected_pp_hashes = objUnit.messages.filter(m => m.payload_location === "none" && m.app === "payment").map(m => m.payload_hash).sort();
+					if (!_.isEqual(sent_pp_hashes, expected_pp_hashes))
+						return callbacks.ifError("private payloads are not the same as in the messages");
 					for (var payload_hash in assocPrivatePayloads){
 						try {
 							const payload = assocPrivatePayloads[payload_hash];
@@ -291,8 +297,6 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 						}
 						if (payload_hash !== calculated_payload_hash)
 							return callbacks.ifError("private payload hash does not match");
-						if (!ValidationUtils.isNonemptyArray(objUnit.messages))
-							return callbacks.ifError("no messages in unsigned unit");
 						if (objUnit.messages.filter(function(objMessage){ return (objMessage && objMessage.payload_hash === payload_hash); }).length !== 1)
 							return callbacks.ifError("no such payload hash in the messages");
 					}
