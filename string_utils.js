@@ -283,6 +283,45 @@ function isTooDeeplyNestedOrHasTooManyNodes(obj, depthLimit = 100, nodesLimit = 
 	return check(obj, 1);
 }
 
+function isTooBigObj(obj, { depthLimit = 100, nodesLimit = 10000, lengthLimit = 1000000 }) {
+	let nodeCount = 0;
+	let length = 0;
+
+	function check(variable, depth){
+		if (depth > depthLimit || nodeCount > nodesLimit || length > lengthLimit)
+			return true;
+		if (typeof variable === "string")
+			length += variable.length;
+		else if (typeof variable === "number" || typeof variable === "boolean")
+			length += variable.toString().length;
+		else if (variable === null)
+			length += 4; // "null"
+		else if (typeof variable !== "object")
+			throw Error("isTooBigObj: unexpected type=" + (typeof variable) + " of " + variable);
+		if (length > lengthLimit)
+			return true;
+		if (typeof variable !== "object" || variable === null)
+			return false;
+		if (Array.isArray(variable)) {
+			nodeCount += variable.length;
+			for (let v of variable)
+				if (check(v, depth + 1))
+					return true;
+		}
+		else {
+			const keys = Object.keys(variable);
+			nodeCount += keys.length;
+			length += keys.reduce((sum, key) => sum + key.length, 0);
+			for (let key in variable)
+				if (check(variable[key], depth + 1))
+					return true;
+		}
+		return false;
+	}
+
+	return check(obj, 1);
+}
+
 // returns an object with sorted keys, for deterministic processing later
 function sortObject(obj) {
 	if (typeof obj !== 'object' || obj === null || Array.isArray(obj))
@@ -333,5 +372,6 @@ exports.encodeDoubleInLexicograpicOrder = encodeDoubleInLexicograpicOrder;
 exports.decodeLexicographicToDouble = decodeLexicographicToDouble;
 exports.getJsonSourceString = getJsonSourceString;
 exports.isTooDeeplyNestedOrHasTooManyNodes = isTooDeeplyNestedOrHasTooManyNodes;
+exports.isTooBigObj = isTooBigObj;
 exports.sortObject = sortObject;
 exports.isObjectWellFormed = isObjectWellFormed;

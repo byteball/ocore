@@ -1144,8 +1144,8 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 					function (err) {
 						if (fatal_error)
 							return cb(false);
-						if (string_utils.isTooDeeplyNestedOrHasTooManyNodes(arrItems))
-							return setFatalError("resulting array is too deeply nested or has too many nodes", { arr }, false, cb);
+						if (isTooBigObj(arrItems))
+							return setFatalError("resulting array is too big", { arr }, false, cb);
 						cb(new wrappedObject(arrItems));
 					}
 				);
@@ -1176,8 +1176,8 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 					function (err) {
 						if (fatal_error)
 							return cb(false);
-						if (string_utils.isTooDeeplyNestedOrHasTooManyNodes(obj))
-							return setFatalError("resulting dictionary is too deeply nested or has too many nodes", { arr }, false, cb);
+						if (isTooBigObj(obj))
+							return setFatalError("resulting dictionary is too big", { arr }, false, cb);
 						cb(new wrappedObject(obj));
 					}
 				);
@@ -1250,8 +1250,8 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 							if (Decimal.isDecimal(res))
 								res = res.toNumber();
 							if (res instanceof wrappedObject) {
-								if (string_utils.isTooDeeplyNestedOrHasTooManyNodes(res.obj))
-									return setFatalError("resulting mutated object is too deeply nested or has too many nodes", { arr }, false, cb);
+								if (isTooBigObj(res.obj))
+									return setFatalError("resulting mutated object is too big", { arr }, false, cb);
 								res = _.cloneDeep(res.obj);
 							}
 							evaluateSelectorKeys(selectors, arr, function (arrKeys) {
@@ -1259,8 +1259,8 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 									return cb(false);
 								try {
 									assignByPath(locals[var_name].obj, arrKeys, res);
-									if (string_utils.isTooDeeplyNestedOrHasTooManyNodes(locals[var_name].obj))
-										return setFatalError("mutated object is too deeply nested or has too many nodes", { arr }, false, cb);
+									if (isTooBigObj(locals[var_name].obj))
+										return setFatalError("mutated object is too big", { arr }, false, cb);
 									cb(true);
 								}
 								catch (e) {
@@ -1270,8 +1270,8 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 						}
 						else { // regular assignment
 							if (res instanceof wrappedObject) { // copy because we might need to mutate it
-								if (string_utils.isTooDeeplyNestedOrHasTooManyNodes(res.obj))
-									return setFatalError("resulting object is too deeply nested or has too many nodes", { arr }, false, cb);
+								if (isTooBigObj(res.obj))
+									return setFatalError("local_var_assignment: resulting object is too big "+JSON.stringify(res.obj), { arr }, false, cb);
 								assignField(locals, var_name, new wrappedObject(_.cloneDeep(res.obj)));
 							}
 							else
@@ -1315,8 +1315,8 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 								}
 								if (json.length > constants.MAX_STATE_VAR_VALUE_LENGTH)
 									return setFatalError("state var value too long when in json: " + json, { arr }, false, cb);
-								if (string_utils.isTooDeeplyNestedOrHasTooManyNodes(res.obj))
-									return setFatalError("rhs of state var assignment is too deeply nested or has too many nodes", { arr }, false, cb);
+								if (isTooBigObj(res.obj))
+									return setFatalError("rhs of state var assignment is too big", { arr }, false, cb);
 								res = new wrappedObject(_.cloneDeep(res.obj)); // make a copy
 							}
 						}
@@ -1777,11 +1777,13 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 					if (fatal_error)
 						return cb(false);
 					if (res instanceof wrappedObject) {
+						if (mci >= constants.pemCurvesFixMci && isTooBigObj(res.obj))
+							return setFatalError("to-be-hashed object is too big", { arr }, false, cb);
 						if (mci < constants.aa2UpgradeMci)
 							res = true;
 						else
 							try {
-								res = string_utils.getJsonSourceString(res.obj, true); // it's ok if the string is longer than MAX_AA_STRING_LENGTH
+								res = string_utils.getJsonSourceString(res.obj, true);
 							}
 							catch (e) {
 								return setFatalError("stringify failed: " + e, { arr }, false, cb);
@@ -1814,6 +1816,8 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 					if (fatal_error)
 						return cb(false);
 					if (res instanceof wrappedObject) {
+						if (mci >= constants.pemCurvesFixMci && isTooBigObj(res.obj))
+							return setFatalError("to-be-hashed object is too big", { arr }, false, cb);
 						try {
 							var chash160 = objectHash.getChash160(res.obj);
 						}
@@ -1899,8 +1903,8 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 						console.log('json_parse failed: ' + e.toString());
 						return cb(false);
 					}
-					if (typeof json === 'object' && string_utils.isTooDeeplyNestedOrHasTooManyNodes(json))
-						return setFatalError("json_parse result is too deeply nested or has too many nodes", { arr }, false, cb);
+					if (typeof json === 'object' && isTooBigObj(json))
+						return setFatalError("json_parse result is too big", { arr }, false, cb);
 					json = replaceNulls(json);
 					if (containsNonFiniteNumber(json))
 						return setFatalError("json_parse result contains non-finite number", { arr }, false, cb);
@@ -2400,8 +2404,8 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 											}
 											else if (bReduce) {
 												accumulator = r;
-												if (string_utils.isTooDeeplyNestedOrHasTooManyNodes(accumulator))
-													return setFatalError("accumulator is too deeply nested or has too many nodes", { arr }, undefined, cb2);
+												if (accumulator instanceof wrappedObject && isTooBigObj(mci >= constants.pemCurvesFixMci ? accumulator.obj : accumulator)) // now 1 level less deep
+													return setFatalError("accumulator is too big", { arr }, undefined, cb2);
 											}
 											cb2(fatal_error);
 										});
@@ -2412,8 +2416,8 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 										if (bReduce)
 											cb(accumulator);
 										else if (op === 'map' || op === 'filter') {
-											if (op === 'map' && string_utils.isTooDeeplyNestedOrHasTooManyNodes(retValue))
-												return setFatalError("map result is too deeply nested or has too many nodes", { arr }, false, cb);
+											if (op === 'map' && isTooBigObj(retValue))
+												return setFatalError("map result is too big", { arr }, false, cb);
 											cb(new wrappedObject(retValue));
 										}
 										else
@@ -2731,8 +2735,8 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 				result = new wrappedObject({ ...obj0, ...obj1 });
 			else
 				return { error: "trying to concat an object and array: " + JSON.stringify(obj0) + " and " + JSON.stringify(obj1) };
-			if (string_utils.isTooDeeplyNestedOrHasTooManyNodes(result.obj))
-				return { error: "resulting object is too deeply nested or has too many nodes" };
+			if (isTooBigObj(result.obj))
+				return { error: "concat: resulting object is too big" };
 		}
 		else { // one of operands is a string, then treat both as strings
 			if (operand0 instanceof wrappedObject)
@@ -2748,6 +2752,12 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 
 	function copyIfObject(value) {
 		return (value instanceof wrappedObject) ? new wrappedObject(_.cloneDeep(value.obj)) : value;
+	}
+
+	function isTooBigObj(obj) {
+		return mci >= constants.pemCurvesFixMci
+			? string_utils.isTooBigObj(obj, { lengthLimit: constants.MAX_AA_STRING_LENGTH })
+			: string_utils.isTooDeeplyNestedOrHasTooManyNodes(obj);
 	}
 
 	function readVar(param_address, var_name, cb2) {
