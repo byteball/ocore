@@ -530,6 +530,9 @@ exports.validate = function (opts, callback) {
 						var key = pair[0];
 						if (typeof key !== 'string')
 							return cb2("dictionary keys must be strings");
+						// long keys don't make sense in literals, dynamic ones are still allowed
+						if (key.length > constants.MAX_STATE_VAR_NAME_LENGTH && (mci >= constants.pemCurvesFixMci || require('../storage.js').getMinRetrievableMci() >= constants.pemCurvesFixMci))
+							return cb2("key " + key + " is too long");
 						if (hasOwnProperty(obj, key))
 							return cb2("key " + key + " already set");
 						assignField(obj, key, true);
