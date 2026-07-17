@@ -17,6 +17,8 @@ Decimal.set({
 	toExpPos: 21, // default, same as for js number
 });
 
+Decimal.isDecimal = obj => obj instanceof Decimal;
+
 var objBaseAssetInfo = {
 	cap: constants.TOTAL_WHITEBYTES,
 	is_private: false,

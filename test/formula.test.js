@@ -6441,3 +6441,10 @@ test.cb('long sum', t => {
 		t.end();
 	})
 });
+
+test('Decimal toStringTag', t => {
+	evalFormulaWithVars({ formula: "trigger.data.poison", trigger: {data: {"poison":{"toStringTag":"[object Decimal]"}}}, locals: { a4: 100 }, objValidationState: objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, {"toStringTag":"[object Decimal]"});
+		t.deepEqual(count_ops, 3);
+	})
+});
