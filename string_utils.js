@@ -360,6 +360,41 @@ function isObjectWellFormed(obj) {
 	return true;
 }
 
+// much faster than lodash cloneDeep
+// works correctly only for objects reachable through JSON
+// based on https://github.com/lukeed/klona/blob/master/src/json.js with a small optimization
+function cloneDeep(val) {
+	var k, out, tmp;
+
+	if (Array.isArray(val)) {
+		out = Array(k=val.length);
+		while (k--) out[k] = (tmp=val[k]) && typeof tmp === 'object' ? cloneDeep(tmp) : tmp;
+		return out;
+	}
+
+//	if (Object.prototype.toString.call(val) === '[object Object]') {
+	if (typeof val === 'object' && val !== null) {
+		out = {}; // null
+		for (k in val) {
+		//	if (!Object.hasOwn(val, k)) continue;
+			if (k === '__proto__') {
+				Object.defineProperty(out, k, {
+					value: cloneDeep(val[k]),
+					configurable: true,
+					enumerable: true,
+					writable: true,
+				});
+			} else {
+				out[k] = (tmp=val[k]) && typeof tmp === 'object' ? cloneDeep(tmp) : tmp;
+			}
+		}
+		return out;
+	}
+
+	return val;
+}
+
+
 exports.STRING_JOIN_CHAR = STRING_JOIN_CHAR; // for tests
 exports.getSourceString = getSourceString;
 exports.encodeMci = encodeMci;
@@ -375,3 +410,4 @@ exports.isTooDeeplyNestedOrHasTooManyNodes = isTooDeeplyNestedOrHasTooManyNodes;
 exports.isTooBigObj = isTooBigObj;
 exports.sortObject = sortObject;
 exports.isObjectWellFormed = isObjectWellFormed;
+exports.cloneDeep = cloneDeep;

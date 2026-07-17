@@ -23,6 +23,8 @@ const { cache, formulasInCache, cacheLimit, Decimal, objBaseAssetInfo, isFiniteD
 
 var hasOwnProperty = ValidationUtils.hasOwnProperty;
 
+// todo: replace cloning with CoW (e.g. immutable.js) as cloning of large objects can be quite expensive multiplied by MAX_OPS and amplifiable via getters (which can also amplify other expensive ops)
+
 var testnetStringToNumberInArithmeticUpgradeMci = 1151000;
 
 var decimalE = new Decimal(Math.E);
@@ -1077,15 +1079,15 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 				var value = (op === 'params') ? aa_params : trigger.data;
 				if (!value || Object.keys(value).length === 0)
 					return cb(false);
-				cb(new wrappedObject(_.cloneDeep(value)));
+				cb(new wrappedObject(string_utils.cloneDeep(value)));
 				break;
 
 			case 'previous_aa_responses':
-				cb(new wrappedObject(_.cloneDeep(objValidationState.arrPreviousAAResponses)));
+				cb(new wrappedObject(string_utils.cloneDeep(objValidationState.arrPreviousAAResponses)));
 				break;
 
 			case 'trigger.outputs':
-				cb(new wrappedObject(_.cloneDeep(trigger.outputs)));
+				cb(new wrappedObject(string_utils.cloneDeep(trigger.outputs)));
 				break;
 
 			case 'trigger.output':
@@ -1130,7 +1132,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 							if (fatal_error)
 								return cb2(fatal_error);
 							if (res instanceof wrappedObject)
-								arrItems.push(_.cloneDeep(res.obj)); // might be frozen
+								arrItems.push(string_utils.cloneDeep(res.obj)); // might be frozen
 							else {
 								if (!isValidValue(res))
 									return setFatalError("bad value " + res, { arr }, undefined, cb2);
@@ -1162,7 +1164,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 							if (fatal_error)
 								return cb2(fatal_error);
 							if (res instanceof wrappedObject)
-								assignField(obj, key, _.cloneDeep(res.obj)); // might be frozen
+								assignField(obj, key, string_utils.cloneDeep(res.obj)); // might be frozen
 							else {
 								if (!isValidValue(res))
 									return setFatalError("bad value " + res, { arr }, undefined, cb2);
@@ -1252,7 +1254,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 							if (res instanceof wrappedObject) {
 								if (isTooBigObj(res.obj))
 									return setFatalError("resulting mutated object is too big", { arr }, false, cb);
-								res = _.cloneDeep(res.obj);
+								res = string_utils.cloneDeep(res.obj);
 							}
 							evaluateSelectorKeys(selectors, arr, function (arrKeys) {
 								if (fatal_error)
@@ -1272,7 +1274,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 							if (res instanceof wrappedObject) { // copy because we might need to mutate it
 								if (isTooBigObj(res.obj))
 									return setFatalError("local_var_assignment: resulting object is too big "+JSON.stringify(res.obj), { arr }, false, cb);
-								assignField(locals, var_name, new wrappedObject(_.cloneDeep(res.obj)));
+								assignField(locals, var_name, new wrappedObject(string_utils.cloneDeep(res.obj)));
 							}
 							else
 								assignField(locals, var_name, res);
@@ -1317,7 +1319,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 									return setFatalError("state var value too long when in json: " + json, { arr }, false, cb);
 								if (isTooBigObj(res.obj))
 									return setFatalError("rhs of state var assignment is too big", { arr }, false, cb);
-								res = new wrappedObject(_.cloneDeep(res.obj)); // make a copy
+								res = new wrappedObject(string_utils.cloneDeep(res.obj)); // make a copy
 							}
 						}
 						if (var_name.length > constants.MAX_STATE_VAR_NAME_LENGTH)
@@ -1556,12 +1558,12 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 					if (bAA) {
 						// 1. check the current response unit
 						if (objResponseUnit && objResponseUnit.unit === unit)
-							return cb(new wrappedObject(_.cloneDeep(objResponseUnit)));
+							return cb(new wrappedObject(string_utils.cloneDeep(objResponseUnit)));
 						// 2. check previous response units from the same primary trigger, they are not in the db yet
 						for (var i = 0; i < objValidationState.arrPreviousAAResponses.length; i++) {
 							var objPreviousResponseUnit = objValidationState.arrPreviousAAResponses[i].unit_obj;
 							if (objPreviousResponseUnit && objPreviousResponseUnit.unit === unit)
-								return cb(new wrappedObject(_.cloneDeep(objPreviousResponseUnit)));
+								return cb(new wrappedObject(string_utils.cloneDeep(objPreviousResponseUnit)));
 						}
 					}
 					// 3. check the units from the db
@@ -2240,7 +2242,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 					else {
 						if (!bArray)
 							return setFatalError("not an array: " + JSON.stringify(res.obj), { arr }, false, cb);
-						cb(new wrappedObject(_.cloneDeep(res.obj).reverse()));
+						cb(new wrappedObject(string_utils.cloneDeep(res.obj).reverse()));
 					}
 				});
 				break;
@@ -2389,17 +2391,17 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 											if (op === 'map') {
 												r = toJsType(r);
 												if (bArray)
-													retValue.push(_.cloneDeep(r));
+													retValue.push(string_utils.cloneDeep(r));
 												else
-													assignField(retValue, element, _.cloneDeep(r));
+													assignField(retValue, element, string_utils.cloneDeep(r));
 											}
 											else if (op === 'filter') {
 												r = toJsType(r);
 												if (r) { // truthy
 													if (bArray)
-														retValue.push(_.cloneDeep(element));
+														retValue.push(string_utils.cloneDeep(element));
 													else
-														assignField(retValue, element, _.cloneDeep(res.obj[element]));
+														assignField(retValue, element, string_utils.cloneDeep(res.obj[element]));
 												}
 											}
 											else if (bReduce) {
@@ -2616,7 +2618,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 						if (fatal_error)
 							return cb(false);
 						console.log('log', entries);
-						logs.push(_.cloneDeep(entries));
+						logs.push(string_utils.cloneDeep(entries));
 						cb(true);
 					}
 				);
@@ -2725,8 +2727,8 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 		}
 		var result;
 		if (operand0 instanceof wrappedObject && operand1 instanceof wrappedObject) {
-			var obj0 = _.cloneDeep(operand0.obj); // might be frozen, so clone it
-			var obj1 = _.cloneDeep(operand1.obj);
+			var obj0 = string_utils.cloneDeep(operand0.obj); // might be frozen, so clone it
+			var obj1 = string_utils.cloneDeep(operand1.obj);
 			var bArray0 = Array.isArray(obj0);
 			var bArray1 = Array.isArray(obj1);
 			if (bArray0 && bArray1)
@@ -2751,7 +2753,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 	}
 
 	function copyIfObject(value) {
-		return (value instanceof wrappedObject) ? new wrappedObject(_.cloneDeep(value.obj)) : value;
+		return (value instanceof wrappedObject) ? new wrappedObject(string_utils.cloneDeep(value.obj)) : value;
 	}
 
 	function isTooBigObj(obj) {
@@ -3160,7 +3162,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 				if (early_return !== undefined)
 					res = early_return;
 				if (res instanceof wrappedObject)
-					res = bObjectResultAllowed ? _.cloneDeep(res.obj) : true;
+					res = bObjectResultAllowed ? string_utils.cloneDeep(res.obj) : true;
 				else if (Decimal.isDecimal(res)) {
 					if (!isFiniteDecimal(res))
 						return callback('result is not finite', null);
