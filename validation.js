@@ -181,7 +181,7 @@ function validate(objJoint, callbacks, external_conn) {
 		if (!isStringOfLength(objUnit.content_hash, constants.HASH_LENGTH))
 			return callbacks.ifUnitError("wrong content_hash length");
 		if (hasFieldsExcept(objUnit, ["unit", "version", "alt", "timestamp", "authors", "witness_list_unit", "witnesses", "content_hash", "parent_units", "last_ball", "last_ball_unit"]))
-			return callbacks.ifUnitError("unknown fields in nonserial unit");
+			return callbacks.ifJointError("unknown fields in nonserial unit");
 		if (!objJoint.ball)
 			return callbacks.ifJointError("content_hash allowed only in finished ball");
 	}
