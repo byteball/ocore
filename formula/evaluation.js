@@ -2610,7 +2610,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 						evaluate(expr, res => {
 							if (fatal_error)
 								return cb2(fatal_error);
-							entries.push(res);
+							entries.push(toJsType(res));
 							cb2();
 						});
 					},
