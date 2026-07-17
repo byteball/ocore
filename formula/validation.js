@@ -319,7 +319,7 @@ exports.validate = function (opts, callback) {
 			case 'floor':
 			case 'round':
 				if (typeof arr[1] === 'string' || typeof arr[2] === 'string')
-					return cb(op + " of a string " + JSON.stringify(arr[1]) + ', ' + JSON.stringify(arr[2]));
+					return cb(op + " of a string " + util.inspect(arr[1], { depth: 5 }) + ', ' + util.inspect(arr[2], { depth: 5 }));
 				evaluate(arr[1], function (err) {
 					if (err)
 						return cb(err);
@@ -1141,7 +1141,7 @@ exports.validate = function (opts, callback) {
 					function (expr, cb2) {
 						evaluate(expr, function (err) {
 							if (err)
-								return cb2("expr " + JSON.stringify(expr) + " invalid: " + err);
+								return cb2("expr " + util.inspect(expr, { depth: 5 }) + " invalid: " + err);
 							cb2();
 						});
 					},
@@ -1186,7 +1186,7 @@ exports.validate = function (opts, callback) {
 						function (expr, cb2) {
 							evaluate(expr, function (err) {
 								if (err)
-									return cb2("expr " + JSON.stringify(expr) + " invalid: " + err);
+									return cb2("expr " + util.inspect(expr, { depth: 5 }) + " invalid: " + err);
 								cb2();
 							});
 						},
@@ -1425,7 +1425,7 @@ exports.validate = function (opts, callback) {
 			count = count_expr.toNumber();
 		else if (typeof count_expr === 'object') {
 			if (count_expr[0] !== 'local_var')
-				return cb("only local vars allowed as count expression: " + JSON.stringify(count_expr));
+				return cb("only local vars allowed as count expression: " + util.inspect(count_expr, { depth: 5 }));
 			var var_name = count_expr[1];
 			if (typeof var_name !== 'string')
 				return cb("only literal var names allowed in count expression");
@@ -1459,7 +1459,7 @@ exports.validate = function (opts, callback) {
 				return { error: "remote AA var " + var_name + " must be a constant" };
 		}
 		if (!ValidationUtils.isValidAddress(remote_aa))
-			return { error: "not valid AA address: " + JSON.stringify(remote_aa) };
+			return { error: "not valid AA address: " + util.inspect(remote_aa, { depth: 5 }) };
 		return { remote_aa };
 	}
 
@@ -1494,7 +1494,7 @@ exports.validate = function (opts, callback) {
 		}, true);
 	} else {
 		if (parser.results.length > 1){
-			console.log('validation: ambiguous grammar', JSON.stringify(parser.results));
+			console.log('validation: ambiguous grammar', parser.results);
 			callback({ complexity, error: 'ambiguous grammar' });
 		}
 		else
