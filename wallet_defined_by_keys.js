@@ -442,6 +442,7 @@ function getDeviceAddressesBySigningPaths(arrWalletDefinitionTemplate){
 		var prefix = '$pubkey@';
 		switch (op){
 			case 'sig':
+				// ignore static keys. We do not assume all keys are pubkey@device_address
 				if (!args.pubkey || args.pubkey.substr(0, prefix.length) !== prefix)
 					return;
 				var device_address = args.pubkey.substr(prefix.length);
