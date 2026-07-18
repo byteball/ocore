@@ -926,6 +926,11 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 }
 
 var handledChainsCache = {};
+setInterval(() => {
+	for (let cache_key in handledChainsCache)
+		if (handledChainsCache[cache_key] < Date.now() - 3600 * 1000)
+			delete handledChainsCache[cache_key];
+}, 3600 * 1000); // clear cache every hour
 
 function handlePrivatePaymentChains(ws, body, from_address, callbacks){
 	var arrChains = body.chains;
@@ -1044,7 +1049,7 @@ function handlePrivatePaymentChains(ws, body, from_address, callbacks){
 				return callbacks.ifError(err);
 			}
 			checkIfAllValidated();
-			handledChainsCache[cache_key] = true;
+			handledChainsCache[cache_key] = Date.now();
 			callbacks.ifOk();
 			// forward the chains to other members of output addresses
 			if (!body.forwarded)
