@@ -1478,6 +1478,8 @@ function markMcIndexStable(conn, batch, mci, onDone){
 												addDataFeeds(payload);
 												break;
 											case 'definition':
+												if (objUnitProps.is_aa_response)
+													continue; // already inserted in writer.js
 												await storage.insertAADefinitions(conn, [payload], unit, mci, false);
 												break;
 											case 'system_vote':
