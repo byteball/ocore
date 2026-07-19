@@ -4,6 +4,7 @@
 var _ = require('lodash');
 var async = require('async');
 var constants = require('./constants.js');
+var conf = require('./conf.js');
 var objectHash = require("./object_hash.js");
 var ValidationUtils = require("./validation_utils.js");
 var formulaValidator = require('./formula/validation.js');
@@ -775,6 +776,8 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 function determineGetterProps(arrDefinition, readGetterProps, cb) {
 	if (!arrDefinition[1].getters)
 		return cb(null);
+	if (conf.bLight)
+		return cb(null); // light clients don't need to know getters
 	var locals = {};
 	var f = getFormula(arrDefinition[1].getters);
 	var opts = {
