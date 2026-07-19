@@ -1751,19 +1751,24 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 						if (fatal_error)
 							return cb(false);
 						let res;
+						var objProof;
+						if (proof instanceof wrappedObject)
+							objProof = proof.obj;
+						else if (typeof proof === 'string') {
+							if (proof.length > 1024)
+								return setFatalError("proof is too large", { arr }, false, cb);
+							objProof = merkle.deserializeMerkleProof(proof);
+						}
+						else // can't be valid proof
+							return cb(false);
+						if (mci >= constants.pemCurvesFixMci) {
+							if (!Array.isArray(objProof.siblings) || !objProof.siblings.every(ValidationUtils.isNonemptyString))
+								return cb(false);
+							if (objProof.siblings.length > 50)
+								return cb(false);
+						}
 						try {
-							var objProof;
-							if (proof instanceof wrappedObject)
-								objProof = proof.obj;
-							else if (typeof proof === 'string') {
-								if (proof.length > 1024)
-									return setFatalError("proof is too large", { arr }, false, cb);
-								objProof = merkle.deserializeMerkleProof(proof);
-							}
-							else // can't be valid proof
-								res = false;
-							if (objProof)
-								res = merkle.verifyMerkleProof(element, objProof);
+							res = merkle.verifyMerkleProof(element, objProof);
 						}
 						catch (e) {
 							res = false;
