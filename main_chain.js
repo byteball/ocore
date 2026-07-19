@@ -1480,7 +1480,9 @@ function markMcIndexStable(conn, batch, mci, onDone){
 											case 'definition':
 												if (objUnitProps.is_aa_response)
 													continue; // already inserted in writer.js
-												await storage.insertAADefinitions(conn, [payload], unit, mci, false);
+												const objLastBallUnitProps = await storage.readUnitProps(conn, objUnitProps.last_ball_unit);
+												const definer_last_ball_mci = objLastBallUnitProps.main_chain_index;
+												await storage.insertAADefinitions(conn, [payload], unit, mci, definer_last_ball_mci, false);
 												break;
 											case 'system_vote':
 												await saveSystemVote(payload);

@@ -35,13 +35,13 @@ function validateAA(aa, cb) {
 function addAA(aa) {
 	var address = objectHash.getChash160(aa);
 	db.query("INSERT " + db.getIgnore() + " INTO addresses (address) VALUES(?)", [address]);
-	storage.insertAADefinitions(db, [{ address, definition: aa }], constants.GENESIS_UNIT, 1, false);
+	storage.insertAADefinitions(db, [{ address, definition: aa }], constants.GENESIS_UNIT, 1, 0, false);
 }
 
 async function asyncAddAA(aa) {
 	var address = objectHash.getChash160(aa);
 	await db.query("INSERT " + db.getIgnore() + " INTO addresses (address) VALUES(?)", [address]);
-	await storage.insertAADefinitions(db, [{ address, definition: aa }], constants.GENESIS_UNIT, 1, false);
+	await storage.insertAADefinitions(db, [{ address, definition: aa }], constants.GENESIS_UNIT, 1, 0, false);
 }
 
 var old_cache = {};

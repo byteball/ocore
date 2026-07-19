@@ -99,7 +99,7 @@ function readAADefinitions(arrAddresses, handleRows) {
 							if (bAA) {
 								var base_aa = arrDefinition[1].base_aa;
 								rows.push({ address: address, definition: strDefinition, base_aa: base_aa });
-								storage.insertAADefinitions(db, [{ address, definition: arrDefinition }], constants.GENESIS_UNIT, 0, false, insert_cb);
+								storage.insertAADefinitions(db, [{ address, definition: arrDefinition }], constants.GENESIS_UNIT, 0, 0, false, insert_cb);
 							//	db.query("INSERT " + db.getIgnore() + " INTO aa_addresses (address, definition, unit, mci, base_aa) VALUES(?, ?, ?, ?, ?)", [address, strDefinition, constants.GENESIS_UNIT, 0, base_aa], insert_cb);
 							}
 							else

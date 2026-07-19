@@ -616,7 +616,7 @@ async function saveJoint(objJoint, objValidationState, preCommitCallback, onDone
 								if (arrAADefinitionPayloads.length > 0) {
 									arrOps.push(function (cb) {
 										console.log("inserting new AAs defined by an AA after adding " + objUnit.unit);
-										storage.insertAADefinitions(conn, arrAADefinitionPayloads, objUnit.unit, objValidationState.initial_trigger_mci, true, cb);
+										storage.insertAADefinitions(conn, arrAADefinitionPayloads, objUnit.unit, objValidationState.initial_trigger_mci, objValidationState.initial_trigger_mci, true, cb);
 									});
 								}
 							}

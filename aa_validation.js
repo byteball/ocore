@@ -773,7 +773,7 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 
 
 // assumes the definition is valid
-function determineGetterProps(arrDefinition, readGetterProps, cb) {
+function determineGetterProps(arrDefinition, readGetterProps, validation_mci, cb) {
 	if (!arrDefinition[1].getters)
 		return cb(null);
 	if (conf.bLight)
@@ -789,7 +789,7 @@ function determineGetterProps(arrDefinition, readGetterProps, cb) {
 		bStatementsOnly: true,
 		bGetters: true,
 		readGetterProps: readGetterProps,
-		mci: Number.MAX_SAFE_INTEGER,
+		mci: validation_mci,
 	};
 	formulaValidator.validate(opts, function (result) {
 		if (result.error)

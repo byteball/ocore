@@ -899,9 +899,11 @@ function getUnconfirmedAADefinitionsPostedByAAs(arrAddresses) {
 	return payloads;
 }
 
-function insertAADefinitions(conn, arrPayloads, unit, mci, bForAAsOnly, onDone) {
+// mci: when the AA becomes active (when its definition stabilizes for regular AAs, or trigger mci for AA-defined AAs)
+// validation_mci: at what mci should the definition be validated (last ball mci for regular AAs, or trigger mci for AA-defined AAs)
+function insertAADefinitions(conn, arrPayloads, unit, mci, validation_mci, bForAAsOnly, onDone) {
 	if (!onDone)
-		return new Promise(resolve => insertAADefinitions(conn, arrPayloads, unit, mci, bForAAsOnly, resolve));
+		return new Promise(resolve => insertAADefinitions(conn, arrPayloads, unit, mci, validation_mci, bForAAsOnly, resolve));
 	var aa_validation = require("./aa_validation.js");
 	async.eachSeries(
 		arrPayloads,
@@ -915,7 +917,7 @@ function insertAADefinitions(conn, arrPayloads, unit, mci, bForAAsOnly, onDone) 
 					return cb({ complexity: 0, count_ops: 0, count_args: null });
 				readAAGetterProps(conn, aa_address, func_name, mci, cb);
 			};
-			aa_validation.determineGetterProps(payload.definition, readGetterProps, function (getters) {
+			aa_validation.determineGetterProps(payload.definition, readGetterProps, validation_mci, function (getters) {
 				conn.query("INSERT " + db.getIgnore() + " INTO aa_addresses (address, definition, unit, mci, base_aa, getters) VALUES (?,?, ?,?, ?,?)", [address, json, unit, mci, base_aa, getters ? JSON.stringify(getters) : null], async function (res) {
 					if (res.affectedRows === 0) { // already exists
 						if (bForAAsOnly){
