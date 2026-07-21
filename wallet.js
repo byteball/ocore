@@ -285,11 +285,14 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 						try {
 							const payload = assocPrivatePayloads[payload_hash];
 							const hidden_payload = _.cloneDeep(payload);
-							if (payload.denomination) // indivisible asset.  In this case, payload hash is calculated based on output_hash rather than address and blinding
-								hidden_payload.outputs.forEach(function(o){
+							if (payload.denomination) { // indivisible asset.  In this case, payload hash is calculated based on output_hash rather than address and blinding
+								if (!payload.outputs.every(o => o.output_hash === objectHash.getBase64Hash({ address: o.address, blinding: o.blinding })))
+									return callbacks.ifError("output hash mismatch");
+								hidden_payload.outputs.forEach(function (o) {
 									delete o.address;
 									delete o.blinding;
 								});
+							}
 							var calculated_payload_hash = objectHash.getBase64Hash(hidden_payload, bJsonBased);
 						}
 						catch (e) {
