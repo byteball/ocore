@@ -284,6 +284,10 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					for (var payload_hash in assocPrivatePayloads){
 						try {
 							const payload = assocPrivatePayloads[payload_hash];
+							if (!ValidationUtils.isNonemptyArray(payload.outputs) || !payload.outputs.every(o => ValidationUtils.isValidAddress(o.address) && ValidationUtils.isNonemptyString(o.blinding) && ValidationUtils.isPositiveInteger(o.amount)))
+								return callbacks.ifError("bad private payload outputs");
+							if (!ValidationUtils.isNonemptyArray(payload.inputs) || !payload.inputs.every(i => ("type" in i) || (ValidationUtils.isNonemptyString(i.unit) && ValidationUtils.isNonnegativeInteger(i.message_index) && ValidationUtils.isNonnegativeInteger(i.output_index))))
+								return callbacks.ifError("bad private payload inputs");
 							const hidden_payload = _.cloneDeep(payload);
 							if (payload.denomination) { // indivisible asset.  In this case, payload hash is calculated based on output_hash rather than address and blinding
 								if (!payload.outputs.every(o => o.output_hash === objectHash.getBase64Hash({ address: o.address, blinding: o.blinding })))
@@ -312,6 +316,13 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 						return callbacks.ifError("invalid payload hashes");
 					if (!objUnit.messages.find(m => m.app === 'payment'))
 						return callbacks.ifError("no payment messages");
+					for (let m of objUnit.messages) {
+						if (m.app !== 'payment' || m.payload_location !== 'inline') continue;
+						if (!ValidationUtils.isNonemptyArray(m.payload.outputs) || !m.payload.outputs.every(o => ValidationUtils.isValidAddress(o.address) && ValidationUtils.isPositiveInteger(o.amount)))
+							return callbacks.ifError("invalid payment outputs");
+						if (!ValidationUtils.isNonemptyArray(m.payload.inputs) || !m.payload.inputs.every(i => ("type" in i) || (ValidationUtils.isNonemptyString(i.unit) && ValidationUtils.isNonnegativeInteger(i.message_index) && ValidationUtils.isNonnegativeInteger(i.output_index))))
+							return callbacks.ifError("invalid payment inputs");
+					}
 				}
 				// findAddress handles both types of addresses
 				findAddress(body.address, body.signing_path, {
