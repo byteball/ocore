@@ -548,8 +548,11 @@ function composeJoint(params){
 			objPaymentMessage.payload.outputs.sort(sortOutputs);
 			objPaymentMessage.payload_hash = objectHash.getBase64Hash(objPaymentMessage.payload, objUnit.version !== constants.versionWithoutTimestamp);
 			var text_to_sign = objectHash.getUnitHashToSign(objUnit);
+			let authors_for_signing = [ ...objUnit.authors ];
+			// multisigs come first to request their signatures from peers earlier, so that the peer sees the shared address as signer first and caches the response
+			authors_for_signing.sort((a, b) => (Object.keys(b.authentifiers).length - Object.keys(a.authentifiers).length)); // descending by number of signatures
 			async.each(
-				objUnit.authors,
+				authors_for_signing,
 				function(author, cb2){
 					var address = author.address;
 					async.each( // different keys sign in parallel (if multisig)
