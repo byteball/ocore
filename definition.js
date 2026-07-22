@@ -1125,11 +1125,19 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 						augmentMessagesAndEvaluateFilter("has", args.search_criteria[1], function(res2, arrSecondObjects){
 							if (!res2)
 								return cb2(false);
+							// build a key from the equal_fields values so that matching pairs can be counted
+							// in O(n+m) instead of O(n*m) by grouping arrSecondObjects into a map of key->count
+							// (amounts are numbers, address/type/asset are strings, only type can be undefined,
+							// and none of them can equal "" or the literal string "undefined", so join() is safe)
+							const getKey = obj => args.equal_fields.map(field => obj[field]).join('\x1f');
+							let mapSecondKeyToCount = new Map();
+							for (let j = 0; j < arrSecondObjects.length; j++) {
+								const key = getKey(arrSecondObjects[j]);
+								mapSecondKeyToCount.set(key, (mapSecondKeyToCount.get(key) || 0) + 1);
+							}
 							var count_equal_pairs = 0;
 							for (var i = 0; i < arrFirstObjects.length; i++)
-								for (var j = 0; j < arrSecondObjects.length; j++)
-									if (args.equal_fields.every(field => arrFirstObjects[i][field] === arrSecondObjects[j][field]))
-										count_equal_pairs++;
+								count_equal_pairs += mapSecondKeyToCount.get(getKey(arrFirstObjects[i])) || 0;
 							if (count_equal_pairs === 0)
 								return cb2(false);
 							if (op === "has one equal" && count_equal_pairs === 1)
