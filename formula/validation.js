@@ -487,6 +487,10 @@ exports.validate = function (opts, callback) {
 
 			case 'search_param_list':
 				var arrPairs = arr[1];
+				if (arrPairs.length > 5 && (mci >= constants.pemCurvesFixMci || require('../storage.js').getMinRetrievableMci() >= constants.pemCurvesFixMci))
+					return cb("too many search criteria: " + arrPairs.length);
+				if (mci >= constants.pemCurvesFixMci)
+					count_ops += arrPairs.length;
 				async.eachSeries(
 					arrPairs,
 					function (pair, cb2) {

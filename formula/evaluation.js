@@ -2285,6 +2285,8 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 					if (locals[var_name].frozen)
 						return setFatalError("variable " + var_name + " is frozen", { arr }, false, cb);
 					selectSubobject(locals[var_name], selectors, arr, function (res) {
+						if (fatal_error)
+							return cb(false);
 						if (!(res instanceof wrappedObject))
 							return setFatalError("trying to delete a key from a subobject which is not an object", { arr }, false, cb);
 						evaluate(key_expr, function (key) {
@@ -2945,6 +2947,12 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 			throw Error('search params is not an array');
 		if (!ValidationUtils.isNonemptyArray(array))
 			return handleResult('not an array, search criteria cannot be applied');
+		if (mci >= constants.pemCurvesFixMci) {
+			if (array.length > constants.MAX_MESSAGES_PER_UNIT)
+				return setFatalError("array too long: " + array.length, { arr: [] }, undefined, handleResult);
+			if (arrPairs.length > 5)
+				return setFatalError("too many search criteria: " + arrPairs.length, { arr: [] }, undefined, handleResult);
+		}
 		var arrSearchCriteria = [];
 		async.eachSeries(
 			arrPairs,
