@@ -323,6 +323,8 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 			case 'min':
 			case 'max':
 			case 'hypot':
+				if (arr[1].length > 30 && mci >= constants.pemCurvesFixMci)
+					return setFatalError("too many arguments of " + op, { arr }, false, cb);
 				var vals = [];
 				async.eachSeries(arr[1], function (param, cb2) {
 					evaluate(param, function (res) {
@@ -1124,6 +1126,9 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 
 			case 'array':
 				var arrItemExprs = arr[1];
+				if (arrItemExprs.length > 100 && mci >= constants.pemCurvesFixMci)
+					return setFatalError("array literal is too long", { arr }, false, cb);
+				var prevCount = count;
 				var arrItems = [];
 				async.eachSeries(
 					arrItemExprs,
@@ -1140,6 +1145,11 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 									res = res.toNumber();
 								arrItems.push(res);
 							}
+							if (count - prevCount >= 100) {
+								prevCount = count;
+								if (isTooBigObj(arrItems))
+									return setFatalError("intermediate array is too big", { arr }, undefined, cb2);
+							}
 							cb2();
 						})
 					},
@@ -1155,6 +1165,9 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 			
 			case 'dictionary':
 				var arrPairs = arr[1];
+				if (arrPairs.length > 100 && mci >= constants.pemCurvesFixMci)
+					return setFatalError("dictionary literal is too long", { arr }, false, cb);
+				var prevCount = count;
 				var obj = {};
 				async.eachSeries(
 					arrPairs,
@@ -1171,6 +1184,11 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 								if (Decimal.isDecimal(res))
 									res = res.toNumber();
 								assignField(obj, key, res);
+							}
+							if (count - prevCount >= 100) {
+								prevCount = count;
+								if (isTooBigObj(obj))
+									return setFatalError("intermediate dictionary is too big", { arr }, undefined, cb2);
 							}
 							cb2();
 						});	
@@ -2613,6 +2631,8 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 	
 			case 'log':
 				var entries = [];
+				if (arr[1].length > 100 && mci >= constants.pemCurvesFixMci)
+					return setFatalError("too many log entries: " + arr[1].length, { arr }, false, cb);
 				async.eachSeries(
 					arr[1],
 					function (expr, cb2) {

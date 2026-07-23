@@ -335,6 +335,8 @@ exports.validate = function (opts, callback) {
 					complexity++;
 				if (arr[1].length === 0)
 					return cb("no arguments of " + op);
+				if (arr[1].length > 30 && (mci >= constants.pemCurvesFixMci || require('../storage.js').getMinRetrievableMci() >= constants.pemCurvesFixMci))
+					return cb("too many arguments of " + op);
 				async.eachSeries(arr[1], function (param, cb2) {
 					if (typeof param === 'string')
 						return cb2(op + ' of a string: ' + param);
@@ -518,6 +520,8 @@ exports.validate = function (opts, callback) {
 				if (mci < constants.aa2UpgradeMci)
 					return cb("arrays not activated yet");
 				var arrItems = arr[1];
+				if (arrItems.length > 100 && (mci >= constants.pemCurvesFixMci || require('../storage.js').getMinRetrievableMci() >= constants.pemCurvesFixMci))
+					return cb("array literal is too long");
 				async.eachSeries(arrItems, evaluate, cb);
 				break;
 
@@ -525,6 +529,8 @@ exports.validate = function (opts, callback) {
 				if (mci < constants.aa2UpgradeMci)
 					return cb("dictionaries not activated yet");
 				var arrPairs = arr[1];
+				if (arrPairs.length > 100 && (mci >= constants.pemCurvesFixMci || require('../storage.js').getMinRetrievableMci() >= constants.pemCurvesFixMci))
+					return cb("dictionary literal is too long");
 				var obj = {};
 				async.eachSeries(
 					arrPairs,
@@ -1244,6 +1250,8 @@ exports.validate = function (opts, callback) {
 					return cb('log not allowed at top level in getters');
 				if (arr[1].length === 0)
 					return cb("no arguments of log");
+				if (arr[1].length > 100 && (mci >= constants.pemCurvesFixMci || require('../storage.js').getMinRetrievableMci() >= constants.pemCurvesFixMci))
+					return cb("too many params in log");
 				async.eachSeries(arr[1], evaluate, cb);
 				break;
 		
