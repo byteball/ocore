@@ -305,7 +305,8 @@ function validate(objJoint, callbacks, external_conn) {
 	else {
 		if (!isNonemptyArray(objUnit.parent_units))
 			return callbacks.ifUnitError("missing or empty parent units array");
-		
+		if (!objUnit.parent_units.every(p => isStringOfLength(p, constants.HASH_LENGTH)))
+			return callbacks.ifUnitError("wrong length of parent unit");
 		if (!isStringOfLength(objUnit.last_ball, constants.HASH_LENGTH))
 			return callbacks.ifUnitError("wrong length of last ball");
 		if (!isStringOfLength(objUnit.last_ball_unit, constants.HASH_LENGTH))
@@ -608,8 +609,6 @@ function validateParentsExistAndOrdered(conn, objUnit, callback){
 	async.eachSeries(
 		objUnit.parent_units,
 		function(parent_unit, cb){
-			if (typeof parent_unit !== 'string')
-				return cb("parents must be strings");
 			if (parent_unit <= prev)
 				return cb("parent units not ordered");
 			prev = parent_unit;
