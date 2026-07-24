@@ -1035,6 +1035,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 		console.log('send unit with messages', util.inspect(messages, { depth: 6 }));
 		var arrUsedOutputIds = [];
 		var arrConsumedOutputs = [];
+		var objUnit;
 
 		const objLastBallUnit = await storage.readUnitProps(conn, objMcUnit.last_ball_unit);
 		if (!objLastBallUnit)
@@ -1352,7 +1353,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 				// add payload_location and wrong payload_hash
 				objBasePaymentMessage.payload_location = 'inline';
 				objBasePaymentMessage.payload_hash = '-'.repeat(44);
-				var objUnit = {
+				objUnit = {
 					version: mci >= constants.v4UpgradeMci ? constants.version : (bWithKeys ? constants.version3 : constants.versionWithoutKeySizes), // we should actually use last_ball_mci
 					alt: constants.alt,
 					timestamp: objMcUnit.timestamp,
