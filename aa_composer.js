@@ -992,6 +992,43 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 		});
 	}
 
+	// merges payment messages paying in the same asset into a single message,
+	// and merges outputs paying in the same asset to the same address into a single output.
+	// send-all outputs (amount === undefined) are left as they are and never merged with anything.
+	// non-payment messages are left intact.
+	function mergeMessagesAndOutputs(messages) {
+		const arrMergedMessages = [];
+		const assocMergedMessagesByAsset = {};
+		for (let message of messages) {
+			if (message.app !== 'payment') {
+				arrMergedMessages.push(message);
+				continue;
+			}
+			const payload = message.payload;
+			const asset = payload.asset || 'base';
+			let objMergedMessage = assocMergedMessagesByAsset[asset];
+			if (!objMergedMessage) {
+				objMergedMessage = { app: 'payment', payload: { outputs: [] } };
+				if (payload.asset)
+					objMergedMessage.payload.asset = payload.asset;
+				assocMergedMessagesByAsset[asset] = objMergedMessage;
+				arrMergedMessages.push(objMergedMessage);
+			}
+			for (let output of payload.outputs) {
+				if (output.amount === undefined) { // send-all output, don't merge with anything
+					objMergedMessage.payload.outputs.push(output);
+					continue;
+				}
+				const existing_output = objMergedMessage.payload.outputs.find(o => o.address === output.address && o.amount !== undefined);
+				if (existing_output)
+					existing_output.amount += output.amount;
+				else
+					objMergedMessage.payload.outputs.push(output);
+			}
+		}
+		return arrMergedMessages;
+	}
+
 	async function sendUnit(messages) {
 		if (trigger_opts.bAir)
 			return sendDummyUnit(messages);
@@ -1225,6 +1262,8 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 			console.log(error_message);
 			return handleSuccessfulEmptyResponseUnit(null);
 		}
+		if (mci >= constants.pemCurvesFixMci)
+			messages = mergeMessagesAndOutputs(messages);
 		var objBasePaymentMessage;
 		var arrOutputAddresses = [];
 		const addOutputAddresses = (outputs) => {
