@@ -903,7 +903,7 @@ function validateWitnesses(conn, objUnit, objValidationState, callback){
 	function checkWitnessedLevelDidNotRetreat(arrWitnesses){
 		if (!objUnit.parent_units) // genesis
 			return callback();
-		storage.determineWitnessedLevelAndBestParent(conn, objUnit.parent_units, arrWitnesses, objUnit.version, function(witnessed_level, best_parent_unit){
+		storage.determineWitnessedLevelAndBestParent(conn, objUnit.parent_units, arrWitnesses, objUnit.version, objValidationState.last_ball_mci >= constants.bestParentPrefersOpUpgradeMci, function(witnessed_level, best_parent_unit){
 			if (!best_parent_unit)
 				return callback("no best parent");
 			objValidationState.witnessed_level = witnessed_level;

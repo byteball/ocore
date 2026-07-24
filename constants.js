@@ -100,6 +100,7 @@ exports.v4UpgradeMci = exports.bTestnet ? 3522600 : 10968000;
 exports.tpsFeeRecipientsFixMci = exports.bTestnet ? 3909321 : 11985000;
 exports.pemCurvesFixMci = exports.bTestnet ? 3935000 : 12099000;
 exports.noPrivateAssetsWithConditionsUpgradeMci = exports.bTestnet ? 3935000 : 12099000;
+exports.bestParentPrefersOpUpgradeMci = exports.bTestnet ? Infinity : 12099000;
 
 
 if (process.env.devnet) {
@@ -141,6 +142,7 @@ if (process.env.devnet || process.env.GENESIS_UNIT) {
 	exports.tpsFeeRecipientsFixMci = 0;
 	exports.pemCurvesFixMci = 0;
 	exports.noPrivateAssetsWithConditionsUpgradeMci = 0;
+	exports.bestParentPrefersOpUpgradeMci = 0;
 }
 
 // textcoins

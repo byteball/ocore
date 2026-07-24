@@ -689,9 +689,9 @@ function determineIfWitnessAddressDefinitionsHaveReferences(conn, arrWitnesses, 
 	);
 }
 
-function determineWitnessedLevelAndBestParent(conn, arrParentUnits, arrWitnesses, version, handleWitnessedLevelAndBestParent){
+function determineWitnessedLevelAndBestParent(conn, arrParentUnits, arrWitnesses, version, bTieBreakerPrefersOP, handleWitnessedLevelAndBestParent){
 	if (!handleWitnessedLevelAndBestParent)
-		return new Promise(resolve => determineWitnessedLevelAndBestParent(conn, arrParentUnits, arrWitnesses, version, (witnessed_level, best_parent_unit) => resolve({ witnessed_level, best_parent_unit })));
+		return new Promise(resolve => determineWitnessedLevelAndBestParent(conn, arrParentUnits, arrWitnesses, version, bTieBreakerPrefersOP, (witnessed_level, best_parent_unit) => resolve({ witnessed_level, best_parent_unit })));
 	var arrCollectedWitnesses = [];
 	var my_best_parent_unit;
 	var count = 0;
@@ -720,7 +720,7 @@ function determineWitnessedLevelAndBestParent(conn, arrParentUnits, arrWitnesses
 		});
 	}
 
-	determineBestParent(conn, {version, parent_units: arrParentUnits, witness_list_unit: 'none'}, arrWitnesses, function(best_parent_unit){
+	determineBestParent(conn, {version, parent_units: arrParentUnits, witness_list_unit: 'none'}, arrWitnesses, bTieBreakerPrefersOP, function(best_parent_unit){
 		if (!best_parent_unit)
 			return handleWitnessedLevelAndBestParent();
 		//	throw Error("no best parent of "+arrParentUnits.join(', ')+", witnesses "+arrWitnesses.join(', '));
@@ -2024,7 +2024,7 @@ function filterNewOrUnstableUnits(arrUnits, handleFilteredUnits){
 }
 
 // for unit that is not saved to the db yet
-function determineBestParent(conn, objUnit, arrWitnesses, handleBestParent){
+function determineBestParent(conn, objUnit, arrWitnesses, bTieBreakerPrefersOP, handleBestParent){
 	const fVersion = parseFloat(objUnit.version);
 	// choose best parent among compatible parents only
 	const compatibilityCondition = fVersion >= constants.fVersion4 ? '' : `AND (witness_list_unit=? OR (
@@ -2037,6 +2037,42 @@ function determineBestParent(conn, objUnit, arrWitnesses, handleBestParent){
 		params.push(objUnit.witness_list_unit, arrWitnesses, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS);
 	else if (objUnit.parent_units.length === 1)
 		return handleBestParent(objUnit.parent_units[0]); // assumes the parent unit exists
+	if (bTieBreakerPrefersOP) {
+		let arrParentProps = [];
+		async.eachSeries(
+			objUnit.parent_units,
+			function (parent_unit, cb) {
+				readUnitProps(conn, parent_unit, function (props) {
+					arrParentProps.push({
+						unit: parent_unit,
+						witnessed_level: props.witnessed_level,
+						level_diff: props.level - props.witnessed_level,
+						isOP: _.intersection(props.author_addresses, arrWitnesses).length > 0,
+					});
+					cb();
+				});
+			},
+			function () {
+				arrParentProps.sort(function (a, b) {
+					if (a.witnessed_level !== b.witnessed_level)
+						return b.witnessed_level - a.witnessed_level; // descending
+					if (a.level_diff !== b.level_diff)
+						return a.level_diff - b.level_diff; // ascending
+					if (a.isOP && !b.isOP) // OP parents are preferred over non-OP parents
+						return -1;
+					if (!a.isOP && b.isOP)
+						return 1;
+					if (a.unit < b.unit) // ascending
+						return -1;
+					if (a.unit > b.unit)
+						return 1;
+					return 0;
+				});
+				handleBestParent(arrParentProps[0].unit);
+			}
+		);
+		return;
+	}
 	conn.query(
 		`SELECT unit
 		FROM units AS parent_units
@@ -2102,7 +2138,7 @@ function buildListOfMcUnitsWithPotentiallyDifferentWitnesslists(conn, objUnit, l
 	}
 
 	var arrMcUnits = [];
-	determineBestParent(conn, objUnit, arrWitnesses, function(best_parent_unit){
+	determineBestParent(conn, objUnit, arrWitnesses, false, function(best_parent_unit){
 		if (!best_parent_unit)
 			return handleList(false);
 		addAndGoUp(best_parent_unit);

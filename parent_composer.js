@@ -165,7 +165,7 @@ function pickDeepParentUnits(conn, arrWitnesses, timestamp, max_wl, onDone){
 }
 
 function determineWitnessedLevels(conn, arrWitnesses, arrParentUnits, handleResult){
-	storage.determineWitnessedLevelAndBestParent(conn, arrParentUnits, arrWitnesses, constants.version3, function(witnessed_level, best_parent_unit){
+	storage.determineWitnessedLevelAndBestParent(conn, arrParentUnits, arrWitnesses, constants.version3, false, function(witnessed_level, best_parent_unit){
 		conn.query(
 			"SELECT unit, witnessed_level FROM units WHERE unit IN(?) ORDER BY witnessed_level DESC LIMIT 1",
 			[arrParentUnits],
@@ -607,7 +607,8 @@ async function getLastBallInfo(conn, prows) {
 			continue;
 		}
 		const arrWitnesses = storage.getOpList(row.main_chain_index);
-		const { witnessed_level } = await storage.determineWitnessedLevelAndBestParent(conn, arrParentUnits, arrWitnesses, constants.version);
+		const bTieBreakerPrefersOP = row.main_chain_index >= constants.bestParentPrefersOpUpgradeMci;
+		const { witnessed_level } = await storage.determineWitnessedLevelAndBestParent(conn, arrParentUnits, arrWitnesses, constants.version, bTieBreakerPrefersOP);
 		if (witnessed_level >= max_parent_wl)
 			return row;
 	}
