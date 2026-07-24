@@ -303,7 +303,7 @@ function composeDivisibleAssetPaymentJoint(params){
 			ifNotEnoughFunds: params.callbacks.ifNotEnoughFunds,
 			ifOk: function(objJoint, assocPrivatePayloads, composer_unlock_callback){
 				// adding private_payload
-				params.callbacks.ifOk(objJoint, private_payload, composer_unlock_callback);
+				params.callbacks.ifOk(objJoint, assocPrivatePayloads, composer_unlock_callback);
 			}
 		}
 	});
@@ -314,7 +314,7 @@ function getSavingCallbacks(callbacks){
 	return {
 		ifError: callbacks.ifError,
 		ifNotEnoughFunds: callbacks.ifNotEnoughFunds,
-		ifOk: async function(objJoint, private_payload, composer_unlock){
+		ifOk: async function(objJoint, assocPrivatePayloads, composer_unlock){
 			var objUnit = objJoint.unit;
 			var unit = objUnit.unit;
 			const validate_and_save_unlock = await mutex.lock('handleJoint');
@@ -347,27 +347,34 @@ function getSavingCallbacks(callbacks){
 						combined_unlock();
 						return callbacks.ifError("Divisible asset bad sequence "+objValidationState.sequence);
 					}
-					var bPrivate = !!private_payload;
-					var objPrivateElement;
+					var bPrivate = !!assocPrivatePayloads;
+					var arrPrivateElements = [];
 					var preCommitCallback = null;
 					
 					if (bPrivate){
 						preCommitCallback = function(conn, cb){
-							var payload_hash = objectHash.getBase64Hash(private_payload, objUnit.version !== constants.versionWithoutTimestamp);
-							var message_index = composer.getMessageIndexByPayloadHash(objUnit, payload_hash);
-							objPrivateElement = {
-								unit: unit,
-								message_index: message_index,
-								payload: private_payload
-							};
-							validateAndSaveDivisiblePrivatePayment(conn, objPrivateElement, {
-								ifError: function(err){
-									cb(err);
+							async.eachSeries(
+								Object.keys(assocPrivatePayloads),
+								function(payload_hash, cb2){
+									var payload = assocPrivatePayloads[payload_hash];
+									var message_index = composer.getMessageIndexByPayloadHash(objUnit, payload_hash);
+									var objPrivateElement = {
+										unit: unit,
+										message_index: message_index,
+										payload: payload
+									};
+									validateAndSaveDivisiblePrivatePayment(conn, objPrivateElement, {
+										ifError: function(err){
+											cb2(err);
+										},
+										ifOk: function(){
+											arrPrivateElements.push(objPrivateElement);
+											cb2();
+										}
+									});
 								},
-								ifOk: function(){
-									cb();
-								}
-							});
+								cb
+							);
 						};
 					} else {
 						if (typeof callbacks.preCommitCb === "function") {
@@ -390,10 +397,10 @@ function getSavingCallbacks(callbacks){
 								objJoint, objValidationState, 
 								preCommitCallback,
 								function onDone(err){
-									console.log("saved unit "+unit+", err="+err, objPrivateElement);
+									console.log("saved unit "+unit+", err="+err, arrPrivateElements);
 									validation_unlock();
 									combined_unlock();
-									var arrChains = objPrivateElement ? [[objPrivateElement]] : null; // only one chain that consists of one element
+									var arrChains = arrPrivateElements.length ? arrPrivateElements.map(function(objPrivateElement){ return [objPrivateElement]; }) : null; // each chain consists of one element
 									callbacks.ifOk(objJoint, arrChains, arrChains);
 								}
 							);
