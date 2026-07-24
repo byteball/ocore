@@ -765,7 +765,7 @@ function validateParents(conn, objJoint, objValidationState, callback){
 						if ("witness_list_unit" in objUnit)
 							return callback("should have no witness_list_unit since version 4.0");
 						if (!("content_hash" in objUnit)) { // serial unit
-							const oversize_fee = storage.getOversizeFee(objUnit, objValidationState.last_ball_mci);
+							const oversize_fee = storage.getOversizeFee(objUnit, objValidationState.last_ball_mci, objValidationState.bAA);
 							if (oversize_fee) {
 								if (objUnit.oversize_fee !== oversize_fee)
 									return callback(createJointError(`oversize_fee mismatch: expected ${oversize_fee}, found ${objUnit.oversize_fee}`));

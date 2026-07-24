@@ -1132,14 +1132,18 @@ function exp(x) {
 	return new Decimal(x).exp().toNumber();
 }
 
-function getOversizeFee(objUnitOrSize, mci) {
+function getOversizeFee(objUnitOrSize, mci, bAA) {
 	let size;
 	if (typeof objUnitOrSize === "number")
 		size = objUnitOrSize; // must be already without temp data fee
 	else if (typeof objUnitOrSize === "object") {
 		if (!objUnitOrSize.headers_commission || !objUnitOrSize.payload_commission)
 			throw Error("no headers or payload commission in unit");
-		size = objUnitOrSize.headers_commission + objUnitOrSize.payload_commission - objectLength.getPaidTempDataFee(objUnitOrSize);
+		// AA-generated units pay the oversize fee based on the unit size excluding its payment messages to avoid swelling the fee while spending dust outputs
+		const payload_commission = (bAA && mci >= constants.pemCurvesFixMci)
+			? objectLength.getTotalPayloadSize({ ...objUnitOrSize, messages: objUnitOrSize.messages.filter(message => message.app !== 'payment') })
+			: objUnitOrSize.payload_commission;
+		size = objUnitOrSize.headers_commission + payload_commission - objectLength.getPaidTempDataFee(objUnitOrSize);
 	}
 	else
 		throw Error("unrecognized 1st arg in getOversizeFee");

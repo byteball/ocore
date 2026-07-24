@@ -1069,12 +1069,22 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 				}
 			}
 			const paid_temp_data_fee = objectLength.getPaidTempDataFee({ messages });
+			const bChargeOversizeFee = (mci >= constants.v4UpgradeMci && is_base);
+			// AA-generated units pay the oversize fee based on the unit size excluding its payment messages;
+			// this doesn't change as we add more inputs to the payment message, so calculate it only once
+			const oversize_fee_excluding_payments = (bChargeOversizeFee && mci >= constants.pemCurvesFixMci)
+				? storage.getOversizeFee(objUnit.headers_commission + objectLength.getTotalPayloadSize({ ...objUnit, messages: messages.filter(message => message.app !== 'payment') }) - paid_temp_data_fee, last_ball_mci)
+				: null;
 			var net_target_amount = payload.outputs.reduce(function (acc, output) { return acc + (output.amount || 0); }, size);
 			let target_amount = net_target_amount + getOversizeFee(size);
 			var bFound = false;
 
 			function getOversizeFee(s) {
-				return (mci >= constants.v4UpgradeMci && is_base) ? storage.getOversizeFee(s - paid_temp_data_fee, last_ball_mci) : 0;
+				if (!bChargeOversizeFee)
+					return 0;
+				if (mci < constants.pemCurvesFixMci)
+					return storage.getOversizeFee(s - paid_temp_data_fee, last_ball_mci);
+				return oversize_fee_excluding_payments;
 			}
 
 			function iterateUnspentOutputs(rows) {
@@ -1373,7 +1383,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 							return bounce("base completeMessage failed: " + e.toString());
 						}
 						objUnit.payload_commission = objectLength.getTotalPayloadSize(objUnit);
-						const oversize_fee = (mci >= constants.v4UpgradeMci) ? storage.getOversizeFee(objUnit, last_ball_mci) : 0;
+						const oversize_fee = (mci >= constants.v4UpgradeMci) ? storage.getOversizeFee(objUnit, last_ball_mci, true) : 0;
 						if (oversize_fee)
 							objUnit.oversize_fee = oversize_fee;
 						objUnit.unit = objectHash.getUnitHash(objUnit);
