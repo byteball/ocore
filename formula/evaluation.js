@@ -1597,13 +1597,13 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 							var objUnit = objJoint.unit;
 							if (mci >= constants.pemCurvesFixMci)
 								delete objUnit.actual_tps_fee; // might be null in stable units stabilized in the same batch
-							objectHash.cleanNulls(objUnit); // removes actual_tps_fee which is null in AA responses
 							if (objUnit.version === constants.versionWithoutTimestamp)
 								objUnit.timestamp = 0;
 							var unit_mci = objUnit.main_chain_index;
 							// ignore units that are not stable or created at a later mci
 							if (unit_mci === null || unit_mci > mci)
 								return cb(false);
+							objectHash.cleanNulls(objUnit); // removes actual_tps_fee which is null in AA responses
 							for (let m of objUnit.messages)
 								if (m.app === "temp_data")
 									delete m.payload.data; // delete temp data if it is not purged yet
