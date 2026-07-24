@@ -2035,6 +2035,8 @@ function determineBestParent(conn, objUnit, arrWitnesses, handleBestParent){
 	let params = [objUnit.parent_units];
 	if (fVersion < constants.fVersion4)
 		params.push(objUnit.witness_list_unit, arrWitnesses, constants.COUNT_WITNESSES - constants.MAX_WITNESS_LIST_MUTATIONS);
+	else if (objUnit.parent_units.length === 1)
+		return handleBestParent(objUnit.parent_units[0]); // assumes the parent unit exists
 	conn.query(
 		`SELECT unit
 		FROM units AS parent_units
