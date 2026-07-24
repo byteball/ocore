@@ -995,22 +995,26 @@ async function validateAATrigger(conn, objUnit, objValidationState, callback) {
 	}
 	if (objUnit.max_aa_responses === 0 && objValidationState.last_ball_mci >= constants.pemCurvesFixMci)
 		return callback(`max_aa_responses=0 is not allowed`);
-	let arrOutputAddresses = [];
+	let outputCounts = {};
 	for (let m of objUnit.messages) {
 		if (m.app === 'payment' && m.payload) {
-			if (!isNonemptyArray(m.payload.outputs))
-				return callback("outputs must be a non-empty array");
-			for (let o of m.payload.outputs)
-				if (isNonemptyObject(o) && !arrOutputAddresses.includes(o.address))
-					arrOutputAddresses.push(o.address);
+			const asset = m.payload.asset || 'base';
+			for (let o of m.payload.outputs) {
+				if (!outputCounts[o.address])
+					outputCounts[o.address] = {};
+				if (!outputCounts[o.address][asset])
+					outputCounts[o.address][asset] = 0;
+				outputCounts[o.address][asset]++;
+			}
 		}
 	}
+	const arrOutputAddresses = Object.keys(outputCounts);
 	if (arrOutputAddresses.length === 0)
 		return callback("no output addresses found in payment messages");
 
 	// Look for AA triggers
 	// There might be actually more triggers due to AAs defined between last_ball_mci and our unit, so our validation of tps fee might require a smaller fee than the fee actually charged when the trigger executes
-	const rows = await conn.query("SELECT 1 FROM aa_addresses WHERE address IN (?) AND mci<=?", [arrOutputAddresses, objValidationState.last_ball_mci]);
+	const rows = await conn.query("SELECT address FROM aa_addresses WHERE address IN (?) AND mci<=?", [arrOutputAddresses, objValidationState.last_ball_mci]);
 	if (rows.length === 0) {
 		if ("max_aa_responses" in objUnit)
 			return callback(`no outputs to AAs, max_aa_responses should not be there`);
@@ -1022,6 +1026,13 @@ async function validateAATrigger(conn, objUnit, objValidationState, callback) {
 			return callback(`more than 1 primary AA trigger (${objValidationState.count_primary_aa_triggers})`);
 		if (storage.getMinRetrievableMci() > constants.pemCurvesFixMci)
 			return callback(createTransientError(`more than 1 primary AA trigger (${objValidationState.count_primary_aa_triggers})`));
+	}
+	if (objValidationState.last_ball_mci >= constants.pemCurvesFixMci && objValidationState.count_primary_aa_triggers === 1) {
+		const address = rows[0].address;
+		for (let asset in outputCounts[address]) {
+			if (outputCounts[address][asset] > 1)
+				return callback(`more than 1 output to the same AA ${address} for asset ${asset}`);
+		}
 	}
 	callback();
 }
