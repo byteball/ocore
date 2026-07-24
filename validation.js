@@ -262,7 +262,7 @@ function validate(objJoint, callbacks, external_conn) {
 		catch (e) {
 			return callbacks.ifJointError("failed to calculate payload commission: " + e);
 		}
-		if (objUnit.headers_commission + objUnit.payload_commission > constants.MAX_UNIT_LENGTH && !bGenesis)
+		if (objUnit.headers_commission + objUnit.payload_commission > constants.MAX_UNIT_LENGTH && !bGenesis && !bAA)
 			return callbacks.ifUnitError("unit too large");
 	}
 	
@@ -740,6 +740,8 @@ function validateParents(conn, objJoint, objValidationState, callback){
 						return callback("last ball unit "+last_ball_unit+" is not included in parents, unit "+objUnit.unit);
 					if (!objValidationState.bAA && !bHaveNonAAParent && objValidationState.last_ball_mci >= constants.v4UpgradeMci)
 						return callback("non-AA unit should have at least one non-AA parent");
+					if (objUnit.headers_commission + objUnit.payload_commission > constants.MAX_UNIT_LENGTH && objValidationState.bAA && objValidationState.last_ball_mci < constants.pemCurvesFixMci)
+						return callback("unit too large");
 					
 					var bRequiresTimestamp = (objValidationState.last_ball_mci >= constants.timestampUpgradeMci);
 					if (bRequiresTimestamp && objUnit.version === constants.versionWithoutTimestamp)
