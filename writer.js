@@ -408,6 +408,8 @@ async function saveJoint(objJoint, objValidationState, preCommitCallback, onDone
 		function updateBestParent(cb){
 			if (bGenesis)
 				return cb();
+			if (objValidationState.last_ball_mci >= constants.bestParentPrefersOpUpgradeMci)
+				return conn.query("UPDATE units SET best_parent_unit=? WHERE unit=?", [objValidationState.best_parent_unit, objUnit.unit], function(){ cb(); });
 			// choose best parent among compatible parents only
 			const compatibilityCondition = bCommonOpList ? '' : `AND (witness_list_unit=? OR (
 				SELECT COUNT(*)

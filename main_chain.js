@@ -49,13 +49,28 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStability
 				ORDER BY witnessed_level DESC, \n\
 					level-witnessed_level ASC, \n\
 					unit ASC \n\
-				LIMIT 5",
-				function(rows){
+				",
+				async function(rows){
 					if (rows.length === 0)
 						throw Error("no free units?");
+					if (rows.length === 1)
+						return handleLastUnitProps(rows[0]);
+					const [lb_row] = await conn.query("SELECT main_chain_index FROM units WHERE is_on_main_chain=1 AND is_stable=1 ORDER BY main_chain_index DESC LIMIT 1");
+					if (!lb_row)
+						throw Error("no last ball?");
+					const last_ball_mci = lb_row.main_chain_index;
+					const arrParents = rows.map(row => row.best_parent_unit);
+					arrAllParents = arrParents;
+					if (last_ball_mci >= constants.bestParentPrefersOpUpgradeMci) {
+						const arrWitnesses = storage.getOpList(last_ball_mci);
+						const u = { version: constants.version, parent_units: arrParents };
+						storage.determineBestParent(conn, u, arrWitnesses, true, best_parent_unit => {
+							const witnessed_level = rows.find(row => row.best_parent_unit === best_parent_unit).witnessed_level;
+							handleLastUnitProps({ best_parent_unit, witnessed_level });
+						});
+						return;
+					}
 					if (rows.length > 1){
-						var arrParents = rows.map(function(row){ return row.best_parent_unit; });
-						arrAllParents = arrParents;
 						for (var i=0; i<arrRetreatingUnits.length; i++){
 							var n = arrParents.indexOf(arrRetreatingUnits[i]);
 							if (n >= 0)
