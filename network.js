@@ -4244,6 +4244,7 @@ async function startRelay(){
 	else
 		startAcceptingConnections();
 	
+	const unlock = await mutex.lock(['handleJoint', 'initial']); // make newly received units wait until we finish initializing
 	await storage.initCaches();
 	joint_storage.initUnhandledAndKnownBad();
 	checkCatchupLeftovers();
@@ -4269,6 +4270,7 @@ async function startRelay(){
 	eventBus.on('system_var_vote', sendSysVarVoteToAllWatchers);
 	await aa_composer.handleAATriggers(); // in case anything's left from the previous run
 	await storage.updateMissingTpsFees();
+	unlock();
 }
 
 async function startLightClient(){
