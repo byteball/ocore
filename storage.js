@@ -2042,6 +2042,10 @@ function determineBestParent(conn, objUnit, arrWitnesses, bTieBreakerPrefersOP, 
 		async.eachSeries(
 			objUnit.parent_units,
 			function (parent_unit, cb) {
+				if (isGenesisUnit(parent_unit)) { // for AA dry-run in tests
+					arrParentProps.push({ unit: parent_unit, witnessed_level: 0, level_diff: 0, isOP: true });
+					return cb();
+				}
 				readUnitProps(conn, parent_unit, function (props) {
 					arrParentProps.push({
 						unit: parent_unit,
