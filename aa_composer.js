@@ -242,23 +242,26 @@ function validateAATriggerObject(trigger, handle) {
 		return handle("too many assets");
 	if (!ValidationUtils.isPositiveInteger(trigger.outputs.base))
 		return handle("no base payment");
-	if (arrAssets.length === 0)
-		return handle();
 	if (!arrAssets.every(function(asset){return ValidationUtils.isPositiveInteger(trigger.outputs[asset])}))
 		return handle("invalid output amount")
+
+	function checkAddressIsNotAA() {
+		db.query("SELECT 1 FROM aa_addresses WHERE address=?", [trigger.address], rows => {
+			if (rows.length)
+				return handle("trigger address must not be an AA");
+			else
+				return handle();
+		});
+	}
+
+	if (arrAssets.length === 0)
+		return checkAddressIsNotAA();
 	// we have to check that assets exist otherwise foreign key constraint would fail when inserting fake outputs
 	db.query("SELECT 1 FROM assets WHERE unit IN (?)", [arrAssets], function(rows) {
 		if (rows.length !== arrAssets.length)
 			return handle("unknown asset");
-		else {
-			// check that trigger address is not an AA
-			db.query("SELECT 1 FROM aa_addresses WHERE address=?", [trigger.address], rows => {
-				if (rows.length)
-					return handle("trigger address must not be an AA");
-				else
-					return handle();
-			});
-		}
+		else
+			checkAddressIsNotAA();
 	});
 }
 
