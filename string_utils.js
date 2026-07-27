@@ -324,8 +324,11 @@ function isTooBigObj(obj, { depthLimit = 100, nodesLimit = 10000, lengthLimit = 
 
 // returns an object with sorted keys, for deterministic processing later
 function sortObject(obj) {
-	if (typeof obj !== 'object' || obj === null || Array.isArray(obj))
+	if (typeof obj !== 'object' || obj === null)
 		return obj;
+
+	if (Array.isArray(obj))
+		return obj.map(sortObject); // recurse into array elements, preserve order
 
 	return Object.fromEntries(
 		Object.entries(obj)
