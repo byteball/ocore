@@ -2025,6 +2025,8 @@ function filterNewOrUnstableUnits(arrUnits, handleFilteredUnits){
 
 // for unit that is not saved to the db yet
 function determineBestParent(conn, objUnit, arrWitnesses, bTieBreakerPrefersOP, handleBestParent){
+	if (!handleBestParent)
+		return new Promise(resolve => determineBestParent(conn, objUnit, arrWitnesses, bTieBreakerPrefersOP, resolve));
 	const fVersion = parseFloat(objUnit.version);
 	// choose best parent among compatible parents only
 	const compatibilityCondition = fVersion >= constants.fVersion4 ? '' : `AND (witness_list_unit=? OR (

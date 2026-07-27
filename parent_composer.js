@@ -554,31 +554,17 @@ async function createUnitProps(conn, parent_units, last_ball_unit, timestamp) {
 		timestamp,
 		last_ball_unit,
 		parent_units,
-		best_parent_unit: await getBestParentUnit(conn, parent_units),
+		best_parent_unit: await getBestParentUnit(conn, parent_units, last_ball_unit),
 		// count_primary_aa_triggers and max_aa_responses are not used for the tip unit
 	};
 }
 
-async function getBestParentUnit(conn, parent_units) {
+async function getBestParentUnit(conn, parent_units, last_ball_unit) {
 	if (parent_units.length === 1)
 		return parent_units[0];
-	const prows = await conn.query("SELECT unit, level, witnessed_level FROM units WHERE unit IN(?)", [parent_units]);
-	let best_parent_prow = prows[0];
-	for (let i = 1; i < prows.length; i++){
-		const prow = prows[i];
-		if (prow.witnessed_level < best_parent_prow.witnessed_level)
-			continue;
-		if (prow.witnessed_level === best_parent_prow.witnessed_level) {
-			if (prow.level > best_parent_prow.level)
-				continue;
-			if (prow.level === best_parent_prow.level) {
-				if (prow.unit > best_parent_prow.unit)
-					continue;
-			}
-		}
-		best_parent_prow = prow;
-	}
-	return best_parent_prow.unit;
+	const objLastBallUnitProps = await storage.readUnitProps(conn, last_ball_unit);
+	const last_ball_mci = objLastBallUnitProps.main_chain_index;
+	return await storage.determineBestParent(conn, { parent_units, version: constants.version }, storage.getOpList(last_ball_mci), last_ball_mci >= constants.bestParentPrefersOpUpgradeMci);
 }
 
 async function getLastBallInfo(conn, prows) {
