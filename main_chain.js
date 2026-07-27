@@ -1180,9 +1180,15 @@ function determineIfStableInLaterUnitsAndUpdateStableMcFlag(conn, earlier_unit, 
 			// take a new connection
 			let conn = await db.takeConnectionFromPool();
 			await conn.query("BEGIN");
-			storage.readLastStableMcIndex(conn, function(last_stable_mci){
-				if (last_stable_mci >= constants.v4UpgradeMci && !(constants.bTestnet && last_stable_mci === 3547801))
-					throwError(`${earlier_unit} not stable in db but stable in later units ${arrLaterUnits.join(', ')} in v4`);
+			storage.readLastStableMcIndex(conn, async function(last_stable_mci){
+				if (last_stable_mci >= constants.v4UpgradeMci && !(constants.bTestnet && last_stable_mci === 3547801)) {
+					// we don't advance the stability point in v4 as that would necessitate executing triggers and updating actual tps fees. We return a transient error and expect that the stability point will move thanks to other units before the earlier_unit is retransmitted.
+					await conn.query("COMMIT");
+					conn.release();
+					unlock();
+					return console.log(`${earlier_unit} not stable in db but stable in later units ${arrLaterUnits.join(', ')} in v4`);
+				//	throwError(`${earlier_unit} not stable in db but stable in later units ${arrLaterUnits.join(', ')} in v4`);
+				}
 				storage.readUnitProps(conn, earlier_unit, function(objEarlierUnitProps){
 					var new_last_stable_mci = objEarlierUnitProps.main_chain_index;
 					if (new_last_stable_mci <= last_stable_mci) // fix: it could've been changed by parallel tasks - No, our SQL transaction doesn't see the changes
