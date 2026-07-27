@@ -4,6 +4,7 @@ var nearley = require("nearley");
 var grammar = require("./grammars/oscript.js");
 var async = require('async');
 var crypto = require('crypto');
+const util = require('util');
 var _ = require('lodash');
 var base32 = require('thirty-two');
 var ValidationUtils = require("../validation_utils.js");
@@ -448,9 +449,9 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 					var val2 = vals[1];
 					if (val1 instanceof wrappedObject && val2 instanceof wrappedObject) {
 						if (operator === '==')
-							return cb(_.isEqual(val1, val2));
+							return cb(util.isDeepStrictEqual(val1, val2));
 						if (operator === '!=')
-							return cb(!_.isEqual(val1, val2));
+							return cb(!util.isDeepStrictEqual(val1, val2));
 						return setFatalError("not allowed comparison for objects: " + operator, {
 							arr,
 							op: arr[1],
@@ -1935,6 +1936,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 					json = replaceNulls(json);
 					if (containsNonFiniteNumber(json))
 						return setFatalError("json_parse result contains non-finite number", { arr }, false, cb);
+					json = string_utils.replaceNegativeZero(json);
 					if (typeof json === 'object')
 						return cb(new wrappedObject(json));
 					if (typeof json === 'number')

@@ -100,7 +100,7 @@ function toNumber(value, bLimitedPrecision) {
 	var abs_exp = m[4];
 	if (f === 0 && mantissa > 0 && abs_exp > 0) // too small number out of range such as 1.23e-700
 		return null;
-	return f;
+	return f === 0 ? 0 : f; // replace -0
 }
 
 function getNumericFeedValue(value, bBySignificantDigits){
@@ -128,7 +128,7 @@ function getNumericFeedValue(value, bBySignificantDigits){
 		if (mantissa.length > 15) // including the point (if any), including 0. in 0.123
 			return null;
 	}
-	return f;
+	return f === 0 ? 0 : f; // replace -0
 }
 
 // transformss the value to number is possible
@@ -325,7 +325,7 @@ function isTooBigObj(obj, { depthLimit = 100, nodesLimit = 10000, lengthLimit = 
 // returns an object with sorted keys, for deterministic processing later
 function sortObject(obj) {
 	if (typeof obj !== 'object' || obj === null)
-		return obj;
+		return obj === 0 ? 0 : obj; // replace -0
 
 	if (Array.isArray(obj))
 		return obj.map(sortObject); // recurse into array elements, preserve order
@@ -339,6 +339,24 @@ function sortObject(obj) {
 			})
 			.map(([key, value]) => [key, sortObject(value)])
 	);
+}
+
+// replaces all -0 (including nested ones) with 0, mutating arrays/objects in place
+function replaceNegativeZero(obj) {
+	if (typeof obj !== 'object' || obj === null)
+		return obj === 0 ? 0 : obj; // replace -0
+
+	if (Array.isArray(obj)) {
+		for (let i = 0; i < obj.length; i++)
+			obj[i] = replaceNegativeZero(obj[i]);
+	}
+	else {
+		for (const key in obj) {
+			if (Object.hasOwn(obj, key))
+				obj[key] = replaceNegativeZero(obj[key]);
+		}
+	}
+	return obj;
 }
 
 function isObjectWellFormed(obj) {
@@ -394,7 +412,7 @@ function cloneDeep(val) {
 		return out;
 	}
 
-	return val;
+	return val === 0 ? 0 : val; // replace -0
 }
 
 
@@ -412,5 +430,6 @@ exports.getJsonSourceString = getJsonSourceString;
 exports.isTooDeeplyNestedOrHasTooManyNodes = isTooDeeplyNestedOrHasTooManyNodes;
 exports.isTooBigObj = isTooBigObj;
 exports.sortObject = sortObject;
+exports.replaceNegativeZero = replaceNegativeZero;
 exports.isObjectWellFormed = isObjectWellFormed;
 exports.cloneDeep = cloneDeep;
