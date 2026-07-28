@@ -652,6 +652,7 @@ async function saveJoint(objJoint, objValidationState, preCommitCallback, onDone
 								preCommitCallback(conn, cb);
 							});
 					}
+					// only preCommitCallback can return err
 					async.series(arrOps, function(err){
 						profiler.start();
 						
@@ -710,7 +711,7 @@ async function saveJoint(objJoint, objValidationState, preCommitCallback, onDone
 									eventBus.emit('saved_unit-'+objUnit.unit, objJoint);
 									eventBus.emit('saved_unit', objJoint);
 								}
-								if (bStabilizedAATriggers) {
+								if (bStabilizedAATriggers && !err) {
 									if (bInLargerTx || objValidationState.bUnderWriteLock)
 										throw Error(`saveJoint stabilized AA triggers while in larger tx or under write lock`);
 									const aa_composer = require("./aa_composer.js");
