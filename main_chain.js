@@ -438,14 +438,6 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStability
 		});
 	}
 
-	function readLastStableMcUnit(handleLastStableMcUnit){
-		conn.query("SELECT unit FROM units WHERE is_on_main_chain=1 AND is_stable=1 ORDER BY main_chain_index DESC LIMIT 1", function(rows){
-			if (rows.length === 0)
-				throw Error("no units on stable MC?");
-			handleLastStableMcUnit(rows[0].unit);
-		});
-	}
-
 	function findMinMcWitnessedLevel(tip_unit, first_unstable_mc_level, first_unstable_mc_index, arrWitnesses, handleMinMcWl){
 		var _arrWitnesses = arrWitnesses;
 		var arrCollectedWitnesses = [];
@@ -491,7 +483,7 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStability
 		if (bKeepStabilityPoint)
 			return finish();
 		console.log("updateStableMcFlag");
-		readLastStableMcUnit(function(last_stable_mc_unit){
+		readLastStableMcUnit(conn, function(last_stable_mc_unit){
 			console.log("last stable mc unit "+last_stable_mc_unit);
 			storage.readWitnesses(conn, last_stable_mc_unit, function(arrWitnesses){
 				console.log(`witnesses on ${last_stable_mc_unit}`, arrWitnesses)
@@ -562,7 +554,7 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStability
 									return;
 									*/
 								}
-								createListOfBestChildren(arrAltBranchRootUnits, function(arrAltBestChildren){
+								createListOfBestChildren(conn, arrAltBranchRootUnits, function(arrAltBestChildren){
 									determineMaxAltLevel(
 										conn, first_unstable_mc_index, first_unstable_mc_level, arrAltBestChildren, arrWitnesses,
 										function(max_alt_level){
@@ -587,37 +579,6 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStability
 		});
 	}
 
-	// also includes arrParentUnits
-	function createListOfBestChildren(arrParentUnits, handleBestChildrenList){
-		if (arrParentUnits.length === 0)
-			return handleBestChildrenList([]);
-		var arrBestChildren = arrParentUnits.slice();
-		
-		function goDownAndCollectBestChildren(arrStartUnits, cb){
-			conn.query("SELECT unit, is_free FROM units WHERE best_parent_unit IN(?)", [arrStartUnits], function(rows){
-				if (rows.length === 0)
-					return cb();
-				//console.log("unit", arrStartUnits, "best children:", rows.map(function(row){ return row.unit; }), "free units:", rows.reduce(function(sum, row){ return sum+row.is_free; }, 0));
-				async.eachSeries(
-					rows, 
-					function(row, cb2){
-						arrBestChildren.push(row.unit);
-						if (row.is_free === 1)
-							cb2();
-						else
-							goDownAndCollectBestChildren([row.unit], cb2);
-					},
-					cb
-				);
-			});
-		}
-		
-		goDownAndCollectBestChildren(arrParentUnits, function(){
-			handleBestChildrenList(arrBestChildren);
-		});
-	}
-
-
 	
 	async function finish(){
 		profiler.stop('mc-stableFlag');
@@ -641,6 +602,46 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStability
 	
 }
 
+
+
+function readLastStableMcUnit(conn, handleLastStableMcUnit){
+	conn.query("SELECT unit FROM units WHERE is_on_main_chain=1 AND is_stable=1 ORDER BY main_chain_index DESC LIMIT 1", function(rows){
+		if (rows.length === 0)
+			throw Error("no units on stable MC?");
+		handleLastStableMcUnit(rows[0].unit);
+	});
+}
+
+
+// also includes arrParentUnits
+function createListOfBestChildren(conn, arrParentUnits, handleBestChildrenList){
+	if (arrParentUnits.length === 0)
+		return handleBestChildrenList([]);
+	var arrBestChildren = arrParentUnits.slice();
+	
+	function goDownAndCollectBestChildren(arrStartUnits, cb){
+		conn.query("SELECT unit, is_free FROM units WHERE best_parent_unit IN(?)", [arrStartUnits], function(rows){
+			if (rows.length === 0)
+				return cb();
+			//console.log("unit", arrStartUnits, "best children:", rows.map(function(row){ return row.unit; }), "free units:", rows.reduce(function(sum, row){ return sum+row.is_free; }, 0));
+			async.eachSeries(
+				rows, 
+				function(row, cb2){
+					arrBestChildren.push(row.unit);
+					if (row.is_free === 1)
+						cb2();
+					else
+						goDownAndCollectBestChildren([row.unit], cb2);
+				},
+				cb
+			);
+		});
+	}
+	
+	goDownAndCollectBestChildren(arrParentUnits, function(){
+		handleBestChildrenList(arrBestChildren);
+	});
+}
 
 
 function getFreeUnits() {
