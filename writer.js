@@ -580,7 +580,7 @@ async function saveJoint(objJoint, objValidationState, preCommitCallback, onDone
 		// without this locking, we get frequent deadlocks from mysql
 	//	mutex.lock(["write"], function(unlock){
 	//		console.log("got lock to write "+objUnit.unit);
-			let arrStabilizedMcis, bStabilizedAATriggers;
+			let arrStabilizedMcis = [], bStabilizedAATriggers;
 			var batch = bCordova ? null : (bInLargerTx ? objValidationState.batch : kvstore.batch());
 			if (bGenesis){
 				storage.assocStableUnits[objUnit.unit] = objNewUnitProps;
@@ -711,9 +711,9 @@ async function saveJoint(objJoint, objValidationState, preCommitCallback, onDone
 									eventBus.emit('saved_unit-'+objUnit.unit, objJoint);
 									eventBus.emit('saved_unit', objJoint);
 								}
+								if (arrStabilizedMcis.length > 0 && (bInLargerTx || objValidationState.bUnderWriteLock))
+									throw Error(`saveJoint stabilized an MCI while in larger tx or under write lock`);
 								if (bStabilizedAATriggers && !err) {
-									if (bInLargerTx || objValidationState.bUnderWriteLock)
-										throw Error(`saveJoint stabilized AA triggers while in larger tx or under write lock`);
 									const aa_composer = require("./aa_composer.js");
 									await aa_composer.handleAATriggers();
 
