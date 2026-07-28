@@ -438,45 +438,6 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStability
 		});
 	}
 
-	function findMinMcWitnessedLevel(tip_unit, first_unstable_mc_level, first_unstable_mc_index, arrWitnesses, handleMinMcWl){
-		var _arrWitnesses = arrWitnesses;
-		var arrCollectedWitnesses = [];
-		var min_mc_wl = Number.POSITIVE_INFINITY;
-
-		function addWitnessesAndGoUp(start_unit){
-			storage.readStaticUnitProps(conn, start_unit, function(props){
-				var best_parent_unit = props.best_parent_unit;
-				var level = props.level;
-				if (level === null)
-					throw Error("null level in findMinMcWitnessedLevel");
-				if (level < first_unstable_mc_level) {
-					console.log("unit " + start_unit + ", level=" + level + ", first_unstable_mc_level=" + first_unstable_mc_level + ", min_mc_wl=" + min_mc_wl);
-					return handleMinMcWl(-1);
-				}
-				storage.readUnitAuthors(conn, start_unit, function(arrAuthors){
-					for (var i=0; i<arrAuthors.length; i++){
-						var address = arrAuthors[i];
-						if (_arrWitnesses.indexOf(address) !== -1 && arrCollectedWitnesses.indexOf(address) === -1) {
-							arrCollectedWitnesses.push(address);
-							var witnessed_level = props.witnessed_level;
-							if (min_mc_wl > witnessed_level)
-								min_mc_wl = witnessed_level;
-						}
-					}
-					(arrCollectedWitnesses.length < constants.MAJORITY_OF_WITNESSES) 
-						? addWitnessesAndGoUp(best_parent_unit) : handleMinMcWl(min_mc_wl);
-				});
-			});
-		}
-
-		if (first_unstable_mc_index > constants.lastBallStableInParentsUpgradeMci)
-			return addWitnessesAndGoUp(tip_unit);
-		// use old algo for old units
-		storage.readWitnesses(conn, tip_unit, function(arrTipUnitWitnesses){
-			_arrWitnesses = arrTipUnitWitnesses;
-			addWitnessesAndGoUp(tip_unit);
-		});
-	}
 	
 	function updateStableMcFlag(){
 		profiler.start();
@@ -526,7 +487,7 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStability
 							throw Error("not a single mc tip");
 						// this is the level when we colect 7 witnesses if walking up the MC from its end
 						var tip_unit = tip_rows[0].unit;
-						findMinMcWitnessedLevel(tip_unit, first_unstable_mc_level, first_unstable_mc_index, arrWitnesses,
+						findMinMcWitnessedLevel(conn, tip_unit, first_unstable_mc_level, first_unstable_mc_index, arrWitnesses,
 							function(min_mc_wl){
 								console.log("minimum witnessed level "+min_mc_wl);
 								if (min_mc_wl == -1)
@@ -610,6 +571,46 @@ function readLastStableMcUnit(conn, handleLastStableMcUnit){
 	});
 }
 
+// old algorithm based on walking the MC starting from tip_unit. The new findMinMcWitnessedLevel() in determineIfStableInLaterUnits() scans all best children of the main branch
+function findMinMcWitnessedLevel(conn, tip_unit, first_unstable_mc_level, first_unstable_mc_index, arrWitnesses, handleMinMcWl){
+	var _arrWitnesses = arrWitnesses;
+	var arrCollectedWitnesses = [];
+	var min_mc_wl = Number.POSITIVE_INFINITY;
+
+	function addWitnessesAndGoUp(start_unit){
+		storage.readStaticUnitProps(conn, start_unit, function(props){
+			var best_parent_unit = props.best_parent_unit;
+			var level = props.level;
+			if (level === null)
+				throw Error("null level in findMinMcWitnessedLevel");
+			if (level < first_unstable_mc_level) {
+				console.log("unit " + start_unit + ", level=" + level + ", first_unstable_mc_level=" + first_unstable_mc_level + ", min_mc_wl=" + min_mc_wl);
+				return handleMinMcWl(-1);
+			}
+			storage.readUnitAuthors(conn, start_unit, function(arrAuthors){
+				for (var i=0; i<arrAuthors.length; i++){
+					var address = arrAuthors[i];
+					if (_arrWitnesses.indexOf(address) !== -1 && arrCollectedWitnesses.indexOf(address) === -1) {
+						arrCollectedWitnesses.push(address);
+						var witnessed_level = props.witnessed_level;
+						if (min_mc_wl > witnessed_level)
+							min_mc_wl = witnessed_level;
+					}
+				}
+				(arrCollectedWitnesses.length < constants.MAJORITY_OF_WITNESSES) 
+					? addWitnessesAndGoUp(best_parent_unit) : handleMinMcWl(min_mc_wl);
+			});
+		});
+	}
+
+	if (first_unstable_mc_index > constants.lastBallStableInParentsUpgradeMci)
+		return addWitnessesAndGoUp(tip_unit);
+	// use old algo for old units
+	storage.readWitnesses(conn, tip_unit, function(arrTipUnitWitnesses){
+		_arrWitnesses = arrTipUnitWitnesses;
+		addWitnessesAndGoUp(tip_unit);
+	});
+}
 
 // also includes arrParentUnits
 function createListOfBestChildren(conn, arrParentUnits, handleBestChildrenList){
