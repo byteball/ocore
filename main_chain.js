@@ -256,7 +256,7 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStability
 				if (rows.length > 0)
 					throw Error(rows.length+" units have latest_included_mc_index=NULL, e.g. unit "+rows[0].unit);
 				profiler.stop('mc-limci-check');
-				updateStableMcFlag();
+				bKeepStabilityPoint ? finish() : updateStableMcFlag();
 			});
 		}
 		
@@ -480,8 +480,6 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStability
 	
 	function updateStableMcFlag(){
 		profiler.start();
-		if (bKeepStabilityPoint)
-			return finish();
 		console.log("updateStableMcFlag");
 		readLastStableMcUnit(conn, function(last_stable_mc_unit){
 			console.log("last stable mc unit "+last_stable_mc_unit);
