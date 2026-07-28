@@ -256,7 +256,11 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStability
 				if (rows.length > 0)
 					throw Error(rows.length+" units have latest_included_mc_index=NULL, e.g. unit "+rows[0].unit);
 				profiler.stop('mc-limci-check');
-				bKeepStabilityPoint ? finish() : updateStableMcFlag();
+				bKeepStabilityPoint ? finish() : advanceMcStability(conn, batch, last_added_unit, (_arrStabilizedMcis, _bStabilizedAATriggers) => {
+					arrStabilizedMcis = _arrStabilizedMcis;
+					bStabilizedAATriggers = _bStabilizedAATriggers;
+					finish();
+				});
 			});
 		}
 		
@@ -438,6 +442,33 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStability
 		});
 	}
 
+
+	
+	async function finish(){
+		profiler.stop('mc-stableFlag');
+		if (!bStabilizedAATriggers && arrStabilizedMcis.length > 0)
+			await storage.updateTpsFees(conn, arrStabilizedMcis);
+		console.log("done updating MC\n");
+		if (onDone)
+			onDone(arrStabilizedMcis, bStabilizedAATriggers);
+	}
+	
+	
+	console.log("\nwill update MC");
+	
+	/*if (from_unit === null && arrRetreatingUnits.indexOf(last_added_unit) >= 0){
+		conn.query("UPDATE units SET is_on_main_chain=1, main_chain_index=NULL WHERE unit=?", [last_added_unit], function(){
+			goUpFromUnit(last_added_unit);
+		});
+	}
+	else*/
+		goUpFromUnit(from_unit);
+	
+}
+
+function advanceMcStability(conn, batch, last_added_unit, onDone) {
+	let bStabilizedAATriggers = false;
+	let arrStabilizedMcis = [];
 	
 	function updateStableMcFlag(){
 		profiler.start();
@@ -538,27 +569,12 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStability
 		});
 	}
 
-	
-	async function finish(){
+	function finish() {
 		profiler.stop('mc-stableFlag');
-		if (!bStabilizedAATriggers && arrStabilizedMcis.length > 0)
-			await storage.updateTpsFees(conn, arrStabilizedMcis);
-		console.log("done updating MC\n");
-		if (onDone)
-			onDone(arrStabilizedMcis, bStabilizedAATriggers);
+		onDone(arrStabilizedMcis, bStabilizedAATriggers);
 	}
 	
-	
-	console.log("\nwill update MC");
-	
-	/*if (from_unit === null && arrRetreatingUnits.indexOf(last_added_unit) >= 0){
-		conn.query("UPDATE units SET is_on_main_chain=1, main_chain_index=NULL WHERE unit=?", [last_added_unit], function(){
-			goUpFromUnit(last_added_unit);
-		});
-	}
-	else*/
-		goUpFromUnit(from_unit);
-	
+	updateStableMcFlag();
 }
 
 
