@@ -30,7 +30,6 @@ var arrRetreatingUnits = [
 
 function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStabilityPoint, onDone){
 	
-	var arrAllParents = [];
 	var arrNewMcUnits = [];
 	let bStabilizedAATriggers = false;
 	let arrStabilizedMcis = [];
@@ -60,7 +59,6 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStability
 						throw Error("no last ball?");
 					const last_ball_mci = lb_row.main_chain_index;
 					const arrParents = rows.map(row => row.best_parent_unit);
-					arrAllParents = arrParents;
 					if (last_ball_mci >= constants.bestParentPrefersOpUpgradeMci) {
 						const arrWitnesses = storage.getOpList(last_ball_mci);
 						const u = { version: constants.version, parent_units: arrParents };
@@ -142,7 +140,7 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStability
 			function(rows){
 				profiler.stop('mc-checkNotRebuilding');
 				if (rows.length > 0)
-					throw Error("removing stable units "+rows.map(function(row){return row.unit}).join(', ')+" from MC after adding "+last_added_unit+" with all parents "+arrAllParents.join(', '));
+					throw Error("removing stable units "+rows.map(function(row){return row.unit}).join(', ')+" from MC after adding "+last_added_unit+" with all parents "+getFreeUnits().join(', '));
 				goDownAndUpdateMainChainIndex(last_main_chain_index, last_main_chain_unit);
 			}
 		);
@@ -524,10 +522,7 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStability
 					}
 
 					if (first_unstable_mc_index > constants.lastBallStableInParentsUpgradeMci) {
-						var arrFreeUnits = [];
-						for (var unit in storage.assocUnstableUnits)
-							if (storage.assocUnstableUnits[unit].is_free === 1)
-								arrFreeUnits.push(unit);
+						const arrFreeUnits = getFreeUnits();
 						console.log(`will call determineIfStableInLaterUnits`, first_unstable_mc_unit, arrFreeUnits)
 						determineIfStableInLaterUnits(conn, first_unstable_mc_unit, arrFreeUnits, function (bStable) {
 							console.log(first_unstable_mc_unit + ' stable in free units ' + arrFreeUnits.join(', ') + ' ? ' + bStable);
@@ -574,7 +569,7 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStability
 											if (min_mc_wl > max_alt_level)
 												return advanceLastStableMcUnitAndTryNext();
 											console.log('--- with branches - unstable');
-											if (arrAllParents.length <= 1) // single free unit
+											if (getFreeUnits().length <= 1) // single free unit
 												return finish();
 											console.log('--- will try tip parent '+tip_unit);
 											determineIfStableInLaterUnits(conn, first_unstable_mc_unit, [tip_unit], function (bStable) {
@@ -648,6 +643,13 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStability
 
 
 
+function getFreeUnits() {
+	let arrFreeUnits = [];
+	for (let unit in storage.assocUnstableUnits)
+		if (storage.assocUnstableUnits[unit].is_free === 1)
+			arrFreeUnits.push(unit);
+	return arrFreeUnits;
+}
 
 
 /*
