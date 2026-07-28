@@ -1,5 +1,6 @@
 /*jslint node: true */
 "use strict";
+const util = require('util');
 var _ = require('lodash');
 var async = require('async');
 var constants = require("./constants.js");
@@ -714,6 +715,7 @@ async function saveJoint(objJoint, objValidationState, preCommitCallback, onDone
 								if (arrStabilizedMcis.length > 0 && (bInLargerTx || objValidationState.bUnderWriteLock))
 									throw Error(`saveJoint stabilized an MCI while in larger tx or under write lock`);
 								if (bStabilizedAATriggers && !err) {
+									console.log(`executing AA triggers`);
 									const aa_composer = require("./aa_composer.js");
 									await aa_composer.handleAATriggers();
 
@@ -723,6 +725,35 @@ async function saveJoint(objJoint, objValidationState, preCommitCallback, onDone
 									await storage.updateTpsFees(conn, arrStabilizedMcis);
 									await conn.query("COMMIT");
 									conn.release();
+								}
+								if (arrStabilizedMcis.length > 0 && !err) {
+									// try to stabilize more MCIs, run triggers and update tps fees after each
+									console.log(`stabilized MCI ${arrStabilizedMcis.join(', ')}, trying to stabilize more`);
+									while (true) {
+										let conn = await db.takeConnectionFromPool();
+										await conn.query("BEGIN");
+										const batch = kvstore.batch();
+										const { arrStabilizedMcis, bStabilizedAATriggers } = await main_chain.advanceMcStability(conn, batch, objUnit.unit);
+										console.log(`additional stabilization result`, arrStabilizedMcis, bStabilizedAATriggers);
+										await util.promisify(batch.write.bind(batch))({ sync: true });
+										await conn.query("COMMIT");
+										conn.release();
+										if (arrStabilizedMcis.length === 0)
+											break;
+										if (bStabilizedAATriggers) {
+											console.log(`executing AA triggers after additional stabilization`, arrStabilizedMcis);
+											// every trigger takes its own db connection
+											const aa_composer = require("./aa_composer.js");
+											await aa_composer.handleAATriggers();
+										}
+										console.log(`updating tps fees after additional stabilization`, arrStabilizedMcis);
+										// get a new connection to write tps fees
+										conn = await db.takeConnectionFromPool();
+										await conn.query("BEGIN");
+										await storage.updateTpsFees(conn, arrStabilizedMcis);
+										await conn.query("COMMIT");
+										conn.release();
+									}
 								}
 								if (onDone)
 									onDone(err);

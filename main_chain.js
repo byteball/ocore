@@ -467,6 +467,8 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStability
 }
 
 function advanceMcStability(conn, batch, last_added_unit, onDone) {
+	if (!onDone)
+		return new Promise(resolve => advanceMcStability(conn, batch, last_added_unit, (arrStabilizedMcis, bStabilizedAATriggers) => resolve({ arrStabilizedMcis, bStabilizedAATriggers })));
 	let bStabilizedAATriggers = false;
 	let arrStabilizedMcis = [];
 	
@@ -499,7 +501,9 @@ function advanceMcStability(conn, batch, last_added_unit, onDone) {
 							arrStabilizedMcis.push(first_unstable_mc_index);
 							if (count_aa_triggers)
 								bStabilizedAATriggers = true;
-							updateStableMcFlag();
+							// not trying next any more
+							//updateStableMcFlag();
+							finish();
 						});
 					}
 
@@ -1912,6 +1916,7 @@ function throwError(msg){
 
 
 exports.updateMainChain = updateMainChain;
+exports.advanceMcStability = advanceMcStability;
 exports.determineIfStableInLaterUnitsAndUpdateStableMcFlag = determineIfStableInLaterUnitsAndUpdateStableMcFlag;
 exports.determineIfStableInLaterUnits = determineIfStableInLaterUnits;
 exports.determineIfStableInLaterUnitsWithMaxLastBallMciFastPath = determineIfStableInLaterUnitsWithMaxLastBallMciFastPath;
