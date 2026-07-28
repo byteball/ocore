@@ -1,5 +1,6 @@
 /*jslint node: true */
 "use strict";
+const util = require('util');
 var _ = require('lodash');
 var async = require('async');
 var db = require('./db.js');
@@ -1192,48 +1193,29 @@ function determineIfStableInLaterUnitsAndUpdateStableMcFlag(conn, earlier_unit, 
 			return handleResult(bStable);
 		if (bStable && bStableInDb)
 			return handleResult(bStable);
-		breadcrumbs.add('stable in parents, will wait for write lock');
+		breadcrumbs.add('stable in parents, will wait for handleJoint lock');
 		handleResult(bStable, true);
 
 		// result callback already called, we stay here to move the stability point forward.
-		// To avoid deadlocks, we always first obtain a "write" lock, then a db connection
-		mutex.lock(["write"], async function(unlock){
-			breadcrumbs.add('stable in parents, got write lock');
-			// take a new connection
-			let conn = await db.takeConnectionFromPool();
-			await conn.query("BEGIN");
-			storage.readLastStableMcIndex(conn, async function(last_stable_mci){
-				if (last_stable_mci >= constants.v4UpgradeMci && !(constants.bTestnet && last_stable_mci === 3547801)) {
+		// To avoid deadlocks, we always first obtain a "handleJoint" lock, then a db connection
+		mutex.lock(["handleJoint"], function(unlock){
+			breadcrumbs.add('stable in parents, got handleJoint lock');
+			storage.readLastStableMcIndex(db, function(last_stable_mci){
+				/*if (last_stable_mci >= constants.v4UpgradeMci && !(constants.bTestnet && last_stable_mci === 3547801)) {
 					// we don't advance the stability point in v4 as that would necessitate executing triggers and updating actual tps fees. We return a transient error and expect that the stability point will move thanks to other units before the earlier_unit is retransmitted.
 					await conn.query("COMMIT");
 					conn.release();
 					unlock();
 					return console.log(`${earlier_unit} not stable in db but stable in later units ${arrLaterUnits.join(', ')} in v4`);
 				//	throwError(`${earlier_unit} not stable in db but stable in later units ${arrLaterUnits.join(', ')} in v4`);
-				}
-				storage.readUnitProps(conn, earlier_unit, function(objEarlierUnitProps){
+				}*/
+				storage.readUnitProps(db, earlier_unit, async function(objEarlierUnitProps){
 					var new_last_stable_mci = objEarlierUnitProps.main_chain_index;
 					if (new_last_stable_mci <= last_stable_mci) // fix: it could've been changed by parallel tasks - No, our SQL transaction doesn't see the changes
 						return throwError("new last stable mci expected to be higher than existing");
-					var mci = last_stable_mci;
-					var batch = kvstore.batch();
-					advanceLastStableMcUnitAndStepForward();
-
-					function advanceLastStableMcUnitAndStepForward(){
-						mci++;
-						if (mci <= new_last_stable_mci)
-							markMcIndexStable(conn, batch, mci, advanceLastStableMcUnitAndStepForward);
-						else{
-							batch.write({ sync: true }, async function(err){
-								if (err)
-									throw Error("determineIfStableInLaterUnitsAndUpdateStableMcFlag: batch write failed: "+err);
-								await conn.query("COMMIT");
-								conn.release();
-								unlock();
-							//	handleResult(bStable, true);
-							});
-						}
-					}            
+					var mci = last_stable_mci + 1;
+					await stabilizeMci(mci);
+					unlock();
 				});
 			});
 		});
@@ -1251,8 +1233,35 @@ function readBestParentAndItsWitnesses(conn, unit, handleBestParentAndItsWitness
 	});
 }
 
+// marks the MCI stable, executes triggers, and updates tps fees
+async function stabilizeMci(mci) {
+	const conn = await db.takeConnectionFromPool();
+	await conn.query("BEGIN");
+	const batch = kvstore.batch();
+	const count_aa_triggers = await markMcIndexStable(conn, batch, mci);
+	await util.promisify(batch.write.bind(batch))({ sync: true });
+	await conn.query("COMMIT");
+	conn.release();
+	if (count_aa_triggers > 0) {
+		console.log(`executing ${count_aa_triggers} AA triggers after stabilizing MCI ${mci}`);
+		// every trigger takes its own db connection
+		const aa_composer = require("./aa_composer.js");
+		await aa_composer.handleAATriggers();
+	}
+	if (mci >= constants.v4UpgradeMci) {
+		console.log(`updating tps fees after stabilizing MCI ${mci}`);
+		// get a new connection to write tps fees
+		const conn = await db.takeConnectionFromPool();
+		await conn.query("BEGIN");
+		await storage.updateTpsFees(conn, [mci]);
+		await conn.query("COMMIT");
+		conn.release();
+	}
+}
 
 function markMcIndexStable(conn, batch, mci, onDone){
+	if (!onDone)
+		return new Promise(resolve => markMcIndexStable(conn, batch, mci, resolve));
 	profiler.start();
 	let count_aa_triggers;
 	var arrStabilizedUnits = [];
