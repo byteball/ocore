@@ -98,9 +98,9 @@ exports.includeKeySizesUpgradeMci = exports.bTestnet ? 1383500 : 5530000;
 exports.aa3UpgradeMci = exports.bTestnet ? 2291500 : 7810000;
 exports.v4UpgradeMci = exports.bTestnet ? 3522600 : 10968000;
 exports.tpsFeeRecipientsFixMci = exports.bTestnet ? 3909321 : 11985000;
-exports.pemCurvesFixMci = exports.bTestnet ? 3935000 : 12099000;
-exports.noPrivateAssetsWithConditionsUpgradeMci = exports.bTestnet ? 3935000 : 12099000;
-exports.bestParentPrefersOpUpgradeMci = exports.bTestnet ? Infinity : 12099000;
+exports.pemCurvesFixMci = exports.bTestnet ? 3935000 : 12155000;
+exports.noPrivateAssetsWithConditionsUpgradeMci = exports.bTestnet ? 3935000 : 12155000;
+exports.bestParentPrefersOpUpgradeMci = exports.bTestnet ? Infinity : 12155000;
 
 
 if (process.env.devnet) {
