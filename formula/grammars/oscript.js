@@ -89,7 +89,6 @@ function id(x) { return x[0]; }
 				case 'bcpl_comment':
 					return lexer.next();
 			}
-
 			return tok;
 		}
 		return undefined;
@@ -129,11 +128,15 @@ function id(x) { return x[0]; }
 var grammar = {
     Lexer: lexer,
     ParserRules: [
-    {"name": "main$ebnf$1", "symbols": []},
-    {"name": "main$ebnf$1", "symbols": ["main$ebnf$1", "statement"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
-    {"name": "main$ebnf$2", "symbols": ["expr"], "postprocess": id},
-    {"name": "main$ebnf$2", "symbols": [], "postprocess": function(d) {return null;}},
-    {"name": "main", "symbols": ["main$ebnf$1", "main$ebnf$2"], "postprocess": function(d){ return ['main', d[0], d[1]]; }},
+    {"name": "main$ebnf$1", "symbols": ["expr"], "postprocess": id},
+    {"name": "main$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
+    {"name": "main", "symbols": ["statement_list", "main$ebnf$1"], "postprocess": function(d){ return ['main', d[0], d[1]]; }},
+    {"name": "statement_list$ebnf$1", "symbols": []},
+    {"name": "statement_list$ebnf$1", "symbols": ["statement_list$ebnf$1", "statement"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
+    {"name": "statement_list", "symbols": ["statement_list$ebnf$1"], "postprocess":  function(d) {
+        	if (d[0].length > 1000) throw new Error("too many statements");
+        	return d[0];
+        } },
     {"name": "statement", "symbols": ["local_var_assignment"], "postprocess": id},
     {"name": "statement", "symbols": ["ifelse"], "postprocess": id},
     {"name": "statement", "symbols": ["state_var_assignment"], "postprocess": id},
@@ -145,11 +148,7 @@ var grammar = {
     {"name": "statement", "symbols": ["log_statement"], "postprocess": id},
     {"name": "statement", "symbols": ["func_call", {"literal":";"}], "postprocess": id},
     {"name": "statement", "symbols": ["remote_func_call", {"literal":";"}], "postprocess": id},
-    {"name": "statement$ebnf$1", "symbols": []},
-    {"name": "statement$ebnf$1$subexpression$1", "symbols": [(lexer.has("dotSelector") ? {type: "dotSelector"} : dotSelector)]},
-    {"name": "statement$ebnf$1$subexpression$1", "symbols": [{"literal":"["}, "expr", {"literal":"]"}]},
-    {"name": "statement$ebnf$1", "symbols": ["statement$ebnf$1", "statement$ebnf$1$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
-    {"name": "statement", "symbols": [{"literal":"delete"}, {"literal":"("}, "local_var", "statement$ebnf$1", {"literal":","}, "expr", {"literal":")"}, {"literal":";"}], "postprocess":  function(d) {
+    {"name": "statement", "symbols": [{"literal":"delete"}, {"literal":"("}, "local_var", "delete_selector_list", {"literal":","}, "expr", {"literal":")"}, {"literal":";"}], "postprocess":  function(d) {
         	var selectors = d[3].map(function(item){
         		if (item[0].type === 'dotSelector')
         			return item[0].value.substr(1);
@@ -165,6 +164,14 @@ var grammar = {
     {"name": "statement$subexpression$2", "symbols": ["local_var"]},
     {"name": "statement$subexpression$2", "symbols": ["remote_func"]},
     {"name": "statement", "symbols": [{"literal":"foreach"}, {"literal":"("}, "expr", {"literal":","}, "statement$subexpression$1", {"literal":","}, "statement$subexpression$2", {"literal":")"}, {"literal":";"}], "postprocess": function(d) {return addLocation(['foreach', d[2], d[4][0], d[6][0]], d); }},
+    {"name": "delete_selector_list$ebnf$1", "symbols": []},
+    {"name": "delete_selector_list$ebnf$1$subexpression$1", "symbols": [(lexer.has("dotSelector") ? {type: "dotSelector"} : dotSelector)]},
+    {"name": "delete_selector_list$ebnf$1$subexpression$1", "symbols": [{"literal":"["}, "expr", {"literal":"]"}]},
+    {"name": "delete_selector_list$ebnf$1", "symbols": ["delete_selector_list$ebnf$1", "delete_selector_list$ebnf$1$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
+    {"name": "delete_selector_list", "symbols": ["delete_selector_list$ebnf$1"], "postprocess":  function(d) {
+        	if (d[0].length > 30) throw new Error("too many selectors");
+        	return d[0];
+        } },
     {"name": "ifelse$ebnf$1$subexpression$1", "symbols": [{"literal":"else"}, "block"]},
     {"name": "ifelse$ebnf$1", "symbols": ["ifelse$ebnf$1$subexpression$1"], "postprocess": id},
     {"name": "ifelse$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
@@ -172,9 +179,7 @@ var grammar = {
         	var else_block = d[5] ? d[5][1] : null;
         	return addLocation(['ifelse', d[2], d[4], else_block], d);
         } },
-    {"name": "block$ebnf$1", "symbols": []},
-    {"name": "block$ebnf$1", "symbols": ["block$ebnf$1", "statement"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
-    {"name": "block", "symbols": [{"literal":"{"}, "block$ebnf$1", {"literal":"}"}], "postprocess": function(d){ return addLocation(['block', d[1]], d); }},
+    {"name": "block", "symbols": [{"literal":"{"}, "statement_list", {"literal":"}"}], "postprocess": function(d){ return addLocation(['block', d[1]], d); }},
     {"name": "block", "symbols": ["statement"], "postprocess": id},
     {"name": "bounce_expr", "symbols": [{"literal":"bounce"}, {"literal":"("}, "expr", {"literal":")"}], "postprocess": function(d) { return addLocation(['bounce', d[2]], d); }},
     {"name": "bounce_statement", "symbols": ["bounce_expr", {"literal":";"}], "postprocess": function(d) { return d[0]; }},
@@ -204,6 +209,7 @@ var grammar = {
     {"name": "expr_list$ebnf$2", "symbols": ["expr_list$ebnf$2", "expr_list$ebnf$2$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
     {"name": "expr_list", "symbols": ["expr_list$ebnf$1", "expr_list$ebnf$2"], "postprocess":  function(d) {
         	var arr = d[0] ? [d[0]] : [];
+        	if (arr.length + d[1].length > 100) throw new Error("expr list is too long");
         	return arr.concat(d[1].map(function (item) {return item[1];}));
         } },
     {"name": "comp_expr$subexpression$1", "symbols": [{"literal":"=="}]},
@@ -224,15 +230,9 @@ var grammar = {
         		v = v.value.substr(1);
         	return addLocation(['local_var', v], d[0]);
         }  },
-    {"name": "local_var_assignment$ebnf$1", "symbols": []},
-    {"name": "local_var_assignment$ebnf$1$subexpression$1", "symbols": [(lexer.has("dotSelector") ? {type: "dotSelector"} : dotSelector)]},
-    {"name": "local_var_assignment$ebnf$1$subexpression$1$ebnf$1", "symbols": ["expr"], "postprocess": id},
-    {"name": "local_var_assignment$ebnf$1$subexpression$1$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
-    {"name": "local_var_assignment$ebnf$1$subexpression$1", "symbols": [{"literal":"["}, "local_var_assignment$ebnf$1$subexpression$1$ebnf$1", {"literal":"]"}]},
-    {"name": "local_var_assignment$ebnf$1", "symbols": ["local_var_assignment$ebnf$1", "local_var_assignment$ebnf$1$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
     {"name": "local_var_assignment$subexpression$1", "symbols": ["expr"]},
     {"name": "local_var_assignment$subexpression$1", "symbols": ["func_declaration"]},
-    {"name": "local_var_assignment", "symbols": ["local_var", "local_var_assignment$ebnf$1", {"literal":"="}, "local_var_assignment$subexpression$1", {"literal":";"}], "postprocess":  function(d) {
+    {"name": "local_var_assignment", "symbols": ["local_var", "assignment_selector_list", {"literal":"="}, "local_var_assignment$subexpression$1", {"literal":";"}], "postprocess":  function(d) {
         	var selectors = null;
         	if (d[1] && d[1].length)
         		selectors = d[1].map(function(item){
@@ -242,6 +242,16 @@ var grammar = {
         				return item[1];
         		});
         	return addLocation(['local_var_assignment', d[0][1], d[3][0], selectors], d); 
+        } },
+    {"name": "assignment_selector_list$ebnf$1", "symbols": []},
+    {"name": "assignment_selector_list$ebnf$1$subexpression$1", "symbols": [(lexer.has("dotSelector") ? {type: "dotSelector"} : dotSelector)]},
+    {"name": "assignment_selector_list$ebnf$1$subexpression$1$ebnf$1", "symbols": ["expr"], "postprocess": id},
+    {"name": "assignment_selector_list$ebnf$1$subexpression$1$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
+    {"name": "assignment_selector_list$ebnf$1$subexpression$1", "symbols": [{"literal":"["}, "assignment_selector_list$ebnf$1$subexpression$1$ebnf$1", {"literal":"]"}]},
+    {"name": "assignment_selector_list$ebnf$1", "symbols": ["assignment_selector_list$ebnf$1", "assignment_selector_list$ebnf$1$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
+    {"name": "assignment_selector_list", "symbols": ["assignment_selector_list$ebnf$1"], "postprocess":  function(d) {
+        	if (d[0].length > 30) throw new Error("too many selectors");
+        	return d[0];
         } },
     {"name": "state_var_assignment$subexpression$1", "symbols": [{"literal":"="}]},
     {"name": "state_var_assignment$subexpression$1", "symbols": [{"literal":"+="}]},
@@ -261,6 +271,7 @@ var grammar = {
         	if (d[1] && d[1].length)
         		fields = fields.concat(d[1].map(field => field[0].value.substr(1)));
         	return fields;*/
+        	if (d[0].length > 5) throw new Error("too many selector fields");
         	return d[0].map(field => field[0].value.substr(1));
         } },
     {"name": "search_param$subexpression$1", "symbols": ["expr"]},
@@ -269,7 +280,7 @@ var grammar = {
     {"name": "search_param_list$ebnf$1", "symbols": []},
     {"name": "search_param_list$ebnf$1$subexpression$1", "symbols": [{"literal":","}, "search_param"]},
     {"name": "search_param_list$ebnf$1", "symbols": ["search_param_list$ebnf$1", "search_param_list$ebnf$1$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
-    {"name": "search_param_list", "symbols": ["search_param", "search_param_list$ebnf$1"], "postprocess": function(d) { return addLocation([d[0]].concat(d[1].map(function (item) {return item[1];})), d);   }},
+    {"name": "search_param_list", "symbols": ["search_param", "search_param_list$ebnf$1"], "postprocess": function(d) { if (d[1].length + 1 > 5) throw new Error("too many search params"); return addLocation([d[0]].concat(d[1].map(function (item) {return item[1];})), d);   }},
     {"name": "arguments_list$ebnf$1", "symbols": [(lexer.has("local_var_name") ? {type: "local_var_name"} : local_var_name)], "postprocess": id},
     {"name": "arguments_list$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
     {"name": "arguments_list$ebnf$2", "symbols": []},
@@ -277,6 +288,7 @@ var grammar = {
     {"name": "arguments_list$ebnf$2", "symbols": ["arguments_list$ebnf$2", "arguments_list$ebnf$2$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
     {"name": "arguments_list", "symbols": ["arguments_list$ebnf$1", "arguments_list$ebnf$2"], "postprocess":  function(d) {
         	var arr = d[0] ? [d[0].value.substr(1)] : [];
+        	if (arr.length + d[1].length > 30) throw new Error("too many function arguments");
         	return arr.concat(d[1].map(function (item) {return item[1].value.substr(1);}));
         } },
     {"name": "func_declaration$subexpression$1", "symbols": [{"literal":"("}, "arguments_list", {"literal":")"}]},
@@ -339,6 +351,7 @@ var grammar = {
     {"name": "with_selectors$ebnf$1$subexpression$2", "symbols": [{"literal":"["}, "expr", {"literal":"]"}]},
     {"name": "with_selectors$ebnf$1", "symbols": ["with_selectors$ebnf$1", "with_selectors$ebnf$1$subexpression$2"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
     {"name": "with_selectors", "symbols": ["with_selectors$subexpression$1", "with_selectors$ebnf$1"], "postprocess":  function(d) {
+        	if (d[1].length > 30) throw new Error("too many selectors");
         	var v = d[0][0];
         	let context = {selectorTypes: {}};
         	var selectors = d[1].map(function(item, i){
@@ -374,7 +387,7 @@ var grammar = {
     {"name": "df_param_list$ebnf$1", "symbols": []},
     {"name": "df_param_list$ebnf$1$subexpression$1", "symbols": [{"literal":","}, "df_param"]},
     {"name": "df_param_list$ebnf$1", "symbols": ["df_param_list$ebnf$1", "df_param_list$ebnf$1$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
-    {"name": "df_param_list", "symbols": ["df_param", "df_param_list$ebnf$1"], "postprocess": function(d) { return addLocation([d[0]].concat(d[1].map(function (item) {return item[1];})), d);   }},
+    {"name": "df_param_list", "symbols": ["df_param", "df_param_list$ebnf$1"], "postprocess": function(d) { if (d[1].length + 1 > 8) throw new Error("too many data feed params"); return addLocation([d[0]].concat(d[1].map(function (item) {return item[1];})), d);   }},
     {"name": "io_param$subexpression$1", "symbols": [{"literal":"address"}]},
     {"name": "io_param$subexpression$1", "symbols": [{"literal":"amount"}]},
     {"name": "io_param$subexpression$1", "symbols": [{"literal":"asset"}]},
@@ -390,7 +403,7 @@ var grammar = {
     {"name": "io_param_list$ebnf$1", "symbols": []},
     {"name": "io_param_list$ebnf$1$subexpression$1", "symbols": [{"literal":","}, "io_param"]},
     {"name": "io_param_list$ebnf$1", "symbols": ["io_param_list$ebnf$1", "io_param_list$ebnf$1$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
-    {"name": "io_param_list", "symbols": ["io_param", "io_param_list$ebnf$1"], "postprocess": function(d) { return addLocation([d[0]].concat(d[1].map(function (item) {return item[1];})), d);   }},
+    {"name": "io_param_list", "symbols": ["io_param", "io_param_list$ebnf$1"], "postprocess": function(d) { if (d[1].length + 1 > 3) throw new Error("too many io params"); return addLocation([d[0]].concat(d[1].map(function (item) {return item[1];})), d);   }},
     {"name": "attestation_param$subexpression$1", "symbols": [{"literal":"attestors"}]},
     {"name": "attestation_param$subexpression$1", "symbols": [{"literal":"address"}]},
     {"name": "attestation_param$subexpression$1", "symbols": [{"literal":"ifseveral"}]},
@@ -407,7 +420,7 @@ var grammar = {
     {"name": "attestation_param_list$ebnf$1", "symbols": []},
     {"name": "attestation_param_list$ebnf$1$subexpression$1", "symbols": [{"literal":","}, "attestation_param"]},
     {"name": "attestation_param_list$ebnf$1", "symbols": ["attestation_param_list$ebnf$1", "attestation_param_list$ebnf$1$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
-    {"name": "attestation_param_list", "symbols": ["attestation_param", "attestation_param_list$ebnf$1"], "postprocess": function(d) { return addLocation([d[0]].concat(d[1].map(function (item) {return item[1];})), d);   }},
+    {"name": "attestation_param_list", "symbols": ["attestation_param", "attestation_param_list$ebnf$1"], "postprocess": function(d) { if (d[1].length + 1 > 5) throw new Error("too many attestation params"); return addLocation([d[0]].concat(d[1].map(function (item) {return item[1];})), d);   }},
     {"name": "array$ebnf$1", "symbols": [{"literal":","}], "postprocess": id},
     {"name": "array$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
     {"name": "array", "symbols": [{"literal":"["}, "expr_list", "array$ebnf$1", {"literal":"]"}], "postprocess": function(d) { return addLocation(['array', d[1]], d); }},
@@ -421,6 +434,7 @@ var grammar = {
     {"name": "pair_list$ebnf$2", "symbols": ["pair_list$ebnf$2", "pair_list$ebnf$2$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
     {"name": "pair_list", "symbols": ["pair_list$ebnf$1", "pair_list$ebnf$2"], "postprocess":  function(d) {
         	var arr = d[0] ? [d[0]] : [];
+        	if (arr.length + d[1].length > 100) throw new Error("too many dictionary pairs");
         	return arr.concat(d[1].map(function (item) {return item[1];}));
         } },
     {"name": "pair$subexpression$1", "symbols": ["string"]},

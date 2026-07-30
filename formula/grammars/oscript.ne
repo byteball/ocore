@@ -125,7 +125,12 @@
 
 @lexer lexer
 
-main -> statement:* expr:? {% function(d){ return ['main', d[0], d[1]]; } %}
+main -> statement_list expr:? {% function(d){ return ['main', d[0], d[1]]; } %}
+
+statement_list -> statement:*  {% function(d) {
+	if (d[0].length > 1000) throw new Error("too many statements");
+	return d[0];
+} %}
 
 statement -> local_var_assignment {% id %}
 	| ifelse {% id %}
@@ -138,7 +143,7 @@ statement -> local_var_assignment {% id %}
 	| log_statement {% id %}
 	| func_call ";" {% id %}
 	| remote_func_call ";" {% id %}
-    | "delete" "(" local_var (%dotSelector|"[" expr "]"):* "," expr ")" ";"   {% function(d) {
+    | "delete" "(" local_var delete_selector_list "," expr ")" ";"   {% function(d) {
 			var selectors = d[3].map(function(item){
 				if (item[0].type === 'dotSelector')
 					return item[0].value.substr(1);
@@ -150,12 +155,17 @@ statement -> local_var_assignment {% id %}
     | "freeze" "(" local_var ")" ";"   {% function(d) {return addLocation(['freeze', d[2][1]], d); } %}
     | "foreach" "(" expr "," (float|local_var) "," (func_declaration|local_var|remote_func) ")" ";"   {% function(d) {return addLocation(['foreach', d[2], d[4][0], d[6][0]], d); } %}
 
+delete_selector_list -> (%dotSelector|"[" expr "]"):*  {% function(d) {
+	if (d[0].length > 30) throw new Error("too many selectors");
+	return d[0];
+} %}
+
 ifelse -> "if" "(" expr ")" block ("else" block):?  {% function(d){
 	var else_block = d[5] ? d[5][1] : null;
 	return addLocation(['ifelse', d[2], d[4], else_block], d);
 } %}
 
-block -> "{" statement:* "}" {% function(d){ return addLocation(['block', d[1]], d); } %}
+block -> "{" statement_list "}" {% function(d){ return addLocation(['block', d[1]], d); } %}
 	| statement {% id %}
 
 bounce_expr -> "bounce" "(" expr ")"    {% function(d) { return addLocation(['bounce', d[2]], d); } %}
@@ -186,6 +196,7 @@ expr -> otherwise_expr {% id %}
 
 expr_list -> expr:? ("," expr):*  {% function(d) {
 	var arr = d[0] ? [d[0]] : [];
+	if (arr.length + d[1].length > 100) throw new Error("expr list is too long");
 	return arr.concat(d[1].map(function (item) {return item[1];}));
 } %}
 
@@ -204,7 +215,7 @@ local_var -> (%local_var_name|local_var_expr)  {% function(d) {
 	return addLocation(['local_var', v], d[0]);
 }  %}
 
-local_var_assignment -> local_var (%dotSelector|"[" expr:? "]"):* "=" (expr|func_declaration) ";" {% function(d) {
+local_var_assignment -> local_var assignment_selector_list "=" (expr|func_declaration) ";" {% function(d) {
 	var selectors = null;
 	if (d[1] && d[1].length)
 		selectors = d[1].map(function(item){
@@ -216,6 +227,11 @@ local_var_assignment -> local_var (%dotSelector|"[" expr:? "]"):* "=" (expr|func
 	return addLocation(['local_var_assignment', d[0][1], d[3][0], selectors], d); 
 } %}
 
+assignment_selector_list -> (%dotSelector|"[" expr:? "]"):*  {% function(d) {
+	if (d[0].length > 30) throw new Error("too many selectors");
+	return d[0];
+} %}
+
 state_var_assignment -> "var" "[" expr "]" ("="|"+="|"-="|"*="|"/="|"%="|"||=") expr ";" {% function(d) { return addLocation(['state_var_assignment', d[2], d[5], d[4][0].value], d); } %}
 
 response_var_assignment -> "response" "[" expr "]" "=" expr ";" {% function(d) { return addLocation(['response_var_assignment', d[2], d[5]], d); } %}
@@ -225,16 +241,18 @@ search_fields -> (%dotSelector):+ {% function(d) {
 	if (d[1] && d[1].length)
 		fields = fields.concat(d[1].map(field => field[0].value.substr(1)));
 	return fields;*/
+	if (d[0].length > 5) throw new Error("too many selector fields");
 	return d[0].map(field => field[0].value.substr(1));
 } %}
 
 search_param ->  search_fields comparisonOperator (expr|"none")  {% function(d) { return addLocation([d[0], d[1], d[2][0]], d); } %}
 
-search_param_list -> search_param ("," search_param):*  {% function(d) { return addLocation([d[0]].concat(d[1].map(function (item) {return item[1];})), d);   } %}
+search_param_list -> search_param ("," search_param):*  {% function(d) { if (d[1].length + 1 > 5) throw new Error("too many search params"); return addLocation([d[0]].concat(d[1].map(function (item) {return item[1];})), d);   } %}
 
 
 arguments_list -> %local_var_name:? ("," %local_var_name):*  {% function(d) {
 	var arr = d[0] ? [d[0].value.substr(1)] : [];
+	if (arr.length + d[1].length > 30) throw new Error("too many function arguments");
 	return arr.concat(d[1].map(function (item) {return item[1].value.substr(1);}));
 } %}
 
@@ -281,6 +299,7 @@ definition -> "definition" "[" expr "]"   {% function(d) { return addLocation(['
 
 
 with_selectors -> (func_call|remote_func_call|local_var|trigger_outputs|trigger_data|params|previous_aa_responses|unit|definition) (%dotSelector|"[" "[" search_param_list "]" "]"|"[" expr "]"):+  {% function(d) {
+	if (d[1].length > 30) throw new Error("too many selectors");
 	var v = d[0][0];
 	let context = {selectorTypes: {}};
 	var selectors = d[1].map(function(item, i){
@@ -305,7 +324,7 @@ df_param ->  ("oracles"|"feed_name"|"min_mci"|"feed_value"|"what"|"ifseveral"|"i
 		value = value.value;
 	return addLocation([d[0][0].value, d[1], value], d);
 } %}
-df_param_list -> df_param ("," df_param):*  {% function(d) { return addLocation([d[0]].concat(d[1].map(function (item) {return item[1];})), d);   } %}
+df_param_list -> df_param ("," df_param):*  {% function(d) { if (d[1].length + 1 > 8) throw new Error("too many data feed params"); return addLocation([d[0]].concat(d[1].map(function (item) {return item[1];})), d);   } %}
 
 io_param ->  ("address"|"amount"|"asset") comparisonOperator (expr|"base"|%addressValue)  {% function(d) {
 		var value = d[2][0];
@@ -313,7 +332,7 @@ io_param ->  ("address"|"amount"|"asset") comparisonOperator (expr|"base"|%addre
 			value = value.value;
 		return addLocation([d[0][0].value, d[1], value], d);
 	} %}
-io_param_list -> io_param ("," io_param):*  {% function(d) { return addLocation([d[0]].concat(d[1].map(function (item) {return item[1];})), d);   } %}
+io_param_list -> io_param ("," io_param):*  {% function(d) { if (d[1].length + 1 > 3) throw new Error("too many io params"); return addLocation([d[0]].concat(d[1].map(function (item) {return item[1];})), d);   } %}
 
 attestation_param ->  ("attestors"|"address"|"ifseveral"|"ifnone"|"type") comparisonOperator (expr|%addressValue)  {% function(d) {
 		var value = d[2][0];
@@ -321,7 +340,7 @@ attestation_param ->  ("attestors"|"address"|"ifseveral"|"ifnone"|"type") compar
 			value = value.value;
 		return addLocation([d[0][0].value, d[1], value], d);
 	} %}
-attestation_param_list -> attestation_param ("," attestation_param):*  {% function(d) { return addLocation([d[0]].concat(d[1].map(function (item) {return item[1];})), d);   } %}
+attestation_param_list -> attestation_param ("," attestation_param):*  {% function(d) { if (d[1].length + 1 > 5) throw new Error("too many attestation params"); return addLocation([d[0]].concat(d[1].map(function (item) {return item[1];})), d);   } %}
 
 
 array -> "[" expr_list ",":? "]" {% function(d) { return addLocation(['array', d[1]], d); } %}
@@ -329,6 +348,7 @@ dictionary -> "{" pair_list ",":? "}" {% function(d) { return addLocation(['dict
 
 pair_list -> pair:? ("," pair):*  {% function(d) {
 	var arr = d[0] ? [d[0]] : [];
+	if (arr.length + d[1].length > 100) throw new Error("too many dictionary pairs");
 	return arr.concat(d[1].map(function (item) {return item[1];}));
 } %}
 pair -> (string|%IDEN|%keyword|%addressValue) ":" expr {% function(d) {

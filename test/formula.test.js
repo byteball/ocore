@@ -6442,6 +6442,18 @@ test.cb('long sum', t => {
 	})
 });
 
+test.cb('max with large number of arguments', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = {};
+	const count = 15000000;
+	const start_ts = Date.now();
+	evalFormulaWithVars({ conn: db, formula: `max(1${',1'.repeat(count)})`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		console.log(`count ${count} execution time: ${(Date.now() - start_ts) / 1000} s`);
+		t.deepEqual(res, null);
+		t.end();
+	})
+});
+
 test('Decimal toStringTag', t => {
 	evalFormulaWithVars({ formula: "trigger.data.poison", trigger: {data: {"poison":{"toStringTag":"[object Decimal]"}}}, locals: { a4: 100 }, objValidationState: objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
 		t.deepEqual(res, {"toStringTag":"[object Decimal]"});
