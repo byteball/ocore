@@ -505,6 +505,8 @@ exports.validate = function (opts, callback) {
 							return cb2("wrong comparison operator: " + comp);
 						if (!ValidationUtils.isNonemptyArray(fields) || !fields.every(key => typeof key === 'string'))
 							return cb2("bad search field: " + JSON.stringify(fields));
+						if (fields.length > 5 && (mci >= constants.pemCurvesFixMci || require('../storage.js').getMinRetrievableMci() >= constants.pemCurvesFixMci))
+							return cb2("too many search fields: " + fields.length);
 						if (value.value === 'none') {
 							if (comp !== '=' && comp !== '!=')
 								return cb2("bad comparison for none: " + comp);
@@ -589,6 +591,8 @@ exports.validate = function (opts, callback) {
 				var selectors = arr[3];
 				if (selectors && mci < constants.aa2UpgradeMci)
 					return cb("selectors in assignment not enabled yet");
+				if (selectors && selectors.length > 30 && (mci >= constants.pemCurvesFixMci || require('../storage.js').getMinRetrievableMci() >= constants.pemCurvesFixMci))
+					return cb("too many selectors in assignment");
 				if (typeof var_name_or_expr === 'number' || typeof var_name_or_expr === 'boolean' || Decimal.isDecimal(var_name_or_expr))
 					return cb('bad var name: ' + var_name_or_expr);
 				// we can't check local var reassignment without analyzing the code, e.g. if(..) $x=1; else $x=2; is valid
@@ -695,6 +699,8 @@ exports.validate = function (opts, callback) {
 				var arrStatements = arr[1];
 				if (!Array.isArray(arrStatements))
 					throw Error("statements in {} is not an array");
+				if (arrStatements.length > 1000 && (mci >= constants.pemCurvesFixMci || require('../storage.js').getMinRetrievableMci() >= constants.pemCurvesFixMci))
+					return cb("too many statements in {}");
 				async.eachSeries(
 					arrStatements,
 					function (statement, cb2) {
@@ -980,6 +986,8 @@ exports.validate = function (opts, callback) {
 					}
 					if (!Array.isArray(selectors))
 						return cb("selectors is not an array");
+					if (selectors.length > 30 && (mci >= constants.pemCurvesFixMci || require('../storage.js').getMinRetrievableMci() >= constants.pemCurvesFixMci))
+						return cb("too many selectors in delete");
 					evaluate(key, function (err) {
 						if (err)
 							return cb(err);
@@ -1143,6 +1151,8 @@ exports.validate = function (opts, callback) {
 				var func = locals[func_name].props;
 				if (func.count_args < arrExpressions.length)
 					return cb("excessive arguments to func " + func_name);
+				if (arrExpressions.length > 30 && (mci >= constants.pemCurvesFixMci || require('../storage.js').getMinRetrievableMci() >= constants.pemCurvesFixMci))
+					return cb("too many arguments to func " + func_name);
 				console.log('func', func)
 				complexity += func.complexity;
 				count_ops += func.count_ops;
@@ -1170,6 +1180,8 @@ exports.validate = function (opts, callback) {
 				var max_remote_complexity = arr[2];
 				var func_name = arr[3];
 				var arrExpressions = arr[4];
+				if (arrExpressions.length > 30 && (mci >= constants.pemCurvesFixMci || require('../storage.js').getMinRetrievableMci() >= constants.pemCurvesFixMci))
+					return cb("too many arguments to remote func " + func_name);
 				if (max_remote_complexity !== null) {
 					if (mci < constants.aa3UpgradeMci)
 						return cb("max_remote_complexity not enabled yet");
@@ -1230,6 +1242,8 @@ exports.validate = function (opts, callback) {
 			case 'with_selectors':
 				var expr = arr[1];
 				var arrKeys = arr[2];
+				if (arrKeys && arrKeys.length > 30 && (mci >= constants.pemCurvesFixMci || require('../storage.js').getMinRetrievableMci() >= constants.pemCurvesFixMci))
+					return cb("too many selectors in with_selectors");
 				evaluate(expr, function (err) {
 					if (err)
 						return cb(err);
@@ -1296,6 +1310,8 @@ exports.validate = function (opts, callback) {
 				var expr = arr[2];
 				if (!Array.isArray(arrStatements))
 					throw Error("statements is not an array");
+				if (arrStatements.length > 1000 && (mci >= constants.pemCurvesFixMci || require('../storage.js').getMinRetrievableMci() >= constants.pemCurvesFixMci))
+					return cb("too many statements");
 				if (bTopLevel) {
 					if (bStatementsOnly && expr)
 						return cb('should be statements only');
@@ -1332,6 +1348,8 @@ exports.validate = function (opts, callback) {
 		var count_args = args.length;
 		if (_.uniq(args).length !== count_args)
 			return cb("duplicate arguments");
+		if (count_args > 30 && (mci >= constants.pemCurvesFixMci || require('../storage.js').getMinRetrievableMci() >= constants.pemCurvesFixMci))
+			return cb("too many function arguments in declaration");
 		var saved_complexity = complexity;
 		var saved_count_ops = count_ops;
 		var saved_sva = bStateVarAssignmentAllowed;

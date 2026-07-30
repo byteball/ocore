@@ -2553,6 +2553,8 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 					return setFatalError("no such function: " + func_name, { arr }, false, cb);
 				if (!(func instanceof Func))
 					return setFatalError("not a function: " + func_name, { arr }, false, cb);
+				if (arrExpressions.length > 30 && mci >= constants.pemCurvesFixMci)
+					return setFatalError("too many arguments to func " + func_name, { arr }, false, cb);
 				var args = [];
 				async.eachSeries(
 					arrExpressions,
@@ -2581,6 +2583,8 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 				var max_remote_complexity = arr[2];
 				var func_name = arr[3];
 				var arrExpressions = arr[4];
+				if (arrExpressions.length > 30 && mci >= constants.pemCurvesFixMci)
+					return setFatalError("too many arguments to remote func " + func_name, { arr }, false, cb);
 				var args = [];
 				async.eachSeries(
 					arrExpressions,
