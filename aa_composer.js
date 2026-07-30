@@ -1977,6 +1977,7 @@ function checkBalances() {
 				HAVING balance != calculated_balance";
 				var sql_drop_temp = db.dropTemporaryTable("aa_outputs_balances");
 				
+				/*
 				var stable_or_from_aa = "( \n\
 					(SELECT is_stable FROM units WHERE units.unit=outputs.unit)=1 \n\
 					OR EXISTS (SELECT 1 FROM unit_authors CROSS JOIN aa_addresses USING(address) WHERE unit_authors.unit=outputs.unit) \n\
@@ -2006,6 +2007,7 @@ function checkBalances() {
 					WHERE outputs.asset IS NOT NULL \n\
 					GROUP BY aa_addresses.address, outputs.asset \n\
 					HAVING balance != calculated_balance";
+				*/
 				async.eachSeries(
 				//	[sql_base, sql_assets_balances_to_outputs, sql_assets_outputs_to_balances],
 					[sql_create_temp, sql_fill_temp, sql_balances_to_outputs, sql_outputs_to_balances, sql_drop_temp],
