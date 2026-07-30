@@ -1318,6 +1318,8 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 					assetInfos[asset] = objAsset;
 					if (objAsset.fixed_denominations) // will skip it later
 						return cb();
+					if (objAsset.is_private) // it'll fail validation anyway due to lack of spend_proofs
+						return cb("sending private asset from AA");
 					completePaymentPayload(payload, 0, function (err) {
 						if (err)
 							return cb(err);
@@ -1957,10 +1959,11 @@ function checkBalances() {
 					FROM aa_addresses \n\
 					CROSS JOIN outputs USING(address) \n\
 					CROSS JOIN units ON outputs.unit=units.unit \n\
+					LEFT JOIN assets ON outputs.asset=assets.unit \n\
 					WHERE is_spent=0 AND sequence='good' AND ( \n\
 						is_stable=1 \n\
 						OR is_stable=0 AND is_aa_response=1 \n\
-					) \n\
+					) AND (is_private=0 OR is_private IS NULL) \n\
 					GROUP BY address, asset";
 				var sql_balances_to_outputs = "SELECT aa_balances.address, aa_balances.asset, balance, calculated_balance \n\
 				FROM aa_balances \n\

@@ -945,8 +945,10 @@ function insertAADefinitions(conn, arrPayloads, unit, mci, validation_mci, bForA
 					conn.query(
 						verb + " INTO aa_balances (address, asset, balance) \n\
 						SELECT address, IFNULL(asset, 'base'), SUM(CAST(amount AS DOUBLE)) AS balance \n\
-						FROM outputs CROSS JOIN units USING(unit) \n\
-						WHERE address=? AND is_spent=0 AND sequence='good' AND (main_chain_index<? " + or_sent_by_aa + ") \n\
+						FROM outputs \n\
+						CROSS JOIN units USING(unit) \n\
+						LEFT JOIN assets ON asset=assets.unit \n\
+						WHERE address=? AND is_spent=0 AND sequence='good' AND (main_chain_index<? " + or_sent_by_aa + ") AND (is_private=0 OR is_private IS NULL) \n\
 						GROUP BY address, asset", // not including the outputs on the current mci, which will trigger the AA and be accounted for separately
 						[address, mci],
 						function () {
