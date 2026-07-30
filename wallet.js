@@ -414,6 +414,8 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 				break;
 				
 			case 'private_payments':
+				if (conf.bIgnorePrivatePayments)
+					return callbacks.ifError("private payments are ignored");
 				handlePrivatePaymentChains(ws, body, from_address, callbacks);
 				break;
 				
