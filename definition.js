@@ -596,6 +596,8 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 					return cb("formulas not allowed at this mci yet");
 				if (!isNonemptyString(args))
 					return cb("formula must be a non-empty string");
+				if (args.length > 10000 && (objValidationState.last_ball_mci >= constants.pemCurvesFixMci || !objValidationState.hasBall && storage.getMinRetrievableMci() >= constants.pemCurvesFixMci))
+					return cb("formula too long");
 				formulaParser.validate({
 					formula: args,
 					complexity,
