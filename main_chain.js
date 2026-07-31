@@ -1210,9 +1210,11 @@ function determineIfStableInLaterUnitsAndUpdateStableMcFlag(conn, earlier_unit, 
 				//	throwError(`${earlier_unit} not stable in db but stable in later units ${arrLaterUnits.join(', ')} in v4`);
 				}*/
 				storage.readUnitProps(db, earlier_unit, async function(objEarlierUnitProps){
+					if (!objEarlierUnitProps.is_on_main_chain)
+						throw Error("earlier unit is no longer on main chain");
 					var new_last_stable_mci = objEarlierUnitProps.main_chain_index;
-					if (new_last_stable_mci <= last_stable_mci) // fix: it could've been changed by parallel tasks - No, our SQL transaction doesn't see the changes
-						return throwError("new last stable mci expected to be higher than existing");
+					if (new_last_stable_mci <= last_stable_mci || objEarlierUnitProps.is_stable)
+						return unlock("the stability point moved while we were waiting for the lock, last_stable_mci="+last_stable_mci+", new_last_stable_mci="+new_last_stable_mci);
 					var mci = last_stable_mci + 1;
 					await stabilizeMci(mci);
 					unlock();
