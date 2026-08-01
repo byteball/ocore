@@ -3375,7 +3375,7 @@ function executeGetterInState(conn, aa_address, getter, args, stateVars, assocBa
 	if (!cb)
 		return new Promise((resolve, reject) => {
 			executeGetterInState(conn, aa_address, getter, args, stateVars, assocBalances, (err, res) => {
-				err ? reject(new Error(err)) : resolve(res);
+				err ? reject(err) : resolve(res);
 			});
 		});
 	conn.query("SELECT * FROM units ORDER BY main_chain_index DESC LIMIT 1", rows => {
