@@ -962,6 +962,8 @@ function handleResponseToJointRequest(ws, request, response){
 	var objJoint = response.joint;
 	if (!objJoint.unit || !objJoint.unit.unit || typeof objJoint.unit.unit !== 'string')
 		return sendError(ws, 'no unit');
+	if ("unsigned" in objJoint)
+		return sendError(ws, 'unsigned unit');
 	var unit = objJoint.unit.unit;
 	if (request.params !== unit)
 		return sendError(ws, "I didn't request this unit from you: " + JSON.stringify(unit));
@@ -1208,6 +1210,8 @@ function handlePostedJoint(ws, objJoint, onDone){
 	
 	if (!objJoint || !objJoint.unit || !objJoint.unit.unit || typeof objJoint.unit.unit !== 'string')
 		return onDone('no unit');
+	if ("unsigned" in objJoint)
+		return onDone('unsigned unit');
 	
 	var unit = objJoint.unit.unit;
 	delete objJoint.unit.main_chain_index;
@@ -2706,6 +2710,8 @@ function handleJustsaying(ws, subject, body){
 			var objJoint = body;
 			if (!objJoint || !objJoint.unit || !objJoint.unit.unit)
 				return sendError(ws, 'no unit');
+			if ("unsigned" in objJoint)
+				return sendError(ws, 'unsigned unit');
 			if (typeof objJoint.unit.unit !== 'string' || !ValidationUtils.isValidBase64(objJoint.unit.unit, constants.HASH_LENGTH))
 				return sendError(ws, 'invalid unit');
 			if (objJoint.ball && !storage.isGenesisUnit(objJoint.unit.unit))
