@@ -58,7 +58,7 @@ function isValidAddressAnyCase(address){
 }
 
 function isValidAddress(address){
-	return (typeof address === "string" && address === address.toUpperCase() && isValidChash(address, 32));
+	return (typeof address === "string" && /^[A-Z2-7]{32}$/.test(address) && isValidChash(address, 32));
 }
 
 function isValidDeviceAddress(address){
