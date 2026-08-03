@@ -1001,7 +1001,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 	// non-payment messages are left intact.
 	function mergeMessagesAndOutputs(messages) {
 		const arrMergedMessages = [];
-		const assocMergedMessagesByAsset = {};
+		const assocMergedMessagesByAsset = Object.create(null);
 		for (let message of messages) {
 			if (message.app !== 'payment') {
 				arrMergedMessages.push(message);
@@ -1261,7 +1261,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 				return bounce("invalid addresses in outputs");
 			if (payload.outputs.some(o => ValidationUtils.hasFieldsExcept(o, ['address', 'amount'])))
 				return bounce("unknown fields in outputs");
-			if (payload.asset && typeof payload.asset !== 'string')
+			if ('asset' in payload && !(payload.asset === 'base' || ValidationUtils.isStringOfLength(payload.asset, constants.HASH_LENGTH)))
 				return bounce("asset must be a string or omitted");
 			// negative or fractional
 			if (!payload.outputs.every(function (output) { return (isNonnegativeInteger(output.amount) || output.amount === undefined); }))
