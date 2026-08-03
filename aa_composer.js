@@ -1867,7 +1867,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 				var payload = message.payload;
 				if (message.app === 'asset' && isNonemptyArray(payload.denominations))
 					payload.denominations.sort(sortDenominations);
-				if ((message.app === 'asset' || message.app === 'asset_attestors') && isNonemptyArray(payload.attestors))
+				if ((message.app === 'asset' || message.app === 'asset_attestors') && isNonemptyArray(payload.attestors) && payload.attestors.every(ValidationUtils.isValidAddress))
 					payload.attestors.sort();
 			});
 			sendUnit(messages);

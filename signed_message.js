@@ -147,6 +147,8 @@ function validateSignedMessage(conn, objSignedMessage, address, max_complexity, 
 		var author = authors[i];
 		if (!ValidationUtils.isNonemptyObject(author))
 			return handleResult("author must be a non-empty object");
+		if (!ValidationUtils.isValidAddress(author.address))
+			return handleResult("not valid address");
 		if (author.address <= prev_address)
 			return handleResult("author addresses not sorted");
 		prev_address = author.address;
@@ -167,8 +169,6 @@ function validateSignedMessage(conn, objSignedMessage, address, max_complexity, 
 		}
 		if (author.address === address)
 			the_author = author;
-		else if (!ValidationUtils.isValidAddress(author.address))
-			return handleResult("not valid address");
 		if (!ValidationUtils.isNonemptyObject(author.authentifiers))
 			return handleResult("no authentifiers");
 		for (let path in author.authentifiers) {

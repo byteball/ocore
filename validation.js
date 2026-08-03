@@ -1111,10 +1111,10 @@ function validateHeadersCommissionRecipients(objUnit, cb){
 				return cb("earned_headers_commission_share must be positive integer");
 			if (hasFieldsExcept(recipient, ["address", "earned_headers_commission_share"]))
 				return cb("unknown fields in recipient");
-			if (recipient.address <= prev_address)
-				return cb("recipient list must be sorted by address");
 			if (!isValidAddress(recipient.address))
 				return cb("invalid recipient address checksum");
+			if (recipient.address <= prev_address)
+				return cb("recipient list must be sorted by address");
 			total_earned_headers_commission_share += recipient.earned_headers_commission_share;
 			prev_address = recipient.address;
 		}
@@ -2840,10 +2840,10 @@ function checkAttestorList(arrAttestors){
 		return "too many attestors";
 	var prev="";
 	for (var i=0; i<arrAttestors.length; i++){
-		if (arrAttestors[i] <= prev)
-			return "attestors not sorted";
 		if (!isValidAddress(arrAttestors[i]))
 			return "invalid attestor address: "+JSON.stringify(arrAttestors[i]);
+		if (arrAttestors[i] <= prev)
+			return "attestors not sorted";
 		prev = arrAttestors[i];
 	}
 	return null;
