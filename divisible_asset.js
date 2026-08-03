@@ -50,8 +50,8 @@ function validateAndSaveDivisiblePrivatePayment(conn, objPrivateElement, callbac
 						address = arrAuthorAddresses[0];
 					else
 						address_sql = "(SELECT address FROM outputs \
-							WHERE unit="+conn.escape(src_unit)+" AND message_index="+src_message_index+" \
-								AND output_index="+src_output_index+" AND address IN("+conn.escape(arrAuthorAddresses)+"))";
+						WHERE unit="+conn.escape(src_unit)+" AND message_index="+conn.escape(src_message_index)+" \
+							AND output_index="+conn.escape(src_output_index)+" AND address IN("+conn.escape(arrAuthorAddresses)+"))";
 				}
 				var is_unique = bStable ? 1 : null; // unstable still have chances to become nonserial therefore nonunique
 				conn.addQuery(arrQueries, "INSERT INTO inputs \n\
