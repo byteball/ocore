@@ -278,7 +278,7 @@ exports.validate = function (opts, callback) {
 			depth--;
 			orig_cb(err);
 		};
-		if (depth > 100 && mci >= constants.pemCurvesFixMci)
+		if (depth > 100 && (mci >= constants.pemCurvesFixMci || require('../storage.js').getMinRetrievableMci() >= constants.pemCurvesFixMci))
 			return cb("maximum depth exceeded");
 		if (Decimal.isDecimal(arr))
 			return isFiniteDecimal(arr) ? cb() : cb("not finite decimal: " + arr);
