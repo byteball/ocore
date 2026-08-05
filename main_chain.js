@@ -1707,7 +1707,15 @@ async function countVotes(conn, mci, subject, is_emergency = 0, emergency_count_
 	if (is_emergency && subject !== "op_list")
 		throw Error("emergency vote count supported for op_list only, got " + subject);
 	const address_rows = await conn.query("SELECT DISTINCT address FROM system_votes WHERE subject=?", [subject]);
-	const addresses = address_rows.map(r => r.address);
+	let addresses = address_rows.map(r => r.address);
+	const unstable_votes = (is_emergency && mci >= constants.pemCurvesFixMci) ? getUnstableVotes(emergency_count_command_timestamp) : null;
+	if (unstable_votes) {
+		for (let { author_addresses } of unstable_votes) {
+			for (let address of author_addresses)
+				addresses.push(address);
+		}
+		addresses = _.uniq(addresses);
+	}
 	const strAddresses = addresses.map(db.escape).join(', ');
 	let balances = {};
 	// Count all stable-good outputs that have no stable-good spender.
@@ -1787,22 +1795,7 @@ async function countVotes(conn, mci, subject, is_emergency = 0, emergency_count_
 			if (is_emergency) { // add unstable votes for OPs
 				await conn.query(`CREATE TEMPORARY TABLE ${votes_table} AS SELECT address, op_address, timestamp FROM op_votes`);
 				// the order of iteration is undefined, so we'll first collect the messages and then sort them. The order matters only when the same address sends multiple unstable votes
-				let votes = [];
-				for (let unit in storage.assocUnstableMessages) {
-					for (let m of storage.assocUnstableMessages[unit]) {
-						if (m.app === 'system_vote' && m.payload.subject === 'op_list') {
-							const { timestamp, author_addresses, sequence, level } = storage.assocUnstableUnits[unit];
-							if (sequence !== 'good')
-								continue;
-							if (emergency_count_command_timestamp - timestamp < constants.EMERGENCY_COUNT_MIN_VOTE_AGE) {
-								console.log('unstable vote from', author_addresses, 'is too young');
-								continue;
-							}
-							const arrOPs = m.payload.value;
-							votes.push({ timestamp, level, author_addresses, arrOPs });
-						}
-					}
-				}
+				let votes = unstable_votes || getUnstableVotes(emergency_count_command_timestamp);
 				console.log('unsorted unstable votes', votes);
 				votes.sort((v1, v2) => {
 					const dt = v1.timestamp - v2.timestamp;
@@ -1885,6 +1878,26 @@ async function countVotes(conn, mci, subject, is_emergency = 0, emergency_count_
 	await conn.query(`${is_emergency || mci === 0 ? 'REPLACE' : 'INSERT'} INTO system_vars (subject, value, vote_count_mci, is_emergency) VALUES (?, ?, ?, ?)`, [subject, value, mci === 0 ? -1 : mci, is_emergency]);
 	await conn.query(conn.dropTemporaryTable('voter_balances'));
 	eventBus.emit('system_vars_updated', subject, value);
+}
+
+function getUnstableVotes(emergency_count_command_timestamp) {
+	let votes = [];
+	for (let unit in storage.assocUnstableMessages) {
+		for (let m of storage.assocUnstableMessages[unit]) {
+			if (m.app === 'system_vote' && m.payload.subject === 'op_list') {
+				const { timestamp, author_addresses, sequence, level } = storage.assocUnstableUnits[unit];
+				if (sequence !== 'good')
+					continue;
+				if (emergency_count_command_timestamp - timestamp < constants.EMERGENCY_COUNT_MIN_VOTE_AGE) {
+					console.log('unstable vote from', author_addresses, 'is too young');
+					continue;
+				}
+				const arrOPs = m.payload.value;
+				votes.push({ timestamp, level, author_addresses, arrOPs });
+			}
+		}
+	}
+	return votes;
 }
 
 
