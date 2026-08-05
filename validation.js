@@ -993,7 +993,7 @@ async function validateAATrigger(conn, objUnit, objValidationState, callback) {
 		objValidationState.count_primary_aa_triggers = 0;
 		return callback();
 	}
-	if (objUnit.max_aa_responses === 0 && objValidationState.last_ball_mci >= constants.pemCurvesFixMci)
+	if (objUnit.max_aa_responses === 0 && (objValidationState.last_ball_mci >= constants.pemCurvesFixMci || !objValidationState.hasBall && storage.getMinRetrievableMci() >= constants.pemCurvesFixMci))
 		return callback(`max_aa_responses=0 is not allowed`);
 	let outputCounts = {};
 	for (let m of objUnit.messages) {
@@ -1027,7 +1027,7 @@ async function validateAATrigger(conn, objUnit, objValidationState, callback) {
 		if (storage.getMinRetrievableMci() > constants.pemCurvesFixMci)
 			return callback(createTransientError(`more than 1 primary AA trigger (${objValidationState.count_primary_aa_triggers})`));
 	}
-	if (objValidationState.last_ball_mci >= constants.pemCurvesFixMci && objValidationState.count_primary_aa_triggers === 1) {
+	if ((objValidationState.last_ball_mci >= constants.pemCurvesFixMci || !objValidationState.hasBall && storage.getMinRetrievableMci() >= constants.pemCurvesFixMci) && objValidationState.count_primary_aa_triggers === 1) {
 		const address = rows[0].address;
 		for (let asset in outputCounts[address]) {
 			if (outputCounts[address][asset] > 1)
@@ -2781,7 +2781,7 @@ function validateAssetDefinition(conn, payload, objUnit, objValidationState, cal
 		if (!(payload.auto_destroy && !payload.is_transferrable))
 			return callback("if private and divisible, must also be auto-destroy and non-transferrable");
 	}
-	if (payload.is_private && ("issue_condition" in payload || "transfer_condition" in payload) && objValidationState.last_ball_mci >= constants.noPrivateAssetsWithConditionsUpgradeMci)
+	if (payload.is_private && ("issue_condition" in payload || "transfer_condition" in payload) && (objValidationState.last_ball_mci >= constants.noPrivateAssetsWithConditionsUpgradeMci || !objValidationState.hasBall && storage.getMinRetrievableMci() >= constants.noPrivateAssetsWithConditionsUpgradeMci))
 		return callback("if private, cannot have issue or transfer conditions");
 	if (payload.cap && !payload.issued_by_definer_only)
 		return callback("if capped, must be issued by definer only");
