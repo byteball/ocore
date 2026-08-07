@@ -32,6 +32,7 @@ var arbiter_contract = require('./arbiter_contract.js');
 var arbiters = require("./arbiters.js");
 var signed_message = require('./signed_message.js');
 var aa_addresses = require('./aa_addresses.js');
+const { isTooDeeplyNestedOrHasTooManyNodes } = require("./string_utils.js");
 
 const { isNonemptyArray, isNonemptyObject, isNonemptyString } = ValidationUtils;
 
@@ -61,6 +62,9 @@ function sendSignature(device_address, signed_text, signature, signing_path, add
 
 // one of callbacks MUST be called, otherwise the mutex will stay locked
 function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, callbacks){
+	if (isTooDeeplyNestedOrHasTooManyNodes(json, 20, 100000))
+		return callbacks.ifError("message from hub is too deeply nested or has too many nodes");
+
 	// serialize all messages from hub
 	mutex.lock(["from_hub"], function(unlock){
 		var oldcb = callbacks;

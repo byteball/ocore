@@ -1,6 +1,7 @@
 /*jslint node: true */
 "use strict";
 var crypto = require('crypto');
+var util = require('util');
 var async = require('async');
 var ecdsa = require('secp256k1');
 var db = require('./db.js');
@@ -300,7 +301,7 @@ function sendTempPubkey(ws, temp_pubkey, callbacks){
 	network.sendRequest(ws, 'hub/temp_pubkey', createTempPubkeyPackage(temp_pubkey), false, function(ws, request, response){
 		if (response === 'updated')
 			return callbacks.ifOk();
-		var error = response?.error || ("unrecognized response: "+JSON.stringify(response));
+		var error = response?.error || ("unrecognized response: " + util.inspect(response, { depth: 5 }));
 		callbacks.ifError(error);
 	});
 }
@@ -662,7 +663,7 @@ function sendPreparedMessageToConnectedHub(ws, recipient_device_pubkey, message_
 				});
 			}
 			else
-				handleError( response?.error || ("unrecognized response: "+JSON.stringify(response)) );
+				handleError( response?.error || ("unrecognized response: " + util.inspect(response, { depth: 5 })) );
 		});
 	});
 }

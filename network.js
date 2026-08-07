@@ -966,7 +966,7 @@ function handleResponseToJointRequest(ws, request, response){
 		return sendError(ws, 'unsigned unit');
 	var unit = objJoint.unit.unit;
 	if (request.params !== unit)
-		return sendError(ws, "I didn't request this unit from you: " + JSON.stringify(unit));
+		return sendError(ws, "I didn't request this unit from you: " + unit);
 	if (conf.bLight && objJoint.ball && !objJoint.unit.content_hash){
 		// accept it as unfinished (otherwise we would have to require a proof)
 		delete objJoint.ball;
@@ -3347,6 +3347,8 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "missing fields");
 			if (!ValidationUtils.isValidDeviceAddress(objDeviceMessage.to))
 				return sendErrorResponse(ws, tag, "invalid to address");
+			if (isTooDeeplyNestedOrHasTooManyNodes(objDeviceMessage, 5, 100))
+				return sendErrorResponse(ws, tag, "device message is too deeply nested or has too many nodes");
 			var bToMe = (my_device_address && my_device_address === objDeviceMessage.to);
 			if (!conf.bServeAsHub && !bToMe)
 				return sendErrorResponse(ws, tag, "I'm not a hub");
@@ -3437,6 +3439,8 @@ function handleRequest(ws, tag, command, params){
 			var objTempPubkey = params;
 			if (!objTempPubkey || !objTempPubkey.temp_pubkey || !objTempPubkey.pubkey || !objTempPubkey.signature)
 				return sendErrorResponse(ws, tag, "no temp_pubkey params");
+			if (ValidationUtils.hasFieldsExcept(objTempPubkey, ["temp_pubkey", "pubkey", "signature"]))
+				return sendErrorResponse(ws, tag, "unexpected fields in temp_pubkey package");
 			if (!ValidationUtils.isStringOfLength(objTempPubkey.temp_pubkey, constants.PUBKEY_LENGTH))
 				return sendErrorResponse(ws, tag, "wrong temp_pubkey length");
 			if (!ValidationUtils.isStringOfLength(objTempPubkey.pubkey, constants.PUBKEY_LENGTH))
@@ -3871,7 +3875,7 @@ function handleRequest(ws, tag, command, params){
 				var value = aa_params[name];
 				if (typeof value === 'object') {
 					if (!ValidationUtils.isArrayOfLength(value, 2))
-						return sendErrorResponse(ws, tag, "invalid value of param " + name + ": " + JSON.stringify(value));
+						return sendErrorResponse(ws, tag, "value of param " + name + " must be a 2-element array");
 					var comp = value[0];
 					value = value[1];
 					if (typeof comp !== 'string')

@@ -274,6 +274,8 @@ function readHashTree(hashTreeRequest, callbacks){
 		return callbacks.ifError("no from_ball");
 	if (typeof to_ball !== 'string')
 		return callbacks.ifError("no to_ball");
+	if (ValidationUtils.hasFieldsExcept(hashTreeRequest, ["from_ball", "to_ball"]))
+		return callbacks.ifError("unexpected fields in hash tree request");
 	var start_ts = Date.now();
 	var from_mci;
 	var to_mci;
