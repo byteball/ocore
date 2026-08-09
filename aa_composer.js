@@ -1846,7 +1846,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 				}
 			}
 			// skip this check for dry-run which uses genesis unit as trigger unit
-			if (trigger.unit !== constants.GENESIS_UNIT && storage.assocStableUnits[trigger.unit].count_aa_responses && mci >= constants.pemCurvesFixMci)
+			if (trigger.unit !== constants.GENESIS_UNIT && !trigger_opts.bAir && storage.assocStableUnits[trigger.unit].count_aa_responses && mci >= constants.pemCurvesFixMci)
 				return bounce('a second primary trigger from the same unit is not allowed');
 		}
 
