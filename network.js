@@ -3180,6 +3180,8 @@ function handleRequest(ws, tag, command, params){
 			var objJoint = params;
 			if (!objJoint || !objJoint.unit || !objJoint.unit.unit)
 				return sendErrorResponse(ws, tag, 'no unit');
+			if (objJoint.ball)
+				return sendErrorResponse(ws, tag, 'no ball via post_joint');
 			if (isTooDeeplyNestedOrHasTooManyNodes(objJoint))
 				return sendErrorResponse(ws, tag, "joint is too deeply nested or has too many nodes");
 			handlePostedJoint(ws, objJoint, function(error){
