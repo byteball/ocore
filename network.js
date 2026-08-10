@@ -1274,6 +1274,10 @@ function handleOnlineJoint(ws, objJoint, onDone){
 	var unit = objJoint.unit.unit;
 	delete objJoint.unit.main_chain_index;
 	delete objJoint.unit.actual_tps_fee;
+	if (bCatchingUp && !objJoint.ball) {
+		console.log("catching up, will not handle online joint " + unit + " without a ball");
+		return onDone();
+	}
 	objJoint = sortObject(objJoint);
 	
 	handleJoint(ws, objJoint, false, false, {
@@ -3182,6 +3186,8 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, 'no unit');
 			if (objJoint.ball)
 				return sendErrorResponse(ws, tag, 'no ball via post_joint');
+			if (bCatchingUp)
+				return sendErrorResponse(ws, tag, "catching up, will not handle posted joint");
 			if (isTooDeeplyNestedOrHasTooManyNodes(objJoint))
 				return sendErrorResponse(ws, tag, "joint is too deeply nested or has too many nodes");
 			handlePostedJoint(ws, objJoint, function(error){
