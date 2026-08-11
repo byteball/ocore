@@ -409,6 +409,7 @@ function processHashTree(arrBalls, callbacks){
 					if (Object.keys(childlessBalls).length > 0)
 						return finish("some balls are not in the top ball's ancestry: " + Object.keys(childlessBalls).join(', '));
 
+					let unitsByBall = {};
 					var max_mci = null;
 					async.eachSeries(
 						arrBalls,
@@ -422,7 +423,7 @@ function processHashTree(arrBalls, callbacks){
 							}
 
 							function addBall(){
-								storage.assocHashTreeUnitsByBall[objBall.ball] = objBall.unit;
+								unitsByBall[objBall.ball] = objBall.unit;
 								// insert even if it already exists in balls, because we need to define max_mci by looking outside this hash tree
 								conn.query("INSERT "+conn.getIgnore()+" INTO hash_tree_balls (ball, unit) VALUES(?,?)", [objBall.ball, objBall.unit], function(){
 									cb();
@@ -472,6 +473,8 @@ function processHashTree(arrBalls, callbacks){
 
 							if (error)
 								return finish(error);
+
+							Object.assign(storage.assocHashTreeUnitsByBall, unitsByBall);
 							
 							// remove the oldest chain element, we now have hash tree instead
 							conn.query("DELETE FROM catchup_chain_balls WHERE ball=?", [rows[0].ball], function(){
