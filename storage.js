@@ -901,9 +901,9 @@ function getUnconfirmedAADefinitionsPostedByAAs(arrAddresses) {
 
 // mci: when the AA becomes active (when its definition stabilizes for regular AAs, or trigger mci for AA-defined AAs)
 // validation_mci: at what mci should the definition be validated (last ball mci for regular AAs, or trigger mci for AA-defined AAs)
-function insertAADefinitions(conn, arrPayloads, unit, mci, validation_mci, bForAAsOnly, onDone) {
+function insertAADefinitions(conn, arrPayloads, unit, mci, validation_mci, bForAAsOnly, onDone, bDryRun) {
 	if (!onDone)
-		return new Promise(resolve => insertAADefinitions(conn, arrPayloads, unit, mci, validation_mci, bForAAsOnly, resolve));
+		return new Promise(resolve => insertAADefinitions(conn, arrPayloads, unit, mci, validation_mci, bForAAsOnly, resolve, bDryRun));
 	var aa_validation = require("./aa_validation.js");
 	async.eachSeries(
 		arrPayloads,
@@ -956,9 +956,10 @@ function insertAADefinitions(conn, arrPayloads, unit, mci, validation_mci, bForA
 								"INSERT " + db.getIgnore() + " INTO addresses (address) VALUES (?)", [address],
 								function () {
 									// can emit again if bAlreadyPostedByUnconfirmedAA, that's ok, the watchers will learn that the AA became now available to non-AAs
-									process.nextTick(function () { // don't call it synchronously with event emitter
-										eventBus.emit("aa_definition_saved", payload, unit);
-									});
+									if (!bDryRun)
+										process.nextTick(function () { // don't call it synchronously with event emitter
+											eventBus.emit("aa_definition_saved", payload, unit);
+										});
 									cb();
 								}
 							);

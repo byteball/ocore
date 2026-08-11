@@ -601,7 +601,7 @@ async function saveJoint(objJoint, objValidationState, preCommitCallback, onDone
 						if (!storage.assocUnstableMessages[objUnit.unit])
 							storage.assocUnstableMessages[objUnit.unit] = [];
 						storage.assocUnstableMessages[objUnit.unit].push(message);
-						if (message.app === 'system_vote')
+						if (message.app === 'system_vote' && !objValidationState.bDryRun)
 							eventBus.emit('system_var_vote', message.payload.subject, message.payload.value, arrAuthorAddresses, objUnit.unit, 0);
 					}
 				});
@@ -619,7 +619,7 @@ async function saveJoint(objJoint, objValidationState, preCommitCallback, onDone
 								if (arrAADefinitionPayloads.length > 0) {
 									arrOps.push(function (cb) {
 										console.log("inserting new AAs defined by an AA after adding " + objUnit.unit);
-										storage.insertAADefinitions(conn, arrAADefinitionPayloads, objUnit.unit, objValidationState.initial_trigger_mci, objValidationState.initial_trigger_mci, true, cb);
+										storage.insertAADefinitions(conn, arrAADefinitionPayloads, objUnit.unit, objValidationState.initial_trigger_mci, objValidationState.initial_trigger_mci, true, cb, objValidationState.bDryRun);
 									});
 								}
 							}
@@ -708,7 +708,7 @@ async function saveJoint(objJoint, objValidationState, preCommitCallback, onDone
 								}
 								if (!bInLargerTx)
 									conn.release();
-								if (!err){
+								if (!err && !objValidationState.bDryRun){
 									eventBus.emit('saved_unit-'+objUnit.unit, objJoint);
 									eventBus.emit('saved_unit', objJoint);
 								}

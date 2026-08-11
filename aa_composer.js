@@ -283,13 +283,17 @@ function dryRunPrimaryAATrigger(trigger, address, arrDefinition, onDone) {
 				};
 				fPrepare(function () {
 					var arrResponses = [];
-					handleTrigger(conn, batch, trigger, {}, {}, arrDefinition, address, mci, objMcUnit, false, arrResponses, function () {
-						revertResponsesInCaches(arrResponses);
-						batch.clear();
-						conn.query("ROLLBACK", function () {
-							conn.release();
-							onDone(arrResponses);
-						});
+					handleTrigger({
+						bDryRun: true, // suppress events for a unit that will be rolled back
+						conn, batch, trigger, params: {}, stateVars: {}, arrDefinition, address, mci, objMcUnit, bSecondary: false, arrResponses,
+						onDone: function () {
+							revertResponsesInCaches(arrResponses);
+							batch.clear();
+							conn.query("ROLLBACK", function () {
+								conn.release();
+								onDone(arrResponses);
+							});
+						},
 					});
 				});
 			});
@@ -1816,6 +1820,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 				objAAValidationState.conn = conn;
 				objAAValidationState.batch = batch;
 				objAAValidationState.initial_trigger_mci = mci;
+				objAAValidationState.bDryRun = trigger_opts.bDryRun;
 				writer.saveJoint(objJoint, objAAValidationState, null, function(err){
 					if (err)
 						throw Error('AA writer returned error: ' + err);
