@@ -535,11 +535,11 @@ function validateDefinition(conn, arrDefinition, objUnit, objValidationState, ar
 					var field = args.equal_fields[i];
 					if (typeof field !== 'string')
 						return cb("fields must be strings");
+					if (["asset", "address", "amount", "type"].indexOf(field) === -1)
+						return cb("unknown field: "+field);
 					if (assocUsedFields[field])
 						return cb("duplicate "+field);
 					assocUsedFields[field] = true;
-					if (["asset", "address", "amount", "type"].indexOf(field) === -1)
-						return cb("unknown field: "+field);
 				}
 				
 				if (!isArrayOfLength(args.search_criteria, 2))

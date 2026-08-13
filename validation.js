@@ -2027,6 +2027,8 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 			break;
 
 		case "asset_attestors":
+			if (!isStringOfLength(payload.asset, constants.HASH_LENGTH))
+				return callback("invalid asset in attestor list update");
 			if (!objValidationState.assocHasAssetAttestors)
 				objValidationState.assocHasAssetAttestors = {};
 			if (objValidationState.assocHasAssetAttestors[payload.asset])
@@ -2817,8 +2819,6 @@ function validateAttestorListUpdate(conn, payload, objUnit, objValidationState, 
 		return callback("attestor update must be a non-empty object");
 	if (hasFieldsExcept(payload, ['asset', 'attestors']))
 		return callback("foreign fields in attestor list update");
-	if (!isStringOfLength(payload.asset, constants.HASH_LENGTH))
-		return callback("invalid asset in attestor list update");
 	storage.readAsset(conn, payload.asset, objValidationState.last_ball_mci, false, function(err, objAsset){
 		if (err)
 			return callback(err);
