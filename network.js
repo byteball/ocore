@@ -550,11 +550,12 @@ function addOutboundPeers(multiplier){
 }
 
 function getHostByPeer(peer){
-	var matches = peer.match(/^wss?:\/\/(.*)$/i);
-	if (matches)
-		peer = matches[1];
-	matches = peer.match(/^(.*?)[:\/]/);
-	return matches ? matches[1] : peer;
+	try {
+		return new URL(peer).hostname;
+	}
+	catch (e) {
+		return peer;
+	}
 }
 
 function addPeerHost(host, onDone){
