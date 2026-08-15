@@ -730,7 +730,13 @@ async function handleNewPeers(ws, request, arrPeerUrls){
 
 function isValidWsUrl(url) {
 	try {
-		const { protocol } = new URL(url);
+		const { protocol, hash, username, password } = new URL(url);
+		if (hash)
+			return false;
+		if (url.includes('#')) // empty trailing hash
+			return false;
+		if (username || password) // no legitimate peer url needs credentials
+			return false;
 		if (!['wss:', 'ws:'].includes(protocol))
 			return false;
 		if (conf.WS_PROTOCOL === 'wss://' && protocol !== 'wss:')
