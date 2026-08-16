@@ -99,6 +99,8 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 
 	var bLimitedPrecision = (mci < constants.aa2UpgradeMci);
 
+	const bPostPemCurvesFix = mci >= constants.pemCurvesFixMci || !bAA && !objValidationState.hasBall && storage.getMinRetrievableMci() >= constants.pemCurvesFixMci;
+
 	var parser = {};
 	if(cache[formula]){
 		parser.results = cache[formula];
@@ -324,7 +326,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 			case 'min':
 			case 'max':
 			case 'hypot':
-				if (arr[1].length > 30 && mci >= constants.pemCurvesFixMci)
+				if (arr[1].length > 30 && bPostPemCurvesFix)
 					return setFatalError("too many arguments of " + op, { arr }, false, cb);
 				var vals = [];
 				async.eachSeries(arr[1], function (param, cb2) {
@@ -1127,7 +1129,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 
 			case 'array':
 				var arrItemExprs = arr[1];
-				if (arrItemExprs.length > 100 && mci >= constants.pemCurvesFixMci)
+				if (arrItemExprs.length > 100 && bPostPemCurvesFix)
 					return setFatalError("array literal is too long", { arr }, false, cb);
 				var prevCount = count;
 				var arrItems = [];
@@ -1166,7 +1168,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 			
 			case 'dictionary':
 				var arrPairs = arr[1];
-				if (arrPairs.length > 100 && mci >= constants.pemCurvesFixMci)
+				if (arrPairs.length > 100 && bPostPemCurvesFix)
 					return setFatalError("dictionary literal is too long", { arr }, false, cb);
 				var prevCount = count;
 				var obj = {};
@@ -1598,7 +1600,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 							if (sequence !== 'good') // bad units don't exist for us
 								return cb(false);
 							var objUnit = objJoint.unit;
-							if (mci >= constants.pemCurvesFixMci)
+							if (bPostPemCurvesFix)
 								delete objUnit.actual_tps_fee; // might be null in stable units stabilized in the same batch
 							if (objUnit.version === constants.versionWithoutTimestamp)
 								objUnit.timestamp = 0;
@@ -1651,7 +1653,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 			case 'is_valid_signed_package':
 				if (!objValidationState.count_signed_packages)
 					objValidationState.count_signed_packages = 0;
-				if (objValidationState.count_signed_packages >= constants.MAX_SIGNED_PACKAGES_PER_AA_EVAL && mci >= constants.pemCurvesFixMci)
+				if (objValidationState.count_signed_packages >= constants.MAX_SIGNED_PACKAGES_PER_AA_EVAL && bPostPemCurvesFix)
 					return setFatalError("too many signed packages in evaluation", { arr }, false, cb);
 				objValidationState.count_signed_packages++;
 				var signed_package_expr = arr[1];
@@ -1684,7 +1686,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 							if (!row || row.main_chain_index > mci) // not existing or not stable last ball unit
 								return cb(false);
 						}
-						const max_complexity = mci >= constants.pemCurvesFixMci ? 10 : 0;
+						const max_complexity = bPostPemCurvesFix ? 10 : 0;
 						signed_message.validateSignedMessage(conn, signedPackage, evaluated_address, max_complexity, function (err, last_ball_mci) {
 							if (err)
 								return cb(false);
@@ -1720,9 +1722,9 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 							signature.validateAndFormatPemPubKey(evaluated_pem_key, "any", function (error, formatted_pem_key){
 								if (error)
 									return setFatalError("bad PEM key in is_valid_sig: " + error, { arr }, false, cb);
-								var result = signature.verifyMessageWithPemPubKey(evaluated_message, evaluated_signature, formatted_pem_key, mci);
+								var result = signature.verifyMessageWithPemPubKey(evaluated_message, evaluated_signature, formatted_pem_key, bPostPemCurvesFix);
 								return cb(result);
-							}, mci);
+							}, bPostPemCurvesFix);
 						});
 					});
 				});
@@ -1752,9 +1754,9 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 							signature.validateAndFormatPemPubKey(evaluated_pem_key, "RSA", function (error, formatted_pem_key){
 								if (error)
 									return setFatalError("bad PEM key in vrf_verify: " + error, { arr }, false, cb);
-								var result = signature.verifyMessageWithPemPubKey(evaluated_seed, evaluated_proof, formatted_pem_key, mci);
+								var result = signature.verifyMessageWithPemPubKey(evaluated_seed, evaluated_proof, formatted_pem_key, bPostPemCurvesFix);
 								return cb(result);
-							}, mci);
+							}, bPostPemCurvesFix);
 						});
 					});
 				});
@@ -1784,7 +1786,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 						}
 						else // can't be valid proof
 							return cb(false);
-						if (mci >= constants.pemCurvesFixMci) {
+						if (bPostPemCurvesFix) {
 							if (!Array.isArray(objProof.siblings) || !objProof.siblings.every(ValidationUtils.isNonemptyString))
 								return cb(false);
 							if (objProof.siblings.length > 50)
@@ -1807,7 +1809,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 					if (fatal_error)
 						return cb(false);
 					if (res instanceof wrappedObject) {
-						if (mci >= constants.pemCurvesFixMci && isTooBigObj(res.obj))
+						if (bPostPemCurvesFix && isTooBigObj(res.obj))
 							return setFatalError("to-be-hashed object is too big", { arr }, false, cb);
 						if (mci < constants.aa2UpgradeMci)
 							res = true;
@@ -1846,7 +1848,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 					if (fatal_error)
 						return cb(false);
 					if (res instanceof wrappedObject) {
-						if (mci >= constants.pemCurvesFixMci && isTooBigObj(res.obj))
+						if (bPostPemCurvesFix && isTooBigObj(res.obj))
 							return setFatalError("to-be-hashed object is too big", { arr }, false, cb);
 						try {
 							var chash160 = objectHash.getChash160(res.obj);
@@ -2437,7 +2439,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 											}
 											else if (bReduce) {
 												accumulator = r;
-												if (accumulator instanceof wrappedObject && isTooBigObj(mci >= constants.pemCurvesFixMci ? accumulator.obj : accumulator)) // now 1 level less deep
+												if (accumulator instanceof wrappedObject && isTooBigObj(bPostPemCurvesFix ? accumulator.obj : accumulator)) // now 1 level less deep
 													return setFatalError("accumulator is too big", { arr }, undefined, cb2);
 											}
 											cb2(fatal_error);
@@ -2555,7 +2557,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 					return setFatalError("no such function: " + func_name, { arr }, false, cb);
 				if (!(func instanceof Func))
 					return setFatalError("not a function: " + func_name, { arr }, false, cb);
-				if (arrExpressions.length > 30 && mci >= constants.pemCurvesFixMci)
+				if (arrExpressions.length > 30 && bPostPemCurvesFix)
 					return setFatalError("too many arguments to func " + func_name, { arr }, false, cb);
 				var args = [];
 				async.eachSeries(
@@ -2585,7 +2587,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 				var max_remote_complexity = arr[2];
 				var func_name = arr[3];
 				var arrExpressions = arr[4];
-				if (arrExpressions.length > 30 && mci >= constants.pemCurvesFixMci)
+				if (arrExpressions.length > 30 && bPostPemCurvesFix)
 					return setFatalError("too many arguments to remote func " + func_name, { arr }, false, cb);
 				var args = [];
 				async.eachSeries(
@@ -2639,7 +2641,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 	
 			case 'log':
 				var entries = [];
-				if (arr[1].length > 100 && mci >= constants.pemCurvesFixMci)
+				if (arr[1].length > 100 && bPostPemCurvesFix)
 					return setFatalError("too many log entries: " + arr[1].length, { arr }, false, cb);
 				async.eachSeries(
 					arr[1],
@@ -2794,7 +2796,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 	}
 
 	function isTooBigObj(obj) {
-		return mci >= constants.pemCurvesFixMci
+		return bPostPemCurvesFix
 			? string_utils.isTooBigObj(obj, { lengthLimit: constants.MAX_AA_STRING_LENGTH })
 			: string_utils.isTooDeeplyNestedOrHasTooManyNodes(obj);
 	}
@@ -2975,7 +2977,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 			throw Error('search params is not an array');
 		if (!ValidationUtils.isNonemptyArray(array))
 			return handleResult('not an array, search criteria cannot be applied');
-		if (mci >= constants.pemCurvesFixMci) {
+		if (bPostPemCurvesFix) {
 			if (array.length > constants.MAX_MESSAGES_PER_UNIT)
 				return setFatalError("array too long: " + array.length, { arr: [] }, undefined, handleResult);
 			if (arrPairs.length > 5)

@@ -3,7 +3,6 @@
 var ecdsa = require('secp256k1');
 var ValidationUtils = require('./validation_utils.js');
 var crypto = require('crypto');
-var constants = require('./constants.js');
 
 // Full AlgorithmIdentifier for secp256k1: OID ecPublicKey (06 07 ...) + OID secp256k1 (06 05 2b8104000a).
 // Checked at the correct structural position in the DER to avoid false matches against key material.
@@ -25,7 +24,7 @@ function verify(hash, b64_sig, b64_pub_key){
 	}
 };
 
-function verifyMessageWithPemPubKey(message, signature, pem_key, mci) {
+function verifyMessageWithPemPubKey(message, signature, pem_key, bPostPemCurvesFix) {
 	var contentB64 = pem_key
 		.replace("-----BEGIN PUBLIC KEY-----", "")
 		.replace("-----END PUBLIC KEY-----", "")
@@ -33,7 +32,7 @@ function verifyMessageWithPemPubKey(message, signature, pem_key, mci) {
 	var der = Buffer.from(contentB64, 'base64');
 	var algIdStart = der[1] <= 0x7F ? 4 : der[1] === 0x81 ? 5 : der[1] === 0x82 ? 6 : -1;
 	if (algIdStart >= 0 && der.slice(algIdStart, algIdStart + SECP256K1_ALG_ID.length).equals(SECP256K1_ALG_ID)
-			&& typeof mci === 'number' && mci >= constants.pemCurvesFixMci)
+			&& bPostPemCurvesFix)
 		return verifyMessageWithSecp256k1PemPubKey(message, signature, der);
 
 	var verify = crypto.createVerify('SHA256');
@@ -115,7 +114,7 @@ function signMessage(message, encoding, pem_key){
 	}
 }
 
-function validateAndFormatPemPubKey(pem_key, algo, handle, mci) {
+function validateAndFormatPemPubKey(pem_key, algo, handle, bPostPemCurvesFix) {
 
 	if (!ValidationUtils.isNonemptyString(pem_key))
 		return handle("pem key should be a non empty string");
@@ -168,8 +167,8 @@ function validateAndFormatPemPubKey(pem_key, algo, handle, mci) {
 	if (!objSupportedPemTypes[typeIdentifiersHex])
 		return handle("unsupported algo or curve in pem key");
 
-	if (typeof mci === 'number' && mci >= constants.pemCurvesFixMci && !objSafePemTypes.has(typeIdentifiersHex))
-		return handle("unsupported curve after MCI " + constants.pemCurvesFixMci);
+	if (bPostPemCurvesFix && !objSafePemTypes.has(typeIdentifiersHex))
+		return handle("unsupported curve after pem curves fix MCI");
 
 	if (algo != "any"){
 		if (algo == "ECDSA" && objSupportedPemTypes[typeIdentifiersHex].algo != "ECDSA")
