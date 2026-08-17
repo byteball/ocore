@@ -463,7 +463,7 @@ function connectToPeer(url, onOpen, dontAddPeer) {
 		ws.assocCommandsInPreparingResponse = {};
 		if (!ws.url)
 			throw Error("no url on ws");
-		if (ws.url !== url && ws.url !== url + "/") // browser implementatin of Websocket might add /
+		if (new URL(ws.url).href !== new URL(url).href) // browser implementation of Websocket might add /
 			throw Error("url is different: "+ws.url);
 		var another_ws_to_same_peer = getOutboundPeerWsByUrl(url);
 		if (another_ws_to_same_peer){ // duplicate connection.  May happen if we abondoned a connection attempt after timeout but it still succeeded while we opened another connection
