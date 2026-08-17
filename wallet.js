@@ -1251,12 +1251,13 @@ function findAddress(address, signing_path, callbacks, fallbackInfo){
 				callbacks.ifLocal(objAddress);
 				return;
 			}
+			const prefix = conf.storage === 'sqlite' ? "signing_path||'.'" : "CONCAT(signing_path, '.')";
 			db.query(
 			//	"SELECT address, device_address, member_signing_path FROM shared_address_signing_paths WHERE shared_address=? AND signing_path=?", 
 				// look for a prefix of the requested signing_path
 				"SELECT address, device_address, signing_path FROM shared_address_signing_paths \n\
-				WHERE shared_address=? AND signing_path=SUBSTR(?, 1, LENGTH(signing_path))", 
-				[address, signing_path],
+				WHERE shared_address=? AND ( signing_path=? OR " + prefix + "=SUBSTR(?, 1, LENGTH(signing_path)+1) )", 
+				[address, signing_path, signing_path],
 				async function(sa_rows){
 					if (sa_rows.length > 1)
 						throw Error("more than 1 member address found for shared address "+address+" and signing path "+signing_path);
