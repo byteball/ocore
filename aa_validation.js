@@ -32,6 +32,7 @@ exports.aaApps = ['payment', 'data', 'data_feed', 'definition', "asset", "asset_
 
 function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 
+	let validationErrorDetails = null;
 
 	function validateMessage(message, cb) {
 
@@ -553,6 +554,12 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 			complexity = result.complexity;
 			count_ops = result.count_ops;
 			if (result.error) {
+				if (result.error_location) {
+					validationErrorDetails = {
+						formula: opts.formula,
+						error_location: result.error_location,
+					};
+				}
 				var errorMessage = "validation of formula " + opts.formula + " failed: " + result.error
 				errorMessage += result.errorMessage ? `\nparser error: ${result.errorMessage}` : ''
 				return cb(errorMessage);
@@ -763,8 +770,11 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 		if (err)
 			return callback(err);
 		validateDefinition(arrDefinitionCopy, function (err) {
-			if (err)
+			if (err) {
+				if (validationErrorDetails)
+					return callback(err, validationErrorDetails);
 				return callback(err);
+			}
 			console.log('AA validated, complexity = ' + complexity + ', ops = ' + count_ops);
 			callback(null, { complexity, count_ops, getters });
 		});

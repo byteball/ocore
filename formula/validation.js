@@ -267,6 +267,7 @@ exports.validate = function (opts, callback) {
 
 	var count = 0;
 	let depth = 0;
+	let errorLocation = null;
 
 	function evaluate(arr, cb, bTopLevel) {
 		count++;
@@ -276,6 +277,11 @@ exports.validate = function (opts, callback) {
 		const orig_cb = cb;
 		cb = err => {
 			depth--;
+			if (err && !errorLocation && arr && typeof arr === 'object' && arr.line !== undefined) {
+				errorLocation = arr.source_location
+					? Object.assign({}, arr.source_location)
+					: { line: arr.line };
+			}
 			orig_cb(err);
 		};
 		if (depth > 100 && (mci >= constants.pemCurvesFixMci || require('../storage.js').getMinRetrievableMci() >= constants.pemCurvesFixMci))
@@ -1520,7 +1526,10 @@ exports.validate = function (opts, callback) {
 			if (depth !== 0)
 				throw Error("mismatched depth " + depth);
 			finalizeLocals(locals);
-			callback({ complexity, count_ops, error: err || false });
+			const result = { complexity, count_ops, error: err || false };
+			if (err && errorLocation)
+				result.error_location = errorLocation;
+			callback(result);
 		}, true);
 	} else {
 		if (parser.results.length > 1){

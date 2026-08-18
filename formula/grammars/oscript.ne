@@ -113,6 +113,15 @@
 		
 		if (token) {        
 			returnValue.line = token.line;
+			if (returnValue && typeof returnValue === 'object' && !Object.prototype.hasOwnProperty.call(returnValue, 'source_location')) {
+				const sourceLocation = token.source_location || {
+					line: token.line,
+					col: token.col,
+					offset: token.offset,
+					length: typeof token.text === 'string' ? token.text.length : undefined,
+				};
+				Object.defineProperty(returnValue, 'source_location', { value: sourceLocation });
+			}
 		}
 
 		if (context) {
