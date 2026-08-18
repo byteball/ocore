@@ -3452,6 +3452,37 @@ test('function with 2 args but passed 3', t => {
 	})
 });
 
+test('function with excessive arguments reports location', t => {
+	const formula = "$get_order_id = ($order) => $order;\n$id = $get_order_id(trigger.data.order, trigger.data.order.last_ball_unit);";
+	const expectedLocation = {
+		line: 2,
+		col: 7,
+		offset: formula.lastIndexOf('$get_order_id'),
+		length: '$get_order_id'.length,
+	};
+	validateFormula(formula, { bStatementsOnly: true }, result => {
+		t.regex(result.error, /excessive arguments to func get_order_id$/);
+		t.false(result.error.includes('source_location'));
+		t.deepEqual(result.error_location, expectedLocation);
+		result.error_location.offset = 0;
+		validateFormula(formula, { bStatementsOnly: true }, cachedResult => {
+			t.deepEqual(cachedResult.error_location, expectedLocation);
+		});
+	});
+});
+
+test('function with excessive arguments inside parentheses reports location', t => {
+	const formula = "$get_order_id = ($order) => $order;\n$id = ($get_order_id(trigger.data.order, trigger.data.order.last_ball_unit));";
+	validateFormula(formula, { bStatementsOnly: true }, result => {
+		t.deepEqual(result.error_location, {
+			line: 2,
+			col: 8,
+			offset: formula.lastIndexOf('$get_order_id'),
+			length: '$get_order_id'.length,
+		});
+	});
+});
+
 test('calculated function name when declaring', t => {
 	var trigger = { data: {  } };
 	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };

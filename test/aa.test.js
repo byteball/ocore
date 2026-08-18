@@ -348,8 +348,9 @@ test('bad formula', t => {
 			}
 		]
 	}];
-	validateAA(aa, err => {
+	validateAA(aa, (err, details) => {
 		console.log('err :', err);
+		t.is(details, undefined);
 		t.deepEqual(err, `validation of formula trigger.address[] failed: parse error
 parser error: invalid syntax at line 1 col 16:
 
@@ -357,6 +358,30 @@ parser error: invalid syntax at line 1 col 16:
                  ^
 Unexpected sl token: "["
 `);
+	});
+});
+
+test('bad formula with semantic error location details', t => {
+	const formula = "$get_order_id = ($order) => $order;\n$id = $get_order_id(trigger.data.order, trigger.data.order.last_ball_unit);";
+	const aa = ['autonomous agent', {
+		messages: [
+			{
+				app: 'state',
+				state: `{${formula}}`,
+			}
+		]
+	}];
+	validateAA(aa, (err, details) => {
+		t.regex(err, /excessive arguments to func get_order_id$/);
+		t.deepEqual(details, {
+			formula: formula,
+			error_location: {
+				line: 2,
+				col: 7,
+				offset: formula.lastIndexOf('$get_order_id'),
+				length: '$get_order_id'.length,
+			},
+		});
 	});
 });
 
@@ -1147,7 +1172,7 @@ test.cb.serial('Attempt to replace __proto__ using object concatenation', t => {
 	db.takeConnectionFromPool(conn => {
 		conn.query('BEGIN');
 		conn.query("INSERT INTO aa_addresses (address, definition, unit, mci) VALUES(?, ?, ?, ?)", [address, JSON.stringify(aa), objMcUnit.last_ball_unit, 500]);
-		conn.query("INSERT INTO outputs (unit, message_index, output_index, address, amount) VALUES(?, 0, 6, ?, ?)", [objMcUnit.unit, address, trigger.outputs.base]);
+		conn.query("INSERT INTO outputs (unit, message_index, output_index, address, amount) VALUES(?, 0, 7, ?, ?)", [objMcUnit.unit, address, trigger.outputs.base]);
 		conn.query("DELETE FROM aa_responses WHERE trigger_unit=? AND aa_address=?", [trigger.unit, address]);
 
 		var objUnit;
