@@ -230,6 +230,10 @@ function validateAATriggerObject(trigger, handle) {
 		return handle("bad trigger address");
 	if ("max_aa_responses" in trigger && (!ValidationUtils.isNonnegativeInteger(trigger.max_aa_responses) || trigger.max_aa_responses > constants.MAX_RESPONSES_PER_PRIMARY_TRIGGER))
 		return handle("bad trigger max_aa_responses");
+	if (ValidationUtils.hasFieldsExcept(trigger, ["address", "data", "outputs", "max_aa_responses"])) // initial_address and initial_unit cannot be separately set in a primary trigger
+		return handle("unexpected trigger fields");
+	if (string_utils.isTooBigObj(trigger, { lengthLimit: 10e3 }))
+		return handle("trigger data is too big");
 	try {
 		if (trigger.data)
 			string_utils.getJsonSourceString(trigger.data);
