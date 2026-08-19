@@ -1626,7 +1626,8 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 			VALUES (?, ?,?,?, ?,?,?)",
 			[mci, trigger.address, address, trigger.unit, bBouncing ? 1 : 0, response_unit, JSON.stringify(response)],
 			function (res) {
-				storage.last_aa_response_id = res.insertId;
+				if (!trigger_opts.bDryRun)
+					storage.last_aa_response_id = res.insertId;
 				cb();
 			}
 		);
