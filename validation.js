@@ -1321,7 +1321,9 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 			if (objValidationState.sequence !== 'final-bad') // if it were already final-bad because of 1st author, it can't become temp-bad due to 2nd author
 				objValidationState.sequence = bConflictsWithStableUnits ? 'final-bad' : 'temp-bad';
 			var arrUnstableConflictingUnits = arrUnstableConflictingUnitProps.map(function(objConflictingUnitProps){ return objConflictingUnitProps.unit; });
-			if (bConflictsWithStableUnits) // don't temp-bad the unstable conflicting units
+			// if we are (or already became, due to another author) final-bad, we are not a living competitor for this address either,
+			// so there is no need to punish other pending units - they'll correctly resolve to 'good' on their own once stable
+			if (objValidationState.sequence === 'final-bad')
 				return next();
 			if (arrUnstableConflictingUnits.length === 0)
 				return next();
