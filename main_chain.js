@@ -1318,7 +1318,10 @@ function markMcIndexStable(conn, batch, mci, onDone){
 									});
 								else{
 									arrFinalBadUnits.push(row.unit);
-									setContentHash(row.unit, cb);
+									// treat this unit as a non-existent competitor from now on
+									conn.query("UPDATE inputs SET is_unique=NULL WHERE unit=?", [row.unit], function(){
+										setContentHash(row.unit, cb);
+									});
 								}
 							});
 						});
@@ -1362,6 +1365,8 @@ function markMcIndexStable(conn, batch, mci, onDone){
 				return onPropagated();
 			var arrSpendingUnits = rows.map(function(row){ return row.unit; });
 			conn.query("UPDATE units SET sequence='final-bad' WHERE unit IN(?)", [arrSpendingUnits], function(){
+			  // treat these units as non-existent competitors from now on
+			  conn.query("UPDATE inputs SET is_unique=NULL WHERE unit IN(?)", [arrSpendingUnits], function(){
 				var arrNewBadUnitsOnSameMci = [];
 				rows.forEach(function (row) {
 					var unit = row.unit;
@@ -1384,6 +1389,7 @@ function markMcIndexStable(conn, batch, mci, onDone){
 						propagateFinalBad(arrSpendingUnits, onPropagated);
 					}
 				);
+			  });
 			});
 		});
 	}

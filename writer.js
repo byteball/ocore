@@ -356,8 +356,13 @@ async function saveJoint(objJoint, objValidationState, preCommitCallback, onDone
 							};
 							
 							determineInputAddress(function(address){
+								// final-bad units are treated as non-existent competitors, their claims are never unique
 								var is_unique = 
-									(objValidationState.arrDoubleSpendInputs.some(function(ds){ return (ds.message_index === i && ds.input_index === j); }) || conf.bLight) 
+									(
+										objValidationState.sequence === 'final-bad' ||
+										objValidationState.arrDoubleSpendInputs.some(function (ds) { return (ds.message_index === i && ds.input_index === j); }) ||
+										conf.bLight
+									)
 									? null : 1;
 								conn.addQuery(arrQueries, "INSERT INTO inputs \n\
 										(unit, message_index, input_index, type, \n\

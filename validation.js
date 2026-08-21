@@ -1262,15 +1262,17 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 			"+cross+" JOIN unit_authors USING(unit) \n\
 			WHERE address=? AND (main_chain_index>? OR main_chain_index IS NULL) AND unit != ?",
 			[objAuthor.address, objValidationState.max_parent_limci, objUnit.unit],*/
+			// final-bad units are permanently voided and never come back to 'good', so they are not real competitors:
+			// exclude them here rather than only when deciding bConflictsWithStableUnits below
 			"SELECT unit, is_stable, sequence, level \n\
 			FROM unit_authors "+indexMySQL+"\n\
 			CROSS JOIN units USING(unit)\n\
-			WHERE address=? AND _mci>? AND unit != ? \n\
+			WHERE address=? AND _mci>? AND unit != ? AND sequence!='final-bad' \n\
 			UNION \n\
 			SELECT unit, is_stable, sequence, level \n\
 			FROM unit_authors "+indexMySQL+"\n\
 			CROSS JOIN units USING(unit)\n\
-			WHERE address=? AND _mci IS NULL AND unit != ? \n\
+			WHERE address=? AND _mci IS NULL AND unit != ? AND sequence!='final-bad' \n\
 			ORDER BY level DESC",
 			[objAuthor.address, objValidationState.max_parent_limci, objUnit.unit, objAuthor.address, objUnit.unit],
 			function(rows){
@@ -1315,6 +1317,7 @@ function validateAuthor(conn, objAuthor, objUnit, objValidationState, callback){
 			var arrUnstableConflictingUnitProps = arrConflictingUnitProps.filter(function(objConflictingUnitProps){
 				return (objConflictingUnitProps.is_stable === 0);
 			});
+			// findConflictingUnits() already excludes final-bad rows, so any stable row left here is a real, good competitor
 			var bConflictsWithStableUnits = arrConflictingUnitProps.some(function(objConflictingUnitProps){
 				return (objConflictingUnitProps.is_stable === 1);
 			});
@@ -1645,7 +1648,7 @@ function validateMessage(conn, objMessage, message_index, objUnit, objValidation
 		});
 		var doubleSpendIndexMySQL = conf.storage == "mysql" ? "USE INDEX(bySpendProof)" : "";
 		checkForDoublespends(conn, "spend proof", 
-			"SELECT address, unit, main_chain_index, sequence FROM spend_proofs "+ doubleSpendIndexMySQL+" JOIN units USING(unit) WHERE unit != ? AND ("+arrEqs.join(" OR ")+")",
+			"SELECT address, unit, main_chain_index, sequence FROM spend_proofs "+ doubleSpendIndexMySQL+" JOIN units USING(unit) WHERE unit != ? AND sequence!='final-bad' AND ("+arrEqs.join(" OR ")+")",
 			[objUnit.unit], 
 			objUnit, objValidationState, function(cb2){ cb2(); }, cb);
 	}
@@ -1677,13 +1680,9 @@ function checkForDoublespends(conn, type, sql, arrSqlArgs, objUnit, objValidatio
 							if (objConflictingRecord.main_chain_index > objValidationState.last_ball_mci || objConflictingRecord.main_chain_index === null)
 								return cb2(error);
 
-							// in good sequence (final state)
+							// in good sequence (final state); final-bad is excluded by the query and treated as non-existent
 							if (objConflictingRecord.sequence === 'good')
 								return cb2(error);
-
-							// to be voided: can reuse the output
-							if (objConflictingRecord.sequence === 'final-bad')
-								return cb2();
 
 							throw Error("unreachable code, conflicting "+type+" in unit "+objConflictingRecord.unit);
 						}
@@ -2263,7 +2262,8 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 				}
 				else
 					doubleSpendWhere += " AND asset IS NULL";
-				var doubleSpendQuery = "SELECT "+doubleSpendFields+" FROM inputs " + doubleSpendIndexMySQL + " JOIN units USING(unit) WHERE "+doubleSpendWhere;
+				// final-bad units are treated as non-existent competitors (their inputs.is_unique is kept NULL)
+				var doubleSpendQuery = "SELECT "+doubleSpendFields+" FROM inputs " + doubleSpendIndexMySQL + " JOIN units USING(unit) WHERE "+doubleSpendWhere+" AND sequence!='final-bad'";
 				checkForDoublespends(
 					conn, "divisible input", 
 					doubleSpendQuery, doubleSpendVars, 
