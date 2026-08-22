@@ -1733,6 +1733,7 @@ function updateMinRetrievableMciAfterStabilizingMci(conn, batch, _last_stable_mc
 									objStrippedUnit.timestamp = objUnit.timestamp;
 								var objStrippedJoint = {unit: objStrippedUnit, ball: objJoint.ball};
 								batch.put('j\n'+unit, JSON.stringify(objStrippedJoint));
+								archiving.cachePrunedJoint(objJoint); // keep the full content around for a while in case somebody still needs it
 								archiving.generateQueriesToArchiveJoint(conn, objJoint, 'voided', arrQueries, cb);
 							}
 						});

@@ -5,6 +5,7 @@ var async = require('async');
 var storage = require('./storage.js');
 var graph = require('./graph.js');
 var main_chain = require('./main_chain.js');
+const archiving = require('./archiving.js');
 var paid_witnessing = require("./paid_witnessing.js");
 var headers_commission = require("./headers_commission.js");
 var mc_outputs = require("./mc_outputs.js");
@@ -2457,10 +2458,17 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 									return cb("spending a stable final-bad output " + input.unit);
 							}
 							if (!src_output.address) {
-								if (src_output.sequence === 'final-bad' && src_output.main_chain_index < storage.getMinRetrievableMci()) // already stripped, request full content
-								//	return cb({error_code: "unresolved_dependency", arrMissingUnits: [input.unit], dontsave: true});
-									return cb("output being spent " + input.unit + " is final-bad");
-								return cb("output being spent " + input.unit + " not found");
+								if (src_output.sequence === 'final-bad' && src_output.main_chain_index < storage.getMinRetrievableMci()) { // already stripped locally
+									const objCachedOutput = archiving.getCachedOutput(input.unit, input.message_index, input.output_index);
+									if (!objCachedOutput) // ask the peer who sent this unit. If the peer doesn't respond but other nodes have accepted the unit, they'll share it with us, we'll get here again and request input.unit from them
+										return cb({error_code: "unresolved_dependency", arrMissingUnits: [input.unit], dontsave: true});
+									src_output.address = objCachedOutput.address;
+									src_output.amount = objCachedOutput.amount;
+									src_output.denomination = objCachedOutput.denomination;
+									src_output.asset = objCachedOutput.asset;
+								}
+								else
+									return cb("output being spent " + input.unit + " not found");
 							}
 							if (typeof src_output.amount !== 'number')
 								throw Error("src output amount is not a number");

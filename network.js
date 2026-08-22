@@ -11,6 +11,7 @@ var async = require('async');
 var db = require('./db.js');
 var constants = require('./constants.js');
 var storage = require('./storage.js');
+const archiving = require('./archiving.js');
 var myWitnesses = require('./my_witnesses.js');
 var joint_storage = require('./joint_storage.js');
 var validation = require('./validation.js');
@@ -49,6 +50,12 @@ var arrOutboundPeers = [];
 var assocConnectingOutboundWebsockets = {};
 var assocUnitsInWork = {};
 var assocRequestedUnits = {};
+
+// joints that couldn't be validated because they spend a locally pruned final-bad output; keyed by the unit they are waiting on.
+// Can't use the usual unhandled_joints/dependencies tables for this: those consider a dependency satisfied as soon as its row
+// exists in the units table, which is already true for a pruned unit even before we recover its content.
+let assocUnitsWaitingForPrunedContent = {};
+
 var bStarted = false;
 var bCatchingUp = false;
 var bWaitingForCatchupChain = false;
@@ -981,8 +988,43 @@ function handleResponseToJointRequest(ws, request, response){
 	}
 	if (isTooDeeplyNestedOrHasTooManyNodes(objJoint))
 		return sendError(ws, "joint is too deeply nested or has too many nodes");
-	conf.bLight ? handleLightOnlineJoint(ws, objJoint) : handleOnlineJoint(ws, objJoint);
+	if (conf.bLight)
+		return handleLightOnlineJoint(ws, objJoint);
+	if (objJoint.unit.content_hash || !objJoint.unit.messages)
+		return handleOnlineJoint(ws, objJoint);
+	// full content of a unit that might be a locally pruned stable final-bad unit we are trying to recover; if so, handle it
+	// without going through the normal new-unit pipeline (it is already fully judged and saved, just its content was stripped)
+	if (!tryRecoverPrunedContentOfFinalBadUnit(ws, objJoint))
+		handleOnlineJoint(ws, objJoint);
 }
+
+// nobody here is waiting for this unit's content unless it's in assocUnitsWaitingForPrunedContent, so that map alone
+// (populated only from the validated pruned-final-bad branch in validation.js) tells us whether recovery is relevant
+function tryRecoverPrunedContentOfFinalBadUnit(ws, objJoint){
+	const unit = objJoint.unit.unit;
+	const arrWaitingJoints = assocUnitsWaitingForPrunedContent[unit];
+	if (!arrWaitingJoints)
+		return false;
+	if (!validation.allHashesAreValid(objJoint)){
+		console.log('recovered content for pruned unit ' + unit + ' from ' + ws.peer + ' failed hash check');
+		return false;
+	}
+	archiving.cachePrunedJoint(objJoint);
+	breadcrumbs.add('recovered pruned content of final-bad unit ' + unit + ' from ' + ws.peer);
+	delete assocUnitsWaitingForPrunedContent[unit];
+	arrWaitingJoints.forEach(o => handleOnlineJoint(ws, o.objJoint));
+	return true;
+}
+
+function purgeExpiredUnitsWaitingForPrunedContent(){
+	const now = Date.now();
+	for (let missing_unit in assocUnitsWaitingForPrunedContent){
+		assocUnitsWaitingForPrunedContent[missing_unit] = assocUnitsWaitingForPrunedContent[missing_unit].filter(o => o.expiry_ts >= now);
+		if (assocUnitsWaitingForPrunedContent[missing_unit].length === 0)
+			delete assocUnitsWaitingForPrunedContent[missing_unit];
+	}
+}
+setInterval(purgeExpiredUnitsWaitingForPrunedContent, 60 * 60 * 1000);
 
 function havePendingRequest(command){
 	var arrPeers = [...wss.clients].concat(arrOutboundPeers);
@@ -1312,8 +1354,17 @@ function handleOnlineJoint(ws, objJoint, onDone){
 		},
 		ifNeedParentUnits: function(arrMissingUnits, dontsave){
 			sendInfo(ws, {unit: unit, info: "unresolved dependencies: "+arrMissingUnits.join(", ")});
-			if (dontsave)
+			if (dontsave){
+				// e.g. spending a locally pruned final-bad output: hold on to this joint ourselves and retry it if/when we
+				// recover the missing content, since the missing unit already has a row in the units table and the usual
+				// dependencies table would (wrongly) consider it satisfied right away
+				for (let missing_unit of arrMissingUnits) {
+					if (!assocUnitsWaitingForPrunedContent[missing_unit])
+						assocUnitsWaitingForPrunedContent[missing_unit] = [];
+					assocUnitsWaitingForPrunedContent[missing_unit].push({ objJoint: objJoint, expiry_ts: Date.now() + 60 * 60 * 1000 });
+				}
 				delete assocUnitsInWork[unit];
+			}
 			else
 				joint_storage.saveUnhandledJointAndDependencies(objJoint, arrMissingUnits, ws.peer, function(){
 					delete assocUnitsInWork[unit];
@@ -3172,6 +3223,9 @@ function handleRequest(ws, tag, command, params){
 			var unit = params;
 			if (!ValidationUtils.isNonemptyString(unit))
 				return sendErrorResponse(ws, tag, "unit must be a string");
+			const objCachedPrunedJoint = archiving.getCachedPrunedJoint(unit);
+			if (objCachedPrunedJoint)
+				return sendJoint(ws, objCachedPrunedJoint, tag);
 			storage.readJoint(db, unit, {
 				ifFound: function(objJoint){
 					// make the peer go a bit deeper into stable units and request catchup only when and if it reaches min retrievable and we can deliver a catchup

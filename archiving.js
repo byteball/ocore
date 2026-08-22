@@ -2,6 +2,49 @@
 "use strict";
 var db = require('./db.js');
 
+// in-memory holdover of joints we just voided (stripped final-bad units), so that for a while after pruning
+// we can still serve their full content to peers and recover from spends that raced the pruning locally
+const PRUNED_JOINT_CACHE_TTL_ms = 60 * 60 * 1000;
+let assocCachedPrunedJoints = {};
+
+function cachePrunedJoint(objJoint){
+	assocCachedPrunedJoints[objJoint.unit.unit] = { objJoint: objJoint, expiry_ts: Date.now() + PRUNED_JOINT_CACHE_TTL_ms };
+}
+
+function getCachedPrunedJoint(unit){
+	const cached = assocCachedPrunedJoints[unit];
+	if (!cached)
+		return null;
+	return cached.objJoint;
+}
+
+// looks up a specific output within a cached pruned joint, in the same shape as the outputs table columns we lost to stripping
+function getCachedOutput(unit, message_index, output_index){
+	const objJoint = getCachedPrunedJoint(unit);
+	if (!objJoint)
+		return null;
+	const message = objJoint.unit.messages && objJoint.unit.messages[message_index];
+	if (!message || message.app !== 'payment' || !message.payload)
+		return null;
+	const output = message.payload.outputs && message.payload.outputs[output_index];
+	if (!output)
+		return null;
+	return {
+		address: output.address,
+		amount: output.amount,
+		denomination: message.payload.denomination || 1,
+		asset: message.payload.asset || null
+	};
+}
+
+function purgeExpiredCachedPrunedJoints(){
+	const now = Date.now();
+	for (let unit in assocCachedPrunedJoints)
+		if (assocCachedPrunedJoints[unit].expiry_ts < now)
+			delete assocCachedPrunedJoints[unit];
+}
+setInterval(purgeExpiredCachedPrunedJoints, PRUNED_JOINT_CACHE_TTL_ms);
+
 
 function generateQueriesToArchiveJoint(conn, objJoint, reason, arrQueries, cb){
 	var func = (reason === 'uncovered') ? generateQueriesToRemoveJoint : generateQueriesToVoidJoint;
@@ -171,4 +214,7 @@ function generateQueriesToUnspendWitnessingOutputsSpentInArchivedUnit(conn, unit
 
 
 exports.generateQueriesToArchiveJoint = generateQueriesToArchiveJoint;
+exports.cachePrunedJoint = cachePrunedJoint;
+exports.getCachedPrunedJoint = getCachedPrunedJoint;
+exports.getCachedOutput = getCachedOutput;
 
