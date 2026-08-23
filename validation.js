@@ -457,7 +457,7 @@ function validate(objJoint, callbacks, external_conn) {
 						unlock();
 						if (typeof err === "object"){
 							if (err.error_code === "unresolved_dependency")
-								callbacks.ifNeedParentUnits(err.arrMissingUnits, err.dontsave);
+								callbacks.ifNeedParentUnits(err.arrMissingUnits, err.bRequestPrunedContent);
 							else if (err.error_code === "need_hash_tree") // need to download hash tree to catch up
 								callbacks.ifNeedHashTree();
 							else if (err.error_code === "invalid_joint") // ball found in hash tree but with another unit
@@ -2461,7 +2461,7 @@ function validatePaymentInputsAndOutputs(conn, payload, objAsset, message_index,
 								if (src_output.sequence === 'final-bad' && src_output.main_chain_index < storage.getMinRetrievableMci()) { // already stripped locally
 									const objCachedOutput = archiving.getCachedOutput(input.unit, input.message_index, input.output_index);
 									if (!objCachedOutput) // ask the peer who sent this unit. If the peer doesn't respond but other nodes have accepted the unit, they'll share it with us, we'll get here again and request input.unit from them
-										return cb({error_code: "unresolved_dependency", arrMissingUnits: [input.unit], dontsave: true});
+										return cb({error_code: "unresolved_dependency", arrMissingUnits: [input.unit], bRequestPrunedContent: true});
 									src_output.address = objCachedOutput.address;
 									src_output.amount = objCachedOutput.amount;
 									src_output.denomination = objCachedOutput.denomination;

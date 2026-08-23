@@ -1381,9 +1381,9 @@ function handleOnlineJoint(ws, objJoint, onDone){
 			// which will trigger another attempt to request catchup
 			onDone();
 		},
-		ifNeedParentUnits: function(arrMissingUnits, dontsave){
+		ifNeedParentUnits: function(arrMissingUnits, bRequestPrunedContent){
 			sendInfo(ws, {unit: unit, info: "unresolved dependencies: "+arrMissingUnits.join(", ")});
-			if (dontsave){
+			if (bRequestPrunedContent){
 				// e.g. spending a locally pruned final-bad output: hold on to this joint ourselves and retry it if/when we
 				// recover the missing content, since the missing unit already has a row in the units table and the usual
 				// dependencies table would (wrongly) consider it satisfied right away
