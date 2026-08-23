@@ -467,6 +467,7 @@ function updateMainChain(conn, batch, from_unit, last_added_unit, bKeepStability
 	
 }
 
+// tries to advance the stability point by 1 mci
 function advanceMcStability(conn, batch, last_added_unit, onDone) {
 	if (!onDone)
 		return new Promise(resolve => advanceMcStability(conn, batch, last_added_unit, (arrStabilizedMcis, bStabilizedAATriggers) => resolve({ arrStabilizedMcis, bStabilizedAATriggers })));
@@ -1217,8 +1218,8 @@ function determineIfStableInLaterUnitsAndUpdateStableMcFlag(conn, earlier_unit, 
 					var new_last_stable_mci = objEarlierUnitProps.main_chain_index;
 					if (new_last_stable_mci <= last_stable_mci || objEarlierUnitProps.is_stable)
 						return unlock("the stability point moved while we were waiting for the lock, last_stable_mci="+last_stable_mci+", new_last_stable_mci="+new_last_stable_mci);
-					var mci = last_stable_mci + 1;
-					await stabilizeMci(mci);
+					for (let mci = last_stable_mci + 1; mci <= new_last_stable_mci; mci++)
+						await stabilizeMci(mci);
 					unlock();
 				});
 			});
