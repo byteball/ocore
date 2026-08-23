@@ -1184,9 +1184,30 @@ function handleJoint(ws, objJoint, bSaved, bPosted, callbacks){
 					delete assocUnitsInWork[unit];
 					unlock();
 				},
-				ifNeedParentUnits: function(arrMissingUnits){
+				ifNeedParentUnits: function(arrMissingUnits, bRequestPrunedContent){
 					clearHost();
-					callbacks.ifNeedParentUnits(arrMissingUnits);
+					if (bRequestPrunedContent && !bPosted) {
+						// e.g. spending a locally pruned final-bad output: hold on to this joint ourselves and retry it if/when we
+						// recover the missing content, since the missing unit already has a row in the units table and the usual
+						// dependencies table would (wrongly) consider it satisfied right away
+						for (let missing_unit of arrMissingUnits) {
+							if (!assocUnitsWaitingForPrunedContent[missing_unit])
+								assocUnitsWaitingForPrunedContent[missing_unit] = [];
+							assocUnitsWaitingForPrunedContent[missing_unit].push({ objJoint: objJoint, expiry_ts: Date.now() + 60 * 60 * 1000 });
+						}
+						delete assocUnitsInWork[unit];
+						// requestNewMissingJoints relies on checkIfNewUnit, which can say ifKnown() for a unit that only has
+						// stale props cached in assocCachedUnits, even though its full content is exactly what we are missing
+						// Also, don't check havePendingJointRequest as the peer of an earlier request could intentionally withhold the unit (there is rerouting, but it would give up at the first peer that doesn't have the unit)
+						// ws can be null here (e.g. replaying a saved joint whose original sender already disconnected)
+						if (ws)
+							requestJoints(ws, arrMissingUnits);
+						else
+							findNextPeer(null, function(next_ws){
+								requestJoints(next_ws, arrMissingUnits);
+							});
+					}
+					callbacks.ifNeedParentUnits(arrMissingUnits, bRequestPrunedContent);
 					unlock();
 				},
 				ifOk: async function(objValidationState, validation_unlock){
@@ -1383,22 +1404,7 @@ function handleOnlineJoint(ws, objJoint, onDone){
 		},
 		ifNeedParentUnits: function(arrMissingUnits, bRequestPrunedContent){
 			sendInfo(ws, {unit: unit, info: "unresolved dependencies: "+arrMissingUnits.join(", ")});
-			if (bRequestPrunedContent){
-				// e.g. spending a locally pruned final-bad output: hold on to this joint ourselves and retry it if/when we
-				// recover the missing content, since the missing unit already has a row in the units table and the usual
-				// dependencies table would (wrongly) consider it satisfied right away
-				for (let missing_unit of arrMissingUnits) {
-					if (!assocUnitsWaitingForPrunedContent[missing_unit])
-						assocUnitsWaitingForPrunedContent[missing_unit] = [];
-					assocUnitsWaitingForPrunedContent[missing_unit].push({ objJoint: objJoint, expiry_ts: Date.now() + 60 * 60 * 1000 });
-				}
-				delete assocUnitsInWork[unit];
-				// requestNewMissingJoints relies on checkIfNewUnit, which can say ifKnown() for a unit that only has
-				// stale props cached in assocCachedUnits, even though its full content is exactly what we are missing
-				// Also, don't check havePendingJointRequest as the peer of an earlier request could intentionally withhold the unit (there is rerouting, but it would give up at the first peer that doesn't have the unit)
-				requestJoints(ws, arrMissingUnits);
-			}
-			else {
+			if (!bRequestPrunedContent){
 				joint_storage.saveUnhandledJointAndDependencies(objJoint, arrMissingUnits, ws.peer, function(){
 					delete assocUnitsInWork[unit];
 				});
@@ -1478,7 +1484,8 @@ function handleSavedJoint(objJoint, creation_ts, peer){
 			}, 1000);
 		//	throw Error("handleSavedJoint "+objJoint.unit.unit+": need hash tree");
 		},
-		ifNeedParentUnits: function(arrMissingUnits){
+		ifNeedParentUnits: function(arrMissingUnits, bRequestPrunedContent){
+			if (bRequestPrunedContent) return;
 			db.query("SELECT 1 FROM archived_joints WHERE unit IN(?) LIMIT 1", [arrMissingUnits], function(rows){
 				if (rows.length === 0)
 					throw Error("unit "+unit+" still has unresolved dependencies: "+arrMissingUnits.join(", "));
