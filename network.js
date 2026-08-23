@@ -1364,12 +1364,17 @@ function handleOnlineJoint(ws, objJoint, onDone){
 					assocUnitsWaitingForPrunedContent[missing_unit].push({ objJoint: objJoint, expiry_ts: Date.now() + 60 * 60 * 1000 });
 				}
 				delete assocUnitsInWork[unit];
+				// requestNewMissingJoints relies on checkIfNewUnit, which can say ifKnown() for a unit that only has
+				// stale props cached in assocCachedUnits, even though its full content is exactly what we are missing
+				// Also, don't check havePendingJointRequest as the peer of an earlier request could intentionally withhold the unit (there is rerouting, but it would give up at the first peer that doesn't have the unit)
+				requestJoints(ws, arrMissingUnits);
 			}
-			else
+			else {
 				joint_storage.saveUnhandledJointAndDependencies(objJoint, arrMissingUnits, ws.peer, function(){
 					delete assocUnitsInWork[unit];
 				});
-			requestNewMissingJoints(ws, arrMissingUnits);
+				requestNewMissingJoints(ws, arrMissingUnits);
+			}
 			onDone();
 		},
 		ifOk: function(){
