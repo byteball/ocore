@@ -1187,6 +1187,8 @@ function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handle
 // It is assumed earlier_unit is not marked as stable yet
 // If it appears to be stable, its MC index will be marked as stable, as well as all preceeding MC indexes
 function determineIfStableInLaterUnitsAndUpdateStableMcFlag(conn, earlier_unit, arrLaterUnits, bStableInDb, handleResult){
+	if (!handleResult)
+		return new Promise(resolve => determineIfStableInLaterUnitsAndUpdateStableMcFlag(conn, earlier_unit, arrLaterUnits, bStableInDb, resolve));
 	determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, function(bStable){
 		console.log("determineIfStableInLaterUnits", earlier_unit, arrLaterUnits, bStable);
 		if (!bStable)
@@ -1951,6 +1953,7 @@ exports.determineIfStableInLaterUnitsAndUpdateStableMcFlag = determineIfStableIn
 exports.determineIfStableInLaterUnits = determineIfStableInLaterUnits;
 exports.determineIfStableInLaterUnitsWithMaxLastBallMciFastPath = determineIfStableInLaterUnitsWithMaxLastBallMciFastPath;
 exports.applyEmergencyOpListChange = applyEmergencyOpListChange;
+exports.getFreeUnits = getFreeUnits;
 
 /*
 determineIfStableInLaterUnits(db, "oeS2p87yO9DFkpjj+z+mo+RNoieaTN/8vOPGn/cUHhM=", [ '8vh0/buS3NaknEjBF/+vyLS3X5T0t5imA2mg8juVmJQ=', 'oO/INGsFr8By+ggALCdVkiT8GIPzB2k3PQ3TxPWq8Ac='], function(bStable){

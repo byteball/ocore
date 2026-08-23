@@ -31,6 +31,7 @@ var inputs = require('./inputs.js');
 var breadcrumbs = require('./breadcrumbs.js');
 var mail = require('./mail.js');
 var aa_composer = require('./aa_composer.js');
+const main_chain = require('./main_chain.js');
 var formulaEvaluation = require('./formula/evaluation.js');
 const errorToString = require('./formula/error/errorToString.js');
 var dataFeeds = require('./data_feeds.js');
@@ -1170,6 +1171,8 @@ function handleJoint(ws, objJoint, bSaved, bPosted, callbacks){
 					});
 					if (error.includes("last ball just advanced"))
 						setTimeout(rerequestLostJoints, 10 * 1000, true);
+					if (error === "possible AA" && bCatchingUp)
+						tryToAdvanceStabilityPointForCatchupAATrigger(objJoint);
 				},
 				ifNeedHashTree: function(){
 					console.log('need hash tree for unit '+unit);
@@ -1252,6 +1255,32 @@ function handleJoint(ws, objJoint, bSaved, bPosted, callbacks){
 			bSaved ? validate() : callbacks.ifKnownUnverified();
 		}
 	});
+}
+
+// we rejected a unit as a "possible AA" while catching up because we haven't executed its predecessor's AA triggers yet.
+// try to advance the stability point to an unstable on-MC parent, which might stabilize the actual AA trigger and let the retransmitted unit through
+async function tryToAdvanceStabilityPointForCatchupAATrigger(objJoint){
+	const objUnit = objJoint.unit;
+	const unit = objUnit.unit;
+	const ball = objJoint.ball;
+	if (!ball || storage.assocHashTreeUnitsByBall[ball] !== unit)
+		return;
+	// the parent might not be known to us yet, hence not in assocUnstableUnits
+	const parent_unit = objUnit.parent_units.find(parent_unit => {
+		const props = storage.assocUnstableUnits[parent_unit];
+		return props && props.is_on_main_chain && !props.is_stable;
+	});
+	if (!parent_unit)
+		return;
+	const arrFreeUnits = main_chain.getFreeUnits();
+	console.log(`possible AA trigger for unit ${unit}: trying to advance the stability point to its MC parent ${parent_unit} using free units ${arrFreeUnits.join(', ')}`);
+	// use a dedicated connection so that interleaving writes from other tasks don't interfere with this check
+	const conn = await db.takeConnectionFromPool();
+	await conn.query("BEGIN");
+	const bStable = await main_chain.determineIfStableInLaterUnitsAndUpdateStableMcFlag(conn, parent_unit, arrFreeUnits, false);
+	console.log(`AA parent ${parent_unit} stable in free units ${arrFreeUnits.join(', ')}? ${bStable}`);
+	await conn.query("COMMIT");
+	conn.release();
 }
 
 // handle joint posted to me by a light client
