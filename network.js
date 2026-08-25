@@ -122,6 +122,8 @@ exports.light_vendor_url = null;
 
 function sendMessage(ws, type, content) {
 	var message = JSON.stringify([type, content]);
+	if (!ws)
+		return console.log("ws is not defined, will not send " + message);
 	if (ws.readyState !== ws.OPEN)
 		return console.log("readyState="+ws.readyState+' on peer '+ws.peer+', will not send '+message);
 	console.log("SENDING "+message.length+" chars "+message+" to "+ws.peer);
@@ -1013,7 +1015,7 @@ function tryRecoverPrunedContentOfFinalBadUnit(ws, objJoint){
 	archiving.cachePrunedJoint(objJoint);
 	breadcrumbs.add('recovered pruned content of final-bad unit ' + unit + ' from ' + ws.peer);
 	delete assocUnitsWaitingForPrunedContent[unit];
-	arrWaitingJoints.forEach(o => handleOnlineJoint(ws, o.objJoint));
+	arrWaitingJoints.forEach(o => handleOnlineJoint(o.ws, o.objJoint));
 	return true;
 }
 
@@ -1193,7 +1195,7 @@ function handleJoint(ws, objJoint, bSaved, bPosted, callbacks){
 						for (let missing_unit of arrMissingUnits) {
 							if (!assocUnitsWaitingForPrunedContent[missing_unit])
 								assocUnitsWaitingForPrunedContent[missing_unit] = [];
-							assocUnitsWaitingForPrunedContent[missing_unit].push({ objJoint: objJoint, expiry_ts: Date.now() + 60 * 60 * 1000 });
+							assocUnitsWaitingForPrunedContent[missing_unit].push({ objJoint, ws, expiry_ts: Date.now() + 60 * 60 * 1000 });
 						}
 						delete assocUnitsInWork[unit];
 						// requestNewMissingJoints relies on checkIfNewUnit, which can say ifKnown() for a unit that only has
@@ -1433,12 +1435,14 @@ function handleOnlineJoint(ws, objJoint, onDone){
 			if (objJoint.unsigned)
 				return onDone();
 			sendResult(ws, {unit: unit, result: 'known'});
-			writeEvent('known_good', ws.host);
+			if (ws)
+				writeEvent('known_good', ws.host);
 			onDone();
 		},
 		ifKnownBad: function(){
 			sendResult(ws, {unit: unit, result: 'known_bad'});
-			writeEvent('known_bad', ws.host);
+			if (ws)
+				writeEvent('known_bad', ws.host);
 			if (objJoint.unsigned)
 				eventBus.emit("validated-"+unit, false);
 			onDone();
