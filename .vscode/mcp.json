@@ -1,0 +1,12 @@
+{
+  "servers": {
+    "obyte": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "obyte-mcp"
+      ]
+    }
+  }
+}
