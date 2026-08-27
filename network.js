@@ -9,6 +9,7 @@ var crypto = require('crypto');
 var _ = require('lodash');
 var async = require('async');
 var db = require('./db.js');
+const kvstore = require('./kvstore.js');
 var constants = require('./constants.js');
 var storage = require('./storage.js');
 const archiving = require('./archiving.js');
@@ -55,6 +56,8 @@ var assocRequestedUnits = {};
 // joints that couldn't be validated because they spend a locally pruned final-bad output; keyed by the unit they are waiting on.
 // Can't use the usual unhandled_joints/dependencies tables for this: those consider a dependency satisfied as soon as its row
 // exists in the units table, which is already true for a pruned unit even before we recover its content.
+// Only small pointers {unit, expiry_ts} are kept here; the (possibly large) joint bodies live in rocksdb under 'wj\n'+unit,
+// so that a peer can't exhaust our memory by triggering many/large withheld joints that never get resolved.
 let assocUnitsWaitingForPrunedContent = {};
 
 var bStarted = false;
@@ -1015,19 +1018,56 @@ function tryRecoverPrunedContentOfFinalBadUnit(ws, objJoint){
 	archiving.cachePrunedJoint(objJoint);
 	breadcrumbs.add('recovered pruned content of final-bad unit ' + unit + ' from ' + ws.peer);
 	delete assocUnitsWaitingForPrunedContent[unit];
-	arrWaitingJoints.forEach(o => handleOnlineJoint(o.ws, o.objJoint));
+	// replay the waiting joints in the background, don't make the peer who sent us the recovered content wait for this
+	async.eachSeries(arrWaitingJoints, function(o, cb){
+		const key = 'wj\n' + o.unit;
+		kvstore.get(key, strSavedJoint => {
+			kvstore.del(key);
+			if (!strSavedJoint) // already replayed via another missing unit it was also waiting on, or expired
+				return cb();
+			const { objJoint: objWaitingJoint, peer } = JSON.parse(strSavedJoint);
+			handleOnlineJoint(peer ? getPeerWebSocket(peer) : null, objWaitingJoint, cb);
+		});
+	});
 	return true;
 }
 
 function purgeExpiredUnitsWaitingForPrunedContent(){
 	const now = Date.now();
 	for (let missing_unit in assocUnitsWaitingForPrunedContent){
+		const arrExpired = assocUnitsWaitingForPrunedContent[missing_unit].filter(o => o.expiry_ts < now);
+		arrExpired.forEach(o => kvstore.del('wj\n' + o.unit));
 		assocUnitsWaitingForPrunedContent[missing_unit] = assocUnitsWaitingForPrunedContent[missing_unit].filter(o => o.expiry_ts >= now);
 		if (assocUnitsWaitingForPrunedContent[missing_unit].length === 0)
 			delete assocUnitsWaitingForPrunedContent[missing_unit];
 	}
 }
 setInterval(purgeExpiredUnitsWaitingForPrunedContent, 60 * 60 * 1000);
+
+// assocUnitsWaitingForPrunedContent always starts empty on restart, so any 'wj\n' pointers left in rocksdb
+// from a previous run would otherwise never be replayed or purged again
+function clearStalePrunedContentPointers(){
+	return new Promise(function(resolve, reject){
+		const batch = kvstore.batch();
+		let count = 0;
+		kvstore.createKeyStream({ gte: 'wj\n', lte: 'wj\n\uFFFF' })
+			.on('data', key => {
+				batch.del(key);
+				count++;
+			})
+			.on('end', () => {
+				if (count === 0)
+					return resolve();
+				batch.write(err => {
+					if (err)
+						return reject(Error("failed to clear stale pruned content pointers: " + err));
+					console.log(`cleared ${count} stale pruned content pointer(s) left over from the previous run`);
+					resolve();
+				});
+			})
+			.on('error', reject);
+	});
+}
 
 function havePendingRequest(command){
 	var arrPeers = [...wss.clients].concat(arrOutboundPeers);
@@ -1191,11 +1231,14 @@ function handleJoint(ws, objJoint, bSaved, bPosted, callbacks){
 					if (bRequestPrunedContent && !bPosted) {
 						// e.g. spending a locally pruned final-bad output: hold on to this joint ourselves and retry it if/when we
 						// recover the missing content, since the missing unit already has a row in the units table and the usual
-						// dependencies table would (wrongly) consider it satisfied right away
+						// dependencies table would (wrongly) consider it satisfied right away.
+						// the joint body goes to rocksdb (see comment on assocUnitsWaitingForPrunedContent), keyed by its own unit
+						kvstore.put('wj\n' + unit, JSON.stringify({ objJoint, peer: ws ? ws.peer : null }), () => {});
+						const expiry_ts = Date.now() + 60 * 60 * 1000;
 						for (let missing_unit of arrMissingUnits) {
 							if (!assocUnitsWaitingForPrunedContent[missing_unit])
 								assocUnitsWaitingForPrunedContent[missing_unit] = [];
-							assocUnitsWaitingForPrunedContent[missing_unit].push({ objJoint, ws, expiry_ts: Date.now() + 60 * 60 * 1000 });
+							assocUnitsWaitingForPrunedContent[missing_unit].push({ unit, expiry_ts });
 						}
 						delete assocUnitsInWork[unit];
 						// requestNewMissingJoints relies on checkIfNewUnit, which can say ifKnown() for a unit that only has
@@ -4362,6 +4405,7 @@ function startPeerExchange() {
 async function startRelay(){
 	setInterval(unblockPeers, 10*60*1000);
 	initBlockedPeers();
+	await clearStalePrunedContentPointers();
 	
 	if (bCordova || !conf.port) // no listener on mobile
 		wss = {clients: new Set()};
