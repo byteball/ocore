@@ -57,8 +57,8 @@ function validateAndSavePrivatePaymentChain(arrPrivateElements, callbacks){
 						}
 					};
 					// check if duplicate
-					var sql = "SELECT address FROM outputs WHERE unit=? AND message_index=?";
-					var params = [headElement.unit, headElement.message_index];
+					var sql = "SELECT address, denomination, amount, blinding FROM outputs WHERE unit=? AND asset=? AND message_index=?";
+					var params = [headElement.unit, asset, headElement.message_index];
 					if (objAsset.fixed_denominations){
 						if (!ValidationUtils.isNonnegativeInteger(headElement.output_index))
 							return transaction_callbacks.ifError("no output index in head private element");
@@ -72,8 +72,32 @@ function validateAndSavePrivatePaymentChain(arrPrivateElements, callbacks){
 							if (rows.length > 1)
 								throw Error("more than one output "+sql+' '+params.join(', '));
 							if (rows.length > 0 && rows[0].address){ // we could have this output already but the address is still hidden
-								console.log("duplicate private payment "+params.join(', '));
-								return transaction_callbacks.ifOk();
+								const stored = rows[0];
+								const payload = headElement.payload;
+								let bDuplicate = false;
+								if (objAsset.fixed_denominations){ // the row we selected is exactly headElement.output_index, filtered in sql above
+									const claimed_output = payload.outputs?.[headElement.output_index];
+									const revealed_output = headElement?.output;
+									bDuplicate =
+										ValidationUtils.isNonemptyObject(claimed_output)
+										&& ValidationUtils.isNonemptyObject(revealed_output)
+										&& stored.denomination === payload.denomination
+										&& stored.amount === claimed_output.amount
+										&& stored.address === revealed_output.address
+										&& stored.blinding === revealed_output.blinding;
+								}
+								else // divisible outputs are never hidden individually and sql has no output_index filter, so match against any of them
+									bDuplicate = (payload.outputs || []).some(output => {
+										return ValidationUtils.isNonemptyObject(output)
+											&& stored.denomination === 1
+											&& stored.amount === output.amount
+											&& stored.address === output.address
+											&& stored.blinding === output.blinding;
+									});
+								if (bDuplicate) {
+									console.log("duplicate private payment "+params.join(', '));
+									return transaction_callbacks.ifOk();
+								}
 							}
 							var assetModule = objAsset.fixed_denominations ? indivisibleAsset : divisibleAsset;
 							assetModule.validateAndSavePrivatePaymentChain(conn, arrPrivateElements, transaction_callbacks);
