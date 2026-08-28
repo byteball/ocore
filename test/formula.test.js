@@ -22,6 +22,8 @@ var dst_dir = __dirname + '/.testdata-' + path.basename(__filename);
 shell('rm -rf ' + dst_dir);
 
 var Decimal = require('decimal.js');
+var nearley = require('nearley');
+var oscriptGrammar = require('../formula/grammars/oscript.js');
 var formulaParser = require('../formula/index');
 var formulaCommon = require('../formula/common.js');
 var test = require('ava');
@@ -119,6 +121,13 @@ function evalFormulaWithVars(opts, callback) {
 			callback(eval_res, validation_res.complexity, validation_res.count_ops, val_locals);
 		});
 	});
+}
+
+// parses formula text directly with the compiled grammar, bypassing validate()/evaluate()
+function parseWithGrammar(formula) {
+	var parser = new nearley.Parser(nearley.Grammar.fromCompiled(oscriptGrammar));
+	parser.feed(formula);
+	return parser.results;
 }
 
 var objValidationState = {
@@ -6452,6 +6461,85 @@ test.cb('max with large number of arguments', t => {
 		t.deepEqual(res, null);
 		t.end();
 	})
+});
+
+// ternary_expr and Exp used to be right-recursive rules (`ternary_expr -> or_expr "?" expr ":" ternary_expr | or_expr`,
+// `Exp -> P "^" Exp | P`), which caused superlinear (worse than quadratic) parse time for chains of "?:"/"^".
+// They were rewritten with the same kleene-star + fold-in-postprocessor pattern used elsewhere in this grammar
+// for lists (e.g. expr_list), with a cap of 1000 chained operators. These tests check that the rewritten grammar
+// still produces the same (right-associative) results as the original grammar for nested ternaries and nested ^.
+
+test('nested ternary is right-associative', t => {
+	// right (correct): 1==1 ? 5 : ... short-circuits to 5
+	// if it were mis-associated as (1==1?5:1==2)?20:30, the numeric condition 5 would be coerced to true and yield 20 instead
+	evalFormula(null, "1==1 ? 5 : 1==2 ? 20 : 30", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
+		t.deepEqual(res, 5);
+	});
+});
+
+test('nested ternary falls through to the final else', t => {
+	evalFormula(null, "1==2 ? 5 : 1==2 ? 20 : 30", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
+		t.deepEqual(res, 30);
+	});
+});
+
+test('nested exponent is right-associative: 2^3^2', t => {
+	// right (correct): 2^(3^2) = 2^9 = 512; left-assoc would give (2^3)^2 = 64
+	evalFormula(null, "2^3^2", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
+		t.deepEqual(res, 512);
+	});
+});
+
+test('nested exponent is right-associative: 2^2^2^2', t => {
+	// right (correct): 2^(2^(2^2)) = 2^(2^4) = 2^16 = 65536; left-assoc would give ((2^2)^2)^2 = 256
+	evalFormula(null, "2^2^2^2", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
+		t.deepEqual(res, 65536);
+	});
+});
+
+test.cb('deep ternary chain resolves the correct branch', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = {};
+	const depth = 80, trueIndex = 40; // stays under the unrelated 100-level AST recursion depth cap in validation.js
+	var parts = [];
+	for (var i = 0; i < depth; i++)
+		parts.push((i === trueIndex ? '1==1' : '1==2') + '?' + (100 + i) + ':');
+	var formula = parts.join('') + '999';
+	evalFormulaWithVars({ conn: db, formula: formula, trigger: trigger, locals: {  }, stateVars: stateVars, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 100 + trueIndex);
+		t.end();
+	})
+});
+
+test.cb('deep exponent chain evaluates without blowing up', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = {};
+	const depth = 80; // stays under the unrelated 100-level AST recursion depth cap in validation.js
+	var formula = '1^'.repeat(depth) + '2'; // 1^(1^(...^(1^2))) = 1 regardless of depth
+	evalFormulaWithVars({ conn: db, formula: formula, trigger: trigger, locals: {  }, stateVars: stateVars, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 1);
+		t.end();
+	})
+});
+
+test('ternary chain of exactly 100 parses (at the grammar cap)', t => {
+	var results = parseWithGrammar('1?2:'.repeat(100) + '3');
+	t.is(results.length, 1);
+});
+
+test('ternary chain of 101 is rejected by the grammar cap', t => {
+	var error = t.throws(() => parseWithGrammar('1?2:'.repeat(101) + '3'));
+	t.true(error.message.includes('too many nested ternary expressions'));
+});
+
+test('exponent chain of exactly 100 parses (at the grammar cap)', t => {
+	var results = parseWithGrammar('1^'.repeat(100) + '1');
+	t.is(results.length, 1);
+});
+
+test('exponent chain of 101 is rejected by the grammar cap', t => {
+	var error = t.throws(() => parseWithGrammar('1^'.repeat(101) + '1'));
+	t.true(error.message.includes('too many exponents'));
 });
 
 test('Decimal toStringTag', t => {

@@ -191,8 +191,20 @@ var grammar = {
     {"name": "otherwise_expr$subexpression$1", "symbols": [{"literal":"OTHERWISE"}]},
     {"name": "otherwise_expr", "symbols": ["expr", "otherwise_expr$subexpression$1", "ternary_expr"], "postprocess": function(d) { return addLocation(['otherwise', d[0], d[2]], d); }},
     {"name": "otherwise_expr", "symbols": ["ternary_expr"], "postprocess": id},
-    {"name": "ternary_expr", "symbols": ["or_expr", {"literal":"?"}, "expr", {"literal":":"}, "ternary_expr"], "postprocess": function(d) {return addLocation(['ternary', d[0], d[2], d[4]], d); }},
-    {"name": "ternary_expr", "symbols": ["or_expr"], "postprocess": id},
+    {"name": "ternary_pairs$ebnf$1", "symbols": []},
+    {"name": "ternary_pairs$ebnf$1$subexpression$1", "symbols": ["or_expr", {"literal":"?"}, "expr", {"literal":":"}]},
+    {"name": "ternary_pairs$ebnf$1", "symbols": ["ternary_pairs$ebnf$1", "ternary_pairs$ebnf$1$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
+    {"name": "ternary_pairs", "symbols": ["ternary_pairs$ebnf$1"], "postprocess":  function(d) {
+        	if (d[0].length > 100) throw new Error("too many nested ternary expressions");
+        	return d[0];
+        } },
+    {"name": "ternary_expr", "symbols": ["ternary_pairs", "or_expr"], "postprocess":  function(d) {
+        	var pairs = d[0];
+        	var result = d[1];
+        	for (var i = pairs.length - 1; i >= 0; i--)
+        		result = addLocation(['ternary', pairs[i][0], pairs[i][2], result], pairs[i]);
+        	return result;
+        } },
     {"name": "or_expr$subexpression$1", "symbols": [{"literal":"or"}]},
     {"name": "or_expr$subexpression$1", "symbols": [{"literal":"OR"}]},
     {"name": "or_expr", "symbols": ["or_expr", "or_expr$subexpression$1", "and_expr"], "postprocess": function(d) {return addLocation(['or', d[0], d[2]], d); }},
@@ -450,8 +462,20 @@ var grammar = {
     {"name": "P", "symbols": [{"literal":"("}, "expr", {"literal":")"}], "postprocess": function(d) {return addLocation(d[1], d); }},
     {"name": "P", "symbols": ["N"], "postprocess": id},
     {"name": "P", "symbols": ["string"], "postprocess": id},
-    {"name": "Exp", "symbols": ["P", {"literal":"^"}, "Exp"], "postprocess": function(d) {return addLocation(['^', d[0], d[2]], d); }},
-    {"name": "Exp", "symbols": ["P"], "postprocess": id},
+    {"name": "exp_pairs$ebnf$1", "symbols": []},
+    {"name": "exp_pairs$ebnf$1$subexpression$1", "symbols": ["P", {"literal":"^"}]},
+    {"name": "exp_pairs$ebnf$1", "symbols": ["exp_pairs$ebnf$1", "exp_pairs$ebnf$1$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
+    {"name": "exp_pairs", "symbols": ["exp_pairs$ebnf$1"], "postprocess":  function(d) {
+        	if (d[0].length > 100) throw new Error("too many exponents");
+        	return d[0];
+        } },
+    {"name": "Exp", "symbols": ["exp_pairs", "P"], "postprocess":  function(d) {
+        	var pairs = d[0];
+        	var result = d[1];
+        	for (var i = pairs.length - 1; i >= 0; i--)
+        		result = addLocation(['^', pairs[i][0], result], pairs[i]);
+        	return result;
+        } },
     {"name": "unary_expr", "symbols": ["Exp"], "postprocess": id},
     {"name": "unary_expr$subexpression$1", "symbols": [{"literal":"!"}]},
     {"name": "unary_expr$subexpression$1", "symbols": [{"literal":"not"}]},

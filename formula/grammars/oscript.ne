@@ -183,8 +183,18 @@ log_statement -> "log" "(" expr_list ")" ";" {% function(d) {return addLocation(
 otherwise_expr -> expr ("otherwise"|"OTHERWISE") ternary_expr  {% function(d) { return addLocation(['otherwise', d[0], d[2]], d); } %}
 	| ternary_expr {% id %}
 
-ternary_expr -> or_expr "?" expr ":" ternary_expr {% function(d) {return addLocation(['ternary', d[0], d[2], d[4]], d); }%}
-	| or_expr {% id %}
+ternary_pairs -> (or_expr "?" expr ":"):*  {% function(d) {
+	if (d[0].length > 100) throw new Error("too many nested ternary expressions");
+	return d[0];
+} %}
+
+ternary_expr -> ternary_pairs or_expr {% function(d) {
+	var pairs = d[0];
+	var result = d[1];
+	for (var i = pairs.length - 1; i >= 0; i--)
+		result = addLocation(['ternary', pairs[i][0], pairs[i][2], result], pairs[i]);
+	return result;
+} %}
 
 or_expr -> or_expr ("or"|"OR") and_expr {% function(d) {return addLocation(['or', d[0], d[2]], d); }%}
 	| and_expr {% id %}
@@ -363,8 +373,18 @@ P -> "(" expr ")" {% function(d) {return addLocation(d[1], d); } %}
     | N      {% id %}
 	| string {% id %}
 
-Exp -> P "^" Exp    {% function(d) {return addLocation(['^', d[0], d[2]], d); } %}
-    | P             {% id %}
+exp_pairs -> (P "^"):*  {% function(d) {
+	if (d[0].length > 100) throw new Error("too many exponents");
+	return d[0];
+} %}
+
+Exp -> exp_pairs P  {% function(d) {
+	var pairs = d[0];
+	var result = d[1];
+	for (var i = pairs.length - 1; i >= 0; i--)
+		result = addLocation(['^', pairs[i][0], result], pairs[i]);
+	return result;
+} %}
 
 unary_expr -> Exp {% id %}
 	| ("!"|"not"|"NOT") unary_expr {% function(d) {return addLocation(['not', d[1]], d); }%}
