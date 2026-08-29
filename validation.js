@@ -2766,6 +2766,8 @@ function validateAssetDefinition(conn, payload, objUnit, objValidationState, cal
 				return callback("unknown fields in denomination: " + JSON.stringify(denomInfo));
 			if (!isPositiveInteger(denomInfo.denomination))
 				return callback("invalid denomination");
+			if (denomInfo.denomination > constants.MAX_CAP && (objValidationState.last_ball_mci >= constants.pemCurvesFixMci || !objValidationState.hasBall && storage.getMinRetrievableMci() >= constants.pemCurvesFixMci))
+				return callback("denomination exceeds MAX_CAP");
 			if (denomInfo.denomination <= prev_denom)
 				return callback("denominations unsorted");
 			if ("count_coins" in denomInfo){
