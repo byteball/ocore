@@ -1,5 +1,6 @@
 /*jslint node: true */
 "use strict";
+const util = require('util');
 var async = require('async');
 var _ = require('lodash');
 var constants = require('./constants.js');
@@ -355,34 +356,34 @@ function readDataFeedValueByParams(params, max_mci, unstable_opts, cb) {
 	if ('feed_value' in params) {
 		value = params.feed_value;
 		if (!isValidValue(value))
-			return cb("bad feed_value: " + value);
+			return cb("bad feed_value: " + util.inspect(value, { depth: 5 }));
 	}
 	var min_mci = 0;
 	if ('min_mci' in params) {
 		min_mci = params.min_mci;
 		if (!ValidationUtils.isNonnegativeInteger(min_mci))
-			return cb("bad min_mci: " + min_mci);
+			return cb("bad min_mci: " + util.inspect(min_mci, { depth: 5 }));
 	}
 	var ifseveral = 'last';
 	if ('ifseveral' in params) {
 		ifseveral = params.ifseveral;
 		if (ifseveral !== 'abort' && ifseveral !== 'last')
-			return cb("bad ifseveral: " + ifseveral);
+			return cb("bad ifseveral: " + util.inspect(ifseveral, { depth: 5 }));
 	}
 	var what = 'value';
 	if ('what' in params) {
 		what = params.what;
 		if (what !== 'unit' && what !== 'value')
-			return cb("bad what: " + what);
+			return cb("bad what: " + util.inspect(what, { depth: 5 }));
 	}
 	var type = 'auto';
 	if ('type' in params) {
 		type = params.type;
 		if (type !== 'string' && type !== 'auto')
-			return cb("bad df type: " + type);
+			return cb("bad df type: " + util.inspect(type, { depth: 5 }));
 	}
 	if ('ifnone' in params && !isValidValue(params.ifnone))
-		return cb("bad ifnone: " + params.ifnone);
+		return cb("bad ifnone: " + util.inspect(params.ifnone, { depth: 5 }));
 	readDataFeedValue(oracles, feed_name, value, min_mci, max_mci, unstable_opts, ifseveral, Math.round(Date.now() / 1000), function (objResult) {
 		if (objResult.bAbortedBecauseOfSeveral)
 			return cb("several values found");
