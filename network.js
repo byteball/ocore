@@ -2939,10 +2939,23 @@ function handleJustsaying(ws, subject, body){
 				
 				// verify it is really your url by connecting to this url, sending a random string through this new connection, 
 				// and expecting this same string over existing inbound connection
-				ws.sent_echo_string = crypto.randomBytes(30).toString("base64");
+				if (assocConnectingOutboundWebsockets[url])
+					return console.log("ignoring my_url of a known peer we are already connecting to:", url);
+				const arrExistingOutboundPeers = arrOutboundPeers.slice();
 				findOutboundPeerOrConnect(url, function(err, reverse_ws){
-					if (!err)
-						sendJustsaying(reverse_ws, 'want_echo', ws.sent_echo_string);
+					if (err)
+						return console.log("failed to connect to peer's my_url", url, err);
+					if (arrExistingOutboundPeers.includes(reverse_ws))
+						return console.log("ignoring my_url of a known peer", url);
+					db.query("INSERT " + db.getIgnore() + " INTO peer_hosts (peer_host) VALUES (?)", [reverse_ws.host]); // writeEvent() needs it
+					ws.sent_echo_string = crypto.randomBytes(30).toString("base64");
+					sendJustsaying(reverse_ws, 'want_echo', ws.sent_echo_string); // we expect it to be echoed back over the original connection ws
+					setTimeout(() => {
+						if (ws.sent_echo_string) {
+							console.log(`echo not received in time for my_url ${url} received from ${ws.host}, closing connection`);
+							reverse_ws.close(1000, "echo not received in time");
+						}
+					}, 10000); // 10 seconds timeout for echo response
 				}, true);
 			});
 			break;
