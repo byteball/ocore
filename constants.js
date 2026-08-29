@@ -100,7 +100,7 @@ exports.v4UpgradeMci = exports.bTestnet ? 3522600 : 10968000;
 exports.tpsFeeRecipientsFixMci = exports.bTestnet ? 3909321 : 11985000;
 exports.pemCurvesFixMci = exports.bTestnet ? 3975000 : 12185000;
 exports.noPrivateAssetsWithConditionsUpgradeMci = exports.bTestnet ? 3975000 : 12185000;
-exports.bestParentPrefersOpUpgradeMci = exports.bTestnet ? Infinity : 12185000;
+exports.bestParentPrefersOpUpgradeMci = exports.bTestnet ? 3975000 : 12185000;
 
 
 if (process.env.devnet) {
