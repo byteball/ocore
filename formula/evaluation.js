@@ -1685,6 +1685,8 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 							const [row] = await conn.query("SELECT main_chain_index FROM units WHERE unit=?", [signedPackage.last_ball_unit]);
 							if (!row || row.main_chain_index > mci) // not existing or not stable last ball unit
 								return cb(false);
+							if (mci >= constants.pemCurvesFixMci && row.main_chain_index < constants.pemCurvesFixMci) // last ball unit is before the fix
+								return setFatalError("last ball unit is before the PEM curves fix", { arr }, false, cb);
 						}
 						const max_complexity = bPostPemCurvesFix ? 10 : 0;
 						signed_message.validateSignedMessage(conn, signedPackage, evaluated_address, max_complexity, function (err, last_ball_mci) {
