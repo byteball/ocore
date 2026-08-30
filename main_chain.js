@@ -795,6 +795,8 @@ function determineIfStableInLaterUnitsWithMaxLastBallMciFastPath(conn, earlier_u
 }
 
 function determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, handleResult){
+	if (!handleResult)
+		return new Promise(resolve => determineIfStableInLaterUnits(conn, earlier_unit, arrLaterUnits, resolve));
 	if (storage.isGenesisUnit(earlier_unit))
 		return handleResult(true);
 	// hack to workaround past validation error
@@ -1201,6 +1203,7 @@ function determineIfStableInLaterUnitsAndUpdateStableMcFlag(conn, earlier_unit, 
 
 		// result callback already called, we stay here to move the stability point forward.
 		// To avoid deadlocks, we always first obtain a "handleJoint" lock, then a db connection
+		const bOpListCanChange = hasUnstableOpVoteCount();
 		mutex.lock(["handleJoint"], function(unlock){
 			breadcrumbs.add('stable in parents, got handleJoint lock');
 			storage.readLastStableMcIndex(db, function(last_stable_mci){
@@ -1218,8 +1221,17 @@ function determineIfStableInLaterUnitsAndUpdateStableMcFlag(conn, earlier_unit, 
 					var new_last_stable_mci = objEarlierUnitProps.main_chain_index;
 					if (new_last_stable_mci <= last_stable_mci || objEarlierUnitProps.is_stable)
 						return unlock("the stability point moved while we were waiting for the lock, last_stable_mci="+last_stable_mci+", new_last_stable_mci="+new_last_stable_mci);
-					for (let mci = last_stable_mci + 1; mci <= new_last_stable_mci; mci++)
+					for (let mci = last_stable_mci + 1; mci <= new_last_stable_mci; mci++) {
+						if (bOpListCanChange && mci >= constants.v4UpgradeMci) {
+							// check stability before every step using the best parent's OP list (the standard rule for advancing stability). The initial stability of the earlier_unit was determined using the OP list of the last stable unit
+							const conn = await db.takeConnectionFromPool();
+							const [{ unit }] = await conn.query("SELECT unit FROM units WHERE main_chain_index=? AND is_on_main_chain=1", [mci]);
+							const bMciStable = await determineIfStableInLaterUnits(conn, unit, arrLaterUnits);
+							conn.release();
+							if (!bMciStable) break;
+						}
 						await stabilizeMci(mci);
+					}
 					unlock();
 				});
 			});
@@ -1228,6 +1240,15 @@ function determineIfStableInLaterUnitsAndUpdateStableMcFlag(conn, earlier_unit, 
 }
 
 
+function hasUnstableOpVoteCount() {
+	for (let unit in storage.assocUnstableMessages) {
+		for (let message of storage.assocUnstableMessages[unit]) {
+			if (message.app === 'system_vote_count' && message.payload === 'op_list')
+				return true;
+		}
+	}
+	return false;
+}
 
 
 function readBestParentAndItsWitnesses(conn, unit, handleBestParentAndItsWitnesses){
