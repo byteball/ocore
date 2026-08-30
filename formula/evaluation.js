@@ -93,7 +93,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 	if (!ValidationUtils.isPositiveInteger(objValidationState.last_ball_timestamp))
 		throw Error('last_ball_timestamp is not a number: ' + objValidationState.last_ball_timestamp);
 
-	var bAA = (messages.length === 0);
+	const bAA = (mci >= constants.pemCurvesFixMci) ? !opts.messages : (messages.length === 0);
 	if (!bAA && (bStatementsOnly || bStateVarAssignmentAllowed || bObjectResultAllowed))
 		throw Error("bad opts for non-AA");
 
