@@ -114,11 +114,11 @@ function signMessage(message, from_address, signer, bNetworkAware, handleResult)
 
 
 
-function validateSignedMessage(conn, objSignedMessage, address, max_complexity, handleResult) {
+function validateSignedMessage(conn, objSignedMessage, address, mci, handleResult) {
 	if (!handleResult) {
-		if (max_complexity) { // validateSignedMessage(conn, objSignedMessage, address, handleResult)
-			handleResult = max_complexity;
-			max_complexity = undefined;
+		if (mci) { // validateSignedMessage(conn, objSignedMessage, address, handleResult)
+			handleResult = mci;
+			mci = undefined;
 		}
 		else { // validateSignedMessage(objSignedMessage, handleResult)
 			handleResult = objSignedMessage;
@@ -126,6 +126,7 @@ function validateSignedMessage(conn, objSignedMessage, address, max_complexity, 
 			conn = db;
 		}
 	}
+	const max_complexity = (mci >= constants.pemCurvesFixMci) ? 10 : 0;
 	if (!ValidationUtils.isNonemptyObject(objSignedMessage))
 		return handleResult("signed message must be a non-empty object");
 	if (ValidationUtils.hasFieldsExcept(objSignedMessage, ["signed_message", "authors", "last_ball_unit", "timestamp", "version"]))
@@ -246,7 +247,8 @@ function validateSignedMessage(conn, objSignedMessage, address, max_complexity, 
 			} catch (e) {
 				return handleResult("failed to calc address definition hash: " + e);
 			}
-			cb(objAuthor.definition, -1, 0);
+			// no last_ball_unit of its own; before the fix, always behave as before (-1) to keep old units re-evaluating the same way
+			cb(objAuthor.definition, (mci >= constants.pemCurvesFixMci) ? mci : -1, 0);
 		}
 	}
 

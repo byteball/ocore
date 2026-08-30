@@ -1688,8 +1688,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 							if (mci >= constants.pemCurvesFixMci && row.main_chain_index < constants.pemCurvesFixMci) // last ball unit is before the fix
 								return setFatalError("last ball unit is before the PEM curves fix", { arr }, false, cb);
 						}
-						const max_complexity = bPostPemCurvesFix ? 10 : 0;
-						signed_message.validateSignedMessage(conn, signedPackage, evaluated_address, max_complexity, function (err, last_ball_mci) {
+						signed_message.validateSignedMessage(conn, signedPackage, evaluated_address, mci, function (err, last_ball_mci) {
 							if (err)
 								return cb(false);
 							if (last_ball_mci === null || last_ball_mci > mci)
