@@ -1682,8 +1682,10 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 								return cb(false);
 						}
 						if (typeof signedPackage.last_ball_unit === 'string') {
-							const [row] = await conn.query("SELECT main_chain_index FROM units WHERE unit=?", [signedPackage.last_ball_unit]);
+							const [row] = await conn.query("SELECT main_chain_index, is_on_main_chain FROM units WHERE unit=?", [signedPackage.last_ball_unit]);
 							if (!row || row.main_chain_index > mci || row.main_chain_index === null) // not existing or not stable last ball unit
+								return cb(false);
+							if (!row.is_on_main_chain && mci >= constants.pemCurvesFixMci) // last ball must be on the MC
 								return cb(false);
 							if (mci >= constants.pemCurvesFixMci && row.main_chain_index < constants.pemCurvesFixMci) // last ball unit is before the fix
 								return setFatalError("last ball unit is before the PEM curves fix", { arr }, false, cb);
