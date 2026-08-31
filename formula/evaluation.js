@@ -1683,7 +1683,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 						}
 						if (typeof signedPackage.last_ball_unit === 'string') {
 							const [row] = await conn.query("SELECT main_chain_index FROM units WHERE unit=?", [signedPackage.last_ball_unit]);
-							if (!row || row.main_chain_index > mci) // not existing or not stable last ball unit
+							if (!row || row.main_chain_index > mci || row.main_chain_index === null) // not existing or not stable last ball unit
 								return cb(false);
 							if (mci >= constants.pemCurvesFixMci && row.main_chain_index < constants.pemCurvesFixMci) // last ball unit is before the fix
 								return setFatalError("last ball unit is before the PEM curves fix", { arr }, false, cb);
