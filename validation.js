@@ -246,7 +246,7 @@ function validate(objJoint, callbacks, external_conn) {
 			if (m.app === "payment" && m.payload)
 				return isNonemptyArray(m.payload.outputs) &&
 					(!("asset" in m.payload) || isStringOfLength(m.payload.asset, constants.HASH_LENGTH)) &&
-					m.payload.outputs.every(o => isNonemptyObject(o) && isValidAddress(o.address) && isPositiveInteger(o.amount)) &&
+					m.payload.outputs.every(o => isNonemptyObject(o) && isValidAddress(o.address) && isPositiveInteger(o.amount) && o.amount <= constants.MAX_CAP) &&
 					isNonemptyArray(m.payload.inputs) &&
 					m.payload.inputs.every(i => isNonemptyObject(i) && (!("type" in i) || ["issue", "headers_commission", "witnessing"].includes(i.type)));
 			else
