@@ -520,6 +520,21 @@ function deriveSharedAddress(hash, bOfferor, cb) {
 							}]
 						);
 					}
+					// protect against combining several contracts in a single transaction (if their parties, amounts, and assets are identical, the 'has what' above would satisfy both contracts, allowing the attacker to send the change to themselves)
+					arrDefinition[1][1][1].push(
+						["not", ["has", {
+							what: "input",
+							asset: contract.asset || "base",
+							address: "other address",
+						}]]
+					);
+					arrDefinition[1][2][1].push(
+						["not", ["has", {
+							what: "input",
+							asset: contract.asset || "base",
+							address: "other address",
+						}]]
+					);
 				}
 				var assocSignersByPath = {
 					"r.0.0": {
