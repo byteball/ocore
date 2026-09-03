@@ -753,7 +753,7 @@ function complete(hash, walletInstance, arrSigningDeviceAddresses, cb) {
 						require("./wallet_defined_by_addresses.js").readSharedAddressDefinition(objContract.shared_address, function (arrDefinition) {
 							const index = objContract.is_incoming ? 2 : 1;
 							const peer_amount = arrDefinition[1][index][1][1][1].amount;
-							const arbstore_amount = arrDefinition[1][index][1][2] ? arrDefinition[1][index][1][2][1].amount : 0;
+							const arbstore_amount = arrDefinition[1][index][1][2] && arrDefinition[1][index][1][2][0] === 'has' ? arrDefinition[1][index][1][2][1].amount : 0;
 							if (!isFinite(peer_amount) || !isFinite(arbstore_amount))
 								throw new Error("invalid amounts in shared address definition: " + JSON.stringify(arrDefinition));
 							if (peer_amount + arbstore_amount !== objContract.amount)
