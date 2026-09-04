@@ -40,6 +40,8 @@ function validateAndSavePrivatePaymentChain(arrPrivateElements, callbacks){
 				return callbacks.ifError("asset is not private");
 			if (!!objAsset.fixed_denominations !== !!headElement.payload.denomination)
 				return callbacks.ifError("presence of denomination field doesn't match the asset type");
+			if (!!objAsset.fixed_denominations !== ("output" in headElement))
+				return callbacks.ifError("divisible asset must not have output field, indivisible must");
 			db.takeConnectionFromPool(function(conn){
 				conn.query("BEGIN", function(){
 					var transaction_callbacks = {

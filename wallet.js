@@ -1148,12 +1148,19 @@ function emitNewPrivatePaymentReceived(payer_device_address, arrChains, message_
 			var asset = payload.asset || 'base';
 			if (!assocAmountsByAsset[asset])
 				assocAmountsByAsset[asset] = 0;
-			payload.outputs.forEach(function(output){
-				if (output.address && arrAddresses.indexOf(output.address) >= 0){
-					assocAmountsByAsset[asset] += output.amount;
-					assocMyReceivingAddresses[output.address] = true;
-				}
-			});
+			if (!objHeadPrivateElement.output) { // divisible asset
+				let arrMyOutputAmounts = [];
+				payload.outputs.forEach(function (output) {
+					if (output.address && arrAddresses.indexOf(output.address) >= 0) {
+						arrMyOutputAmounts.push(output.amount);
+						assocMyReceivingAddresses[output.address] = true;
+					}
+				});
+				if (arrMyOutputAmounts.length > 1)
+					console.log('Multiple outputs to my addresses in a divisible asset, ignoring', asset, payload.outputs);
+				else if (arrMyOutputAmounts.length === 1)
+					assocAmountsByAsset[asset] += arrMyOutputAmounts[0];
+			}
 			// indivisible
 			var output = objHeadPrivateElement.output;
 			if (output && output.address && arrAddresses.indexOf(output.address) >= 0){
