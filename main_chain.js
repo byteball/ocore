@@ -1562,8 +1562,9 @@ function markMcIndexStable(conn, batch, mci, onDone){
 												addDataFeeds(payload);
 												break;
 											case 'definition':
-												if (objUnitProps.is_aa_response)
-													continue; // already inserted in writer.js
+												// before the fix, re-inserting recalculated aa_balances to pick up non-AA payments received between definition and stabilization
+												if (objUnitProps.is_aa_response && mci >= constants.pemCurvesFixMci)
+													continue; // already inserted in writer.js with the correct balance
 												const objLastBallUnitProps = await storage.readUnitProps(conn, objUnitProps.last_ball_unit);
 												const definer_last_ball_mci = objLastBallUnitProps.main_chain_index;
 												await storage.insertAADefinitions(conn, [payload], unit, mci, definer_last_ball_mci, false);
@@ -1690,6 +1691,7 @@ function markMcIndexStable(conn, batch, mci, onDone){
 	function handleAATriggers() {
 		// a single unit can send to several AA addresses
 		// a single unit can have multiple outputs to the same AA address, even in the same asset
+		const mci_column = mci >= constants.pemCurvesFixMci ? 'aa_addresses.mci' : 'aa_definition_units.main_chain_index';
 		conn.query(
 			"SELECT DISTINCT address, definition, units.unit, units.level \n\
 			FROM units \n\
@@ -1699,7 +1701,7 @@ function markMcIndexStable(conn, batch, mci, onDone){
 			CROSS JOIN units AS aa_definition_units ON aa_addresses.unit=aa_definition_units.unit \n\
 			WHERE units.main_chain_index = ? AND units.sequence = 'good' AND (outputs.asset IS NULL OR is_private=0) \n\
 				AND NOT EXISTS (SELECT 1 FROM unit_authors CROSS JOIN aa_addresses USING(address) WHERE unit_authors.unit=units.unit) \n\
-				AND aa_definition_units.main_chain_index<=? \n\
+				AND " + mci_column + "<=? \n\
 			ORDER BY units.level, units.unit, address", // deterministic order
 			[mci, mci],
 			function (rows) {

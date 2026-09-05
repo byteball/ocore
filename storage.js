@@ -940,17 +940,25 @@ function insertAADefinitions(conn, arrPayloads, unit, mci, validation_mci, bForA
 					}
 					if (conf.bLight)
 						return cb();
+					// post-pemCurvesFixMci we no longer re-insert balances, and bAlreadyPostedByUnconfirmedAA is always false
 					var verb = bAlreadyPostedByUnconfirmedAA ? "REPLACE" : "INSERT";
-					var or_sent_by_aa = bAlreadyPostedByUnconfirmedAA ? "OR EXISTS (SELECT 1 FROM unit_authors CROSS JOIN aa_addresses USING(address) WHERE unit_authors.unit=outputs.unit)" : "";
+					const or_sent_by_aa = bAlreadyPostedByUnconfirmedAA ? "OR is_aa_response=1" : "";
+					// for AA-defined AAs, mci is the trigger mci whose triggers were already selected before this AA existed, so outputs on this mci can never trigger it and must be counted here.
+					// Also count payments from other AA responses (never primary triggers) except the defining unit's own, which arrives as a secondary trigger
+					const bImmediatelyVisible = bForAAsOnly && mci >= constants.pemCurvesFixMci;
+					const mci_cond = bImmediatelyVisible
+						? "(main_chain_index<=? OR is_aa_response=1) AND outputs.unit!=?"
+						: "(main_chain_index<? " + or_sent_by_aa + ")"; // "<" for regular AAs, not including the outputs on the current mci, which will trigger the AA and be accounted for separately
+					const params = bImmediatelyVisible ? [address, mci, unit] : [address, mci];
 					conn.query(
 						verb + " INTO aa_balances (address, asset, balance) \n\
 						SELECT address, IFNULL(asset, 'base'), SUM(CAST(amount AS DOUBLE)) AS balance \n\
 						FROM outputs \n\
 						CROSS JOIN units USING(unit) \n\
 						LEFT JOIN assets ON asset=assets.unit \n\
-						WHERE address=? AND is_spent=0 AND sequence='good' AND (main_chain_index<? " + or_sent_by_aa + ") AND (is_private=0 OR is_private IS NULL) \n\
-						GROUP BY address, asset", // not including the outputs on the current mci, which will trigger the AA and be accounted for separately
-						[address, mci],
+						WHERE address=? AND is_spent=0 AND sequence='good' AND " + mci_cond + " AND (is_private=0 OR is_private IS NULL) \n\
+						GROUP BY address, asset",
+						params,
 						function () {
 							conn.query(
 								"INSERT " + db.getIgnore() + " INTO addresses (address) VALUES (?)", [address],
