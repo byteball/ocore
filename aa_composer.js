@@ -1979,12 +1979,12 @@ function checkBalances() {
 				FROM aa_balances \n\
 				LEFT JOIN aa_outputs_balances USING(address, asset) \n\
 				GROUP BY aa_balances.address, aa_balances.asset \n\
-				HAVING balance != calculated_balance";
+				HAVING balance != IFNULL(calculated_balance, 0)";
 				var sql_outputs_to_balances = "SELECT aa_outputs_balances.address, aa_outputs_balances.asset, balance, calculated_balance \n\
 				FROM aa_outputs_balances \n\
 				LEFT JOIN aa_balances USING(address, asset) \n\
 				GROUP BY aa_outputs_balances.address, aa_outputs_balances.asset \n\
-				HAVING balance != calculated_balance";
+				HAVING IFNULL(balance, 0) != calculated_balance";
 				var sql_drop_temp = db.dropTemporaryTable("aa_outputs_balances");
 				
 				/*
