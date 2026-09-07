@@ -33,13 +33,15 @@ function MissingBounceFeesErrorMessage(obj) {
 
 function readAADefinitions(arrAddresses, handleRows) {
 	if (!handleRows)
-		return new Promise(resolve => readAADefinitions(arrAddresses, resolve));
+		return new Promise((resolve, reject) => readAADefinitions(arrAddresses, (err, rows) => {
+			err ? reject(err) : resolve(rows);
+		}));
 	arrAddresses = arrAddresses.filter(isValidAddress);
 	if (arrAddresses.length === 0)
-		return handleRows([]);
+		return handleRows(null, []);
 	db.query("SELECT definition, address, base_aa FROM aa_addresses WHERE address IN (" + arrAddresses.map(db.escape).join(', ') + ")", function (rows) {
 		if (!conf.bLight || arrAddresses.length === rows.length)
-			return handleRows(rows);
+			return handleRows(null, rows);
 		var arrKnownAAAdresses = rows.map(function (row) { return row.address; });
 		var arrRemainingAddresses = _.difference(arrAddresses, arrKnownAAAdresses);
 		var remaining_addresses_list = arrRemainingAddresses.map(db.escape).join(', ');
@@ -51,7 +53,7 @@ function readAADefinitions(arrAddresses, handleRows) {
 			SELECT shared_address AS address FROM shared_addresses WHERE shared_address IN(" + remaining_addresses_list + ")",
 			function (non_aa_rows) {
 				if (arrRemainingAddresses.length === non_aa_rows.length)
-					return handleRows(rows);
+					return handleRows(null, rows);
 				var arrKnownNonAAAddresses = non_aa_rows.map(function (row) { return row.address; });
 				arrRemainingAddresses = _.difference(arrRemainingAddresses, arrKnownNonAAAddresses);
 				var arrCachedNewAddresses = [];
@@ -66,14 +68,14 @@ function readAADefinitions(arrAddresses, handleRows) {
 				});
 				arrRemainingAddresses = _.difference(arrRemainingAddresses, arrCachedNewAddresses);
 				if (arrRemainingAddresses.length === 0)
-					return handleRows(rows);
+					return handleRows(null, rows);
 				async.each(
 					arrRemainingAddresses,
 					function (address, cb) {
 						network.requestFromLightVendor('light/get_definition', address, function (ws, request, response) {
 							if (response && response.error) { 
 								console.log('failed to get definition of ' + address + ': ' + response.error);
-								return cb();
+								return cb(response.error);
 							}
 							if (!response) {
 								cacheOfNewAddresses[address] = Date.now();
@@ -86,11 +88,11 @@ function readAADefinitions(arrAddresses, handleRows) {
 							}
 							catch (e) {
 								console.log("failed to calc definition hash of " + address + ": " + e.message);
-								return cb();
+								return cb("definition hash failed");
 							}
 							if (chash !== address) {
 								console.log("definition doesn't match address: " + address);
-								return cb();
+								return cb("definition doesn't match address: " + address);
 							}
 							var Definition = require("./definition.js");
 							var insert_cb = function () { cb(); };
@@ -106,8 +108,8 @@ function readAADefinitions(arrAddresses, handleRows) {
 								db.query("INSERT " + db.getIgnore() + " INTO definitions (definition_chash, definition, has_references) VALUES (?,?,?)", [address, strDefinition, Definition.hasReferences(arrDefinition) ? 1 : 0], insert_cb);
 						});
 					},
-					function () {
-						handleRows(rows);
+					function (err) {
+						handleRows(err, rows);
 					}
 				);
 			}
@@ -128,7 +130,9 @@ function checkAAOutputs(arrPayments, handleResult) {
 		});
 	});
 	var arrAddresses = Object.keys(assocAmounts);
-	readAADefinitions(arrAddresses, function (rows) {
+	readAADefinitions(arrAddresses, function (err, rows) {
+		if (err)
+			return handleResult(err);
 		if (rows.length === 0)
 			return handleResult();
 		var arrMissingBounceFees = [];
