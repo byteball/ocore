@@ -405,11 +405,11 @@ function pickIndivisibleCoinsForAmount(
 			throw Error("invalid last_ball_mci: "+last_ball_mci);
 		var confirmation_condition;
 		if (spend_unconfirmed === 'none')
-			confirmation_condition = 'AND main_chain_index<='+last_ball_mci+' AND +is_serial=1';
+			confirmation_condition = 'AND main_chain_index<='+last_ball_mci+' AND +is_serial=1 AND is_stable=1';
 		else if (spend_unconfirmed === 'all')
 			confirmation_condition = '';
 		else if (spend_unconfirmed === 'own')
-			confirmation_condition = 'AND ( main_chain_index<='+last_ball_mci+' AND +is_serial=1 OR EXISTS ( \n\
+			confirmation_condition = 'AND ( main_chain_index<='+last_ball_mci+' AND +is_serial=1 AND is_stable=1 OR EXISTS ( \n\
 				SELECT 1 FROM unit_authors CROSS JOIN my_addresses USING(address) WHERE unit_authors.unit=outputs.unit \n\
 				UNION \n\
 				SELECT 1 FROM unit_authors CROSS JOIN shared_addresses ON address=shared_address WHERE unit_authors.unit=outputs.unit \n\
