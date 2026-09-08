@@ -1980,6 +1980,8 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 				const createError = objValidationState.bAA ? err => err : createJointError;
 				if (payload.data === null)
 					return callback(createError("null data"));
+				if (!payload.data && (objValidationState.last_ball_mci >= constants.pemCurvesFixMci || !objValidationState.hasBall && storage.getMinRetrievableMci() >= constants.pemCurvesFixMci))
+					return callback(createError("falsy temp data: " + payload.data)); // getTotalPayloadSize() checks for thruthiness
 				try {
 					const len = objectLength.getLength(payload.data, true);
 					if (len !== payload.data_length)
