@@ -942,13 +942,14 @@ function insertAADefinitions(conn, arrPayloads, unit, mci, validation_mci, bForA
 						return cb();
 					// post-pemCurvesFixMci we no longer re-insert balances, and bAlreadyPostedByUnconfirmedAA is always false
 					var verb = bAlreadyPostedByUnconfirmedAA ? "REPLACE" : "INSERT";
-					const or_sent_by_aa = bAlreadyPostedByUnconfirmedAA ? "OR is_aa_response=1" : "";
+					// pre-fix, the defining AA unit's own outputs are already in the outputs table and would be double-counted with its secondary trigger
+					const or_sent_by_aa = (bAlreadyPostedByUnconfirmedAA || mci >= constants.pemCurvesFixMci) ? "OR is_aa_response=1" : "";
 					// for AA-defined AAs, mci is the trigger mci whose triggers were already selected before this AA existed, so outputs on this mci can never trigger it and must be counted here.
 					// Also count payments from other AA responses (never primary triggers) except the defining unit's own, which arrives as a secondary trigger
 					const bImmediatelyVisible = bForAAsOnly && mci >= constants.pemCurvesFixMci;
 					const mci_cond = bImmediatelyVisible
 						? "(main_chain_index<=? OR is_aa_response=1) AND outputs.unit!=?"
-						: "(main_chain_index<? " + or_sent_by_aa + ")"; // "<" for regular AAs, not including the outputs on the current mci, which will trigger the AA and be accounted for separately
+						: "(main_chain_index<? " + or_sent_by_aa + ")"; // "<" for regular AAs, not including the outputs on the current mci, which will trigger the AA and be accounted for separately; is_aa_response=1 captures outputs to the not-yet-AA by AA responses
 					const params = bImmediatelyVisible ? [address, mci, unit] : [address, mci];
 					conn.query(
 						verb + " INTO aa_balances (address, asset, balance) \n\
