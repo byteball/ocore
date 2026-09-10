@@ -1383,7 +1383,7 @@ function markMcIndexStable(conn, batch, mci, onDone){
 	function propagateFinalBad(arrFinalBadUnits, onPropagated){
 		if (arrFinalBadUnits.length === 0)
 			return onPropagated();
-		conn.query("SELECT DISTINCT inputs.unit, main_chain_index FROM inputs LEFT JOIN units USING(unit) WHERE src_unit IN(?)", [arrFinalBadUnits], function(rows){
+		conn.query("SELECT DISTINCT inputs.unit, main_chain_index FROM inputs LEFT JOIN units USING(unit) LEFT JOIN assets ON asset=assets.unit WHERE src_unit IN(?) AND (is_private=0 OR inputs.asset IS NULL)", [arrFinalBadUnits], function(rows){
 			console.log("will propagate final-bad to", rows);
 			if (rows.length === 0)
 				return onPropagated();
