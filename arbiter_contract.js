@@ -15,7 +15,7 @@ var eventBus = require('./event_bus.js');
 
 var status_PENDING = "pending";
 exports.CHARGE_AMOUNT = 4000;
-exports.NEW_HASH_DATE = '2026-09-01';
+exports.NEW_HASH_DATE = '2026-11-01';
 exports.DELIMITER = "[|#|]";
 
 function createAndSend(objContract, cb) {
