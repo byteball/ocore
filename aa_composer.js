@@ -1723,6 +1723,8 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 					var child_trigger = getTrigger(objUnit, row.address);
 					child_trigger.initial_address = trigger.initial_address;
 					child_trigger.initial_unit = trigger.initial_unit;
+					if ("max_aa_responses" in trigger && mci >= constants.pemCurvesFixMci) // propagate the cap set on the primary trigger to secondary triggers
+						child_trigger.max_aa_responses = trigger.max_aa_responses;
 					var arrChildDefinition = JSON.parse(row.definition);
 
 					var child_trigger_opts = { ...trigger_opts };
