@@ -3077,7 +3077,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 				return setFatalError("argument " + arg_name + " would shadow a local var", { arr: [] }, false, cb);
 			assignField(func_locals, arg_name, toOscriptType(value));
 		}
-		var saved_locals = _.clone(locals);
+		const saved_locals = { ...locals };
 		assignObject(locals, func_locals);
 		// bStateVarAssignmentAllowed is inherited, bStatementsOnly is ignored in functions
 		evaluate(func.body, res => {
@@ -3309,7 +3309,7 @@ function callGetter(conn, aa_address, getter, args, stateVars, objValidationStat
 	};
 
 	// no need to cloneDeep, we need to rewrite only storage size, assocBalances cache can be updated by reference
-	let objGetterValidationState = _.clone(objValidationState);
+	let objGetterValidationState = { ...objValidationState };
 	storage.readBaseAADefinitionAndParams(conn, aa_address, objValidationState.last_ball_mci, function (arrBaseDefinition, params, storage_size) {
 		if (!arrBaseDefinition)
 			return cb("remote AA not found: " + aa_address);

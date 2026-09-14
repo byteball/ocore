@@ -619,7 +619,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 		count++;
 		if (count % 100 === 0) // interrupt the call stack
 			return setImmediate(replace, obj, name, path, locals, xpath, cb);
-		locals = _.clone(locals);
+		locals = { ...locals };
 		var value = obj[name];
 		if (typeof name === 'string') {
 			xpath += '/' + name;
@@ -630,7 +630,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 					formula: f,
 					trigger: trigger,
 					params: params,
-					locals: _.clone(locals),
+					locals: { ...locals },
 					stateVars: stateVars,
 					responseVars: responseVars,
 					objValidationState: objValidationState,
@@ -709,7 +709,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 					var f = getFormula(acase.if);
 					if (f === null)
 						return cb2({message: "case if is not a formula: " + acase.if, xpath});
-					var locals_tmp = _.clone(locals); // separate copy for each iteration of eachSeries
+					const locals_tmp = { ...locals }; // separate copy for each iteration of eachSeries
 					var opts = {
 						conn: conn,
 						formula: f,
@@ -830,7 +830,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 				value,
 				function (elem, i, cb2) {
 					const nXpath = xpath + '/' + i;
-					replace(value, i, path, _.clone(locals), nXpath, cb2);
+					replace(value, i, path, { ...locals }, nXpath, cb2);
 				},
 				function (err) {
 					if (err)
@@ -852,7 +852,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 			async.eachSeries(
 				Object.keys(value).sort(),
 				function (key, cb2) {
-					replace(value, key, path + '/' + key, _.clone(locals), xpath, cb2);
+					replace(value, key, path + '/' + key, { ...locals }, xpath, cb2);
 				},
 				function (err) {
 					if (err)
