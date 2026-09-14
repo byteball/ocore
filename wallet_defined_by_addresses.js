@@ -360,6 +360,7 @@ function extractAddressPathsFromDefinition(arrDefinition) {
 						traverse(args.set[i].value, path + '.' + i);
 				break;
 			case 'address':
+			case 'cosigned by':
 				result[path] = args;
 				break;
 			case 'hash':
@@ -367,6 +368,12 @@ function extractAddressPathsFromDefinition(arrDefinition) {
 				break;
 			case 'in merkle':
 				result[path] = ''; // empty address
+				break;
+			case 'sig':
+				result[path] = 'sig'; // won't match body.signers and will be rejected
+				break;
+			case 'definition template':
+				result[path] = 'dt'; // won't match body.signers and will be rejected
 				break;
 		}
 	}
