@@ -3302,6 +3302,12 @@ function callGetter(conn, aa_address, getter, args, stateVars, objValidationStat
 		}
 	}
 
+	// prevent stack overflow on the ascent path if calling a long chain of getters
+	const orig_cb = cb;
+	cb = (err, res) => {
+		setImmediate(() => orig_cb(err, res));
+	};
+
 	// no need to cloneDeep, we need to rewrite only storage size, assocBalances cache can be updated by reference
 	let objGetterValidationState = _.clone(objValidationState);
 	storage.readBaseAADefinitionAndParams(conn, aa_address, objValidationState.last_ball_mci, function (arrBaseDefinition, params, storage_size) {
