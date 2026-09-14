@@ -1,11 +1,11 @@
-var shell = require('child_process').execSync;
 var path = require('path');
+var testdataFs = require('./_testdata_fs.js');
 var desktop_app = require('../desktop_app.js');
 desktop_app.getAppDataDir = function() { return __dirname + '/.testdata-' + path.basename(__filename); }
 
 // cleanup, if last time failed
 var dst_dir = __dirname + '/.testdata-' + path.basename(__filename);
-shell('rm -rf ' + dst_dir);
+testdataFs.removeTestdataDir(dst_dir);
 
 var definition = require("../definition");
 var formulaParser = require("../formula/index");
