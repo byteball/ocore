@@ -3013,6 +3013,8 @@ function handleJustsaying(ws, subject, body){
 				return sendError(ws, "max_message_length must be an integer");
 			if (objLogin.max_message_count && (!ValidationUtils.isPositiveInteger(objLogin.max_message_count) || objLogin.max_message_count > 100))
 				return sendError(ws, "max_message_count must be an integer > 0 and <= 100");
+			if (ValidationUtils.hasFieldsExcept(objLogin, ["challenge", "pubkey", "signature", "max_message_length", "max_message_count"]))
+				return sendError(ws, "unexpected fields in login object");
 			try {
 				if (!ecdsaSig.verify(objectHash.getDeviceMessageHashToSign(objLogin), objLogin.signature, objLogin.pubkey))
 					return sendError(ws, "wrong signature");
@@ -3519,6 +3521,8 @@ function handleRequest(ws, tag, command, params){
 				return sendErrorResponse(ws, tag, "invalid to address");
 			if (isTooDeeplyNestedOrHasTooManyNodes(objDeviceMessage, 5, 100))
 				return sendErrorResponse(ws, tag, "device message is too deeply nested or has too many nodes");
+			if (ValidationUtils.hasFieldsExcept(objDeviceMessage, ["signature", "pubkey", "to", "encrypted_package"]))
+				return sendErrorResponse(ws, tag, "unexpected fields in device message");
 			var bToMe = (my_device_address && my_device_address === objDeviceMessage.to);
 			if (!conf.bServeAsHub && !bToMe)
 				return sendErrorResponse(ws, tag, "I'm not a hub");
