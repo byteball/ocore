@@ -3001,7 +3001,7 @@ function handleJustsaying(ws, subject, body){
 			if (!conf.bServeAsHub)
 				return sendError(ws, "I'm not a hub");
 			var objLogin = body;
-			if (objLogin.challenge !== ws.challenge)
+			if (!ws.challenge || objLogin.challenge !== ws.challenge)
 				return sendError(ws, "wrong challenge");
 			if (!objLogin.pubkey || !objLogin.signature)
 				return sendError(ws, "no login params");
