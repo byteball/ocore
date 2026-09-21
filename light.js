@@ -293,11 +293,13 @@ function processHistory(objResponse, arrWitnesses, callbacks){
 			mutex.lock(["light_joints"], function(unlock){
 				var arrUnits = objResponse.joints.map(function(objJoint){ return objJoint.unit.unit; });
 				breadcrumbs.add('got light_joints for processHistory '+arrUnits.join(', '));
-				db.query("SELECT unit, is_stable FROM units WHERE unit IN("+arrUnits.map(db.escape).join(', ')+")", function(rows){
+				db.query("SELECT unit, is_stable, main_chain_index FROM units WHERE unit IN("+arrUnits.map(db.escape).join(', ')+")", function(rows){
 					var assocExistingUnits = {};
 					var assocStableUnits = {};
+					let assocMcis = {};
 					rows.forEach(function(row){
 						assocExistingUnits[row.unit] = true;
+						assocMcis[row.unit] = row.main_chain_index;
 						if (row.is_stable)
 							assocStableUnits[row.unit] = true;
 					});
@@ -325,13 +327,15 @@ function processHistory(objResponse, arrWitnesses, callbacks){
 						function(objJoint, cb2){
 							var objUnit = objJoint.unit;
 							var unit = objUnit.unit;
-							if (assocStableUnits[unit]) { // already processed before, don't emit stability again
+							if (objUnit.main_chain_index !== null && !ValidationUtils.isNonnegativeInteger(objUnit.main_chain_index))
+								return cb2("bad main_chain_index in unit " + unit);
+							if (assocStableUnits[unit] && (objUnit.main_chain_index ?? Infinity) >= assocMcis[unit]) { // already processed before, don't emit stability again
 								console.log('skipping known unit ' + unit);
 								return cb2();
 							}
 							// assocProvenUnitsNonserialness[unit] is true for non-serials, false for serials, undefined for unstable
 							var sequence = assocProvenUnitsNonserialness[unit] ? 'final-bad' : 'good';
-							if (assocProvenUnitsNonserialness.hasOwnProperty(unit))
+							if (assocProvenUnitsNonserialness.hasOwnProperty(unit) && !assocStableUnits[unit])
 								arrProvenUnits.push(unit);
 							if (assocExistingUnits[unit]){
 								//if (!assocProvenUnitsNonserialness[objUnit.unit]) // not stable yet
