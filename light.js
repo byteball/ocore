@@ -56,7 +56,7 @@ function prepareHistory(historyRequest, callbacks){
 		return callbacks.ifError("wrong number of witnesses");
 	if (minMci && !ValidationUtils.isNonnegativeInteger(minMci))
 		return callbacks.ifError("min_mci should be non negative integer");
-	if (minMci && minMci > storage.getLastStableMci()) { // corrupt light wallet
+	if (minMci && storage.getLastStableMci() !== null && minMci > storage.getLastStableMci()) { // corrupt light wallet
 		console.log(`minMci ${minMci} is greater than the last stable MCI ${storage.getLastStableMci()}, rewriting to 0`);
 		minMci = 0;
 	}
