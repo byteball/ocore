@@ -1688,7 +1688,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 							if (!row.is_on_main_chain && mci >= constants.pemCurvesFixMci) // last ball must be on the MC
 								return cb(false);
 							if (mci >= constants.pemCurvesFixMci && row.main_chain_index < constants.pemCurvesFixMci) // last ball unit is before the fix
-								return setFatalError("last ball unit is before the PEM curves fix", { arr }, false, cb);
+								return cb(false);
 						}
 						signed_message.validateSignedMessage(conn, signedPackage, evaluated_address, mci, function (err, last_ball_mci) {
 							if (err)
