@@ -810,7 +810,7 @@ function requestFromLightVendor(command, params, responseHandler){
 
 function getConnectionStatus(){
 	return {
-		incoming: wss.clients.size,
+		incoming: wss ? wss.clients.size : 0,
 		outgoing: arrOutboundPeers.length,
 		outgoing_being_opened: Object.keys(assocConnectingOutboundWebsockets).length
 	}
