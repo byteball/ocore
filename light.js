@@ -329,6 +329,8 @@ function processHistory(objResponse, arrWitnesses, callbacks){
 							var unit = objUnit.unit;
 							if (objUnit.main_chain_index !== null && !ValidationUtils.isNonnegativeInteger(objUnit.main_chain_index))
 								return cb2("bad main_chain_index in unit " + unit);
+							if (assocStableUnits[unit] && !assocProvenUnitsNonserialness.hasOwnProperty(unit))
+								return cb2("unproven update for a stable unit " + unit);
 							if (assocStableUnits[unit] && (objUnit.main_chain_index ?? Infinity) >= assocMcis[unit]) { // already processed before, don't emit stability again
 								console.log('skipping known unit ' + unit);
 								return cb2();
