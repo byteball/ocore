@@ -17,6 +17,7 @@ var writer = require('./writer.js');
 var conf = require('./conf.js');
 var profiler = require('./profiler.js');
 var inputs = require('./inputs.js');
+const { isPositiveInteger, isNonnegativeInteger } = require('./validation_utils.js');
 
 var hash_placeholder = "--------------------------------------------"; // 256 bits (32 bytes) base64: 44 bytes
 var sig_placeholder = "----------------------------------------------------------------------------------------"; // 88 bytes
@@ -305,6 +306,10 @@ function composeJoint(params){
 						return handleError(response.error); // cb is not called
 					if (!response.parent_units || !response.last_stable_mc_ball || !response.last_stable_mc_ball_unit || typeof response.last_stable_mc_ball_mci !== 'number')
 						return handleError("invalid parents from light vendor"); // cb is not called
+					if (!isPositiveInteger(response.timestamp))
+						return handleError("invalid timestamp from light vendor"); // cb is not called
+					if (response.last_stable_mc_ball_mci >= constants.v4UpgradeMci && !isNonnegativeInteger(response.tps_fee))
+						return handleError("invalid tps_fee from light vendor"); // cb is not called
 					lightProps = response;
 					cb();
 				}
@@ -614,6 +619,8 @@ async function estimateTpsFee(arrFromAddresses, arrOutputAddresses) {
 			output_addresses: arrOutputAddresses,
 			max_aa_responses,
 		});
+		if (response.last_stable_mc_ball_mci >= constants.v4UpgradeMci && !isNonnegativeInteger(response.tps_fee)) // null response also crashes
+			throw Error("invalid tps_fee from light vendor");
 		return (response.last_stable_mc_ball_mci >= constants.v4UpgradeMci) ? response.tps_fee : 0;
 	}
 	const timestamp = Math.round(Date.now() / 1000);
@@ -855,6 +862,10 @@ function composeAuthorsAndMciForAddresses(conn, arrFromAddresses, signer, cb) {
 						return cb(response.error);
 					if (!response.parent_units || !response.last_stable_mc_ball || !response.last_stable_mc_ball_unit || typeof response.last_stable_mc_ball_mci !== 'number')
 						return cb("invalid parents from light vendor");
+					if (!isPositiveInteger(response.timestamp))
+						return cb("invalid timestamp from light vendor");
+					if (response.last_stable_mc_ball_mci >= constants.v4UpgradeMci && !isNonnegativeInteger(response.tps_fee))
+						return cb("invalid tps_fee from light vendor");
 					composeAuthorsForAddresses(conn, arrFromAddresses, response.last_stable_mc_ball_mci, response.last_stable_mc_ball_unit, signer, cb);
 				}
 			);
