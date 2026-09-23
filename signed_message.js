@@ -126,7 +126,8 @@ function validateSignedMessage(conn, objSignedMessage, address, mci, handleResul
 			conn = db;
 		}
 	}
-	const max_complexity = (mci >= constants.pemCurvesFixMci) ? 10 : 0;
+	const bPostPemCurvesFix = mci >= constants.pemCurvesFixMci; // false if mci is undefined
+	const max_complexity = bPostPemCurvesFix ? 10 : 0;
 	if (!ValidationUtils.isNonemptyObject(objSignedMessage))
 		return handleResult("signed message must be a non-empty object");
 	if (ValidationUtils.hasFieldsExcept(objSignedMessage, ["signed_message", "authors", "last_ball_unit", "timestamp", "version"]))
@@ -135,6 +136,8 @@ function validateSignedMessage(conn, objSignedMessage, address, mci, handleResul
 		return handleResult("no signed message");
 	if ("version" in objSignedMessage && constants.supported_versions.indexOf(objSignedMessage.version) === -1)
 		return handleResult("unsupported version: " + JSON.stringify(objSignedMessage.version));
+	if ((!objSignedMessage.version || objSignedMessage.version === constants.versionWithoutTimestamp) && bPostPemCurvesFix)
+		return handleResult("version=1.0 or versionless not allowed any more"); // getSourceString allows malleable content
 	var authors = objSignedMessage.authors;
 	if (!ValidationUtils.isNonemptyArray(authors))
 		return handleResult("no authors");
@@ -248,7 +251,7 @@ function validateSignedMessage(conn, objSignedMessage, address, mci, handleResul
 				return handleResult("failed to calc address definition hash: " + e);
 			}
 			// no last_ball_unit of its own; before the fix, always behave as before (-1) to keep old units re-evaluating the same way
-			cb(objAuthor.definition, (mci >= constants.pemCurvesFixMci) ? mci : -1, 0);
+			cb(objAuthor.definition, bPostPemCurvesFix ? mci : -1, 0);
 		}
 	}
 
