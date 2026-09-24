@@ -99,7 +99,7 @@ async function deleteMciRows(conn, mci_table_spec, min_last_ball_mci) {
 // local AUTOINCREMENT surrogate keys, not referenced by any other table, that get reassigned new
 // values on restore (aa_response_id is just a monotonic ordering seq) - exclude from INSERT and
 // from the post-restore verification diff, since the new values are expected to differ from the dump
-const LOCAL_AUTOINCREMENT_COLUMNS = ['output_id', 'aa_response_id'];
+const LOCAL_AUTOINCREMENT_COLUMNS = ['output_id'];
 
 async function insertRows(conn, table, rows) {
 	if (rows.length === 0)
