@@ -96,12 +96,15 @@ async function deleteMciRows(conn, mci_table_spec, min_last_ball_mci) {
 	return await conn.query('DELETE FROM ' + mci_table_spec.table + ' WHERE ' + mci_table_spec.mci_column + '>=?', [min_last_ball_mci]);
 }
 
+// local AUTOINCREMENT surrogate keys, not referenced by any other table, that get reassigned new
+// values on restore (aa_response_id is just a monotonic ordering seq) - exclude from INSERT and
+// from the post-restore verification diff, since the new values are expected to differ from the dump
+const LOCAL_AUTOINCREMENT_COLUMNS = ['output_id', 'aa_response_id'];
+
 async function insertRows(conn, table, rows) {
 	if (rows.length === 0)
 		return;
-	// outputs.output_id and aa_responses.aa_response_id are local AUTOINCREMENT surrogate keys, not
-	// referenced by any other table (aa_response_id is just a monotonic ordering seq), let them be reassigned
-	const columns = Object.keys(rows[0]).filter(column => column !== 'output_id' && column !== 'aa_response_id');
+	const columns = Object.keys(rows[0]).filter(column => !LOCAL_AUTOINCREMENT_COLUMNS.includes(column));
 	const sql = 'INSERT INTO ' + table + ' (' + columns.join(', ') + ') VALUES (' + columns.map(() => '?').join(', ') + ')';
 	for (let row of rows)
 		await conn.query(sql, columns.map(column => row[column]));
@@ -366,6 +369,7 @@ function kvBatchPut(arrEntries) {
 }
 
 exports.TABLE_SPECS = TABLE_SPECS;
+exports.LOCAL_AUTOINCREMENT_COLUMNS = LOCAL_AUTOINCREMENT_COLUMNS;
 exports.MCI_TABLE_SPECS = MCI_TABLE_SPECS;
 exports.selectRows = selectRows;
 exports.deleteRows = deleteRows;

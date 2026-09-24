@@ -46,7 +46,13 @@ function runInTransaction(doWork) {
 }
 
 function sortedStringifiedRows(rows) {
-	return rows.map(row => JSON.stringify(row)).sort();
+	// output_id/aa_response_id get reassigned new values on restore (see insertRows), so they must be
+	// excluded here too, or every row would spuriously mismatch
+	return rows.map(row => {
+		const filtered = { ...row };
+		archive.LOCAL_AUTOINCREMENT_COLUMNS.forEach(column => delete filtered[column]);
+		return JSON.stringify(filtered);
+	}).sort();
 }
 
 function rowsEqual(rowsA, rowsB) {
