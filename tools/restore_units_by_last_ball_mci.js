@@ -61,6 +61,18 @@ function rowsEqual(rowsA, rowsB) {
 	return a.length === b.length && a.every((s, i) => s === b[i]);
 }
 
+// writes both sides of a mismatch to pretty-printed json files (same sort order as rowsEqual used to
+// compare them) so they can be diffed directly, e.g. `diff <table>_expected.json <table>_actual.json`
+function writeMismatchFiles(table, arrExpectedRows, arrActualRows) {
+	const arrExpected = sortedStringifiedRows(arrExpectedRows).map(s => JSON.parse(s));
+	const arrActual = sortedStringifiedRows(arrActualRows).map(s => JSON.parse(s));
+	const expected_file = table + '_expected.json';
+	const actual_file = table + '_actual.json';
+	fs.writeFileSync(expected_file, JSON.stringify(arrExpected, null, 2));
+	fs.writeFileSync(actual_file, JSON.stringify(arrActual, null, 2));
+	console.log('    wrote ' + expected_file + ' and ' + actual_file + ' for diffing');
+}
+
 async function main() {
 	console.log('reading dump file ' + dump_file + ' ...');
 	const dump = JSON.parse(fs.readFileSync(dump_file, 'utf8'));
@@ -165,16 +177,20 @@ async function main() {
 		const arrExpectedRows = dump.tables[table_spec.table] || [];
 		const arrActualRows = await archive.selectRows(table_spec, arrUnits);
 		const bOk = rowsEqual(arrExpectedRows, arrActualRows);
-		if (!bOk)
+		if (!bOk) {
 			bAllOk = false;
+			writeMismatchFiles(table_spec.table, arrExpectedRows, arrActualRows);
+		}
 		console.log('  ' + table_spec.table + ': ' + (bOk ? 'OK' : 'MISMATCH, expected ' + arrExpectedRows.length + ' got ' + arrActualRows.length));
 	}
 	for (let mci_table_spec of archive.MCI_TABLE_SPECS) {
 		const arrExpectedRows = dump_mci_tables[mci_table_spec.table] || [];
 		const arrActualRows = await archive.selectMciRows(mci_table_spec, dump.min_last_ball_mci);
 		const bOk = rowsEqual(arrExpectedRows, arrActualRows);
-		if (!bOk)
+		if (!bOk) {
 			bAllOk = false;
+			writeMismatchFiles(mci_table_spec.table, arrExpectedRows, arrActualRows);
+		}
 		console.log('  ' + mci_table_spec.table + ': ' + (bOk ? 'OK' : 'MISMATCH, expected ' + arrExpectedRows.length + ' got ' + arrActualRows.length));
 	}
 	for (let entry of dump.kv.joints.concat(dump.kv.data_feeds)) {
