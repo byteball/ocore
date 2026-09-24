@@ -48,7 +48,7 @@ const TABLE_SPECS = [
 	{ table: 'sent_mnemonics', columns: ['unit'] },
 	{ table: 'messages', columns: ['unit'] },
 	{ table: 'unit_witnesses', columns: ['unit'] },
-	{ table: 'authentifiers', columns: ['unit'] },
+//	{ table: 'authentifiers', columns: ['unit'] },
 	{ table: 'unit_authors', columns: ['unit'] },
 	{ table: 'witness_list_hashes', columns: ['witness_list_unit'] },
 	{ table: 'skiplist_units', columns: ['unit', 'skiplist_unit'] },
