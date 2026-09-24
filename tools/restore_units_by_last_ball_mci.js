@@ -11,6 +11,7 @@
 //   --force  proceed even if external references into the pruned set are detected (dangerous)
 const fs = require('fs');
 const readline = require('readline');
+const _ = require('lodash');
 const db = require('../db.js');
 const archive = require('./lib/unit_mci_archive.js');
 
@@ -45,27 +46,36 @@ function runInTransaction(doWork) {
 	});
 }
 
-function sortedStringifiedRows(rows) {
-	// output_id/aa_response_id get reassigned new values on restore (see insertRows), so they must be
-	// excluded here too, or every row would spuriously mismatch
-	return rows.map(row => {
-		const filtered = { ...row };
-		archive.LOCAL_AUTOINCREMENT_COLUMNS.forEach(column => delete filtered[column]);
-		return JSON.stringify(filtered);
-	}).sort();
+// SELECT * column order isn't guaranteed to be the same between the dump-time query and the
+// post-restore verification query, so keys are sorted here to get an order-independent, stable
+// representation for both sorting/pairing rows and diffing them
+function canonicalRow(row) {
+	const filtered = { ...row };
+	archive.LOCAL_AUTOINCREMENT_COLUMNS.forEach(column => delete filtered[column]);
+	const sorted = {};
+	Object.keys(filtered).sort().forEach(column => { sorted[column] = filtered[column]; });
+	return sorted;
+}
+
+function sortedCanonicalRows(rows) {
+	return rows.map(canonicalRow).sort((a, b) => {
+		const sa = JSON.stringify(a);
+		const sb = JSON.stringify(b);
+		return sa < sb ? -1 : (sa > sb ? 1 : 0);
+	});
 }
 
 function rowsEqual(rowsA, rowsB) {
-	const a = sortedStringifiedRows(rowsA);
-	const b = sortedStringifiedRows(rowsB);
-	return a.length === b.length && a.every((s, i) => s === b[i]);
+	const a = sortedCanonicalRows(rowsA);
+	const b = sortedCanonicalRows(rowsB);
+	return a.length === b.length && a.every((row, i) => _.isEqual(row, b[i]));
 }
 
 // writes both sides of a mismatch to pretty-printed json files (same sort order as rowsEqual used to
 // compare them) so they can be diffed directly, e.g. `diff <table>_expected.json <table>_actual.json`
 function writeMismatchFiles(table, arrExpectedRows, arrActualRows) {
-	const arrExpected = sortedStringifiedRows(arrExpectedRows).map(s => JSON.parse(s));
-	const arrActual = sortedStringifiedRows(arrActualRows).map(s => JSON.parse(s));
+	const arrExpected = sortedCanonicalRows(arrExpectedRows);
+	const arrActual = sortedCanonicalRows(arrActualRows);
 	const expected_file = table + '_expected.json';
 	const actual_file = table + '_actual.json';
 	fs.writeFileSync(expected_file, JSON.stringify(arrExpected, null, 2));
