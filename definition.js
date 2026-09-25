@@ -742,6 +742,8 @@ function validateAuthentifiers(conn, address, this_asset, arrDefinition, objUnit
 				if (algo === 'secp256k1'){
 					if (objValidationState.bUnsigned && signature[0] === "-") // placeholder signature
 						return cb2(true);
+					if (!isValidBase64(signature, constants.SIG_LENGTH) && (objValidationState.last_ball_mci >= constants.pemCurvesFixMci|| !objValidationState.hasBall && storage.getMinRetrievableMci() >= constants.pemCurvesFixMci))
+						return cb2(false); // require canonical base64, otherwise it can be modified without breaking the signature but producing a different unit hash
 					var res = ecdsaSig.verify(objValidationState.unit_hash_to_sign, signature, args.pubkey);
 					if (!res)
 						fatal_error = "bad signature at path "+path;
