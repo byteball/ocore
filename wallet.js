@@ -393,6 +393,9 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					ifMerkle: function(bLocal){
 						callbacks.ifError("there is merkle proof at signing path "+body.signing_path);
 					},
+					ifSecret: function () {
+						callbacks.ifError("there is a secret at signing path " + body.signing_path);
+					},
 					ifUnknownAddress: function(){
 						callbacks.ifError("not aware of address "+body.address+" but will see if I learn about it later");
 						eventBus.once("new_address-"+body.address, function(){
