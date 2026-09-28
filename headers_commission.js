@@ -85,7 +85,12 @@ function calcHeadersCommissions(conn, onDone){
 					function(rows){
 						// in-memory
 						var assocChildrenInfosRAM = {};
-						var arrParentUnits = storage.assocStableUnitsByMci[since_mc_index+1].filter(function(props){return props.sequence === 'good'});
+						// merge all already-stable mcis so an all-final-bad mci in between doesn't stall max_spendable_mci.
+						// Only payer mcis whose _next_ mc unit is already stable, like the sql query
+						let arrStableUnits = [];
+						for (let mci = since_mc_index + 1; storage.assocStableUnitsByMci[mci + 1]; mci++)
+							arrStableUnits = arrStableUnits.concat(storage.assocStableUnitsByMci[mci]);
+						const arrParentUnits = arrStableUnits.filter(props => props.sequence === 'good');
 						arrParentUnits.forEach(function(parent){
 							if (!assocChildrenInfosRAM[parent.unit]) {
 								if (!storage.assocStableUnitsByMci[parent.main_chain_index+1]) { // hack for genesis unit where we lose hc
@@ -229,7 +234,7 @@ function calcHeadersCommissions(conn, onDone){
 					if (conf.bFaster)
 						return cb();
 					conn.query("SELECT DISTINCT main_chain_index FROM units CROSS JOIN headers_commission_contributions USING(unit) WHERE main_chain_index>?", [since_mc_index], function(contrib_rows){
-						if (contrib_rows.length === 1 && contrib_rows[0].main_chain_index === since_mc_index+1 || since_mc_index === 0)
+						if (contrib_rows.length === 1 && contrib_rows[0].main_chain_index >= since_mc_index+1 || since_mc_index === 0 || contrib_rows.length === 0)
 							return cb();
 						throwError("since_mc_index="+since_mc_index+" but contributions have mcis "+contrib_rows.map(function(r){ return r.main_chain_index}).join(', '));
 					});
