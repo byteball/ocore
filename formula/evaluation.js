@@ -2368,7 +2368,10 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 							if (fatal_error)
 								return cb(false);
 							var bArray = Array.isArray(res.obj);
-							var arrElements = bArray ? res.obj : Object.keys(res.obj).sort();
+							var obj = res.obj;
+							if (bPostPemCurvesFix)
+								obj = bArray ? [...obj] : { ...obj }; // shallow copy in case any elements are deleted during iteration
+							var arrElements = bArray ? obj : Object.keys(obj).sort();
 							if (arrElements.length > count)
 								return setFatalError("found " + arrElements.length + " elements in object, only up to " + count + " allowed", { arr }, false, cb);
 							evaluate(bReduce ? initial_value_expr : "", initial_value => {
@@ -2391,7 +2394,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 											}
 											else {
 												var key = element;
-												var value = toOscriptType(res.obj[element]);
+												var value = toOscriptType(obj[element]);
 											}
 											if (value instanceof wrappedObject && res.frozen)
 												value.frozen = true;
@@ -2437,7 +2440,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 													if (bArray)
 														retValue.push(string_utils.cloneDeep(element));
 													else
-														assignField(retValue, element, string_utils.cloneDeep(res.obj[element]));
+														assignField(retValue, element, string_utils.cloneDeep(obj[element]));
 												}
 											}
 											else if (bReduce) {

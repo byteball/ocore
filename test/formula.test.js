@@ -5897,6 +5897,48 @@ test('reduce over object', t => {
 	})
 });
 
+test('reduce over array whose elements are deleted during iteration', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$a = [1, 2, 3];
+		$r = reduce($a, 5, ($acc, $e) => {delete($acc, 0); $acc}, $a);
+		$r
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, []);
+	})
+});
+
+test('reduce over object whose keys are deleted during iteration', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$o = {a: 1, b: 2, c: 3};
+		$r = reduce($o, 5, ($acc, $k, $v) => {delete($acc, 'b'); $acc}, $o);
+		$r
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, {a: 1, c: 3});
+	})
+});
+
+test('reduce over object whose current key is deleted during iteration', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
+	var locals = { };
+	var formula = `
+		$o = {a: 1, b: 2, c: 3};
+		$r = reduce($o, 5, ($acc, $k, $v) => {delete($acc, $k); $acc}, $o);
+		$r
+	`;
+	evalFormulaWithVars({ conn: null, formula, trigger, locals, stateVars, objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU' }, (res, complexity, count_ops, val_locals) => {
+		t.deepEqual(res, {});
+	})
+});
+
 test.cb('objects in state vars', t => {
 	var trigger = { data: { q: { a: 6 } } };
 	var stateVars = { MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: { s: { value: new Decimal(10) } } };
