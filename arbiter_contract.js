@@ -140,7 +140,7 @@ function respond(hash, status, signedMessageBase64, signer, cb) {
 		if (status === "accepted") {
 			device.getOrGeneratePermanentPairingInfo(function(pairingInfo){
 				var pairing_code = pairingInfo.device_pubkey + "@" + pairingInfo.hub + "#" + pairingInfo.pairing_secret;
-				setField(objContract.hash, "my_pairing_code", pairing_code);
+				setField(objContract.hash, "my_pairing_code", pairing_code, null, true);
 				composer.composeAuthorsAndMciForAddresses(db, [objContract.my_address], signer, function(err, authors) {
 					if (err) {
 						return cb(err);
