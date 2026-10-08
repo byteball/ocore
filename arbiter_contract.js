@@ -76,7 +76,7 @@ function getAllByPeerAddress(address, cb) {
 }
 
 function setField(hash, field, value, cb, skipSharing) {
-	if (!["status", "shared_address", "unit", "my_contact_info", "peer_contact_info", "peer_pairing_code", "resolution_unit", "cosigners"].includes(field)) {
+	if (!["status", "shared_address", "unit", "my_contact_info", "peer_contact_info", "my_pairing_code", "peer_pairing_code", "resolution_unit", "cosigners"].includes(field)) {
 		throw new Error("wrong field for setField method");
 	}
 	db.query("UPDATE wallet_arbiter_contracts SET " + field + "=? WHERE hash=?", [value, hash], function(res) {
