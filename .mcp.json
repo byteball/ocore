@@ -1,0 +1,15 @@
+{
+	"mcpServers": {
+		"obyte": {
+			"type": "local",
+			"command": "npx",
+			"args": [
+				"-y",
+				"obyte-mcp"
+			],
+			"tools": [
+				"*"
+			]
+		}
+	}
+}
