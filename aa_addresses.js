@@ -119,8 +119,11 @@ function readAADefinitions(arrAddresses, handleRows) {
 
 function checkAAOutputs(arrPayments, handleResult) {
 	var assocAmounts = {};
+	let assocAssets = {};
 	arrPayments.forEach(function (payment) {
 		var asset = payment.asset || 'base';
+		if (asset !== 'base')
+			assocAssets[asset] = true;
 		payment.outputs.forEach(function (output) {
 			if (!assocAmounts[output.address])
 				assocAmounts[output.address] = {};
@@ -129,6 +132,7 @@ function checkAAOutputs(arrPayments, handleResult) {
 			assocAmounts[output.address][asset] += output.amount;
 		});
 	});
+	const arrAssets = Object.keys(assocAssets);
 	var arrAddresses = Object.keys(assocAmounts);
 	readAADefinitions(arrAddresses, function (err, rows) {
 		if (err)
@@ -149,9 +153,15 @@ function checkAAOutputs(arrPayments, handleResult) {
 					arrMissingBounceFees.push({ address: row.address, asset: asset, missing_amount: bounce_fees[asset] - amount, recommended_amount: bounce_fees[asset] });
 			}
 		});
-		if (arrMissingBounceFees.length === 0)
+		if (arrMissingBounceFees.length > 0)
+			return handleResult(new MissingBounceFeesErrorMessage({ error: "The amounts are less than bounce fees", missing_bounce_fees: arrMissingBounceFees }));
+		if (arrAssets.length === 0)
 			return handleResult();
-		handleResult(new MissingBounceFeesErrorMessage({ error: "The amounts are less than bounce fees", missing_bounce_fees: arrMissingBounceFees }));
+		db.query("SELECT 1 FROM assets WHERE asset IN(?) AND is_private=1", [arrAssets], rows => {
+			if (rows.length > 0)
+				return handleResult("Private payments can't be combined with payments to an AA");
+			return handleResult();
+		});
 	});
 }
 
