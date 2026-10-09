@@ -810,6 +810,9 @@ function handlePairingMessage(json, device_pubkey, callbacks){
 		return callbacks.ifError("no device_name when pairing");
 	if (body.device_name.length > 100)
 		return callbacks.ifError("device_name too long");
+	const safe_device_name = body.device_name.replace(/<[^>]*>?/g, '').replace(/[\s\u0085]+/g, ' ').trim();
+	if (!safe_device_name)
+		return callbacks.ifError("empty device_name");
 	if ("reverse_pairing_secret" in body && !ValidationUtils.isNonemptyString(body.reverse_pairing_secret))
 		return callbacks.ifError("bad reverse pairing secret");
 	eventBus.emit("pairing_attempt", from_address, body.pairing_secret);
@@ -820,7 +823,6 @@ function handlePairingMessage(json, device_pubkey, callbacks){
 			if (pairing_rows.length === 0)
 				return callbacks.ifError("pairing secret not found or expired");
 			// add new correspondent and delete pending pairing
-			var safe_device_name = body.device_name.replace(/<[^>]*>?/g, '');
 			db.query(
 				"INSERT "+db.getIgnore()+" INTO correspondent_devices (device_address, pubkey, hub, name, is_confirmed) VALUES (?,?,?,?,1)", 
 				[from_address, device_pubkey, json.device_hub, safe_device_name],
