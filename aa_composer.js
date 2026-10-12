@@ -505,8 +505,8 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 					}
 					conn.addQuery(
 						arrQueries,
-						"UPDATE aa_balances SET balance=balance+? WHERE address=? AND asset=? ",
-						[trigger.outputs[row.asset], address, row.asset]
+						`UPDATE aa_balances SET balance=balance+${trigger.outputs[row.asset]} WHERE address=? AND asset=?`,
+						[address, row.asset]
 					);
 					objValidationState.assocBalances[address][row.asset] = row.balance + trigger.outputs[row.asset];
 					if (objValidationState.assocBalances[address][row.asset] > MAX_BALANCE)
@@ -575,7 +575,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 		}
 		for (var asset in assocDeltas) {
 			if (assocDeltas[asset]) {
-				conn.addQuery(arrQueries, "UPDATE aa_balances SET balance=balance+? WHERE address=? AND asset=?", [assocDeltas[asset], address, asset]);
+				conn.addQuery(arrQueries, `UPDATE aa_balances SET balance=balance+${assocDeltas[asset]} WHERE address=? AND asset=?`, [address, asset]);
 				if (!objValidationState.assocBalances[address][asset])
 					objValidationState.assocBalances[address][asset] = 0;
 				objValidationState.assocBalances[address][asset] += assocDeltas[asset];
