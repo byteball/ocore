@@ -2508,7 +2508,10 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 					if (typeof date !== 'string')
 						return cb(false);
 					var ts;
-					if (date.match(/^\d\d\d\d-\d\d-\d\d$/)) {
+					const isDateOnly = date.match(/^\d\d\d\d-\d\d-\d\d$/);
+					if (isDateOnly && !bPostPemCurvesFix)
+						ts = Date.parse(date);
+					else if (isDateOnly) {
 						const [year, month, day] = date.split('-').map(Number);
 						const d = new Date(0);
 						d.setUTCFullYear(year, month - 1, day);
