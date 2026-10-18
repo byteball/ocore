@@ -1690,7 +1690,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 							if (mci >= constants.pemCurvesFixMci && row.main_chain_index < constants.pemCurvesFixMci) // last ball unit is before the fix
 								return cb(false);
 						}
-						signed_message.validateSignedMessage(conn, signedPackage, evaluated_address, mci, function (err, last_ball_mci) {
+						signed_message.validateSignedMessage(conn, signedPackage, evaluated_address, { mci, timestamp: objValidationState.last_ball_timestamp }, function (err, last_ball_mci) {
 							if (err)
 								return cb(false);
 							if (last_ball_mci === null || last_ball_mci > mci)

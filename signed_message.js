@@ -114,11 +114,11 @@ function signMessage(message, from_address, signer, bNetworkAware, handleResult)
 
 
 
-function validateSignedMessage(conn, objSignedMessage, address, mci, handleResult) {
+function validateSignedMessage(conn, objSignedMessage, address, at, handleResult) {
 	if (!handleResult) {
-		if (mci) { // validateSignedMessage(conn, objSignedMessage, address, handleResult)
-			handleResult = mci;
-			mci = undefined;
+		if (at) { // validateSignedMessage(conn, objSignedMessage, address, handleResult)
+			handleResult = at;
+			at = undefined;
 		}
 		else { // validateSignedMessage(objSignedMessage, handleResult)
 			handleResult = objSignedMessage;
@@ -126,6 +126,7 @@ function validateSignedMessage(conn, objSignedMessage, address, mci, handleResul
 			conn = db;
 		}
 	}
+	const { mci, timestamp } = at || {};
 	const bPostPemCurvesFix = mci >= constants.pemCurvesFixMci; // false if mci is undefined
 	const max_complexity = bPostPemCurvesFix ? 10 : 0;
 	if (!ValidationUtils.isNonemptyObject(objSignedMessage))
@@ -251,7 +252,7 @@ function validateSignedMessage(conn, objSignedMessage, address, mci, handleResul
 				return handleResult("failed to calc address definition hash: " + e);
 			}
 			// no last_ball_unit of its own; before the fix, always behave as before (-1) to keep old units re-evaluating the same way
-			cb(objAuthor.definition, bPostPemCurvesFix ? mci : -1, 0);
+			cb(objAuthor.definition, bPostPemCurvesFix ? mci : -1, bPostPemCurvesFix ? timestamp : 0);
 		}
 	}
 
