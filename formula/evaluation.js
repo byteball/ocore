@@ -96,6 +96,12 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 	const bAA = (mci >= constants.pemCurvesFixMci) ? !opts.messages : (messages.length === 0);
 	if (!bAA && (bStatementsOnly || bStateVarAssignmentAllowed || bObjectResultAllowed))
 		throw Error("bad opts for non-AA");
+	if (!bAA) { // crash if we try to access AA-specific features
+		stateVars = null;
+		aa_params = null;
+		trigger = { data: trigger.data }; // drop all other trigger fields for non-AA
+		objResponseUnit = null;
+	}
 
 	var bLimitedPrecision = (mci < constants.aa2UpgradeMci);
 
@@ -1508,6 +1514,8 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 				});
 
 				function readBalance(param_address, bal_asset, cb2) {
+					if (!bAA)
+						throw Error("balance can only be read in AAs");
 					if (bal_asset !== 'base' && !ValidationUtils.isValidBase64(bal_asset, constants.HASH_LENGTH))
 						return setFatalError('bad asset ' + bal_asset, { arr }, false, cb);
 
