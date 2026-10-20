@@ -1409,6 +1409,8 @@ exports.validate = function (opts, callback) {
 			parseFunctionDeclaration(arglist, body, cb);
 		}
 		else if (func_expr[0] === 'remote_func') {
+			if (!bAA && (mci >= constants.pemCurvesFixMci || require('../storage.js').getMinRetrievableMci() >= constants.pemCurvesFixMci))
+				return cb("remote func call in callbacks allowed in AAs only");
 			var remote_aa = func_expr[1];
 			var max_remote_complexity = func_expr[2];
 			var func_name = func_expr[3];
