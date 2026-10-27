@@ -27,20 +27,20 @@
     "secp256k1": "secp256k1/elliptic"
   },
   "dependencies": {
+    "@harperfast/rocksdb-js": "^2.12.0",
     "async": "^2.6.4",
-    "decimal.js": "10.6.0",
     "bitcore-mnemonic": "~1.0.0",
+    "decimal.js": "10.6.0",
     "dotenv": "5.0.1",
     "https-proxy-agent": "^7.0.6",
-    "socks-proxy-agent": "^8.0.5",
     "jszip": "^3.10.1",
-    "level-rocksdb": "^5",
     "lodash": "^4.18.1",
     "moo": "0.5.1",
     "mysql": "^2.18.1",
     "nearley": "2.16.0",
     "nodemailer": "^6.10.1",
     "secp256k1": "^4.0.3",
+    "socks-proxy-agent": "^8.0.5",
     "sqlite3": "^5.1.7",
     "thirty-two": "^1.0.2",
     "ws": "^8.21.0"

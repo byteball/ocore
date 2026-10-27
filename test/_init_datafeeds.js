@@ -4,7 +4,7 @@ var constants = require("../constants.js");
 var kvstore = require("../kvstore");
 var string_utils = require("../string_utils");
 var db = require("../db");
-var rocksdb = require('rocksdb');
+var fs = require('fs');
 var app_data_dir = require('../desktop_app.js').getAppDataDir();
 var path = app_data_dir + '/rocksdb';
 
@@ -123,12 +123,11 @@ test.after.always.cb(t => {
 	kvstore.close(() => {
 		console.log("kvstore closed");
 		setTimeout(() => {
-			rocksdb.destroy(path, function(err){
-				console.log('db destroy result: '+(err || 'ok'));
-				db.close(() => {
-					// shell('rm -r ' + app_data_dir); // was throwing errors on Windows, now old data gets deleted before each run
-					t.end();
-				});
+			fs.rmSync(path, { recursive: true, force: true });
+			console.log('db destroy result: ok');
+			db.close(() => {
+				// shell('rm -r ' + app_data_dir); // was throwing errors on Windows, now old data gets deleted before each run
+				t.end();
 			});
 		}, 100);
 	});
