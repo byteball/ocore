@@ -105,7 +105,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 
 	var bLimitedPrecision = (mci < constants.aa2UpgradeMci);
 
-	const bPostPemCurvesFix = mci >= constants.pemCurvesFixMci || !bAA && !objValidationState.hasBall && storage.getMinRetrievableMci() >= constants.pemCurvesFixMci;
+	const bPostPemCurvesFix = mci >= constants.pemCurvesFixMci || !bAA && storage.getMinRetrievableMci() >= constants.pemCurvesFixMci;
 
 	var parser = {};
 	if(cache[formula]){
