@@ -2081,7 +2081,7 @@ function validatePayment(conn, payload, message_index, objUnit, objValidationSta
 	
 	var arrAuthorAddresses = objUnit.authors.map(function(author) { return author.address; } );
 	// note that light clients cannot check attestations
-	const mci = (objValidationState.bAA && (objValidationState.aa_mci >= constants.pemCurvesFixMci || constants.bTestnet && objValidationState.aa_mci === 1120088)) ? objValidationState.aa_mci : objValidationState.last_ball_mci;
+	const mci = (objValidationState.bAA && (objValidationState.aa_mci >= constants.pemCurvesFixMci || constants.bTestnet && [1120088, 1230819].includes(objValidationState.aa_mci))) ? objValidationState.aa_mci : objValidationState.last_ball_mci;
 	storage.loadAssetWithListOfAttestedAuthors(conn, payload.asset, mci, arrAuthorAddresses, objValidationState.bAA, function(err, objAsset){
 		if (err)
 			return callback(err);

@@ -2895,7 +2895,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 			if (!hasOwnProperty(pointer, key) || pointer[key] === null) {
 				if (typeof key === 'number' && key > 0 && (pointer[key - 1] === undefined || pointer[key - 1] === null))
 					throw Error("previous key value " + (key - 1) + " not set");
-				if (Array.isArray(pointer) && typeof key !== 'number')
+				if (Array.isArray(pointer) && typeof key !== 'number' && !(constants.bTestnet && bAA && mci < constants.v4UpgradeMci))
 					throw Error(`adding a non-numeric key ${key} to an array: ${pointer}`);
 				var next_key = arrKeys[i + 1];
 				assignField(pointer, key, (typeof next_key === 'number' || next_key === null) ? [] : {});
@@ -2913,7 +2913,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 		}
 		if (typeof last_key === 'number' && last_key > 0 && (pointer[last_key - 1] === undefined || pointer[last_key - 1] === null))
 			throw Error("previous key value " + (last_key - 1) + " not set");
-		if (Array.isArray(pointer) && typeof last_key !== 'number')
+		if (Array.isArray(pointer) && typeof last_key !== 'number' && !(constants.bTestnet && bAA && mci < constants.v4UpgradeMci))
 			throw Error(`adding a non-numeric key ${last_key} to an array: ${pointer}`);
 		
 		assignField(pointer, last_key, value);
