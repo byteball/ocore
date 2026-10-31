@@ -1265,7 +1265,8 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 				return bounce("unknown fields in payment payload");
 			if (!Array.isArray(payload.outputs))
 				return bounce("outputs must be array"); // empty array is okay
-			if (!payload.outputs.every(o => ValidationUtils.isValidAddress(o.address)))
+			if (!payload.outputs.every(o => ValidationUtils.isValidAddress(o.address)
+				|| constants.bTestnet && mci < constants.v4UpgradeMci && o.amount === 0))
 				return bounce("invalid addresses in outputs");
 			if (payload.outputs.some(o => ValidationUtils.hasFieldsExcept(o, ['address', 'amount'])))
 				return bounce("unknown fields in outputs");
