@@ -1350,7 +1350,9 @@ async function getLocalTpsFee(conn, objUnitProps, count_units = 1) {
 
 function getCountUnitsPayingTpsFee(objUnitProps) {
 	let count_units = 1;
-	if (objUnitProps.count_primary_aa_triggers) {
+	// Nodes who received a final-bad unit via catchup don't know its count_primary_aa_triggers -- online nodes must ignore its triggers too in order to agree.
+	// The criteria are local state dependent but get less strict over time, so the local tps fee check would succeed if retried.
+	if (objUnitProps.count_primary_aa_triggers && !(objUnitProps.sequence === 'final-bad' && objUnitProps.is_stable === 1 && objUnitProps.main_chain_index < min_retrievable_mci)) {
 		const max_aa_responses = (typeof objUnitProps.max_aa_responses === "number") ? objUnitProps.max_aa_responses : constants.MAX_RESPONSES_PER_PRIMARY_TRIGGER;
 		count_units += objUnitProps.count_primary_aa_triggers * max_aa_responses;
 	}

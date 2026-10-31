@@ -1086,7 +1086,7 @@ async function validateTpsFee(conn, objJoint, objValidationState, callback) {
 		const [row] = await conn.query("SELECT tps_fees_balance FROM tps_fees_balances WHERE address=? AND mci<=? ORDER BY mci DESC LIMIT 1", [address, objValidationState.last_ball_mci]);
 		const tps_fees_balance = row ? row.tps_fees_balance : 0;
 		if (tps_fees_balance + objUnit.tps_fee * share < min_tps_fee * share)
-			return callback(`tps_fee ${objUnit.tps_fee} + tps fees balance ${tps_fees_balance} less than required ${min_tps_fee} for address ${address} whose share is ${share}`);
+			return callback(createTransientError(`tps_fee ${objUnit.tps_fee} + tps fees balance ${tps_fees_balance} less than required ${min_tps_fee} for address ${address} whose share is ${share}`));
 		const tps_fee = tps_fees_balance / share + objUnit.tps_fee;
 		if (tps_fee < min_acceptable_tps_fee) {
 			if (!bFromOP)

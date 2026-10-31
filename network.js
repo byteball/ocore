@@ -1433,7 +1433,7 @@ function handleOnlineJoint(ws, objJoint, onDone){
 		ifTransientError: function(error) {
 			sendErrorResult(ws, unit, error);
 			onDone();
-			if (error.includes("tps fee"))
+			if (error.startsWith("tps fee")) // auto-retry only current tps fee rejection
 				setTimeout(handleOnlineJoint, 10 * 1000, ws, objJoint);
 		},
 		ifJointError: function(error){
