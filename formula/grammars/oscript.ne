@@ -154,8 +154,10 @@ statement_list -> statement:*  {% function(d) {
 	return d[0];
 } %}
 
-statement -> local_var_assignment {% id %}
-	| ifelse {% id %}
+statement -> ifelse {% id %}
+	| simple_statement {% id %}
+
+simple_statement -> local_var_assignment {% id %}
 	| state_var_assignment {% id %}
 	| response_var_assignment {% id %}
 	| bounce_statement {% id %}
@@ -182,10 +184,25 @@ delete_selector_list -> (%dotSelector|"[" expr "]"):*  {% function(d) {
 	return d[0];
 } %}
 
-ifelse -> "if" "(" expr ")" block ("else" block):?  {% function(d){
-	var else_block = d[5] ? d[5][1] : null;
-	return addLocation(['ifelse', d[2], d[4], else_block], d);
+# flat else-if chain: a right-recursive "else" block makes Earley quadratic, so the chain is folded here
+ifelse -> "if" "(" expr ")" block else_if_list else_clause:?  {% function(d){
+	var result = d[6];
+	for (var i = d[5].length - 1; i >= 0; i--)
+		result = addLocation(['ifelse', d[5][i][1], d[5][i][2], result], [d[5][i][0]]);
+	return addLocation(['ifelse', d[2], d[4], result], d);
 } %}
+
+else_if_list -> else_if_clause:*  {% function(d) {
+	if (d[0].length > 100) throw new Error("too many else-if clauses");
+	return d[0];
+} %}
+
+else_if_clause -> "else" "if" "(" expr ")" block  {% function(d){ return [d[1], d[3], d[5]]; } %}
+
+else_clause -> "else" else_body  {% function(d){ return d[1]; } %}
+
+else_body -> "{" statement_list "}" {% function(d){ return addLocation(['block', d[1]], d); } %}
+	| simple_statement {% id %}
 
 block -> "{" statement_list "}" {% function(d){ return addLocation(['block', d[1]], d); } %}
 	| statement {% id %}

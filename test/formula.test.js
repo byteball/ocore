@@ -6554,6 +6554,35 @@ test('exponent chain of 101 is rejected by the grammar cap', t => {
 	t.true(error.message.includes('too many exponents'));
 });
 
+test('else-if chain of exactly 100 parses (at the grammar cap)', t => {
+	var results = parseWithGrammar('if(1)$a=1;' + 'else if(1)$a=1;'.repeat(100) + 'else $a=2;');
+	t.is(results.length, 1);
+});
+
+test('else-if chain of 101 is rejected by the grammar cap', t => {
+	var error = t.throws(() => parseWithGrammar('if(1)$a=1;' + 'else if(1)$a=1;'.repeat(101) + 'else $a=2;'));
+	t.true(error.message.includes('too many else-if clauses'));
+});
+
+test('else-if chain is parsed as right-nested ifelse with the final else innermost', t => {
+	var results = parseWithGrammar('if(1)$a=1;\nelse\nif(2)$a=2;\nelse if(3)$a=3;\nelse $a=4;');
+	t.is(results.length, 1);
+	var first = results[0][1][0];
+	t.is(first[0], 'ifelse');
+	t.is(first.line, 1);
+	var second = first[3];
+	t.is(second[0], 'ifelse');
+	t.is(second.line, 3);
+	var third = second[3];
+	t.is(third[0], 'ifelse');
+	t.is(third.line, 4);
+	t.is(third[3][0], 'local_var_assignment');
+});
+
+test('else after an else-if chain cannot be another if', t => {
+	t.throws(() => parseWithGrammar('if(1)$a=1;else $a=2;else $a=3;'));
+});
+
 test('Decimal toStringTag', t => {
 	evalFormulaWithVars({ formula: "trigger.data.poison", trigger: {data: {"poison":{"toStringTag":"[object Decimal]"}}}, locals: { a4: 100 }, objValidationState: objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
 		t.deepEqual(res, {"toStringTag":"[object Decimal]"});

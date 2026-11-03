@@ -159,18 +159,19 @@ var grammar = {
         	if (d[0].length > 1000) throw new Error("too many statements");
         	return d[0];
         } },
-    {"name": "statement", "symbols": ["local_var_assignment"], "postprocess": id},
     {"name": "statement", "symbols": ["ifelse"], "postprocess": id},
-    {"name": "statement", "symbols": ["state_var_assignment"], "postprocess": id},
-    {"name": "statement", "symbols": ["response_var_assignment"], "postprocess": id},
-    {"name": "statement", "symbols": ["bounce_statement"], "postprocess": id},
-    {"name": "statement", "symbols": ["require_statement"], "postprocess": id},
-    {"name": "statement", "symbols": ["return_statement"], "postprocess": id},
-    {"name": "statement", "symbols": ["empty_return_statement"], "postprocess": id},
-    {"name": "statement", "symbols": ["log_statement"], "postprocess": id},
-    {"name": "statement", "symbols": ["func_call", {"literal":";"}], "postprocess": id},
-    {"name": "statement", "symbols": ["remote_func_call", {"literal":";"}], "postprocess": id},
-    {"name": "statement", "symbols": [{"literal":"delete"}, {"literal":"("}, "local_var", "delete_selector_list", {"literal":","}, "expr", {"literal":")"}, {"literal":";"}], "postprocess":  function(d) {
+    {"name": "statement", "symbols": ["simple_statement"], "postprocess": id},
+    {"name": "simple_statement", "symbols": ["local_var_assignment"], "postprocess": id},
+    {"name": "simple_statement", "symbols": ["state_var_assignment"], "postprocess": id},
+    {"name": "simple_statement", "symbols": ["response_var_assignment"], "postprocess": id},
+    {"name": "simple_statement", "symbols": ["bounce_statement"], "postprocess": id},
+    {"name": "simple_statement", "symbols": ["require_statement"], "postprocess": id},
+    {"name": "simple_statement", "symbols": ["return_statement"], "postprocess": id},
+    {"name": "simple_statement", "symbols": ["empty_return_statement"], "postprocess": id},
+    {"name": "simple_statement", "symbols": ["log_statement"], "postprocess": id},
+    {"name": "simple_statement", "symbols": ["func_call", {"literal":";"}], "postprocess": id},
+    {"name": "simple_statement", "symbols": ["remote_func_call", {"literal":";"}], "postprocess": id},
+    {"name": "simple_statement", "symbols": [{"literal":"delete"}, {"literal":"("}, "local_var", "delete_selector_list", {"literal":","}, "expr", {"literal":")"}, {"literal":";"}], "postprocess":  function(d) {
         	var selectors = d[3].map(function(item){
         		if (item[0].type === 'dotSelector')
         			return item[0].value.substr(1);
@@ -179,13 +180,13 @@ var grammar = {
         	});
         	return addLocation(['delete', d[2][1], selectors, d[5]], d); 
         } },
-    {"name": "statement", "symbols": [{"literal":"freeze"}, {"literal":"("}, "local_var", {"literal":")"}, {"literal":";"}], "postprocess": function(d) {return addLocation(['freeze', d[2][1]], d); }},
-    {"name": "statement$subexpression$1", "symbols": ["float"]},
-    {"name": "statement$subexpression$1", "symbols": ["local_var"]},
-    {"name": "statement$subexpression$2", "symbols": ["func_declaration"]},
-    {"name": "statement$subexpression$2", "symbols": ["local_var"]},
-    {"name": "statement$subexpression$2", "symbols": ["remote_func"]},
-    {"name": "statement", "symbols": [{"literal":"foreach"}, {"literal":"("}, "expr", {"literal":","}, "statement$subexpression$1", {"literal":","}, "statement$subexpression$2", {"literal":")"}, {"literal":";"}], "postprocess": function(d) {return addLocation(['foreach', d[2], d[4][0], d[6][0]], d); }},
+    {"name": "simple_statement", "symbols": [{"literal":"freeze"}, {"literal":"("}, "local_var", {"literal":")"}, {"literal":";"}], "postprocess": function(d) {return addLocation(['freeze', d[2][1]], d); }},
+    {"name": "simple_statement$subexpression$1", "symbols": ["float"]},
+    {"name": "simple_statement$subexpression$1", "symbols": ["local_var"]},
+    {"name": "simple_statement$subexpression$2", "symbols": ["func_declaration"]},
+    {"name": "simple_statement$subexpression$2", "symbols": ["local_var"]},
+    {"name": "simple_statement$subexpression$2", "symbols": ["remote_func"]},
+    {"name": "simple_statement", "symbols": [{"literal":"foreach"}, {"literal":"("}, "expr", {"literal":","}, "simple_statement$subexpression$1", {"literal":","}, "simple_statement$subexpression$2", {"literal":")"}, {"literal":";"}], "postprocess": function(d) {return addLocation(['foreach', d[2], d[4][0], d[6][0]], d); }},
     {"name": "delete_selector_list$ebnf$1", "symbols": []},
     {"name": "delete_selector_list$ebnf$1$subexpression$1", "symbols": [(lexer.has("dotSelector") ? {type: "dotSelector"} : dotSelector)]},
     {"name": "delete_selector_list$ebnf$1$subexpression$1", "symbols": [{"literal":"["}, "expr", {"literal":"]"}]},
@@ -194,13 +195,24 @@ var grammar = {
         	if (d[0].length > 30) throw new Error("too many selectors");
         	return d[0];
         } },
-    {"name": "ifelse$ebnf$1$subexpression$1", "symbols": [{"literal":"else"}, "block"]},
-    {"name": "ifelse$ebnf$1", "symbols": ["ifelse$ebnf$1$subexpression$1"], "postprocess": id},
+    {"name": "ifelse$ebnf$1", "symbols": ["else_clause"], "postprocess": id},
     {"name": "ifelse$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
-    {"name": "ifelse", "symbols": [{"literal":"if"}, {"literal":"("}, "expr", {"literal":")"}, "block", "ifelse$ebnf$1"], "postprocess":  function(d){
-        	var else_block = d[5] ? d[5][1] : null;
-        	return addLocation(['ifelse', d[2], d[4], else_block], d);
+    {"name": "ifelse", "symbols": [{"literal":"if"}, {"literal":"("}, "expr", {"literal":")"}, "block", "else_if_list", "ifelse$ebnf$1"], "postprocess":  function(d){
+        	var result = d[6];
+        	for (var i = d[5].length - 1; i >= 0; i--)
+        		result = addLocation(['ifelse', d[5][i][1], d[5][i][2], result], [d[5][i][0]]);
+        	return addLocation(['ifelse', d[2], d[4], result], d);
         } },
+    {"name": "else_if_list$ebnf$1", "symbols": []},
+    {"name": "else_if_list$ebnf$1", "symbols": ["else_if_list$ebnf$1", "else_if_clause"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
+    {"name": "else_if_list", "symbols": ["else_if_list$ebnf$1"], "postprocess":  function(d) {
+        	if (d[0].length > 100) throw new Error("too many else-if clauses");
+        	return d[0];
+        } },
+    {"name": "else_if_clause", "symbols": [{"literal":"else"}, {"literal":"if"}, {"literal":"("}, "expr", {"literal":")"}, "block"], "postprocess": function(d){ return [d[1], d[3], d[5]]; }},
+    {"name": "else_clause", "symbols": [{"literal":"else"}, "else_body"], "postprocess": function(d){ return d[1]; }},
+    {"name": "else_body", "symbols": [{"literal":"{"}, "statement_list", {"literal":"}"}], "postprocess": function(d){ return addLocation(['block', d[1]], d); }},
+    {"name": "else_body", "symbols": ["simple_statement"], "postprocess": id},
     {"name": "block", "symbols": [{"literal":"{"}, "statement_list", {"literal":"}"}], "postprocess": function(d){ return addLocation(['block', d[1]], d); }},
     {"name": "block", "symbols": ["statement"], "postprocess": id},
     {"name": "bounce_expr", "symbols": [{"literal":"bounce"}, {"literal":"("}, "expr", {"literal":")"}], "postprocess": function(d) { return addLocation(['bounce', d[2]], d); }},
