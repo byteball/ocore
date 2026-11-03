@@ -6463,6 +6463,18 @@ test.cb('max with large number of arguments', t => {
 	})
 });
 
+test.cb('deeply nested parentheses', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = {};
+	const count = 1000000;
+	const start_ts = Date.now();
+	evalFormulaWithVars({ conn: db, formula: '('.repeat(count) + '1' + ')'.repeat(count), trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		console.log(`count ${count} execution time: ${(Date.now() - start_ts) / 1000} s`);
+		t.deepEqual(res, null);
+		t.end();
+	})
+});
+
 // ternary_expr and Exp used to be right-recursive rules (`ternary_expr -> or_expr "?" expr ":" ternary_expr | or_expr`,
 // `Exp -> P "^" Exp | P`), which caused superlinear (worse than quadratic) parse time for chains of "?:"/"^".
 // They were rewritten with the same kleene-star + fold-in-postprocessor pattern used elsewhere in this grammar

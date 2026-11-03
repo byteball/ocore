@@ -75,6 +75,15 @@
 	});
 
 	var origNext = lexer.next;
+	var origReset = lexer.reset;
+	var MAX_NESTING = 100;
+	var nesting = 0;
+
+	lexer.reset = function (chunk, info) {
+		if (!info)
+			nesting = 0;
+		return origReset.call(this, chunk, info);
+	};
 
     lexer.next = function () {
 		var tok = origNext.call(this);
@@ -84,6 +93,19 @@
 				case 'comment':
 				case 'bcpl_comment':
 					return lexer.next();
+				case 'leftParen':
+				case 'sl':
+				case 'braceLeft':
+				case 'dollarBraceLeft':
+					// fail fast before Earley builds a huge state set
+					if (++nesting > MAX_NESTING)
+						throw new Error("nesting is too deep");
+					break;
+				case 'rightParen':
+				case 'sr':
+				case 'braceRight':
+					nesting--;
+					break;
 			}
 			return tok;
 		}
