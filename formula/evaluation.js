@@ -107,7 +107,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 
 	var parser = {};
 	try {
-		parser.results = parseFormula(formula, mci >= constants.pemCurvesFixMci);
+		parser.results = parseFormula(formula, bPostPemCurvesFix);
 	}catch (e) {
 		console.log('exception from parser', e);
 		return callback('parse failed: '+e, null);
