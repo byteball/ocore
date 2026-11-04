@@ -78,10 +78,20 @@
 	var origReset = lexer.reset;
 	var MAX_NESTING = 100;
 	var nesting = 0;
+	// unbraced `if (a) if (b) ...` nesting never closes a paren, so it is counted separately
+	var ifCondDepths = [];
+	var expectIfParen = false;
+	var afterIfCond = false;
+	var ifChain = 0;
 
 	lexer.reset = function (chunk, info) {
-		if (!info)
+		if (!info) {
 			nesting = 0;
+			ifCondDepths = [];
+			expectIfParen = false;
+			afterIfCond = false;
+			ifChain = 0;
+		}
 		return origReset.call(this, chunk, info);
 	};
 
@@ -93,6 +103,20 @@
 				case 'comment':
 				case 'bcpl_comment':
 					return lexer.next();
+			}
+			var isIf = tok.type === 'keyword' && tok.value === 'if';
+			if (afterIfCond) {
+				afterIfCond = false;
+				if (isIf) {
+					if (++ifChain > MAX_NESTING)
+						throw new Error("nesting is too deep");
+				}
+				else
+					ifChain = 0;
+			}
+			if (isIf)
+				expectIfParen = true;
+			switch (tok.type) {
 				case 'leftParen':
 				case 'sl':
 				case 'braceLeft':
@@ -100,17 +124,35 @@
 					// fail fast before Earley builds a huge state set
 					if (++nesting > MAX_NESTING)
 						throw new Error("nesting is too deep");
+					if (tok.type === 'leftParen' && expectIfParen)
+						ifCondDepths.push(nesting);
 					break;
 				case 'rightParen':
+					if (ifCondDepths.length && ifCondDepths[ifCondDepths.length - 1] === nesting) {
+						ifCondDepths.pop();
+						afterIfCond = true;
+					}
+					nesting--;
+					break;
 				case 'sr':
 				case 'braceRight':
 					nesting--;
 					break;
 			}
+			if (!isIf)
+				expectIfParen = false;
 			return tok;
 		}
 		return undefined;
 	};
+
+	// clauses: [ifToken, cond, body][]; elseBody: the final else body or null
+	function foldIf(clauses, elseBody) {
+		var result = elseBody;
+		for (var i = clauses.length - 1; i >= 0; i--)
+			result = addLocation(['ifelse', clauses[i][1], clauses[i][2], result], [clauses[i][0]]);
+		return result;
+	}
 
 	function addLocation(returnValue, d, context) {
 		let token = null;
@@ -154,7 +196,8 @@ statement_list -> statement:*  {% function(d) {
 	return d[0];
 } %}
 
-statement -> ifelse {% id %}
+statement -> open_if {% id %}
+	| closed_if {% id %}
 	| simple_statement {% id %}
 
 simple_statement -> local_var_assignment {% id %}
@@ -184,28 +227,31 @@ delete_selector_list -> (%dotSelector|"[" expr "]"):*  {% function(d) {
 	return d[0];
 } %}
 
-# flat else-if chain: a right-recursive "else" block makes Earley quadratic, so the chain is folded here
-ifelse -> "if" "(" expr ")" block else_if_list else_clause:?  {% function(d){
-	var result = d[6];
-	for (var i = d[5].length - 1; i >= 0; i--)
-		result = addLocation(['ifelse', d[5][i][1], d[5][i][2], result], [d[5][i][0]]);
-	return addLocation(['ifelse', d[2], d[4], result], d);
-} %}
+# An else binds to the nearest if. A body followed by else/else-if must be closed (no dangling if),
+# otherwise the grammar is ambiguous. The else-if chain is flat and folded in the postprocessor,
+# because a right-recursive "else" block makes Earley quadratic.
+open_if -> "if" "(" expr ")" any_body  {% function(d){ return foldIf([[d[0], d[2], d[4]]], null); } %}
+	| closed_prefix "else" "if" "(" expr ")" any_body  {% function(d){ return foldIf(d[0].concat([[d[2], d[4], d[6]]]), null); } %}
 
-else_if_list -> else_if_clause:*  {% function(d) {
+closed_if -> closed_prefix "else" non_if_body  {% function(d){ return foldIf(d[0], d[2]); } %}
+
+closed_prefix -> if_clause else_if_list  {% function(d){ return [d[0]].concat(d[1]); } %}
+
+if_clause -> "if" "(" expr ")" closed_body  {% function(d){ return [d[0], d[2], d[4]]; } %}
+
+else_if_list -> ("else" if_clause):*  {% function(d) {
 	if (d[0].length > 100) throw new Error("too many else-if clauses");
-	return d[0];
+	return d[0].map(function (item) { return item[1]; });
 } %}
 
-else_if_clause -> "else" "if" "(" expr ")" block  {% function(d){ return [d[1], d[3], d[5]]; } %}
-
-else_clause -> "else" else_body  {% function(d){ return d[1]; } %}
-
-else_body -> "{" statement_list "}" {% function(d){ return addLocation(['block', d[1]], d); } %}
+non_if_body -> "{" statement_list "}" {% function(d){ return addLocation(['block', d[1]], d); } %}
 	| simple_statement {% id %}
 
-block -> "{" statement_list "}" {% function(d){ return addLocation(['block', d[1]], d); } %}
-	| statement {% id %}
+closed_body -> non_if_body {% id %}
+	| closed_if {% id %}
+
+any_body -> closed_body {% id %}
+	| open_if {% id %}
 
 bounce_expr -> "bounce" "(" expr ")"    {% function(d) { return addLocation(['bounce', d[2]], d); } %}
 

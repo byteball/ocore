@@ -82,10 +82,20 @@ function id(x) { return x[0]; }
 	var origReset = lexer.reset;
 	var MAX_NESTING = 100;
 	var nesting = 0;
+	// unbraced `if (a) if (b) ...` nesting never closes a paren, so it is counted separately
+	var ifCondDepths = [];
+	var expectIfParen = false;
+	var afterIfCond = false;
+	var ifChain = 0;
 
 	lexer.reset = function (chunk, info) {
-		if (!info)
+		if (!info) {
 			nesting = 0;
+			ifCondDepths = [];
+			expectIfParen = false;
+			afterIfCond = false;
+			ifChain = 0;
+		}
 		return origReset.call(this, chunk, info);
 	};
 
@@ -97,6 +107,20 @@ function id(x) { return x[0]; }
 				case 'comment':
 				case 'bcpl_comment':
 					return lexer.next();
+			}
+			var isIf = tok.type === 'keyword' && tok.value === 'if';
+			if (afterIfCond) {
+				afterIfCond = false;
+				if (isIf) {
+					if (++ifChain > MAX_NESTING)
+						throw new Error("nesting is too deep");
+				}
+				else
+					ifChain = 0;
+			}
+			if (isIf)
+				expectIfParen = true;
+			switch (tok.type) {
 				case 'leftParen':
 				case 'sl':
 				case 'braceLeft':
@@ -104,17 +128,35 @@ function id(x) { return x[0]; }
 					// fail fast before Earley builds a huge state set
 					if (++nesting > MAX_NESTING)
 						throw new Error("nesting is too deep");
+					if (tok.type === 'leftParen' && expectIfParen)
+						ifCondDepths.push(nesting);
 					break;
 				case 'rightParen':
+					if (ifCondDepths.length && ifCondDepths[ifCondDepths.length - 1] === nesting) {
+						ifCondDepths.pop();
+						afterIfCond = true;
+					}
+					nesting--;
+					break;
 				case 'sr':
 				case 'braceRight':
 					nesting--;
 					break;
 			}
+			if (!isIf)
+				expectIfParen = false;
 			return tok;
 		}
 		return undefined;
 	};
+
+	// clauses: [ifToken, cond, body][]; elseBody: the final else body or null
+	function foldIf(clauses, elseBody) {
+		var result = elseBody;
+		for (var i = clauses.length - 1; i >= 0; i--)
+			result = addLocation(['ifelse', clauses[i][1], clauses[i][2], result], [clauses[i][0]]);
+		return result;
+	}
 
 	function addLocation(returnValue, d, context) {
 		let token = null;
@@ -159,7 +201,8 @@ var grammar = {
         	if (d[0].length > 1000) throw new Error("too many statements");
         	return d[0];
         } },
-    {"name": "statement", "symbols": ["ifelse"], "postprocess": id},
+    {"name": "statement", "symbols": ["open_if"], "postprocess": id},
+    {"name": "statement", "symbols": ["closed_if"], "postprocess": id},
     {"name": "statement", "symbols": ["simple_statement"], "postprocess": id},
     {"name": "simple_statement", "symbols": ["local_var_assignment"], "postprocess": id},
     {"name": "simple_statement", "symbols": ["state_var_assignment"], "postprocess": id},
@@ -195,26 +238,24 @@ var grammar = {
         	if (d[0].length > 30) throw new Error("too many selectors");
         	return d[0];
         } },
-    {"name": "ifelse$ebnf$1", "symbols": ["else_clause"], "postprocess": id},
-    {"name": "ifelse$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
-    {"name": "ifelse", "symbols": [{"literal":"if"}, {"literal":"("}, "expr", {"literal":")"}, "block", "else_if_list", "ifelse$ebnf$1"], "postprocess":  function(d){
-        	var result = d[6];
-        	for (var i = d[5].length - 1; i >= 0; i--)
-        		result = addLocation(['ifelse', d[5][i][1], d[5][i][2], result], [d[5][i][0]]);
-        	return addLocation(['ifelse', d[2], d[4], result], d);
-        } },
+    {"name": "open_if", "symbols": [{"literal":"if"}, {"literal":"("}, "expr", {"literal":")"}, "any_body"], "postprocess": function(d){ return foldIf([[d[0], d[2], d[4]]], null); }},
+    {"name": "open_if", "symbols": ["closed_prefix", {"literal":"else"}, {"literal":"if"}, {"literal":"("}, "expr", {"literal":")"}, "any_body"], "postprocess": function(d){ return foldIf(d[0].concat([[d[2], d[4], d[6]]]), null); }},
+    {"name": "closed_if", "symbols": ["closed_prefix", {"literal":"else"}, "non_if_body"], "postprocess": function(d){ return foldIf(d[0], d[2]); }},
+    {"name": "closed_prefix", "symbols": ["if_clause", "else_if_list"], "postprocess": function(d){ return [d[0]].concat(d[1]); }},
+    {"name": "if_clause", "symbols": [{"literal":"if"}, {"literal":"("}, "expr", {"literal":")"}, "closed_body"], "postprocess": function(d){ return [d[0], d[2], d[4]]; }},
     {"name": "else_if_list$ebnf$1", "symbols": []},
-    {"name": "else_if_list$ebnf$1", "symbols": ["else_if_list$ebnf$1", "else_if_clause"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
+    {"name": "else_if_list$ebnf$1$subexpression$1", "symbols": [{"literal":"else"}, "if_clause"]},
+    {"name": "else_if_list$ebnf$1", "symbols": ["else_if_list$ebnf$1", "else_if_list$ebnf$1$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
     {"name": "else_if_list", "symbols": ["else_if_list$ebnf$1"], "postprocess":  function(d) {
         	if (d[0].length > 100) throw new Error("too many else-if clauses");
-        	return d[0];
+        	return d[0].map(function (item) { return item[1]; });
         } },
-    {"name": "else_if_clause", "symbols": [{"literal":"else"}, {"literal":"if"}, {"literal":"("}, "expr", {"literal":")"}, "block"], "postprocess": function(d){ return [d[1], d[3], d[5]]; }},
-    {"name": "else_clause", "symbols": [{"literal":"else"}, "else_body"], "postprocess": function(d){ return d[1]; }},
-    {"name": "else_body", "symbols": [{"literal":"{"}, "statement_list", {"literal":"}"}], "postprocess": function(d){ return addLocation(['block', d[1]], d); }},
-    {"name": "else_body", "symbols": ["simple_statement"], "postprocess": id},
-    {"name": "block", "symbols": [{"literal":"{"}, "statement_list", {"literal":"}"}], "postprocess": function(d){ return addLocation(['block', d[1]], d); }},
-    {"name": "block", "symbols": ["statement"], "postprocess": id},
+    {"name": "non_if_body", "symbols": [{"literal":"{"}, "statement_list", {"literal":"}"}], "postprocess": function(d){ return addLocation(['block', d[1]], d); }},
+    {"name": "non_if_body", "symbols": ["simple_statement"], "postprocess": id},
+    {"name": "closed_body", "symbols": ["non_if_body"], "postprocess": id},
+    {"name": "closed_body", "symbols": ["closed_if"], "postprocess": id},
+    {"name": "any_body", "symbols": ["closed_body"], "postprocess": id},
+    {"name": "any_body", "symbols": ["open_if"], "postprocess": id},
     {"name": "bounce_expr", "symbols": [{"literal":"bounce"}, {"literal":"("}, "expr", {"literal":")"}], "postprocess": function(d) { return addLocation(['bounce', d[2]], d); }},
     {"name": "bounce_statement", "symbols": ["bounce_expr", {"literal":";"}], "postprocess": function(d) { return d[0]; }},
     {"name": "require_statement", "symbols": [{"literal":"require"}, {"literal":"("}, "expr", {"literal":","}, "expr", {"literal":")"}, {"literal":";"}], "postprocess": function(d) { return addLocation(['require', d[2], d[4]], d); }},

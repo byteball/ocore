@@ -6583,6 +6583,35 @@ test('else after an else-if chain cannot be another if', t => {
 	t.throws(() => parseWithGrammar('if(1)$a=1;else $a=2;else $a=3;'));
 });
 
+test('else binds to the nearest if', t => {
+	var results = parseWithGrammar('if(1) if(2) $a=1; else $a=2;');
+	t.is(results.length, 1);
+	var outer = results[0][1][0];
+	t.is(outer[3], null);
+	t.is(outer[2][0], 'ifelse');
+	t.is(outer[2][3][0], 'local_var_assignment');
+});
+
+test('else after an else-if with an unbraced if body binds to that inner if', t => {
+	var results = parseWithGrammar('if(1) $a=1; else if(2) if(3) $a=2; else $a=3;');
+	t.is(results.length, 1);
+	var second = results[0][1][0][3];
+	t.is(second[3], null);
+	t.is(second[2][3][0], 'local_var_assignment');
+});
+
+test('braces override the nearest-if binding', t => {
+	var results = parseWithGrammar('if(1) { if(2) $a=1; } else $a=2;');
+	t.is(results.length, 1);
+	t.is(results[0][1][0][3][0], 'local_var_assignment');
+});
+
+test('unbraced nested ifs: 100 parse, 101 are rejected', t => {
+	t.is(parseWithGrammar('if(1)'.repeat(101) + '$a=1;' + 'else $a=2;'.repeat(101)).length, 1);
+	var error = t.throws(() => parseWithGrammar('if(1)'.repeat(102) + '$a=1;' + 'else $a=2;'.repeat(102)));
+	t.true(error.message.includes('nesting is too deep'));
+});
+
 test('Decimal toStringTag', t => {
 	evalFormulaWithVars({ formula: "trigger.data.poison", trigger: {data: {"poison":{"toStringTag":"[object Decimal]"}}}, locals: { a4: 100 }, objValidationState: objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
 		t.deepEqual(res, {"toStringTag":"[object Decimal]"});
