@@ -157,7 +157,7 @@ function checkAAOutputs(arrPayments, handleResult) {
 			return handleResult(new MissingBounceFeesErrorMessage({ error: "The amounts are less than bounce fees", missing_bounce_fees: arrMissingBounceFees }));
 		if (arrAssets.length === 0)
 			return handleResult();
-		db.query("SELECT 1 FROM assets WHERE asset IN(?) AND is_private=1", [arrAssets], rows => {
+		db.query("SELECT 1 FROM assets WHERE unit IN(?) AND is_private=1", [arrAssets], rows => {
 			if (rows.length > 0)
 				return handleResult("Private payments can't be combined with payments to an AA");
 			return handleResult();
