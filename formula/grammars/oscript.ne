@@ -154,6 +154,20 @@
 		return result;
 	}
 
+	// A valid formula has at most MAX_OPS (2000) ops, so a longer chain is rejected early to bound the Earley state sets.
+	var MAX_CHAIN = 2000;
+	// kept off the nodes so that it doesn't show up in error messages that inspect the AST
+	var chainDepths = new WeakMap();
+
+	// node: result of a left-recursive binary rule; left: its left operand
+	function chained(node, left) {
+		var depth = (chainDepths.get(left) || 0) + 1;
+		if (depth > MAX_CHAIN)
+			throw new Error("too many chained operators");
+		chainDepths.set(node, depth);
+		return node;
+	}
+
 	function addLocation(returnValue, d, context) {
 		let token = null;
 		for (let i = 0; i < d.length; i++) {
@@ -265,7 +279,7 @@ empty_return_statement -> "return" ";"  {% function(d) { return addLocation(['re
 
 log_statement -> "log" "(" expr_list ")" ";" {% function(d) {return addLocation(['log', d[2]], d); }  %}
 
-otherwise_expr -> expr ("otherwise"|"OTHERWISE") ternary_expr  {% function(d) { return addLocation(['otherwise', d[0], d[2]], d); } %}
+otherwise_expr -> expr ("otherwise"|"OTHERWISE") ternary_expr  {% function(d) { return chained(addLocation(['otherwise', d[0], d[2]], d), d[0]); } %}
 	| ternary_expr {% id %}
 
 ternary_pairs -> (or_expr "?" expr ":"):*  {% function(d) {
@@ -281,10 +295,10 @@ ternary_expr -> ternary_pairs or_expr {% function(d) {
 	return result;
 } %}
 
-or_expr -> or_expr ("or"|"OR") and_expr {% function(d) {return addLocation(['or', d[0], d[2]], d); }%}
+or_expr -> or_expr ("or"|"OR") and_expr {% function(d) {return chained(addLocation(['or', d[0], d[2]], d), d[0]); }%}
 	| and_expr {% id %}
 
-and_expr -> and_expr ("and"|"AND") comp_expr {% function(d) {return addLocation(['and', d[0], d[2]], d); }%}
+and_expr -> and_expr ("and"|"AND") comp_expr {% function(d) {return chained(addLocation(['and', d[0], d[2]], d), d[0]); }%}
 	| comp_expr {% id %}
 
 expr -> otherwise_expr {% id %}
@@ -471,19 +485,29 @@ Exp -> exp_pairs P  {% function(d) {
 	return result;
 } %}
 
-unary_expr -> Exp {% id %}
-	| ("!"|"not"|"NOT") unary_expr {% function(d) {return addLocation(['not', d[1]], d); }%}
+not_ops -> ("!"|"not"|"NOT"):*  {% function(d) {
+	if (d[0].length > MAX_CHAIN) throw new Error("too many chained not operators");
+	return d[0];
+} %}
 
-MD -> MD "*" unary_expr  {% function(d) {return addLocation(['*', d[0], d[2]], d); } %}
-    | MD "/" unary_expr  {% function(d) {return addLocation(['/', d[0], d[2]], d); } %}
-    | MD "%" unary_expr  {% function(d) {return addLocation(['%', d[0], d[2]], d); } %}
+unary_expr -> not_ops Exp {% function(d) {
+	var ops = d[0];
+	var result = d[1];
+	for (var i = ops.length - 1; i >= 0; i--)
+		result = addLocation(['not', result], [ops[i]]);
+	return result;
+} %}
+
+MD -> MD "*" unary_expr  {% function(d) {return chained(addLocation(['*', d[0], d[2]], d), d[0]); } %}
+    | MD "/" unary_expr  {% function(d) {return chained(addLocation(['/', d[0], d[2]], d), d[0]); } %}
+    | MD "%" unary_expr  {% function(d) {return chained(addLocation(['%', d[0], d[2]], d), d[0]); } %}
     | unary_expr             {% id %}
 
-AS -> AS "+" MD {% function(d) {return addLocation(['+', d[0], d[2]], d); } %}
-    | AS "-" MD {% function(d) {return addLocation(['-', d[0], d[2]], d); } %}
+AS -> AS "+" MD {% function(d) {return chained(addLocation(['+', d[0], d[2]], d), d[0]); } %}
+    | AS "-" MD {% function(d) {return chained(addLocation(['-', d[0], d[2]], d), d[0]); } %}
     | "-" MD {% function(d) {return addLocation(['-', new Decimal(0), d[1]], d); } %}
     | "+" MD {% function(d) {return addLocation(['+', new Decimal(0), d[1]], d); } %}
-    | AS %concat MD {% function(d) {return addLocation(['concat', d[0], d[2]], d); } %}
+    | AS %concat MD {% function(d) {return chained(addLocation(['concat', d[0], d[2]], d), d[0]); } %}
     | MD            {% id %}
 
 N -> float          {% id %}

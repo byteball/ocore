@@ -6554,6 +6554,43 @@ test('exponent chain of 101 is rejected by the grammar cap', t => {
 	t.true(error.message.includes('too many exponents'));
 });
 
+[
+	['+', n => '1' + '+1'.repeat(n)],
+	['-', n => '1' + '-1'.repeat(n)],
+	['*', n => '1' + '*1'.repeat(n)],
+	['/', n => '1' + '/1'.repeat(n)],
+	['%', n => '1' + '%1'.repeat(n)],
+	['||', n => '1' + '||1'.repeat(n)],
+	['or', n => '1' + ' or 1'.repeat(n)],
+	['and', n => '1' + ' and 1'.repeat(n)],
+	['otherwise', n => '1' + ' otherwise 1'.repeat(n)],
+	['!', n => '!'.repeat(n) + '1'],
+	['not', n => 'not '.repeat(n) + '1'],
+].forEach(([name, gen]) => {
+	test('chain of ' + name + ' of exactly 1999 operators parses, 2001 are rejected', t => {
+		t.is(parseWithGrammar(gen(1999)).length, 1);
+		var error = t.throws(() => parseWithGrammar(gen(2001)));
+		t.true(error.message.includes('too many chained'));
+	});
+});
+
+test('left-assoc chain keeps its shape and line', t => {
+	var results = parseWithGrammar('$a = 1\n+ 2\n- 3;');
+	t.is(results.length, 1);
+	var expr = results[0][1][0][2];
+	t.is(expr[0], '-');
+	t.is(expr[1][0], '+');
+	t.is(expr.line, 1);
+});
+
+test('not chain folds right with the innermost not closest to the operand', t => {
+	var results = parseWithGrammar('$a = !not 1;');
+	var expr = results[0][1][0][2];
+	t.is(expr[0], 'not');
+	t.is(expr[1][0], 'not');
+	t.true(expr[1][1].constructor.name === 'Decimal');
+});
+
 test('else-if chain of exactly 100 parses (at the grammar cap)', t => {
 	var results = parseWithGrammar('if(1)$a=1;' + 'else if(1)$a=1;'.repeat(100) + 'else $a=2;');
 	t.is(results.length, 1);

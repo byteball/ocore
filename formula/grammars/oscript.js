@@ -158,6 +158,20 @@ function id(x) { return x[0]; }
 		return result;
 	}
 
+	// A valid formula has at most MAX_OPS (2000) ops, so a longer chain is rejected early to bound the Earley state sets.
+	var MAX_CHAIN = 2000;
+	// kept off the nodes so that it doesn't show up in error messages that inspect the AST
+	var chainDepths = new WeakMap();
+
+	// node: result of a left-recursive binary rule; left: its left operand
+	function chained(node, left) {
+		var depth = (chainDepths.get(left) || 0) + 1;
+		if (depth > MAX_CHAIN)
+			throw new Error("too many chained operators");
+		chainDepths.set(node, depth);
+		return node;
+	}
+
 	function addLocation(returnValue, d, context) {
 		let token = null;
 		for (let i = 0; i < d.length; i++) {
@@ -264,7 +278,7 @@ var grammar = {
     {"name": "log_statement", "symbols": [{"literal":"log"}, {"literal":"("}, "expr_list", {"literal":")"}, {"literal":";"}], "postprocess": function(d) {return addLocation(['log', d[2]], d); }},
     {"name": "otherwise_expr$subexpression$1", "symbols": [{"literal":"otherwise"}]},
     {"name": "otherwise_expr$subexpression$1", "symbols": [{"literal":"OTHERWISE"}]},
-    {"name": "otherwise_expr", "symbols": ["expr", "otherwise_expr$subexpression$1", "ternary_expr"], "postprocess": function(d) { return addLocation(['otherwise', d[0], d[2]], d); }},
+    {"name": "otherwise_expr", "symbols": ["expr", "otherwise_expr$subexpression$1", "ternary_expr"], "postprocess": function(d) { return chained(addLocation(['otherwise', d[0], d[2]], d), d[0]); }},
     {"name": "otherwise_expr", "symbols": ["ternary_expr"], "postprocess": id},
     {"name": "ternary_pairs$ebnf$1", "symbols": []},
     {"name": "ternary_pairs$ebnf$1$subexpression$1", "symbols": ["or_expr", {"literal":"?"}, "expr", {"literal":":"}]},
@@ -282,11 +296,11 @@ var grammar = {
         } },
     {"name": "or_expr$subexpression$1", "symbols": [{"literal":"or"}]},
     {"name": "or_expr$subexpression$1", "symbols": [{"literal":"OR"}]},
-    {"name": "or_expr", "symbols": ["or_expr", "or_expr$subexpression$1", "and_expr"], "postprocess": function(d) {return addLocation(['or', d[0], d[2]], d); }},
+    {"name": "or_expr", "symbols": ["or_expr", "or_expr$subexpression$1", "and_expr"], "postprocess": function(d) {return chained(addLocation(['or', d[0], d[2]], d), d[0]); }},
     {"name": "or_expr", "symbols": ["and_expr"], "postprocess": id},
     {"name": "and_expr$subexpression$1", "symbols": [{"literal":"and"}]},
     {"name": "and_expr$subexpression$1", "symbols": [{"literal":"AND"}]},
-    {"name": "and_expr", "symbols": ["and_expr", "and_expr$subexpression$1", "comp_expr"], "postprocess": function(d) {return addLocation(['and', d[0], d[2]], d); }},
+    {"name": "and_expr", "symbols": ["and_expr", "and_expr$subexpression$1", "comp_expr"], "postprocess": function(d) {return chained(addLocation(['and', d[0], d[2]], d), d[0]); }},
     {"name": "and_expr", "symbols": ["comp_expr"], "postprocess": id},
     {"name": "expr", "symbols": ["otherwise_expr"], "postprocess": id},
     {"name": "expr_list$ebnf$1", "symbols": ["expr"], "postprocess": id},
@@ -551,20 +565,31 @@ var grammar = {
         		result = addLocation(['^', pairs[i][0], result], pairs[i]);
         	return result;
         } },
-    {"name": "unary_expr", "symbols": ["Exp"], "postprocess": id},
-    {"name": "unary_expr$subexpression$1", "symbols": [{"literal":"!"}]},
-    {"name": "unary_expr$subexpression$1", "symbols": [{"literal":"not"}]},
-    {"name": "unary_expr$subexpression$1", "symbols": [{"literal":"NOT"}]},
-    {"name": "unary_expr", "symbols": ["unary_expr$subexpression$1", "unary_expr"], "postprocess": function(d) {return addLocation(['not', d[1]], d); }},
-    {"name": "MD", "symbols": ["MD", {"literal":"*"}, "unary_expr"], "postprocess": function(d) {return addLocation(['*', d[0], d[2]], d); }},
-    {"name": "MD", "symbols": ["MD", {"literal":"/"}, "unary_expr"], "postprocess": function(d) {return addLocation(['/', d[0], d[2]], d); }},
-    {"name": "MD", "symbols": ["MD", {"literal":"%"}, "unary_expr"], "postprocess": function(d) {return addLocation(['%', d[0], d[2]], d); }},
+    {"name": "not_ops$ebnf$1", "symbols": []},
+    {"name": "not_ops$ebnf$1$subexpression$1", "symbols": [{"literal":"!"}]},
+    {"name": "not_ops$ebnf$1$subexpression$1", "symbols": [{"literal":"not"}]},
+    {"name": "not_ops$ebnf$1$subexpression$1", "symbols": [{"literal":"NOT"}]},
+    {"name": "not_ops$ebnf$1", "symbols": ["not_ops$ebnf$1", "not_ops$ebnf$1$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
+    {"name": "not_ops", "symbols": ["not_ops$ebnf$1"], "postprocess":  function(d) {
+        	if (d[0].length > MAX_CHAIN) throw new Error("too many chained not operators");
+        	return d[0];
+        } },
+    {"name": "unary_expr", "symbols": ["not_ops", "Exp"], "postprocess":  function(d) {
+        	var ops = d[0];
+        	var result = d[1];
+        	for (var i = ops.length - 1; i >= 0; i--)
+        		result = addLocation(['not', result], [ops[i]]);
+        	return result;
+        } },
+    {"name": "MD", "symbols": ["MD", {"literal":"*"}, "unary_expr"], "postprocess": function(d) {return chained(addLocation(['*', d[0], d[2]], d), d[0]); }},
+    {"name": "MD", "symbols": ["MD", {"literal":"/"}, "unary_expr"], "postprocess": function(d) {return chained(addLocation(['/', d[0], d[2]], d), d[0]); }},
+    {"name": "MD", "symbols": ["MD", {"literal":"%"}, "unary_expr"], "postprocess": function(d) {return chained(addLocation(['%', d[0], d[2]], d), d[0]); }},
     {"name": "MD", "symbols": ["unary_expr"], "postprocess": id},
-    {"name": "AS", "symbols": ["AS", {"literal":"+"}, "MD"], "postprocess": function(d) {return addLocation(['+', d[0], d[2]], d); }},
-    {"name": "AS", "symbols": ["AS", {"literal":"-"}, "MD"], "postprocess": function(d) {return addLocation(['-', d[0], d[2]], d); }},
+    {"name": "AS", "symbols": ["AS", {"literal":"+"}, "MD"], "postprocess": function(d) {return chained(addLocation(['+', d[0], d[2]], d), d[0]); }},
+    {"name": "AS", "symbols": ["AS", {"literal":"-"}, "MD"], "postprocess": function(d) {return chained(addLocation(['-', d[0], d[2]], d), d[0]); }},
     {"name": "AS", "symbols": [{"literal":"-"}, "MD"], "postprocess": function(d) {return addLocation(['-', new Decimal(0), d[1]], d); }},
     {"name": "AS", "symbols": [{"literal":"+"}, "MD"], "postprocess": function(d) {return addLocation(['+', new Decimal(0), d[1]], d); }},
-    {"name": "AS", "symbols": ["AS", (lexer.has("concat") ? {type: "concat"} : concat), "MD"], "postprocess": function(d) {return addLocation(['concat', d[0], d[2]], d); }},
+    {"name": "AS", "symbols": ["AS", (lexer.has("concat") ? {type: "concat"} : concat), "MD"], "postprocess": function(d) {return chained(addLocation(['concat', d[0], d[2]], d), d[0]); }},
     {"name": "AS", "symbols": ["MD"], "postprocess": id},
     {"name": "N", "symbols": ["float"], "postprocess": id},
     {"name": "N", "symbols": ["boolean"], "postprocess": id},
