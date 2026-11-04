@@ -75,6 +75,25 @@
 	});
 
 	var origNext = lexer.next;
+	var origReset = lexer.reset;
+	var MAX_NESTING = 100;
+	var nesting = 0;
+	// unbraced `if (a) if (b) ...` nesting never closes a paren, so it is counted separately
+	var ifCondDepths = [];
+	var expectIfParen = false;
+	var afterIfCond = false;
+	var ifChain = 0;
+
+	lexer.reset = function (chunk, info) {
+		if (!info) {
+			nesting = 0;
+			ifCondDepths = [];
+			expectIfParen = false;
+			afterIfCond = false;
+			ifChain = 0;
+		}
+		return origReset.call(this, chunk, info);
+	};
 
     lexer.next = function () {
 		var tok = origNext.call(this);
@@ -85,10 +104,69 @@
 				case 'bcpl_comment':
 					return lexer.next();
 			}
+			var isIf = tok.type === 'keyword' && tok.value === 'if';
+			if (afterIfCond) {
+				afterIfCond = false;
+				if (isIf) {
+					if (++ifChain > MAX_NESTING)
+						throw new Error("nesting is too deep");
+				}
+				else
+					ifChain = 0;
+			}
+			if (isIf)
+				expectIfParen = true;
+			switch (tok.type) {
+				case 'leftParen':
+				case 'sl':
+				case 'braceLeft':
+				case 'dollarBraceLeft':
+					// fail fast before Earley builds a huge state set
+					if (++nesting > MAX_NESTING)
+						throw new Error("nesting is too deep");
+					if (tok.type === 'leftParen' && expectIfParen)
+						ifCondDepths.push(nesting);
+					break;
+				case 'rightParen':
+					if (ifCondDepths.length && ifCondDepths[ifCondDepths.length - 1] === nesting) {
+						ifCondDepths.pop();
+						afterIfCond = true;
+					}
+					nesting--;
+					break;
+				case 'sr':
+				case 'braceRight':
+					nesting--;
+					break;
+			}
+			if (!isIf)
+				expectIfParen = false;
 			return tok;
 		}
 		return undefined;
 	};
+
+	// clauses: [ifToken, cond, body][]; elseBody: the final else body or null
+	function foldIf(clauses, elseBody) {
+		var result = elseBody;
+		for (var i = clauses.length - 1; i >= 0; i--)
+			result = addLocation(['ifelse', clauses[i][1], clauses[i][2], result], [clauses[i][0]]);
+		return result;
+	}
+
+	// A valid formula has at most MAX_OPS (2000) ops, so a longer chain is rejected early to bound the Earley state sets.
+	var MAX_CHAIN = 2000;
+	// kept off the nodes so that it doesn't show up in error messages that inspect the AST
+	var chainDepths = new WeakMap();
+
+	// node: result of a left-recursive binary rule; left: its left operand
+	function chained(node, left) {
+		var depth = (chainDepths.get(left) || 0) + 1;
+		if (depth > MAX_CHAIN)
+			throw new Error("too many chained operators");
+		chainDepths.set(node, depth);
+		return node;
+	}
 
 	function addLocation(returnValue, d, context) {
 		let token = null;
@@ -134,10 +212,18 @@
 
 @lexer lexer
 
-main -> statement:* expr:? {% function(d){ return ['main', d[0], d[1]]; } %}
+main -> statement_list expr:? {% function(d){ return ['main', d[0], d[1]]; } %}
 
-statement -> local_var_assignment {% id %}
-	| ifelse {% id %}
+statement_list -> statement:*  {% function(d) {
+	if (d[0].length > 1000) throw new Error("too many statements");
+	return d[0];
+} %}
+
+statement -> open_if {% id %}
+	| closed_if {% id %}
+	| simple_statement {% id %}
+
+simple_statement -> local_var_assignment {% id %}
 	| state_var_assignment {% id %}
 	| response_var_assignment {% id %}
 	| bounce_statement {% id %}
@@ -147,7 +233,7 @@ statement -> local_var_assignment {% id %}
 	| log_statement {% id %}
 	| func_call ";" {% id %}
 	| remote_func_call ";" {% id %}
-    | "delete" "(" local_var (%dotSelector|"[" expr "]"):* "," expr ")" ";"   {% function(d) {
+    | "delete" "(" local_var delete_selector_list "," expr ")" ";"   {% function(d) {
 			var selectors = d[3].map(function(item){
 				if (item[0].type === 'dotSelector')
 					return item[0].value.substr(1);
@@ -159,13 +245,36 @@ statement -> local_var_assignment {% id %}
     | "freeze" "(" local_var ")" ";"   {% function(d) {return addLocation(['freeze', d[2][1]], d); } %}
     | "foreach" "(" expr "," (float|local_var) "," (func_declaration|local_var|remote_func) ")" ";"   {% function(d) {return addLocation(['foreach', d[2], d[4][0], d[6][0]], d); } %}
 
-ifelse -> "if" "(" expr ")" block ("else" block):?  {% function(d){
-	var else_block = d[5] ? d[5][1] : null;
-	return addLocation(['ifelse', d[2], d[4], else_block], d);
+delete_selector_list -> (%dotSelector|"[" expr "]"):*  {% function(d) {
+	if (d[0].length > 30) throw new Error("too many selectors");
+	return d[0];
 } %}
 
-block -> "{" statement:* "}" {% function(d){ return addLocation(['block', d[1]], d); } %}
-	| statement {% id %}
+# An else binds to the nearest if. A body followed by else/else-if must be closed (no dangling if),
+# otherwise the grammar is ambiguous. The else-if chain is flat and folded in the postprocessor,
+# because a right-recursive "else" block makes Earley quadratic.
+open_if -> "if" "(" expr ")" any_body  {% function(d){ return foldIf([[d[0], d[2], d[4]]], null); } %}
+	| closed_prefix "else" "if" "(" expr ")" any_body  {% function(d){ return foldIf(d[0].concat([[d[2], d[4], d[6]]]), null); } %}
+
+closed_if -> closed_prefix "else" non_if_body  {% function(d){ return foldIf(d[0], d[2]); } %}
+
+closed_prefix -> if_clause else_if_list  {% function(d){ return [d[0]].concat(d[1]); } %}
+
+if_clause -> "if" "(" expr ")" closed_body  {% function(d){ return [d[0], d[2], d[4]]; } %}
+
+else_if_list -> ("else" if_clause):*  {% function(d) {
+	if (d[0].length > 100) throw new Error("too many else-if clauses");
+	return d[0].map(function (item) { return item[1]; });
+} %}
+
+non_if_body -> "{" statement_list "}" {% function(d){ return addLocation(['block', d[1]], d); } %}
+	| simple_statement {% id %}
+
+closed_body -> non_if_body {% id %}
+	| closed_if {% id %}
+
+any_body -> closed_body {% id %}
+	| open_if {% id %}
 
 bounce_expr -> "bounce" "(" expr ")"    {% function(d) { return addLocation(['bounce', d[2]], d); } %}
 
@@ -179,22 +288,33 @@ empty_return_statement -> "return" ";"  {% function(d) { return addLocation(['re
 
 log_statement -> "log" "(" expr_list ")" ";" {% function(d) {return addLocation(['log', d[2]], d); }  %}
 
-otherwise_expr -> expr ("otherwise"|"OTHERWISE") ternary_expr  {% function(d) { return addLocation(['otherwise', d[0], d[2]], d); } %}
+otherwise_expr -> expr ("otherwise"|"OTHERWISE") ternary_expr  {% function(d) { return chained(addLocation(['otherwise', d[0], d[2]], d), d[0]); } %}
 	| ternary_expr {% id %}
 
-ternary_expr -> or_expr "?" expr ":" ternary_expr {% function(d) {return addLocation(['ternary', d[0], d[2], d[4]], d); }%}
-	| or_expr {% id %}
+ternary_pairs -> (or_expr "?" expr ":"):*  {% function(d) {
+	if (d[0].length > 100) throw new Error("too many nested ternary expressions");
+	return d[0];
+} %}
 
-or_expr -> or_expr ("or"|"OR") and_expr {% function(d) {return addLocation(['or', d[0], d[2]], d); }%}
+ternary_expr -> ternary_pairs or_expr {% function(d) {
+	var pairs = d[0];
+	var result = d[1];
+	for (var i = pairs.length - 1; i >= 0; i--)
+		result = addLocation(['ternary', pairs[i][0], pairs[i][2], result], pairs[i]);
+	return result;
+} %}
+
+or_expr -> or_expr ("or"|"OR") and_expr {% function(d) {return chained(addLocation(['or', d[0], d[2]], d), d[0]); }%}
 	| and_expr {% id %}
 
-and_expr -> and_expr ("and"|"AND") comp_expr {% function(d) {return addLocation(['and', d[0], d[2]], d); }%}
+and_expr -> and_expr ("and"|"AND") comp_expr {% function(d) {return chained(addLocation(['and', d[0], d[2]], d), d[0]); }%}
 	| comp_expr {% id %}
 
 expr -> otherwise_expr {% id %}
 
 expr_list -> expr:? ("," expr):*  {% function(d) {
 	var arr = d[0] ? [d[0]] : [];
+	if (arr.length + d[1].length > 100) throw new Error("expr list is too long");
 	return arr.concat(d[1].map(function (item) {return item[1];}));
 } %}
 
@@ -213,7 +333,7 @@ local_var -> (%local_var_name|local_var_expr)  {% function(d) {
 	return addLocation(['local_var', v], d[0]);
 }  %}
 
-local_var_assignment -> local_var (%dotSelector|"[" expr:? "]"):* "=" (expr|func_declaration) ";" {% function(d) {
+local_var_assignment -> local_var assignment_selector_list "=" (expr|func_declaration) ";" {% function(d) {
 	var selectors = null;
 	if (d[1] && d[1].length)
 		selectors = d[1].map(function(item){
@@ -225,6 +345,11 @@ local_var_assignment -> local_var (%dotSelector|"[" expr:? "]"):* "=" (expr|func
 	return addLocation(['local_var_assignment', d[0][1], d[3][0], selectors], d); 
 } %}
 
+assignment_selector_list -> (%dotSelector|"[" expr:? "]"):*  {% function(d) {
+	if (d[0].length > 30) throw new Error("too many selectors");
+	return d[0];
+} %}
+
 state_var_assignment -> "var" "[" expr "]" ("="|"+="|"-="|"*="|"/="|"%="|"||=") expr ";" {% function(d) { return addLocation(['state_var_assignment', d[2], d[5], d[4][0].value], d); } %}
 
 response_var_assignment -> "response" "[" expr "]" "=" expr ";" {% function(d) { return addLocation(['response_var_assignment', d[2], d[5]], d); } %}
@@ -234,16 +359,18 @@ search_fields -> (%dotSelector):+ {% function(d) {
 	if (d[1] && d[1].length)
 		fields = fields.concat(d[1].map(field => field[0].value.substr(1)));
 	return fields;*/
+	if (d[0].length > 5) throw new Error("too many selector fields");
 	return d[0].map(field => field[0].value.substr(1));
 } %}
 
 search_param ->  search_fields comparisonOperator (expr|"none")  {% function(d) { return addLocation([d[0], d[1], d[2][0]], d); } %}
 
-search_param_list -> search_param ("," search_param):*  {% function(d) { return addLocation([d[0]].concat(d[1].map(function (item) {return item[1];})), d);   } %}
+search_param_list -> search_param ("," search_param):*  {% function(d) { if (d[1].length + 1 > 5) throw new Error("too many search params"); return addLocation([d[0]].concat(d[1].map(function (item) {return item[1];})), d);   } %}
 
 
 arguments_list -> %local_var_name:? ("," %local_var_name):*  {% function(d) {
 	var arr = d[0] ? [d[0].value.substr(1)] : [];
+	if (arr.length + d[1].length > 30) throw new Error("too many function arguments");
 	return arr.concat(d[1].map(function (item) {return item[1].value.substr(1);}));
 } %}
 
@@ -290,6 +417,7 @@ definition -> "definition" "[" expr "]"   {% function(d) { return addLocation(['
 
 
 with_selectors -> (func_call|remote_func_call|local_var|trigger_outputs|trigger_data|params|previous_aa_responses|unit|definition) (%dotSelector|"[" "[" search_param_list "]" "]"|"[" expr "]"):+  {% function(d) {
+	if (d[1].length > 30) throw new Error("too many selectors");
 	var v = d[0][0];
 	let context = {selectorTypes: {}};
 	var selectors = d[1].map(function(item, i){
@@ -314,7 +442,7 @@ df_param ->  ("oracles"|"feed_name"|"min_mci"|"feed_value"|"what"|"ifseveral"|"i
 		value = value.value;
 	return addLocation([d[0][0].value, d[1], value], d);
 } %}
-df_param_list -> df_param ("," df_param):*  {% function(d) { return addLocation([d[0]].concat(d[1].map(function (item) {return item[1];})), d);   } %}
+df_param_list -> df_param ("," df_param):*  {% function(d) { if (d[1].length + 1 > 8) throw new Error("too many data feed params"); return addLocation([d[0]].concat(d[1].map(function (item) {return item[1];})), d);   } %}
 
 io_param ->  ("address"|"amount"|"asset") comparisonOperator (expr|"base"|%addressValue)  {% function(d) {
 		var value = d[2][0];
@@ -322,7 +450,7 @@ io_param ->  ("address"|"amount"|"asset") comparisonOperator (expr|"base"|%addre
 			value = value.value;
 		return addLocation([d[0][0].value, d[1], value], d);
 	} %}
-io_param_list -> io_param ("," io_param):*  {% function(d) { return addLocation([d[0]].concat(d[1].map(function (item) {return item[1];})), d);   } %}
+io_param_list -> io_param ("," io_param):*  {% function(d) { if (d[1].length + 1 > 3) throw new Error("too many io params"); return addLocation([d[0]].concat(d[1].map(function (item) {return item[1];})), d);   } %}
 
 attestation_param ->  ("attestors"|"address"|"ifseveral"|"ifnone"|"type") comparisonOperator (expr|%addressValue)  {% function(d) {
 		var value = d[2][0];
@@ -330,7 +458,7 @@ attestation_param ->  ("attestors"|"address"|"ifseveral"|"ifnone"|"type") compar
 			value = value.value;
 		return addLocation([d[0][0].value, d[1], value], d);
 	} %}
-attestation_param_list -> attestation_param ("," attestation_param):*  {% function(d) { return addLocation([d[0]].concat(d[1].map(function (item) {return item[1];})), d);   } %}
+attestation_param_list -> attestation_param ("," attestation_param):*  {% function(d) { if (d[1].length + 1 > 5) throw new Error("too many attestation params"); return addLocation([d[0]].concat(d[1].map(function (item) {return item[1];})), d);   } %}
 
 
 array -> "[" expr_list ",":? "]" {% function(d) { return addLocation(['array', d[1]], d); } %}
@@ -338,6 +466,7 @@ dictionary -> "{" pair_list ",":? "}" {% function(d) { return addLocation(['dict
 
 pair_list -> pair:? ("," pair):*  {% function(d) {
 	var arr = d[0] ? [d[0]] : [];
+	if (arr.length + d[1].length > 100) throw new Error("too many dictionary pairs");
 	return arr.concat(d[1].map(function (item) {return item[1];}));
 } %}
 pair -> (string|%IDEN|%keyword|%addressValue) ":" expr {% function(d) {
@@ -352,22 +481,42 @@ P -> "(" expr ")" {% function(d) {return addLocation(d[1], d); } %}
     | N      {% id %}
 	| string {% id %}
 
-Exp -> P "^" Exp    {% function(d) {return addLocation(['^', d[0], d[2]], d); } %}
-    | P             {% id %}
+exp_pairs -> (P "^"):*  {% function(d) {
+	if (d[0].length > 100) throw new Error("too many exponents");
+	return d[0];
+} %}
 
-unary_expr -> Exp {% id %}
-	| ("!"|"not"|"NOT") unary_expr {% function(d) {return addLocation(['not', d[1]], d); }%}
+Exp -> exp_pairs P  {% function(d) {
+	var pairs = d[0];
+	var result = d[1];
+	for (var i = pairs.length - 1; i >= 0; i--)
+		result = addLocation(['^', pairs[i][0], result], pairs[i]);
+	return result;
+} %}
 
-MD -> MD "*" unary_expr  {% function(d) {return addLocation(['*', d[0], d[2]], d); } %}
-    | MD "/" unary_expr  {% function(d) {return addLocation(['/', d[0], d[2]], d); } %}
-    | MD "%" unary_expr  {% function(d) {return addLocation(['%', d[0], d[2]], d); } %}
+not_ops -> ("!"|"not"|"NOT"):*  {% function(d) {
+	if (d[0].length > MAX_CHAIN) throw new Error("too many chained not operators");
+	return d[0];
+} %}
+
+unary_expr -> not_ops Exp {% function(d) {
+	var ops = d[0];
+	var result = d[1];
+	for (var i = ops.length - 1; i >= 0; i--)
+		result = addLocation(['not', result], [ops[i]]);
+	return result;
+} %}
+
+MD -> MD "*" unary_expr  {% function(d) {return chained(addLocation(['*', d[0], d[2]], d), d[0]); } %}
+    | MD "/" unary_expr  {% function(d) {return chained(addLocation(['/', d[0], d[2]], d), d[0]); } %}
+    | MD "%" unary_expr  {% function(d) {return chained(addLocation(['%', d[0], d[2]], d), d[0]); } %}
     | unary_expr             {% id %}
 
-AS -> AS "+" MD {% function(d) {return addLocation(['+', d[0], d[2]], d); } %}
-    | AS "-" MD {% function(d) {return addLocation(['-', d[0], d[2]], d); } %}
+AS -> AS "+" MD {% function(d) {return chained(addLocation(['+', d[0], d[2]], d), d[0]); } %}
+    | AS "-" MD {% function(d) {return chained(addLocation(['-', d[0], d[2]], d), d[0]); } %}
     | "-" MD {% function(d) {return addLocation(['-', new Decimal(0), d[1]], d); } %}
     | "+" MD {% function(d) {return addLocation(['+', new Decimal(0), d[1]], d); } %}
-    | AS %concat MD {% function(d) {return addLocation(['concat', d[0], d[2]], d); } %}
+    | AS %concat MD {% function(d) {return chained(addLocation(['concat', d[0], d[2]], d), d[0]); } %}
     | MD            {% id %}
 
 N -> float          {% id %}

@@ -22,6 +22,8 @@ var dst_dir = __dirname + '/.testdata-' + path.basename(__filename);
 shell('rm -rf ' + dst_dir);
 
 var Decimal = require('decimal.js');
+var nearley = require('nearley');
+var oscriptGrammar = require('../formula/grammars/oscript.js');
 var formulaParser = require('../formula/index');
 var formulaCommon = require('../formula/common.js');
 var test = require('ava');
@@ -119,6 +121,13 @@ function evalFormulaWithVars(opts, callback) {
 			callback(eval_res, validation_res.complexity, validation_res.count_ops, val_locals);
 		});
 	});
+}
+
+// parses formula text directly with the compiled grammar, bypassing validate()/evaluate()
+function parseWithGrammar(formula) {
+	var parser = new nearley.Parser(nearley.Grammar.fromCompiled(oscriptGrammar));
+	parser.feed(formula);
+	return parser.results;
 }
 
 var objValidationState = {
@@ -6513,6 +6522,227 @@ test.cb('long sum', t => {
 	//	t.deepEqual(count_ops, count + 1);
 		t.end();
 	})
+});
+
+test.cb('max with large number of arguments', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = {};
+	const count = 15000000;
+	const start_ts = Date.now();
+	evalFormulaWithVars({ conn: db, formula: `max(1${',1'.repeat(count)})`, trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		console.log(`count ${count} execution time: ${(Date.now() - start_ts) / 1000} s`);
+		t.deepEqual(res, null);
+		t.end();
+	})
+});
+
+test.cb('deeply nested parentheses', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = {};
+	const count = 1000000;
+	const start_ts = Date.now();
+	evalFormulaWithVars({ conn: db, formula: '('.repeat(count) + '1' + ')'.repeat(count), trigger: trigger, locals: {  }, stateVars: stateVars,  objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		console.log(`count ${count} execution time: ${(Date.now() - start_ts) / 1000} s`);
+		t.deepEqual(res, null);
+		t.end();
+	})
+});
+
+// ternary_expr and Exp used to be right-recursive rules (`ternary_expr -> or_expr "?" expr ":" ternary_expr | or_expr`,
+// `Exp -> P "^" Exp | P`), which caused superlinear (worse than quadratic) parse time for chains of "?:"/"^".
+// They were rewritten with the same kleene-star + fold-in-postprocessor pattern used elsewhere in this grammar
+// for lists (e.g. expr_list), with a cap of 1000 chained operators. These tests check that the rewritten grammar
+// still produces the same (right-associative) results as the original grammar for nested ternaries and nested ^.
+
+test('nested ternary is right-associative', t => {
+	// right (correct): 1==1 ? 5 : ... short-circuits to 5
+	// if it were mis-associated as (1==1?5:1==2)?20:30, the numeric condition 5 would be coerced to true and yield 20 instead
+	evalFormula(null, "1==1 ? 5 : 1==2 ? 20 : 30", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
+		t.deepEqual(res, 5);
+	});
+});
+
+test('nested ternary falls through to the final else', t => {
+	evalFormula(null, "1==2 ? 5 : 1==2 ? 20 : 30", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
+		t.deepEqual(res, 30);
+	});
+});
+
+test('nested exponent is right-associative: 2^3^2', t => {
+	// right (correct): 2^(3^2) = 2^9 = 512; left-assoc would give (2^3)^2 = 64
+	evalFormula(null, "2^3^2", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
+		t.deepEqual(res, 512);
+	});
+});
+
+test('nested exponent is right-associative: 2^2^2^2', t => {
+	// right (correct): 2^(2^(2^2)) = 2^(2^4) = 2^16 = 65536; left-assoc would give ((2^2)^2)^2 = 256
+	evalFormula(null, "2^2^2^2", [], objValidationState, "MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU", res => {
+		t.deepEqual(res, 65536);
+	});
+});
+
+test.cb('deep ternary chain resolves the correct branch', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = {};
+	const depth = 80, trueIndex = 40; // stays under the unrelated 100-level AST recursion depth cap in validation.js
+	var parts = [];
+	for (var i = 0; i < depth; i++)
+		parts.push((i === trueIndex ? '1==1' : '1==2') + '?' + (100 + i) + ':');
+	var formula = parts.join('') + '999';
+	evalFormulaWithVars({ conn: db, formula: formula, trigger: trigger, locals: {  }, stateVars: stateVars, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 100 + trueIndex);
+		t.end();
+	})
+});
+
+test.cb('deep exponent chain evaluates without blowing up', t => {
+	var trigger = { data: { q: { a: 6 } } };
+	var stateVars = {};
+	const depth = 80; // stays under the unrelated 100-level AST recursion depth cap in validation.js
+	var formula = '1^'.repeat(depth) + '2'; // 1^(1^(...^(1^2))) = 1 regardless of depth
+	evalFormulaWithVars({ conn: db, formula: formula, trigger: trigger, locals: {  }, stateVars: stateVars, objValidationState: objValidationState, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
+		t.deepEqual(res, 1);
+		t.end();
+	})
+});
+
+test('ternary chain of exactly 100 parses (at the grammar cap)', t => {
+	var results = parseWithGrammar('1?2:'.repeat(100) + '3');
+	t.is(results.length, 1);
+});
+
+test('ternary chain of 101 is rejected by the grammar cap', t => {
+	var error = t.throws(() => parseWithGrammar('1?2:'.repeat(101) + '3'));
+	t.true(error.message.includes('too many nested ternary expressions'));
+});
+
+test('exponent chain of exactly 100 parses (at the grammar cap)', t => {
+	var results = parseWithGrammar('1^'.repeat(100) + '1');
+	t.is(results.length, 1);
+});
+
+test('exponent chain of 101 is rejected by the grammar cap', t => {
+	var error = t.throws(() => parseWithGrammar('1^'.repeat(101) + '1'));
+	t.true(error.message.includes('too many exponents'));
+});
+
+[
+	['+', n => '1' + '+1'.repeat(n)],
+	['-', n => '1' + '-1'.repeat(n)],
+	['*', n => '1' + '*1'.repeat(n)],
+	['/', n => '1' + '/1'.repeat(n)],
+	['%', n => '1' + '%1'.repeat(n)],
+	['||', n => '1' + '||1'.repeat(n)],
+	['or', n => '1' + ' or 1'.repeat(n)],
+	['and', n => '1' + ' and 1'.repeat(n)],
+	['otherwise', n => '1' + ' otherwise 1'.repeat(n)],
+	['!', n => '!'.repeat(n) + '1'],
+	['not', n => 'not '.repeat(n) + '1'],
+].forEach(([name, gen]) => {
+	test('chain of ' + name + ' of exactly 1999 operators parses, 2001 are rejected', t => {
+		t.is(parseWithGrammar(gen(1999)).length, 1);
+		var error = t.throws(() => parseWithGrammar(gen(2001)));
+		t.true(error.message.includes('too many chained'));
+	});
+});
+
+test('left-assoc chain keeps its shape and line', t => {
+	var results = parseWithGrammar('$a = 1\n+ 2\n- 3;');
+	t.is(results.length, 1);
+	var expr = results[0][1][0][2];
+	t.is(expr[0], '-');
+	t.is(expr[1][0], '+');
+	t.is(expr.line, 1);
+});
+
+test('not chain folds right with the innermost not closest to the operand', t => {
+	var results = parseWithGrammar('$a = !not 1;');
+	var expr = results[0][1][0][2];
+	t.is(expr[0], 'not');
+	t.is(expr[1][0], 'not');
+	t.true(expr[1][1].constructor.name === 'Decimal');
+});
+
+test('else-if chain of exactly 100 parses (at the grammar cap)', t => {
+	var results = parseWithGrammar('if(1)$a=1;' + 'else if(1)$a=1;'.repeat(100) + 'else $a=2;');
+	t.is(results.length, 1);
+});
+
+test('else-if chain of 101 is rejected by the grammar cap', t => {
+	var error = t.throws(() => parseWithGrammar('if(1)$a=1;' + 'else if(1)$a=1;'.repeat(101) + 'else $a=2;'));
+	t.true(error.message.includes('too many else-if clauses'));
+});
+
+test('else-if chain is parsed as right-nested ifelse with the final else innermost', t => {
+	var results = parseWithGrammar('if(1)$a=1;\nelse\nif(2)$a=2;\nelse if(3)$a=3;\nelse $a=4;');
+	t.is(results.length, 1);
+	var first = results[0][1][0];
+	t.is(first[0], 'ifelse');
+	t.is(first.line, 1);
+	var second = first[3];
+	t.is(second[0], 'ifelse');
+	t.is(second.line, 3);
+	var third = second[3];
+	t.is(third[0], 'ifelse');
+	t.is(third.line, 4);
+	t.is(third[3][0], 'local_var_assignment');
+});
+
+test('else after an else-if chain cannot be another if', t => {
+	t.throws(() => parseWithGrammar('if(1)$a=1;else $a=2;else $a=3;'));
+});
+
+test('else binds to the nearest if', t => {
+	var results = parseWithGrammar('if(1) if(2) $a=1; else $a=2;');
+	t.is(results.length, 1);
+	var outer = results[0][1][0];
+	t.is(outer[3], null);
+	t.is(outer[2][0], 'ifelse');
+	t.is(outer[2][3][0], 'local_var_assignment');
+});
+
+test('else after an else-if with an unbraced if body binds to that inner if', t => {
+	var results = parseWithGrammar('if(1) $a=1; else if(2) if(3) $a=2; else $a=3;');
+	t.is(results.length, 1);
+	var second = results[0][1][0][3];
+	t.is(second[3], null);
+	t.is(second[2][3][0], 'local_var_assignment');
+});
+
+test('braces override the nearest-if binding', t => {
+	var results = parseWithGrammar('if(1) { if(2) $a=1; } else $a=2;');
+	t.is(results.length, 1);
+	t.is(results[0][1][0][3][0], 'local_var_assignment');
+});
+
+test('unbraced nested ifs: 100 parse, 101 are rejected', t => {
+	t.is(parseWithGrammar('if(1)'.repeat(101) + '$a=1;' + 'else $a=2;'.repeat(101)).length, 1);
+	var error = t.throws(() => parseWithGrammar('if(1)'.repeat(102) + '$a=1;' + 'else $a=2;'.repeat(102)));
+	t.true(error.message.includes('nesting is too deep'));
+});
+
+test('formulas are parsed with the old grammar before pemCurvesFixMci and the new one after', t => {
+	const dangling = 'if(1) if(2) $a=1; else $a=2;';
+	t.is(formulaCommon.parseFormula(dangling, true).length, 1);
+	t.is(formulaCommon.parseFormula(dangling, false).length, 2); // ambiguous in the old grammar
+	const chain = '1' + '+1'.repeat(2001);
+	t.throws(() => formulaCommon.parseFormula(chain, true));
+	t.is(formulaCommon.parseFormula(chain, false).length, 1);
+});
+
+test.serial.cb('validation uses the old grammar below pemCurvesFixMci', t => {
+	const formula = 'if(1) if(2) $a=1; else $a=2;';
+	const opts = { bAA: true, bStatementsOnly: true, bStateVarAssignmentAllowed: true };
+	constants.pemCurvesFixMci = 100000;
+	validateFormula(formula, Object.assign({ mci: 1000 }, opts), res => {
+		t.is(res.error, 'ambiguous grammar');
+		validateFormula(formula, Object.assign({ mci: 100000 }, opts), res => {
+			constants.pemCurvesFixMci = 0;
+			t.falsy(res.error);
+			t.end();
+		});
+	});
 });
 
 test('Decimal toStringTag', t => {

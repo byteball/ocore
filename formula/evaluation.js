@@ -1,7 +1,5 @@
 /*jslint node: true */
 "use strict";
-var nearley = require("nearley");
-var grammar = require("./grammars/oscript.js");
 var async = require('async');
 var crypto = require('crypto');
 const util = require('util');
@@ -20,7 +18,7 @@ var signed_message = require("../signed_message.js"); // which requires definiti
 var signature = require('../signature.js');
 const formatError = require("./error/errorFormatter");
 
-const { cache, formulasInCache, cacheLimit, Decimal, objBaseAssetInfo, isFiniteDecimal, toDoubleRange, createDecimal, assignObject, assignField, isValidValue, getFormula, fixFormula, replaceNulls } = require('./common.js');
+const { parseFormula, Decimal, objBaseAssetInfo, isFiniteDecimal, toDoubleRange, createDecimal, assignObject, assignField, isValidValue, getFormula, fixFormula, replaceNulls } = require('./common.js');
 
 var hasOwnProperty = ValidationUtils.hasOwnProperty;
 
@@ -108,22 +106,11 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 	const bPostPemCurvesFix = mci >= constants.pemCurvesFixMci || !bAA && storage.getMinRetrievableMci() >= constants.pemCurvesFixMci;
 
 	var parser = {};
-	if(cache[formula]){
-		parser.results = cache[formula];
-	}else {
-		try {
-			parser = new nearley.Parser(nearley.Grammar.fromCompiled(grammar));
-			parser.feed(formula);
-			formulasInCache.push(formula);
-			cache[formula] = parser.results;
-			if (formulasInCache.length > cacheLimit) {
-				var f = formulasInCache.shift();
-				delete cache[f];
-			}
-		}catch (e) {
-			console.log('exception from parser', e);
-			return callback('parse failed: '+e, null);
-		}
+	try {
+		parser.results = parseFormula(formula, mci >= constants.pemCurvesFixMci);
+	}catch (e) {
+		console.log('exception from parser', e);
+		return callback('parse failed: '+e, null);
 	}
 	var fatal_error = false;
 	var early_return;
