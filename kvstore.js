@@ -73,7 +73,7 @@ function toRangeOptions(options = {}) {
 function createStream(options, bKeysOnly) {
 	const range = toRangeOptions(options);
 	const iterator = (bKeysOnly ? db.getKeys(range) : db.getRange(range))[Symbol.iterator]();
-	return new Readable({
+	const stream = new Readable({
 		objectMode: true,
 		read() {
 			try {
@@ -101,6 +101,14 @@ function createStream(options, bKeysOnly) {
 			cb(err);
 		}
 	});
+	// the sync iterator fills the buffer instantly, Readable would still flush buffered 'data' and 'end' after destroy()
+	const emit = stream.emit;
+	stream.emit = function (event, ...args) {
+		if (this.destroyed && (event === 'data' || event === 'end'))
+			return false;
+		return emit.call(this, event, ...args);
+	};
+	return stream;
 }
 
 function createBatch() {
