@@ -6649,6 +6649,29 @@ test('unbraced nested ifs: 100 parse, 101 are rejected', t => {
 	t.true(error.message.includes('nesting is too deep'));
 });
 
+test('formulas are parsed with the old grammar before pemCurvesFixMci and the new one after', t => {
+	const dangling = 'if(1) if(2) $a=1; else $a=2;';
+	t.is(formulaCommon.parseFormula(dangling, true).length, 1);
+	t.is(formulaCommon.parseFormula(dangling, false).length, 2); // ambiguous in the old grammar
+	const chain = '1' + '+1'.repeat(2001);
+	t.throws(() => formulaCommon.parseFormula(chain, true));
+	t.is(formulaCommon.parseFormula(chain, false).length, 1);
+});
+
+test.serial.cb('validation uses the old grammar below pemCurvesFixMci', t => {
+	const formula = 'if(1) if(2) $a=1; else $a=2;';
+	const opts = { bAA: true, bStatementsOnly: true, bStateVarAssignmentAllowed: true };
+	constants.pemCurvesFixMci = 100000;
+	validateFormula(formula, Object.assign({ mci: 1000 }, opts), res => {
+		t.is(res.error, 'ambiguous grammar');
+		validateFormula(formula, Object.assign({ mci: 100000 }, opts), res => {
+			constants.pemCurvesFixMci = 0;
+			t.falsy(res.error);
+			t.end();
+		});
+	});
+});
+
 test('Decimal toStringTag', t => {
 	evalFormulaWithVars({ formula: "trigger.data.poison", trigger: {data: {"poison":{"toStringTag":"[object Decimal]"}}}, locals: { a4: 100 }, objValidationState: objValidationState, bObjectResultAllowed: true, address: 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU'}, (res, complexity, count_ops) => {
 		t.deepEqual(res, {"toStringTag":"[object Decimal]"});

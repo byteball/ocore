@@ -1,10 +1,31 @@
+const nearley = require("nearley");
 var Decimal = require('decimal.js');
 var constants = require('../constants');
 var ValidationUtils = require("../validation_utils.js");
+const grammar = require("./grammars/oscript.js");
+const grammarPrePemFix = require("./grammars/oscript_pre_pem_fix.js");
 
 var cacheLimit = 100;
-var formulasInCache = [];
-var cache = {};
+// parse results differ between the grammars, so each has its own cache
+let caches = {
+	post: { formulas: [], results: {} },
+	pre: { formulas: [], results: {} },
+};
+
+// Before pemCurvesFixMci, formulas must be parsed with the old grammar exactly as before the fix: old units get re-validated by new nodes.
+// Throws if the formula can't be parsed.
+function parseFormula(formula, bPostPemCurvesFix) {
+	let c = bPostPemCurvesFix ? caches.post : caches.pre;
+	if (c.results[formula])
+		return c.results[formula];
+	let parser = new nearley.Parser(nearley.Grammar.fromCompiled(bPostPemCurvesFix ? grammar : grammarPrePemFix));
+	parser.feed(formula);
+	c.formulas.push(formula);
+	c.results[formula] = parser.results;
+	if (c.formulas.length > cacheLimit)
+		delete c.results[c.formulas.shift()];
+	return parser.results;
+}
 
 // the precision is slightly less than that of IEEE754 double
 // the range is slightly wider (9e308 is still ok here but Infinity in double) to make sure numeric data feeds can be safely read.  When written, overflowing datafeeds will be saved as strings only
@@ -119,9 +140,7 @@ function fixFormula(formula, address) {
 		return formula;
 }
 
-exports.cache = cache;
-exports.formulasInCache = formulasInCache;
-exports.cacheLimit = cacheLimit;
+exports.parseFormula = parseFormula;
 
 exports.Decimal = Decimal;
 exports.objBaseAssetInfo = objBaseAssetInfo;

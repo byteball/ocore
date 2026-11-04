@@ -1,16 +1,12 @@
 /*jslint node: true */
 "use strict";
 const util = require('util');
-var nearley = require("nearley");
-var grammar = require("./grammars/oscript.js");
 var async = require('async');
 var _ = require('lodash');
 var ValidationUtils = require("../validation_utils.js");
 var constants = require('../constants');
 
-var cache = require('./common.js').cache;
-var formulasInCache = require('./common.js').formulasInCache;
-var cacheLimit = require('./common.js').cacheLimit;
+const parseFormula = require('./common.js').parseFormula;
 
 var Decimal = require('./common.js').Decimal;
 var objBaseAssetInfo = require('./common.js').objBaseAssetInfo;
@@ -248,18 +244,8 @@ exports.validate = function (opts, callback) {
 
 	var parser = {};
 	try {
-		if(cache[formula]){
-			parser.results = cache[formula];
-		}else {
-			parser = new nearley.Parser(nearley.Grammar.fromCompiled(grammar));
-			parser.feed(formula);
-			if(formulasInCache.length > cacheLimit){
-				var f = formulasInCache.shift();
-				delete cache[f];
-			}
-			formulasInCache.push(formula);
-			cache[formula] = parser.results;
-		}
+		const bPostPemCurvesFix = mci >= constants.pemCurvesFixMci || require('../storage.js').getMinRetrievableMci() >= constants.pemCurvesFixMci;
+		parser.results = parseFormula(formula, bPostPemCurvesFix);
 	} catch (e) {
 		console.log('==== parse error', e, e.stack)
 		return callback({error: 'parse error', complexity, errorMessage: e.message});
