@@ -243,8 +243,8 @@ exports.validate = function (opts, callback) {
 	var bHadReturn = false;
 
 	var parser = {};
+	const bPostPemCurvesFix = mci >= constants.pemCurvesFixMci || require('../storage.js').getMinRetrievableMci() >= constants.pemCurvesFixMci;
 	try {
-		const bPostPemCurvesFix = mci >= constants.pemCurvesFixMci || require('../storage.js').getMinRetrievableMci() >= constants.pemCurvesFixMci;
 		parser.results = parseFormula(formula, bPostPemCurvesFix);
 	} catch (e) {
 		console.log('==== parse error', e, e.stack)
@@ -641,7 +641,7 @@ exports.validate = function (opts, callback) {
 							state: bInIf ? 'maybe assigned' : 'assigned',
 							type: 'data'
 						};
-						if (bConstant && !bInIf)
+						if (bConstant && !bInIf && (!selectors || !bPostPemCurvesFix))
 							localVarProps.value = rhs;
 						assignField(locals, var_name, localVarProps);
 						if (!selectors) // scalar variable
