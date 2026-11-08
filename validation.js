@@ -1717,6 +1717,9 @@ function validateInlinePayload(conn, objMessage, message_index, objUnit, objVali
 			return callback();
 
 		case "address_definition_change":
+			// Disabled now. A signer in a shared address could completely rewrite the rules when they get an opportunity to sign unilaterally under the current rules.
+			if (objValidationState.last_ball_mci >= constants.pemCurvesFixMci || !objValidationState.hasBall && storage.getMinRetrievableMci() >= constants.pemCurvesFixMci)
+				return callback("address_definition_change not allowed any more");
 			if (!isNonemptyObject(payload))
 				return callback("payload must be a non empty object");
 			if (hasFieldsExcept(payload, ["definition_chash", "address"]))
