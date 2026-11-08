@@ -11,8 +11,16 @@ var ValidationUtils = require("./validation_utils.js");
 
 
 function dataFeedExists(arrAddresses, feed_name, relation, value, min_mci, max_mci, bAA, handleResult){
+	const bLimitedPrecision = (max_mci < constants.aa2UpgradeMci);
+	if (feed_name.length > constants.MAX_DATA_FEED_NAME_LENGTH)
+		return handleResult(false);
+	// long numeric strings are keyed by their short numeric encoding, only non-numeric ones produce long keys
+	if (typeof value === 'string' && value.length > constants.MAX_DATA_FEED_VALUE_LENGTH && string_utils.toNumber(value, bLimitedPrecision) === null) {
+		if (relation === '=')
+			return handleResult(false);
+		value = value.slice(0, constants.MAX_DATA_FEED_VALUE_LENGTH + 1); // +1 is enough for comparisons
+	}
 	var start_time = Date.now();
-	var bLimitedPrecision = (max_mci < constants.aa2UpgradeMci);
 	if (bAA) {
 		var bFound = false;
 		function relationSatisfied(v1, v2) {
@@ -206,6 +214,10 @@ function readDataFeedValue(arrAddresses, feed_name, value, min_mci, max_mci, uns
 	var bLimitedPrecision = (max_mci < constants.aa2UpgradeMci);
 	var start_time = Date.now();
 	var objResult = { bAbortedBecauseOfSeveral: false, value: undefined, unit: undefined, mci: undefined };
+	if (feed_name.length > constants.MAX_DATA_FEED_NAME_LENGTH)
+		return handleResult(objResult);
+	if (typeof value === 'string' && value.length > constants.MAX_DATA_FEED_VALUE_LENGTH && string_utils.toNumber(value, bLimitedPrecision) === null)
+		return handleResult(objResult);
 	var bIncludeUnstableAAs = !!unstable_opts;
 	var bIncludeAllUnstable = (unstable_opts === 'all_unstable');
 	if (bIncludeUnstableAAs) {

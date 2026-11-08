@@ -72,6 +72,8 @@ function readUnit(unit, cb) {
 }
 
 function readJointJsonFromStorage(conn, unit, cb) {
+	if (typeof unit !== 'string' || unit.length !== constants.HASH_LENGTH)
+		return cb(null);
 	var kvstore = require('./kvstore.js');
 	if (!bCordova)
 		return kvstore.get('j\n' + unit, cb);
@@ -1013,6 +1015,8 @@ function parseStateVar(type_and_value) {
 function readAAStateVar(address, var_name, handleResult) {
 	if (!handleResult)
 		return new Promise(resolve => readAAStateVar(address, var_name, resolve));
+	if (var_name.length > constants.MAX_STATE_VAR_NAME_LENGTH)
+		return handleResult();
 	var kvstore = require('./kvstore.js');
 	kvstore.get("st\n" + address + "\n" + var_name, function (type_and_value) {
 		if (type_and_value === undefined)

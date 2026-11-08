@@ -3983,6 +3983,10 @@ function handleRequest(ws, tag, command, params){
 				params.var_prefix_from = params.var_prefix;
 				params.var_prefix_to = params.var_prefix;
 			}
+			if (params.var_prefix_from && params.var_prefix_from.length > constants.MAX_STATE_VAR_NAME_LENGTH)
+				return sendErrorResponse(ws, tag, "var_prefix_from is too long");
+			if (params.var_prefix_to && params.var_prefix_to.length > constants.MAX_STATE_VAR_NAME_LENGTH)
+				return sendErrorResponse(ws, tag, "var_prefix_to is too long");
 			if ('limit' in params && !ValidationUtils.isPositiveInteger(params.limit))
 				return sendErrorResponse(ws, tag, "limit must be a positive integer");
 			if ('limit' in params && params.limit > MAX_STATE_VARS)
