@@ -25,6 +25,11 @@ if (process.platform === 'win32') {
 // raw utf8 keys and values, byte-compatible with the data written by the old rocksdb binding
 const db_options = { keyEncoding: 'binary', encoding: 'binary' };
 
+// read-only follower of a live process, must be outside the rocksdb dir
+const secondary_path = process.env.KVSTORE_SECONDARY_PATH;
+if (secondary_path)
+	db_options.secondaryPath = secondary_path;
+
 let db;
 try {
 	db = RocksDatabase.open(path, db_options);
@@ -206,6 +211,10 @@ module.exports = {
 	},
 	
 	batch: createBatch,
+	
+	isSecondary: !!secondary_path,
+	
+	catchUpWithPrimary: () => db.catchUpWithPrimarySync(),
 	
 	createReadStream: options => createStream(options, false),
 	

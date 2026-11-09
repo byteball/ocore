@@ -1,9 +1,23 @@
 /*jslint node: true */
 'use strict';
+var fs = require('fs');
+var os = require('os');
+var path = require('path');
+
+// read-only follower, works whether or not the node is running
+var secondary_dir = process.env.KVSTORE_SECONDARY_PATH || fs.mkdtempSync(path.join(os.tmpdir(), 'viewkv-'));
+process.env.KVSTORE_SECONDARY_PATH = secondary_dir;
+
 var kvstore = require('../kvstore.js');
+
+process.on('exit', function(){
+	fs.rmSync(secondary_dir, {recursive: true, force: true});
+});
 
 var args = process.argv.slice(2);
 var key = args.join('\n');
+
+kvstore.catchUpWithPrimary();
 
 var start_time = process.hrtime();
 
