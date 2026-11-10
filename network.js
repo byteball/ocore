@@ -2315,7 +2315,24 @@ function handleHashTree(ws, request, response){
 			waitTillHashTreeFullyProcessedAndRequestNext(ws); // after 1 sec, it'll request the same hash tree, likely from another peer
 		},
 		ifOk: function(){
-			requestNewMissingJoints(ws, hashTree.balls.map(function(objBall){ return objBall.unit; }));
+			requestNewMissingJoints(ws, hashTree.balls.map(objBall => objBall.unit));
+			// a peer might return something invalid, so re-request the leftovers from the next peers
+			const unprocessedUnits = () => hashTree.balls.filter(objBall => storage.assocHashTreeUnitsByBall[objBall.ball]).map(objBall => objBall.unit);
+			let cur_ws = ws;
+			const scheduleCheckAndRetry = () => {
+				setTimeout(() => {
+					const arrUnits = unprocessedUnits();
+					if (arrUnits.length === 0)
+						return;
+					console.log(`handleHashTree: will retry unprocessed units ${arrUnits.join(', ')} from another peer`);
+					findNextPeer(cur_ws, next_ws => {
+						cur_ws = next_ws;
+						requestNewMissingJoints(next_ws, arrUnits);
+						scheduleCheckAndRetry();
+					});
+				}, 10000);
+			};
+			scheduleCheckAndRetry();
 			waitTillHashTreeFullyProcessedAndRequestNext(ws);
 		}
 	});
