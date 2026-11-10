@@ -2211,12 +2211,12 @@ function requestCatchup(ws){
 //		db.query("PRAGMA cache_size=-200000", function(){});
 	catchup.purgeHandledBallsFromHashTree(db, function(){
 		db.query(
-			"SELECT hash_tree_balls.unit FROM hash_tree_balls LEFT JOIN units USING(unit) WHERE units.unit IS NULL ORDER BY ball_index", 
+			"SELECT hash_tree_balls.ball, hash_tree_balls.unit FROM hash_tree_balls LEFT JOIN units USING(unit) WHERE units.unit IS NULL ORDER BY ball_index", 
 			function(tree_rows){ // leftovers from previous run
 				if (tree_rows.length > 0){
 					bCatchingUp = true;
 					console.log("will request balls found in hash tree");
-					requestNewMissingJoints(ws, tree_rows.map(function(tree_row){ return tree_row.unit; }));
+					requestMissingJointsAndRetry(ws, tree_rows);
 					waitTillHashTreeFullyProcessedAndRequestNext(ws);
 					return;
 				}
@@ -2315,27 +2315,31 @@ function handleHashTree(ws, request, response){
 			waitTillHashTreeFullyProcessedAndRequestNext(ws); // after 1 sec, it'll request the same hash tree, likely from another peer
 		},
 		ifOk: function(){
-			requestNewMissingJoints(ws, hashTree.balls.map(objBall => objBall.unit));
-			// a peer might return something invalid, so re-request the leftovers from the next peers
-			const unprocessedUnits = () => hashTree.balls.filter(objBall => storage.assocHashTreeUnitsByBall[objBall.ball]).map(objBall => objBall.unit);
-			let cur_ws = ws;
-			const scheduleCheckAndRetry = () => {
-				setTimeout(() => {
-					const arrUnits = unprocessedUnits();
-					if (arrUnits.length === 0)
-						return;
-					console.log(`handleHashTree: will retry unprocessed units ${arrUnits.join(', ')} from another peer`);
-					findNextPeer(cur_ws, next_ws => {
-						cur_ws = next_ws;
-						requestNewMissingJoints(next_ws, arrUnits);
-						scheduleCheckAndRetry();
-					});
-				}, 10000);
-			};
-			scheduleCheckAndRetry();
+			requestMissingJointsAndRetry(ws, hashTree.balls);
 			waitTillHashTreeFullyProcessedAndRequestNext(ws);
 		}
 	});
+}
+
+// a peer might return something invalid or drop the request, so re-request the leftovers from the next peers
+function requestMissingJointsAndRetry(ws, arrBalls){ // arrBalls: [{ball, unit}]
+	requestNewMissingJoints(ws, arrBalls.map(objBall => objBall.unit));
+	const unprocessedUnits = () => arrBalls.filter(objBall => storage.assocHashTreeUnitsByBall[objBall.ball]).map(objBall => objBall.unit);
+	let cur_ws = ws;
+	const scheduleCheckAndRetry = () => {
+		setTimeout(() => {
+			const arrUnits = unprocessedUnits();
+			if (arrUnits.length === 0)
+				return;
+			console.log(`will retry unprocessed units ${arrUnits.join(', ')} from another peer`);
+			findNextPeer(cur_ws, next_ws => {
+				cur_ws = next_ws;
+				requestNewMissingJoints(next_ws, arrUnits);
+				scheduleCheckAndRetry();
+			});
+		}, 10000);
+	};
+	scheduleCheckAndRetry();
 }
 
 function haveManyUnhandledHashTreeBalls(){
