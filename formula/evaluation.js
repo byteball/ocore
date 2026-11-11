@@ -3163,7 +3163,7 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 				});
 			}
 			else
-				throw Error("unknown type of max_remote_complexity: " + max_remote_complexity);
+				cb("unknown type of max_remote_complexity: " + max_remote_complexity);
 		});
 	}
 
