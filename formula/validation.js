@@ -1346,6 +1346,7 @@ exports.validate = function (opts, callback) {
 		var saved_count_ops = count_ops;
 		var saved_sva = bStateVarAssignmentAllowed;
 		var saved_infunction = bInFunction;
+		var saved_had_return = bHadReturn;
 		var saved_locals = _.cloneDeep(locals);
 		complexity = 0;
 		count_ops = 0;
@@ -1367,6 +1368,8 @@ exports.validate = function (opts, callback) {
 			count_ops = saved_count_ops;
 			bStateVarAssignmentAllowed = saved_sva;
 			bInFunction = saved_infunction;
+			if (bPostPemCurvesFix)
+				bHadReturn = saved_had_return;
 			assignObject(locals, saved_locals);
 
 			if (funcProps.complexity > constants.MAX_COMPLEXITY)
