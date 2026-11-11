@@ -18,7 +18,6 @@ function dataFeedExists(arrAddresses, feed_name, relation, value, min_mci, max_m
 	if (typeof value === 'string' && value.length > constants.MAX_DATA_FEED_VALUE_LENGTH && string_utils.toNumber(value, bLimitedPrecision) === null) {
 		if (relation === '=')
 			return handleResult(false);
-		value = value.slice(0, constants.MAX_DATA_FEED_VALUE_LENGTH + 1); // +1 is enough for comparisons
 	}
 	var start_time = Date.now();
 	if (bAA) {
@@ -134,7 +133,7 @@ function dataFeedByAddressExists(address, feed_name, relation, value, min_mci, m
 			type = 'n';
 		}
 		else{
-			prefixed_value = 's\n'+value;
+			prefixed_value = 's\n'+value.slice(0, constants.MAX_DATA_FEED_VALUE_LENGTH + 1); // +1 is enough for comparisons
 			type = 's';
 		}
 	}
