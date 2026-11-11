@@ -612,6 +612,8 @@ exports.validate = function (opts, callback) {
 					}
 					var bFuncDeclaration = (rhs[0] === 'func_declaration');
 					var bConstant = isValidValue(rhs);
+					if (bGetters && !bInFunction && !bLiteral && bPostPemCurvesFix)
+						return cb("computed var names not allowed at top level in getters");
 					if (bGetters && !(bInFunction || bFuncDeclaration || bConstant && (!selectors || !bPostPemCurvesFix)))
 						return cb("non-constant top level vars not allowed in getters");
 					if (bFuncDeclaration) {

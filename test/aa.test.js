@@ -645,6 +645,54 @@ test('getter with non-constant top-level local var', t => {
 	});
 });
 
+test('getter with computed top-level var name', t => {
+	["{ ${'a'||'b'} = 1; $c = 2; }", "{ ${'a'||'b'} = 1; ${'c'||'d'} = 2; }", "{ $c = 2; ${'a'||'b'} = 1; }"].forEach(getters => {
+		var aa = ['autonomous agent', {
+			getters,
+			messages: [
+				{
+					app: 'state',
+					state: `{
+						$y = 8;
+					}`
+				}
+			]
+		}];
+		var bCalled = false;
+		validateAA(aa, err => {
+			bCalled = true;
+			t.regex(err, /computed var names not allowed at top level in getters$/);
+		});
+		t.true(bCalled);
+	});
+});
+
+test('getter with computed var name inside a function', t => {
+	var aa = ['autonomous agent', {
+		getters: `{
+			$c = 2;
+			$f = ($x) => {
+				\${'a'||'b'} = $x;
+				$ab + $c
+			};
+		}`,
+		messages: [
+			{
+				app: 'state',
+				state: `{
+					$y = 8;
+				}`
+			}
+		]
+	}];
+	var bCalled = false;
+	validateAA(aa, err => {
+		bCalled = true;
+		t.deepEqual(err, null);
+	});
+	t.true(bCalled);
+});
+
 test.cb('validate samples', t => {
 	var samples_dir = path.join(__dirname, 'samples');
 	var files = fs.readdirSync(samples_dir);
