@@ -612,7 +612,7 @@ exports.validate = function (opts, callback) {
 					}
 					var bFuncDeclaration = (rhs[0] === 'func_declaration');
 					var bConstant = isValidValue(rhs);
-					if (bGetters && !(bInFunction || bFuncDeclaration || bConstant))
+					if (bGetters && !(bInFunction || bFuncDeclaration || bConstant && (!selectors || !bPostPemCurvesFix)))
 						return cb("non-constant top level vars not allowed in getters");
 					if (bFuncDeclaration) {
 						if (mci < constants.aa2UpgradeMci)
