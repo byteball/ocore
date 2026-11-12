@@ -643,7 +643,7 @@ exports.validate = function (opts, callback) {
 							state: bInIf ? 'maybe assigned' : 'assigned',
 							type: 'data'
 						};
-						if (bConstant && !bInIf && (!selectors && !bExists && !locals[''] && !bHadReturn || !bPostPemCurvesFix))
+						if (bConstant && !bInIf && (!selectors && !bExists && !locals[''] && !bHadReturn && bLiteral || !bPostPemCurvesFix))
 							localVarProps.value = rhs;
 						assignField(locals, var_name, localVarProps);
 						if (!selectors) // scalar variable
