@@ -355,9 +355,11 @@ function updateIndivisibleOutputsThatWereReceivedUnstable(conn, onDone){
 								if (src_row.src_unit === null) // reached root of the chain (issue)
 									return updateWalkedOutputProps(1);
 								conn.query(
-									"SELECT sequence, is_stable, is_serial FROM outputs JOIN units USING(unit) \n\
-									WHERE unit=? AND message_index=? AND output_index=?", 
-									[src_row.src_unit, src_row.src_message_index, src_row.src_output_index],
+									// LEFT JOIN: the outputs of a voided final-bad unit are deleted
+									"SELECT sequence, is_stable, is_serial FROM units \n\
+									LEFT JOIN outputs ON units.unit=outputs.unit AND message_index=? AND output_index=? \n\
+									WHERE units.unit=?", 
+									[src_row.src_message_index, src_row.src_output_index, src_row.src_unit],
 									function(prev_rows){
 										if (prev_rows.length === 0)
 											throw Error("src unit not found");
