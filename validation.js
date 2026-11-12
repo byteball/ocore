@@ -1649,7 +1649,7 @@ function validateMessage(conn, objMessage, message_index, objUnit, objValidation
 		});
 		var doubleSpendIndexMySQL = conf.storage == "mysql" ? "USE INDEX(bySpendProof)" : "";
 		checkForDoublespends(conn, "spend proof", 
-			"SELECT address, unit, main_chain_index, sequence FROM spend_proofs "+ doubleSpendIndexMySQL+" JOIN units USING(unit) WHERE unit != ? AND sequence!='final-bad' AND ("+arrEqs.join(" OR ")+")",
+			"SELECT address, unit, main_chain_index, sequence, is_stable FROM spend_proofs "+ doubleSpendIndexMySQL+" JOIN units USING(unit) WHERE unit != ? AND sequence!='final-bad' AND ("+arrEqs.join(" OR ")+")",
 			[objUnit.unit], 
 			objUnit, objValidationState, function(cb2){ cb2(); }, cb);
 	}
@@ -1679,7 +1679,7 @@ function checkForDoublespends(conn, type, sql, arrSqlArgs, objUnit, objValidatio
 
 							// too young (serial or nonserial)
 							if (objConflictingRecord.main_chain_index > objValidationState.last_ball_mci || objConflictingRecord.main_chain_index === null)
-								return cb2(error);
+								return cb2(objConflictingRecord.is_stable ? error : createTransientError(error)); // if the conflict is not stable, our unit can be retried later. If the conflict stabilizes as good, the rejection becomes permanent. If as final-bad, the conflict is treated as non-existent.
 
 							// in good sequence (final state); final-bad is excluded by the query and treated as non-existent
 							if (objConflictingRecord.sequence === 'good')
