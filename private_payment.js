@@ -54,6 +54,8 @@ function validateAndSavePrivatePaymentChain(arrPrivateElements, callbacks){
 						ifOk: function(){
 							conn.query("COMMIT", function(){
 								conn.release();
+								if (objAsset.fixed_denominations && headElement.bStable === false)
+									indivisibleAsset.updateOutputsWhenUnitBecomesStable(headElement.unit);
 								callbacks.ifOk();
 							});
 						}

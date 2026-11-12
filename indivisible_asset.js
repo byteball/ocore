@@ -14,6 +14,7 @@ var writer = require('./writer.js');
 var graph = require('./graph.js');
 var profiler = require('./profiler.js');
 var mutex = require('./mutex.js');
+const eventBus = require('./event_bus.js');
 
 var NOT_ENOUGH_FUNDS_ERROR_MESSAGE = "not enough indivisible asset coins that fit the desired amount within the specified tolerances, make sure all your funds are confirmed";
 
@@ -389,6 +390,33 @@ function updateIndivisibleOutputsThatWereReceivedUnstable(conn, onDone){
 		}
 	);
 }
+
+function updateOutputsInOwnTransaction(){
+	db.takeConnectionFromPool(conn => {
+		conn.query("BEGIN", () => {
+			updateIndivisibleOutputsThatWereReceivedUnstable(conn, () => {
+				conn.query("COMMIT", () => {
+					conn.release();
+				});
+			});
+		});
+	});
+}
+
+let assocUnitsWaitingForStability = {};
+
+// not persisted: after a restart, the startup run and pickIndivisibleCoinsForAmount resolve what is left
+function updateOutputsWhenUnitBecomesStable(unit){
+	if (assocUnitsWaitingForStability[unit])
+		return;
+	assocUnitsWaitingForStability[unit] = true;
+	eventBus.once('my_stable-' + unit, () => {
+		delete assocUnitsWaitingForStability[unit];
+		updateOutputsInOwnTransaction();
+	});
+}
+
+setTimeout(updateOutputsInOwnTransaction, 10 * 1000).unref(); // unref so that short-lived scripts can exit
 
 function pickIndivisibleCoinsForAmount(
 	conn, objAsset, arrAddresses, last_ball_mci, to_address, change_address, amount, tolerance_plus, tolerance_minus,
@@ -1173,3 +1201,4 @@ exports.composeMinimalIndivisibleAssetPaymentJoint = composeMinimalIndivisibleAs
 exports.composeAndSaveIndivisibleAssetPaymentJoint = composeAndSaveIndivisibleAssetPaymentJoint;
 exports.composeAndSaveMinimalIndivisibleAssetPaymentJoint = composeAndSaveMinimalIndivisibleAssetPaymentJoint;
 exports.updateIndivisibleOutputsThatWereReceivedUnstable = updateIndivisibleOutputsThatWereReceivedUnstable;
+exports.updateOutputsWhenUnitBecomesStable = updateOutputsWhenUnitBecomesStable;
