@@ -2695,6 +2695,8 @@ function initPrivatePaymentValidationState(conn, unit, message_index, payload, o
 			var row = rows[0];
 			if (row.sequence !== "good" && row.is_stable === 1)
 				return onError("unit is final nonserial");
+			if (row.sequence !== "good") // sender must resend if temp-bad becomes good after stabilization
+				return onError("unit is unstable nonserial");
 			var bStable = (row.is_stable === 1); // it's ok if the unit is not stable yet
 			if (row.app !== "payment")
 				return onError("invalid app");
