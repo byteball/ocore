@@ -14,7 +14,7 @@ function readBalance(walletOrAddress, handleBalance){
 	db.query(
 		"SELECT asset, is_stable, SUM(CAST(amount AS DOUBLE)) AS balance \n\
 		FROM outputs "+join_my_addresses+" CROSS JOIN units USING(unit) \n\
-		WHERE is_spent=0 AND "+where_condition+" AND sequence='good' \n\
+		WHERE is_spent=0 AND "+where_condition+" AND sequence='good' AND (is_serial IS NULL OR is_serial=1) \n\
 		GROUP BY asset, is_stable",
 		[walletOrAddress],
 		function(rows){
@@ -76,7 +76,7 @@ function readOutputsBalance(wallet, handleBalance){
 	db.query(
 		"SELECT asset, is_stable, SUM(CAST(amount AS DOUBLE)) AS balance \n\
 		FROM outputs "+join_my_addresses+" CROSS JOIN units USING(unit) \n\
-		WHERE is_spent=0 AND "+where_condition+" AND sequence='good' \n\
+		WHERE is_spent=0 AND "+where_condition+" AND sequence='good' AND (is_serial IS NULL OR is_serial=1) \n\
 		GROUP BY asset, is_stable",
 		[wallet],
 		function(rows){
@@ -132,7 +132,7 @@ function readSharedBalance(wallet, handleBalance){
 		db.query(
 			"SELECT asset, address, is_stable, SUM(CAST(amount AS DOUBLE)) AS balance \n\
 			FROM outputs CROSS JOIN units USING(unit) \n\
-			WHERE is_spent=0 AND sequence='good' AND address IN("+strAddressList+") \n\
+			WHERE is_spent=0 AND sequence='good' AND (is_serial IS NULL OR is_serial=1) AND address IN("+strAddressList+") \n\
 			GROUP BY asset, address, is_stable \n\
 			UNION ALL \n\
 			SELECT NULL AS asset, address, 1 AS is_stable, SUM(amount) AS balance FROM witnessing_outputs \n\

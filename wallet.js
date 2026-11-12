@@ -1353,7 +1353,7 @@ function readBalancesOnAddresses(walletId, handleBalancesOnAddresses) {
 	FROM my_addresses \n\
 	JOIN outputs USING(address) \n\
 	CROSS JOIN units ON outputs.unit = units.unit \n\
-	WHERE my_addresses.wallet = ? AND outputs.is_spent=0 AND units.sequence='good' \n\
+	WHERE my_addresses.wallet = ? AND outputs.is_spent=0 AND units.sequence='good' AND (outputs.is_serial IS NULL OR outputs.is_serial=1) \n\
 	GROUP BY outputs.address, outputs.asset \n\
 	ORDER BY my_addresses.address_index ASC", [walletId], function(rows) {
 		handleBalancesOnAddresses(rows);
@@ -1821,7 +1821,7 @@ function readFundedAddresses(asset, wallet, estimated_amount, spend_unconfirmed,
 				FROM my_addresses \n\
 				CROSS JOIN outputs USING(address) \n\
 				CROSS JOIN units USING(unit) \n\
-				WHERE wallet=? "+inputs.getConfirmationConditionSql(spend_unconfirmed)+" AND sequence='good' \n\
+				WHERE wallet=? "+inputs.getConfirmationConditionSql(spend_unconfirmed)+" AND sequence='good' AND (is_serial IS NULL OR is_serial=1) \n\
 					AND is_spent=0 AND "+(asset ? "asset=?" : "asset IS NULL")+" \n\
 				GROUP BY address ORDER BY "+order_by + limit + " \n\
 			) AS t \n\
