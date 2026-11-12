@@ -300,27 +300,27 @@ function validateAndSavePrivatePaymentChain(conn, arrPrivateElements, callbacks)
 // must be executed within transaction
 function updateIndivisibleOutputsThatWereReceivedUnstable(conn, onDone){
 	
-	function updateOutputProps(unit, is_serial, onUpdated){
+	function updateOutputProps(unit, message_index, is_serial, onUpdated){
 		// may update several outputs
 		conn.query(
-			"UPDATE outputs SET is_serial=? WHERE unit=?", 
-			[is_serial, unit],
+			"UPDATE outputs SET is_serial=? WHERE unit=? AND message_index=? AND is_serial IS NULL", // don't overwrite what an earlier walk resolved
+			[is_serial, unit, message_index],
 			function(){
-				is_serial ? updateInputUniqueness(unit, onUpdated) : onUpdated();
+				is_serial ? updateInputUniqueness(unit, message_index, onUpdated) : onUpdated();
 			}
 		);
 	}
 	
-	function updateInputUniqueness(unit, onUpdated){
+	function updateInputUniqueness(unit, message_index, onUpdated){
 		// may update several inputs
-		conn.query("UPDATE inputs SET is_unique=1 WHERE unit=?", [unit], function(){
+		conn.query("UPDATE inputs SET is_unique=1 WHERE unit=? AND message_index=?", [unit, message_index], function(){
 			onUpdated();
 		});
 	}
 	
 	console.log("updatePrivateIndivisibleOutputsThatWereReceivedUnstable starting");
 	conn.query(
-		"SELECT unit, message_index, sequence FROM outputs "+(conf.storage === 'sqlite' ? "INDEXED BY outputsIsSerial" : "")+" \n\
+		"SELECT DISTINCT unit, message_index, sequence FROM outputs "+(conf.storage === 'sqlite' ? "INDEXED BY outputsIsSerial" : "")+" \n\
 		JOIN units USING(unit) \n\
 		WHERE outputs.is_serial IS NULL AND units.is_stable=1 AND is_spent=0", // is_spent=0 selects the final output in the chain
 		function(rows){
@@ -330,8 +330,13 @@ function updateIndivisibleOutputsThatWereReceivedUnstable(conn, onDone){
 				rows,
 				function(row, cb){
 					
-					function updateFinalOutputProps(is_serial){
-						updateOutputProps(row.unit, is_serial, cb);
+					var arrWalked = [{unit: row.unit, message_index: row.message_index}];
+					
+					// a nonserial ancestor makes all later messages of the chain nonserial
+					function updateWalkedOutputProps(is_serial){
+						async.eachSeries(arrWalked, function(el, cb2){
+							updateOutputProps(el.unit, el.message_index, is_serial, cb2);
+						}, cb);
 					}
 					
 					function goUp(unit, message_index){
@@ -348,7 +353,7 @@ function updateIndivisibleOutputsThatWereReceivedUnstable(conn, onDone){
 									throw Error("updating unstable: more than one input found");
 								var src_row = src_rows[0];
 								if (src_row.src_unit === null) // reached root of the chain (issue)
-									return cb();
+									return updateWalkedOutputProps(1);
 								conn.query(
 									"SELECT sequence, is_stable, is_serial FROM outputs JOIN units USING(unit) \n\
 									WHERE unit=? AND message_index=? AND output_index=?", 
@@ -357,30 +362,25 @@ function updateIndivisibleOutputsThatWereReceivedUnstable(conn, onDone){
 										if (prev_rows.length === 0)
 											throw Error("src unit not found");
 										var prev_output = prev_rows[0];
-										if (prev_output.is_serial === 0)
-											throw Error("prev is already nonserial");
 										if (prev_output.is_stable === 0)
 											throw Error("prev is not stable");
 										if (prev_output.is_serial === 1 && prev_output.sequence !== 'good')
 											throw Error("prev is_serial=1 but seq!=good");
 										if (prev_output.is_serial === 1) // already was stable when initially received
-											return cb();
-										var is_serial = (prev_output.sequence === 'good') ? 1 : 0;
-										updateOutputProps(src_row.src_unit, is_serial, function(){
-											if (!is_serial) // overwrite the tip of the chain
-												return updateFinalOutputProps(0);
-											goUp(src_row.src_unit, src_row.src_message_index);
-										});
+											return updateWalkedOutputProps(1);
+										arrWalked.push({unit: src_row.src_unit, message_index: src_row.src_message_index});
+										if (prev_output.is_serial === 0 || prev_output.sequence !== 'good')
+											return updateWalkedOutputProps(0);
+										goUp(src_row.src_unit, src_row.src_message_index);
 									}
 								);
 							}
 						);
 					}
 					
-					var is_serial = (row.sequence === 'good') ? 1 : 0;
-					updateOutputProps(row.unit, is_serial, function(){
-						goUp(row.unit, row.message_index);
-					});
+					if (row.sequence !== 'good')
+						return updateWalkedOutputProps(0);
+					goUp(row.unit, row.message_index);
 				},
 				onDone
 			);
