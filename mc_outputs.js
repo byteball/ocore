@@ -12,7 +12,7 @@ var conf = require('./conf.js');
 
 function readNextSpendableMcIndex(conn, type, address, arrConflictingUnits, handleNextSpendableMcIndex){
 	conn.query(
-		"SELECT to_main_chain_index FROM inputs CROSS JOIN units USING(unit) \n\
+		"SELECT to_main_chain_index, is_stable FROM inputs CROSS JOIN units USING(unit) \n\
 		WHERE type=? AND address=? AND sequence!='final-bad' "+(
 			(arrConflictingUnits && arrConflictingUnits.length > 0) 
 			? " AND unit NOT IN("+arrConflictingUnits.map(function(unit){ return db.escape(unit); }).join(", ")+") " 
@@ -25,7 +25,7 @@ function readNextSpendableMcIndex(conn, type, address, arrConflictingUnits, hand
 		//	readNextUnspentMcIndex(conn, type, address, function(next_unspent_mci){
 		//		if (next_unspent_mci !== mci)
 		//			throw Error("next unspent mci !== next spendable mci: "+next_unspent_mci+" !== "+mci+", address "+address);
-				handleNextSpendableMcIndex(mci);
+				handleNextSpendableMcIndex(mci, rows.length > 0 && rows[0].is_stable === 1);
 		//	});
 		}
 	);
