@@ -1315,56 +1315,50 @@ function markMcIndexStable(conn, batch, mci, onDone){
 	);
 
 
-	function handleNonserialUnits(){
+	async function handleNonserialUnits(){
 	//	console.log('handleNonserialUnits')
-		conn.query(
-			"SELECT * FROM units WHERE main_chain_index=? AND sequence!='good' ORDER BY unit", [mci], 
-			function(rows){
-				var arrFinalBadUnits = [];
-				async.eachSeries(
-					rows,
-					function(row, cb){
-						if (row.sequence === 'final-bad'){
-							arrFinalBadUnits.push(row.unit);
-							return row.content_hash ? cb() : setContentHash(row.unit, cb);
-						}
-						// temp-bad
-						if (row.content_hash)
-							throw Error("temp-bad and with content_hash?");
-						findStableConflictingUnits(row, function(arrConflictingUnits){
-							var sequence = (arrConflictingUnits.length > 0) ? 'final-bad' : 'good';
-							console.log("unit "+row.unit+" has competitors "+arrConflictingUnits+", it becomes "+sequence);
-							conn.query("UPDATE units SET sequence=? WHERE unit=?", [sequence, row.unit], function(){
-								if (sequence === 'good')
-									conn.query("UPDATE inputs SET is_unique=1 WHERE unit=?", [row.unit], function(){
-										storage.assocStableUnits[row.unit].sequence = 'good';
-										cb();
-									});
-								else{
-									arrFinalBadUnits.push(row.unit);
-									// treat this unit as a non-existent competitor from now on
-									conn.query("UPDATE inputs SET is_unique=NULL WHERE unit=?", [row.unit], function(){
-										setContentHash(row.unit, cb);
-									});
-								}
-							});
-						});
-					},
-					function(){
-						//if (rows.length > 0)
-						//    throw "stop";
-						// next op
-						arrFinalBadUnits.forEach(function(unit){
-							storage.assocStableUnits[unit].sequence = 'final-bad';
-						});
-						propagateFinalBad(arrFinalBadUnits, addBalls);
-					}
-				);
+		// after the upgrade, a spender is handled after its source and after final-bad has propagated from the source
+		const bPropagateImmediately = mci >= constants.pemCurvesFixMci;
+		const rows = await conn.query("SELECT * FROM units WHERE main_chain_index=? AND sequence!='good' ORDER BY " + (bPropagateImmediately ? "level, unit" : "unit"), [mci]);
+		const arrFinalBadUnits = [];
+		for (const row of rows) {
+			const unit = row.unit;
+			if (row.sequence !== 'final-bad') { // temp-bad
+				if (bPropagateImmediately && storage.assocStableUnits[unit].sequence === 'final-bad') // already propagated from its source
+					continue;
+				if (row.content_hash)
+					throw Error("temp-bad and with content_hash?");
+				const arrConflictingUnits = await findStableConflictingUnits(row);
+				const sequence = (arrConflictingUnits.length > 0) ? 'final-bad' : 'good';
+				console.log("unit "+unit+" has competitors "+arrConflictingUnits+", it becomes "+sequence);
+				await conn.query("UPDATE units SET sequence=? WHERE unit=?", [sequence, unit]);
+				if (sequence === 'good') {
+					await conn.query("UPDATE inputs SET is_unique=1 WHERE unit=?", [unit]);
+					storage.assocStableUnits[unit].sequence = 'good';
+					continue;
+				}
+				// treat this unit as a non-existent competitor from now on
+				await conn.query("UPDATE inputs SET is_unique=NULL WHERE unit=?", [unit]);
 			}
-		);
+			if (!row.content_hash)
+				await setContentHash(unit);
+			if (bPropagateImmediately) {
+				storage.assocStableUnits[unit].sequence = 'final-bad';
+				await propagateFinalBad([unit]);
+			}
+			else
+				arrFinalBadUnits.push(unit);
+		}
+		// next op
+		arrFinalBadUnits.forEach(function(unit){
+			storage.assocStableUnits[unit].sequence = 'final-bad';
+		});
+		propagateFinalBad(arrFinalBadUnits, addBalls);
 	}
 
 	function setContentHash(unit, onSet){
+		if (!onSet)
+			return new Promise(resolve => setContentHash(unit, resolve));
 		storage.readJoint(conn, unit, {
 			ifNotFound: function(){
 				throw Error("bad unit not found: "+unit);
@@ -1381,6 +1375,8 @@ function markMcIndexStable(conn, batch, mci, onDone){
 	
 	// all future units that spent these unconfirmed units become final-bad too
 	function propagateFinalBad(arrFinalBadUnits, onPropagated){
+		if (!onPropagated)
+			return new Promise(resolve => propagateFinalBad(arrFinalBadUnits, resolve));
 		if (arrFinalBadUnits.length === 0)
 			return onPropagated();
 		conn.query("SELECT DISTINCT inputs.unit, main_chain_index FROM inputs LEFT JOIN units USING(unit) LEFT JOIN assets ON asset=assets.unit WHERE src_unit IN(?) AND (is_private=0 OR inputs.asset IS NULL)", [arrFinalBadUnits], function(rows){
@@ -1419,8 +1415,10 @@ function markMcIndexStable(conn, batch, mci, onDone){
 	}
 
 	function findStableConflictingUnits(objUnitProps, handleConflictingUnits){
+		if (!handleConflictingUnits)
+			return new Promise(resolve => findStableConflictingUnits(objUnitProps, resolve));
 		// find potential competitors.
-		// units come here sorted by original unit, so the smallest original on the same MCI comes first and will become good, all others will become final-bad
+		// units come here sorted by unit (by level, then unit after the upgrade), so the first one on the same MCI will become good, all others will become final-bad
 		/*
 		Same query optimized for frequent addresses:
 		SELECT competitor_units.*
@@ -1446,7 +1444,7 @@ function markMcIndexStable(conn, batch, mci, onDone){
 				-- if it were main_chain_index <= this_unit_limci, the competitor would've been included \n\
 				AND (competitor_units.main_chain_index > this_unit.latest_included_mc_index) \n\
 				AND (competitor_units.main_chain_index <= this_unit.main_chain_index)",
-			// if on the same mci, the smallest unit wins becuse it got selected earlier and was assigned sequence=good
+			// if on the same mci, the unit that got selected earlier wins because it was assigned sequence=good
 			[objUnitProps.unit],
 			function(rows){
 				var arrConflictingUnits = [];
