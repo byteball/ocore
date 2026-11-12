@@ -2346,6 +2346,9 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 				var func_expr = arr[3];
 				var initial_value_expr = arr[4];
 				var bReduce = (op === 'reduce');
+				// definitions validated before the fix could pass ${''} as a count the validator never really knew
+				if (bPostPemCurvesFix && Array.isArray(count_expr) && count_expr[0] === 'local_var' && count_expr[1] === '')
+					return setFatalError("calculated var as count in " + op, { arr }, false, cb);
 				evaluate(expr, function (res) {
 					if (fatal_error)
 						return cb(false);
@@ -2593,6 +2596,8 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 				var arrExpressions = arr[4];
 				if (arrExpressions.length > 30 && bPostPemCurvesFix)
 					return setFatalError("too many arguments to remote func " + func_name, { arr }, false, cb);
+				if (bPostPemCurvesFix && Array.isArray(remote_aa_expr) && remote_aa_expr[0] === 'local_var' && remote_aa_expr[1] === '')
+					return setFatalError("calculated var as remote AA", { arr }, false, cb);
 				var args = [];
 				async.eachSeries(
 					arrExpressions,
@@ -3117,6 +3122,8 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 			var remote_aa_expr = func_expr[1];
 			var max_remote_complexity = func_expr[2];
 			var func_name = func_expr[3];
+			if (bPostPemCurvesFix && Array.isArray(remote_aa_expr) && remote_aa_expr[0] === 'local_var' && remote_aa_expr[1] === '')
+				return setFatalError("calculated var as remote AA", { arr }, false, cb);
 			evaluate(remote_aa_expr, remote_aa => {
 				if (fatal_error)
 					return cb(false);
@@ -3137,6 +3144,8 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 	function checkMaxRemoteComplexity(remote_aa, func_name, max_remote_complexity, cb) {
 		if (max_remote_complexity === null)
 			return cb();
+		if (bPostPemCurvesFix && Array.isArray(max_remote_complexity) && max_remote_complexity[0] === 'local_var' && max_remote_complexity[1] === '')
+			return cb("calculated var as max remote complexity");
 		evaluate(max_remote_complexity, max_remote_complexity => {
 			if (fatal_error)
 				return cb(fatal_error);
