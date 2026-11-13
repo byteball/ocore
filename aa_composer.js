@@ -1900,7 +1900,12 @@ function sortDenominations(a,b){
 
 function revertResponsesInCaches(arrResponses) {
 	// remove the rolled back units from caches and correct is_free of their parents if necessary
-	console.log('will revert responses ' + JSON.stringify(arrResponses, null, '\t'));
+	try {
+		console.log('will revert responses', util.inspect(arrResponses, { depth: 15 }));
+	}
+	catch (e) {
+		console.log('will revert responses (failed to log)', e);
+	}
 	var arrResponseUnits = [];
 	arrResponses.forEach(function (objAAResponse) {
 		if (objAAResponse.response_unit)
