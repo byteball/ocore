@@ -681,8 +681,12 @@ function validateAADefinition(arrDefinition, readGetterProps, mci, callback) {
 				evaluateInit(function (err) {
 					if (err)
 						return cb(err);
-					delete value.if;
-					delete value.init;
+					// before the fix, non-string if/init were deleted unvalidated, while aa_composer keeps and evaluates them
+					const bPostFix = (mci >= constants.pemCurvesFixMci);
+					if (!bPostFix || typeof value.if === 'string')
+						delete value.if;
+					if (!bPostFix || typeof value.init === 'string')
+						delete value.init;
 					validate(obj, name, path, locals, depth, cb);
 				})
 			});
