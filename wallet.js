@@ -667,6 +667,8 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					return callbacks.ifError("wrong contract hash");
 				if (!/^\d{4}\-\d{2}\-\d{2} \d{2}:\d{2}:\d{2}$/.test(body.creation_date))
 					return callbacks.ifError("wrong contract creation date");
+				if (body.status !== 'accepted')
+					return callbacks.ifError("contract status is not accepted");
 				db.query("SELECT 1 FROM my_addresses \n\
 						JOIN wallet_signing_paths USING(wallet)\n\
 						WHERE my_addresses.address=? AND wallet_signing_paths.device_address=?",[body.my_address, from_address],
