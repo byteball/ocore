@@ -416,7 +416,9 @@ function updateOutputsWhenUnitBecomesStable(unit){
 	});
 }
 
-setTimeout(updateOutputsInOwnTransaction, 10 * 1000).unref(); // unref so that short-lived scripts can exit
+const updateOutputsTimer = setTimeout(updateOutputsInOwnTransaction, 10 * 1000);
+if (updateOutputsTimer.unref)
+    updateOutputsTimer.unref(); // unref so that short-lived scripts can exit
 
 function pickIndivisibleCoinsForAmount(
 	conn, objAsset, arrAddresses, last_ball_mci, to_address, change_address, amount, tolerance_plus, tolerance_minus,
