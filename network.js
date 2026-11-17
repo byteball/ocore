@@ -492,6 +492,7 @@ function connectToPeer(url, onOpen, dontAddPeer) {
 		ws.last_ts = Date.now();
 		console.log('connected to '+url+", host "+ws.host);
 		arrOutboundPeers.push(ws);
+		addPeerHost(ws.host); // writeEvent() needs it even if the peer itself is not added (dontAddPeer)
 		sendVersion(ws);
 		if (conf.myUrl) // I can listen too, this is my url to connect to
 			sendJustsaying(ws, 'my_url', conf.myUrl);
