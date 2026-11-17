@@ -610,6 +610,11 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 						if (!isValidValue(value))
 							return cb("bad feed_value: "+value);
 					}
+					if (bPostPemCurvesFix) {
+						var df_err = getDataFeedRestrictionError(feed_name, value);
+						if (df_err)
+							return cb(df_err);
+					}
 					if (params.min_mci) {
 						min_mci = params.min_mci.value.toString();
 						if (!(/^\d+$/.test(min_mci) && ValidationUtils.isNonnegativeInteger(parseInt(min_mci))))
@@ -728,6 +733,11 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 						var relation = evaluated_params.feed_value.operator;
 						if (!isValidValue(value))
 							return setFatalError("bad feed_value: "+value, { arr }, false, cb);
+						if (bPostPemCurvesFix) {
+							var df_err = getDataFeedRestrictionError(feed_name, value);
+							if (df_err)
+								return setFatalError(df_err, { arr }, false, cb);
+						}
 						var min_mci = 0;
 						if (evaluated_params.min_mci){
 							min_mci = evaluated_params.min_mci.value.toString();
@@ -3195,6 +3205,21 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 
 	function unwrapOneElementArrays(value) {
 		return ValidationUtils.isArrayOfLength(value, 1) ? unwrapOneElementArrays(value[0]) : value;
+	}
+
+	// same restrictions as for data_feed messages in validation.js
+	function getDataFeedRestrictionError(feed_name, value) {
+		if (feed_name.length > constants.MAX_DATA_FEED_NAME_LENGTH)
+			return "feed name " + feed_name + " too long";
+		if (feed_name.indexOf('\n') >= 0)
+			return "feed name " + feed_name + " contains \\n";
+		if (typeof value === 'string') {
+			if (value.length > constants.MAX_DATA_FEED_VALUE_LENGTH)
+				return "data feed value too long: " + value;
+			if (value.indexOf('\n') >= 0)
+				return "value " + value + " of feed name " + feed_name + " contains \\n";
+		}
+		return null;
 	}
 
 	function setFatalError(err, context, cb_arg, cb){
