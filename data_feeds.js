@@ -133,7 +133,7 @@ function dataFeedByAddressExists(address, feed_name, relation, value, min_mci, m
 			type = 'n';
 		}
 		else{
-			prefixed_value = 's\n'+value.slice(0, constants.MAX_DATA_FEED_VALUE_LENGTH + 1); // +1 is enough for comparisons
+			prefixed_value = 's\n'+value.slice(0, constants.MAX_DATA_FEED_VALUE_LENGTH + 10); // +8 chars of mci in hex + 1 separator char + 1 extra char
 			type = 's';
 		}
 	}
