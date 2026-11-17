@@ -185,6 +185,8 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					return callbacks.ifError("bad is_change");
 				if (!ValidationUtils.isNonnegativeInteger(body.address_index))
 					return callbacks.ifError("bad address_index");
+				if (body.address_index > 0x7fffffff)
+					return callbacks.ifError("address_index too large");
 				if (!ValidationUtils.isValidAddress(body.address))
 					return callbacks.ifError("no address or bad address");
 				walletDefinedByKeys.addNewAddress(body.wallet, body.is_change, body.address_index, body.address, function(err){
