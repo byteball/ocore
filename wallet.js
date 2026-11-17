@@ -167,6 +167,8 @@ function handleMessageFromHub(ws, json, device_pubkey, bIndirectCorrespondent, c
 					return callbacks.ifError("no my_xpubkey");
 				if (body.my_xpubkey.length > 112)
 					return callbacks.ifError("my_xpubkey too long");
+				if (!walletDefinedByKeys.isValidXPubKey(body.my_xpubkey))
+					return callbacks.ifError("invalid my_xpubkey");
 				walletDefinedByKeys.addDeviceXPubKey(body.wallet, from_address, body.my_xpubkey, callbacks.ifOk);
 				break;
 			

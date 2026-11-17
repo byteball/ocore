@@ -536,6 +536,16 @@ function readLastUsedAddressIndex(wallet, is_change, handleLastUsedAddressIndex)
 	);
 }
 
+function isValidXPubKey(xPubKey){
+	try{
+		new Bitcore.HDPublicKey(xPubKey);
+		return true;
+	}
+	catch(e){
+		return false;
+	}
+}
+
 function derivePubkey(xPubKey, path){
 	var hdPubKey = new Bitcore.HDPublicKey(xPubKey);
 	return hdPubKey.derive(path).publicKey.toBuffer().toString("base64");
@@ -890,5 +900,6 @@ exports.readDeviceAddressesControllingPaymentAddresses = readDeviceAddressesCont
 exports.readCosigners = readCosigners;
 
 exports.derivePubkey = derivePubkey;
+exports.isValidXPubKey = isValidXPubKey;
 exports.issueAddress = issueAddress;
 exports.scanForGaps = scanForGaps;
