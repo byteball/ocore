@@ -415,9 +415,11 @@ function readCosigners(wallet, handleCosigners){
 // silently adds new address upon receiving a network message
 function addNewAddress(wallet, is_change, address_index, address, handleError){
 	breadcrumbs.add('addNewAddress is_change='+is_change+', index='+address_index+', address='+address);
-	db.query("SELECT 1 FROM wallets WHERE wallet=?", [wallet], function(rows){
+	db.query("SELECT full_approval_date FROM wallets WHERE wallet=?", [wallet], function(rows){
 		if (rows.length === 0)
 			return handleError("wallet "+wallet+" does not exist");
+		if (!rows[0].full_approval_date)
+			return handleError("wallet "+wallet+" not fully approved yet");
 		deriveAddress(wallet, is_change, address_index, function(new_address, arrDefinition){
 			if (new_address !== address)
 				return handleError("I derived address "+new_address+", your address "+address);
