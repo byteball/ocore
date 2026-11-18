@@ -702,6 +702,8 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 				value.cases,
 				function (acase, cb2) {
 					idx++;
+					if (typeof acase !== 'object' || acase === null) // `in` would throw on a primitive
+						return cb2({message: "case is not an object: " + acase, xpath});
 					if (!("if" in acase)) {
 						thecase = acase;
 						return cb2('done');
