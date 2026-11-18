@@ -321,10 +321,11 @@ function updateIndivisibleOutputsThatWereReceivedUnstable(conn, onDone){
 	
 	console.log("updatePrivateIndivisibleOutputsThatWereReceivedUnstable starting");
 	conn.query(
-		"SELECT DISTINCT unit, message_index, sequence FROM outputs "+(conf.storage === 'sqlite' ? "INDEXED BY outputsIsSerial" : "")+" \n\
+		"SELECT DISTINCT unit, message_index, sequence, is_stable FROM outputs "+(conf.storage === 'sqlite' ? "INDEXED BY outputsIsSerial" : "")+" \n\
 		JOIN units USING(unit) \n\
-		WHERE outputs.is_serial IS NULL AND units.is_stable=1 AND is_spent=0", // is_spent=0 selects the final output in the chain
+		WHERE outputs.is_serial IS NULL AND is_spent=0", // is_spent=0 selects the final output in the chain
 		function(rows){
+			rows = rows.filter(row => row.is_stable === 1);
 			if (rows.length === 0)
 				return onDone();
 			async.eachSeries(
