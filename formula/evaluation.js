@@ -3263,6 +3263,10 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 			console.log('ambiguous grammar', parser.results);
 			callback('ambiguous grammar', null);
 		}
+		else {
+			console.log('evaluation parser failed');
+			callback('evaluation parser failed', null);
+		}
 	}
 };
 
