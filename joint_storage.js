@@ -216,18 +216,21 @@ function collectQueriesToPurgeDependentJoints(conn, arrQueries, unit, error, onP
 	});
 }
 
-function purgeUncoveredNonserialJointsUnderLock(){
-	mutex.lockOrSkip(["purge_uncovered"], function(unlock){
+function purgeUncoveredNonserialJointsUnderLock(timeout = 10, onDone) {
+	if (!onDone)
+		return new Promise(resolve => purgeUncoveredNonserialJointsUnderLock(timeout, resolve));
+	mutex.lock(["purge_uncovered"], function(unlock){
 		mutex.lock(["handleJoint"], function(unlock_hj){
-			purgeUncoveredNonserialJoints(false, function(){
+			purgeUncoveredNonserialJoints(timeout, false, function(){
 				unlock_hj();
 				unlock();
+				onDone();
 			});
 		});
 	});
 }
 
-function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
+function purgeUncoveredNonserialJoints(timeout, bByExistenceOfChildren, onDone){
 	var cond = bByExistenceOfChildren ? "(SELECT 1 FROM parenthoods WHERE parent_unit=unit LIMIT 1) IS NULL" : "is_free=1";
 	var order_column = (conf.storage === 'mysql') ? 'creation_date' : 'rowid'; // this column must be indexed!
 	var byIndex = (bByExistenceOfChildren && conf.storage === 'sqlite') ? 'INDEXED BY bySequence' : '';
@@ -237,7 +240,7 @@ function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 		WHERE "+cond+" AND sequence IN('final-bad','temp-bad') AND content_hash IS NULL \n\
 			AND NOT EXISTS (SELECT * FROM dependencies WHERE depends_on_unit=units.unit) \n\
 			AND NOT EXISTS (SELECT * FROM balls WHERE balls.unit=units.unit) \n\
-			AND (units.creation_date < "+db.addTime('-10 SECOND')+" OR EXISTS ( \n\
+			AND (units.creation_date <= "+db.addTime(`-${timeout} SECOND`)+" OR EXISTS ( \n\
 				SELECT DISTINCT address FROM units AS wunits CROSS JOIN unit_authors USING(unit) CROSS JOIN my_witnesses USING(address) \n\
 				WHERE wunits."+order_column+" > units."+order_column+" \n\
 				LIMIT 0,1 \n\
@@ -286,7 +289,7 @@ function purgeUncoveredNonserialJoints(bByExistenceOfChildren, onDone){
 									conn.release();
 									unlock();
 									if (rows.length > 0)
-										return purgeUncoveredNonserialJoints(false, onDone); // to clean chains of bad units
+										return purgeUncoveredNonserialJoints(timeout, false, onDone); // to clean chains of bad units
 									onDone();
 								}
 							);

@@ -608,9 +608,13 @@ function prepareParentsAndLastBallAndWitnessListUnit(arrWitnesses, arrFromAddres
 		return callbacks.ifError("bad from addresses");
 	if (arrOutputAddresses && (!ValidationUtils.isNonemptyArray(arrOutputAddresses) || arrOutputAddresses.length > 200 || !arrOutputAddresses.every(ValidationUtils.isValidAddress)))
 		return callbacks.ifError("bad output addresses");
-	storage.determineIfWitnessAddressDefinitionsHaveReferences(db, arrWitnesses, function(bWithReferences){
+	storage.determineIfWitnessAddressDefinitionsHaveReferences(db, arrWitnesses, async function(bWithReferences){
 		if (bWithReferences)
 			return callbacks.ifError("some witnesses have references in their addresses");
+		const unstableUnits = Object.values(storage.assocUnstableUnits);
+		const hasGoodFreeUnits = unstableUnits.some(objUnit => objUnit.is_free && objUnit.sequence === 'good');
+		if (!hasGoodFreeUnits)
+			await require('./joint_storage.js').purgeUncoveredNonserialJointsUnderLock(0);
 		db.takeConnectionFromPool(async function(conn){
 			var timestamp = Math.round(Date.now() / 1000);
 			parentComposer.pickParentUnitsAndLastBall(

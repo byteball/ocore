@@ -292,6 +292,15 @@ function composeJoint(params){
 				cb();
 			});
 		},
+		function (cb) {
+			if (conf.bLight)
+				return cb();
+			const unstableUnits = Object.values(storage.assocUnstableUnits);
+			const hasGoodFreeUnits = unstableUnits.some(objUnit => objUnit.is_free && objUnit.sequence === 'good');
+			if (hasGoodFreeUnits)
+				return cb();
+			require('./joint_storage.js').purgeUncoveredNonserialJointsUnderLock(0, cb);
+		},
 		function(cb){ // lightProps
 			if (!conf.bLight)
 				return cb();
