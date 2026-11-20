@@ -153,6 +153,137 @@ test.cb.serial('less than bounce fees', t => {
 	});
 });
 
+const frozen_asset = 'A'.repeat(43) + '=';
+
+async function addFrozenAsset() {
+	await db.query("INSERT " + db.getIgnore() + " INTO units (unit, is_free, headers_commission, payload_commission) VALUES(?, 0, 0, 0)", [frozen_asset]);
+	await db.query("INSERT " + db.getIgnore() + " INTO assets (unit, message_index, is_private, is_transferrable, auto_destroy, fixed_denominations, issued_by_definer_only, cosigned_by_definer, spender_attested) VALUES(?, 0, 0, 1, 0, 0, 0, 0, 0)", [frozen_asset]);
+}
+
+async function addAAWithFrozenAsset(aa, balance = BigInt(constants.MAX_AA_BALANCE) + BigInt(1000000)) {
+	const address = objectHash.getChash160(aa);
+	await asyncAddAA(aa);
+	await addFrozenAsset();
+	await db.query("INSERT INTO aa_balances (address, asset, balance) VALUES (?, ?, " + balance + ")", [address, frozen_asset]);
+	return address;
+}
+
+test.cb.serial('trigger carrying a frozen asset bounces', t => {
+	var trigger = { outputs: { base: 2000, [frozen_asset]: 1000 }, data: { x: 333 } }; // too little base to send a bounce response
+	var aa = ['autonomous agent', {
+		bounce_fees: { base: 10000 },
+		messages: [{ app: 'state', state: "{ var['x'] = 1; }" }]
+	}];
+	addAAWithFrozenAsset(aa).then(address => {
+		aa_composer.dryRunPrimaryAATrigger(trigger, address, aa, (arrResponses) => {
+			t.deepEqual(arrResponses.length, 1);
+			t.deepEqual(arrResponses[0].bounced, true);
+			t.true(arrResponses[0].response.error.startsWith("balance overflow"));
+			t.end();
+		});
+	});
+});
+
+test.cb.serial('overflowing balance is not clamped, so that the refund can reduce it', t => {
+	var trigger = { outputs: { base: 40000, [frozen_asset]: 2e6 }, data: { x: 333 } };
+	var aa = ['autonomous agent', {
+		bounce_fees: { base: 10001 },
+		messages: [{ app: 'state', state: "{ var['x'] = 1; }" }]
+	}];
+	addAAWithFrozenAsset(aa).then(async address => {
+		await db.query("UPDATE aa_balances SET balance=balance-1000000 WHERE address=? AND asset=?", [address, frozen_asset]);
+		aa_composer.dryRunPrimaryAATrigger(trigger, address, aa, (arrResponses) => {
+			t.deepEqual(arrResponses.length, 1);
+			t.deepEqual(arrResponses[0].bounced, true);
+			t.true(arrResponses[0].response.error.startsWith("balance overflow"));
+			t.true(arrResponses[0].balances[frozen_asset] > constants.MAX_AA_BALANCE + 1e5); // the refund of the fake asset fails, so the full amount stays
+			t.end();
+		});
+	});
+});
+
+test.cb.serial('balance exactly at the maximum is not pinned', t => {
+	var trigger = { outputs: { base: 40000 }, data: { x: 555 } };
+	var aa = ['autonomous agent', {
+		bounce_fees: { base: 10002 },
+		messages: [{
+			app: 'payment',
+			payload: {
+				asset: frozen_asset,
+				outputs: [{ address: "{trigger.address}", amount: 1000 }]
+			}
+		}]
+	}];
+	addAAWithFrozenAsset(aa, BigInt(constants.MAX_AA_BALANCE)).then(address => {
+		aa_composer.dryRunPrimaryAATrigger(trigger, address, aa, (arrResponses) => {
+			t.deepEqual(arrResponses.length, 1);
+			t.false(arrResponses[0].response.error.includes("is frozen"));
+			t.end();
+		});
+	});
+});
+
+test.cb.serial('AA cannot send a frozen asset', t => {
+	var trigger = { outputs: { base: 40000 }, data: { x: 444 } };
+	var aa = ['autonomous agent', {
+		bounce_fees: { base: 10000 },
+		messages: [{
+			app: 'payment',
+			payload: {
+				asset: frozen_asset,
+				outputs: [{ address: "{trigger.address}", amount: 1000 }]
+			}
+		}]
+	}];
+	addAAWithFrozenAsset(aa).then(address => {
+		aa_composer.dryRunPrimaryAATrigger(trigger, address, aa, (arrResponses) => {
+			t.deepEqual(arrResponses.length, 1);
+			t.deepEqual(arrResponses[0].bounced, true);
+			t.true(arrResponses[0].response.error.startsWith("asset " + frozen_asset + " is frozen"));
+			t.end();
+		});
+	});
+});
+
+// the AA is defined when its address already holds count outputs of 9e15 each
+function testAADefinedAboveMaximum(title, message_index, count, expected_balance) {
+	test.cb.serial(title, t => {
+		const funding_unit = 'B'.repeat(43) + '=';
+		var trigger = { outputs: { base: 40000 }, data: { x: 666 } };
+		var aa = ['autonomous agent', {
+			bounce_fees: { base: 10010 + message_index },
+			messages: [{
+				app: 'payment',
+				payload: {
+					asset: frozen_asset,
+					outputs: [{ address: "{trigger.address}", amount: 1000 }]
+				}
+			}]
+		}];
+		const address = objectHash.getChash160(aa);
+		(async () => {
+			await addFrozenAsset();
+			await db.query("INSERT " + db.getIgnore() + " INTO units (unit, is_free, is_aa_response, headers_commission, payload_commission) VALUES(?, 0, 1, 0, 0)", [funding_unit]);
+			const arrValues = [];
+			for (let i = 0; i < count; i++)
+				arrValues.push("('" + funding_unit + "', " + message_index + ", " + i + ", '" + frozen_asset + "', '" + address + "', 9000000000000000)");
+			await db.query("INSERT INTO outputs (unit, message_index, output_index, asset, address, amount) VALUES " + arrValues.join(', '));
+			await asyncAddAA(aa);
+			const rows = await db.query("SELECT CAST(balance AS TEXT) AS balance FROM aa_balances WHERE address=? AND asset=?", [address, frozen_asset]);
+			t.deepEqual(rows[0].balance, expected_balance);
+			aa_composer.dryRunPrimaryAATrigger(trigger, address, aa, (arrResponses) => {
+				t.deepEqual(arrResponses.length, 1);
+				t.deepEqual(arrResponses[0].bounced, true);
+				t.true(arrResponses[0].response.error.startsWith("asset " + frozen_asset + " is frozen"));
+				t.end();
+			});
+		})();
+	});
+}
+
+testAADefinedAboveMaximum('AA defined with outputs above the maximum keeps the exact balance and is frozen', 0, 1000, '9000000000000000000');
+testAADefinedAboveMaximum('AA defined with outputs that overflow BIGINT is clamped and frozen', 1, 1100, '9223372036854775807');
+
 test.cb.serial('chain of AAs', t => {
 	var trigger_address = "I2ADHGP4HL6J37NQAD73J7E5SKFIXJOT";
 	var trigger = { outputs: { base: 40000 }, data: { x: 333 }, address: trigger_address };

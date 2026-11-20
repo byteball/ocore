@@ -46,7 +46,8 @@ var OUTPUT_KEYS_SIZE = "address".length + "amount".length;
 const CHECK_BALANCES_INTERVAL = conf.CHECK_BALANCES_INTERVAL || 600 * 1000;
 
 // some precision loss in this calc (it's entirely beyond MAX_SAFE_INTEGER) but that's inconsequential
-const MAX_BALANCE = 2 ** 63 - 1 - constants.MAX_MESSAGES_PER_UNIT * constants.MAX_CAP;
+const MAX_BALANCE = constants.MAX_AA_BALANCE; // a balance that is above it when a trigger arrives is pinned (frozen) and no longer changes
+const SQL_LEAST = conf.storage === 'mysql' ? 'LEAST' : 'MIN';
 
 /*
 eventBus.on('new_aa_triggers', function () {
@@ -471,6 +472,14 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 	if (bSecondary)
 		updateOriginalOldValues();
 
+	// a balance that is pinned when the trigger arrives ignores all changes, its outputs add up to more than the stored balance.
+	// A balance that overflows in this trigger is not pinned, the bounce refund brings it back.
+	const assocPinnedAssets = {};
+	function markPinned(asset, balance) {
+		if (mci >= constants.pemCurvesFixMci && balance > MAX_BALANCE)
+			assocPinnedAssets[asset] = true;
+	}
+
 	// add the coins received in the trigger
 	function updateInitialAABalances(cb) {
 		let bOverflow = false;
@@ -478,10 +487,14 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 			if (!trigger_opts.assocBalances[address])
 				trigger_opts.assocBalances[address] = {};
 			originalBalances = _.cloneDeep(trigger_opts.assocBalances);
+			for (var asset in trigger_opts.assocBalances[address])
+				markPinned(asset, trigger_opts.assocBalances[address][asset]);
 			for (var asset in trigger.outputs) {
-				trigger_opts.assocBalances[address][asset] = (trigger_opts.assocBalances[address][asset] || 0) + trigger.outputs[asset];
-				if (trigger_opts.assocBalances[address][asset] > MAX_BALANCE)
+				const balance = trigger_opts.assocBalances[address][asset] || 0;
+				if (balance + trigger.outputs[asset] > MAX_BALANCE)
 					bOverflow = true;
+				if (!assocPinnedAssets[asset])
+					trigger_opts.assocBalances[address][asset] = balance + trigger.outputs[asset];
 			}
 			objValidationState.assocBalances = trigger_opts.assocBalances;
 			byte_balance = trigger_opts.assocBalances[address].base || 0;
@@ -499,7 +512,14 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 				rows.forEach(function (row) {
 					if (constants.bTestnet && mci < testnetAAsDefinedByAAsAreActiveImmediatelyUpgradeMci)
 						reintroduceBalanceBug(address, row);
+					markPinned(row.asset, row.balance);
 					if (!trigger.outputs[row.asset]) {
+						objValidationState.assocBalances[address][row.asset] = row.balance;
+						return;
+					}
+					if (row.balance + trigger.outputs[row.asset] > MAX_BALANCE)
+						bOverflow = true;
+					if (assocPinnedAssets[row.asset]) {
 						objValidationState.assocBalances[address][row.asset] = row.balance;
 						return;
 					}
@@ -509,8 +529,6 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 						[address, row.asset]
 					);
 					objValidationState.assocBalances[address][row.asset] = row.balance + trigger.outputs[row.asset];
-					if (objValidationState.assocBalances[address][row.asset] > MAX_BALANCE)
-						bOverflow = true;
 				});
 				// 2. insert balances of new assets
 				var arrExistingAssets = rows.map(function (row) { return row.asset; });
@@ -574,7 +592,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 			conn.addQuery(arrQueries, "INSERT "+conn.getIgnore()+" INTO aa_balances (address, asset, balance) VALUES "+arrValues.join(', '));
 		}
 		for (var asset in assocDeltas) {
-			if (assocDeltas[asset]) {
+			if (assocDeltas[asset] && !assocPinnedAssets[asset]) {
 				conn.addQuery(arrQueries, `UPDATE aa_balances SET balance=balance+${assocDeltas[asset]} WHERE address=? AND asset=?`, [address, asset]);
 				if (!objValidationState.assocBalances[address][asset])
 					objValidationState.assocBalances[address][asset] = 0;
@@ -1042,9 +1060,27 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 		return arrMergedMessages;
 	}
 
+	// a pinned balance doesn't track the outputs, so the AA can't spend that asset, except to bounce it back
+	function getFrozenAssetError(messages) {
+		if (mci < constants.pemCurvesFixMci || bBouncing)
+			return null;
+		for (const message of messages) {
+			const payload = message && message.app === 'payment' && message.payload;
+			if (!payload || !Array.isArray(payload.outputs) || typeof payload.asset !== 'string' || payload.asset === 'base')
+				continue;
+			if (assocPinnedAssets[payload.asset] && payload.outputs.some(o => o && (o.amount > 0 || o.amount === undefined)))
+				return "asset " + payload.asset + " is frozen";
+		}
+		return null;
+	}
+
 	async function sendUnit(messages) {
-		if (trigger_opts.bAir)
+		if (trigger_opts.bAir) {
+			const frozen_error = getFrozenAssetError(messages);
+			if (frozen_error)
+				return bounce(frozen_error);
 			return sendDummyUnit(messages);
+		}
 		console.log('send unit with messages', util.inspect(messages, { depth: 6 }));
 		var arrUsedOutputIds = [];
 		var arrConsumedOutputs = [];
@@ -1280,6 +1316,9 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 			// filter out 0-outputs
 			payload.outputs = payload.outputs.filter(function (output) { return (output.amount > 0 || output.amount === undefined); });
 		}
+		const frozen_error = getFrozenAssetError(messages);
+		if (frozen_error)
+			return bounce(frozen_error);
 		// remove messages with no outputs
 		messages = messages.filter(function (message) { return (message.app !== 'payment' || message.payload.outputs.length > 0); });
 		if (messages.length === 0) {
@@ -1975,7 +2014,8 @@ function checkBalances() {
 					PRIMARY KEY (address, asset) \n\
 				)" + (conf.storage === 'mysql' ? " ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci" : "");
 				var sql_fill_temp = "INSERT INTO aa_outputs_balances (address, asset, calculated_balance) \n\
-					SELECT address, IFNULL(asset, 'base'), SUM(CAST(amount AS DOUBLE)) \n\
+					SELECT address, IFNULL(asset, 'base'), \n\
+						" + SQL_LEAST + "(SUM(CAST(amount AS DOUBLE)), " + BigInt(MAX_BALANCE) + ") \n\
 					FROM aa_addresses \n\
 					CROSS JOIN outputs USING(address) \n\
 					CROSS JOIN units ON outputs.unit=units.unit \n\
@@ -1989,12 +2029,12 @@ function checkBalances() {
 				FROM aa_balances \n\
 				LEFT JOIN aa_outputs_balances USING(address, asset) \n\
 				GROUP BY aa_balances.address, aa_balances.asset \n\
-				HAVING balance != IFNULL(calculated_balance, 0)";
+				HAVING " + SQL_LEAST + "(balance, " + BigInt(MAX_BALANCE) + ") != IFNULL(calculated_balance, 0)";
 				var sql_outputs_to_balances = "SELECT aa_outputs_balances.address, aa_outputs_balances.asset, balance, calculated_balance \n\
 				FROM aa_outputs_balances \n\
 				LEFT JOIN aa_balances USING(address, asset) \n\
 				GROUP BY aa_outputs_balances.address, aa_outputs_balances.asset \n\
-				HAVING IFNULL(balance, 0) != calculated_balance";
+				HAVING IFNULL(" + SQL_LEAST + "(balance, " + BigInt(MAX_BALANCE) + "), 0) != calculated_balance";
 				var sql_drop_temp = db.dropTemporaryTable("aa_outputs_balances");
 				
 				/*

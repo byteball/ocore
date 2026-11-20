@@ -55,6 +55,7 @@ exports.MAX_DATA_FEED_VALUE_LENGTH = 64;
 exports.MAX_DATA_FEEDS_PER_MESSAGE = 1024;
 exports.MAX_AUTHENTIFIER_LENGTH = 4096;
 exports.MAX_CAP = 9e15;
+exports.MAX_AA_BALANCE = 2 ** 63 - 1 - exports.MAX_MESSAGES_PER_UNIT * exports.MAX_CAP; // leaves room for a trigger's outputs without overflowing BIGINT
 exports.MAX_COMPLEXITY = process.env.MAX_COMPLEXITY || 100;
 exports.MAX_UNIT_LENGTH = process.env.MAX_UNIT_LENGTH || 5e6;
 

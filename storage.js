@@ -953,27 +953,52 @@ function insertAADefinitions(conn, arrPayloads, unit, mci, validation_mci, bForA
 						? "(main_chain_index<=? OR is_aa_response=1) AND outputs.unit!=?"
 						: "(main_chain_index<? " + or_sent_by_aa + ")"; // "<" for regular AAs, not including the outputs on the current mci, which will trigger the AA and be accounted for separately; is_aa_response=1 captures outputs to the not-yet-AA by AA responses
 					const params = bImmediatelyVisible ? [address, mci, unit] : [address, mci];
+					const onBalancesInserted = () => {
+						conn.query(
+							"INSERT " + db.getIgnore() + " INTO addresses (address) VALUES (?)", [address],
+							() => {
+								// can emit again if bAlreadyPostedByUnconfirmedAA, that's ok, the watchers will learn that the AA became now available to non-AAs
+								if (!bDryRun)
+									process.nextTick(() => { // don't call it synchronously with event emitter
+										eventBus.emit("aa_definition_saved", payload, unit);
+									});
+								cb();
+							}
+						);
+					};
+					if (mci < constants.pemCurvesFixMci)
+						return conn.query(
+							verb + " INTO aa_balances (address, asset, balance) \n\
+							SELECT address, IFNULL(asset, 'base'), SUM(CAST(amount AS DOUBLE)) AS balance \n\
+							FROM outputs \n\
+							CROSS JOIN units USING(unit) \n\
+							LEFT JOIN assets ON asset=assets.unit \n\
+							WHERE address=? AND is_spent=0 AND sequence='good' AND " + mci_cond + " AND (is_private=0 OR is_private IS NULL) \n\
+							GROUP BY address, asset",
+							params,
+							onBalancesInserted
+						);
+					// summing in doubles would round balances above 2^53, while outputs keep exact amounts
 					conn.query(
-						verb + " INTO aa_balances (address, asset, balance) \n\
-						SELECT address, IFNULL(asset, 'base'), SUM(CAST(amount AS DOUBLE)) AS balance \n\
+						"SELECT IFNULL(asset, 'base') AS asset, amount \n\
 						FROM outputs \n\
 						CROSS JOIN units USING(unit) \n\
 						LEFT JOIN assets ON asset=assets.unit \n\
-						WHERE address=? AND is_spent=0 AND sequence='good' AND " + mci_cond + " AND (is_private=0 OR is_private IS NULL) \n\
-						GROUP BY address, asset",
+						WHERE address=? AND is_spent=0 AND sequence='good' AND " + mci_cond + " AND (is_private=0 OR is_private IS NULL)",
 						params,
-						function () {
-							conn.query(
-								"INSERT " + db.getIgnore() + " INTO addresses (address) VALUES (?)", [address],
-								function () {
-									// can emit again if bAlreadyPostedByUnconfirmedAA, that's ok, the watchers will learn that the AA became now available to non-AAs
-									if (!bDryRun)
-										process.nextTick(function () { // don't call it synchronously with event emitter
-											eventBus.emit("aa_definition_saved", payload, unit);
-										});
-									cb();
-								}
-							);
+						rows => {
+							const max_bigint = BigInt(2) ** BigInt(63) - BigInt(1);
+							const assocSums = {};
+							for (const row of rows)
+								assocSums[row.asset] = (assocSums[row.asset] || BigInt(0)) + BigInt(row.amount);
+							// clamp only what doesn't fit in BIGINT: a sum above MAX_AA_BALANCE must stay above it to be pinned by aa_composer
+							const arrValues = Object.keys(assocSums).map(asset => {
+								const balance = assocSums[asset] > max_bigint ? max_bigint : assocSums[asset];
+								return "(" + conn.escape(address) + ", " + conn.escape(asset) + ", " + balance.toString() + ")";
+							});
+							if (arrValues.length === 0)
+								return onBalancesInserted();
+							conn.query("INSERT INTO aa_balances (address, asset, balance) VALUES " + arrValues.join(', '), onBalancesInserted);
 						}
 					);
 				});
