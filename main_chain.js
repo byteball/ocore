@@ -1525,8 +1525,11 @@ function markMcIndexStable(conn, batch, mci, onDone){
 												if (!old_joint)
 													throw Error("unit not found in kv store: "+unit);
 												var objJoint = JSON.parse(old_joint);
+												// the same ball can already be in kv if we crashed after the kv batch write but before the sql commit
+												if (objJoint.ball && objJoint.ball !== ball)
+													throw Error("different ball already set in kv store of unit "+unit+": "+objJoint.ball+", calculated "+ball);
 												if (objJoint.ball)
-													throw Error("ball already set in kv store of unit "+unit);
+													console.log("ball "+ball+" already set in kv store of unit "+unit);
 												objJoint.ball = ball;
 												if (arrSkiplistUnits.length > 0)
 													objJoint.skiplist_units = arrSkiplistUnits;
