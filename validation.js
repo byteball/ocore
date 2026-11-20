@@ -2100,6 +2100,14 @@ function validatePayment(conn, payload, message_index, objUnit, objValidationSta
 		}
 		if (!!objAsset.is_private !== !!objValidationState.bPrivate)
 			return callback("asset privacy mismatch");
+		// several messages in one asset can sum beyond 2^53 and lose precision in AA balances; fixed denominations need multiple messages
+		if (!objAsset.is_private && !objAsset.fixed_denominations && (objValidationState.last_ball_mci >= constants.pemCurvesFixMci || !objValidationState.hasBall && storage.getMinRetrievableMci() >= constants.pemCurvesFixMci)) {
+			if (!objValidationState.assocHasPublicPayment)
+				objValidationState.assocHasPublicPayment = {};
+			if (objValidationState.assocHasPublicPayment[payload.asset])
+				return callback("can have only one payment per asset");
+			objValidationState.assocHasPublicPayment[payload.asset] = true;
+		}
 		var bIssue = (payload.inputs[0].type === "issue");
 		var issuer_address;
 		if (bIssue){
