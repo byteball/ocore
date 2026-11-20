@@ -997,15 +997,21 @@ async function validateAATrigger(conn, objUnit, objValidationState, callback) {
 	if (objUnit.max_aa_responses === 0 && (objValidationState.last_ball_mci >= constants.pemCurvesFixMci || !objValidationState.hasBall && storage.getMinRetrievableMci() >= constants.pemCurvesFixMci))
 		return callback(`max_aa_responses=0 is not allowed`);
 	let outputCounts = {};
+	let outputAmounts = {};
 	for (let m of objUnit.messages) {
 		if (m.app === 'payment' && m.payload) {
 			const asset = m.payload.asset || 'base';
 			for (let o of m.payload.outputs) {
-				if (!outputCounts[o.address])
+				if (!outputCounts[o.address]) {
 					outputCounts[o.address] = {};
-				if (!outputCounts[o.address][asset])
+					outputAmounts[o.address] = {};
+				}
+				if (!outputCounts[o.address][asset]) {
 					outputCounts[o.address][asset] = 0;
+					outputAmounts[o.address][asset] = 0;
+				}
 				outputCounts[o.address][asset]++;
+				outputAmounts[o.address][asset] += o.amount;
 			}
 		}
 	}
@@ -1034,6 +1040,14 @@ async function validateAATrigger(conn, objUnit, objValidationState, callback) {
 			if (outputCounts[address][asset] > 1)
 				return callback(`more than 1 output to the same AA ${address} for asset ${asset}`);
 		}
+		const { arrBaseDefinition } = await storage.readBaseAADefinitionAndParams(conn, address, objValidationState.last_ball_mci);
+		const bounce_fees = arrBaseDefinition[1].bounce_fees || {};
+		const min_base_fee = bounce_fees.base || constants.MIN_BYTES_BOUNCE_FEE;
+		if ((outputAmounts[address].base || 0) < min_base_fee)
+			return callback(`not enough bytes sent to AA ${address} to cover bounce fees, required ${min_base_fee}`);
+		for (let asset in outputAmounts[address])
+			if (bounce_fees[asset] && outputAmounts[address][asset] < bounce_fees[asset])
+				return callback(`not enough ${asset} sent to AA ${address} to cover bounce fees, required ${bounce_fees[asset]}`);
 	}
 	callback();
 }
