@@ -109,6 +109,9 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 	try {
 		parser.results = parseFormula(formula, bPostPemCurvesFix);
 	}catch (e) {
+		// the new grammar's caps keep the parser far from the stack limit; an overflow means a cap is leaky and rejecting would make validity depend on the node
+		if (bPostPemCurvesFix && e instanceof RangeError && /call stack/i.test(e.message))
+			return setImmediate(() => { throw e; }); // outside of any try/catch, so that the process crashes
 		console.log('exception from parser', e);
 		return callback('parse failed: '+e, null);
 	}
