@@ -436,6 +436,16 @@ test('Wrong formula', t => {
 	parseOjson(ojson, (err, res) => { t.regex(err, /^Invalid formula syntax at/)})
 });
 
+[
+	['arrays', n => '{ a: ' + '['.repeat(n) + '1' + ']'.repeat(n) + ' }'],
+	['objects', n => '{ a: '.repeat(n + 1) + '1' + ' }'.repeat(n + 1)],
+].forEach(([name, nested]) => {
+	test('Nested ' + name + ': 200 levels parse, 201 are rejected', t => {
+		parseOjson(nested(199), (err, res) => { t.is(err, null) });
+		parseOjson(nested(200), (err, res) => { t.is(err, 'ojson parsing failed: Error: nesting is too deep') });
+	});
+});
+
 test('Single line array', t => {
 	var ojson = `
 {

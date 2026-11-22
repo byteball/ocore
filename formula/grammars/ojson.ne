@@ -50,11 +50,30 @@ const lexer = moo.states({
 })
 
 var origNext = lexer.next;
-	lexer.next = function () {
+const origReset = lexer.reset;
+// AA definitions deeper than 100 are rejected anyway; this bounds the recursion in the parse_ojson tree walkers
+const MAX_NESTING = 200;
+let nesting = 0;
+
+lexer.reset = function (chunk, info) {
+	if (!info)
+		nesting = 0;
+	return origReset.call(this, chunk, info);
+};
+
+lexer.next = function () {
 	var tok;
 	do {
 		tok = origNext.call(this);
 	} while (tok && (tok.type === 'space' || tok.type === 'comment' || tok.type === 'blockComment'));
+	if (tok) {
+		if (tok.type === '{' || tok.type === '[') {
+			if (++nesting > MAX_NESTING)
+				throw new Error("nesting is too deep");
+		}
+		else if (tok.type === '}' || tok.type === ']')
+			nesting--;
+	}
 	return tok || undefined;
 };
 
