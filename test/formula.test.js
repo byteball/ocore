@@ -1,4 +1,5 @@
 var shell = require('child_process').execSync;
+var spawnSync = require('child_process').spawnSync;
 var path = require('path');
 var crypto = require('crypto');
 var Mnemonic = require('bitcore-mnemonic');
@@ -6767,6 +6768,12 @@ test('unbraced nested ifs: 100 parse, 101 are rejected', t => {
 		const error = t.throws(() => parseWithGrammar(nots + wrap(nots + wrap('1'))));
 		t.true(error.message.includes('expression is nested too deeply'));
 	});
+});
+
+// the worst inputs the caps accept need ~110KB of stack (default is ~984KB); a stack overflow would make validity node-dependent
+test('the largest accepted inputs parse in a quarter of the default stack', t => {
+	const res = spawnSync(process.execPath, ['--stack-size=250', __dirname + '/_stack_margin.js'], { encoding: 'utf8', timeout: 120 * 1000 });
+	t.is(res.status, 0, res.stdout + res.stderr);
 });
 
 test('formulas are parsed with the old grammar before pemCurvesFixMci and the new one after', t => {
