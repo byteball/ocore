@@ -51,17 +51,11 @@ const lexer = moo.states({
 
 var origNext = lexer.next;
 	lexer.next = function () {
-	var tok = origNext.call(this);
-	if (tok) {
-		switch (tok.type) {
-			case 'space':
-			case 'comment':
-			case 'blockComment':
-				return lexer.next();
-		}
-		return tok;
-	}
-	return undefined;
+	var tok;
+	do {
+		tok = origNext.call(this);
+	} while (tok && (tok.type === 'space' || tok.type === 'comment' || tok.type === 'blockComment'));
+	return tok || undefined;
 };
 
 const TYPES = {

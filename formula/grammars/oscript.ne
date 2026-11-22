@@ -96,14 +96,11 @@
 	};
 
     lexer.next = function () {
-		var tok = origNext.call(this);
+		var tok;
+		do {
+			tok = origNext.call(this);
+		} while (tok && (tok.type === 'WS' || tok.type === 'comment' || tok.type === 'bcpl_comment'));
 		if (tok) {
-			switch (tok.type) {
-				case 'WS':
-				case 'comment':
-				case 'bcpl_comment':
-					return lexer.next();
-			}
 			var isIf = tok.type === 'keyword' && tok.value === 'if';
 			if (afterIfCond) {
 				afterIfCond = false;
