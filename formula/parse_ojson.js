@@ -17,18 +17,23 @@ var TYPES = {
 };
 
 function validateFormula (formula, parserResults, context) {
-	function searchNewlineRecursive (st) {
-		if (_.isArray(st)) {
-			for (var i = 0; i < st.length; i++) {
-				searchNewlineRecursive(st[i])
+	// iterative: the AST can be too deep for recursion
+	function searchNewline (root) {
+		var stack = [root]
+		while (stack.length) {
+			var st = stack.pop()
+			if (_.isArray(st)) {
+				for (var i = st.length - 1; i >= 0; i--) {
+					stack.push(st[i])
+				}
+			} else if (st && _.isPlainObject(st)) {
+				var keys = Object.keys(st)
+				for (var i = keys.length - 1; i >= 0; i--) {
+					stack.push(st[keys[i]])
+				}
+			} else if (_.isString(st) && st.includes('\n')) {
+				throw new Error(`Error parsing formula starting at line ${context.line} col ${context.col}: newline is not allowed in string '${st}'`)
 			}
-		} else if (st && _.isPlainObject(st)) {
-			var keys = Object.keys(st)
-			for (var i = 0; i < keys.length; i++) {
-				searchNewlineRecursive(st[keys[i]])
-			}
-		} else if (_.isString(st) && st.includes('\n')) {
-			throw new Error(`Error parsing formula starting at line ${context.line} col ${context.col}: newline is not allowed in string '${st}'`)
 		}
 	}
 
@@ -37,7 +42,7 @@ function validateFormula (formula, parserResults, context) {
 	} else if (parserResults.length !== 1) {
 		throw new Error(`Error parsing formula starting at line ${context.line} col ${context.col}: ambiguous parser result`)
 	} else {
-		searchNewlineRecursive(parserResults[0])
+		searchNewline(parserResults[0])
 	}
 }
 
