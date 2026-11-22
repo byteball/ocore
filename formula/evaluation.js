@@ -1361,6 +1361,8 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 							if (assignment_op === "=") {
 								if (typeof res === 'string' && res.length > constants.MAX_STATE_VAR_VALUE_LENGTH)
 									return setFatalError("state var value too long: " + res, { arr }, false, cb);
+								if (bPostPemCurvesFix && Decimal.isDecimal(res))
+									res = createDecimal(res); // balance[] returns unrounded values, which might have a different number of digits and storage size than the rounded value
 								stateVars[address][var_name].value = res;
 								stateVars[address][var_name].updated = true;
 								return cb(true);

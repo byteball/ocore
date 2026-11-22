@@ -1620,6 +1620,30 @@ test.cb('state var assignment with bStateVarAssignmentAllowed and without bState
 	})
 });
 
+function assignBalanceToStateVar(t, expected_value, restoreFixMci) {
+	var address = 'MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU';
+	var stateVars = {};
+	var vstate = _.clone(objValidationState);
+	vstate.assocBalances = { [address]: { base: 9999999999999998 } };
+	evalFormulaWithVars({ formula: "var['x'] = balance[base];", trigger: {}, locals: {}, stateVars, objValidationState: vstate, address, bStateVarAssignmentAllowed: true, bStatementsOnly: true }, res => {
+		if (restoreFixMci !== undefined)
+			constants.pemCurvesFixMci = restoreFixMci;
+		t.deepEqual(res, true);
+		t.deepEqual(stateVars[address].x.value.toNumber(), expected_value);
+		t.end();
+	});
+}
+
+// the stored value must be the same as what is read back later, otherwise storage_size drifts
+test.cb.serial('state var assignment of unrounded balance is rounded after pemCurvesFixMci', t => {
+	assignBalanceToStateVar(t, 1e16);
+});
+
+test.cb.serial('state var assignment of unrounded balance is not rounded before pemCurvesFixMci', t => {
+	constants.pemCurvesFixMci = 100000;
+	assignBalanceToStateVar(t, 9999999999999998, 0);
+});
+
 
 test.cb('state var assignment with locals and math', t => {
 	var stateVars = {MXMEKGN37H5QO2AWHT7XRG6LHJVVTAWU: {a: {value: new Decimal(10)}}};
