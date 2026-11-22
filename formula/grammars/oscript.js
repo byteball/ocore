@@ -169,6 +169,37 @@ function id(x) { return x[0]; }
 		return node;
 	}
 
+	// Valid formulas are far shallower; bounds the depth that nested parens x long chains could otherwise compound to.
+	const MAX_AST_DEPTH = MAX_CHAIN + 100;
+	let astDepths = new WeakMap();
+
+	// levels: how many untracked containers to look through
+	function childDepth(v, levels) {
+		if (!v || typeof v !== 'object')
+			return 0;
+		const depth = astDepths.get(v);
+		if (depth || !levels)
+			return depth || 0;
+		let max = 0;
+		if (Array.isArray(v))
+			for (let i = 0; i < v.length; i++)
+				max = Math.max(max, childDepth(v[i], levels - 1));
+		else if (Object.getPrototypeOf(v) === Object.prototype)
+			for (let k in v)
+				max = Math.max(max, childDepth(v[k], levels - 1));
+		return max;
+	}
+
+	function trackAstDepth(node) {
+		let max = 0;
+		// 2 levels: params -> {operator, value} -> expr, and a function body's main -> statements -> statement
+		for (let i = 0; i < node.length; i++)
+			max = Math.max(max, childDepth(node[i], 2));
+		if (max + 1 > MAX_AST_DEPTH)
+			throw new Error("expression is nested too deeply");
+		astDepths.set(node, max + 1);
+	}
+
 	function addLocation(returnValue, d, context) {
 		let token = null;
 		for (let i = 0; i < d.length; i++) {
@@ -206,6 +237,9 @@ function id(x) { return x[0]; }
 		if (context) {
 			returnValue.context = context;
 		}
+
+		if (Array.isArray(returnValue))
+			trackAstDepth(returnValue);
 		
 		return returnValue;
 	}

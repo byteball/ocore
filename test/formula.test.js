@@ -6746,6 +6746,29 @@ test('unbraced nested ifs: 100 parse, 101 are rejected', t => {
 	t.true(error.message.includes('nesting is too deep'));
 });
 
+[
+	['parens', inner => '(' + inner + ')'],
+	['an array', inner => '[' + inner + ']'],
+	['a dictionary', inner => '{a: ' + inner + '}'],
+	['a selector', inner => '$a[' + inner + ']'],
+	['search params', inner => '$a[[.b= ' + inner + ']]'],
+	['data_feed params', inner => 'data_feed[[oracles= ' + inner + ']]'],
+	['in_data_feed params', inner => 'in_data_feed[[oracles= ' + inner + ']]'],
+	['attestation params', inner => 'attestation[[attestors= ' + inner + ']]'],
+	['input params', inner => 'input[[amount= ' + inner + ']].amount'],
+	['output params', inner => 'output[[amount= ' + inner + ']].amount'],
+	['a function expression body', inner => 'map(1, 1, ($x) => ' + inner + ')'],
+	['a function block statement', inner => 'map(1, 1, ($x) => { $y = ' + inner + '; })'],
+	['a function block return value', inner => 'map(1, 1, ($x) => { ' + inner + ' })'],
+].forEach(([name, wrap]) => {
+	test('AST depth is counted through ' + name, t => {
+		const nots = '!'.repeat(1900) + ' ';
+		t.is(parseWithGrammar(nots + wrap('1')).length, 1);
+		const error = t.throws(() => parseWithGrammar(nots + wrap(nots + wrap('1'))));
+		t.true(error.message.includes('expression is nested too deeply'));
+	});
+});
+
 test('formulas are parsed with the old grammar before pemCurvesFixMci and the new one after', t => {
 	const dangling = 'if(1) if(2) $a=1; else $a=2;';
 	t.is(formulaCommon.parseFormula(dangling, true).length, 1);
