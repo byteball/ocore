@@ -15,6 +15,8 @@ let caches = {
 // Before pemCurvesFixMci, formulas must be parsed with the old grammar exactly as before the fix: old units get re-validated by new nodes.
 // Throws if the formula can't be parsed.
 function parseFormula(formula, bPostPemCurvesFix) {
+	if (typeof formula !== 'string')
+		throw Error("formula is not a string");
 	let c = bPostPemCurvesFix ? caches.post : caches.pre;
 	if (c.results[formula])
 		return c.results[formula];
