@@ -1290,11 +1290,11 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 									assignByPath(locals[var_name].obj, arrKeys, res);
 									if (isTooBigObj(locals[var_name].obj))
 										return setFatalError("mutated object is too big", { arr }, false, cb);
-									cb(true);
 								}
 								catch (e) {
-									setFatalError(e.toString(), { arr }, false, cb);
+									return setFatalError(e.toString(), { arr }, false, cb);
 								}
+								cb(true);
 							});
 						}
 						else { // regular assignment
