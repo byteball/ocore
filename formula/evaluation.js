@@ -118,11 +118,16 @@ exports.evaluate = function (opts, astTrace, xpath, callback) {
 	var fatal_error = false;
 	var early_return;
 	var count = 0;
+	let count_returns = 0;
 
 	function evaluate(arr, cb, bTopLevel) {
 		count++;
 		if (count % 100 === 0) // avoid extra long call stacks to prevent Maximum call stack size exceeded
 			return setImmediate(evaluate, arr, cb);
+		if (bPostPemCurvesFix) { // results of short-circuited ops climb back through the callbacks without calling evaluate()
+			const orig_cb = cb;
+			cb = res => (++count_returns % 100 === 0) ? setImmediate(orig_cb, res) : orig_cb(res);
+		}
 		if (fatal_error)
 			return cb(false);
 		if (early_return !== undefined)
