@@ -3365,6 +3365,8 @@ function callGetter(conn, aa_address, getter, args, stateVars, objValidationStat
 		// rewrite storage size with the storage size of the AA being called
 		objGetterValidationState.storage_size = storage_size;
 		var f = getFormula(arrBaseDefinition[1].getters);
+		if (f === null)
+			return cb("no getters found in this AA");
 		const caller_aa = callerInfo && callerInfo.caller_aa;
 		const call_line = callerInfo && callerInfo.call_line;
 		const call_xpath = callerInfo && callerInfo.call_xpath;
