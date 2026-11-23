@@ -33,7 +33,7 @@ if (secondary_path)
 let db;
 try {
 	db = RocksDatabase.open(path, db_options);
-	console.log("rocksdb compression: ", db?.compression, db?.getProperty("rocksdb.aggregated-table-properties"));
+	console.log("rocksdb compression: ", db?.compression);
 }
 catch (e) {
 	throw Error("rocksdb open failed (is the app already running?): " + e);
