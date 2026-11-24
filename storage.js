@@ -1212,10 +1212,14 @@ function getFinalTps(objUnitProps) {
 		throw Error(`no last ball of MC unit ${objMcUnitProps.unit} found in cache`);
 	const elapsed = (objMcUnitProps.timestamp - objLastBallUnitProps.timestamp) || elapsedTimeWhenZero;
 	const last_ball_mci = objLastBallUnitProps.main_chain_index;
-	let count = 1 + (objMcUnitProps.count_aa_responses || 0);
+	const getCountPaidResponses = props => props.count_primary_aa_triggers * (typeof props.max_aa_responses === "number" ? props.max_aa_responses : constants.MAX_RESPONSES_PER_PRIMARY_TRIGGER);
+	// responses not paid for locally come from triggers hidden by an old last ball, only units that hid triggers themselves pay for them
+	const bCountAllResponses = mci < constants.hiddenAATriggersUpgradeMci || (objUnitProps.count_aa_responses || 0) > getCountPaidResponses(objUnitProps);
+	const getCountResponses = props => bCountAllResponses ? (props.count_aa_responses || 0) : Math.min(props.count_aa_responses || 0, getCountPaidResponses(props));
+	let count = 1 + getCountResponses(objMcUnitProps);
 	let visited = {};
 	let arrProps = [objMcUnitProps];
-	visited[objMcUnitProps.unit] = 1 + (objMcUnitProps.count_aa_responses || 0);
+	visited[objMcUnitProps.unit] = 1 + getCountResponses(objMcUnitProps);
 
 	while (true) {
 		let arrParentProps = [];
@@ -1235,9 +1239,8 @@ function getFinalTps(objUnitProps) {
 					continue;
 				count++;
 				// count all AA responses, including those that didn't send a response unit
-				if (parentProps.count_aa_responses)
-					count += parentProps.count_aa_responses;
-				visited[parent_unit] = 1 + (parentProps.count_aa_responses || 0);
+				count += getCountResponses(parentProps);
+				visited[parent_unit] = 1 + getCountResponses(parentProps);
 				arrParentProps.push(parentProps);
 			}
 		}
@@ -1253,8 +1256,8 @@ function getFinalTps(objUnitProps) {
 				continue;
 			if (assocStableUnits[u.unit] !== u)
 				throw Error(`different objects for unit ${u.unit}: equal = ${_.isEqual(u, assocStableUnits[u.unit])}, assocStableUnitsByMci[${i}][n] = ${JSON.stringify(u)}, assocStableUnits[${u.unit}] = ${JSON.stringify(assocStableUnits[u.unit])}`);
-			countAll += 1 + (u.count_aa_responses || 0);
-			vAll[u.unit] = 1 + (u.count_aa_responses || 0);
+			countAll += 1 + getCountResponses(u);
+			vAll[u.unit] = 1 + getCountResponses(u);
 		}
 	}
 	if (countAll < count)
