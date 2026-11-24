@@ -34,6 +34,8 @@ var isEmptyObjectOrArray = ValidationUtils.isEmptyObjectOrArray;
 
 var testnetAAsDefinedByAAsAreActiveImmediatelyUpgradeMci = 1167000;
 
+const SECOND_PRIMARY_TRIGGER_ERROR = 'a second primary trigger from the same unit is not allowed';
+
 var TRANSFER_INPUT_SIZE = 0 // type: "transfer" omitted
 	+ 44 // unit
 	+ 8 // message_index
@@ -944,6 +946,8 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 			return finish(null);
 		bBouncing = true;
 		if (bSecondary)
+			return finish(null);
+		if (error === SECOND_PRIMARY_TRIGGER_ERROR) // no refund, the coins stay in the AA balance
 			return finish(null);
 		if ((trigger.outputs.base || 0) < bounce_fees.base)
 			return finish(null);
@@ -1883,6 +1887,9 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 	updateInitialAABalances(function (err) {
 
 		// these errors must be thrown after updating the balances
+		// goes first as the other errors could send a refund. Skip this check for dry-run which uses genesis unit as trigger unit
+		if (!bSecondary && trigger.unit !== constants.GENESIS_UNIT && !trigger_opts.bAir && storage.assocStableUnits[trigger.unit].count_aa_responses && mci >= constants.pemCurvesFixMci)
+			return bounce(SECOND_PRIMARY_TRIGGER_ERROR);
 		if (err)
 			return bounce(err);
 		if (arrResponses.length >= constants.MAX_RESPONSES_PER_PRIMARY_TRIGGER) // max number of responses per primary trigger, over all branches stemming from the primary trigger
@@ -1899,9 +1906,6 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 					return bounce('received ' + asset + ' is not enough to cover bounce fees');
 				}
 			}
-			// skip this check for dry-run which uses genesis unit as trigger unit
-			if (trigger.unit !== constants.GENESIS_UNIT && !trigger_opts.bAir && storage.assocStableUnits[trigger.unit].count_aa_responses && mci >= constants.pemCurvesFixMci)
-				return bounce('a second primary trigger from the same unit is not allowed');
 		}
 
 		evaluateAA(arrDefinition, function (err) {
