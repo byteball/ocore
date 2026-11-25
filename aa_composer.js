@@ -1319,6 +1319,8 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 				return bounce("negative or fractional amounts");
 			// filter out 0-outputs
 			payload.outputs = payload.outputs.filter(function (output) { return (output.amount > 0 || output.amount === undefined); });
+			if (payload.outputs.some(o => o.amount > constants.MAX_CAP))
+				return bounce("amount exceeds MAX_CAP");
 		}
 		const frozen_error = getFrozenAssetError(messages);
 		if (frozen_error)
