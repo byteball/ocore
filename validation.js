@@ -151,8 +151,16 @@ function validate(objJoint, callbacks, external_conn) {
 			return callbacks.ifTransientError("possible AA");
 	}
 	
-	if (isTooDeeplyNestedOrHasTooManyNodes(objUnit))
-		return bAA ? callbacks.ifUnitError("unit is too deeply nested") : callbacks.ifJointError("unit is too deeply nested");
+	if (bAA) {
+		// exempt payment messages, which can sweep dust
+		const obj = aa_mci >= constants.pemCurvesFixMci ? objUnit.messages.filter(m => m.app !== 'payment') : objUnit;
+		if (isTooDeeplyNestedOrHasTooManyNodes(obj))
+			return callbacks.ifUnitError("AA unit is too deeply nested or has too many nodes");
+	}
+	else {
+		if (isTooDeeplyNestedOrHasTooManyNodes(objUnit))
+			return callbacks.ifJointError("unit is too deeply nested or has too many nodes");
+	}
 
 	if (!isObjectWellFormed(objJoint))
 		return bAA ? callbacks.ifUnitError("unit contains invalid string (lone surrogate or null byte)") : callbacks.ifJointError("unit contains invalid string (lone surrogate or null byte)");
