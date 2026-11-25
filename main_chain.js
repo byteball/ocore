@@ -1952,6 +1952,8 @@ function getSimilarMcis(mci){
 	if (mci === 0)
 		return [];
 	var arrSimilarMcis = [];
+	if (mci <= 0)
+		return arrSimilarMcis;
 	var divisor = 10;
 	while (true){
 		if (mci % divisor === 0){
