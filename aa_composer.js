@@ -1529,7 +1529,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 				if (!state.updated)
 					continue;
 				if (state.value === true)
-					state.value = 1; // affects secondary triggers that execute after ours
+					state.value = (mci >= constants.hiddenAATriggersUpgradeMci) ? new Decimal(1) : 1; // affects secondary triggers that execute after ours
 			}
 		}
 	}
