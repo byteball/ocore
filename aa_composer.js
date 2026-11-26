@@ -1133,6 +1133,8 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 			let target_amount = net_target_amount + getOversizeFee(size);
 			var bFound = false;
 
+			const dust_threshold = FULL_TRANSFER_INPUT_SIZE + (mci >= constants.hiddenAATriggersUpgradeMci ? 1 : 0);
+
 			function getOversizeFee(s) {
 				if (!bChargeOversizeFee)
 					return 0;
@@ -1188,7 +1190,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 					"SELECT unit, message_index, output_index, amount, output_id \n\
 					FROM outputs \n\
 					CROSS JOIN units USING(unit) \n\
-					WHERE address=? AND asset"+(asset ? "="+conn.escape(asset) : " IS NULL AND amount>=" + FULL_TRANSFER_INPUT_SIZE)+" AND is_spent=0 \n\
+					WHERE address=? AND asset"+(asset ? "="+conn.escape(asset) : " IS NULL AND amount>=" + dust_threshold)+" AND is_spent=0 \n\
 						AND sequence='good' AND main_chain_index<=? \n\
 						AND output_id NOT IN("+(arrUsedOutputIds.length === 0 ? "-1" : arrUsedOutputIds.join(', '))+") \n\
 					ORDER BY main_chain_index, unit, output_index", // sort order must be deterministic
@@ -1206,7 +1208,7 @@ function handleTrigger(conn, batch, trigger, params, stateVars, arrDefinition, a
 					CROSS JOIN units USING(unit) \n\
 					CROSS JOIN unit_authors USING(unit) \n\
 					CROSS JOIN aa_addresses ON unit_authors.address=aa_addresses.address \n\
-					WHERE outputs.address=? AND asset"+(asset ? "="+conn.escape(asset) : " IS NULL AND amount>="+FULL_TRANSFER_INPUT_SIZE)+" AND is_spent=0 \n\
+					WHERE outputs.address=? AND asset"+(asset ? "="+conn.escape(asset) : " IS NULL AND amount>="+dust_threshold)+" AND is_spent=0 \n\
 						AND sequence='good' AND (main_chain_index>? OR main_chain_index IS NULL) \n\
 						AND output_id NOT IN("+(arrUsedOutputIds.length === 0 ? "-1" : arrUsedOutputIds.join(', '))+") \n\
 					ORDER BY latest_included_mc_index, level, outputs.unit, output_index", // sort order must be deterministic
