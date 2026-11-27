@@ -72,6 +72,8 @@ function validatePrivatePayment(conn, objPrivateElement, objPrevPrivateElement, 
 		return callbacks.ifError("bad blinding in output");
 	if (ValidationUtils.hasFieldsExcept(objPrivateElement.output, ["address", "blinding"]))
 		return callbacks.ifError("unknown fields in output");
+	if (!payload.outputs.every(o => ValidationUtils.isNonemptyObject(o) && !ValidationUtils.hasFieldsExcept(o, ["amount", "output_hash"])))
+		return callbacks.ifError("unknown fields in hidden outputs");
 	try {
 		var expected_output_hash = objectHash.getBase64Hash(objPrivateElement.output);
 	}
