@@ -70,6 +70,8 @@ function validatePrivatePayment(conn, objPrivateElement, objPrevPrivateElement, 
 		return callbacks.ifError("bad address in output");
 	if (!ValidationUtils.isNonemptyString(objPrivateElement.output.blinding))
 		return callbacks.ifError("bad blinding in output");
+	if (ValidationUtils.hasFieldsExcept(objPrivateElement.output, ["address", "blinding"]))
+		return callbacks.ifError("unknown fields in output");
 	try {
 		var expected_output_hash = objectHash.getBase64Hash(objPrivateElement.output);
 	}
